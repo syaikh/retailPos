@@ -30,7 +30,7 @@ export const user = createPersistentStore('user', null);
 export const token = createPersistentStore('token', null);
 
 export const cart = writable([]);
-export const products = writable([]);
+export const products = writable([]); // Initialize with empty array to prevent null errors
 
 export function logout() {
   user.set(null);

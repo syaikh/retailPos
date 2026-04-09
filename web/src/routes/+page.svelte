@@ -20,9 +20,15 @@
   onMount(async () => {
     // In a real app, these would come from a /stats or /dashboard endpoint
     // For now, we'll fetch products to count low stock
-    const resp = await api.get('/products');
-    products.set(resp.data);
-    stats.lowStockItems = resp.data.filter(p => p.stock < 10).length;
+    try {
+      const resp = await api.get('/products');
+      const data = Array.isArray(resp.data) ? resp.data : [];
+      products.set(data);
+      stats.lowStockItems = data.filter(p => p.stock < 10).length;
+    } catch (e) {
+      console.error('Failed to fetch products:', e);
+      products.set([]);
+    }
     
     // Placeholder stats
     stats.todaySales = 2450000;
@@ -96,7 +102,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each $products.filter(p => p.stock < 10).slice(0, 5) as p}
+            {#each $products && $products.filter(p => p.stock < 10).slice(0, 5) || [] as p}
               <tr>
                 <td><code>{p.sku}</code></td>
                 <td>{p.name}</td>

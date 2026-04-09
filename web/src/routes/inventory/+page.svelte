@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { products } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { 
@@ -15,6 +15,18 @@
   let showModal = $state(false);
   let editingProduct = $state(null);
   let loading = $state(false);
+  let searchInput = $state(null);
+
+  function autofocus(node) {
+    requestAnimationFrame(() => {
+      node.focus({ preventScroll: true });
+    });
+    return {
+      destroy() {
+        // no cleanup needed
+      }
+    };
+  }
 
   // Form state
   let form = $state({
@@ -26,11 +38,23 @@
 
   onMount(fetchProducts);
 
+  $effect(() => {
+    if (!showModal && searchInput) {
+      requestAnimationFrame(() => {
+        searchInput.focus({ preventScroll: true });
+      });
+    }
+  });
+
   async function fetchProducts() {
     loading = true;
     try {
       const resp = await api.get('/products');
-      products.set(resp.data);
+      const data = Array.isArray(resp.data) ? resp.data : [];
+      products.set(data);
+    } catch (e) {
+      console.error('Failed to fetch products:', e);
+      products.set([]);
     } finally {
       loading = false;
     }
@@ -73,10 +97,13 @@
     }
   }
 
-  let filtered = $derived($products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.sku.includes(searchQuery)
-  ));
+  let filtered = $derived.by(() => {
+    if (!$products) return [];
+    return $products.filter(p => 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.sku.includes(searchQuery)
+    );
+  });
 </script>
 
 <div class="inventory-container">
@@ -94,7 +121,13 @@
   <div class="actions premium-card glass">
     <div class="search-wrapper">
       <span class="icon"><Search size={18} /></span>
-      <input type="text" placeholder="Cari SKU atau nama barang..." bind:value={searchQuery} />
+      <input
+        type="text"
+        placeholder="Cari SKU atau nama barang..."
+        bind:value={searchQuery}
+        bind:this={searchInput}
+        use:autofocus
+      />
     </div>
   </div>
 
@@ -148,12 +181,12 @@
       <h2>{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</h2>
       <form onsubmit={handleSubmit}>
         <div class="form-group">
-          <label for="product-name">Nama Produk</label>
-          <input id="product-name" type="text" bind:value={form.name} required />
+          <label for="product-sku">SKU / Barcode</label>
+          <input id="product-sku" type="text" bind:value={form.sku} required use:autofocus />
         </div>
         <div class="form-group">
-          <label for="product-sku">SKU / Barcode</label>
-          <input id="product-sku" type="text" bind:value={form.sku} required />
+          <label for="product-name">Nama Produk</label>
+          <input id="product-name" type="text" bind:value={form.name} required />
         </div>
         <div class="form-row">
           <div class="form-group">

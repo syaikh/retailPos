@@ -10,7 +10,8 @@
     Minus, 
     CreditCard, 
     Banknote,
-    Search
+    Search,
+    Package
   } from 'lucide-svelte';
 
   let barcodeInput = $state('');
@@ -54,8 +55,14 @@
   });
 
   async function fetchProducts() {
-    const resp = await api.get('/products');
-    productsStore.set(resp.data);
+    try {
+      const resp = await api.get('/products');
+      const data = Array.isArray(resp.data) ? resp.data : [];
+      productsStore.set(data);
+    } catch (e) {
+      console.error('Failed to fetch products:', e);
+      productsStore.set([]);
+    }
   }
 
   let barcodeBuffer = '';
@@ -153,10 +160,13 @@
     }
   }
 
-  let filteredProducts = $derived($productsStore.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.sku.includes(searchQuery)
-  ));
+  let filteredProducts = $derived.by(() => {
+    if (!searchQuery.trim() || !$productsStore) return [];
+    return $productsStore.filter(p => 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.sku.includes(searchQuery)
+    );
+  });
 </script>
 
 <div class="pos-container">
@@ -172,17 +182,51 @@
       />
     </div>
 
-    <div class="product-grid">
-      {#each filteredProducts as product}
-        <button class="product-card premium-card" onclick={() => addToCart(product)} disabled={product.stock <= 0}>
-          <div class="stock-badge" class:out={product.stock <= 0}>
-            Stok: {product.stock}
-          </div>
-          <div class="sku">{product.sku}</div>
-          <div class="name">{product.name}</div>
-          <div class="price">Rp {product.price.toLocaleString()}</div>
-        </button>
-      {/each}
+    <div class="product-table-container premium-card">
+      {#if !searchQuery.trim()}
+        <div class="empty-search-state">
+          <Search size={64} />
+          <h3>Mulai Pencarian</h3>
+          <p>Ketik nama produk atau scan barcode untuk menemukan item</p>
+        </div>
+      {:else if filteredProducts.length === 0}
+        <div class="empty-search-state">
+          <Package size={64} />
+          <h3>Produk Tidak Ditemukan</h3>
+          <p>Format: <code>{searchQuery}</code></p>
+        </div>
+      {:else}
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nama Produk</th>
+              <th>Harga</th>
+              <th>Stok</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredProducts as product}
+              <tr class:disabled={product.stock <= 0}>
+                <td><code>{product.sku}</code></td>
+                <td><strong>{product.name}</strong></td>
+                <td class="price">Rp {product.price.toLocaleString()}</td>
+                <td>
+                  <span class="stock-badge" class:out={product.stock <= 0}>
+                    {product.stock} {product.stock <= 0 ? 'habis' : 'pcs'}
+                  </span>
+                </td>
+                <td>
+                  <button class="add-cart-btn" onclick={() => addToCart(product)} disabled={product.stock <= 0}>
+                    <Plus size={16} />
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
     </div>
   </div>
 
@@ -242,7 +286,7 @@
 <style>
   .pos-container {
     display: grid;
-    grid-template-columns: 1fr 400px;
+    grid-template-columns: 1fr 320px;
     gap: 24px;
     height: calc(100vh - 120px);
   }
@@ -269,59 +313,133 @@
     font-size: 1.1rem;
   }
 
-  .product-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  .product-table-container {
+    overflow: auto;
+    max-height: 100%;
+  }
+
+  .empty-search-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 300px;
+    color: var(--text-secondary);
+    text-align: center;
     gap: 16px;
+    padding: 40px 20px;
   }
 
-  .product-card {
+  .empty-search-state h3 {
+    font-size: 1.25rem;
+    color: #e2e8f0;
+    margin: 0;
+  }
+
+  .empty-search-state p {
+    max-width: 300px;
+    margin: 0;
+  }
+
+  .empty-search-state code {
+    background: #0f172a;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--accent);
+    font-size: 0.85rem;
+  }
+
+  .product-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1e293b;
+  }
+
+  .product-table thead {
+    background: #0f172a;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .product-table th {
+    padding: 14px 12px;
     text-align: left;
-    position: relative;
-    padding: 16px;
-    transition: transform 0.2s, border-color 0.2s;
+    font-weight: 600;
+    color: var(--accent);
+    border-bottom: 2px solid var(--primary);
+    font-size: 0.875rem;
+    text-transform: uppercase;
   }
 
-  .product-card:hover:not(:disabled) {
-    transform: translateY(-4px);
-    border-color: var(--primary);
+  .product-table tbody tr {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    transition: background-color 0.2s;
   }
 
-  .product-card:disabled {
+  .product-table tbody tr:hover:not(.disabled) {
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  .product-table tbody tr.disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    background: rgba(239, 68, 68, 0.05);
+  }
+
+  .product-table td {
+    padding: 12px;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+  }
+
+  .product-table code {
+    background: #0f172a;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: monospace;
+    font-size: 0.85rem;
+  }
+
+  .product-table .price {
+    font-weight: 700;
+    color: var(--accent);
   }
 
   .stock-badge {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    font-size: 0.75rem;
-    padding: 2px 8px;
+    display: inline-block;
+    font-size: 0.8rem;
+    padding: 4px 10px;
     border-radius: 99px;
-    background: var(--success);
-    color: white;
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    font-weight: 600;
   }
 
   .stock-badge.out {
-    background: var(--danger);
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
   }
 
-  .sku {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    margin-bottom: 4px;
+  .add-cart-btn {
+    background: var(--primary);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
   }
 
-  .name {
-    font-weight: 600;
-    font-size: 1rem;
-    margin-bottom: 8px;
+  .add-cart-btn:hover:not(:disabled) {
+    background: #5b61f5;
   }
 
-  .price {
-    font-weight: 800;
-    color: var(--accent);
+  .add-cart-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .cart-area {
