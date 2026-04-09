@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 	"retailPos/internal/auth"
-	"retailPos/internal/model"
+	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 	"retailPos/internal/service"
 	"strings"

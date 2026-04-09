@@ -3,7 +3,7 @@ package auth
 import (
 	"errors"
 	"os"
-	"retailPos/internal/model"
+	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 	"time"
 

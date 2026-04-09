@@ -1,3 +1,4 @@
+<script>
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { user, logout } from '$lib/stores.js';
@@ -39,7 +40,7 @@
         <button 
           class="nav-item" 
           class:active={activePath === item.path}
-          on:click={() => push(item.path)}
+          on:click={() => goto(item.path)}
         >
           <svelte:component this={item.icon} size={20} />
           <span>{item.name}</span>

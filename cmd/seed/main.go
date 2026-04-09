@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 	"retailPos/internal/auth"
-	"retailPos/internal/model"
+	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 
 	"github.com/joho/godotenv"

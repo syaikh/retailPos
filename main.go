@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"retailPos/internal/auth"
 	"retailPos/internal/handler"

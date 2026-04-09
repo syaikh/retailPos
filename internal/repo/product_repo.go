@@ -2,7 +2,7 @@ package repo
 
 import (
 	"database/sql"
-	"retailPos/internal/model"
+	model "retailPos/internal/model"
 )
 
 type ProductRepo struct {

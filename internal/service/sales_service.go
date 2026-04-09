@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"retailPos/internal/model"
+	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 	"retailPos/internal/ws"
 )
