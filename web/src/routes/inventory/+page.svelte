@@ -66,6 +66,9 @@
     showModal = true;
   }
 
+  /**
+     * @param {{ name: string; sku: string; price: number; stock: number; }} p
+     */
   function openEdit(p) {
     editingProduct = p;
     form = { ...p };
