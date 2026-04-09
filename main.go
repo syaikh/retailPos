@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"retailPos/internal/auth"
 	"retailPos/internal/handler"
 	"retailPos/internal/repo"
 	"retailPos/internal/service"
 	"retailPos/internal/ws"
+	"syscall"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -70,13 +76,65 @@ func main() {
 		}
 	}
 
+	// Resolve build directory relative to the working directory first,
+	// then fall back to the executable path for installed binaries.
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("failed to get working directory: %v", err)
+	}
+	buildDir := filepath.Join(cwd, "web", "build")
+	if _, err := os.Stat(buildDir); os.IsNotExist(err) {
+		exePath, err := os.Executable()
+		if err != nil {
+			log.Fatalf("failed to determine executable path: %v", err)
+		}
+		buildDir = filepath.Join(filepath.Dir(exePath), "web", "build")
+	}
+
+	// Serve built frontend static files
+	r.Static("/_app", filepath.Join(buildDir, "_app"))
+	r.StaticFile("/index.html", filepath.Join(buildDir, "index.html"))
+
+	// Root page and SPA fallback for client-side routing
+	r.GET("/", func(c *gin.Context) {
+		c.File(filepath.Join(buildDir, "index.html"))
+	})
+	r.NoRoute(func(c *gin.Context) {
+		if c.Request.Method != "GET" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+		c.File(filepath.Join(buildDir, "index.html"))
+	})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("Server starting on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("failed to start server: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server stopped")
 }

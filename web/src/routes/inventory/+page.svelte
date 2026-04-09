@@ -48,7 +48,8 @@
     showModal = true;
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(event) {
+    event.preventDefault();
     try {
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, form);
@@ -84,7 +85,7 @@
       <Package size={32} color="var(--primary)" />
       <h1>Manajemen Barang</h1>
     </div>
-    <button class="add-btn" on:click={openCreate}>
+    <button class="add-btn" onclick={openCreate}>
       <Plus size={20} />
       Tambah Produk
     </button>
@@ -92,7 +93,7 @@
 
   <div class="actions premium-card glass">
     <div class="search-wrapper">
-      <Search size={18} class="icon" />
+      <span class="icon"><Search size={18} /></span>
       <input type="text" placeholder="Cari SKU atau nama barang..." bind:value={searchQuery} />
     </div>
   </div>
@@ -121,10 +122,10 @@
             </td>
             <td>
               <div class="row-actions">
-                <button class="edit-btn" on:click={() => openEdit(p)} title="Edit">
+                <button class="edit-btn" onclick={() => openEdit(p)} title="Edit">
                   <Edit size={18} />
                 </button>
-                <button class="del-btn" on:click={() => deleteProduct(p.id)} title="Hapus">
+                <button class="del-btn" onclick={() => deleteProduct(p.id)} title="Hapus">
                   <Trash2 size={18} />
                 </button>
               </div>
@@ -145,27 +146,27 @@
   <div class="modal-overlay">
     <div class="modal premium-card">
       <h2>{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</h2>
-      <form on:submit|preventDefault={handleSubmit}>
+      <form onsubmit={handleSubmit}>
         <div class="form-group">
-          <label>Nama Produk</label>
-          <input type="text" bind:value={form.name} required />
+          <label for="product-name">Nama Produk</label>
+          <input id="product-name" type="text" bind:value={form.name} required />
         </div>
         <div class="form-group">
-          <label>SKU / Barcode</label>
-          <input type="text" bind:value={form.sku} required />
+          <label for="product-sku">SKU / Barcode</label>
+          <input id="product-sku" type="text" bind:value={form.sku} required />
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Harga Jual (Rp)</label>
-            <input type="number" bind:value={form.price} required min="0" />
+            <label for="product-price">Harga Jual (Rp)</label>
+            <input id="product-price" type="number" bind:value={form.price} required min="0" />
           </div>
           <div class="form-group">
-            <label>Stok Awal</label>
-            <input type="number" bind:value={form.stock} required min="0" />
+            <label for="product-stock">Stok Awal</label>
+            <input id="product-stock" type="number" bind:value={form.stock} required min="0" />
           </div>
         </div>
         <div class="modal-actions">
-          <button type="button" class="cancel-btn" on:click={() => showModal = false}>Batal</button>
+          <button type="button" class="cancel-btn" onclick={() => showModal = false}>Batal</button>
           <button type="submit" class="save-btn">Simpan</button>
         </div>
       </form>

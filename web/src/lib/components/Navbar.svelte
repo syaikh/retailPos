@@ -124,8 +124,4 @@
     color: var(--text-secondary);
     text-transform: capitalize;
   }
-
-  .chevron {
-    color: var(--text-secondary);
-  }
 </style>

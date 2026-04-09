@@ -37,20 +37,20 @@
   <nav class="nav-links">
     {#each menuItems as item}
       {#if item.roles.includes(role)}
-        <button 
-          class="nav-item" 
+        <a
+          class="nav-item"
           class:active={activePath === item.path}
-          on:click={() => goto(item.path)}
+          href={item.path}
         >
-          <svelte:component this={item.icon} size={20} />
+          <item.icon size={20} />
           <span>{item.name}</span>
-        </button>
+        </a>
       {/if}
     {/each}
   </nav>
 
   <div class="footer">
-    <button class="logout-btn" on:click={handleLogout}>
+    <button class="logout-btn" onclick={handleLogout}>
       <LogOut size={20} />
       <span>Logout</span>
     </button>
@@ -93,9 +93,23 @@
     gap: 12px;
     padding: 12px 16px;
     background: transparent;
+    border: none;
     color: var(--text-secondary);
     text-align: left;
     width: 100%;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .nav-item.active {
+    background: var(--primary);
+    color: white;
   }
 
   .nav-item:hover {

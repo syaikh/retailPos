@@ -1,6 +1,8 @@
 <script>
   import { user, token } from '$lib/stores.js';
   import api from '$lib/api.js';
+  import { goto } from '$app/navigation';
+  import { invalidateAll } from '$app/navigation';
   import { LogIn, Key, User } from 'lucide-svelte';
 
   let username = $state('');
@@ -8,15 +10,17 @@
   let error = $state('');
   let loading = $state(false);
 
-  async function handleLogin() {
+  async function handleLogin(event) {
+    event.preventDefault();
     error = '';
     loading = true;
     try {
       const resp = await api.post('/login', { username, password });
       user.set(resp.data.user);
       token.set(resp.data.token);
-      localStorage.setItem('user', JSON.stringify(resp.data.user));
-      localStorage.setItem('token', resp.data.token);
+      // Invalidate all data and navigate to dashboard
+      await invalidateAll();
+      goto('/', { replaceState: true });
     } catch (e) {
       error = e.response?.data?.error || 'Login failed';
     } finally {
@@ -33,11 +37,11 @@
       <p>Masuk ke sistem kasir & stok</p>
     </div>
 
-    <form on:submit|preventDefault={handleLogin}>
+    <form onsubmit={handleLogin}>
       <div class="field">
         <label for="username">Username</label>
         <div class="input-wrapper">
-          <User size={18} class="icon" />
+          <span class="icon"><User size={18} /></span>
           <input type="text" id="username" bind:value={username} placeholder="Username admin/cashier" required />
         </div>
       </div>
@@ -45,7 +49,7 @@
       <div class="field">
         <label for="password">Password</label>
         <div class="input-wrapper">
-          <Key size={18} class="icon" />
+          <span class="icon"><Key size={18} /></span>
           <input type="password" id="password" bind:value={password} placeholder="••••••••" required />
         </div>
       </div>

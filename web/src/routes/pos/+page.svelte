@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { tick } from 'svelte';
   import { cart as cartStore, products as productsStore } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { 
@@ -17,10 +18,11 @@
   let ws;
   let checkoutLoading = $state(false);
   let paymentMethod = $state('cash');
+  let searchInput;
 
   let total = $derived($cartStore.reduce((sum, item) => sum + (item.price * item.quantity), 0));
 
-  onMount(() => {
+  onMount(async () => {
     // 1. Fetch initial products
     fetchProducts();
 
@@ -38,6 +40,12 @@
 
     // 3. Barcode Scanner Handler (HID Keyboard)
     window.addEventListener('keydown', handleGlobalKeydown);
+
+    // 4. Autofocus search input
+    await tick();
+    if (searchInput) {
+      searchInput.focus();
+    }
   });
 
   onDestroy(() => {
@@ -155,13 +163,18 @@
   <!-- Left Side: Product Selection -->
   <div class="product-area">
     <div class="search-bar premium-card glass">
-      <Search size={20} class="icon" />
-      <input type="text" placeholder="Cari produk atau scan barcode..." bind:value={searchQuery} />
+      <span class="icon"><Search size={20} /></span>
+      <input 
+        type="text" 
+        placeholder="Cari produk atau scan barcode..." 
+        bind:value={searchQuery}
+        bind:this={searchInput}
+      />
     </div>
 
     <div class="product-grid">
       {#each filteredProducts as product}
-        <button class="product-card premium-card" on:click={() => addToCart(product)} disabled={product.stock <= 0}>
+        <button class="product-card premium-card" onclick={() => addToCart(product)} disabled={product.stock <= 0}>
           <div class="stock-badge" class:out={product.stock <= 0}>
             Stok: {product.stock}
           </div>
@@ -177,7 +190,7 @@
   <aside class="cart-area premium-card glass">
     <div class="cart-header">
       <h2>Keranjang</h2>
-      <button class="clear-btn" on:click={() => cartStore.set([])}>Clear</button>
+      <button class="clear-btn" onclick={() => cartStore.set([])}>Clear</button>
     </div>
 
     <div class="cart-items">
@@ -194,10 +207,10 @@
               <div class="item-price">Rp {item.price.toLocaleString()}</div>
             </div>
             <div class="item-actions">
-              <button class="qty-btn" on:click={() => updateQty(item.id, -1)}><Minus size={14}/></button>
+              <button class="qty-btn" onclick={() => updateQty(item.id, -1)}><Minus size={14}/></button>
               <span class="qty">{item.quantity}</span>
-              <button class="qty-btn" on:click={() => updateQty(item.id, 1)}><Plus size={14}/></button>
-              <button class="remove-btn" on:click={() => removeFromCart(item.id)}><Trash2 size={16}/></button>
+              <button class="qty-btn" onclick={() => updateQty(item.id, 1)}><Plus size={14}/></button>
+              <button class="remove-btn" onclick={() => removeFromCart(item.id)}><Trash2 size={16}/></button>
             </div>
           </div>
         {/each}
@@ -206,10 +219,10 @@
 
     <div class="cart-footer">
       <div class="payment-methods">
-        <button class="method-btn" class:active={paymentMethod === 'cash'} on:click={() => paymentMethod = 'cash'}>
+        <button class="method-btn" class:active={paymentMethod === 'cash'} onclick={() => paymentMethod = 'cash'}>
           <Banknote size={18} /> Tunai
         </button>
-        <button class="method-btn" class:active={paymentMethod === 'card'} on:click={() => paymentMethod = 'card'}>
+        <button class="method-btn" class:active={paymentMethod === 'card'} onclick={() => paymentMethod = 'card'}>
           <CreditCard size={18} /> Kartu
         </button>
       </div>
@@ -219,7 +232,7 @@
         <span class="total-price">Rp {total.toLocaleString()}</span>
       </div>
 
-      <button class="checkout-btn" disabled={checkoutLoading || $cartStore.length === 0} on:click={handleCheckout}>
+      <button class="checkout-btn" disabled={checkoutLoading || $cartStore.length === 0} onclick={handleCheckout}>
         {checkoutLoading ? 'Processing...' : 'BAYAR SEKARANG'}
       </button>
     </div>
