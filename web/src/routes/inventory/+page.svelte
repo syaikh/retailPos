@@ -1,5 +1,6 @@
 <script>
   import { onMount, tick } from 'svelte';
+  import { page } from '$app/stores';
   import { products } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { 
@@ -10,6 +11,7 @@
     Package,
     AlertCircle
   } from 'lucide-svelte';
+  import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 
   let searchQuery = $state('');
   let showModal = $state(false);
@@ -21,6 +23,28 @@
 
   let sortField = $state('');
   let sortDir = $state('asc');
+  
+  /** @type {string | number} */
+  let selectedGroupFilter = $state('all');
+
+  let groupOptions = $derived([
+    { value: 'all', label: 'Semua Kategori' },
+    ...groups.map(g => ({ value: g.id, label: g.name }))
+  ]);
+
+  let formGroupOptions = $derived([
+    { value: null, label: 'Tanpa Kategori' },
+    ...groups.map(g => ({ value: g.id, label: g.name }))
+  ]);
+
+  $effect(() => {
+    const groupParam = $page.url.searchParams.get('group');
+    if (groupParam) {
+      selectedGroupFilter = parseInt(groupParam, 10);
+    } else {
+      selectedGroupFilter = 'all';
+    }
+  });
 
   function autofocus(node) {
     requestAnimationFrame(() => {
@@ -86,8 +110,8 @@
   }
 
   /**
-     * @param {{ name: string; sku: string; price: number; stock: number; }} p
-     */
+   * @param {{ id: number; name: string; sku: string; price: number; stock: number; group_id: number | null; }} p
+   */
   function openEdit(p) {
     editingProduct = p;
     form = { ...p };
@@ -133,7 +157,8 @@
     let _filtered = $products.filter(p => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.includes(searchQuery);
       const matchStock = hideEmptyStock ? p.stock > 0 : true;
-      return matchSearch && matchStock;
+      const matchGroup = selectedGroupFilter === 'all' || p.group_id === selectedGroupFilter;
+      return matchSearch && matchStock && matchGroup;
     });
 
     if (sortField) {
@@ -170,15 +195,22 @@
     </button>
   </div>
 
-  <div class="actions premium-card glass" style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
-    <div class="search-wrapper">
-      <span class="icon"><Search size={18} /></span>
-      <input
-        type="text"
-        placeholder="Cari SKU atau nama barang..."
-        bind:value={searchQuery}
-        bind:this={searchInput}
-        use:autofocus
+  <div class="actions premium-card glass">
+    <div class="action-filters">
+      <div class="search-wrapper">
+        <span class="icon"><Search size={18} /></span>
+        <input
+          type="text"
+          placeholder="Cari SKU atau nama barang..."
+          bind:value={searchQuery}
+          bind:this={searchInput}
+          use:autofocus
+        />
+      </div>
+      <SearchableSelect 
+        options={groupOptions} 
+        bind:value={selectedGroupFilter} 
+        width="220px" 
       />
     </div>
     <label class="stock-filter">
@@ -266,12 +298,12 @@
         </div>
         <div class="form-group">
           <label for="product-group">Kategori</label>
-          <select id="product-group" bind:value={form.group_id} class="select-input">
-            <option value={null}>Tanpa Kategori</option>
-            {#each groups as g}
-              <option value={g.id}>{g.name}</option>
-            {/each}
-          </select>
+          <SearchableSelect 
+            options={formGroupOptions} 
+            bind:value={form.group_id} 
+            placeholder="Pilih Kategori" 
+            width="100%"
+          />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -320,8 +352,26 @@
     gap: 8px;
   }
 
+  .actions {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 16px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .action-filters {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex: 1;
+  }
+
   .search-wrapper {
     position: relative;
+    flex: 1;
+    min-width: 250px;
     max-width: 400px;
   }
 
@@ -335,7 +385,19 @@
 
   .search-wrapper input {
     width: 100%;
-    padding-left: 40px;
+    padding: 10px 10px 10px 40px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-wrapper input:focus {
+    border-color: var(--primary);
   }
 
   .stock-filter {
@@ -346,7 +408,7 @@
     cursor: pointer;
     font-size: 0.9rem;
   }
-  
+
   .stock-filter input {
     cursor: pointer;
   }
@@ -435,10 +497,6 @@
 
   .form-group input {
     width: 100%;
-  }
-
-  .select-input {
-    width: 100%;
     padding: 10px 12px;
     background: #0f172a;
     border: 1px solid var(--border);
@@ -446,9 +504,9 @@
     border-radius: 6px;
     font-family: inherit;
     font-size: 1rem;
-    cursor: pointer;
   }
-  .select-input:focus {
+  
+  .form-group input:focus {
     outline: none;
     border-color: var(--primary);
   }

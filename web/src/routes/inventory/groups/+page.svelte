@@ -126,7 +126,11 @@
         {#each sortedGroups as g}
           <tr>
             <td><code>{g.id}</code></td>
-            <td><strong>{g.name}</strong></td>
+            <td>
+              <a href="/inventory?group={g.id}" class="group-link">
+                <strong>{g.name}</strong>
+              </a>
+            </td>
             <td>{g.description || '-'}</td>
             <td>
               <div class="row-actions">
@@ -209,6 +213,17 @@
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--accent);
+  }
+
+  .group-link {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .group-link:hover {
+    color: #818cf8;
+    text-decoration: underline;
   }
 
   th.sortable {
