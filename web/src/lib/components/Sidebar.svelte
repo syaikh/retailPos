@@ -6,6 +6,7 @@
     LayoutDashboard, 
     ShoppingCart, 
     Package, 
+    Tags,
     BarChart3, 
     LogOut,
     Store
@@ -17,6 +18,7 @@
     { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['admin', 'cashier'] },
     { name: 'POS / Kasir', icon: ShoppingCart, path: '/pos', roles: ['admin', 'cashier'] },
     { name: 'Inventory', icon: Package, path: '/inventory', roles: ['admin'] },
+    { name: 'Kategori', icon: Tags, path: '/inventory/groups', roles: ['admin'] },
     { name: 'Laporan', icon: BarChart3, path: '/reports', roles: ['admin'] },
   ];
 

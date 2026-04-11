@@ -16,6 +16,11 @@
   let editingProduct = $state(null);
   let loading = $state(false);
   let searchInput = $state(null);
+  let hideEmptyStock = $state(true); // Default disembunyikan sesuai keluhan user
+  let groups = $state([]);
+
+  let sortField = $state('');
+  let sortDir = $state('asc');
 
   function autofocus(node) {
     requestAnimationFrame(() => {
@@ -33,10 +38,14 @@
     name: '',
     sku: '',
     price: 0,
-    stock: 0
+    stock: 0,
+    group_id: null
   });
 
-  onMount(fetchProducts);
+  onMount(() => {
+    fetchProducts();
+    fetchGroups();
+  });
 
   $effect(() => {
     if (!showModal && searchInput) {
@@ -60,9 +69,19 @@
     }
   }
 
+  async function fetchGroups() {
+    try {
+      const resp = await api.get('/product-groups');
+      groups = Array.isArray(resp.data) ? resp.data : [];
+    } catch (e) {
+      console.error('Failed to fetch groups:', e);
+      groups = [];
+    }
+  }
+
   function openCreate() {
     editingProduct = null;
-    form = { name: '', sku: '', price: 0, stock: 0 };
+    form = { name: '', sku: '', price: 0, stock: 0, group_id: null };
     showModal = true;
   }
 
@@ -100,12 +119,42 @@
     }
   }
 
+  function handleSort(field) {
+    if (sortField === field) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      sortDir = 'asc';
+    }
+  }
+
   let filtered = $derived.by(() => {
     if (!$products) return [];
-    return $products.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.sku.includes(searchQuery)
-    );
+    let _filtered = $products.filter(p => {
+      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.includes(searchQuery);
+      const matchStock = hideEmptyStock ? p.stock > 0 : true;
+      return matchSearch && matchStock;
+    });
+
+    if (sortField) {
+      _filtered.sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+        
+        if (sortField === 'group_id') {
+           valA = groups.find(g => g.id === a.group_id)?.name || '';
+           valB = groups.find(g => g.id === b.group_id)?.name || '';
+        }
+
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+          return sortDir === 'asc' ? ((valA||0) - (valB||0)) : ((valB||0) - (valA||0));
+        }
+      });
+    }
+
+    return _filtered;
   });
 </script>
 
@@ -121,7 +170,7 @@
     </button>
   </div>
 
-  <div class="actions premium-card glass">
+  <div class="actions premium-card glass" style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
     <div class="search-wrapper">
       <span class="icon"><Search size={18} /></span>
       <input
@@ -132,16 +181,31 @@
         use:autofocus
       />
     </div>
+    <label class="stock-filter">
+      <input type="checkbox" bind:checked={hideEmptyStock} />
+      Sembunyikan stok kosong
+    </label>
   </div>
 
   <div class="table-container premium-card">
     <table>
       <thead>
         <tr>
-          <th>SKU / Barcode</th>
-          <th>Nama Produk</th>
-          <th>Harga</th>
-          <th>Stok</th>
+          <th onclick={() => handleSort('sku')} class="sortable">
+            SKU / Barcode {#if sortField === 'sku'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('name')} class="sortable">
+            Nama Produk {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('group_id')} class="sortable">
+            Kategori {#if sortField === 'group_id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('price')} class="sortable">
+            Harga {#if sortField === 'price'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('stock')} class="sortable">
+            Stok {#if sortField === 'stock'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
           <th>Aksi</th>
         </tr>
       </thead>
@@ -150,6 +214,15 @@
           <tr>
             <td><code>{p.sku}</code></td>
             <td><strong>{p.name}</strong></td>
+            <td>
+              {#if p.group_id}
+                <span class="group-pill">
+                  {groups.find(g => g.id === p.group_id)?.name || p.group_id}
+                </span>
+              {:else}
+                <span class="text-dim">-</span>
+              {/if}
+            </td>
             <td>Rp {p.price.toLocaleString()}</td>
             <td>
               <span class="stock-pill" class:low={p.stock < 10}>
@@ -170,7 +243,7 @@
         {/each}
         {#if filtered.length === 0 && !loading}
           <tr>
-            <td colspan="5" class="empty">Tidak ada produk ditemukan</td>
+            <td colspan="6" class="empty">Tidak ada produk ditemukan</td>
           </tr>
         {/if}
       </tbody>
@@ -190,6 +263,15 @@
         <div class="form-group">
           <label for="product-name">Nama Produk</label>
           <input id="product-name" type="text" bind:value={form.name} required />
+        </div>
+        <div class="form-group">
+          <label for="product-group">Kategori</label>
+          <select id="product-group" bind:value={form.group_id} class="select-input">
+            <option value={null}>Tanpa Kategori</option>
+            {#each groups as g}
+              <option value={g.id}>{g.name}</option>
+            {/each}
+          </select>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -256,11 +338,39 @@
     padding-left: 40px;
   }
 
+  .stock-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  
+  .stock-filter input {
+    cursor: pointer;
+  }
+
   code {
     background: #1e293b;
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--accent);
+  }
+
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+  }
+  
+  th.sortable:hover {
+    color: white;
+  }
+  
+  .sort-icon {
+    font-size: 0.8em;
+    margin-left: 4px;
   }
 
   .stock-pill {
@@ -325,6 +435,35 @@
 
   .form-group input {
     width: 100%;
+  }
+
+  .select-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    color: white;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .select-input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .group-pill {
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .text-dim {
+    color: var(--text-secondary);
   }
 
   .form-row {

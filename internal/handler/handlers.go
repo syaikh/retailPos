@@ -8,6 +8,7 @@ import (
 	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 	"retailPos/internal/service"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -15,16 +16,18 @@ import (
 )
 
 type Handler struct {
-	authService  *auth.AuthService
-	productRepo  *repo.ProductRepo
-	salesService *service.SalesService
+	authService      *auth.AuthService
+	productRepo      *repo.ProductRepo
+	productGroupRepo *repo.ProductGroupRepo
+	salesService     *service.SalesService
 }
 
-func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, salesService *service.SalesService) *Handler {
+func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, salesService *service.SalesService) *Handler {
 	return &Handler{
-		authService:  authService,
-		productRepo:  productRepo,
-		salesService: salesService,
+		authService:      authService,
+		productRepo:      productRepo,
+		productGroupRepo: productGroupRepo,
+		salesService:     salesService,
 	}
 }
 
@@ -124,6 +127,65 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	c.JSON(http.StatusCreated, p)
 }
 
+func (h *Handler) UpdateProduct(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+
+	var p model.Product
+	if err := c.ShouldBindJSON(&p); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	p.ID = idInt
+
+	if err := h.productRepo.Update(&p); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, p)
+}
+
+func (h *Handler) DeleteProduct(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+
+	if err := h.productRepo.Delete(idInt); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
+}
+
 // Sales Handlers
 func (h *Handler) CreateSale(c *gin.Context) {
 	var sale model.Sale
@@ -139,4 +201,98 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, sale)
+}
+
+// Product Group Handlers
+func (h *Handler) GetProductGroups(c *gin.Context) {
+	groups, err := h.productGroupRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, groups)
+}
+
+func (h *Handler) CreateProductGroup(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	var g model.ProductGroup
+	if err := c.ShouldBindJSON(&g); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.productGroupRepo.Create(&g); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, g)
+}
+
+func (h *Handler) UpdateProductGroup(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+
+	var g model.ProductGroup
+	if err := c.ShouldBindJSON(&g); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	g.ID = idInt
+
+	if err := h.productGroupRepo.Update(&g); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, g)
+}
+
+func (h *Handler) DeleteProductGroup(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+		return
+	}
+
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+
+	if err := h.productGroupRepo.Delete(idInt); err != nil {
+		// Provide a friendly error if it's a foreign key constraint violation
+		if strings.Contains(err.Error(), "violates foreign key constraint") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Kategori tidak dapat dihapus karena masih digunakan oleh satu atau lebih produk."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product Group deleted successfully"})
 }

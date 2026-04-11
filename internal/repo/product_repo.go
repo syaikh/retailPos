@@ -54,3 +54,15 @@ func (r *ProductRepo) UpdateStock(id int, delta int) error {
 	_, err := r.db.Exec(query, delta, id)
 	return err
 }
+
+func (r *ProductRepo) Update(p *model.Product) error {
+	query := `UPDATE products SET name = $1, sku = $2, price = $3, stock = $4, group_id = $5, updated_at = NOW() WHERE id = $6`
+	_, err := r.db.Exec(query, p.Name, p.SKU, p.Price, p.Stock, p.GroupID, p.ID)
+	return err
+}
+
+func (r *ProductRepo) Delete(id int) error {
+	query := `UPDATE products SET deleted_at = NOW() WHERE id = $1`
+	_, err := r.db.Exec(query, id)
+	return err
+}

@@ -11,7 +11,8 @@
     CreditCard, 
     Banknote,
     Search,
-    Package
+    Package,
+    X
   } from 'lucide-svelte';
 
   let barcodeInput = $state('');
@@ -137,6 +138,27 @@
     });
   }
 
+  function setQty(id, event) {
+    const val = event.target.value;
+    cartStore.update(items => {
+      return items.map(i => {
+        if (i.id === id) {
+          let newQty = parseInt(val, 10);
+          if (isNaN(newQty) || newQty <= 0) {
+            newQty = 1;
+            event.target.value = newQty;
+          } else if (newQty > i.stock) {
+            alert(`Stok tidak cukup. Maksimal: ${i.stock}`);
+            newQty = i.stock;
+            event.target.value = newQty;
+          }
+          return { ...i, quantity: newQty };
+        }
+        return i;
+      });
+    });
+  }
+
   async function handleCheckout() {
     if ($cartStore.length === 0) return;
     checkoutLoading = true;
@@ -180,6 +202,11 @@
         bind:value={searchQuery}
         bind:this={searchInput}
       />
+      {#if searchQuery}
+        <button class="clear-search-btn" aria-label="Hapus pencarian" onclick={() => { searchQuery = ''; searchInput.focus(); }}>
+          <X size={18} />
+        </button>
+      {/if}
     </div>
 
     <div class="product-table-container premium-card">
@@ -252,7 +279,14 @@
             </div>
             <div class="item-actions">
               <button class="qty-btn" onclick={() => updateQty(item.id, -1)}><Minus size={14}/></button>
-              <span class="qty">{item.quantity}</span>
+              <input 
+                type="number" 
+                class="qty-input" 
+                value={item.quantity} 
+                min="1"
+                max={item.stock}
+                onchange={(e) => setQty(item.id, e)} 
+              />
               <button class="qty-btn" onclick={() => updateQty(item.id, 1)}><Plus size={14}/></button>
               <button class="remove-btn" onclick={() => removeFromCart(item.id)}><Trash2 size={16}/></button>
             </div>
@@ -311,6 +345,27 @@
     background: transparent;
     border: none;
     font-size: 1.1rem;
+    color: white;
+  }
+
+  .search-bar input:focus {
+    outline: none;
+  }
+
+  .clear-search-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .clear-search-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
   }
 
   .product-table-container {
@@ -510,6 +565,27 @@
     justify-content: center;
     background: var(--bg-main);
     color: white;
+  }
+
+  .qty-input {
+    width: 48px;
+    height: 28px;
+    text-align: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: white;
+    font-weight: 600;
+    appearance: textfield;
+  }
+
+  /* Hilangkan panah spinner bawaan browser pada input number */
+  .qty-input::-webkit-outer-spin-button,
+  .qty-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .qty-input[type=number] {
+    -moz-appearance: textfield;
   }
 
   .remove-btn {

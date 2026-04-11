@@ -34,6 +34,7 @@ func main() {
 	// Initialize Repositories
 	userRepo := repo.NewUserRepo(db)
 	productRepo := repo.NewProductRepo(db)
+	productGroupRepo := repo.NewProductGroupRepo(db)
 
 	// Initialize Services & Hub
 	hub := ws.NewHub()
@@ -43,7 +44,7 @@ func main() {
 	salesService := service.NewSalesService(db, productRepo, hub)
 
 	// Initialize Handlers
-	h := handler.NewHandler(authService, productRepo, salesService)
+	h := handler.NewHandler(authService, productRepo, productGroupRepo, salesService)
 
 	r := gin.Default()
 
@@ -70,8 +71,15 @@ func main() {
 		protected := api.Group("/")
 		protected.Use(handler.AuthMiddleware())
 		{
+			protected.GET("/product-groups", h.GetProductGroups)
+			protected.POST("/product-groups", h.CreateProductGroup)
+			protected.PUT("/product-groups/:id", h.UpdateProductGroup)
+			protected.DELETE("/product-groups/:id", h.DeleteProductGroup)
+
 			protected.GET("/products", h.GetProducts)
 			protected.POST("/products", h.CreateProduct)
+			protected.PUT("/products/:id", h.UpdateProduct)
+			protected.DELETE("/products/:id", h.DeleteProduct)
 			protected.POST("/sales", h.CreateSale)
 		}
 	}
