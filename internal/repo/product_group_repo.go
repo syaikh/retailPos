@@ -2,7 +2,10 @@ package repo
 
 import (
 	"database/sql"
+	"fmt"
 	model "retailPos/internal/model"
+	"strconv"
+	"strings"
 )
 
 type ProductGroupRepo struct {
@@ -13,27 +16,56 @@ func NewProductGroupRepo(db *sql.DB) *ProductGroupRepo {
 	return &ProductGroupRepo{db: db}
 }
 
-func (r *ProductGroupRepo) GetAll() ([]model.ProductGroup, error) {
-	query := `SELECT id, name, description, created_at FROM product_groups ORDER BY id DESC`
-	rows, err := r.db.Query(query)
+func (r *ProductGroupRepo) GetAll(limit, offset int, search string, sortBy, sortDir string) ([]model.ProductGroup, int, error) {
+	query := `SELECT id, name, description, created_at, (SELECT COUNT(*) FROM products p WHERE p.group_id = product_groups.id AND p.deleted_at IS NULL) as product_count FROM product_groups WHERE 1=1`
+	countQuery := `SELECT COUNT(*) FROM product_groups WHERE 1=1`
+	args := []any{}
+	placeholderIdx := 1
+
+	if search != "" {
+		filter := " AND (name ILIKE $" + strconv.Itoa(placeholderIdx) + " OR description ILIKE $" + strconv.Itoa(placeholderIdx) + ")"
+		query += filter
+		countQuery += filter
+		args = append(args, "%"+search+"%")
+		placeholderIdx++
+	}
+
+	var total int
+	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	validSortFields := map[string]string{
+		"id":   "id",
+		"name": "name",
+	}
+	sortField, ok := validSortFields[sortBy]
+	if !ok {
+		sortField = "id"
+	}
+	if strings.ToLower(sortDir) != "asc" {
+		sortDir = "DESC"
+	} else {
+		sortDir = "ASC"
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortDir)
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	var groups []model.ProductGroup
+	groups := []model.ProductGroup{}
 	for rows.Next() {
 		var g model.ProductGroup
-		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.CreatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.CreatedAt, &g.ProductCount); err != nil {
+			return nil, 0, err
 		}
 		groups = append(groups, g)
 	}
-	
-	if groups == nil {
-		groups = make([]model.ProductGroup, 0)
-	}
-	return groups, nil
+	return groups, total, nil
 }
 
 func (r *ProductGroupRepo) Create(g *model.ProductGroup) error {

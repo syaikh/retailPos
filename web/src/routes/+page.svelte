@@ -12,29 +12,53 @@
 
   let stats = $state({
     todaySales: 0,
+    todaySalesTrend: 0,
     monthSales: 0,
+    monthSalesTrend: 0,
     transactionCount: 0,
-    lowStockItems: 0
+    lowStockCount: 0,
+    lowStockProducts: [],
+    recentActivities: []
   });
+  let loading = $state(true);
 
   onMount(async () => {
-    // In a real app, these would come from a /stats or /dashboard endpoint
-    // For now, we'll fetch products to count low stock
+    loading = true;
     try {
-      const resp = await api.get('/products');
-      const data = Array.isArray(resp.data) ? resp.data : [];
-      products.set(data);
-      stats.lowStockItems = data.filter(p => p.stock < 10).length;
+      const statsResp = await api.get('/stats');
+      const data = statsResp.data;
+      
+      stats.todaySales = data.today_sales;
+      stats.todaySalesTrend = data.today_sales_trend;
+      stats.monthSales = data.month_sales;
+      stats.monthSalesTrend = data.month_sales_trend;
+      stats.transactionCount = data.today_transactions;
+      stats.lowStockCount = data.low_stock_count;
+      stats.lowStockProducts = data.low_stock_products || [];
+      stats.recentActivities = data.recent_activities || [];
+
+      // Also fetch all products for other uses if needed
+      const productsResp = await api.get('/products');
+      products.set(Array.isArray(productsResp.data) ? productsResp.data : []);
     } catch (e) {
-      console.error('Failed to fetch products:', e);
-      products.set([]);
+      console.error('Failed to fetch dashboard data:', e);
+    } finally {
+      loading = false;
     }
-    
-    // Placeholder stats
-    stats.todaySales = 2450000;
-    stats.transactionCount = 42;
-    stats.monthSales = 125000000;
   });
+
+  function formatTimeAgo(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'Baru saja';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} menit yang lalu`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} jam yang lalu`;
+    return date.toLocaleDateString();
+  }
 </script>
 
 <div class="dashboard">
@@ -51,7 +75,10 @@
       <div class="stat-info">
         <span class="label">Penjualan Hari Ini</span>
         <span class="value">Rp {stats.todaySales.toLocaleString()}</span>
-        <span class="trend positive"><TrendingUp size={14} /> +12%</span>
+        <span class="trend" class:positive={stats.todaySalesTrend > 0} class:negative={stats.todaySalesTrend < 0}>
+          <TrendingUp size={14} style="transform: {stats.todaySalesTrend < 0 ? 'rotate(180deg)' : 'none'}" /> 
+          {Math.abs(stats.todaySalesTrend).toFixed(1)}%
+        </span>
       </div>
     </div>
 
@@ -72,7 +99,7 @@
       </div>
       <div class="stat-info">
         <span class="label">Stok Menipis</span>
-        <span class="value">{stats.lowStockItems} Items</span>
+        <span class="value">{stats.lowStockCount} Items</span>
         <span class="trend negative">Perlu Restock</span>
       </div>
     </div>
@@ -83,8 +110,10 @@
       </div>
       <div class="stat-info">
         <span class="label">Penjualan Bulan Ini</span>
-        <span class="value">Rp {(stats.monthSales/1000000).toFixed(1)}M</span>
-        <span class="trend positive">+5.4%</span>
+        <span class="value">Rp {(stats.monthSales/1000000).toFixed(2)}M</span>
+        <span class="trend" class:positive={stats.monthSalesTrend > 0} class:negative={stats.monthSalesTrend < 0}>
+          {stats.monthSalesTrend > 0 ? '+' : ''}{stats.monthSalesTrend.toFixed(1)}%
+        </span>
       </div>
     </div>
   </div>
@@ -102,7 +131,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each $products && $products.filter(p => p.stock < 10).slice(0, 5) || [] as p}
+            {#each stats.lowStockProducts as p}
               <tr>
                 <td><code>{p.sku}</code></td>
                 <td>{p.name}</td>
@@ -111,26 +140,36 @@
             {/each}
           </tbody>
         </table>
+        {#if !loading && stats.lowStockProducts.length === 0}
+          <div class="empty-state">
+             <Package size={48} opacity={0.2} />
+             <p>Semua stok produk mencukupi!</p>
+          </div>
+        {/if}
       </div>
     </div>
 
     <div class="premium-card">
-      <h3>Aktivitas Kasir</h3>
+      <h3>Aktivitas Kasir Terbaru</h3>
       <div class="activity-list">
-        <div class="activity-item">
-          <Users size={18} class="text-secondary" />
-          <div class="details">
-            <p><strong>Admin</strong> memproses transaksi #TRX-9923</p>
-            <span>5 menit yang lalu</span>
+        {#each stats.recentActivities as activity}
+          <div class="activity-item">
+            {#if activity.type === 'sale'}
+              <ShoppingCart size={18} class="text-secondary" />
+            {:else}
+              <Package size={18} class="text-secondary" />
+            {/if}
+            <div class="details">
+              <p><strong>{activity.user}</strong> {activity.message}</p>
+              <span>{formatTimeAgo(activity.created_at)}</span>
+            </div>
           </div>
-        </div>
-        <div class="activity-item">
-          <Package size={18} class="text-secondary" />
-          <div class="details">
-            <p><strong>Admin</strong> menambah stok "Aqua 600ml"</p>
-            <span>12 menit yang lalu</span>
+        {/each}
+        {#if !loading && stats.recentActivities.length === 0}
+          <div class="empty-state">
+            <p>Tidak ada aktivitas terbaru</p>
           </div>
-        </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -250,5 +289,19 @@
   .details span {
     font-size: 0.75rem;
     color: var(--text-secondary);
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    gap: 16px;
+    color: var(--text-secondary);
+  }
+
+  .empty-state p {
+    font-weight: 500;
   }
 </style>

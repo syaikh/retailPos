@@ -1,34 +1,53 @@
 <script>
   import { onMount } from 'svelte';
   import api from '$lib/api.js';
-  import { Plus, Edit, Trash2, Tags } from 'lucide-svelte';
+  import { Plus, Edit, Trash2, Tags, Search } from 'lucide-svelte';
+  import Pagination from '$lib/components/Pagination.svelte';
 
   let groups = $state([]);
   let showModal = $state(false);
   let editingGroup = $state(null);
   let loading = $state(false);
 
+  let limit = $state(10);
+  let offset = $state(0);
+  let total = $state(0);
+  let searchQuery = $state('');
+  let sortField = $state('id');
+  let sortDir = $state('asc');
+
   let form = $state({
     name: '',
     description: ''
   });
-
-  let sortField = $state('');
-  let sortDir = $state('asc');
 
   onMount(fetchGroups);
 
   async function fetchGroups() {
     loading = true;
     try {
-      const resp = await api.get('/product-groups');
-      groups = Array.isArray(resp.data) ? resp.data : [];
+      const q = searchQuery.trim();
+      const searchParam = q.length > 3 ? `&search=${q}` : '';
+      const url = `/product-groups?limit=${limit}&offset=${offset}&sortBy=${sortField}&sortDir=${sortDir}${searchParam}`;
+      const resp = await api.get(url);
+      const { data, total: totalCount } = resp.data;
+      groups = Array.isArray(data) ? data : [];
+      total = totalCount;
     } catch (e) {
       console.error('Failed to fetch groups:', e);
       groups = [];
     } finally {
       loading = false;
     }
+  }
+
+  $effect(() => {
+    fetchGroups();
+  });
+
+  function handlePageChange(newOffset, newLimit) {
+    if (newLimit !== undefined) limit = newLimit;
+    offset = newOffset;
   }
 
   function openCreate() {
@@ -75,23 +94,10 @@
       sortField = field;
       sortDir = 'asc';
     }
+    offset = 0;
   }
 
-  let sortedGroups = $derived.by(() => {
-    let result = [...groups];
-    if (sortField) {
-      result.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
-        if (typeof valA === 'string' && typeof valB === 'string') {
-          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        } else {
-          return sortDir === 'asc' ? ((valA||0) - (valB||0)) : ((valB||0) - (valA||0));
-        }
-      });
-    }
-    return result;
-  });
+  let displayGroups = $derived(groups);
 </script>
 
 <div class="groups-container">
@@ -106,13 +112,25 @@
     </button>
   </div>
 
+  <div class="actions premium-card glass">
+    <div class="search-wrapper">
+      <span class="icon"><Search size={18} /></span>
+      <input
+        type="text"
+        placeholder="Cari nama kategori..."
+        bind:value={searchQuery}
+        oninput={() => offset = 0}
+      />
+      {#if searchQuery.trim().length > 0 && searchQuery.trim().length <= 3}
+        <div class="search-warning">Minimal 4 karakter</div>
+      {/if}
+    </div>
+  </div>
+
   <div class="table-container premium-card">
     <table>
       <thead>
         <tr>
-          <th onclick={() => handleSort('id')} class="sortable">
-            ID {#if sortField === 'id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
           <th onclick={() => handleSort('name')} class="sortable">
             Nama Kategori {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </th>
@@ -123,9 +141,8 @@
         </tr>
       </thead>
       <tbody>
-        {#each sortedGroups as g}
+        {#each displayGroups as g}
           <tr>
-            <td><code>{g.id}</code></td>
             <td>
               <a href="/inventory?group={g.id}" class="group-link">
                 <strong>{g.name}</strong>
@@ -137,26 +154,43 @@
                 <button class="edit-btn" onclick={() => openEdit(g)} title="Edit">
                   <Edit size={18} />
                 </button>
-                <button class="del-btn" onclick={() => deleteGroup(g.id)} title="Hapus">
+                <button 
+                  class="del-btn" 
+                  onclick={() => deleteGroup(g.id)} 
+                  disabled={g.product_count > 0}
+                  title={g.product_count > 0 ? 'Hapus dibatasi: Kategori masih memiliki produk' : 'Hapus Kategori'}
+                >
                   <Trash2 size={18} />
                 </button>
               </div>
             </td>
           </tr>
         {/each}
-        {#if groups.length === 0 && !loading}
+        {#if displayGroups.length === 0 && !loading}
           <tr>
-            <td colspan="4" class="empty">Belum ada kategori yang dibuat.</td>
+            <td colspan="3" class="empty">Belum ada kategori yang ditemukan.</td>
           </tr>
         {/if}
       </tbody>
     </table>
+    <Pagination 
+      total={total} 
+      limit={limit} 
+      offset={offset} 
+      onPageChange={handlePageChange} 
+    />
   </div>
 </div>
 
 {#if showModal}
-  <div class="modal-overlay">
-    <div class="modal premium-card">
+  <div 
+    class="modal-overlay" 
+    role="button" 
+    tabindex="-1" 
+    onclick={() => showModal = false}
+    onkeydown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') showModal = false; }}
+  >
+    <div class="modal premium-card" role="presentation" onclick={(e) => e.stopPropagation()}>
       <h2>{editingGroup ? 'Edit Kategori' : 'Tambah Kategori Baru'}</h2>
       <form onsubmit={handleSubmit}>
         <div class="form-group">
@@ -183,6 +217,49 @@
     gap: 24px;
   }
 
+  .actions {
+    padding: 16px;
+  }
+
+  .search-wrapper {
+    position: relative;
+    max-width: 400px;
+  }
+
+  .search-wrapper .icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+  }
+
+  .search-wrapper input {
+    width: 100%;
+    padding: 10px 10px 10px 40px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .search-wrapper input:focus {
+    border-color: var(--primary);
+  }
+
+  .search-warning {
+    position: absolute;
+    top: 100%;
+    left: 40px;
+    font-size: 0.75rem;
+    color: var(--accent);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
   .header {
     display: flex;
     justify-content: space-between;
@@ -207,13 +284,6 @@
   }
   
   .add-btn:hover { background: #4f46e5; }
-
-  code {
-    background: #1e293b;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: var(--accent);
-  }
 
   .group-link {
     color: var(--primary);
@@ -249,7 +319,11 @@
   .edit-btn { background: transparent; color: var(--text-secondary); }
   .edit-btn:hover { color: var(--primary); }
   .del-btn { background: transparent; color: var(--text-secondary); }
-  .del-btn:hover { color: var(--danger); }
+  .del-btn:hover:not(:disabled) { color: var(--danger); }
+  .del-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
 
   .empty {
     text-align: center;

@@ -12,7 +12,8 @@
     Banknote,
     Search,
     Package,
-    X
+    X,
+    AlertCircle
   } from 'lucide-svelte';
 
   let barcodeInput = $state('');
@@ -57,9 +58,10 @@
 
   async function fetchProducts() {
     try {
-      const resp = await api.get('/products');
-      const data = Array.isArray(resp.data) ? resp.data : [];
-      productsStore.set(data);
+      // Untuk POS, kita ambil limit besar agar pencarian lokal tetap instan
+      const resp = await api.get('/products?limit=1000');
+      const data = resp.data.data;
+      productsStore.set(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch products:', e);
       productsStore.set([]);
@@ -92,10 +94,15 @@
 
   async function findAndAddByBarcode(code) {
     try {
-      const resp = await api.get(`/products?barcode=${code}`);
-      addToCart(resp.data);
+      const resp = await api.get(`/products?search=${code}&limit=1`);
+      const results = resp.data.data;
+      if (results && results.length > 0) {
+        addToCart(results[0]);
+      } else {
+        alert(`Barcode ${code} tidak ditemukan`);
+      }
     } catch (e) {
-      alert(`Barcode ${code} tidak ditemukan`);
+      alert(`Gagal mencari barcode ${code}`);
     }
   }
 
@@ -183,10 +190,11 @@
   }
 
   let filteredProducts = $derived.by(() => {
-    if (!searchQuery.trim() || !$productsStore) return [];
+    const q = searchQuery.trim();
+    if (q.length <= 3 || !$productsStore) return [];
     return $productsStore.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.sku.includes(searchQuery)
+      p.name.toLowerCase().includes(q.toLowerCase()) || 
+      p.sku.toLowerCase().includes(q.toLowerCase())
     );
   });
 </script>
@@ -215,6 +223,12 @@
           <Search size={64} />
           <h3>Mulai Pencarian</h3>
           <p>Ketik nama produk atau scan barcode untuk menemukan item</p>
+        </div>
+      {:else if searchQuery.trim().length <= 3}
+        <div class="empty-search-state warning">
+          <AlertCircle size={64} color="var(--accent)" />
+          <h3>Teks Terlalu Pendek</h3>
+          <p>Masukkan minimal <strong>4 karakter</strong> untuk memulai pencarian produk.</p>
         </div>
       {:else if filteredProducts.length === 0}
         <div class="empty-search-state">
@@ -397,12 +411,8 @@
     margin: 0;
   }
 
-  .empty-search-state code {
-    background: #0f172a;
-    padding: 2px 6px;
-    border-radius: 3px;
+  .empty-search-state.warning h3 {
     color: var(--accent);
-    font-size: 0.85rem;
   }
 
   .product-table {

@@ -42,9 +42,16 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 		item := &sale.Items[i]
 		item.SaleID = sale.ID
 
-		// Record item
-		queryItem := `INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale) VALUES ($1, $2, $3, $4) RETURNING id`
-		err = tx.QueryRowContext(ctx, queryItem, item.SaleID, item.ProductID, item.Quantity, item.PriceAtSale).Scan(&item.ID)
+        // Fetch snapshot product name
+		p, err := s.productRepo.GetByID(item.ProductID)
+		if err != nil || p == nil {
+			return errors.New("product not found during snapshot")
+		}
+		item.ProductName = p.Name
+
+		// Record item with snapshot
+		queryItem := `INSERT INTO sale_items (sale_id, product_id, product_name, quantity, price_at_sale) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+		err = tx.QueryRowContext(ctx, queryItem, item.SaleID, item.ProductID, item.ProductName, item.Quantity, item.PriceAtSale).Scan(&item.ID)
 		if err != nil {
 			return err
 		}
@@ -68,7 +75,7 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 	// 3. Broadcast events
 	s.hub.Broadcast("sale_created", sale)
 	for _, item := range sale.Items {
-		s.hub.Broadcast("stock_updated", map[string]interface{}{
+		s.hub.Broadcast("stock_updated", map[string]any{
 			"product_id": item.ProductID,
 		})
 	}

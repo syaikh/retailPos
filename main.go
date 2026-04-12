@@ -35,6 +35,8 @@ func main() {
 	userRepo := repo.NewUserRepo(db)
 	productRepo := repo.NewProductRepo(db)
 	productGroupRepo := repo.NewProductGroupRepo(db)
+	statsRepo := repo.NewStatsRepo(db)
+	salesRepo := repo.NewSalesRepo(db)
 
 	// Initialize Services & Hub
 	hub := ws.NewHub()
@@ -44,7 +46,7 @@ func main() {
 	salesService := service.NewSalesService(db, productRepo, hub)
 
 	// Initialize Handlers
-	h := handler.NewHandler(authService, productRepo, productGroupRepo, salesService)
+	h := handler.NewHandler(authService, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
 	r := gin.Default()
 
@@ -80,6 +82,8 @@ func main() {
 			protected.POST("/products", h.CreateProduct)
 			protected.PUT("/products/:id", h.UpdateProduct)
 			protected.DELETE("/products/:id", h.DeleteProduct)
+			protected.GET("/stats", h.GetDashboardStats)
+			protected.GET("/sales", h.GetSalesHistory)
 			protected.POST("/sales", h.CreateSale)
 		}
 	}
@@ -112,7 +116,7 @@ func main() {
 			c.JSON(404, gin.H{"error": "Not found"})
 			return
 		}
-		c.File(filepath.Join(buildDir, "index.html"))
+		c.File(filepath.Join(buildDir, "404.html"))
 	})
 
 	port := os.Getenv("PORT")

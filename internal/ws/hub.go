@@ -16,7 +16,7 @@ var upgrader = websocket.Upgrader{
 
 type Event struct {
 	Type      string      `json:"type"`
-	Payload   interface{} `json:"payload"`
+	Payload   any `json:"payload"`
 }
 
 type Hub struct {
@@ -74,7 +74,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Hub) Broadcast(eventType string, payload interface{}) {
+func (h *Hub) Broadcast(eventType string, payload any) {
 	h.broadcast <- Event{
 		Type:    eventType,
 		Payload: payload,

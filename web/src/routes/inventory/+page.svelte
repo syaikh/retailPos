@@ -12,6 +12,7 @@
     AlertCircle
   } from 'lucide-svelte';
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+  import Pagination from '$lib/components/Pagination.svelte';
 
   let searchQuery = $state('');
   let showModal = $state(false);
@@ -21,7 +22,10 @@
   let hideEmptyStock = $state(true); // Default disembunyikan sesuai keluhan user
   let groups = $state([]);
 
-  let sortField = $state('');
+  let limit = $state(10);
+  let offset = $state(0);
+  let total = $state(0);
+  let sortField = $state('id');
   let sortDir = $state('asc');
   
   /** @type {string | number} */
@@ -67,7 +71,6 @@
   });
 
   onMount(() => {
-    fetchProducts();
     fetchGroups();
   });
 
@@ -82,9 +85,15 @@
   async function fetchProducts() {
     loading = true;
     try {
-      const resp = await api.get('/products');
-      const data = Array.isArray(resp.data) ? resp.data : [];
-      products.set(data);
+      const q = searchQuery.trim();
+      // Hanya kirim parameter search jika > 3 karakter
+      const searchParam = q.length > 3 ? `&search=${q}` : '';
+      const gParam = selectedGroupFilter === 'all' ? '' : `&group_id=${selectedGroupFilter}`;
+      const url = `/products?limit=${limit}&offset=${offset}&sortBy=${sortField}&sortDir=${sortDir}${searchParam}${gParam}`;
+      const resp = await api.get(url);
+      const { data, total: totalCount } = resp.data;
+      products.set(Array.isArray(data) ? data : []);
+      total = totalCount;
     } catch (e) {
       console.error('Failed to fetch products:', e);
       products.set([]);
@@ -93,10 +102,20 @@
     }
   }
 
+  // Reload data when filters/paging changes
+  $effect(() => {
+    fetchProducts();
+  });
+
+  function handlePageChange(newOffset, newLimit) {
+    if (newLimit !== undefined) limit = newLimit;
+    offset = newOffset;
+  }
+
   async function fetchGroups() {
     try {
-      const resp = await api.get('/product-groups');
-      groups = Array.isArray(resp.data) ? resp.data : [];
+      const resp = await api.get('/product-groups?limit=1000');
+      groups = Array.isArray(resp.data.data) ? resp.data.data : [];
     } catch (e) {
       console.error('Failed to fetch groups:', e);
       groups = [];
@@ -150,36 +169,15 @@
       sortField = field;
       sortDir = 'asc';
     }
+    offset = 0; // Reset to page 1
   }
 
-  let filtered = $derived.by(() => {
+  // Logic filter stok kosong tetap di frontend atau bisa dipindah ke backend
+  // Sesuai permintaan user, sisa data dari API difilter visual
+  let displayProducts = $derived.by(() => {
     if (!$products) return [];
-    let _filtered = $products.filter(p => {
-      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.includes(searchQuery);
-      const matchStock = hideEmptyStock ? p.stock > 0 : true;
-      const matchGroup = selectedGroupFilter === 'all' || p.group_id === selectedGroupFilter;
-      return matchSearch && matchStock && matchGroup;
-    });
-
-    if (sortField) {
-      _filtered.sort((a, b) => {
-        let valA = a[sortField];
-        let valB = b[sortField];
-        
-        if (sortField === 'group_id') {
-           valA = groups.find(g => g.id === a.group_id)?.name || '';
-           valB = groups.find(g => g.id === b.group_id)?.name || '';
-        }
-
-        if (typeof valA === 'string' && typeof valB === 'string') {
-          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        } else {
-          return sortDir === 'asc' ? ((valA||0) - (valB||0)) : ((valB||0) - (valA||0));
-        }
-      });
-    }
-
-    return _filtered;
+    if (hideEmptyStock) return $products.filter(p => p.stock > 0);
+    return $products;
   });
 </script>
 
@@ -206,6 +204,9 @@
           bind:this={searchInput}
           use:autofocus
         />
+        {#if searchQuery.trim().length > 0 && searchQuery.trim().length <= 3}
+          <div class="search-warning">Minimal 4 karakter</div>
+        {/if}
       </div>
       <SearchableSelect 
         options={groupOptions} 
@@ -242,7 +243,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each filtered as p}
+        {#each displayProducts as p}
           <tr>
             <td><code>{p.sku}</code></td>
             <td><strong>{p.name}</strong></td>
@@ -266,26 +267,43 @@
                 <button class="edit-btn" onclick={() => openEdit(p)} title="Edit">
                   <Edit size={18} />
                 </button>
-                <button class="del-btn" onclick={() => deleteProduct(p.id)} title="Hapus">
+                <button 
+                  class="del-btn" 
+                  onclick={() => deleteProduct(p.id)} 
+                  disabled={p.stock > 0}
+                  title={p.stock > 0 ? 'Hapus dibatasi: Stok masih tersedia' : 'Hapus Produk'}
+                >
                   <Trash2 size={18} />
                 </button>
               </div>
             </td>
           </tr>
         {/each}
-        {#if filtered.length === 0 && !loading}
+        {#if displayProducts.length === 0 && !loading}
           <tr>
             <td colspan="6" class="empty">Tidak ada produk ditemukan</td>
           </tr>
         {/if}
       </tbody>
     </table>
+    <Pagination 
+      total={total} 
+      limit={limit} 
+      offset={offset} 
+      onPageChange={handlePageChange} 
+    />
   </div>
 </div>
 
 {#if showModal}
-  <div class="modal-overlay">
-    <div class="modal premium-card">
+  <div 
+    class="modal-overlay" 
+    role="button" 
+    tabindex="-1" 
+    onclick={() => showModal = false}
+    onkeydown={(e) => e.key === 'Escape' && (showModal = false)}
+  >
+    <div class="modal premium-card" role="presentation" onclick={(e) => e.stopPropagation()}>
       <h2>{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</h2>
       <form onsubmit={handleSubmit}>
         <div class="form-group">
@@ -400,6 +418,16 @@
     border-color: var(--primary);
   }
 
+  .search-warning {
+    position: absolute;
+    top: 100%;
+    left: 40px;
+    font-size: 0.75rem;
+    color: var(--accent);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
   .stock-filter {
     display: flex;
     align-items: center;
@@ -456,7 +484,11 @@
   .edit-btn { background: transparent; color: var(--text-secondary); }
   .edit-btn:hover { color: var(--primary); }
   .del-btn { background: transparent; color: var(--text-secondary); }
-  .del-btn:hover { color: var(--danger); }
+  .del-btn:hover:not(:disabled) { color: var(--danger); }
+  .del-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
 
   .empty {
     text-align: center;

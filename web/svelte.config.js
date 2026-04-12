@@ -6,7 +6,7 @@ const config = {
 		adapter: adapter({
 			pages: 'build',
 			assets: 'build',
-			fallback: 'index.html', // Set to index.html for SPA mode
+			fallback: '404.html',
 			precompress: false,
 			strict: true
 		})

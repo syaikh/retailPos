@@ -19,14 +19,18 @@ type Handler struct {
 	authService      *auth.AuthService
 	productRepo      *repo.ProductRepo
 	productGroupRepo *repo.ProductGroupRepo
+	statsRepo        *repo.StatsRepo
+	salesRepo        *repo.SalesRepo
 	salesService     *service.SalesService
 }
 
-func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, salesService *service.SalesService) *Handler {
+func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
 	return &Handler{
 		authService:      authService,
 		productRepo:      productRepo,
 		productGroupRepo: productGroupRepo,
+		statsRepo:        statsRepo,
+		salesRepo:        salesRepo,
 		salesService:     salesService,
 	}
 }
@@ -42,7 +46,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -60,6 +64,17 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("role", claims["role"].(string))
 		c.Next()
 	}
+}
+
+func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, sortBy, sortDir string) {
+	limitStr := c.DefaultQuery("limit", "10")
+	offsetStr := c.DefaultQuery("offset", "0")
+	limit, _ = strconv.Atoi(limitStr)
+	offset, _ = strconv.Atoi(offsetStr)
+	search = c.Query("search")
+	sortBy = c.Query("sortBy")
+	sortDir = c.DefaultQuery("sortDir", "asc")
+	return
 }
 
 // Auth Handlers
@@ -99,12 +114,27 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	products, err := h.productRepo.GetAll()
+	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
+	
+	var groupID *int
+	if g := c.Query("group_id"); g != "" {
+		id, err := strconv.Atoi(g)
+		if err == nil {
+			groupID = &id
+		}
+	}
+
+	products, total, err := h.productRepo.GetAll(limit, offset, search, groupID, sortBy, sortDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, products)
+	c.JSON(http.StatusOK, gin.H{
+		"data":   products,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 func (h *Handler) CreateProduct(c *gin.Context) {
@@ -119,6 +149,31 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	// 3-Layer Validation Flow for Create/Restore
+	existingP, err := h.productRepo.GetBySKUWithDeleted(p.SKU)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check SKU existence"})
+		return
+	}
+
+	if existingP != nil {
+		if existingP.DeletedAt == nil {
+			// Case 2: Ada & Aktif
+			c.JSON(http.StatusConflict, gin.H{"error": "Product with this SKU already exists"})
+			return
+		} else {
+			// Case 3: Ada & Soft Deleted -> Restore
+			p.ID = existingP.ID
+			if err := h.productRepo.Restore(&p); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore product"})
+				return
+			}
+			c.JSON(http.StatusCreated, p)
+			return
+		}
+	}
+
+	// Case 1: Tidak ada -> Insert produk baru
 	if err := h.productRepo.Create(&p); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -178,6 +233,22 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
+	existingP, err := h.productRepo.GetByID(idInt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check product"})
+		return
+	}
+
+	if existingP == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		return
+	}
+
+	if existingP.Stock > 0 {
+		c.JSON(http.StatusFailedDependency, gin.H{"error": "Product can only be deleted if stock is 0"})
+		return
+	}
+
 	if err := h.productRepo.Delete(idInt); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -205,12 +276,18 @@ func (h *Handler) CreateSale(c *gin.Context) {
 
 // Product Group Handlers
 func (h *Handler) GetProductGroups(c *gin.Context) {
-	groups, err := h.productGroupRepo.GetAll()
+	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
+	groups, total, err := h.productGroupRepo.GetAll(limit, offset, search, sortBy, sortDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, groups)
+	c.JSON(http.StatusOK, gin.H{
+		"data":   groups,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 func (h *Handler) CreateProductGroup(c *gin.Context) {
@@ -295,4 +372,28 @@ func (h *Handler) DeleteProductGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Product Group deleted successfully"})
+}
+
+func (h *Handler) GetDashboardStats(c *gin.Context) {
+	stats, err := h.statsRepo.GetDashboardStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
+func (h *Handler) GetSalesHistory(c *gin.Context) {
+	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
+	sales, total, err := h.salesRepo.GetAll(limit, offset, search, sortBy, sortDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"data":   sales,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }

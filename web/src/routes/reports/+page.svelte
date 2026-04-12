@@ -4,16 +4,69 @@
     Download, 
     Calendar,
     Filter,
-    ArrowUpRight
+    ArrowUpRight,
+    Search
   } from 'lucide-svelte';
 
-  const reportData = [
-    { date: '2024-04-01', sales: 4500000, items: 120, avg: 37500 },
-    { date: '2024-04-02', sales: 3200000, items: 85, avg: 37647 },
-    { date: '2024-04-03', sales: 5100000, items: 140, avg: 36428 },
-    { date: '2024-04-04', sales: 2800000, items: 70, avg: 40000 },
-    { date: '2024-04-05', sales: 6200000, items: 165, avg: 37575 },
-  ];
+  import { onMount, tick } from 'svelte';
+  import api from '$lib/api.js';
+  import Pagination from '$lib/components/Pagination.svelte';
+
+  let transactions = $state([]);
+  let loading = $state(true);
+  let selectedTransaction = $state(null);
+  let showDetailModal = $state(false);
+
+  let limit = $state(10);
+  let offset = $state(0);
+  let total = $state(0);
+  let searchQuery = $state('');
+  let sortField = $state('created_at');
+  let sortDir = $state('desc');
+
+  onMount(async () => {
+    // onMount logic if needed elsewhere
+  });
+
+  async function fetchTransactions() {
+    loading = true;
+    try {
+      const url = `/sales?limit=${limit}&offset=${offset}&search=${searchQuery}&sortBy=${sortField}&sortDir=${sortDir}`;
+      const resp = await api.get(url);
+      const { data, total: totalCount } = resp.data;
+      transactions = Array.isArray(data) ? data : [];
+      total = totalCount;
+    } catch (e) {
+      console.error('Failed to fetch transactions:', e);
+      transactions = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  $effect(() => {
+    fetchTransactions();
+  });
+
+  function handlePageChange(newOffset, newLimit) {
+    if (newLimit !== undefined) limit = newLimit;
+    offset = newOffset;
+  }
+
+  function handleSort(field) {
+    if (sortField === field) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      sortDir = 'asc';
+    }
+    offset = 0;
+  }
+
+  function openDetail(tx) {
+    selectedTransaction = tx;
+    showDetailModal = true;
+  }
 </script>
 
 <div class="reports">
@@ -29,13 +82,26 @@
   </div>
 
   <div class="filter-bar premium-card glass">
-    <div class="filter-item">
-      <Calendar size={18} />
-      <span>7 Hari Terakhir</span>
+    <div class="search-section">
+      <div class="search-wrapper">
+        <span class="icon"><Search size={18} /></span>
+        <input
+          type="text"
+          placeholder="Cari ID TRX atau Nama Produk..."
+          bind:value={searchQuery}
+          oninput={() => offset = 0}
+        />
+      </div>
     </div>
-    <div class="filter-item">
-      <Filter size={18} />
-      <span>Semua Kategori</span>
+    <div class="filter-actions">
+      <div class="filter-item">
+        <Calendar size={18} />
+        <span>7 Hari Terakhir</span>
+      </div>
+      <div class="filter-item">
+        <Filter size={18} />
+        <span>Semua Kasir</span>
+      </div>
     </div>
   </div>
 
@@ -51,37 +117,120 @@
     <table>
       <thead>
         <tr>
-          <th>Tanggal</th>
-          <th>Total Penjualan</th>
-          <th>Item Terjual</th>
-          <th>Rata-rata Transaksi</th>
+          <th onclick={() => handleSort('id')} class="sortable">
+            ID {#if sortField === 'id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('created_at')} class="sortable">
+            Waktu {#if sortField === 'created_at'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('total')} class="sortable">
+            Total {#if sortField === 'total'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th>Metode</th>
+          <th>Qty Item</th>
           <th>Aksi</th>
         </tr>
       </thead>
       <tbody>
-        {#each reportData as row}
+        {#each transactions as tx}
           <tr>
-            <td>{row.date}</td>
-            <td><strong>Rp {row.sales.toLocaleString()}</strong></td>
-            <td>{row.items} unit</td>
-            <td>Rp {row.avg.toLocaleString()}</td>
+            <td><code>#TRX-{tx.id.toString().padStart(4, '0')}</code></td>
+            <td>{new Date(tx.created_at).toLocaleString()}</td>
+            <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
+            <td><span class="method-badge">{tx.payment_method}</span></td>
+            <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
             <td>
-              <button class="detail-link">
+              <button class="detail-link" onclick={() => openDetail(tx)}>
                 Detail <ArrowUpRight size={14} />
               </button>
             </td>
           </tr>
         {/each}
+        {#if !loading && transactions.length === 0}
+          <tr>
+            <td colspan="6" class="empty">Belum ada transaksi terekam</td>
+          </tr>
+        {/if}
       </tbody>
     </table>
+    <Pagination 
+      total={total} 
+      limit={limit} 
+      offset={offset} 
+      onPageChange={handlePageChange} 
+    />
   </div>
 </div>
 
+{#if showDetailModal && selectedTransaction}
+  <div 
+    class="modal-overlay" 
+    role="button" 
+    tabindex="-1" 
+    onclick={() => showDetailModal = false}
+    onkeydown={(e) => e.key === 'Enter' && (showDetailModal = false)}
+  >
+    <div class="modal premium-card" role="presentation" onclick={(e) => e.stopPropagation()}>
+      <div class="modal-header">
+        <h2>Detail Transaksi #TRX-{selectedTransaction.id.toString().padStart(4, '0')}</h2>
+        <button class="close-btn" onclick={() => showDetailModal = false}>&times;</button>
+      </div>
+      
+      <div class="tx-meta">
+        <p><span>Waktu:</span> {new Date(selectedTransaction.created_at).toLocaleString()}</p>
+        <p><span>Metode Pembayaran:</span> {selectedTransaction.payment_method}</p>
+      </div>
+
+      <div class="items-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Nama Produk (Snapshot)</th>
+              <th>Harga Satuan</th>
+              <th>Qty</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each selectedTransaction.items as item}
+              <tr>
+                <td>{item.product_name}</td>
+                <td>Rp {item.price_at_sale.toLocaleString()}</td>
+                <td>{item.quantity}</td>
+                <td>Rp {(item.price_at_sale * item.quantity).toLocaleString()}</td>
+              </tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="total-label">Total Gede</td>
+              <td class="total-val">Rp {selectedTransaction.total_amount.toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
+  .table-container {
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .table-container table {
+    flex: 1;
+  }
+
   .reports {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    padding-bottom: 40px;
   }
 
   .header {
@@ -108,8 +257,51 @@
 
   .filter-bar {
     display: flex;
-    gap: 24px;
+    justify-content: space-between;
+    align-items: center;
     padding: 16px 24px;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .search-section {
+    flex: 1;
+    max-width: 400px;
+  }
+
+  .search-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  .search-wrapper .icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+  }
+
+  .search-wrapper input {
+    width: 100%;
+    padding: 10px 10px 10px 40px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-wrapper input:focus {
+    border-color: var(--primary);
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 24px;
   }
 
   .filter-item {
@@ -123,6 +315,21 @@
 
   .filter-item:hover {
     color: var(--primary);
+  }
+
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+  }
+  
+  th.sortable:hover {
+    color: white;
+  }
+  
+  .sort-icon {
+    font-size: 0.8em;
+    margin-left: 4px;
   }
 
   .chart-placeholder {
@@ -155,5 +362,104 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    cursor: pointer;
+  }
+
+  .method-badge {
+    padding: 2px 8px;
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  code {
+    background: var(--bg-main);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  .empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal {
+    width: 90%;
+    max-width: 700px;
+    padding: 24px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+
+  .close-btn {
+    background: transparent;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .tx-meta {
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+  }
+
+  .tx-meta span {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 8px;
+  }
+
+  .items-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .items-table th, .items-table td {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .total-label {
+    text-align: right;
+    font-weight: 700;
+    padding-top: 16px;
+  }
+
+  .total-val {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    padding-top: 16px;
   }
 </style>
