@@ -31,7 +31,9 @@
   async function fetchTransactions() {
     loading = true;
     try {
-      const url = `/sales?limit=${limit}&offset=${offset}&search=${searchQuery}&sortBy=${sortField}&sortDir=${sortDir}`;
+      const q = searchQuery.trim();
+      const searchParam = q.length >= 3 ? `&search=${q}` : '';
+      const url = `/sales?limit=${limit}&offset=${offset}${searchParam}&sortBy=${sortField}&sortDir=${sortDir}`;
       const resp = await api.get(url);
       const { data, total: totalCount } = resp.data;
       transactions = Array.isArray(data) ? data : [];
@@ -91,6 +93,9 @@
           bind:value={searchQuery}
           oninput={() => offset = 0}
         />
+        {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
+          <div class="search-warning">Minimal 3 karakter</div>
+        {/if}
       </div>
     </div>
     <div class="filter-actions">
@@ -297,6 +302,38 @@
 
   .search-wrapper input:focus {
     border-color: var(--primary);
+  }
+
+  .search-warning {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 40px;
+    font-size: 0.75rem;
+    color: #000;
+    background: #f59e0b;
+    padding: 6px 12px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    animation: slideDown 0.2s ease-out;
+  }
+
+  .search-warning::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 12px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #f59e0b;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .filter-actions {

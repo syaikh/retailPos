@@ -27,7 +27,7 @@
     loading = true;
     try {
       const q = searchQuery.trim();
-      const searchParam = q.length > 3 ? `&search=${q}` : '';
+      const searchParam = q.length >= 3 ? `&search=${q}` : '';
       const url = `/product-groups?limit=${limit}&offset=${offset}&sortBy=${sortField}&sortDir=${sortDir}${searchParam}`;
       const resp = await api.get(url);
       const { data, total: totalCount } = resp.data;
@@ -121,8 +121,8 @@
         bind:value={searchQuery}
         oninput={() => offset = 0}
       />
-      {#if searchQuery.trim().length > 0 && searchQuery.trim().length <= 3}
-        <div class="search-warning">Minimal 4 karakter</div>
+      {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
+        <div class="search-warning">Minimal 3 karakter</div>
       {/if}
     </div>
   </div>
@@ -252,12 +252,34 @@
 
   .search-warning {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 12px);
     left: 40px;
     font-size: 0.75rem;
-    color: var(--accent);
-    margin-top: 4px;
-    font-weight: 500;
+    color: #000;
+    background: #f59e0b;
+    padding: 6px 12px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    animation: slideDown 0.2s ease-out;
+  }
+
+  .search-warning::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 12px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #f59e0b;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .header {

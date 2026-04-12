@@ -191,7 +191,7 @@
 
   let filteredProducts = $derived.by(() => {
     const q = searchQuery.trim();
-    if (q.length <= 3 || !$productsStore) return [];
+    if (q.length < 3 || !$productsStore) return [];
     return $productsStore.filter(p => 
       p.name.toLowerCase().includes(q.toLowerCase()) || 
       p.sku.toLowerCase().includes(q.toLowerCase())
@@ -224,11 +224,11 @@
           <h3>Mulai Pencarian</h3>
           <p>Ketik nama produk atau scan barcode untuk menemukan item</p>
         </div>
-      {:else if searchQuery.trim().length <= 3}
+      {:else if searchQuery.trim().length < 3}
         <div class="empty-search-state warning">
           <AlertCircle size={64} color="var(--accent)" />
           <h3>Teks Terlalu Pendek</h3>
-          <p>Masukkan minimal <strong>4 karakter</strong> untuk memulai pencarian produk.</p>
+          <p>Masukkan minimal <strong>3 karakter</strong> untuk memulai pencarian produk.</p>
         </div>
       {:else if filteredProducts.length === 0}
         <div class="empty-search-state">
