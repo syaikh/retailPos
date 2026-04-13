@@ -134,7 +134,15 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.productRepo.GetAll(limit, offset, search, groupID, sortBy, sortDir)
+	var maxStock *int
+	if ms := c.Query("maxStock"); ms != "" {
+		val, err := strconv.Atoi(ms)
+		if err == nil {
+			maxStock = &val
+		}
+	}
+
+	products, total, err := h.productRepo.GetAll(limit, offset, search, groupID, sortBy, sortDir, maxStock)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

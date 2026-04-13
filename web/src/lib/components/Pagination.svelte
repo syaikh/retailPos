@@ -1,5 +1,5 @@
 <script>
-  import { ChevronLeft, ChevronRight } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-svelte';
 
   let { total = 0, limit = 10, offset = 0, onPageChange } = $props();
 
@@ -32,7 +32,16 @@
     <button 
       class="nav-btn" 
       disabled={currentPage === 1} 
+      onclick={() => goToPage(1)}
+      title="Halaman Pertama"
+    >
+      <ChevronsLeft size={18} />
+    </button>
+    <button 
+      class="nav-btn" 
+      disabled={currentPage === 1} 
       onclick={() => goToPage(currentPage - 1)}
+      title="Halaman Sebelumnya"
     >
       <ChevronLeft size={18} />
     </button>
@@ -43,8 +52,17 @@
       class="nav-btn" 
       disabled={currentPage === totalPages || totalPages === 0} 
       onclick={() => goToPage(currentPage + 1)}
+      title="Halaman Berikutnya"
     >
       <ChevronRight size={18} />
+    </button>
+    <button 
+      class="nav-btn" 
+      disabled={currentPage === totalPages || totalPages === 0} 
+      onclick={() => goToPage(totalPages)}
+      title="Halaman Terakhir"
+    >
+      <ChevronsRight size={18} />
     </button>
   </div>
 </div>
@@ -81,12 +99,13 @@
   .pages {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
   }
 
   .page-info {
     font-size: 0.875rem;
     color: var(--text-secondary);
+    margin: 0 8px;
   }
 
   .page-info strong {
@@ -112,7 +131,7 @@
   }
 
   .nav-btn:disabled {
-    opacity: 0.3;
+    opacity: 0.2;
     cursor: not-allowed;
   }
 </style>

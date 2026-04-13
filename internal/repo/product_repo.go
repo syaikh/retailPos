@@ -21,7 +21,7 @@ func (r *ProductRepo) Create(p *model.Product) error {
 	return r.db.QueryRow(query, p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sortBy, sortDir string) ([]model.Product, int, error) {
+func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sortBy, sortDir string, maxStock *int) ([]model.Product, int, error) {
 	// Base query
 	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE deleted_at IS NULL`
 	countQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
@@ -43,6 +43,15 @@ func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sor
 		query += filter
 		countQuery += filter
 		args = append(args, *groupID)
+		placeholderIdx++
+	}
+
+	// Max Stock filter
+	if maxStock != nil {
+		filter := " AND stock < $" + strconv.Itoa(placeholderIdx)
+		query += filter
+		countQuery += filter
+		args = append(args, *maxStock)
 		placeholderIdx++
 	}
 

@@ -9,6 +9,7 @@
     Users
   } from 'lucide-svelte';
   import { products } from '$lib/stores.js';
+  import Pagination from '$lib/components/Pagination.svelte';
 
   let stats = $state({
     todaySales: 0,
@@ -17,9 +18,14 @@
     monthSalesTrend: 0,
     transactionCount: 0,
     lowStockCount: 0,
-    lowStockProducts: [],
     recentActivities: []
   });
+
+  let lowStockProducts = $state([]);
+  let lowStockTotal = $state(0);
+  let lowStockLimit = $state(10);
+  let lowStockOffset = $state(0);
+  let lowStockLoading = $state(false);
   let loading = $state(true);
 
   onMount(async () => {
@@ -34,18 +40,39 @@
       stats.monthSalesTrend = data.month_sales_trend;
       stats.transactionCount = data.today_transactions;
       stats.lowStockCount = data.low_stock_count;
-      stats.lowStockProducts = data.low_stock_products || [];
       stats.recentActivities = data.recent_activities || [];
+
+      // Fetch initial low stock products
+      fetchLowStock();
 
       // Also fetch all products for other uses if needed
       const productsResp = await api.get('/products');
-      products.set(Array.isArray(productsResp.data) ? productsResp.data : []);
+      products.set(Array.isArray(productsResp.data.data) ? productsResp.data.data : []);
     } catch (e) {
       console.error('Failed to fetch dashboard data:', e);
     } finally {
       loading = false;
     }
   });
+
+  async function fetchLowStock() {
+    lowStockLoading = true;
+    try {
+      const resp = await api.get(`/products?limit=${lowStockLimit}&offset=${lowStockOffset}&sortBy=stock&sortDir=asc&maxStock=10`);
+      lowStockProducts = resp.data.data || [];
+      lowStockTotal = resp.data.total || 0;
+    } catch (e) {
+      console.error('Failed to fetch low stock products:', e);
+    } finally {
+      lowStockLoading = false;
+    }
+  }
+
+  function handleLowStockPageChange(newOffset, newLimit) {
+    if (newLimit !== undefined) lowStockLimit = newLimit;
+    lowStockOffset = newOffset;
+    fetchLowStock();
+  }
 
   function formatTimeAgo(dateString) {
     const date = new Date(dateString);
@@ -132,7 +159,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each stats.lowStockProducts as p}
+            {#each lowStockProducts as p}
               <tr>
                 <td><code>{p.sku}</code></td>
                 <td>
@@ -148,13 +175,19 @@
             {/each}
           </tbody>
         </table>
-        {#if !loading && stats.lowStockProducts.length === 0}
+        {#if !lowStockLoading && lowStockProducts.length === 0}
           <div class="empty-state">
              <Package size={48} opacity={0.2} />
              <p>Semua stok produk mencukupi!</p>
           </div>
         {/if}
       </div>
+      <Pagination 
+        total={lowStockTotal} 
+        limit={lowStockLimit} 
+        offset={lowStockOffset} 
+        onPageChange={handleLowStockPageChange} 
+      />
     </div>
 
     <div class="premium-card">

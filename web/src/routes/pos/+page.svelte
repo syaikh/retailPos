@@ -15,6 +15,7 @@
     X,
     AlertCircle
   } from 'lucide-svelte';
+  import Pagination from '$lib/components/Pagination.svelte';
 
   let barcodeInput = $state('');
   let searchQuery = $state('');
@@ -23,11 +24,18 @@
   let paymentMethod = $state('cash');
   let searchInput;
 
+  // Pagination for POS
+  let posLimit = $state(10);
+  let posOffset = $state(0);
+  let posTotal = $state(0);
+  let posLoading = $state(false);
+  let posProducts = $state([]);
+
   let total = $derived($cartStore.reduce((sum, item) => sum + (item.price * item.quantity), 0));
 
   onMount(async () => {
-    // 1. Fetch initial products
-    fetchProducts();
+    // 1. Initial empty or minimal products if needed
+    // fetchProducts(); 
 
     // 2. Set up WebSocket for real-time updates
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -37,7 +45,7 @@
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'stock_updated' || data.type === 'product_updated') {
-        fetchProducts(); // Refresh product list
+        fetchProducts(); // Refresh current page
       }
     };
 
@@ -57,15 +65,34 @@
   });
 
   async function fetchProducts() {
+    const q = searchQuery.trim();
+    if (q.length < 3) {
+      posProducts = [];
+      posTotal = 0;
+      return;
+    }
+
+    posLoading = true;
     try {
-      // Untuk POS, kita ambil limit besar agar pencarian lokal tetap instan
-      const resp = await api.get('/products?limit=1000');
-      const data = resp.data.data;
-      productsStore.set(Array.isArray(data) ? data : []);
+      const resp = await api.get(`/products?limit=${posLimit}&offset=${posOffset}&search=${q}`);
+      posProducts = resp.data.data || [];
+      posTotal = resp.data.total || 0;
     } catch (e) {
       console.error('Failed to fetch products:', e);
-      productsStore.set([]);
+      posProducts = [];
+    } finally {
+      posLoading = false;
     }
+  }
+
+  // Effect to trigger search when query or page changes
+  $effect(() => {
+    fetchProducts();
+  });
+
+  function handlePosPageChange(newOffset, newLimit) {
+    if (newLimit !== undefined) posLimit = newLimit;
+    posOffset = newOffset;
   }
 
   let barcodeBuffer = '';
@@ -189,15 +216,7 @@
     }
   }
 
-  let filteredProducts = $derived.by(() => {
-    const q = searchQuery.trim();
-    if (q.length < 3 || !$productsStore) return [];
-    return $productsStore.filter(p => 
-      p.name.toLowerCase().includes(q.toLowerCase()) || 
-      p.sku.toLowerCase().includes(q.toLowerCase()) ||
-      (p.barcode && p.barcode.toLowerCase().includes(q.toLowerCase()))
-    );
-  });
+  // Remove filteredProducts derived state as we are using server-side search
 </script>
 
 <div class="pos-container">
@@ -210,9 +229,10 @@
         placeholder="Cari produk atau scan barcode..." 
         bind:value={searchQuery}
         bind:this={searchInput}
+        oninput={() => posOffset = 0}
       />
       {#if searchQuery}
-        <button class="clear-search-btn" aria-label="Hapus pencarian" onclick={() => { searchQuery = ''; searchInput.focus(); }}>
+        <button class="clear-search-btn" aria-label="Hapus pencarian" onclick={() => { searchQuery = ''; posOffset = 0; searchInput.focus(); }}>
           <X size={18} />
         </button>
       {/if}
@@ -231,7 +251,7 @@
           <h3>Teks Terlalu Pendek</h3>
           <p>Masukkan minimal <strong>3 karakter</strong> untuk memulai pencarian produk.</p>
         </div>
-      {:else if filteredProducts.length === 0}
+      {:else if !posLoading && posProducts.length === 0}
         <div class="empty-search-state">
           <Package size={64} />
           <h3>Produk Tidak Ditemukan</h3>
@@ -250,7 +270,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each filteredProducts as product}
+            {#each posProducts as product}
               <tr class:disabled={product.stock <= 0}>
               <td><code>{product.sku}</code></td>
               <td>
@@ -276,6 +296,12 @@
             {/each}
           </tbody>
         </table>
+        <Pagination 
+          total={posTotal} 
+          limit={posLimit} 
+          offset={posOffset} 
+          onPageChange={handlePosPageChange} 
+        />
       {/if}
     </div>
   </div>
