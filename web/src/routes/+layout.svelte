@@ -1,6 +1,6 @@
 <script>
-  import { page } from '$app/stores';
-  import { protectRoute } from '$lib/auth.js';
+  import { onMount } from 'svelte';
+  import { protectRoute, authReady } from '$lib/auth.js';
   import '../lib/app.css';
   import { user } from '$lib/stores.js';
   import Sidebar from '$lib/components/Sidebar.svelte';
@@ -9,12 +9,22 @@
 
   let { children } = $props();
 
-  $effect(() => {
-    protectRoute($page.url.pathname);
+  // Run once on mount: read the hash and decide where to go.
+  // We use onMount (not $effect) to avoid re-running on every reactive update.
+  onMount(() => {
+    protectRoute();
+
+    // Also guard on hash changes (e.g. user manually edits the URL bar).
+    const onHashChange = () => protectRoute();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   });
 </script>
 
-{#if $user}
+{#if !$authReady}
+  <!-- Blank screen while auth state is being determined to prevent flash -->
+  <div class="auth-loading"></div>
+{:else if $user}
   <div class="layout">
     <Sidebar />
     <div class="main-content">
@@ -29,6 +39,12 @@
 {/if}
 
 <style>
+  .auth-loading {
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-main, #0f172a);
+  }
+
   .layout {
     display: flex;
     height: 100vh;
