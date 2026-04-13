@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import api from '$lib/api.js';
   import { 
-    DollarSign, 
     ShoppingCart, 
     Package, 
     TrendingUp,
@@ -86,6 +85,10 @@
     if (hours < 24) return `${hours} jam yang lalu`;
     return date.toLocaleDateString();
   }
+
+  function formatMessageWithLinks(message) {
+    return message.replace(/(#TRX-[A-Z0-9]+)/g, '<a href="/reports" class="trx-link">$1</a>');
+  }
 </script>
 
 <div class="dashboard">
@@ -97,7 +100,7 @@
   <div class="stats-grid">
     <div class="stat-card premium-card glass">
       <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success)">
-        <DollarSign size={24} />
+        <span class="icon-rp">Rp</span>
       </div>
       <div class="stat-info">
         <span class="label">Penjualan Hari Ini</span>
@@ -201,7 +204,7 @@
               <Package size={18} class="text-secondary" />
             {/if}
             <div class="details">
-              <p><strong>{activity.user}</strong> {activity.message}</p>
+              <p><strong>{activity.user}</strong> {@html formatMessageWithLinks(activity.message)}</p>
               <span>{formatTimeAgo(activity.created_at)}</span>
             </div>
           </div>
@@ -211,6 +214,9 @@
             <p>Tidak ada aktivitas terbaru</p>
           </div>
         {/if}
+      </div>
+      <div class="card-footer">
+        <a href="/reports" class="see-all-link">Lihat laporan selengkapnya →</a>
       </div>
     </div>
   </div>
@@ -254,6 +260,13 @@
     justify-content: center;
   }
 
+  .icon-rp {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
   .stat-info {
     display: flex;
     flex-direction: column;
@@ -269,6 +282,7 @@
     font-size: 1.5rem;
     font-weight: 800;
     margin: 4px 0;
+    white-space: nowrap;
   }
 
   .trend {
@@ -330,6 +344,42 @@
   .details span {
     font-size: 0.75rem;
     color: var(--text-secondary);
+  }
+
+  :global(.trx-link) {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    border-bottom: 1px dashed var(--primary);
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  :global(.trx-link:hover) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .card-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    text-align: right;
+  }
+
+  .see-all-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--primary);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    transition: color 0.2s, gap 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .see-all-link:hover {
+    color: var(--accent);
   }
 
   .empty-state {
