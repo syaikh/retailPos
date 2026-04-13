@@ -101,11 +101,21 @@ func (h *Handler) Login(c *gin.Context) {
 func (h *Handler) GetProducts(c *gin.Context) {
 	barcode := c.Query("barcode")
 	if barcode != "" {
-		p, err := h.productRepo.GetBySKU(barcode)
+		// First try by barcode
+		p, err := h.productRepo.GetByBarcode(barcode)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		// If not found by barcode, try by SKU (legacy support)
+		if p == nil {
+			p, err = h.productRepo.GetBySKU(barcode)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+
 		if p == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
@@ -149,31 +159,51 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// 3-Layer Validation Flow for Create/Restore
-	existingP, err := h.productRepo.GetBySKUWithDeleted(p.SKU)
+	// Normalize empty barcode to nil for database NULL
+	if p.Barcode != nil && *p.Barcode == "" {
+		p.Barcode = nil
+	}
+
+	// 1. Check SKU Uniqueness (including deleted)
+	existingBySKU, err := h.productRepo.GetBySKUWithDeleted(p.SKU)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check SKU existence"})
 		return
 	}
 
-	if existingP != nil {
-		if existingP.DeletedAt == nil {
-			// Case 2: Ada & Aktif
+	if existingBySKU != nil {
+		if existingBySKU.DeletedAt == nil {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product with this SKU already exists"})
 			return
-		} else {
-			// Case 3: Ada & Soft Deleted -> Restore
-			p.ID = existingP.ID
-			if err := h.productRepo.Restore(&p); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore product"})
-				return
+		}
+		// Restore the deleted product
+		p.ID = existingBySKU.ID
+		if err := h.productRepo.Restore(&p); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore product"})
+			return
+		}
+		c.JSON(http.StatusCreated, p)
+		return
+	}
+
+	// 2. Check Barcode Uniqueness if provided
+	if p.Barcode != nil && *p.Barcode != "" {
+		existingByBarcode, err := h.productRepo.GetByBarcodeWithDeleted(*p.Barcode)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check Barcode existence"})
+			return
+		}
+		if existingByBarcode != nil {
+			status := "exists"
+			if existingByBarcode.DeletedAt != nil {
+				status = "exists in deleted records"
 			}
-			c.JSON(http.StatusCreated, p)
+			c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("Product with this Barcode already %s (SKU: %s)", status, existingByBarcode.SKU)})
 			return
 		}
 	}
 
-	// Case 1: Tidak ada -> Insert produk baru
+	// 3. Create new product
 	if err := h.productRepo.Create(&p); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -206,6 +236,11 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		return
 	}
 	p.ID = idInt
+
+	// Normalize empty barcode to nil for database NULL
+	if p.Barcode != nil && *p.Barcode == "" {
+		p.Barcode = nil
+	}
 
 	if err := h.productRepo.Update(&p); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

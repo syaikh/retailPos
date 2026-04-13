@@ -50,7 +50,7 @@
   function formatTimeAgo(dateString) {
     const date = new Date(dateString);
     const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
     if (seconds < 60) return 'Baru saja';
     const minutes = Math.floor(seconds / 60);
@@ -126,6 +126,7 @@
           <thead>
             <tr>
               <th>SKU</th>
+              <th>Barcode</th>
               <th>Nama</th>
               <th>Stok</th>
             </tr>
@@ -134,6 +135,13 @@
             {#each stats.lowStockProducts as p}
               <tr>
                 <td><code>{p.sku}</code></td>
+                <td>
+                  {#if p.barcode}
+                    <code>{p.barcode}</code>
+                  {:else}
+                    <span class="text-dim">-</span>
+                  {/if}
+                </td>
                 <td>{p.name}</td>
                 <td><span class="low-stock-text">{p.stock}</span></td>
               </tr>

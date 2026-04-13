@@ -21,13 +21,14 @@ type ProductGroup struct {
 }
 
 type Product struct {
-	ID        int        `json:"id"`
-	Name      string     `json:"name"`
-	SKU       string     `json:"sku"`
-	Price     int        `json:"price"`
-	Stock     int        `json:"stock"`
-	GroupID   *int       `json:"group_id"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID         int        `json:"id"`
+	Name       string     `json:"name"`
+	SKU        string     `json:"sku"`
+	Barcode    *string    `json:"barcode"` // Using *string to handle NULL values
+	Price      int        `json:"price"`
+	Stock      int        `json:"stock"`
+	GroupID    *int       `json:"group_id"`
+	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
 	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
 	RestoredAt *time.Time `json:"restored_at,omitempty"`

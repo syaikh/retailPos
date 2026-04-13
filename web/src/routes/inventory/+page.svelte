@@ -65,6 +65,7 @@
   let form = $state({
     name: '',
     sku: '',
+    barcode: '',
     price: 0,
     stock: 0,
     group_id: null
@@ -124,16 +125,16 @@
 
   function openCreate() {
     editingProduct = null;
-    form = { name: '', sku: '', price: 0, stock: 0, group_id: null };
+    form = { name: '', sku: '', barcode: '', price: 0, stock: 0, group_id: null };
     showModal = true;
   }
 
   /**
-   * @param {{ id: number; name: string; sku: string; price: number; stock: number; group_id: number | null; }} p
+   * @param {{ id: number; name: string; sku: string; barcode?: string | null; price: number; stock: number; group_id: number | null; }} p
    */
   function openEdit(p) {
     editingProduct = p;
-    form = { ...p };
+    form = { ...p, barcode: p.barcode || '' };
     showModal = true;
   }
 
@@ -199,7 +200,7 @@
         <span class="icon"><Search size={18} /></span>
         <input
           type="text"
-          placeholder="Cari SKU atau nama barang..."
+          placeholder="Cari SKU, Barcode, atau nama barang..."
           bind:value={searchQuery}
           bind:this={searchInput}
           use:autofocus
@@ -225,7 +226,10 @@
       <thead>
         <tr>
           <th onclick={() => handleSort('sku')} class="sortable">
-            SKU / Barcode {#if sortField === 'sku'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            SKU {#if sortField === 'sku'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+          </th>
+          <th onclick={() => handleSort('barcode')} class="sortable">
+            Barcode {#if sortField === 'barcode'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </th>
           <th onclick={() => handleSort('name')} class="sortable">
             Nama Produk {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
@@ -246,6 +250,13 @@
         {#each displayProducts as p}
           <tr>
             <td><code>{p.sku}</code></td>
+            <td>
+              {#if p.barcode}
+                <code>{p.barcode}</code>
+              {:else}
+                <span class="text-dim">-</span>
+              {/if}
+            </td>
             <td><strong>{p.name}</strong></td>
             <td>
               {#if p.group_id}
@@ -281,7 +292,7 @@
         {/each}
         {#if displayProducts.length === 0 && !loading}
           <tr>
-            <td colspan="6" class="empty">Tidak ada produk ditemukan</td>
+            <td colspan="7" class="empty">Tidak ada produk ditemukan</td>
           </tr>
         {/if}
       </tbody>
@@ -306,9 +317,15 @@
     <div class="modal premium-card" role="presentation" onclick={(e) => e.stopPropagation()}>
       <h2>{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</h2>
       <form onsubmit={handleSubmit}>
-        <div class="form-group">
-          <label for="product-sku">SKU / Barcode</label>
-          <input id="product-sku" type="text" bind:value={form.sku} required use:autofocus />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="product-sku">SKU (Kode Internal)</label>
+            <input id="product-sku" type="text" bind:value={form.sku} required use:autofocus />
+          </div>
+          <div class="form-group">
+            <label for="product-barcode">Barcode (External)</label>
+            <input id="product-barcode" type="text" bind:value={form.barcode} placeholder="Optional" />
+          </div>
         </div>
         <div class="form-group">
           <label for="product-name">Nama Produk</label>
@@ -468,7 +485,9 @@
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--accent);
+    display: inline-block;
   }
+
 
   th.sortable {
     cursor: pointer;

@@ -194,7 +194,8 @@
     if (q.length < 3 || !$productsStore) return [];
     return $productsStore.filter(p => 
       p.name.toLowerCase().includes(q.toLowerCase()) || 
-      p.sku.toLowerCase().includes(q.toLowerCase())
+      p.sku.toLowerCase().includes(q.toLowerCase()) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q.toLowerCase()))
     );
   });
 </script>
@@ -241,6 +242,7 @@
           <thead>
             <tr>
               <th>SKU</th>
+              <th>Barcode</th>
               <th>Nama Produk</th>
               <th>Harga</th>
               <th>Stok</th>
@@ -250,7 +252,14 @@
           <tbody>
             {#each filteredProducts as product}
               <tr class:disabled={product.stock <= 0}>
-                <td><code>{product.sku}</code></td>
+              <td><code>{product.sku}</code></td>
+              <td>
+                {#if product.barcode}
+                  <code>{product.barcode}</code>
+                {:else}
+                  <span class="text-dim">-</span>
+                {/if}
+              </td>
                 <td><strong>{product.name}</strong></td>
                 <td class="price">Rp {product.price.toLocaleString()}</td>
                 <td>
@@ -465,7 +474,9 @@
     color: var(--accent);
     font-family: monospace;
     font-size: 0.85rem;
+    display: inline-block;
   }
+
 
   .product-table .price {
     font-weight: 700;

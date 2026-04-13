@@ -80,14 +80,14 @@ func (r *StatsRepo) GetDashboardStats() (*DashboardStats, error) {
 		return nil, err
 	}
 
-	rows, err := r.db.Query(`SELECT id, name, sku, price, stock, group_id, created_at, updated_at FROM products WHERE stock < 10 AND deleted_at IS NULL ORDER BY stock ASC LIMIT 5`)
+	rows, err := r.db.Query(`SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at FROM products WHERE stock < 10 AND deleted_at IS NULL ORDER BY stock ASC LIMIT 5`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p model.Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		stats.LowStockProducts = append(stats.LowStockProducts, p)

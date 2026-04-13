@@ -57,30 +57,40 @@ func main() {
 
 	// 3. Insert Products
 	fmt.Println("Inserting products...")
-	productItems := []struct {
-		name    string
-		catIdx  int
-		price   int
-		stock   int
+	
+	// Predefined templates to keep some data consistent
+	templates := []struct {
+		namePrefix string
+		minPrice   int
+		maxPrice   int
 	}{
-		{"Aqua 600ml", 0, 3500, 50},
-		{"Coca Cola 330ml", 0, 6000, 24},
-		{"Teh Pucuk", 0, 4000, 100},
-		{"Indemie Goreng", 1, 3000, 8},
-		{"Chitato L", 1, 12000, 15},
-		{"Beras 5kg", 2, 65000, 5},
-		{"Minyak Goreng 1L", 2, 18000, 20},
-		{"Buku Tulis Sidu", 3, 5000, 40},
-		{"Pulpen Snowman", 3, 2500, 2},
-		{"Sabun Cuci Piring", 4, 15000, 30},
+		{"Minuman", 3000, 20000},
+		{"Snack", 2000, 15000},
+		{"Kebutuhan", 10000, 100000},
+		{"Elektronik", 50000, 500000},
+		{"Pakaian", 35000, 250000},
 	}
 
 	productIDs := []int{}
-	for i, p := range productItems {
+	
+	// Helper for product naming to ensure variety
+	suffixes := []string{"Premium", "Hemat", "Promo", "Baru", "Original", "Plus", "Double", "Mini", "Jumbo"}
+
+	for i := 1; i <= 100; i++ {
+		tIdx := rand.Intn(len(templates))
+		catIdx := rand.Intn(len(categoryIDs))
+		
+		name := fmt.Sprintf("%s %s %d", templates[tIdx].namePrefix, suffixes[rand.Intn(len(suffixes))], i)
+		price := (rand.Intn(templates[tIdx].maxPrice - templates[tIdx].minPrice) + templates[tIdx].minPrice) / 100 * 100
+		stock := rand.Intn(100) + 5
+		sku := fmt.Sprintf("SKU-%04d", i)
+		
+		// Generate random 13-digit barcode (starting with 899 for ID or others)
+		barcodeVal := fmt.Sprintf("899%010d", rand.Int63n(10000000000))
+		
 		var id int
-		sku := fmt.Sprintf("SKU-%04d", i+1)
-		err := db.QueryRow(`INSERT INTO products (name, sku, price, stock, group_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			p.name, sku, p.price, p.stock, categoryIDs[p.catIdx]).Scan(&id)
+		err := db.QueryRow(`INSERT INTO products (name, sku, barcode, price, stock, group_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+			name, sku, barcodeVal, price, stock, categoryIDs[catIdx]).Scan(&id)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -114,12 +124,17 @@ func main() {
 			items := []Item{}
 			
 			for k := 0; k < numItems; k++ {
-				pIdx := rand.Intn(len(productItems))
+				pIdx := rand.Intn(len(productIDs))
 				qty := rand.Intn(3) + 1
-				price := productItems[pIdx].price
-				name := productItems[pIdx].name
-				items = append(items, Item{productIDs[pIdx], qty, price, name})
-				totalAmount += price * qty
+				
+				// Fetch price and name from DB or use random values for simplicity since they are just dummy data
+				// To keep it simple, we'll just mock it or fetch the product info
+				var pName string
+				var pPrice int
+				db.QueryRow(`SELECT name, price FROM products WHERE id = $1`, productIDs[pIdx]).Scan(&pName, &pPrice)
+				
+				items = append(items, Item{productIDs[pIdx], qty, pPrice, pName})
+				totalAmount += pPrice * qty
 			}
 
 			var saleID int
