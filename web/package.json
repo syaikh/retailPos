@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "axios": "^1.6.8",
+    "chart.js": "^4.4.1",
     "lucide-svelte": "^0.372.0"
   }
 }

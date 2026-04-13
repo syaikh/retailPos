@@ -30,13 +30,24 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	placeholderIdx := 1
 
 	if search != "" {
-		// id check without TRX-
-		cleanSearch := strings.TrimPrefix(strings.ToUpper(search), "TRX-")
-		filter := " AND (si.product_name ILIKE $" + strconv.Itoa(placeholderIdx) + " OR s.id::text ILIKE $" + strconv.Itoa(placeholderIdx) + ")"
+		// handle #TRX-, TRX-, and padding
+		cleanSearch := strings.TrimPrefix(strings.TrimPrefix(strings.ToUpper(search), "#TRX-"), "TRX-")
+		
+		filter := " AND (si.product_name ILIKE $" + strconv.Itoa(placeholderIdx) + " OR s.id::text ILIKE $" + strconv.Itoa(placeholderIdx)
+		
+		searchInt, err := strconv.Atoi(cleanSearch)
+		if err == nil {
+			// If numeric, add exact ID match to handle cases like "0001" searching for ID 1
+			filter += " OR s.id = $" + strconv.Itoa(placeholderIdx+1) + ")"
+			args = append(args, "%"+cleanSearch+"%", searchInt)
+			placeholderIdx += 2
+		} else {
+			filter += ")"
+			args = append(args, "%"+cleanSearch+"%")
+			placeholderIdx++
+		}
 		query += filter
 		countQuery += filter
-		args = append(args, "%"+cleanSearch+"%")
-		placeholderIdx++
 	}
 
 	var total int
@@ -79,10 +90,10 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	}
 
 	if len(sales) == 0 {
-		return sales, 0, nil
+		return sales, total, nil
 	}
 
-	// 85. Fetch items ONLY for the sales on current page (Optimization)
+	// Fetch items ONLY for the sales on current page (Optimization)
 	idsStr := []string{}
 	for _, id := range saleIds {
 		idsStr = append(idsStr, strconv.Itoa(id))

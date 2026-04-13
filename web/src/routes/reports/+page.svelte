@@ -23,21 +23,23 @@
   let searchQuery = $state('');
   let sortField = $state('created_at');
   let sortDir = $state('desc');
+  // activeSearch is the committed search term (min 3 chars or empty)
+  let activeSearch = $state('');
 
   onMount(async () => {
-    // onMount logic if needed elsewhere
+    // trigger initial load
   });
 
   async function fetchTransactions() {
     loading = true;
     try {
-      const q = searchQuery.trim();
-      const searchParam = q.length >= 3 ? `&search=${q}` : '';
+      const q = activeSearch.trim();
+      const searchParam = q.length >= 3 ? `&search=${encodeURIComponent(q)}` : '';
       const url = `/sales?limit=${limit}&offset=${offset}${searchParam}&sortBy=${sortField}&sortDir=${sortDir}`;
       const resp = await api.get(url);
       const { data, total: totalCount } = resp.data;
       transactions = Array.isArray(data) ? data : [];
-      total = totalCount;
+      total = totalCount ?? 0;
     } catch (e) {
       console.error('Failed to fetch transactions:', e);
       transactions = [];
@@ -47,8 +49,32 @@
   }
 
   $effect(() => {
+    // Svelte tracks: activeSearch, offset, limit, sortField, sortDir
+    void activeSearch;
+    void offset;
+    void limit;
+    void sortField;
+    void sortDir;
     fetchTransactions();
   });
+
+  let debounceTimer;
+  function handleSearchInput() {
+    clearTimeout(debounceTimer);
+    const q = searchQuery.trim();
+    if (q.length === 0) {
+      // Immediately clear search
+      activeSearch = '';
+      offset = 0;
+    } else if (q.length >= 3) {
+      // Debounce to avoid firing on every keystroke
+      debounceTimer = setTimeout(() => {
+        activeSearch = q;
+        offset = 0;
+      }, 400);
+    }
+    // 1-2 chars: show warning, don't fetch
+  }
 
   function handlePageChange(newOffset, newLimit) {
     if (newLimit !== undefined) limit = newLimit;
@@ -91,7 +117,8 @@
           type="text"
           placeholder="Cari ID TRX atau Nama Produk..."
           bind:value={searchQuery}
-          oninput={() => offset = 0}
+          oninput={handleSearchInput}
+          onkeydown={(e) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { clearTimeout(debounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
         />
         {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
           <div class="search-warning">Minimal 3 karakter</div>
@@ -119,45 +146,47 @@
   </div>
 
   <div class="table-container premium-card">
-    <table>
-      <thead>
-        <tr>
-          <th onclick={() => handleSort('id')} class="sortable">
-            ID {#if sortField === 'id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('created_at')} class="sortable">
-            Waktu {#if sortField === 'created_at'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('total')} class="sortable">
-            Total {#if sortField === 'total'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th>Metode</th>
-          <th>Qty Item</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each transactions as tx}
+    <div class="table-wrapper">
+      <table>
+        <thead>
           <tr>
-            <td><code>#TRX-{tx.id.toString().padStart(4, '0')}</code></td>
-            <td>{new Date(tx.created_at).toLocaleString()}</td>
-            <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
-            <td><span class="method-badge">{tx.payment_method}</span></td>
-            <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
-            <td>
-              <button class="detail-link" onclick={() => openDetail(tx)}>
-                Detail <ArrowUpRight size={14} />
-              </button>
-            </td>
+            <th onclick={() => handleSort('id')} class="sortable">
+              ID {#if sortField === 'id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            </th>
+            <th onclick={() => handleSort('created_at')} class="sortable">
+              Waktu {#if sortField === 'created_at'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            </th>
+            <th onclick={() => handleSort('total')} class="sortable">
+              Total {#if sortField === 'total'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            </th>
+            <th>Metode</th>
+            <th>Qty Item</th>
+            <th>Aksi</th>
           </tr>
-        {/each}
-        {#if !loading && transactions.length === 0}
-          <tr>
-            <td colspan="6" class="empty">Belum ada transaksi terekam</td>
-          </tr>
-        {/if}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each transactions as tx}
+            <tr>
+              <td><code>#TRX-{tx.id.toString().padStart(4, '0')}</code></td>
+              <td>{new Date(tx.created_at).toLocaleString()}</td>
+              <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
+              <td><span class="method-badge">{tx.payment_method}</span></td>
+              <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
+              <td>
+                <button class="detail-link" onclick={() => openDetail(tx)}>
+                  Detail <ArrowUpRight size={14} />
+                </button>
+              </td>
+            </tr>
+          {/each}
+          {#if !loading && transactions.length === 0}
+            <tr>
+              <td colspan="6" class="empty">Belum ada transaksi terekam</td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
+    </div>
     <Pagination 
       total={total} 
       limit={limit} 
@@ -220,15 +249,29 @@
 
 <style>
   .table-container {
-    min-height: 500px;
+    height: 600px;
     display: flex;
     flex-direction: column;
     padding: 0;
     overflow: hidden;
   }
 
-  .table-container table {
+  .table-wrapper {
     flex: 1;
+    overflow-y: auto;
+  }
+
+  .table-wrapper table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .table-wrapper th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-surface);
+    z-index: 10;
   }
 
   .reports {
