@@ -40,11 +40,14 @@
 
   function formatIndonesianDate(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr + 'T00:00:00');
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
     const day = d.getDate();
     const month = monthNames[d.getMonth()];
     const year = d.getFullYear();
-    return `${day} ${month} ${year}`;
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${day} ${month} ${year} ${hours}:${minutes}`;
   }
 
   const today = new Date();
@@ -354,7 +357,7 @@
           {#each transactions as tx}
             <tr>
               <td><code>#TRX-{tx.id.toString().padStart(4, '0')}</code></td>
-              <td>{new Date(tx.created_at).toLocaleString()}</td>
+              <td>{formatIndonesianDate(tx.created_at)}</td>
               <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
               <td><span class="method-badge">{tx.payment_method}</span></td>
               <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
@@ -397,7 +400,7 @@
       </div>
       
       <div class="tx-meta">
-        <p><span>Waktu:</span> {new Date(selectedTransaction.created_at).toLocaleString()}</p>
+        <p><span>Waktu:</span> {formatIndonesianDate(selectedTransaction.created_at)}</p>
         <p><span>Metode Pembayaran:</span> {selectedTransaction.payment_method}</p>
       </div>
 
