@@ -10,6 +10,7 @@ import (
 	"retailPos/internal/service"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -125,7 +126,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	}
 
 	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
-	
+
 	var groupID *int
 	if g := c.Query("group_id"); g != "" {
 		id, err := strconv.Atoi(g)
@@ -439,4 +440,21 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		"limit":  limit,
 		"offset": offset,
 	})
+}
+
+func (h *Handler) GetSalesChartData(c *gin.Context) {
+	startDate := c.DefaultQuery("start_date", time.Now().AddDate(0, -1, 0).Format("2006-01-02"))
+	endDate := c.DefaultQuery("end_date", time.Now().Format("2006-01-02"))
+	groupBy := c.DefaultQuery("group_by", "day")
+
+	fmt.Printf("CHART HANDLER: start=%s, end=%s, group=%s\n", startDate, endDate, groupBy)
+
+	data, err := h.statsRepo.GetSalesChartData(startDate, endDate+"T23:59:59", groupBy)
+	if err != nil {
+		fmt.Printf("CHART ERROR: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Printf("CHART DATA: %+v\n", data)
+	c.JSON(http.StatusOK, data)
 }

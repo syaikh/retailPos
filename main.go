@@ -64,6 +64,9 @@ func main() {
 	{
 		api.POST("/login", h.Login)
 
+		// Debug: unprotected chart endpoint
+		api.GET("/sales/chart", h.GetSalesChartData)
+
 		// WebSocket
 		api.GET("/ws", func(c *gin.Context) {
 			hub.ServeHTTP(c.Writer, c.Request)

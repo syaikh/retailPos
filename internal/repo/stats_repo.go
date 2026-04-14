@@ -2,6 +2,8 @@ package repo
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	model "retailPos/internal/model"
 	"time"
 )
@@ -109,4 +111,71 @@ func (r *StatsRepo) GetDashboardStats() (*DashboardStats, error) {
 	}
 
 	return stats, nil
+}
+
+type SalesChartData struct {
+	Labels []string `json:"labels"`
+	Values []int    `json:"values"`
+}
+
+func (r *StatsRepo) GetSalesChartData(startDate, endDate string, groupBy string) (*SalesChartData, error) {
+	var dateFormat string
+
+	switch groupBy {
+	case "week":
+		dateFormat = "IYYY-IW"
+	case "month":
+		dateFormat = "YYYY-MM"
+	default:
+		dateFormat = "YYYY-MM-DD"
+	}
+
+	query := `
+		SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Jakarta', $1) as period, COALESCE(SUM(total_amount), 0)::int as total
+		FROM sales
+		WHERE created_at AT TIME ZONE 'Asia/Jakarta' >= $2::timestamp AT TIME ZONE 'Asia/Jakarta' 
+		  AND created_at AT TIME ZONE 'Asia/Jakarta' <= $3::timestamp AT TIME ZONE 'Asia/Jakarta'
+		GROUP BY period
+		ORDER BY period ASC
+	`
+
+	fmt.Printf("DEBUG: Query with format=%s, start=%s, end=%s\n", dateFormat, startDate, endDate)
+
+	rows, err := r.db.Query(query, dateFormat, startDate, endDate)
+	if err != nil {
+		fmt.Printf("DEBUG ERROR: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	data := &SalesChartData{
+		Labels: []string{},
+		Values: []int{},
+	}
+
+	for rows.Next() {
+		var label string
+		var value int
+		if err := rows.Scan(&label, &value); err != nil {
+			return nil, err
+		}
+		data.Labels = append(data.Labels, label)
+		data.Values = append(data.Values, value)
+	}
+
+	fmt.Printf("DEBUG: Got %d data points\n", len(data.Labels))
+
+	return data, nil
+}
+
+func (r *StatsRepo) GetSalesChartDataJSON(startDate, endDate string, groupBy string) (string, error) {
+	data, err := r.GetSalesChartData(startDate, endDate, groupBy)
+	if err != nil {
+		return "", err
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonData), nil
 }

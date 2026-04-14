@@ -11,6 +11,7 @@
   import { onMount, tick } from 'svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
+  import Chart from 'chart.js/auto';
 
   let transactions = $state([]);
   let loading = $state(true);
@@ -23,12 +24,169 @@
   let searchQuery = $state('');
   let sortField = $state('created_at');
   let sortDir = $state('desc');
-  // activeSearch is the committed search term (min 3 chars or empty)
   let activeSearch = $state('');
 
+  let chartCanvas = $state(null);
+  let chartInstance = $state(null);
+  let chartLoading = $state(true);
+  let chartError = $state('');
+  let dateRangeStart = $state('');
+  let dateRangeEnd = $state('');
+  let groupBy = $state('day');
+  let chartInitialized = $state(false);
+  let chartReady = $state(false);
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+  function formatIndonesianDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDate();
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  }
+
+  const today = new Date();
+  const defaultStart = new Date(today);
+  defaultStart.setDate(today.getDate() - 7);
+  dateRangeStart = defaultStart.toISOString().split('T')[0];
+  dateRangeEnd = today.toISOString().split('T')[0];
+
+  let showStartPicker = $state(false);
+  let showEndPicker = $state(false);
+  let startPickerRef = $state(null);
+  let endPickerRef = $state(null);
+
+  function handleStartDateSelect(date) {
+    dateRangeStart = date;
+    showStartPicker = false;
+  }
+
+  function handleEndDateSelect(date) {
+    dateRangeEnd = date;
+    showEndPicker = false;
+  }
+
+  function getDatePickerDates(startDate, days = 30) {
+    const dates = [];
+    const d = new Date(startDate + 'T00:00:00');
+    for (let i = 0; i < days; i++) {
+      dates.push(d.toISOString().split('T')[0]);
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
+  }
+
+  function getDaysInRange(start, end) {
+    const dates = [];
+    let d = new Date(start + 'T00:00:00');
+    const e = new Date(end + 'T00:00:00');
+    while (d <= e) {
+      dates.push(d.toISOString().split('T')[0]);
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
+  }
+
   onMount(async () => {
-    // trigger initial load
+    chartInitialized = true;
+    await tick();
+    await fetchChartData();
   });
+
+  let lastChartData = $state(null);
+
+  async function fetchChartData() {
+    if (!dateRangeStart || !dateRangeEnd) return;
+    chartLoading = true;
+    chartError = '';
+    try {
+      const url = `/sales/chart?start_date=${dateRangeStart}&end_date=${dateRangeEnd}&group_by=${groupBy}`;
+      console.log('Fetching chart from:', url);
+      const resp = await api.get(url);
+      console.log('Chart response status:', resp.status);
+      console.log('Chart response data:', resp.data);
+      const data = resp.data;
+      
+      chartLoading = false;
+      
+      // Check if we got valid data
+      if (!data || !data.labels || data.labels.length === 0) {
+        chartError = 'Tidak ada penjualan pada rentang tanggal ini';
+        return;
+      }
+      
+      await tick();
+      renderChart(data.labels || [], data.values || []);
+    } catch (e) {
+      console.error('Failed to fetch chart data:', e);
+      chartError = e.response?.data?.error || e.message;
+      chartLoading = false;
+    }
+  }
+
+  function renderChart(labels, values) {
+    console.log('Rendering chart with labels:', labels, 'values:', values, 'canvas:', !!chartCanvas);
+    
+    if (!chartCanvas) {
+      console.log('No chart canvas - exiting');
+      return;
+    }
+    
+    if (labels.length === 0) {
+      chartError = 'Tidak ada penjualan pada rentang tanggal ini';
+      return;
+    }
+
+    console.log('Creating chart...');
+    
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    const ctx = chartCanvas.getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Total Penjualan (Rp)',
+          data: values,
+          backgroundColor: 'rgba(99, 102, 241, 0.6)',
+          borderColor: 'rgba(99, 102, 241, 1)',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return 'Rp ' + context.raw.toLocaleString();
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return 'Rp ' + (Number(value) / 1000).toLocaleString() + 'rb';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 
   async function fetchTransactions() {
     loading = true;
@@ -49,13 +207,20 @@
   }
 
   $effect(() => {
-    // Svelte tracks: activeSearch, offset, limit, sortField, sortDir
     void activeSearch;
     void offset;
     void limit;
     void sortField;
     void sortDir;
     fetchTransactions();
+  });
+
+  $effect(() => {
+    if (!chartInitialized || !dateRangeStart || !dateRangeEnd) return;
+    void dateRangeStart;
+    void dateRangeEnd;
+    void groupBy;
+    fetchChartData();
   });
 
   let debounceTimer;
@@ -126,23 +291,44 @@
       </div>
     </div>
     <div class="filter-actions">
-      <div class="filter-item">
+      <div class="filter-item date-filter">
         <Calendar size={18} />
-        <span>7 Hari Terakhir</span>
+        <input 
+          type="date" 
+          bind:value={dateRangeStart}
+          max={dateRangeEnd}
+        />
+        <span class="separator">-</span>
+        <input 
+          type="date" 
+          bind:value={dateRangeEnd}
+          min={dateRangeStart}
+        />
       </div>
       <div class="filter-item">
-        <Filter size={18} />
-        <span>Semua Kasir</span>
+        <select bind:value={groupBy} class="group-select">
+          <option value="day">Harian</option>
+          <option value="week">Mingguan</option>
+          <option value="month">Bulanan</option>
+        </select>
       </div>
     </div>
   </div>
 
-  <div class="chart-placeholder premium-card glass">
-    <div class="placeholder-content">
-      <BarChart3 size={64} opacity={0.2} />
-      <p>Visualisasi Grafik Penjualan</p>
-      <span>Pilih rentang tanggal untuk melihat statistik detail</span>
-    </div>
+  <div class="chart-container premium-card glass">
+    {#if chartLoading}
+      <div class="chart-loading">
+        <BarChart3 size={48} class="spin" />
+        <p>Memuat data...</p>
+      </div>
+    {:else if chartError}
+      <div class="chart-error">
+        <p>Error: {chartError}</p>
+        <button onclick={fetchChartData}>Coba Lagi</button>
+      </div>
+    {:else}
+      <canvas bind:this={chartCanvas}></canvas>
+    {/if}
   </div>
 
   <div class="table-container premium-card">
@@ -397,6 +583,44 @@
     color: var(--primary);
   }
 
+  .date-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .date-filter input[type="date"] {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .date-filter input[type="date"]:focus {
+    border-color: var(--primary);
+  }
+
+  .date-filter .separator {
+    color: var(--text-secondary);
+  }
+
+  .group-select {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+  }
+
   th.sortable {
     cursor: pointer;
     user-select: none;
@@ -412,27 +636,51 @@
     margin-left: 4px;
   }
 
-  .chart-placeholder {
+  .chart-container {
     height: 300px;
+    padding: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px dashed var(--border);
   }
 
-  .placeholder-content {
-    text-align: center;
+  .chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .chart-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
     color: var(--text-secondary);
   }
 
-  .placeholder-content p {
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin: 16px 0 4px;
+  .chart-loading :global(.spin) {
+    animation: spin 1s linear infinite;
   }
 
-  .placeholder-content span {
-    font-size: 0.875rem;
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .chart-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #ef4444;
+  }
+
+  .chart-error button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
   }
 
   .detail-link {
