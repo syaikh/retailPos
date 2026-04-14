@@ -255,7 +255,7 @@
         <div class="empty-search-state">
           <Package size={64} />
           <h3>Produk Tidak Ditemukan</h3>
-          <p>Format: <code>{searchQuery}</code></p>
+          <p>Coba kata kunci lain atau scan barcode secara langsung</p>
         </div>
       {:else}
         <table class="product-table">

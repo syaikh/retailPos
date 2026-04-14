@@ -40,15 +40,15 @@ func (r *StatsRepo) GetDashboardStats() (*DashboardStats, error) {
 		RecentActivities: []Activity{},
 	}
 
-	// 1. Sales & Transactions Today
-	err := r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE created_at >= CURRENT_DATE`).Scan(&stats.TodaySales, &stats.TodayTransactions)
+	// 1. Sales & Transactions Today (WIB = UTC+7)
+	err := r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE created_at >= CURRENT_DATE - INTERVAL '7 hours'`).Scan(&stats.TodaySales, &stats.TodayTransactions)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. Sales Yesterday (for Trend)
 	var yesterdaySales int
-	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE`).Scan(&yesterdaySales)
+	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= (CURRENT_DATE - INTERVAL '1 day') - INTERVAL '7 hours' AND created_at < CURRENT_DATE - INTERVAL '7 hours'`).Scan(&yesterdaySales)
 	if err != nil {
 		return nil, err
 	}
@@ -58,15 +58,15 @@ func (r *StatsRepo) GetDashboardStats() (*DashboardStats, error) {
 		stats.TodaySalesTrend = 100
 	}
 
-	// 3. Sales This Month
-	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= date_trunc('month', CURRENT_DATE)`).Scan(&stats.MonthSales)
+	// 3. Sales This Month (WIB = UTC+7)
+	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '7 hours'`).Scan(&stats.MonthSales)
 	if err != nil {
 		return nil, err
 	}
 
 	// 4. Sales Last Month (for Trend)
 	var lastMonthSales int
-	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND created_at < date_trunc('month', CURRENT_DATE)`).Scan(&lastMonthSales)
+	err = r.db.QueryRow(`SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') - INTERVAL '7 hours' AND created_at < date_trunc('month', CURRENT_DATE) - INTERVAL '7 hours'`).Scan(&lastMonthSales)
 	if err != nil {
 		return nil, err
 	}

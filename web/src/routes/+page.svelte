@@ -140,7 +140,7 @@
       </div>
       <div class="stat-info">
         <span class="label">Penjualan Bulan Ini</span>
-        <span class="value">Rp {(stats.monthSales/1000000).toFixed(2)}M</span>
+        <span class="value">Rp {(stats.monthSales/1000000).toFixed(2)} JT</span>
         <span class="trend" class:positive={stats.monthSalesTrend > 0} class:negative={stats.monthSalesTrend < 0}>
           {stats.monthSalesTrend > 0 ? '+' : ''}{stats.monthSalesTrend.toFixed(1)}%
         </span>
