@@ -38,6 +38,16 @@
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
+  function formatIndonesianDateShort(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const day = d.getDate();
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  }
+
   function formatIndonesianDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -296,17 +306,23 @@
     <div class="filter-actions">
       <div class="filter-item date-filter">
         <Calendar size={18} />
-        <input 
-          type="date" 
-          bind:value={dateRangeStart}
-          max={dateRangeEnd}
-        />
+        <div class="date-display">
+          <input 
+            type="date" 
+            bind:value={dateRangeStart}
+            max={dateRangeEnd}
+          />
+          <span class="date-text">{formatIndonesianDateShort(dateRangeStart)}</span>
+        </div>
         <span class="separator">-</span>
-        <input 
-          type="date" 
-          bind:value={dateRangeEnd}
-          min={dateRangeStart}
-        />
+        <div class="date-display">
+          <input 
+            type="date" 
+            bind:value={dateRangeEnd}
+            min={dateRangeStart}
+          />
+          <span class="date-text">{formatIndonesianDateShort(dateRangeEnd)}</span>
+        </div>
       </div>
       <div class="filter-item">
         <select bind:value={groupBy} class="group-select">
@@ -590,6 +606,39 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .date-display {
+    position: relative;
+    display: inline-block;
+  }
+
+  .date-display input[type="date"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .date-display .date-text {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    pointer-events: none;
+    min-width: 85px;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+
+  .date-display:hover .date-text {
+    border-color: var(--primary);
   }
 
   .date-filter input[type="date"] {
