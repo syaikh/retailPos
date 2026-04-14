@@ -1,5 +1,5 @@
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { products } from '$lib/stores.js';
   import api from '$lib/api.js';
@@ -75,6 +75,12 @@
     fetchGroups();
   });
 
+  onDestroy(() => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+  });
+
   $effect(() => {
     if (!showModal && searchInput) {
       requestAnimationFrame(() => {
@@ -103,9 +109,27 @@
     }
   }
 
+  // Debounce timer
+  let searchDebounceTimer = null;
+
   // Reload data when filters/paging changes
   $effect(() => {
-    fetchProducts();
+    const q = searchQuery;
+    const off = offset;
+    const lim = limit;
+    const group = selectedGroupFilter;
+    const sort = sortField;
+    const dir = sortDir;
+    
+    // Clear previous timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    // Debounce search (faster for inventory since it's key-based)
+    searchDebounceTimer = setTimeout(() => {
+      fetchProducts();
+    }, 250);
   });
 
   function handlePageChange(newOffset, newLimit) {
@@ -222,7 +246,13 @@
   </div>
 
   <div class="table-container premium-card">
-    <table>
+    {#if loading}
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Memuat produk...</p>
+      </div>
+    {:else}
+      <table>
       <thead>
         <tr>
           <th onclick={() => handleSort('sku')} class="sortable">
@@ -290,7 +320,7 @@
             </td>
           </tr>
         {/each}
-        {#if displayProducts.length === 0 && !loading}
+        {#if displayProducts.length === 0}
           <tr>
             <td colspan="7" class="empty">Tidak ada produk ditemukan</td>
           </tr>
@@ -303,6 +333,7 @@
       offset={offset} 
       onPageChange={handlePageChange} 
     />
+    {/if}
   </div>
 </div>
 
@@ -535,6 +566,29 @@
     text-align: center;
     padding: 40px;
     color: var(--text-secondary);
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--text-secondary);
+    gap: 16px;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Modal */

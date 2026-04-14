@@ -8,10 +8,12 @@
     Search
   } from 'lucide-svelte';
 
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
   import Chart from 'chart.js/auto';
+
+  const DEBOUNCE_DELAY = 300;
 
   let transactions = $state([]);
   let loading = $state(true);
@@ -236,23 +238,25 @@
     fetchChartData();
   });
 
-  let debounceTimer;
+  let searchDebounceTimer = null;
+
   function handleSearchInput() {
-    clearTimeout(debounceTimer);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     const q = searchQuery.trim();
     if (q.length === 0) {
-      // Immediately clear search
       activeSearch = '';
       offset = 0;
     } else if (q.length >= 3) {
-      // Debounce to avoid firing on every keystroke
-      debounceTimer = setTimeout(() => {
+      searchDebounceTimer = setTimeout(() => {
         activeSearch = q;
         offset = 0;
-      }, 400);
+      }, DEBOUNCE_DELAY);
     }
-    // 1-2 chars: show warning, don't fetch
   }
+
+  onDestroy(() => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  });
 
   function handlePageChange(newOffset, newLimit) {
     if (newLimit !== undefined) limit = newLimit;
@@ -296,7 +300,7 @@
           placeholder="Cari ID TRX atau Nama Produk..."
           bind:value={searchQuery}
           oninput={handleSearchInput}
-          onkeydown={(e) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { clearTimeout(debounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
+          onkeydown={(e) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { if (searchDebounceTimer) clearTimeout(searchDebounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
         />
         {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
           <div class="search-warning">Minimal 3 karakter</div>
@@ -352,7 +356,13 @@
 
   <div class="table-container premium-card">
     <div class="table-wrapper">
-      <table>
+      {#if loading}
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Memuat transaksi...</p>
+        </div>
+      {:else}
+        <table>
         <thead>
           <tr>
             <th onclick={() => handleSort('id')} class="sortable">
@@ -391,6 +401,7 @@
           {/if}
         </tbody>
       </table>
+      {/if}
     </div>
     <Pagination 
       total={total} 
@@ -765,6 +776,29 @@
     text-align: center;
     padding: 40px;
     color: var(--text-secondary);
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--text-secondary);
+    gap: 16px;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Modal Styles */

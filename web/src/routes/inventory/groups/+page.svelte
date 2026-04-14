@@ -1,8 +1,10 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import api from '$lib/api.js';
   import { Plus, Edit, Trash2, Tags, Search } from 'lucide-svelte';
   import Pagination from '$lib/components/Pagination.svelte';
+
+  const DEBOUNCE_DELAY = 300;
 
   let groups = $state([]);
   let showModal = $state(false);
@@ -13,6 +15,7 @@
   let offset = $state(0);
   let total = $state(0);
   let searchQuery = $state('');
+  let activeSearch = $state('');
   let sortField = $state('id');
   let sortDir = $state('asc');
 
@@ -26,7 +29,7 @@
   async function fetchGroups() {
     loading = true;
     try {
-      const q = searchQuery.trim();
+      const q = activeSearch.trim();
       const searchParam = q.length >= 3 ? `&search=${q}` : '';
       const url = `/product-groups?limit=${limit}&offset=${offset}&sortBy=${sortField}&sortDir=${sortDir}${searchParam}`;
       const resp = await api.get(url);
@@ -42,7 +45,32 @@
   }
 
   $effect(() => {
+    void activeSearch;
+    void offset;
+    void limit;
+    void sortField;
+    void sortDir;
     fetchGroups();
+  });
+
+  let searchDebounceTimer = null;
+
+  function handleSearchInput() {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    const q = searchQuery.trim();
+    if (q.length === 0) {
+      activeSearch = '';
+      offset = 0;
+    } else if (q.length >= 3) {
+      searchDebounceTimer = setTimeout(() => {
+        activeSearch = q;
+        offset = 0;
+      }, DEBOUNCE_DELAY);
+    }
+  }
+
+  onDestroy(() => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   });
 
   function handlePageChange(newOffset, newLimit) {
@@ -119,7 +147,8 @@
         type="text"
         placeholder="Cari nama kategori..."
         bind:value={searchQuery}
-        oninput={() => offset = 0}
+        oninput={handleSearchInput}
+        onkeydown={(e) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { if (searchDebounceTimer) clearTimeout(searchDebounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
       />
       {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
         <div class="search-warning">Minimal 3 karakter</div>
@@ -128,57 +157,64 @@
   </div>
 
   <div class="table-container premium-card">
-    <table>
-      <thead>
-        <tr>
-          <th onclick={() => handleSort('name')} class="sortable">
-            Nama Kategori {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('description')} class="sortable">
-            Deskripsi {#if sortField === 'description'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each displayGroups as g}
+    {#if loading}
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Memuat kategori...</p>
+      </div>
+    {:else}
+      <table>
+        <thead>
           <tr>
-            <td>
-              <a href="/inventory?group={g.id}" class="group-link">
-                <strong>{g.name}</strong>
-              </a>
-            </td>
-            <td>{g.description || '-'}</td>
-            <td>
-              <div class="row-actions">
-                <button class="edit-btn" onclick={() => openEdit(g)} title="Edit">
-                  <Edit size={18} />
-                </button>
-                <button 
-                  class="del-btn" 
-                  onclick={() => deleteGroup(g.id)} 
-                  disabled={g.product_count > 0}
-                  title={g.product_count > 0 ? 'Hapus dibatasi: Kategori masih memiliki produk' : 'Hapus Kategori'}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </td>
+            <th onclick={() => handleSort('name')} class="sortable">
+              Nama Kategori {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            </th>
+            <th onclick={() => handleSort('description')} class="sortable">
+              Deskripsi {#if sortField === 'description'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+            </th>
+            <th>Aksi</th>
           </tr>
-        {/each}
-        {#if displayGroups.length === 0 && !loading}
-          <tr>
-            <td colspan="3" class="empty">Belum ada kategori yang ditemukan.</td>
-          </tr>
-        {/if}
-      </tbody>
-    </table>
-    <Pagination 
-      total={total} 
-      limit={limit} 
-      offset={offset} 
-      onPageChange={handlePageChange} 
-    />
+          </thead>
+        <tbody>
+          {#each displayGroups as g}
+            <tr>
+              <td>
+                <a href="/inventory?group={g.id}" class="group-link">
+                  <strong>{g.name}</strong>
+                </a>
+              </td>
+              <td>{g.description || '-'}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="edit-btn" onclick={() => openEdit(g)} title="Edit">
+                    <Edit size={18} />
+                  </button>
+                  <button 
+                    class="del-btn" 
+                    onclick={() => deleteGroup(g.id)} 
+                    disabled={g.product_count > 0}
+                    title={g.product_count > 0 ? 'Hapus dibatasi: Kategori masih memiliki produk' : 'Hapus Kategori'}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+          {#if displayGroups.length === 0}
+            <tr>
+              <td colspan="3" class="empty">Belum ada kategori yang ditemukan.</td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
+      <Pagination 
+        total={total} 
+        limit={limit} 
+        offset={offset} 
+        onPageChange={handlePageChange} 
+      />
+    {/if}
   </div>
 </div>
 
@@ -351,6 +387,29 @@
     text-align: center;
     padding: 40px;
     color: var(--text-secondary);
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--text-secondary);
+    gap: 16px;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .modal-overlay {

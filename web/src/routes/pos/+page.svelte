@@ -60,6 +60,7 @@
   });
 
   onDestroy(() => {
+    cleanup();
     if (ws) ws.close();
     window.removeEventListener('keydown', handleGlobalKeydown);
   });
@@ -69,6 +70,7 @@
     if (q.length < 3) {
       posProducts = [];
       posTotal = 0;
+      posLoading = false;
       return;
     }
 
@@ -79,16 +81,36 @@
       posTotal = resp.data.total || 0;
     } catch (e) {
       console.error('Failed to fetch products:', e);
-      posProducts = [];
     } finally {
       posLoading = false;
     }
   }
 
+  // Debounce timer
+  let searchDebounceTimer = null;
+
   // Effect to trigger search when query or page changes
   $effect(() => {
-    fetchProducts();
+    const q = searchQuery;
+    const offset = posOffset;
+    const limit = posLimit;
+    
+    // Clear previous timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    // Debounce search
+    searchDebounceTimer = setTimeout(() => {
+      fetchProducts();
+    }, 300);
   });
+
+  function cleanup() {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+  }
 
   function handlePosPageChange(newOffset, newLimit) {
     if (newLimit !== undefined) posLimit = newLimit;
@@ -251,7 +273,12 @@
           <h3>Teks Terlalu Pendek</h3>
           <p>Masukkan minimal <strong>3 karakter</strong> untuk memulai pencarian produk.</p>
         </div>
-      {:else if !posLoading && posProducts.length === 0}
+      {:else if posLoading}
+        <div class="empty-search-state">
+          <div class="loading-spinner"></div>
+          <p>Mencari produk...</p>
+        </div>
+      {:else if posProducts.length === 0}
         <div class="empty-search-state">
           <Package size={64} />
           <h3>Produk Tidak Ditemukan</h3>
@@ -433,6 +460,19 @@
     text-align: center;
     gap: 16px;
     padding: 40px 20px;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .empty-search-state h3 {
