@@ -9,11 +9,25 @@
   } from 'lucide-svelte';
 
   import { onMount, onDestroy, tick } from 'svelte';
+  import { DateInput } from 'date-picker-svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
   import Chart from 'chart.js/auto';
 
   const DEBOUNCE_DELAY = 300;
+
+  const indonesianLocale = {
+    weekdays: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+    months: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+    weekStartsOn: 1
+  };
+
+  function dateToString(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  }
 
   let transactions = $state([]);
   let loading = $state(true);
@@ -32,23 +46,13 @@
   let chartInstance = $state(null);
   let chartLoading = $state(true);
   let chartError = $state('');
-  let dateRangeStart = $state('');
-  let dateRangeEnd = $state('');
+  let dateRangeStart = $state(null);
+  let dateRangeEnd = $state(null);
   let groupBy = $state('day');
   let chartInitialized = $state(false);
   let chartReady = $state(false);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-  function formatIndonesianDateShort(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const day = d.getDate();
-    const month = monthNames[d.getMonth()];
-    const year = d.getFullYear();
-    return `${day} ${month} ${year}`;
-  }
 
   function formatIndonesianDate(dateStr) {
     if (!dateStr) return '';
@@ -65,8 +69,8 @@
   const today = new Date();
   const defaultStart = new Date(today);
   defaultStart.setDate(today.getDate() - 7);
-  dateRangeStart = defaultStart.toISOString().split('T')[0];
-  dateRangeEnd = today.toISOString().split('T')[0];
+  dateRangeStart = defaultStart;
+  dateRangeEnd = today;
 
   let showStartPicker = $state(false);
   let showEndPicker = $state(false);
@@ -117,7 +121,9 @@
     chartLoading = true;
     chartError = '';
     try {
-      const url = `/sales/chart?start_date=${dateRangeStart}&end_date=${dateRangeEnd}&group_by=${groupBy}`;
+      const startStr = dateToString(dateRangeStart);
+      const endStr = dateToString(dateRangeEnd);
+      const url = `/sales/chart?start_date=${startStr}&end_date=${endStr}&group_by=${groupBy}`;
       console.log('Fetching chart from:', url);
       const resp = await api.get(url);
       console.log('Chart response status:', resp.status);
@@ -327,21 +333,23 @@
       <div class="filter-item date-filter">
         <Calendar size={18} />
         <div class="date-display">
-          <input 
-            type="date" 
+          <DateInput 
             bind:value={dateRangeStart}
+            format="dd MMM yyyy"
+            locale={indonesianLocale}
             max={dateRangeEnd}
+            placeholder="Pilih tanggal"
           />
-          <span class="date-text">{formatIndonesianDateShort(dateRangeStart)}</span>
         </div>
         <span class="separator">-</span>
         <div class="date-display">
-          <input 
-            type="date" 
+          <DateInput 
             bind:value={dateRangeEnd}
+            format="dd MMM yyyy"
+            locale={indonesianLocale}
             min={dateRangeStart}
+            placeholder="Pilih tanggal"
           />
-          <span class="date-text">{formatIndonesianDateShort(dateRangeEnd)}</span>
         </div>
       </div>
       <div class="filter-item">
@@ -542,6 +550,8 @@
     padding: 16px 24px;
     gap: 20px;
     flex-wrap: wrap;
+    overflow: visible;
+    z-index: 50;
   }
 
   .search-section {
@@ -636,21 +646,11 @@
   }
 
   .date-display {
-    position: relative;
     display: inline-block;
+    position: relative;
   }
 
-  .date-display input[type="date"] {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .date-display .date-text {
+  :global(.date-input) {
     background: var(--bg-main);
     border: 1px solid var(--border);
     color: var(--text-primary);
@@ -658,30 +658,20 @@
     border-radius: 6px;
     font-size: 0.875rem;
     font-family: inherit;
-    pointer-events: none;
-    min-width: 85px;
-    text-align: center;
-    transition: border-color 0.2s;
+    width: 100px;
   }
 
-  .date-display:hover .date-text {
+  :global(.date-input:focus) {
     border-color: var(--primary);
-  }
-
-  .date-filter input[type="date"] {
-    background: var(--bg-main);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-family: inherit;
     outline: none;
-    transition: border-color 0.2s;
   }
 
-  .date-filter input[type="date"]:focus {
-    border-color: var(--primary);
+  :global(.picker) {
+    z-index: 9999;
+  }
+
+  :global(.picker.visible) {
+    display: block;
   }
 
   .date-filter .separator {

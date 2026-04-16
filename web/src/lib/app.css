@@ -10,6 +10,15 @@
   --danger: #ef4444;
   --success: #10b981;
   --sidebar-width: 260px;
+  
+  /* date-picker-svelte theme */
+  --date-picker-background: #1e293b;
+  --date-picker-foreground: #f8fafc;
+  --date-picker-highlight-border: #6366f1;
+  --date-picker-highlight-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+  --date-picker-selected-color: #ffffff;
+  --date-picker-selected-background: #6366f1;
+  --date-input-width: 120px;
 }
 
 * {

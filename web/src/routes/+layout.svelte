@@ -56,10 +56,12 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    position: relative;
   }
 
   main {
     padding: 24px;
     flex: 1;
+    overflow: visible;
   }
 </style>
