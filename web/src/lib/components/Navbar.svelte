@@ -3,8 +3,7 @@
   import { 
     Bell, 
     User,
-    ChevronDown,
-    Search
+    ChevronDown
   } from 'lucide-svelte';
 
   let username = $derived($user?.username || 'Guest');

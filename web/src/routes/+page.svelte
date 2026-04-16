@@ -4,8 +4,7 @@
   import { 
     ShoppingCart, 
     Package, 
-    TrendingUp,
-    Users
+    TrendingUp
   } from 'lucide-svelte';
   import { products } from '$lib/stores.js';
   import Pagination from '$lib/components/Pagination.svelte';

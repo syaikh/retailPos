@@ -3,7 +3,6 @@
     BarChart3, 
     Download, 
     Calendar,
-    Filter,
     ArrowUpRight,
     Search
   } from 'lucide-svelte';
@@ -50,7 +49,6 @@
   let dateRangeEnd = $state(null);
   let groupBy = $state('day');
   let chartInitialized = $state(false);
-  let chartReady = $state(false);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -72,49 +70,11 @@
   dateRangeStart = defaultStart;
   dateRangeEnd = today;
 
-  let showStartPicker = $state(false);
-  let showEndPicker = $state(false);
-  let startPickerRef = $state(null);
-  let endPickerRef = $state(null);
-
-  function handleStartDateSelect(date) {
-    dateRangeStart = date;
-    showStartPicker = false;
-  }
-
-  function handleEndDateSelect(date) {
-    dateRangeEnd = date;
-    showEndPicker = false;
-  }
-
-  function getDatePickerDates(startDate, days = 30) {
-    const dates = [];
-    const d = new Date(startDate + 'T00:00:00');
-    for (let i = 0; i < days; i++) {
-      dates.push(d.toISOString().split('T')[0]);
-      d.setDate(d.getDate() + 1);
-    }
-    return dates;
-  }
-
-  function getDaysInRange(start, end) {
-    const dates = [];
-    let d = new Date(start + 'T00:00:00');
-    const e = new Date(end + 'T00:00:00');
-    while (d <= e) {
-      dates.push(d.toISOString().split('T')[0]);
-      d.setDate(d.getDate() + 1);
-    }
-    return dates;
-  }
-
   onMount(async () => {
     chartInitialized = true;
     await tick();
     await fetchChartData();
   });
-
-  let lastChartData = $state(null);
 
   async function fetchChartData() {
     if (!dateRangeStart || !dateRangeEnd) return;
