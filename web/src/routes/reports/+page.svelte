@@ -197,6 +197,22 @@
                 return 'Rp ' + (Number(value) / 1000).toLocaleString() + 'rb';
               }
             }
+          },
+          x: {
+            ticks: {
+              callback: function(value, index) {
+                const label = labels[index];
+                if (!label) return label;
+                const d = new Date(label);
+                if (isNaN(d.getTime())) return label;
+                const day = d.getDate().toString().padStart(2, '0');
+                const month = monthNames[d.getMonth()];
+                const year = d.getFullYear();
+                return `${day} ${month} ${year}`;
+              },
+              maxRotation: 45,
+              minRotation: 45
+            }
           }
         }
       }
