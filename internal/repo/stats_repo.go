@@ -120,24 +120,40 @@ type SalesChartData struct {
 
 func (r *StatsRepo) GetSalesChartData(startDate, endDate string, groupBy string) (*SalesChartData, error) {
 	var dateFormat string
+	var query string
 
 	switch groupBy {
 	case "week":
 		dateFormat = "IYYY-IW"
+		query = `
+			SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Jakarta', $1) as period, COALESCE(SUM(total_amount), 0)::int as total
+			FROM sales
+			WHERE DATE(created_at AT TIME ZONE 'Asia/Jakarta') >= $2::date
+			  AND DATE(created_at AT TIME ZONE 'Asia/Jakarta') <= $3::date
+			GROUP BY period
+			ORDER BY period ASC
+		`
 	case "month":
 		dateFormat = "YYYY-MM"
+		query = `
+			SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Jakarta', $1) as period, COALESCE(SUM(total_amount), 0)::int as total
+			FROM sales
+			WHERE DATE(created_at AT TIME ZONE 'Asia/Jakarta') >= $2::date
+			  AND DATE(created_at AT TIME ZONE 'Asia/Jakarta') <= $3::date
+			GROUP BY period
+			ORDER BY period ASC
+		`
 	default:
 		dateFormat = "YYYY-MM-DD"
+		query = `
+			SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Jakarta', $1) as period, COALESCE(SUM(total_amount), 0)::int as total
+			FROM sales
+			WHERE DATE(created_at AT TIME ZONE 'Asia/Jakarta') >= $2::date
+			  AND DATE(created_at AT TIME ZONE 'Asia/Jakarta') <= $3::date
+			GROUP BY period
+			ORDER BY period ASC
+		`
 	}
-
-	query := `
-		SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Jakarta', $1) as period, COALESCE(SUM(total_amount), 0)::int as total
-		FROM sales
-		WHERE created_at AT TIME ZONE 'Asia/Jakarta' >= $2::timestamp AT TIME ZONE 'Asia/Jakarta' 
-		  AND created_at AT TIME ZONE 'Asia/Jakarta' <= $3::timestamp AT TIME ZONE 'Asia/Jakarta'
-		GROUP BY period
-		ORDER BY period ASC
-	`
 
 	fmt.Printf("DEBUG: Query with format=%s, start=%s, end=%s\n", dateFormat, startDate, endDate)
 

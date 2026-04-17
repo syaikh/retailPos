@@ -25,7 +25,11 @@
     if (!date) return '';
     const d = new Date(date);
     if (isNaN(d.getTime())) return '';
-    return d.toISOString().split('T')[0];
+    // Use local time instead of UTC to avoid timezone issues
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   let transactions = $state([]);
@@ -107,6 +111,119 @@
     }
   }
 
+  function formatChartLabel(label, groupByValue) {
+    if (!label) return '';
+    
+    // Weekly format: "2024-15" (ISO week "YYYY-IW")
+    if (groupByValue === 'week') {
+      const parts = label.split('-');
+      if (parts.length === 2) {
+        const year = parts[0];
+        const week = parts[1];
+        return `M${week}, ${year}`;
+      }
+      return label;
+    }
+    
+    // Monthly format: "2024-03"
+    if (groupByValue === 'month') {
+      const parts = label.split('-');
+      if (parts.length === 2) {
+        const year = parts[0];
+        const monthNum = parseInt(parts[1]);
+        if (monthNum >= 1 && monthNum <= 12) {
+          const month = monthNames[monthNum - 1];
+          return `${month} ${year}`;
+        }
+      }
+      return label;
+    }
+    
+    // Daily format: "2024-03-15"
+    const d = new Date(label);
+    if (isNaN(d.getTime())) return label;
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  }
+
+  function getWeekDateRange(year, week) {
+    const simple = new Date(year, 0, 1 + (week - 1) * 7);
+    const dow = simple.getDay();
+    const isoWeekStart = simple;
+    if (dow <= 4) {
+      isoWeekStart.setDate(simple.getDate() - simple.getDay() + 1);
+    } else {
+      isoWeekStart.setDate(simple.getDate() + 8 - simple.getDay());
+    }
+    const isoWeekEnd = new Date(isoWeekStart);
+    isoWeekEnd.setDate(isoWeekStart.getDate() + 6);
+    return { start: isoWeekStart, end: isoWeekEnd };
+  }
+
+  function formatTooltipTitle(label, groupByValue, startDate, endDate) {
+    if (!label) return '';
+    
+    // WEEKLY
+    if (groupByValue === 'week') {
+      const parts = label.split('-');
+      if (parts.length === 2) {
+        const year = parseInt(parts[0]);
+        const week = parseInt(parts[1]);
+        const { start, end } = getWeekDateRange(year, week);
+        
+        const rangeStart = startDate ? new Date(startDate) : start;
+        const rangeEnd = endDate ? new Date(endDate) : end;
+        
+        const effectiveStart = start < rangeStart ? rangeStart : start;
+        const effectiveEnd = end > rangeEnd ? rangeEnd : end;
+        
+        const startDay = effectiveStart.getDate();
+        const endDay = effectiveEnd.getDate();
+        const startMonth = monthNames[effectiveStart.getMonth()];
+        const endMonth = monthNames[effectiveEnd.getMonth()];
+        
+        if (startMonth === endMonth) {
+          return `Minggu ke-${week}, ${year} (${startDay}–${endDay} ${startMonth})`;
+        } else {
+          return `Minggu ke-${week}, ${year} (${startDay} ${startMonth} – ${endDay} ${endMonth})`;
+        }
+      }
+    }
+    
+    // MONTHLY
+    if (groupByValue === 'month') {
+      const parts = label.split('-');
+      if (parts.length === 2) {
+        const year = parseInt(parts[0]);
+        const monthNum = parseInt(parts[1]);
+        const monthName = monthNames[monthNum - 1];
+        
+        const rangeStart = startDate ? new Date(startDate) : null;
+        const rangeEnd = endDate ? new Date(endDate) : null;
+        
+        // Jika ini bulan pertama dalam range
+        if (rangeStart && monthNum === rangeStart.getMonth() + 1 && year === rangeStart.getFullYear()) {
+          const lastDay = new Date(year, monthNum, 0).getDate();
+          return `${monthName} ${year} (${rangeStart.getDate()}-${lastDay})`;
+        }
+        
+        // Jika ini bulan terakhir dalam range
+        if (rangeEnd && monthNum === rangeEnd.getMonth() + 1 && year === rangeEnd.getFullYear()) {
+          const lastDay = rangeEnd.getDate();
+          return `${monthName} ${year} (1-${lastDay})`;
+        }
+        
+        // Bulan penuh - tetap tambahkan rentang (1-31)
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        return `${monthName} ${year} (1-${lastDay})`;
+      }
+    }
+    
+    return formatChartLabel(label, groupByValue);
+  }
+
   function renderChart(labels, values) {
     console.log('Rendering chart with labels:', labels, 'values:', values, 'canvas:', !!chartCanvas);
     
@@ -149,6 +266,10 @@
           },
           tooltip: {
             callbacks: {
+              title: function(context) {
+                const label = context[0].label;
+                return formatTooltipTitle(label, groupBy, dateRangeStart, dateRangeEnd);
+              },
               label: function(context) {
                 return 'Rp ' + context.raw.toLocaleString();
               }
@@ -168,13 +289,7 @@
             ticks: {
               callback: function(value, index) {
                 const label = labels[index];
-                if (!label) return label;
-                const d = new Date(label);
-                if (isNaN(d.getTime())) return label;
-                const day = d.getDate().toString().padStart(2, '0');
-                const month = monthNames[d.getMonth()];
-                const year = d.getFullYear();
-                return `${day} ${month} ${year}`;
+                return formatChartLabel(label, groupBy);
               },
               maxRotation: 45,
               minRotation: 45
@@ -299,6 +414,7 @@
             locale={indonesianLocale}
             max={dateRangeEnd}
             placeholder="Pilih tanggal"
+            closeOnSelection={true}
           />
         </div>
         <span class="separator">-</span>
@@ -309,6 +425,7 @@
             locale={indonesianLocale}
             min={dateRangeStart}
             placeholder="Pilih tanggal"
+            closeOnSelection={true}
           />
         </div>
       </div>

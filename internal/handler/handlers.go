@@ -504,7 +504,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 	fmt.Printf("CHART HANDLER: start=%s, end=%s, group=%s\n", startDate, endDate, groupBy)
 
-	data, err := h.statsRepo.GetSalesChartData(startDate, endDate+"T23:59:59", groupBy)
+	data, err := h.statsRepo.GetSalesChartData(startDate, endDate, groupBy)
 	if err != nil {
 		fmt.Printf("CHART ERROR: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
