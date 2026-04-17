@@ -45,3 +45,6 @@ web-old/
 .DS_Store
 Thumbs.db
 .kilo/plans/1776330121114-brave-eagle.md
+
+# Kilo agent
+.kilo/
