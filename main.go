@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,11 +13,13 @@ import (
 	"retailPos/internal/repo"
 	"retailPos/internal/service"
 	"retailPos/internal/ws"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -46,7 +49,7 @@ func main() {
 	salesService := service.NewSalesService(db, productRepo, hub)
 
 	// Initialize Handlers
-	h := handler.NewHandler(authService, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	h := handler.NewHandler(authService, userRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
 	r := gin.Default()
 
@@ -63,6 +66,53 @@ func main() {
 	api := r.Group("/api")
 	{
 		api.POST("/login", h.Login)
+		api.POST("/logout", h.Logout)
+
+		// Auth validation endpoint
+		api.GET("/auth/validate", func(c *gin.Context) {
+			tokenStr := ""
+			cookie, err := c.Cookie("session_token")
+			if err == nil && cookie != "" {
+				tokenStr = cookie
+			} else {
+				authHeader := c.GetHeader("Authorization")
+				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+
+			if tokenStr == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
+				return
+			}
+
+			token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte(os.Getenv("JWT_SECRET")), nil
+			})
+
+			if err != nil || !token.Valid {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
+				return
+			}
+
+			claims, _ := token.Claims.(jwt.MapClaims)
+			userID := int(claims["user_id"].(float64))
+
+			user, err := userRepo.GetByID(userID)
+			if err != nil || user == nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"user": gin.H{
+					"id":       user.ID,
+					"username": user.Username,
+					"role":     user.Role,
+				},
+			})
+		})
 
 		// Debug: unprotected chart endpoint
 		api.GET("/sales/chart", h.GetSalesChartData)

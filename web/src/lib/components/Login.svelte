@@ -1,5 +1,5 @@
 <script>
-  import { user, token } from '$lib/stores.js';
+  import { user, isAuthenticated } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { goto } from '$app/navigation';
   import { invalidateAll } from '$app/navigation';
@@ -17,8 +17,7 @@
     try {
       const resp = await api.post('/login', { username, password });
       user.set(resp.data.user);
-      token.set(resp.data.token);
-      // Invalidate all data and navigate to dashboard
+      isAuthenticated.set(true);
       await invalidateAll();
       goto('/', { replaceState: true });
     } catch (e) {

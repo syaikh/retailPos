@@ -1,5 +1,5 @@
 <script>
-  import { user, token } from '$lib/stores.js';
+  import { user, isAuthenticated } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { goto } from '$app/navigation';
   import { LogIn, Key, User } from 'lucide-svelte';
@@ -16,11 +16,8 @@
     try {
       const resp = await api.post('/login', { username, password });
       user.set(resp.data.user);
-      token.set(resp.data.token);
-      localStorage.setItem('user', JSON.stringify(resp.data.user));
-      localStorage.setItem('token', resp.data.token);
+      isAuthenticated.set(true);
       goto('/');
-      window.location.href = '/';
     } catch (e) {
       error = e.response?.data?.error || 'Login failed';
     } finally {

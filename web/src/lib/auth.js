@@ -1,27 +1,43 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
-import { user } from '$lib/stores.js';
-import { writable } from 'svelte/store';
+import { user, isAuthenticated } from '$lib/stores.js';
+import { writable, get } from 'svelte/store';
+import { checkAuth } from '$lib/api.js';
 
-// Signals that the initial auth check has completed, preventing flash of wrong content.
 export const authReady = writable(false);
 
-export function protectRoute() {
-    if (!browser) return;
+// Track if we've already processed to prevent loops
+let isProcessing = false;
 
-    // In a hash-routed SPA, $page.url.pathname is always '/'
-    // We must read the hash to determine the current "route".
-    const hash = window.location.hash; // e.g. '#/login', '#/', ''
+export async function protectRoute() {
+    if (!browser || isProcessing) return;
+
+    const hash = window.location.hash;
     const isLoginRoute = hash === '#/login' || hash === '#/login/';
 
-    let currentUser;
-    user.subscribe(val => currentUser = val)();
+    // Prevent multiple concurrent calls
+    isProcessing = true;
 
-    if (!currentUser && !isLoginRoute) {
-        goto('/login');
-    } else if (currentUser && isLoginRoute) {
-        goto('/');
+    try {
+        const isAuth = await checkAuth();
+
+        // Only redirect if state actually changed or we're on wrong page
+        if (!isAuth && !isLoginRoute) {
+            goto('/login');
+        } else if (isAuth && isLoginRoute) {
+            goto('/');
+        }
+    } finally {
+        // Always mark auth as ready, even if checkAuth fails
+        authReady.set(true);
+        isProcessing = false;
     }
+}
 
-    authReady.set(true);
+export function getUser() {
+    return get(user);
+}
+
+export function getIsAuthenticated() {
+    return get(isAuthenticated);
 }

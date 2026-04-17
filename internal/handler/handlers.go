@@ -18,6 +18,7 @@ import (
 
 type Handler struct {
 	authService      *auth.AuthService
+	userRepo         *repo.UserRepo
 	productRepo      *repo.ProductRepo
 	productGroupRepo *repo.ProductGroupRepo
 	statsRepo        *repo.StatsRepo
@@ -25,9 +26,10 @@ type Handler struct {
 	salesService     *service.SalesService
 }
 
-func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
+func NewHandler(authService *auth.AuthService, userRepo *repo.UserRepo, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
 	return &Handler{
 		authService:      authService,
+		userRepo:         userRepo,
 		productRepo:      productRepo,
 		productGroupRepo: productGroupRepo,
 		statsRepo:        statsRepo,
@@ -39,14 +41,24 @@ func NewHandler(authService *auth.AuthService, productRepo *repo.ProductRepo, pr
 // Middleware
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		tokenStr := ""
+
+		// Coba baca dari cookie dulu
+		cookie, err := c.Cookie("session_token")
+		if err == nil && cookie != "" {
+			tokenStr = cookie
+		} else {
+			// Fallback ke Authorization header (untuk API clients/mobile)
+			authHeader := c.GetHeader("Authorization")
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+
+		if tokenStr == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
 			c.Abort()
 			return
 		}
 
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -55,13 +67,14 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
 			c.Abort()
 			return
 		}
 
 		claims, _ := token.Claims.(jwt.MapClaims)
 		c.Set("user_id", int(claims["user_id"].(float64)))
+		c.Set("username", claims["username"].(string))
 		c.Set("role", claims["role"].(string))
 		c.Next()
 	}
@@ -95,7 +108,49 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
+	// Set HTTP-only cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "session_token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Now().Add(24 * time.Hour),
+		// Secure:   true, // Enable in production (HTTPS)
+	})
+
+	// Token tidak lagi di-response body
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+	// Hapus cookie
+	c.SetCookie("session_token", "", -1, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
+}
+
+func (h *Handler) ValidateSession(c *gin.Context) {
+	// Middleware sudah validasi, langsung return user info
+	userID := c.GetInt("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
+		return
+	}
+
+	user, err := h.userRepo.GetByID(userID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Jangan return password hash
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
+	})
 }
 
 // Product Handlers

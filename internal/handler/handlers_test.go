@@ -51,7 +51,7 @@ func setupServer() *gin.Engine {
 
 	authService := auth.NewAuthService(userRepo)
 	salesService := service.NewSalesService(db, productRepo, hub)
-	h = handler.NewHandler(authService, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	h = handler.NewHandler(authService, userRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()

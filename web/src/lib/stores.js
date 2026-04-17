@@ -15,10 +15,12 @@ function createPersistentStore(key, defaultValue) {
     }
 
     store.subscribe(value => {
-      if (value === null || value === undefined) {
-        localStorage.removeItem(key);
-      } else {
-        localStorage.setItem(key, JSON.stringify(value));
+      if (browser) {
+        if (value === null || value === undefined) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, JSON.stringify(value));
+        }
       }
     });
   }
@@ -26,13 +28,14 @@ function createPersistentStore(key, defaultValue) {
   return store;
 }
 
-export const user = createPersistentStore('user', null);
-export const token = createPersistentStore('token', null);
+export const user = writable(null);
+export const isAuthenticated = writable(false);
 
 export const cart = writable([]);
-export const products = writable([]); // Initialize with empty array to prevent null errors
+export const products = writable([]);
 
 export function logout() {
   user.set(null);
-  token.set(null);
+  isAuthenticated.set(false);
+  cart.set([]);
 }

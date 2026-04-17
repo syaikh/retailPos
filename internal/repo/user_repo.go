@@ -29,3 +29,15 @@ func (r *UserRepo) GetByUsername(username string) (*model.User, error) {
 	}
 	return &u, nil
 }
+
+func (r *UserRepo) GetByID(id int) (*model.User, error) {
+	query := `SELECT id, username, role, created_at FROM users WHERE id = $1`
+	var u model.User
+	if err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
