@@ -1,13 +1,13 @@
 <script>
-  import { user } from '$lib/stores.js';
+  import { auth } from '$lib/stores/auth';
   import { 
     Bell, 
     User,
     ChevronDown
   } from 'lucide-svelte';
 
-  let username = $derived($user?.username || 'Guest');
-  let role = $derived($user?.role || 'cashier');
+  let username = $derived($auth.user?.username || 'Guest');
+  let role = $derived($auth.user?.role || 'cashier');
 </script>
 
 <header class="navbar glass">

@@ -20,7 +20,10 @@
       
       if (data.user) {
         auth.setUser(data.user);
-        goto('/dashboard');
+        
+        // Role-based redirect
+        const target = data.user.role === 'admin' ? '/dashboard' : '/pos';
+        goto(target);
       }
     } catch (e) {
       error = e.response?.data?.error || 'Login failed';

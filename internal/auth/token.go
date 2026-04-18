@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -77,22 +78,40 @@ func (s *jwtTokenService) ValidateAccessToken(tokenString string) (int, string, 
 		return s.secretKey, nil
 	})
 
-	if err != nil || !token.Valid {
+	if err != nil {
+		log.Printf("Token parse error: %v", err)
+		return 0, "", ErrInvalidToken
+	}
+
+	if !token.Valid {
+		log.Printf("Token invalid (not valid)")
 		return 0, "", ErrInvalidToken
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		log.Printf("Invalid claims type")
 		return 0, "", ErrInvalidToken
 	}
 
-	userIDF, ok := claims["user_id"].(float64)
+	userIDF, ok := claims["user_id"]
 	if !ok {
+		log.Printf("user_id claim missing")
+		return 0, "", ErrInvalidToken
+	}
+
+	userIDFloat, ok := userIDF.(float64)
+	if !ok {
+		// Try int64
+		if userIDInt, ok := userIDF.(int64); ok {
+			return int(userIDInt), "", nil
+		}
+		log.Printf("user_id not numeric: %T", userIDF)
 		return 0, "", ErrInvalidToken
 	}
 
 	role, _ := claims["role"].(string)
-	return int(userIDF), role, nil
+	return int(userIDFloat), role, nil
 }
 
 func (s *jwtTokenService) ValidateRefreshToken(tokenString string) (int, error) {

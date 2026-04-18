@@ -166,16 +166,35 @@ func main() {
 	r.Static("/_app", filepath.Join(buildDir, "_app"))
 	r.StaticFile("/index.html", filepath.Join(buildDir, "index.html"))
 
-	// Root page and SPA fallback for client-side routing
+	// Root page
 	r.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join(buildDir, "index.html"))
 	})
+
+	// SPA fallback: serve index.html for client-side routes
 	r.NoRoute(func(c *gin.Context) {
-		if c.Request.Method != "GET" {
+		path := c.Request.URL.Path
+
+		// API routes that didn't match -> JSON 404
+		if strings.HasPrefix(path, "/api") {
 			c.JSON(404, gin.H{"error": "Not found"})
 			return
 		}
-		c.File(filepath.Join(buildDir, "404.html"))
+
+		// Static asset requests (contain a file extension) that missed -> 404
+		if strings.Contains(path, ".") && c.Request.Method == "GET" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+
+		// All other GET requests are SPA routes -> serve index.html
+		if c.Request.Method == "GET" {
+			c.File(filepath.Join(buildDir, "index.html"))
+			return
+		}
+
+		// Non-GET to non-API paths -> 404
+		c.JSON(404, gin.H{"error": "Not found"})
 	})
 
 	port := os.Getenv("PORT")

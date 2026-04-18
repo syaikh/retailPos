@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"retailPos/internal/auth"
 	model "retailPos/internal/model"
 	"retailPos/internal/repo"
@@ -67,6 +68,10 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	// Determine if we're in production (HTTPS required)
+	isProd := os.Getenv("ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+	secureFlag := isProd
+
 	// Set HTTP-only cookie
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "session_token",
@@ -74,7 +79,7 @@ func (h *Handler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		Secure:   secureFlag,
 		Expires:  time.Now().Add(24 * time.Hour),
 	})
 
@@ -107,13 +112,17 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// Use same secure flag as login
+	isProd := os.Getenv("ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+	secureFlag := isProd
+
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "session_token",
 		Value:    tokenPair.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		Secure:   secureFlag,
 		Expires:  time.Now().Add(24 * time.Hour),
 	})
 

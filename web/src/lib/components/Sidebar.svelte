@@ -1,7 +1,8 @@
 <script>
-  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { user, logout } from '$lib/stores.js';
+  import { auth } from '$lib/stores/auth';
+  import { logout as apiLogout } from '$lib/api/auth';
+  import { cart } from '$lib/stores.js';
   import { 
     LayoutDashboard, 
     ShoppingCart, 
@@ -12,10 +13,10 @@
     Store
   } from 'lucide-svelte';
 
-  let role = $derived($user?.role || 'cashier');
+  let role = $derived($auth.user?.role || 'cashier');
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['admin', 'cashier'] },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['admin'] },
     { name: 'POS / Kasir', icon: ShoppingCart, path: '/pos', roles: ['admin', 'cashier'] },
     { name: 'Inventory', icon: Package, path: '/inventory', roles: ['admin'] },
     { name: 'Kategori', icon: Tags, path: '/inventory/groups', roles: ['admin'] },
@@ -25,8 +26,8 @@
   let activePath = $derived($page.url.pathname);
 
   function handleLogout() {
-    logout();
-    goto('/login');
+    cart.set([]);
+    apiLogout();
   }
 </script>
 
