@@ -88,6 +88,41 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 
+func (h *Handler) RefreshToken(c *gin.Context) {
+	var input struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		refreshToken := c.GetHeader("X-Refresh-Token")
+		if refreshToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token required"})
+			return
+		}
+		input.RefreshToken = refreshToken
+	}
+
+	tokenPair, err := h.authService.RefreshToken(c.Request.Context(), input.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "session_token",
+		Value:    tokenPair.AccessToken,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   true,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Token refreshed",
+		"refresh_token": tokenPair.RefreshToken,
+	})
+}
+
 func (h *Handler) ValidateSession(c *gin.Context) {
 	// Middleware sudah validasi, langsung return user info
 	userID := c.GetInt("user_id")

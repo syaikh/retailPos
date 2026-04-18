@@ -1,6 +1,6 @@
 <script>
-  import { user, isAuthenticated } from '$lib/stores.js';
-  import api from '$lib/api.js';
+  import { auth } from '$lib/stores/auth';
+  import client from '$lib/api/client';
   import { goto } from '$app/navigation';
   import { LogIn, Key, User } from 'lucide-svelte';
 
@@ -14,10 +14,14 @@
     error = '';
     loading = true;
     try {
-      const resp = await api.post('/login', { username, password });
-      user.set(resp.data.user);
-      isAuthenticated.set(true);
-      goto('/');
+      await client.post('/login', { username, password });
+      
+      const { data } = await client.get('/auth/validate');
+      
+      if (data.user) {
+        auth.setUser(data.user);
+        goto('/dashboard');
+      }
     } catch (e) {
       error = e.response?.data?.error || 'Login failed';
     } finally {

@@ -75,6 +75,7 @@ func main() {
 	{
 		api.POST("/login", h.Login)
 		api.POST("/logout", h.Logout)
+		api.POST("/refresh", h.RefreshToken)
 
 		// Auth validation endpoint
 		api.GET("/auth/validate", func(c *gin.Context) {
@@ -125,15 +126,21 @@ func main() {
 		protected := api.Group("/")
 		protected.Use(auth.AuthMiddleware(tokenService))
 		{
-			protected.GET("/product-groups", h.GetProductGroups)
-			protected.POST("/product-groups", h.CreateProductGroup)
-			protected.PUT("/product-groups/:id", h.UpdateProductGroup)
-			protected.DELETE("/product-groups/:id", h.DeleteProductGroup)
+			// Admin-only routes
+			adminRoutes := protected.Group("/")
+			adminRoutes.Use(auth.RoleMiddleware("admin"))
+			{
+				adminRoutes.POST("/product-groups", h.CreateProductGroup)
+				adminRoutes.PUT("/product-groups/:id", h.UpdateProductGroup)
+				adminRoutes.DELETE("/product-groups/:id", h.DeleteProductGroup)
+				adminRoutes.POST("/products", h.CreateProduct)
+				adminRoutes.PUT("/products/:id", h.UpdateProduct)
+				adminRoutes.DELETE("/products/:id", h.DeleteProduct)
+			}
 
+			// Protected routes (admin + cashier)
+			protected.GET("/product-groups", h.GetProductGroups)
 			protected.GET("/products", h.GetProducts)
-			protected.POST("/products", h.CreateProduct)
-			protected.PUT("/products/:id", h.UpdateProduct)
-			protected.DELETE("/products/:id", h.DeleteProduct)
 			protected.GET("/stats", h.GetDashboardStats)
 			protected.GET("/sales", h.GetSalesHistory)
 			protected.POST("/sales", h.CreateSale)
