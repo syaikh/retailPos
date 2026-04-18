@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { tick } from 'svelte';
-  import { cart as cartStore, products as productsStore } from '$lib/stores.js';
+  import { cart as cartStore, products as productsStore, isAuthenticated } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { 
     Barcode, 
@@ -39,13 +39,36 @@
 
     // 2. Set up WebSocket for real-time updates
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = import.meta.env.VITE_WS_URL || 'localhost:8080/api/ws';
-    ws = new WebSocket(`${protocol}//${host}`);
+    const baseUrl = import.meta.env.VITE_WS_URL || 'localhost:8080/api/ws';
+    const wsUrl = `${protocol}//${baseUrl}?store_id=1`;
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('[WS] connected');
+    };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'stock_updated' || data.type === 'product_updated') {
         fetchProducts(); // Refresh current page
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('[WS] error:', err);
+      // If connection fails due to auth, redirect after brief delay
+      setTimeout(() => {
+        if (!$isAuthenticated) {
+          window.location.hash = '#/login';
+        }
+      }, 1000);
+    };
+
+    ws.onclose = (event) => {
+      console.log('[WS] closed:', event.code, event.reason);
+      // 1008 = Policy Violation (e.g., JWT invalid/expired)
+      if (event.code === 1008) {
+        window.location.hash = '#/login';
       }
     };
 

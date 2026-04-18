@@ -42,7 +42,7 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 		item := &sale.Items[i]
 		item.SaleID = sale.ID
 
-        // Fetch snapshot product name
+		// Fetch snapshot product name
 		p, err := s.productRepo.GetByID(item.ProductID)
 		if err != nil || p == nil {
 			return errors.New("product not found during snapshot")
@@ -73,9 +73,9 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 	}
 
 	// 3. Broadcast events
-	s.hub.Broadcast("sale_created", sale)
+	_ = s.hub.Broadcast("", "sale.created", sale)
 	for _, item := range sale.Items {
-		s.hub.Broadcast("stock_updated", map[string]any{
+		_ = s.hub.Broadcast("", "stock.updated", map[string]any{
 			"product_id": item.ProductID,
 		})
 	}

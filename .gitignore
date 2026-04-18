@@ -6,6 +6,8 @@
 *.dylib
 bin/
 retailPos
+retail-pos
+seeder
 
 # Test binary, built with `go test -c`
 *.test
