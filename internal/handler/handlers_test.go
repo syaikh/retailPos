@@ -49,7 +49,9 @@ func setupServer() *gin.Engine {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	authService := auth.NewAuthService(userRepo)
+	authRepo := auth.NewPostgresRepo(db)
+	tokenService := auth.NewTokenService("test-secret", "test-refresh-secret")
+	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
 	salesService := service.NewSalesService(db, productRepo, hub)
 	h = handler.NewHandler(authService, userRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
