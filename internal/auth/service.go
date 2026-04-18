@@ -25,7 +25,7 @@ type UserRepository interface {
 }
 
 type AuthService interface {
-	Login(ctx context.Context, username, password, ip string) (*TokenPair, error)
+	Login(ctx context.Context, username, password, ip string) (*model.User, *TokenPair, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
 }
@@ -44,16 +44,16 @@ func NewAuthService(userRepo UserRepository, authRepo AuthRepo, tokenService Tok
 	}
 }
 
-func (s *authService) Login(ctx context.Context, username, password, ip string) (*TokenPair, error) {
+func (s *authService) Login(ctx context.Context, username, password, ip string) (*model.User, *TokenPair, error) {
 	user, err := s.userRepo.GetByUsername(username)
 	if err != nil || user == nil {
 		s.authRepo.LogLoginAttempt(ctx, username, false, ip)
-		return nil, ErrInvalidCredentials
+		return nil, nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		s.authRepo.LogLoginAttempt(ctx, username, false, ip)
-		return nil, ErrInvalidCredentials
+		return nil, nil, ErrInvalidCredentials
 	}
 
 	// Password matches
@@ -61,17 +61,17 @@ func (s *authService) Login(ctx context.Context, username, password, ip string) 
 
 	tokens, err := s.tokenService.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
-		return nil, ErrInternalServerError
+		return nil, nil, ErrInternalServerError
 	}
 
 	// Store hashed refresh token
 	tokenHash := hashToken(tokens.RefreshToken)
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := s.authRepo.StoreRefreshToken(ctx, tokenHash, user.ID, expiresAt); err != nil {
-		return nil, ErrInternalServerError
+		return nil, nil, ErrInternalServerError
 	}
 
-	return tokens, nil
+	return user, tokens, nil
 }
 
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {

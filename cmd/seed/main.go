@@ -22,7 +22,10 @@ func main() {
 
 	userRepo := repo.NewUserRepo(db)
 	// Admin user
-	hashedBytes, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 14)
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte("admin123"), 14)
+	if err != nil {
+		log.Fatalf("Failed to hash admin password: %v", err)
+	}
 	hashedPassword := string(hashedBytes)
 	admin := &model.User{
 		Username:     "admin",
@@ -38,7 +41,10 @@ func main() {
 	}
 
 	// Cashier user
-	hashedBytes, _ = bcrypt.GenerateFromPassword([]byte("cashier123"), 14)
+	hashedBytes, err = bcrypt.GenerateFromPassword([]byte("cashier123"), 14)
+	if err != nil {
+		log.Fatalf("Failed to hash cashier password: %v", err)
+	}
 	hashedPassword = string(hashedBytes)
 	cashier := &model.User{
 		Username:     "cashier",

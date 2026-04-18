@@ -22,14 +22,14 @@ func AuthMiddleware(tokenService TokenService) gin.HandlerFunc {
 		}
 
 		if tokenStr == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
 		}
 
 		userID, role, err := tokenService.ValidateAccessToken(tokenStr)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
 		}

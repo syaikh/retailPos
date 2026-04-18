@@ -61,16 +61,11 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	ip := c.ClientIP()
-	tokenPair, err := h.authService.Login(c.Request.Context(), input.Username, input.Password, ip)
+	user, tokenPair, err := h.authService.Login(c.Request.Context(), input.Username, input.Password, ip)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
-	// We'll also get the user to return in the payload, wait we can get it from DB or claims
-	// but let's just get the user from DB manually or change the response.
-	// Since Login used to return user, let's just fetch user to avoid breaking frontend
-	user, _ := h.userRepo.GetByUsername(input.Username)
 
 	// Set HTTP-only cookie
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -79,8 +74,8 @@ func (h *Handler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
+		Secure:   true,
 		Expires:  time.Now().Add(24 * time.Hour),
-		// Secure:   true, // Enable in production (HTTPS)
 	})
 
 	// Token tidak lagi di-response body

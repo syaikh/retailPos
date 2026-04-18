@@ -45,11 +45,11 @@ func main() {
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "default-secret"
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 	refreshSecret := os.Getenv("JWT_REFRESH_SECRET")
 	if refreshSecret == "" {
-		refreshSecret = "default-refresh-secret"
+		log.Fatal("JWT_REFRESH_SECRET environment variable is required")
 	}
 	authRepo := auth.NewPostgresRepo(db)
 	tokenService := auth.NewTokenService(secret, refreshSecret)
@@ -88,19 +88,19 @@ func main() {
 			}
 
 			if tokenStr == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 				return
 			}
 
 			userID, _, err := tokenService.ValidateAccessToken(tokenStr)
 			if err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 				return
 			}
 
 			user, err := userRepo.GetByID(userID)
 			if err != nil || user == nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 				return
 			}
 

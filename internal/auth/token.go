@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -43,6 +44,7 @@ func (s *jwtTokenService) GenerateTokenPair(userID int, role string) (*TokenPair
 		"role":    role,
 		"exp":     now.Add(15 * time.Minute).Unix(),
 		"iat":     now.Unix(),
+		"jti":     uuid.New().String(),
 	}
 	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString(s.secretKey)
 	if err != nil {
@@ -54,6 +56,7 @@ func (s *jwtTokenService) GenerateTokenPair(userID int, role string) (*TokenPair
 		"user_id": userID,
 		"exp":     now.Add(7 * 24 * time.Hour).Unix(),
 		"iat":     now.Unix(),
+		"jti":     uuid.New().String(),
 	}
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(s.refreshSecret)
 	if err != nil {
