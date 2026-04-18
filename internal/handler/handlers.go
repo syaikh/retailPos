@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"retailPos/internal/auth"
 	model "retailPos/internal/model"
 	"retailPos/internal/repo"
@@ -13,11 +12,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type Handler struct {
-	authService      *auth.AuthService
+	authService      auth.AuthService
 	userRepo         *repo.UserRepo
 	productRepo      *repo.ProductRepo
 	productGroupRepo *repo.ProductGroupRepo
@@ -26,7 +24,7 @@ type Handler struct {
 	salesService     *service.SalesService
 }
 
-func NewHandler(authService *auth.AuthService, userRepo *repo.UserRepo, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
+func NewHandler(authService auth.AuthService, userRepo *repo.UserRepo, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
 	return &Handler{
 		authService:      authService,
 		userRepo:         userRepo,
@@ -38,47 +36,7 @@ func NewHandler(authService *auth.AuthService, userRepo *repo.UserRepo, productR
 	}
 }
 
-// Middleware
-func AuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tokenStr := ""
-
-		// Coba baca dari cookie dulu
-		cookie, err := c.Cookie("session_token")
-		if err == nil && cookie != "" {
-			tokenStr = cookie
-		} else {
-			// Fallback ke Authorization header (untuk API clients/mobile)
-			authHeader := c.GetHeader("Authorization")
-			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
-		}
-
-		if tokenStr == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
-			c.Abort()
-			return
-		}
-
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
-			c.Abort()
-			return
-		}
-
-		claims, _ := token.Claims.(jwt.MapClaims)
-		c.Set("user_id", int(claims["user_id"].(float64)))
-		c.Set("username", claims["username"].(string))
-		c.Set("role", claims["role"].(string))
-		c.Next()
-	}
-}
+// Old AuthMiddleware has been removed and replaced by auth.AuthMiddleware
 
 func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, sortBy, sortDir string) {
 	limitStr := c.DefaultQuery("limit", "10")
@@ -102,16 +60,22 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	token, user, err := h.authService.Login(input.Username, input.Password)
+	ip := c.ClientIP()
+	tokenPair, err := h.authService.Login(c.Request.Context(), input.Username, input.Password, ip)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
+	// We'll also get the user to return in the payload, wait we can get it from DB or claims
+	// but let's just get the user from DB manually or change the response.
+	// Since Login used to return user, let's just fetch user to avoid breaking frontend
+	user, _ := h.userRepo.GetByUsername(input.Username)
+
 	// Set HTTP-only cookie
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "session_token",
-		Value:    token,
+		Value:    tokenPair.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,

@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token_hash VARCHAR(255) PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) NOT NULL,
+    success BOOLEAN NOT NULL,
+    ip_address VARCHAR(45),
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

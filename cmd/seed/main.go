@@ -2,11 +2,11 @@ package main
 
 import (
 	"log"
-	"retailPos/internal/auth"
 	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -21,10 +21,9 @@ func main() {
 	defer db.Close()
 
 	userRepo := repo.NewUserRepo(db)
-	authService := auth.NewAuthService(userRepo)
-
 	// Admin user
-	hashedPassword, _ := authService.HashPassword("admin123")
+	hashedBytes, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 14)
+	hashedPassword := string(hashedBytes)
 	admin := &model.User{
 		Username:     "admin",
 		PasswordHash: hashedPassword,
@@ -39,7 +38,8 @@ func main() {
 	}
 
 	// Cashier user
-	hashedPassword, _ = authService.HashPassword("cashier123")
+	hashedBytes, _ = bcrypt.GenerateFromPassword([]byte("cashier123"), 14)
+	hashedPassword = string(hashedBytes)
 	cashier := &model.User{
 		Username:     "cashier",
 		PasswordHash: hashedPassword,

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -45,7 +43,17 @@ func main() {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	authService := auth.NewAuthService(userRepo)
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "default-secret"
+	}
+	refreshSecret := os.Getenv("JWT_REFRESH_SECRET")
+	if refreshSecret == "" {
+		refreshSecret = "default-refresh-secret"
+	}
+	authRepo := auth.NewPostgresRepo(db)
+	tokenService := auth.NewTokenService(secret, refreshSecret)
+	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
 	salesService := service.NewSalesService(db, productRepo, hub)
 
 	// Initialize Handlers
@@ -84,20 +92,11 @@ func main() {
 				return
 			}
 
-			token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return []byte(os.Getenv("JWT_SECRET")), nil
-			})
-
-			if err != nil || !token.Valid {
+			userID, _, err := tokenService.ValidateAccessToken(tokenStr)
+			if err != nil {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
 				return
 			}
-
-			claims, _ := token.Claims.(jwt.MapClaims)
-			userID := int(claims["user_id"].(float64))
 
 			user, err := userRepo.GetByID(userID)
 			if err != nil || user == nil {
@@ -124,7 +123,7 @@ func main() {
 
 		// Protected Routes
 		protected := api.Group("/")
-		protected.Use(handler.AuthMiddleware())
+		protected.Use(auth.AuthMiddleware(tokenService))
 		{
 			protected.GET("/product-groups", h.GetProductGroups)
 			protected.POST("/product-groups", h.CreateProductGroup)
