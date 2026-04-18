@@ -5,11 +5,13 @@ import (
 )
 
 type User struct {
-	ID           int       `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"-"`
-	Role         string    `json:"role"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           int       `json:"id" db:"id"`
+	Username     string    `json:"username" db:"username"`
+	PasswordHash string    `json:"-" db:"password_hash"`
+	RoleID       int       `json:"role_id" db:"role_id"`
+	Role         string    `json:"role" db:"role"` // legacy + populated via join
+	Permissions  []string  `json:"permissions,omitempty" db:"-"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 
 type ProductGroup struct {
@@ -44,8 +46,8 @@ type Sale struct {
 }
 
 type SaleItem struct {
-	ID          int `json:"id"`
-	SaleID      int `json:"sale_id"`
+	ID          int    `json:"id"`
+	SaleID      int    `json:"sale_id"`
 	ProductID   int    `json:"product_id"`
 	ProductName string `json:"product_name"`
 	Quantity    int    `json:"quantity"`

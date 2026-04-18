@@ -29,22 +29,32 @@ func main() {
 	}
 	defer db.Close()
 
-	migration := `
-	-- Add product_name column to sale_items for snapshotting
-	ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_name TEXT;
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Cannot connect to database: %v", err)
+	}
+	log.Println("Connected to database")
 
-	-- Move data from products table to sale_items for existing records
-	UPDATE sale_items si 
-	SET product_name = p.name 
-	FROM products p 
-	WHERE si.product_name IS NULL AND si.product_id = p.id;
-	`
-
-	fmt.Println("Applying migration...")
-	_, err = db.Exec(migration)
-	if err != nil {
-		log.Fatalf("Migration failed: %v", err)
+	migrations := []string{
+		filepath.Join(cwd, "migrations", "0003_roles_table.sql"),
+		filepath.Join(cwd, "migrations", "0004_seed_roles_permissions.sql"),
+		filepath.Join(cwd, "migrations", "0005_migrate_user_roles.sql"),
 	}
 
-	fmt.Println("Migration applied successfully!")
+	for _, path := range migrations {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			log.Fatalf("Failed to read %s: %v", path, err)
+		}
+		log.Printf("Applying %s...", filepath.Base(path))
+		if _, err := db.Exec(string(content)); err != nil {
+			log.Fatalf("Migration %s failed: %v", filepath.Base(path), err)
+		}
+		log.Printf("✓ Applied %s", filepath.Base(path))
+	}
+
+	log.Println("All RBAC migrations applied successfully")
+	fmt.Println("\nVerification queries:")
+	fmt.Println("  SELECT * FROM roles;")
+	fmt.Println("  SELECT * FROM permissions;")
+	fmt.Println("  SELECT u.id, u.username, u.role, u.role_id, r.name AS resolved FROM users u JOIN roles r ON u.role_id = r.id;")
 }

@@ -21,9 +21,15 @@
       if (data.user) {
         auth.setUser(data.user);
         
-        // Role-based redirect
-        const target = data.user.role === 'admin' ? '/dashboard' : '/pos';
-        goto(target);
+        // Permission-based redirect
+        const perms = data.user.permissions || [];
+        if (perms.includes('dashboard:read')) {
+          goto('/');
+        } else if (perms.includes('pos:access')) {
+          goto('/pos');
+        } else {
+          goto('/pos');
+        }
       }
     } catch (e) {
       error = e.response?.data?.error || 'Login failed';

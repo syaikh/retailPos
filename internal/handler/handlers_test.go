@@ -25,6 +25,7 @@ import (
 var (
 	h           *handler.Handler
 	productRepo *repo.ProductRepo
+	roleRepo    *repo.RoleRepo
 )
 
 // Setup func untuk inisialisasi Gin router & Dependencies
@@ -42,6 +43,7 @@ func setupServer() *gin.Engine {
 	}
 
 	userRepo := repo.NewUserRepo(db)
+	roleRepo = repo.NewRoleRepo(db)
 	productRepo = repo.NewProductRepo(db)
 	productGroupRepo := repo.NewProductGroupRepo(db)
 	statsRepo := repo.NewStatsRepo(db)
@@ -53,7 +55,7 @@ func setupServer() *gin.Engine {
 	tokenService := auth.NewTokenService("test-secret", "test-refresh-secret")
 	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
 	salesService := service.NewSalesService(db, productRepo, hub)
-	h = handler.NewHandler(authService, userRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	h = handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()

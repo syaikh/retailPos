@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"strings"
 
+	"retailPos/internal/repo"
+
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware(tokenService TokenService) gin.HandlerFunc {
+func AuthMiddleware(tokenService TokenService, roleRepo *repo.RoleRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := ""
 
@@ -27,15 +29,27 @@ func AuthMiddleware(tokenService TokenService) gin.HandlerFunc {
 			return
 		}
 
-		userID, role, err := tokenService.ValidateAccessToken(tokenStr)
+		userID, roleID, roleName, err := tokenService.ValidateAccessToken(tokenStr)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
 		}
 
+		// Store basic user info
 		c.Set("user_id", userID)
-		c.Set("role", role)
+		c.Set("role_id", roleID)
+		c.Set("role", roleName)
+
+		// Fetch and store user permissions from DB
+		permissions, err := roleRepo.ListUserPermissions(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load permissions"})
+			c.Abort()
+			return
+		}
+		c.Set("permissions", permissions)
+
 		c.Next()
 	}
 }

@@ -34,6 +34,7 @@ func main() {
 
 	// Initialize Repositories
 	userRepo := repo.NewUserRepo(db)
+	roleRepo := repo.NewRoleRepo(db)
 	productRepo := repo.NewProductRepo(db)
 	productGroupRepo := repo.NewProductGroupRepo(db)
 	statsRepo := repo.NewStatsRepo(db)
@@ -57,7 +58,7 @@ func main() {
 	salesService := service.NewSalesService(db, productRepo, hub)
 
 	// Initialize Handlers
-	h := handler.NewHandler(authService, userRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	h := handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
 
 	r := gin.Default()
 
@@ -77,43 +78,6 @@ func main() {
 		api.POST("/logout", h.Logout)
 		api.POST("/refresh", h.RefreshToken)
 
-		// Auth validation endpoint
-		api.GET("/auth/validate", func(c *gin.Context) {
-			tokenStr := ""
-			cookie, err := c.Cookie("session_token")
-			if err == nil && cookie != "" {
-				tokenStr = cookie
-			} else {
-				authHeader := c.GetHeader("Authorization")
-				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
-			}
-
-			if tokenStr == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-				return
-			}
-
-			userID, _, err := tokenService.ValidateAccessToken(tokenStr)
-			if err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-				return
-			}
-
-			user, err := userRepo.GetByID(userID)
-			if err != nil || user == nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{
-				"user": gin.H{
-					"id":       user.ID,
-					"username": user.Username,
-					"role":     user.Role,
-				},
-			})
-		})
-
 		// Debug: unprotected chart endpoint
 		api.GET("/sales/chart", h.GetSalesChartData)
 
@@ -124,8 +88,11 @@ func main() {
 
 		// Protected Routes
 		protected := api.Group("/")
-		protected.Use(auth.AuthMiddleware(tokenService))
+		protected.Use(auth.AuthMiddleware(tokenService, roleRepo))
 		{
+			// Auth: get current user with permissions
+			protected.GET("/auth/validate", h.ValidateSession)
+
 			// Admin-only routes
 			adminRoutes := protected.Group("/")
 			adminRoutes.Use(auth.RoleMiddleware("admin"))
@@ -136,6 +103,15 @@ func main() {
 				adminRoutes.POST("/products", h.CreateProduct)
 				adminRoutes.PUT("/products/:id", h.UpdateProduct)
 				adminRoutes.DELETE("/products/:id", h.DeleteProduct)
+
+				// Admin management endpoints
+				adminRoutes.GET("/permissions", h.ListPermissions)
+				adminRoutes.GET("/roles", h.ListRoles)
+				adminRoutes.POST("/roles", h.CreateRole)
+				adminRoutes.PUT("/roles/:id/permissions", h.UpdateRolePermissions)
+				adminRoutes.DELETE("/roles/:id", h.DeleteRole)
+				adminRoutes.GET("/users", h.ListUsers)
+				adminRoutes.PUT("/users/:id/role", h.UpdateUserRole)
 			}
 
 			// Protected routes (admin + cashier)

@@ -19,8 +19,8 @@ type TokenPair struct {
 }
 
 type TokenService interface {
-	GenerateTokenPair(userID int, role string) (*TokenPair, error)
-	ValidateAccessToken(tokenString string) (userID int, role string, err error)
+	GenerateTokenPair(userID int, roleID int, roleName string) (*TokenPair, error)
+	ValidateAccessToken(tokenString string) (userID int, roleID int, roleName string, err error)
 	ValidateRefreshToken(tokenString string) (userID int, err error)
 }
 
@@ -36,13 +36,14 @@ func NewTokenService(secret, refreshSecret string) TokenService {
 	}
 }
 
-func (s *jwtTokenService) GenerateTokenPair(userID int, role string) (*TokenPair, error) {
+func (s *jwtTokenService) GenerateTokenPair(userID int, roleID int, roleName string) (*TokenPair, error) {
 	now := time.Now()
 
 	// Access Token (15 mins)
 	accessClaims := jwt.MapClaims{
 		"user_id": userID,
-		"role":    role,
+		"role_id": roleID,
+		"role":    roleName,
 		"exp":     now.Add(15 * time.Minute).Unix(),
 		"iat":     now.Unix(),
 		"jti":     uuid.New().String(),
@@ -70,7 +71,7 @@ func (s *jwtTokenService) GenerateTokenPair(userID int, role string) (*TokenPair
 	}, nil
 }
 
-func (s *jwtTokenService) ValidateAccessToken(tokenString string) (int, string, error) {
+func (s *jwtTokenService) ValidateAccessToken(tokenString string) (int, int, string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidToken
@@ -80,38 +81,61 @@ func (s *jwtTokenService) ValidateAccessToken(tokenString string) (int, string, 
 
 	if err != nil {
 		log.Printf("Token parse error: %v", err)
-		return 0, "", ErrInvalidToken
+		return 0, 0, "", ErrInvalidToken
 	}
 
 	if !token.Valid {
 		log.Printf("Token invalid (not valid)")
-		return 0, "", ErrInvalidToken
+		return 0, 0, "", ErrInvalidToken
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		log.Printf("Invalid claims type")
-		return 0, "", ErrInvalidToken
+		return 0, 0, "", ErrInvalidToken
 	}
 
+	// Extract user_id (supports float64, int64, int)
 	userIDF, ok := claims["user_id"]
 	if !ok {
 		log.Printf("user_id claim missing")
-		return 0, "", ErrInvalidToken
+		return 0, 0, "", ErrInvalidToken
 	}
-
-	userIDFloat, ok := userIDF.(float64)
-	if !ok {
-		// Try int64
-		if userIDInt, ok := userIDF.(int64); ok {
-			return int(userIDInt), "", nil
-		}
+	var userID int
+	switch v := userIDF.(type) {
+	case float64:
+		userID = int(v)
+	case int64:
+		userID = int(v)
+	case int:
+		userID = v
+	default:
 		log.Printf("user_id not numeric: %T", userIDF)
-		return 0, "", ErrInvalidToken
+		return 0, 0, "", ErrInvalidToken
 	}
 
+	// Extract role_id
+	roleIDF, ok := claims["role_id"]
+	if !ok {
+		log.Printf("role_id claim missing")
+		return userID, 0, "", ErrInvalidToken
+	}
+	var roleID int
+	switch v := roleIDF.(type) {
+	case float64:
+		roleID = int(v)
+	case int64:
+		roleID = int(v)
+	case int:
+		roleID = v
+	default:
+		log.Printf("role_id not numeric: %T", roleIDF)
+		return userID, 0, "", ErrInvalidToken
+	}
+
+	// Extract role name
 	role, _ := claims["role"].(string)
-	return int(userIDFloat), role, nil
+	return userID, roleID, role, nil
 }
 
 func (s *jwtTokenService) ValidateRefreshToken(tokenString string) (int, error) {

@@ -22,6 +22,8 @@ var (
 type UserRepository interface {
 	GetByUsername(username string) (*model.User, error)
 	GetByID(id int) (*model.User, error)
+	GetUserRole(userID int) (*model.Role, error)
+	ListUserPermissions(userID int) ([]string, error)
 }
 
 type AuthService interface {
@@ -56,10 +58,24 @@ func (s *authService) Login(ctx context.Context, username, password, ip string) 
 		return nil, nil, ErrInvalidCredentials
 	}
 
+	// Load authoritative role and permissions
+	role, err := s.userRepo.GetUserRole(user.ID)
+	if err != nil {
+		return nil, nil, ErrInternalServerError
+	}
+	user.Role = role.Name
+	user.RoleID = role.ID
+
+	permissions, err := s.userRepo.ListUserPermissions(user.ID)
+	if err != nil {
+		return nil, nil, ErrInternalServerError
+	}
+	user.Permissions = permissions
+
 	// Password matches
 	s.authRepo.LogLoginAttempt(ctx, username, true, ip)
 
-	tokens, err := s.tokenService.GenerateTokenPair(user.ID, user.Role)
+	tokens, err := s.tokenService.GenerateTokenPair(user.ID, user.RoleID, user.Role)
 	if err != nil {
 		return nil, nil, ErrInternalServerError
 	}
@@ -95,7 +111,7 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	s.authRepo.DeleteRefreshToken(ctx, tokenHash)
 
 	// Generate new pair
-	tokens, err := s.tokenService.GenerateTokenPair(user.ID, user.Role)
+	tokens, err := s.tokenService.GenerateTokenPair(user.ID, user.RoleID, user.Role)
 	if err != nil {
 		return nil, ErrInternalServerError
 	}

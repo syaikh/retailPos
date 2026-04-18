@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth';
   import { logout as apiLogout } from '$lib/api/auth';
@@ -10,17 +10,25 @@
     Tags,
     BarChart3, 
     LogOut,
-    Store
+    Store,
+    Users,
+    Shield
   } from 'lucide-svelte';
 
-  let role = $derived($auth.user?.role || 'cashier');
+  let userPerms = $derived($auth.user?.permissions || []);
+
+  function hasPermission(permCode: string) {
+    return userPerms.includes(permCode);
+  }
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['admin'] },
-    { name: 'POS / Kasir', icon: ShoppingCart, path: '/pos', roles: ['admin', 'cashier'] },
-    { name: 'Inventory', icon: Package, path: '/inventory', roles: ['admin'] },
-    { name: 'Kategori', icon: Tags, path: '/inventory/groups', roles: ['admin'] },
-    { name: 'Laporan', icon: BarChart3, path: '/reports', roles: ['admin'] },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/', permission: 'dashboard:read' },
+    { name: 'POS / Kasir', icon: ShoppingCart, path: '/pos', permission: 'pos:access' },
+    { name: 'Inventory', icon: Package, path: '/inventory', permission: 'inventory:read' },
+    { name: 'Kategori', icon: Tags, path: '/inventory/groups', permission: 'inventory:group:read' },
+    { name: 'Laporan', icon: BarChart3, path: '/reports', permission: 'reports:read' },
+    { name: 'Kelola Pengguna', icon: Users, path: '/admin/users', permission: 'users:read' },
+    { name: 'Kelola Role', icon: Shield, path: '/admin/roles', permission: 'users:roles:manage' },
   ];
 
   let activePath = $derived($page.url.pathname);
@@ -39,7 +47,7 @@
 
   <nav class="nav-links">
     {#each menuItems as item}
-      {#if item.roles.includes(role)}
+      {#if hasPermission(item.permission)}
         <a
           class="nav-item"
           class:active={activePath === item.path}

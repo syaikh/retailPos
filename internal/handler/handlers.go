@@ -18,6 +18,7 @@ import (
 type Handler struct {
 	authService      auth.AuthService
 	userRepo         *repo.UserRepo
+	roleRepo         *repo.RoleRepo
 	productRepo      *repo.ProductRepo
 	productGroupRepo *repo.ProductGroupRepo
 	statsRepo        *repo.StatsRepo
@@ -25,10 +26,20 @@ type Handler struct {
 	salesService     *service.SalesService
 }
 
-func NewHandler(authService auth.AuthService, userRepo *repo.UserRepo, productRepo *repo.ProductRepo, productGroupRepo *repo.ProductGroupRepo, statsRepo *repo.StatsRepo, salesRepo *repo.SalesRepo, salesService *service.SalesService) *Handler {
+func NewHandler(
+	authService auth.AuthService,
+	userRepo *repo.UserRepo,
+	roleRepo *repo.RoleRepo,
+	productRepo *repo.ProductRepo,
+	productGroupRepo *repo.ProductGroupRepo,
+	statsRepo *repo.StatsRepo,
+	salesRepo *repo.SalesRepo,
+	salesService *service.SalesService,
+) *Handler {
 	return &Handler{
 		authService:      authService,
 		userRepo:         userRepo,
+		roleRepo:         roleRepo,
 		productRepo:      productRepo,
 		productGroupRepo: productGroupRepo,
 		statsRepo:        statsRepo,
@@ -48,6 +59,24 @@ func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, 
 	sortBy = c.Query("sortBy")
 	sortDir = c.DefaultQuery("sortDir", "asc")
 	return
+}
+
+// hasPermission checks if the current user (from context) has a given permission
+func (h *Handler) hasPermission(c *gin.Context, permCode string) bool {
+	permsInterface, exists := c.Get("permissions")
+	if !exists {
+		return false
+	}
+	perms, ok := permsInterface.([]string)
+	if !ok {
+		return false
+	}
+	for _, p := range perms {
+		if p == permCode {
+			return true
+		}
+	}
+	return false
 }
 
 // Auth Handlers
@@ -133,7 +162,6 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 }
 
 func (h *Handler) ValidateSession(c *gin.Context) {
-	// Middleware sudah validasi, langsung return user info
 	userID := c.GetInt("user_id")
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid session"})
@@ -146,14 +174,238 @@ func (h *Handler) ValidateSession(c *gin.Context) {
 		return
 	}
 
-	// Jangan return password hash
+	// Load user's role and permissions
+	role, err := h.userRepo.GetUserRole(userID)
+	if err != nil || role == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load role"})
+		return
+	}
+
+	permissions, err := h.userRepo.ListUserPermissions(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load permissions"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":       user.ID,
-			"username": user.Username,
-			"role":     user.Role,
+			"id":          user.ID,
+			"username":    user.Username,
+			"role":        role.Name,
+			"role_id":     user.RoleID,
+			"permissions": permissions,
 		},
 	})
+}
+
+// Admin endpoints: List all permissions (reference)
+func (h *Handler) ListPermissions(c *gin.Context) {
+	// Only admin can list all permissions
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	perms, err := h.roleRepo.GetAllPermissions()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"permissions": perms})
+}
+
+// ListRoles returns all roles with their permission codes
+func (h *Handler) ListRoles(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	roles, err := h.roleRepo.GetAllRoles()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	result := make([]gin.H, 0, len(roles))
+	for _, r := range roles {
+		permCodes, _ := h.roleRepo.GetRolePermissions(r.ID)
+		result = append(result, gin.H{
+			"id":          r.ID,
+			"name":        r.Name,
+			"description": r.Description,
+			"is_system":   r.IsSystem,
+			"permissions": permCodes,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"roles": result})
+}
+
+// CreateRole creates a new role
+func (h *Handler) CreateRole(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	var input struct {
+		Name        string `json:"name" binding:"required,min=3,max=50"`
+		Description string `json:"description"`
+		Permissions []int  `json:"permission_ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	role, err := h.roleRepo.CreateRole(input.Name, input.Description, false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	for _, permID := range input.Permissions {
+		h.roleRepo.AssignPermissionToRole(role.ID, permID)
+	}
+	c.JSON(http.StatusCreated, gin.H{"role": role})
+}
+
+// UpdateRolePermissions updates permissions for a role
+func (h *Handler) UpdateRolePermissions(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	roleID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+	role, err := h.roleRepo.GetRoleByID(roleID)
+	if err != nil || role == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		return
+	}
+	if role.IsSystem {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot modify system role"})
+		return
+	}
+	var input struct {
+		PermissionIDs []int `json:"permission_ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Remove existing permissions
+	if err := h.roleRepo.ClearRolePermissions(roleID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	// Add new permissions
+	for _, permID := range input.PermissionIDs {
+		h.roleRepo.AssignPermissionToRole(roleID, permID)
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Permissions updated"})
+}
+
+// DeleteRole deletes a non-system role
+func (h *Handler) DeleteRole(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	roleID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+	role, err := h.roleRepo.GetRoleByID(roleID)
+	if err != nil || role == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		return
+	}
+	if role.IsSystem {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot delete system role"})
+		return
+	}
+	if err := h.roleRepo.DeleteRole(roleID); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Role is assigned to users"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Role deleted"})
+}
+
+// ListUsers returns all users with their roles
+func (h *Handler) ListUsers(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	users, err := h.userRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	type userResp struct {
+		ID           int    `json:"id"`
+		Username     string `json:"username"`
+		RoleID       int    `json:"role_id"`
+		RoleName     string `json:"role_name"`
+		IsSystemRole bool   `json:"is_system_role"`
+	}
+	result := make([]userResp, 0, len(users))
+	for _, u := range users {
+		role, _ := h.roleRepo.GetRoleByID(u.RoleID)
+		isSystem := false
+		roleName := ""
+		if role != nil {
+			roleName = role.Name
+			isSystem = role.IsSystem
+		}
+		result = append(result, userResp{
+			ID:           u.ID,
+			Username:     u.Username,
+			RoleID:       u.RoleID,
+			RoleName:     roleName,
+			IsSystemRole: isSystem,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"users": result})
+}
+
+// UpdateUserRole updates a user's role
+func (h *Handler) UpdateUserRole(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	targetUser, err := h.userRepo.GetByID(userID)
+	if err != nil || targetUser == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	targetRole, _ := h.roleRepo.GetRoleByID(targetUser.RoleID)
+	if targetRole != nil && targetRole.Name == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot modify admin users"})
+		return
+	}
+	var input struct {
+		RoleID int `json:"role_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	newRole, _ := h.roleRepo.GetRoleByID(input.RoleID)
+	if newRole == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		return
+	}
+	if err := h.roleRepo.UpdateUserRole(userID, input.RoleID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Role updated"})
 }
 
 // Product Handlers
@@ -215,8 +467,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 }
 
 func (h *Handler) CreateProduct(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "product:create") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 
@@ -280,8 +532,8 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 }
 
 func (h *Handler) UpdateProduct(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "product:update") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 
@@ -318,8 +570,8 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 }
 
 func (h *Handler) DeleteProduct(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "product:delete") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 
@@ -393,8 +645,8 @@ func (h *Handler) GetProductGroups(c *gin.Context) {
 }
 
 func (h *Handler) CreateProductGroup(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "group:create") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 
@@ -413,8 +665,8 @@ func (h *Handler) CreateProductGroup(c *gin.Context) {
 }
 
 func (h *Handler) UpdateProductGroup(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "group:update") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 
@@ -446,8 +698,8 @@ func (h *Handler) UpdateProductGroup(c *gin.Context) {
 }
 
 func (h *Handler) DeleteProductGroup(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	if !h.hasPermission(c, "group:delete") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
 		return
 	}
 

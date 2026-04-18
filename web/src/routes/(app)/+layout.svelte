@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import '../../lib/app.css';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Navbar from '$lib/components/Navbar.svelte';
@@ -10,6 +10,35 @@
 
   let { children } = $props();
   let initialized = $state(false);
+
+  // Route permission requirements
+  const routePermissions: Record<string, string[]> = {
+    '/': ['dashboard:read'],
+    '/pos': ['pos:access'],
+    '/inventory': ['inventory:read'],
+    '/inventory/groups': ['inventory:group:read'],
+    '/reports': ['reports:read'],
+    '/admin/users': ['users:read'],
+    '/admin/roles': ['users:roles:manage'],
+  };
+
+  function hasAllPermissions(userPerms: string[], required: string[]): boolean {
+    return required.every(p => userPerms.includes(p));
+  }
+
+  function getRequiredPermissions(path: string): string[] | null {
+    // Check exact match first
+    if (routePermissions[path]) {
+      return routePermissions[path];
+    }
+    // Check prefix matches
+    for (const route in routePermissions) {
+      if (path.startsWith(route)) {
+        return routePermissions[route];
+      }
+    }
+    return null;
+  }
 
   // Initial auth check on mount
   onMount(async () => {
@@ -23,13 +52,23 @@
       return;
     }
 
-    // Cashier restricted to /pos only
-    if (state.user.role === 'cashier' && !currentPath.startsWith('/pos')) {
-      goto('/pos');
+    // Check permission for current route
+    const requiredPerms = getRequiredPermissions(currentPath);
+    const userPerms = state.user.permissions || [];
+    
+    if (requiredPerms && !hasAllPermissions(userPerms, requiredPerms)) {
+      // Redirect to fallback page based on available permissions
+      if (userPerms.includes('pos:access')) {
+        goto('/pos');
+      } else if (userPerms.includes('dashboard:read')) {
+        goto('/');
+      } else {
+        goto('/pos');
+      }
       return;
     }
 
-    // Admin or authorized cashier -> show content
+    // Authorized -> show content
     initialized = true;
   });
 
@@ -50,15 +89,20 @@
       return;
     }
 
-    // Admin has full access
-    if (state.user.role === 'admin') {
-      return;
-    }
-
-    // Cashier restricted to /pos only
-    if (state.user.role === 'cashier' && !path.startsWith('/pos')) {
+    // Check permissions
+    const requiredPerms = getRequiredPermissions(path);
+    const userPerms = state.user.permissions || [];
+    
+    if (requiredPerms && !hasAllPermissions(userPerms, requiredPerms)) {
       nav.cancel();
-      goto('/pos');
+      // Redirect to fallback
+      if (userPerms.includes('pos:access')) {
+        goto('/pos');
+      } else if (userPerms.includes('dashboard:read')) {
+        goto('/');
+      } else {
+        goto('/pos');
+      }
     }
   });
 </script>
