@@ -4,7 +4,8 @@
     Download, 
     Calendar,
     ArrowUpRight,
-    Search
+    Search,
+    ChevronDown
   } from 'lucide-svelte';
 
   import { onMount, onDestroy, tick } from 'svelte';
@@ -12,6 +13,9 @@
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
   import Chart from 'chart.js/auto';
+  import jsPDF from 'jspdf';
+  import autoTable from 'jspdf-autotable';
+  import * as XLSX from 'xlsx';
 
   const DEBOUNCE_DELAY = 300;
 
@@ -53,6 +57,21 @@
   let dateRangeEnd = $state(null);
   let groupBy = $state('day');
   let chartInitialized = $state(false);
+  let exporting = $state(false);
+  let showExportMenu = $state(false);
+
+  $effect(() => {
+    if (showExportMenu) {
+      function handleClickOutside(e) {
+        const dropdown = document.querySelector('.export-dropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+          showExportMenu = false;
+        }
+      }
+      window.addEventListener('click', handleClickOutside);
+      return () => window.removeEventListener('click', handleClickOutside);
+    }
+  });
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -374,6 +393,114 @@
     selectedTransaction = tx;
     showDetailModal = true;
   }
+
+  async function fetchAllTransactionsForExport() {
+    const startStr = dateToString(dateRangeStart);
+    const endStr = dateToString(dateRangeEnd);
+    const searchParam = activeSearch.trim().length >= 3 ? `&search=${encodeURIComponent(activeSearch.trim())}` : '';
+    const url = `/sales?limit=10000&offset=0&sortBy=${sortField}&sortDir=${sortDir}&start_date=${startStr}&end_date=${endStr}${searchParam}`;
+    const resp = await api.get(url);
+    return Array.isArray(resp.data.data) ? resp.data.data : [];
+  }
+
+  async function exportPDF() {
+    exporting = true;
+    showExportMenu = false;
+    try {
+      const allTransactions = await fetchAllTransactionsForExport();
+      
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      doc.setFontSize(16);
+      doc.text('Laporan Penjualan', pageWidth / 2, 15, { align: 'center' });
+      
+      doc.setFontSize(10);
+      const dateRangeText = `${dateToString(dateRangeStart)} - ${dateToString(dateRangeEnd)}`;
+      doc.text(dateRangeText, pageWidth / 2, 22, { align: 'center' });
+      
+      let yPos = 30;
+      
+      if (chartCanvas && chartInstance) {
+        try {
+          const chartImage = chartCanvas.toDataURL('image/png', 1.0);
+          const imgWidth = pageWidth - 20;
+          const imgHeight = 80;
+          doc.addImage(chartImage, 'PNG', 10, yPos, imgWidth, imgHeight);
+          yPos += imgHeight + 10;
+        } catch (e) {
+          console.warn('Could not capture chart:', e);
+        }
+      }
+      
+      const tableData = allTransactions.map(tx => [
+        `#TRX-${tx.id.toString().padStart(4, '0')}`,
+        formatIndonesianDate(tx.created_at),
+        `Rp ${tx.total_amount.toLocaleString()}`,
+        tx.payment_method,
+        `${tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit`
+      ]);
+      
+      autoTable(doc, {
+        head: [['ID', 'Waktu', 'Total', 'Metode', 'Qty Item']],
+        body: tableData,
+        startY: yPos,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [99, 102, 241] }
+      });
+      
+      doc.save(`laporan-penjualan-${dateToString(dateRangeStart)}-${dateToString(dateRangeEnd)}.pdf`);
+    } catch (e) {
+      console.error('Export PDF failed:', e);
+      alert('Gagal mengekspor PDF: ' + e.message);
+    } finally {
+      exporting = false;
+    }
+  }
+
+  async function exportExcel() {
+    exporting = true;
+    showExportMenu = false;
+    try {
+      const allTransactions = await fetchAllTransactionsForExport();
+      
+      const data = allTransactions.map(tx => ({
+        ID: `#TRX-${tx.id.toString().padStart(4, '0')}`,
+        Waktu: formatIndonesianDate(tx.created_at),
+        Total: tx.total_amount,
+        Metode: tx.payment_method,
+        'Qty Item': tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+      }));
+      
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
+      
+      const colWidths = [
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 10 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      XLSX.writeFile(wb, `laporan-penjualan-${dateToString(dateRangeStart)}-${dateToString(dateRangeEnd)}.xlsx`);
+    } catch (e) {
+      console.error('Export Excel failed:', e);
+      alert('Gagal mengekspor Excel: ' + e.message);
+    } finally {
+      exporting = false;
+    }
+  }
+
+  function handleExportClick() {
+    showExportMenu = !showExportMenu;
+  }
+
+  function closeExportMenu() {
+    showExportMenu = false;
+  }
 </script>
 
 <div class="reports">
@@ -382,10 +509,23 @@
       <BarChart3 size={32} color="var(--primary)" />
       <h1>Laporan Penjualan</h1>
     </div>
-    <button class="export-btn">
-      <Download size={18} />
-      Ekspor PDF/Excel
-    </button>
+    <div class="export-dropdown">
+      <button class="export-btn" onclick={handleExportClick} disabled={exporting}>
+        <Download size={18} />
+        {exporting ? 'Mengekspor...' : 'Ekspor'}
+        <ChevronDown size={16} />
+      </button>
+      {#if showExportMenu}
+        <div class="export-menu">
+          <button onclick={exportPDF} disabled={exporting}>
+            <Download size={16} /> Ekspor PDF
+          </button>
+          <button onclick={exportExcel} disabled={exporting}>
+            <Download size={16} /> Ekspor Excel
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
 
   <div class="filter-bar premium-card glass">
@@ -618,6 +758,54 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    cursor: pointer;
+  }
+
+  .export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .export-dropdown {
+    position: relative;
+  }
+
+  .export-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    min-width: 160px;
+    overflow: hidden;
+  }
+
+  .export-menu button {
+    width: 100%;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.875rem;
+  }
+
+  .export-menu button:hover {
+    background: var(--primary);
+    color: white;
+  }
+
+  .export-menu button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .filter-bar {
