@@ -217,3 +217,5 @@ SalesRepo.GetAll: startDate=2026-04-01, endDate=2026-04-19, limit=10000, offset=
 [GIN] 2026/04/19 - 20:42:16 | 200 |   3.19ms |       127.0.0.1 | GET      "/api/products?limit=10&offset=0&sortBy=id&sortDir=asc"
 [GIN] 2026/04/19 - 20:42:27 | 200 |   4.01ms |       127.0.0.1 | GET      "/api/products?limit=10&offset=10&sortBy=id&sortDir=asc"
 [GIN] 2026/04/19 - 20:42:29 | 200 |    4.1ms |       127.0.0.1 | GET      "/api/products?limit=10&offset=1040&sortBy=id&sortDir=asc"
+2026/04/19 20:49:55 Shutting down server...
+2026/04/19 20:49:55 Server stopped
