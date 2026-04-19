@@ -50,7 +50,7 @@ func NewHandler(
 
 // Old AuthMiddleware has been removed and replaced by auth.AuthMiddleware
 
-func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, sortBy, sortDir string) {
+func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, sortBy, sortDir, startDate, endDate string) {
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
 	limit, _ = strconv.Atoi(limitStr)
@@ -58,6 +58,8 @@ func (h *Handler) parseCommonParams(c *gin.Context) (limit, offset int, search, 
 	search = c.Query("search")
 	sortBy = c.Query("sortBy")
 	sortDir = c.DefaultQuery("sortDir", "asc")
+	startDate = c.Query("start_date")
+	endDate = c.Query("end_date")
 	return
 }
 
@@ -435,7 +437,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
+	limit, offset, search, sortBy, sortDir, _, _ := h.parseCommonParams(c)
 
 	var groupID *int
 	if g := c.Query("group_id"); g != "" {
@@ -630,7 +632,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 
 // Product Group Handlers
 func (h *Handler) GetProductGroups(c *gin.Context) {
-	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
+	limit, offset, search, sortBy, sortDir, _, _ := h.parseCommonParams(c)
 	groups, total, err := h.productGroupRepo.GetAll(limit, offset, search, sortBy, sortDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -738,8 +740,9 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesHistory(c *gin.Context) {
-	limit, offset, search, sortBy, sortDir := h.parseCommonParams(c)
-	sales, total, err := h.salesRepo.GetAll(limit, offset, search, sortBy, sortDir)
+	limit, offset, search, sortBy, sortDir, startDate, endDate := h.parseCommonParams(c)
+	fmt.Printf("GetSalesHistory: startDate=%s, endDate=%s, limit=%d, offset=%d\n", startDate, endDate, limit, offset)
+	sales, total, err := h.salesRepo.GetAll(limit, offset, search, sortBy, sortDir, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

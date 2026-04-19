@@ -16,7 +16,9 @@ func NewSalesRepo(db *sql.DB) *SalesRepo {
 	return &SalesRepo{db: db}
 }
 
-func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir string) ([]model.Sale, int, error) {
+func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir string, startDate, endDate string) ([]model.Sale, int, error) {
+	fmt.Printf("SalesRepo.GetAll: startDate=%s, endDate=%s, limit=%d, offset=%d\n", startDate, endDate, limit, offset)
+
 	// Base query with join only if searching by item name
 	query := `SELECT DISTINCT s.id, s.total_amount, s.payment_method, s.cashier_id, s.created_at 
 	          FROM sales s 
@@ -29,12 +31,21 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	args := []any{}
 	placeholderIdx := 1
 
+	// Add date filtering if provided
+	if startDate != "" && endDate != "" {
+		dateFilter := fmt.Sprintf(" AND s.created_at::date >= $%d AND s.created_at::date <= $%d", placeholderIdx, placeholderIdx+1)
+		query += dateFilter
+		countQuery += dateFilter
+		args = append(args, startDate, endDate)
+		placeholderIdx += 2
+	}
+
 	if search != "" {
 		// handle #TRX-, TRX-, and padding
 		cleanSearch := strings.TrimPrefix(strings.TrimPrefix(strings.ToUpper(search), "#TRX-"), "TRX-")
-		
+
 		filter := " AND (si.product_name ILIKE $" + strconv.Itoa(placeholderIdx) + " OR s.id::text ILIKE $" + strconv.Itoa(placeholderIdx)
-		
+
 		searchInt, err := strconv.Atoi(cleanSearch)
 		if err == nil {
 			// If numeric, add exact ID match to handle cases like "0001" searching for ID 1
@@ -99,7 +110,7 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 		idsStr = append(idsStr, strconv.Itoa(id))
 	}
 	queryItems := fmt.Sprintf(`SELECT id, sale_id, product_id, product_name, quantity, price_at_sale FROM sale_items WHERE sale_id IN (%s) ORDER BY id ASC`, strings.Join(idsStr, ","))
-	
+
 	itemRows, err := r.db.Query(queryItems)
 	if err != nil {
 		return nil, 0, err
