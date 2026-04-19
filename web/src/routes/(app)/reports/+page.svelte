@@ -87,6 +87,12 @@
     return `${day} ${month} ${year} ${hours}:${minutes}`;
   }
 
+  function getPaymentMethodLabel(method) {
+    if (method === 'cash') return 'Tunai';
+    if (method === 'card') return 'Kartu';
+    return method;
+  }
+
   const today = new Date();
   const defaultStart = new Date(today);
   defaultStart.setDate(today.getDate() - 7);
@@ -437,7 +443,7 @@
         `#TRX-${tx.id.toString().padStart(4, '0')}`,
         formatIndonesianDate(tx.created_at),
         `Rp ${tx.total_amount.toLocaleString()}`,
-        tx.payment_method,
+        getPaymentMethodLabel(tx.payment_method),
         `${tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit`
       ]);
       
@@ -464,13 +470,13 @@
     try {
       const allTransactions = await fetchAllTransactionsForExport();
       
-      const data = allTransactions.map(tx => ({
-        ID: `#TRX-${tx.id.toString().padStart(4, '0')}`,
-        Waktu: formatIndonesianDate(tx.created_at),
-        Total: tx.total_amount,
-        Metode: tx.payment_method,
-        'Qty Item': tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
-      }));
+       const data = allTransactions.map(tx => ({
+         ID: `#TRX-${tx.id.toString().padStart(4, '0')}`,
+         Waktu: formatIndonesianDate(tx.created_at),
+         Total: tx.total_amount,
+         Metode: getPaymentMethodLabel(tx.payment_method),
+         'Qty Item': tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+       }));
       
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -626,7 +632,7 @@
               <td><code>#TRX-{tx.id.toString().padStart(4, '0')}</code></td>
               <td>{formatIndonesianDate(tx.created_at)}</td>
               <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
-              <td><span class="method-badge">{tx.payment_method}</span></td>
+               <td><span class="method-badge">{getPaymentMethodLabel(tx.payment_method)}</span></td>
               <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
               <td>
                 <button class="detail-link" onclick={() => openDetail(tx)}>
@@ -667,10 +673,10 @@
         <button class="close-btn" onclick={() => showDetailModal = false}>&times;</button>
       </div>
       
-      <div class="tx-meta">
-        <p><span>Waktu:</span> {formatIndonesianDate(selectedTransaction.created_at)}</p>
-        <p><span>Metode Pembayaran:</span> {selectedTransaction.payment_method}</p>
-      </div>
+       <div class="tx-meta">
+         <p><span>Waktu:</span> {formatIndonesianDate(selectedTransaction.created_at)}</p>
+         <p><span>Metode Pembayaran:</span> {getPaymentMethodLabel(selectedTransaction.payment_method)}</p>
+       </div>
 
       <div class="items-table">
         <table>

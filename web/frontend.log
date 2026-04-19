@@ -1,0 +1,9 @@
+
+> retail-pos-web@0.0.1 dev
+> vite dev --host
+
+
+  VITE v5.4.21  ready in 2417 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.2.111:5173/

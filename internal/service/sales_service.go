@@ -30,6 +30,11 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 	}
 	defer tx.Rollback()
 
+	// Validate payment method
+	if sale.PaymentMethod != "cash" && sale.PaymentMethod != "card" {
+		return errors.New("invalid payment method: must be 'cash' or 'card'")
+	}
+
 	// 1. Insert Sale record
 	querySale := `INSERT INTO sales (total_amount, payment_method, cashier_id) VALUES ($1, $2, $3) RETURNING id, created_at`
 	err = tx.QueryRowContext(ctx, querySale, sale.TotalAmount, sale.PaymentMethod, sale.CashierID).Scan(&sale.ID, &sale.CreatedAt)

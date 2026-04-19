@@ -130,7 +130,7 @@ var productSuffixes = []string{
 	"Reguler", "Large", "Small", "Family", "Single",
 }
 
-var paymentMethods = []string{"cash", "debit", "qris", "transfer"}
+var paymentMethods = []string{"cash", "card"}
 
 // ─────────────────────────────── main ───────────────────────────────────────
 
