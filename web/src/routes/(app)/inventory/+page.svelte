@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
-  import { products } from '$lib/stores.js';
+  import { products, user } from '$lib/stores.js';
   import api from '$lib/api.js';
   import { 
     Plus, 
@@ -9,7 +9,8 @@
     Edit, 
     Trash2, 
     Package,
-    AlertCircle
+    AlertCircle,
+    Download
   } from 'lucide-svelte';
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
@@ -70,6 +71,38 @@
     stock: 0,
     group_id: null
   });
+
+  // Export state
+  let exportFormat = $state('csv');
+  let exportLoading = $state(false);
+
+  // Debug: show export for all users for now
+  let showExport = true;
+
+  async function exportInventory() {
+    exportLoading = true;
+    try {
+      const token = localStorage.getItem('token');
+      const url = `/api/inventory/export?format=${exportFormat}`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `inventory_export.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      alert('Export gagal: ' + e.message);
+    } finally {
+      exportLoading = false;
+    }
+  }
 
   onMount(() => {
     fetchGroups();
@@ -243,6 +276,21 @@
       <input type="checkbox" bind:checked={hideEmptyStock} />
       Sembunyikan stok kosong
     </label>
+    {#if showExport}
+      <div class="export-controls">
+        <select bind:value={exportFormat}>
+          <option value="csv">CSV</option>
+          <option value="xlsx">Excel</option>
+        </select>
+        <button class="export-btn" onclick={exportInventory} disabled={exportLoading}>
+          {#if exportLoading}
+            Exporting...
+          {:else}
+            <Download size={16} /> Export
+          {/if}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="table-container premium-card">
@@ -509,6 +557,45 @@
 
   .stock-filter input {
     cursor: pointer;
+  }
+
+  .export-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .export-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .export-controls input[type="date"],
+  .export-controls select {
+    padding: 8px 12px;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: white;
+    font-size: 0.875rem;
+  }
+
+  .export-btn {
+    background: var(--success);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   code {

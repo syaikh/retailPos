@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"retailPos/internal/auth"
@@ -24,6 +25,7 @@ type Handler struct {
 	statsRepo        *repo.StatsRepo
 	salesRepo        *repo.SalesRepo
 	salesService     *service.SalesService
+	inventoryService *service.InventoryService
 }
 
 func NewHandler(
@@ -35,6 +37,7 @@ func NewHandler(
 	statsRepo *repo.StatsRepo,
 	salesRepo *repo.SalesRepo,
 	salesService *service.SalesService,
+	inventoryService *service.InventoryService,
 ) *Handler {
 	return &Handler{
 		authService:      authService,
@@ -45,6 +48,7 @@ func NewHandler(
 		statsRepo:        statsRepo,
 		salesRepo:        salesRepo,
 		salesService:     salesService,
+		inventoryService: inventoryService,
 	}
 }
 
@@ -770,4 +774,37 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	}
 	fmt.Printf("CHART DATA: %+v\n", data)
 	c.JSON(http.StatusOK, data)
+}
+
+func (h *Handler) ExportInventory(c *gin.Context) {
+	if !h.hasPermission(c, "inventory:product:export") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})
+		return
+	}
+
+	format := c.DefaultQuery("format", "csv")
+
+	if format != "csv" && format != "xlsx" && format != "excel" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format. Use 'csv' or 'xlsx'"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	if format == "csv" {
+		c.Header("Content-Type", "text/csv")
+		c.Header("Content-Disposition", "attachment; filename=inventory.csv")
+		if err := h.inventoryService.ExportInventoryCSV(ctx, c.Writer); err != nil {
+			fmt.Printf("CSV EXPORT ERROR: %v\n", err)
+		}
+	} else {
+		reader, err := h.inventoryService.ExportInventoryExcel(ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", "attachment; filename=inventory.xlsx")
+		io.Copy(c.Writer, reader)
+	}
 }

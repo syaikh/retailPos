@@ -56,9 +56,10 @@ func main() {
 	tokenService := auth.NewTokenService(secret, refreshSecret)
 	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
 	salesService := service.NewSalesService(db, productRepo, hub)
+	inventoryService := service.NewInventoryService(productRepo)
 
 	// Initialize Handlers
-	h := handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	h := handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService, inventoryService)
 
 	r := gin.Default()
 
@@ -103,6 +104,7 @@ func main() {
 				adminRoutes.POST("/products", h.CreateProduct)
 				adminRoutes.PUT("/products/:id", h.UpdateProduct)
 				adminRoutes.DELETE("/products/:id", h.DeleteProduct)
+				adminRoutes.GET("/inventory/export", h.ExportInventory)
 
 				// Admin management endpoints
 				adminRoutes.GET("/permissions", h.ListPermissions)
@@ -151,7 +153,7 @@ func main() {
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// API routes that didn't match -> JSON 404
+		// API routes that didn't match (except /api prefix which is handled by api group)
 		if strings.HasPrefix(path, "/api") {
 			c.JSON(404, gin.H{"error": "Not found"})
 			return

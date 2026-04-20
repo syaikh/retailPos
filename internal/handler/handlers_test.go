@@ -55,7 +55,8 @@ func setupServer() *gin.Engine {
 	tokenService := auth.NewTokenService("test-secret", "test-refresh-secret")
 	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
 	salesService := service.NewSalesService(db, productRepo, hub)
-	h = handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService)
+	inventoryService := service.NewInventoryService(productRepo)
+	h = handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService, inventoryService)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()

@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	model "retailPos/internal/model"
@@ -184,4 +185,38 @@ func (r *ProductRepo) Delete(id int) error {
 	query := `UPDATE products SET deleted_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(query, id)
 	return err
+}
+
+func (r *ProductRepo) GetAllForExport(ctx context.Context) (<-chan model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at 
+              FROM products 
+              WHERE deleted_at IS NULL`
+	args := []any{}
+
+	query += " ORDER BY created_at ASC"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	productChan := make(chan model.Product, 100)
+
+	go func() {
+		defer rows.Close()
+		defer close(productChan)
+		for rows.Next() {
+			var p model.Product
+			if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+				continue
+			}
+			select {
+			case productChan <- p:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return productChan, nil
 }
