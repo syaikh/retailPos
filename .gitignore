@@ -7,8 +7,10 @@
 
 bin/
 retailPos
-./seeder
 seeder
+
+# Process IDs
+*.pid
 
 # Test binary, built with `go test -c`
 *.test
