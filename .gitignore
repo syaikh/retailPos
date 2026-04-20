@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+
 bin/
 retailPos
 retail-pos
@@ -23,6 +24,9 @@ seeder
 
 # Go workspace file
 go.work
+
+# log files
+*.log
 
 # SvelteKit / Node
 node_modules/
