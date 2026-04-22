@@ -5,13 +5,16 @@
    * @typedef {{ value: any; label: string }} Option
    */
 
+  /** @type {{ value: any; label: string }} */
+  type Option = { value: any; label: string };
+
   let { 
     options = [], 
     value = $bindable<any>(), 
     placeholder = "Pilih opsi...",
     width = "250px"
   } = $props<{
-    options: { value: any; label: string }[];
+    options: Option[];
     value: any;
     placeholder?: string;
     width?: string;
@@ -19,15 +22,23 @@
 
   let isOpen = $state(false);
   let searchQuery = $state('');
+  let highlightedIndex = $state(-1);
 
   let filteredOptions = $derived(
-    options.filter((o: { value: any; label: string }) => {
+    options.filter((o: Option) => {
       if (o.value === 'all') return true;
       return o.label.toLowerCase().includes(searchQuery.toLowerCase());
     })
   );
 
-  let selectedOption = $derived(options.find((o: { value: any; label: string }) => o.value === value));
+  let selectedOption = $derived(options.find((o: Option) => o.value === value));
+
+  $effect(() => {
+    if (isOpen) {
+      highlightedIndex = filteredOptions.findIndex((o: Option) => o.value === value);
+      if (highlightedIndex === -1) highlightedIndex = 0;
+    }
+  });
 
   function selectOption(val: any) {
     value = val;
@@ -58,10 +69,33 @@
   }
 
   function autoFocusAction(node: HTMLElement) {
-    node.focus();
+    (node as HTMLInputElement).focus();
     return {
       destroy() {}
     };
+  }
+
+  /** @param {KeyboardEvent} e */
+  function handleKeydown(e: Event & { key: string; preventDefault: () => void }) {
+    if (e.key === 'Escape') {
+      isOpen = false;
+      searchQuery = '';
+      return;
+    }
+    if (!isOpen) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlightedIndex = Math.min(highlightedIndex + 1, filteredOptions.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlightedIndex = Math.max(highlightedIndex - 1, 0);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredOptions[highlightedIndex]) {
+        selectOption(filteredOptions[highlightedIndex].value);
+      }
+    }
   }
 </script>
 
@@ -85,16 +119,17 @@
           placeholder="Cari kategori..." 
           bind:value={searchQuery}
           onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => { if (e.key === 'Escape') isOpen = false; }}
+          onkeydown={handleKeydown}
           onfocus={(e) => e.currentTarget.select()}
           use:autoFocusAction
         />
       </div>
       <div class="options-list">
-        {#each filteredOptions as option}
+        {#each filteredOptions as option, i}
           <button 
             class="option" 
             class:active={value === option.value}
+            class:highlighted={i === highlightedIndex}
             onclick={() => selectOption(option.value)}
             type="button"
           >
@@ -209,7 +244,7 @@
   }
 
   .options-list {
-    max-height: 250px;
+    max-height: 280px;
     overflow-y: auto;
     padding: 6px;
   }
@@ -243,6 +278,10 @@
 
   .option:hover {
     background: rgba(99, 102, 241, 0.1);
+  }
+
+  .option.highlighted {
+    background: rgba(99, 102, 241, 0.15);
   }
 
   .option.active {

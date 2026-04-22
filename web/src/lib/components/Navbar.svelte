@@ -12,7 +12,7 @@
 
 <header class="navbar glass">
   <div class="search-context">
-    <!-- Context-aware search could go here -->
+    <span class="placeholder"></span>
   </div>
 
   <div class="user-profile">
@@ -38,13 +38,18 @@
 
 <style>
   .navbar {
-    height: 72px;
+    min-height: 72px;
     padding: 0 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
     background: rgba(15, 23, 42, 0.8) !important;
+  }
+
+  .search-context {
+    min-width: 200px;
+    min-height: 36px;
   }
 
   .user-profile {

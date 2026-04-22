@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { products } from '$lib/stores/products';
   import api from '$lib/api.js';
+  import { ui } from '$lib/stores/ui';
   import { 
     Plus, 
     Search, 
@@ -10,18 +11,27 @@
     Trash2, 
     Package,
     AlertCircle,
-    Download
+    Download,
+    Copy,
+    Check,
+    MoreVertical,
+    Eye,
+    X
   } from 'lucide-svelte';
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
+  import StockBadge from '$lib/components/ui/StockBadge.svelte';
 
   let searchQuery = $state('');
   let showModal = $state(false);
   let editingProduct = $state(null);
   let loading = $state(false);
   let searchInput = $state(null);
-  let hideEmptyStock = $state(true); // Default disembunyikan sesuai keluhan user
+  let hideEmptyStock = $state(true);
+  /** @type {any[]} */
   let groups = $state([]);
+  let openMenuId = $state(null);
+  let exportDropdownOpen = $state(false);
 
   let limit = $state(10);
   let offset = $state(0);
@@ -60,6 +70,13 @@
         // no cleanup needed
       }
     };
+  }
+
+  function clickOutsideExport(e) {
+    const dropdown = document.querySelector('.export-dropdown');
+    if (exportDropdownOpen && dropdown && !dropdown.contains(e.target)) {
+      exportDropdownOpen = false;
+    }
   }
 
   // Form state
@@ -106,12 +123,14 @@
 
   onMount(() => {
     fetchGroups();
+    document.addEventListener('click', clickOutsideExport);
   });
 
   onDestroy(() => {
     if (searchDebounceTimer) {
       clearTimeout(searchDebounceTimer);
     }
+    document.removeEventListener('click', clickOutsideExport);
   });
 
   $effect(() => {
@@ -162,7 +181,7 @@
     // Debounce search (faster for inventory since it's key-based)
     searchDebounceTimer = setTimeout(() => {
       fetchProducts();
-    }, 250);
+    }, 150);
   });
 
   function handlePageChange(newOffset, newLimit) {
@@ -237,13 +256,37 @@
     if (hideEmptyStock) return $products.filter(p => p.stock > 0);
     return $products;
   });
+
+  function getStockLevel(stock) {
+    if (stock < 5) return 'rendah';
+    if (stock < 20) return 'sedang';
+    return 'aman';
+  }
+
+  function truncateBarcode(barcode) {
+    if (!barcode || barcode.length < 9) return barcode || '-';
+    return barcode.slice(0, 4) + '••••' + barcode.slice(-4);
+  }
+
+  async function copyToClipboard(/** @type {string} */ text, /** @type {string} */ label) {
+    try {
+      await navigator.clipboard.writeText(text);
+      ui.success(`${label} disalin`);
+    } catch (e) {
+      ui.error(`Gagal menyalin ${label}`);
+    }
+  }
+
+  function toggleMenu(/** @type {number} */ id) {
+    openMenuId = openMenuId === id ? null : id;
+  }
 </script>
 
 <div class="inventory-container">
   <div class="header">
     <div class="title">
       <Package size={32} color="var(--primary)" />
-      <h1>Manajemen Barang</h1>
+      <h1>Manajemen Produk</h1>
     </div>
     <button class="add-btn" onclick={openCreate}>
       <Plus size={20} />
@@ -257,11 +300,16 @@
         <span class="icon"><Search size={18} /></span>
         <input
           type="text"
-          placeholder="Cari SKU, Barcode, atau nama barang..."
+          placeholder="Cari produk, SKU, atau barcode..."
           bind:value={searchQuery}
           bind:this={searchInput}
           use:autofocus
         />
+        {#if searchQuery}
+          <button class="clear-btn" onclick={() => { searchQuery = ''; searchInput?.focus(); }}>
+            <X size={14} />
+          </button>
+        {/if}
         {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
           <div class="search-warning">Minimal 3 karakter</div>
         {/if}
@@ -277,21 +325,48 @@
       Sembunyikan stok kosong
     </label>
     {#if showExport}
-      <div class="export-controls">
-        <select bind:value={exportFormat}>
-          <option value="csv">CSV</option>
-          <option value="xlsx">Excel</option>
-        </select>
-        <button class="export-btn" onclick={exportInventory} disabled={exportLoading}>
+      <div class="export-dropdown">
+        <button 
+          class="export-btn" 
+          onclick={(e) => { e.stopPropagation(); exportDropdownOpen = !exportDropdownOpen; }}
+          disabled={exportLoading}
+        >
           {#if exportLoading}
             Exporting...
           {:else}
-            <Download size={16} /> Export
+            <Download size={16} /> Export ▾
           {/if}
         </button>
+        {#if exportDropdownOpen}
+          <div class="export-menu">
+            <button onclick={() => { exportFormat = 'csv'; exportInventory(); exportDropdownOpen = false; }}>
+              Export CSV
+            </button>
+            <button onclick={() => { exportFormat = 'xlsx'; exportInventory(); exportDropdownOpen = false; }}>
+              Export Excel
+            </button>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
+
+  {#if selectedGroupFilter !== 'all' || hideEmptyStock}
+    <div class="filter-chips">
+      {#if selectedGroupFilter !== 'all'}
+        <span class="filter-chip">
+          {groups.find(g => g.id === selectedGroupFilter)?.name || 'Kategori'}
+          <button onclick={() => selectedGroupFilter = 'all'}><X size={12} /></button>
+        </span>
+      {/if}
+      {#if hideEmptyStock}
+        <span class="filter-chip">
+          Stok Tersembunyi
+          <button onclick={() => hideEmptyStock = false}><X size={12} /></button>
+        </span>
+      {/if}
+    </div>
+  {/if}
 
   <div class="table-container premium-card">
     {#if loading}
@@ -303,53 +378,59 @@
       <table>
       <thead>
         <tr>
-          <th onclick={() => handleSort('sku')} class="sortable">
-            SKU {#if sortField === 'sku'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('barcode')} class="sortable">
-            Barcode {#if sortField === 'barcode'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('name')} class="sortable">
-            Nama Produk {#if sortField === 'name'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('group_id')} class="sortable">
-            Kategori {#if sortField === 'group_id'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('price')} class="sortable">
-            Harga {#if sortField === 'price'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th onclick={() => handleSort('stock')} class="sortable">
-            Stok {#if sortField === 'stock'}<span class="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </th>
-          <th>Aksi</th>
+          <th class="col-name">Nama Produk</th>
+          <th class="col-stock">Stok</th>
+          <th class="col-price">Harga</th>
+          <th>Kategori</th>
+          <th>Diperbarui</th>
+          <th class="col-actions">Aksi</th>
         </tr>
       </thead>
       <tbody>
         {#each displayProducts as p}
           <tr>
-            <td><code>{p.sku}</code></td>
             <td>
-              {#if p.barcode}
-                <code>{p.barcode}</code>
-              {:else}
-                <span class="text-dim">-</span>
-              {/if}
+              <div class="product-name">{p.name}</div>
+              <div class="product-meta">
+                <span class="meta-item">
+                  <code>{p.sku}</code>
+                  <button 
+                    class="copy-btn" 
+                    onclick={() => copyToClipboard(p.sku, 'SKU')}
+                    title="Salin SKU"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </span>
+                {#if p.barcode}
+                  <span class="meta-item">
+                    <code>{truncateBarcode(p.barcode)}</code>
+                    <button 
+                      class="copy-btn" 
+                      onclick={() => copyToClipboard(p.barcode, 'Barcode')}
+                      title="Salin Barcode"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </span>
+                {/if}
+              </div>
             </td>
-            <td><strong>{p.name}</strong></td>
+            <td>
+              <StockBadge level={getStockLevel(p.stock)} value={p.stock} />
+            </td>
+            <td class="price-cell">Rp {p.price.toLocaleString()}</td>
             <td>
               {#if p.group_id}
                 <span class="group-pill">
-                  {groups.find(g => g.id === p.group_id)?.name || p.group_id}
+                  {groups.find(g => g.id === p.group_id)?.name || '-'}
                 </span>
               {:else}
                 <span class="text-dim">-</span>
               {/if}
             </td>
-            <td>Rp {p.price.toLocaleString()}</td>
-            <td>
-              <span class="stock-pill" class:low={p.stock < 10}>
-                {p.stock} units
-              </span>
+            <td class="text-dim">
+              {p.updated_at ? new Date(p.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
             </td>
             <td>
               <div class="row-actions">
@@ -514,6 +595,26 @@
     border-color: var(--primary);
   }
 
+  .clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+  }
+
+  .clear-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
   .search-warning {
     position: absolute;
     top: calc(100% + 12px);
@@ -546,6 +647,38 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  .filter-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 10px;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--primary);
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .filter-chip button {
+    display: flex;
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 50%;
+  }
+
+  .filter-chip button:hover {
+    background: rgba(99, 102, 241, 0.25);
+  }
+
   .stock-filter {
     display: flex;
     align-items: center;
@@ -555,26 +688,66 @@
     font-size: 0.9rem;
   }
 
-  .stock-filter input {
+.stock-filter input {
     cursor: pointer;
   }
 
-   .export-controls {
-     display: flex;
-     align-items: center;
-     gap: 8px;
-   }
+  code {
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+    display: inline-block;
+  }
 
-   .export-controls select {
-     padding: 8px 12px;
-     background: #1e293b;
-     border: 1px solid var(--border);
-     border-radius: 6px;
-     color: white;
-     font-size: 0.875rem;
-   }
+  /* Table Redesign */
+  .col-name { width: 30%; }
+  .col-stock { width: 12%; text-align: right; }
+  .col-price { width: 12%; text-align: right; }
+  .col-actions { width: 10%; }
 
-   .export-btn {
+  .product-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: white;
+  }
+
+  .product-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .copy-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .copy-btn:hover {
+    color: var(--primary);
+  }
+
+  .price-cell {
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .export-dropdown {
+    position: relative;
+  }
+
+  .export-dropdown .export-btn {
     background: var(--success);
     color: white;
     padding: 8px 12px;
@@ -586,46 +759,37 @@
     gap: 4px;
   }
 
-  .export-btn:disabled {
+  .export-dropdown .export-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
 
-  code {
+  .export-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
     background: #1e293b;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: var(--accent);
-    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    z-index: 50;
   }
 
-
-  th.sortable {
-    cursor: pointer;
-    user-select: none;
-    transition: color 0.2s;
-  }
-  
-  th.sortable:hover {
+  .export-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
     color: white;
-  }
-  
-  .sort-icon {
-    font-size: 0.8em;
-    margin-left: 4px;
-  }
-
-  .stock-pill {
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success);
+    text-align: left;
+    cursor: pointer;
     font-size: 0.875rem;
   }
 
-  .stock-pill.low {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger);
+  .export-menu button:hover {
+    background: rgba(99, 102, 241, 0.1);
   }
 
   .row-actions {
