@@ -12,10 +12,6 @@
   import { DateInput } from 'date-picker-svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
-  import Chart from 'chart.js/auto';
-  import jsPDF from 'jspdf';
-  import autoTable from 'jspdf-autotable';
-  import * as XLSX from 'xlsx';
 
   const DEBOUNCE_DELAY = 300;
 
@@ -128,7 +124,7 @@
       }
       
       await tick();
-      renderChart(data.labels || [], data.values || []);
+      await renderChart(data.labels || [], data.values || []);
     } catch (e) {
       console.error('Failed to fetch chart data:', e);
       chartError = e.response?.data?.error || e.message;
@@ -249,7 +245,7 @@
     return formatChartLabel(label, groupByValue);
   }
 
-  function renderChart(labels, values) {
+  async function renderChart(labels, values) {
     console.log('Rendering chart with labels:', labels, 'values:', values, 'canvas:', !!chartCanvas);
     
     if (!chartCanvas) {
@@ -264,11 +260,25 @@
 
     console.log('Creating chart...');
     
+    const Chart = (await import('chart.js/auto')).default;
+    
+    // Check if there's already a chart on this canvas in Chart.js registry and destroy it
+    const existingChart = Chart.getChart(chartCanvas);
+    if (existingChart) {
+      console.log('Destroying existing chart from registry');
+      existingChart.destroy();
+    }
+    
+    // Also destroy our tracked instance
     if (chartInstance) {
       chartInstance.destroy();
+      chartInstance = null;
     }
-
+    
+    // Clear canvas
     const ctx = chartCanvas.getContext('2d');
+    ctx.clearRect(0, 0, chartCanvas.width || 300, chartCanvas.height || 200);
+    
     chartInstance = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -378,6 +388,11 @@
 
   onDestroy(() => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    // Properly destroy chart on component unmount
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
   });
 
   function handlePageChange(newOffset, newLimit) {
@@ -413,6 +428,13 @@
     exporting = true;
     showExportMenu = false;
     try {
+      const [jsPDFModule, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
+      const jsPDF = jsPDFModule.default;
+      const autoTable = autoTableModule.default;
+      
       const allTransactions = await fetchAllTransactionsForExport();
       
       const doc = new jsPDF();
@@ -468,6 +490,8 @@
     exporting = true;
     showExportMenu = false;
     try {
+      const XLSX = await import('xlsx');
+      
       const allTransactions = await fetchAllTransactionsForExport();
       
        const data = allTransactions.map(tx => ({
