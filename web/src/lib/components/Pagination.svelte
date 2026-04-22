@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-svelte';
 
   let { total = 0, limit = 10, offset = 0, onPageChange } = $props();
@@ -6,13 +6,14 @@
   let currentPage = $derived(Math.floor(offset / limit) + 1);
   let totalPages = $derived(Math.ceil(total / limit));
 
-  function goToPage(page) {
+  function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
     onPageChange((page - 1) * limit);
   }
 
-  function handleLimitChange(e) {
-    const newLimit = parseInt(e.target.value);
+  function handleLimitChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    const newLimit = parseInt(target.value);
     onPageChange(0, newLimit); // Reset to first page when limit changes
   }
 </script>

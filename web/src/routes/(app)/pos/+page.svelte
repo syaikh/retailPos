@@ -1,762 +1,381 @@
-<script>
-  import { onMount, onDestroy } from 'svelte';
-  import { tick } from 'svelte';
-  import { cart as cartStore, products as productsStore, isAuthenticated } from '$lib/stores.js';
-  import api from '$lib/api.js';
-  import { 
-    Barcode, 
-    Trash2, 
-    Plus, 
-    Minus, 
-    CreditCard, 
-    Banknote,
-    Search,
-    Package,
-    X,
-    AlertCircle
-  } from 'lucide-svelte';
-  import Pagination from '$lib/components/Pagination.svelte';
+<script lang="ts">
+	import { onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
+	import type { Product, CartItem } from '$lib/domain/entities';
+	import { useCart } from '$lib/composables/useCart';
+	import { useCheckout } from '$lib/composables/useCheckout';
+	import { useProductSearch } from '$lib/composables/useProductSearch';
+	import { useWebSocket } from '$lib/composables/useWebSocket';
+	import { auth, type User } from '$lib/stores/auth';
+	import { ui } from '$lib/stores/ui';
+	import Toast from '$lib/components/ui/Toast.svelte';
+	import ProductTable from '$lib/components/pos/ProductTable.svelte';
+	import CartPanel from '$lib/components/pos/CartPanel.svelte';
+	import CheckoutPanel from '$lib/components/pos/CheckoutPanel.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 
-  let barcodeInput = $state('');
-  let searchQuery = $state('');
-  let ws;
-  let checkoutLoading = $state(false);
-  let paymentMethod = $state('cash');
-  let searchInput;
+	// Initialize composables
+	const cart = useCart();
+	const productSearch = useProductSearch();
+	const checkout = useCheckout();
 
-  // Pagination for POS
-  let posLimit = $state(10);
-  let posOffset = $state(0);
-  let posTotal = $state(0);
-  let posLoading = $state(false);
-  let posProducts = $state([]);
+	// Destructure stores and functions
+	const { cartItems, addToCart, removeFromCart, incrementQuantity, decrementQuantity, setQuantity, getTotal } = cart;
+	const { products: productList, total: productTotal, isLoading: productLoading, search, findByBarcode, getAll } = productSearch;
+	const { isLoading: checkoutLoading, checkout: doCheckout, checkoutAndClear } = checkout;
 
-  let total = $derived($cartStore.reduce((sum, item) => sum + (item.price * item.quantity), 0));
+	// Get storeId from user (should be loaded by handle hook)
+	const currentUser = get(auth).user;
+	const storeId = currentUser?.store_id?.toString() || '1';
+	if (!currentUser?.store_id) {
+		console.warn('[POS] User store_id not found, using fallback "1"');
+	}
 
-  onMount(async () => {
-    // 1. Initial empty or minimal products if needed
-    // fetchProducts(); 
+	// Initialize WebSocket at top-level (required by Svelte composable pattern)
+	const ws = useWebSocket(storeId);
 
-    // 2. Set up WebSocket for real-time updates
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const baseUrl = import.meta.env.VITE_WS_URL || 'localhost:8080/api/ws';
-    const wsUrl = `${protocol}//${baseUrl}?store_id=1`;
-    ws = new WebSocket(wsUrl);
+	// Reactive connection status
+	let wsStatus = $state<'disconnected' | 'connecting' | 'connected' | 'reconnecting'>('disconnected');
+	$effect(() => {
+		const unsub = ws.status.subscribe((value) => {
+			wsStatus = value;
+		});
+		return () => unsub();
+	});
 
-    ws.onopen = () => {
-      console.log('[WS] connected');
-    };
+	// Register WebSocket event handlers
+	ws.setStockUpdateHandler(handleStockUpdate);
+	ws.setSaleCreatedHandler(handleSaleCreated);
+	ws.setReconnectedHandler(handleReconnected);
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'stock_updated' || data.type === 'product_updated') {
-        fetchProducts(); // Refresh current page
-      }
-    };
+	// Local state
+	let searchQuery = $state('');
+	let paymentMethod = $state<'cash' | 'card'>('cash');
+	let posLimit = $state(10);
+	let posOffset = $state(0);
+	let searchInput!: HTMLInputElement;
 
-    ws.onerror = (err) => {
-      console.error('[WS] error:', err);
-      // If connection fails due to auth, redirect after brief delay
-      setTimeout(() => {
-        if (!$isAuthenticated) {
-          window.location.hash = '#/login';
-        }
-      }, 1000);
-    };
+	// Barcode scanner state
+	let barcodeBuffer = '';
+	let lastKeyTime = Date.now();
 
-    ws.onclose = (event) => {
-      console.log('[WS] closed:', event.code, event.reason);
-      // 1008 = Policy Violation (e.g., JWT invalid/expired)
-      if (event.code === 1008) {
-        window.location.hash = '#/login';
-      }
-    };
+	onDestroy(() => {
+		ws.disconnect();
+	});
 
-    // 3. Barcode Scanner Handler (HID Keyboard)
-    window.addEventListener('keydown', handleGlobalKeydown);
+	// Auto-focus search on mount
+	$effect(() => {
+		const timer = setTimeout(() => {
+			searchInput?.focus();
+		}, 0);
+		return () => clearTimeout(timer);
+	});
 
-    // 4. Autofocus search input
-    await tick();
-    if (searchInput) {
-      searchInput.focus();
-    }
-  });
+	// Search effect with debounce
+	$effect(() => {
+		const q = searchQuery;
+		const offset = posOffset;
+		const limit = posLimit;
 
-  onDestroy(() => {
-    cleanup();
-    if (ws) ws.close();
-    window.removeEventListener('keydown', handleGlobalKeydown);
-  });
+		const timer = setTimeout(() => {
+			search(q, limit, offset);
+		}, 300);
 
-  async function fetchProducts() {
-    const q = searchQuery.trim();
-    if (q.length < 3) {
-      posProducts = [];
-      posTotal = 0;
-      posLoading = false;
-      return;
-    }
+		return () => clearTimeout(timer);
+	});
 
-    posLoading = true;
-    try {
-      const resp = await api.get(`/products?limit=${posLimit}&offset=${posOffset}&search=${q}`);
-      posProducts = resp.data.data || [];
-      posTotal = resp.data.total || 0;
-    } catch (e) {
-      console.error('Failed to fetch products:', e);
-    } finally {
-      posLoading = false;
-    }
-  }
+	function handleSearchInput() {
+		posOffset = 0;
+	}
 
-  // Debounce timer
-  let searchDebounceTimer = null;
+	function handlePageChange(newOffset: number, newLimit?: number) {
+		if (newLimit !== undefined) posLimit = newLimit;
+		posOffset = newOffset;
+	}
 
-  // Effect to trigger search when query or page changes
-  $effect(() => {
-    const q = searchQuery;
-    const offset = posOffset;
-    const limit = posLimit;
-    
-    // Clear previous timer
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-    }
-    
-    // Debounce search
-    searchDebounceTimer = setTimeout(() => {
-      fetchProducts();
-    }, 300);
-  });
+	async function handleAddToCart(product: Product) {
+		await addToCart(product);
+	}
 
-  function cleanup() {
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-    }
-  }
+	function handleRemoveFromCart(productId: number) {
+		removeFromCart(productId);
+	}
 
-  function handlePosPageChange(newOffset, newLimit) {
-    if (newLimit !== undefined) posLimit = newLimit;
-    posOffset = newOffset;
-  }
+	async function handleIncrement(productId: number) {
+		await incrementQuantity(productId);
+	}
 
-  let barcodeBuffer = '';
-  let lastKeyTime = Date.now();
+	async function handleDecrement(productId: number) {
+		await decrementQuantity(productId);
+	}
 
-  function handleGlobalKeydown(e) {
-    // Basic Barcode listener logic:
-    // Scanners usually send keys very fast and end with 'Enter'
-    const currentTime = Date.now();
-    
-    if (currentTime - lastKeyTime > 50) {
-      barcodeBuffer = '';
-    }
-    
-    if (e.key === 'Enter') {
-      if (barcodeBuffer.length > 2) {
-        findAndAddByBarcode(barcodeBuffer);
-        barcodeBuffer = '';
-      }
-    } else if (e.key.length === 1) {
-      barcodeBuffer += e.key;
-    }
-    
-    lastKeyTime = currentTime;
-  }
+	async function handleSetQuantity(productId: number, quantity: number) {
+		await setQuantity(productId, quantity);
+	}
 
-  async function findAndAddByBarcode(code) {
-    try {
-      const resp = await api.get(`/products?search=${code}&limit=1`);
-      const results = resp.data.data;
-      if (results && results.length > 0) {
-        addToCart(results[0]);
-      } else {
-        alert(`Barcode ${code} tidak ditemukan`);
-      }
-    } catch (e) {
-      alert(`Gagal mencari barcode ${code}`);
-    }
-  }
+	async function handleCheckout() {
+		const success = await doCheckout($cartItems, paymentMethod);
+		if (success) {
+			cart.clearCart();
+		}
+	}
 
-  function addToCart(product) {
-    cartStore.update(items => {
-      const existing = items.find(i => i.id === product.id);
-      if (existing) {
-        if (existing.quantity >= product.stock) {
-          alert('Stok tidak cukup');
-          return items;
-        }
-        return items.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      if (product.stock <= 0) {
-        alert('Stok habis');
-        return items;
-      }
-      return [...items, { ...product, quantity: 1 }];
-    });
-  }
+	// Barcode scanner
+	function handleGlobalKeydown(e: KeyboardEvent) {
+		const currentTime = Date.now();
 
-  function removeFromCart(id) {
-    cartStore.update(items => items.filter(i => i.id !== id));
-  }
+		if (currentTime - lastKeyTime > 50) {
+			barcodeBuffer = '';
+		}
 
-  function updateQty(id, delta) {
-    cartStore.update(items => {
-      return items.map(i => {
-        if (i.id === id) {
-          const newQty = i.quantity + delta;
-          if (newQty <= 0) return i;
-          if (newQty > i.stock) {
-            alert('Stok tidak cukup');
-            return i;
-          }
-          return { ...i, quantity: newQty };
-        }
-        return i;
-      });
-    });
-  }
+		if (e.key === 'Enter') {
+			if (barcodeBuffer.length > 2) {
+				handleBarcodeScan(barcodeBuffer);
+				barcodeBuffer = '';
+			}
+		} else if (e.key.length === 1) {
+			barcodeBuffer += e.key;
+		}
 
-  function setQty(id, event) {
-    const val = event.target.value;
-    cartStore.update(items => {
-      return items.map(i => {
-        if (i.id === id) {
-          let newQty = parseInt(val, 10);
-          if (isNaN(newQty) || newQty <= 0) {
-            newQty = 1;
-            event.target.value = newQty;
-          } else if (newQty > i.stock) {
-            alert(`Stok tidak cukup. Maksimal: ${i.stock}`);
-            newQty = i.stock;
-            event.target.value = newQty;
-          }
-          return { ...i, quantity: newQty };
-        }
-        return i;
-      });
-    });
-  }
+		lastKeyTime = currentTime;
+	}
 
-  async function handleCheckout() {
-    if ($cartStore.length === 0) return;
-    checkoutLoading = true;
-    try {
-      const saleData = {
-        total_amount: total,
-        payment_method: paymentMethod,
-        items: $cartStore.map(i => ({
-          product_id: i.id,
-          quantity: i.quantity,
-          price_at_sale: i.price
-        }))
-      };
-      await api.post('/sales', saleData);
-      cartStore.set([]);
-      alert('Transaksi Berhasil!');
-    } catch (e) {
-      alert('Transaksi Gagal: ' + (e.response?.data?.error || e.message));
-    } finally {
-      checkoutLoading = false;
-    }
-  }
+	async function handleBarcodeScan(code: string) {
+		const product = await findByBarcode(code);
+		if (product) {
+			await addToCart(product);
+		}
+	}
 
-  // Remove filteredProducts derived state as we are using server-side search
+	// WebSocket event handlers
+	function handleStockUpdate(payload: { product_id: number }) {
+		if (searchQuery.length >= 3) {
+			productSearch.search(searchQuery, posLimit, posOffset);
+		}
+	}
+
+	function handleSaleCreated(sale: any) {
+		ui.success(`Transaksi #${sale.transaction_code} berhasil`);
+	}
+
+	function handleReconnected(payload: { stale: boolean }) {
+		if (payload.stale) {
+			if (searchQuery.length >= 3) {
+				productSearch.search(searchQuery, posLimit, posOffset);
+			} else {
+				productSearch.getAll(posLimit, posOffset);
+			}
+			ui.info('Koneksi pulih. Data stok telah diperbarui.', 3000);
+		}
+	}
+
+	// Visibility change for tab refocus
+	$effect(() => {
+		const handler = () => {
+			if (document.visibilityState === 'visible' && ws) {
+				if (wsStatus === 'connected') {
+					if (searchQuery.length >= 3) {
+						productSearch.search(searchQuery, posLimit, posOffset);
+					} else {
+						productSearch.getAll(posLimit, posOffset);
+					}
+				}
+			}
+		};
+		document.addEventListener('visibilitychange', handler);
+		return () => document.removeEventListener('visibilitychange', handler);
+	});
+
+	// Computed WebSocket status for UI
+	function getWsStatusClass(): string {
+		switch (wsStatus) {
+			case 'connected': return 'connected';
+			case 'connecting':
+			case 'reconnecting': return 'reconnecting';
+			default: return 'disconnected';
+		}
+	}
+
+	function getWsStatusText(): string {
+		switch (wsStatus) {
+			case 'connected': return 'Terhubung';
+			case 'connecting': return 'Menghubungkan...';
+			case 'reconnecting': return 'Menghubungkan kembali...';
+			case 'disconnected': return 'Stok tidak real-time';
+			default: return 'Tidak terhubung';
+		}
+	}
 </script>
 
 <div class="pos-container">
-  <!-- Left Side: Product Selection -->
-  <div class="product-area">
-    <div class="search-bar premium-card glass">
-      <span class="icon"><Search size={20} /></span>
-      <input 
-        type="text" 
-        placeholder="Cari produk atau scan barcode..." 
-        bind:value={searchQuery}
-        bind:this={searchInput}
-        oninput={() => posOffset = 0}
-      />
-      {#if searchQuery}
-        <button class="clear-search-btn" aria-label="Hapus pencarian" onclick={() => { searchQuery = ''; posOffset = 0; searchInput.focus(); }}>
-          <X size={18} />
-        </button>
-      {/if}
-    </div>
+	<!-- Left: Product Selection -->
+	<div class="product-area">
+		<div class="search-bar premium-card glass">
+			<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+			<input
+				type="text"
+				class="search-input"
+				placeholder="Cari produk atau scan barcode..."
+				bind:value={searchQuery}
+				bind:this={searchInput}
+				oninput={handleSearchInput}
+			/>
+			{#if searchQuery}
+				<button
+					class="clear-search-btn"
+					aria-label="Hapus pencarian"
+					onclick={() => { searchQuery = ''; posOffset = 0; searchInput?.focus(); }}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+				</button>
+			{/if}
+			<div class="ws-indicator" title={getWsStatusText()}>
+				<span class="dot {getWsStatusClass()}"></span>
+				{#if getWsStatusClass() === 'disconnected'}
+					<span class="ws-warning">Stok tidak real-time</span>
+				{/if}
+				{#if getWsStatusClass() === 'reconnecting'}
+					<span class="ws-reconnecting">Menghubungkan kembali...</span>
+				{/if}
+			</div>
+		</div>
 
-    <div class="product-table-container premium-card">
-      {#if !searchQuery.trim()}
-        <div class="empty-search-state">
-          <Search size={64} />
-          <h3>Mulai Pencarian</h3>
-          <p>Ketik nama produk atau scan barcode untuk menemukan item</p>
-        </div>
-      {:else if searchQuery.trim().length < 3}
-        <div class="empty-search-state warning">
-          <AlertCircle size={64} color="var(--accent)" />
-          <h3>Teks Terlalu Pendek</h3>
-          <p>Masukkan minimal <strong>3 karakter</strong> untuk memulai pencarian produk.</p>
-        </div>
-      {:else if posLoading}
-        <div class="empty-search-state">
-          <div class="loading-spinner"></div>
-          <p>Mencari produk...</p>
-        </div>
-      {:else if posProducts.length === 0}
-        <div class="empty-search-state">
-          <Package size={64} />
-          <h3>Produk Tidak Ditemukan</h3>
-          <p>Coba kata kunci lain atau scan barcode secara langsung</p>
-        </div>
-      {:else}
-        <table class="product-table">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Barcode</th>
-              <th>Nama Produk</th>
-              <th>Harga</th>
-              <th>Stok</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each posProducts as product}
-              <tr class:disabled={product.stock <= 0}>
-              <td><code>{product.sku}</code></td>
-              <td>
-                {#if product.barcode}
-                  <code>{product.barcode}</code>
-                {:else}
-                  <span class="text-dim">-</span>
-                {/if}
-              </td>
-                <td><strong>{product.name}</strong></td>
-                <td class="price">Rp {product.price.toLocaleString()}</td>
-                <td>
-                  <span class="stock-badge" class:out={product.stock <= 0}>
-                    {product.stock} {product.stock <= 0 ? 'habis' : 'pcs'}
-                  </span>
-                </td>
-                <td>
-                  <button class="add-cart-btn" onclick={() => addToCart(product)} disabled={product.stock <= 0}>
-                    <Plus size={16} />
-                  </button>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-        <Pagination 
-          total={posTotal} 
-          limit={posLimit} 
-          offset={posOffset} 
-          onPageChange={handlePosPageChange} 
-        />
-      {/if}
-    </div>
-  </div>
+		<div class="product-table-container premium-card">
+			<ProductTable
+				products={$productList}
+				loading={$productLoading}
+				total={$productTotal}
+				limit={posLimit}
+				offset={posOffset}
+				searchQuery={searchQuery}
+				onPageChange={handlePageChange}
+				onAddToCart={handleAddToCart}
+			/>
+		</div>
+	</div>
 
-  <!-- Right Side: Cart & Checkout -->
-  <aside class="cart-area premium-card glass">
-    <div class="cart-header">
-      <h2>Keranjang</h2>
-      <button class="clear-btn" onclick={() => cartStore.set([])}>Clear</button>
-    </div>
+	<!-- Right: Cart & Checkout -->
+	<aside class="cart-area premium-card glass">
+		<CartPanel
+			items={$cartItems}
+			onRemove={handleRemoveFromCart}
+			onIncrement={handleIncrement}
+			onDecrement={handleDecrement}
+			onSetQuantity={handleSetQuantity}
+		/>
 
-    <div class="cart-items">
-      {#if $cartStore.length === 0}
-        <div class="empty-state">
-          <Barcode size={48} />
-          <p>Scan barcode atau ketik nama produk</p>
-        </div>
-      {:else}
-        {#each $cartStore as item}
-          <div class="cart-item">
-            <div class="item-info">
-              <div class="item-name">{item.name}</div>
-              <div class="item-price">Rp {item.price.toLocaleString()}</div>
-            </div>
-            <div class="item-actions">
-              <button class="qty-btn" onclick={() => updateQty(item.id, -1)}><Minus size={14}/></button>
-              <input 
-                type="number" 
-                class="qty-input" 
-                value={item.quantity} 
-                min="1"
-                max={item.stock}
-                onchange={(e) => setQty(item.id, e)} 
-              />
-              <button class="qty-btn" onclick={() => updateQty(item.id, 1)}><Plus size={14}/></button>
-              <button class="remove-btn" onclick={() => removeFromCart(item.id)}><Trash2 size={16}/></button>
-            </div>
-          </div>
-        {/each}
-      {/if}
-    </div>
-
-    <div class="cart-footer">
-      <div class="payment-methods">
-        <button class="method-btn" class:active={paymentMethod === 'cash'} onclick={() => paymentMethod = 'cash'}>
-          <Banknote size={18} /> Tunai
-        </button>
-        <button class="method-btn" class:active={paymentMethod === 'card'} onclick={() => paymentMethod = 'card'}>
-          <CreditCard size={18} /> Kartu
-        </button>
-      </div>
-
-      <div class="total-row">
-        <span>Total</span>
-        <span class="total-price">Rp {total.toLocaleString()}</span>
-      </div>
-
-      <button class="checkout-btn" disabled={checkoutLoading || $cartStore.length === 0} onclick={handleCheckout}>
-        {checkoutLoading ? 'Processing...' : 'BAYAR SEKARANG'}
-      </button>
-    </div>
-  </aside>
+		<CheckoutPanel
+			total={getTotal()}
+			{paymentMethod}
+			isLoading={$checkoutLoading}
+			onCheckout={handleCheckout}
+		/>
+	</aside>
 </div>
 
+<Toast />
+
 <style>
-  .pos-container {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 24px;
-    height: calc(100vh - 120px);
-  }
+	.pos-container {
+		display: grid;
+		grid-template-columns: 1fr 320px;
+		gap: 24px;
+		height: calc(100vh - 120px);
+	}
 
-  .product-area {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    overflow-y: auto;
-  }
+	.product-area {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+		overflow: hidden;
+	}
 
-  .search-bar {
-    position: relative;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+	.search-bar {
+		position: relative;
+		padding: 12px 20px;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
 
-  .search-bar input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    font-size: 1.1rem;
-    color: white;
-  }
+	.search-input {
+		flex: 1;
+		background: transparent;
+		border: none;
+		font-size: 1.1rem;
+		color: white;
+		outline: none;
+	}
 
-  .search-bar input:focus {
-    outline: none;
-  }
+	.clear-search-btn {
+		background: transparent;
+		color: var(--text-secondary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px;
+		border-radius: 50%;
+		transition: all 0.2s;
+		cursor: pointer;
+		border: none;
+	}
 
-  .clear-search-btn {
-    background: transparent;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 4px;
-    border-radius: 50%;
-    transition: all 0.2s;
-  }
+	.clear-search-btn:hover {
+		color: white;
+		background: rgba(255, 255, 255, 0.1);
+	}
 
-  .clear-search-btn:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-  }
+	.product-table-container {
+		flex: 1;
+		overflow: hidden;
+		border-radius: 12px;
+	}
 
-  .product-table-container {
-    overflow: auto;
-    max-height: 100%;
-  }
+	.cart-area {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
+	}
 
-  .empty-search-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    min-height: 300px;
-    color: var(--text-secondary);
-    text-align: center;
-    gap: 16px;
-    padding: 40px 20px;
-  }
+	.ws-indicator {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-left: auto;
+		padding-left: 12px;
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+	}
 
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(99, 102, 241, 0.2);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
+	.ws-indicator .dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		transition: background-color 0.3s ease;
+	}
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+	.ws-indicator .dot.connected {
+		background-color: #22c55e;
+	}
 
-  .empty-search-state h3 {
-    font-size: 1.25rem;
-    color: #e2e8f0;
-    margin: 0;
-  }
+	.ws-indicator .dot.reconnecting {
+		background-color: #eab308;
+		animation: pulse 1s infinite;
+	}
 
-  .empty-search-state p {
-    max-width: 300px;
-    margin: 0;
-  }
+	.ws-indicator .dot.disconnected {
+		background-color: #ef4444;
+	}
 
-  .empty-search-state.warning h3 {
-    color: var(--accent);
-  }
+	.ws-warning, .ws-reconnecting {
+		font-size: 0.7rem;
+		color: var(--text-secondary);
+		white-space: nowrap;
+	}
 
-  .product-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #1e293b;
-  }
-
-  .product-table thead {
-    background: #0f172a;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-
-  .product-table th {
-    padding: 14px 12px;
-    text-align: left;
-    font-weight: 600;
-    color: var(--accent);
-    border-bottom: 2px solid var(--primary);
-    font-size: 0.875rem;
-    text-transform: uppercase;
-  }
-
-  .product-table tbody tr {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-    transition: background-color 0.2s;
-  }
-
-  .product-table tbody tr:hover:not(.disabled) {
-    background: rgba(99, 102, 241, 0.1);
-  }
-
-  .product-table tbody tr.disabled {
-    opacity: 0.5;
-    background: rgba(239, 68, 68, 0.05);
-  }
-
-  .product-table td {
-    padding: 12px;
-    color: #e2e8f0;
-    font-size: 0.95rem;
-  }
-
-  .product-table code {
-    background: #0f172a;
-    padding: 4px 8px;
-    border-radius: 4px;
-    color: var(--accent);
-    font-family: monospace;
-    font-size: 0.85rem;
-    display: inline-block;
-  }
-
-
-  .product-table .price {
-    font-weight: 700;
-    color: var(--accent);
-  }
-
-  .stock-badge {
-    display: inline-block;
-    font-size: 0.8rem;
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: rgba(16, 185, 129, 0.2);
-    color: #10b981;
-    font-weight: 600;
-  }
-
-  .stock-badge.out {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-  }
-
-  .add-cart-btn {
-    background: var(--primary);
-    color: white;
-    padding: 6px 10px;
-    border-radius: 4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
-  }
-
-  .add-cart-btn:hover:not(:disabled) {
-    background: #5b61f5;
-  }
-
-  .add-cart-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .cart-area {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .cart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .clear-btn {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    background: transparent;
-  }
-
-  .cart-items {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 0;
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-    text-align: center;
-    gap: 16px;
-  }
-
-  .cart-item {
-    padding: 12px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .item-name {
-    font-weight: 600;
-  }
-
-  .item-price {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-  }
-
-  .item-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .qty-btn {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-main);
-    color: white;
-  }
-
-  .qty-input {
-    width: 48px;
-    height: 28px;
-    text-align: center;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: white;
-    font-weight: 600;
-    appearance: textfield;
-  }
-
-  /* Hilangkan panah spinner bawaan browser pada input number */
-  .qty-input::-webkit-outer-spin-button,
-  .qty-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    appearance: none;
-    margin: 0;
-  }
-  .qty-input[type=number] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-
-  .remove-btn {
-    color: var(--danger);
-    background: transparent;
-    margin-left: 8px;
-  }
-
-  .cart-footer {
-    padding-top: 16px;
-    border-top: 2px solid var(--border);
-  }
-
-  .payment-methods {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .method-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px;
-    background: var(--bg-main);
-    color: var(--text-secondary);
-  }
-
-  .method-btn.active {
-    background: var(--primary);
-    color: white;
-  }
-
-  .total-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: 20px;
-  }
-
-  .total-price {
-    color: var(--accent);
-  }
-
-  .checkout-btn {
-    width: 100%;
-    padding: 16px;
-    background: var(--success);
-    color: white;
-    font-weight: 800;
-    font-size: 1.1rem;
-    letter-spacing: 0.05em;
-  }
-
-  .checkout-btn:disabled {
-    opacity: 0.5;
-    background: var(--text-secondary);
-  }
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
+	}
 </style>

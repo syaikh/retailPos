@@ -200,6 +200,7 @@ func (h *Handler) ValidateSession(c *gin.Context) {
 			"role":        role.Name,
 			"role_id":     user.RoleID,
 			"permissions": permissions,
+			"store_id":    user.StoreID,
 		},
 	})
 }

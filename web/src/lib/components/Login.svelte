@@ -1,5 +1,5 @@
-<script>
-  import { user, isAuthenticated } from '$lib/stores.js';
+<script lang="ts">
+  import { auth } from '$lib/stores/auth';
   import api from '$lib/api.js';
   import { goto } from '$app/navigation';
   import { invalidateAll } from '$app/navigation';
@@ -10,18 +10,21 @@
   let error = $state('');
   let loading = $state(false);
 
-  async function handleLogin(event) {
+   async function handleLogin(event: Event) {
     event.preventDefault();
     error = '';
     loading = true;
     try {
       const resp = await api.post('/login', { username, password });
-      user.set(resp.data.user);
-      isAuthenticated.set(true);
+      auth.setUser(resp.data.user);
       await invalidateAll();
       goto('/', { replaceState: true });
-    } catch (e) {
-      error = e.response?.data?.error || 'Login failed';
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'response' in e) {
+        error = (e as any).response?.data?.error || 'Login failed';
+      } else {
+        error = 'Login failed';
+      }
     } finally {
       loading = false;
     }

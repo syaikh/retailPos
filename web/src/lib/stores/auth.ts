@@ -6,6 +6,7 @@ export interface User {
     role: string;
     role_id: number;
     permissions: string[];
+    store_id?: number;
 }
 
 interface AuthState {

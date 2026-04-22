@@ -11,6 +11,7 @@ type User struct {
 	RoleID       int       `json:"role_id" db:"role_id"`
 	Role         string    `json:"role" db:"role"` // legacy + populated via join
 	Permissions  []string  `json:"permissions,omitempty" db:"-"`
+	StoreID      *int      `json:"store_id,omitempty" db:"store_id"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 

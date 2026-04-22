@@ -1,16 +1,8 @@
 import { checkAuth } from '$lib/api/auth';
 import { get } from 'svelte/store';
 import { auth } from '$lib/stores/auth';
-
-const routePermissions: Record<string, string[]> = {
-	'/': ['dashboard:read'],
-	'/pos': ['pos:access'],
-	'/inventory': ['inventory:read'],
-	'/inventory/groups': ['inventory:group:read'],
-	'/reports': ['reports:read'],
-	'/admin/users': ['users:read'],
-	'/admin/roles': ['users:roles:manage'],
-};
+import { routePermissions } from '$lib/config/permissions';
+import type { Handle } from '@sveltejs/kit';
 
 function hasAllPermissions(userPerms: string[], required: string[]): boolean {
 	return required.every(p => userPerms.includes(p));
@@ -38,7 +30,7 @@ function getFallbackRedirect(userPerms: string[]): string {
 	return '/pos';
 }
 
-export async function handle({ event, resolve }) {
+export const handle: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
 	
 	// Allow static assets and login
@@ -63,4 +55,4 @@ export async function handle({ event, resolve }) {
 	}
 	
 	return resolve(event);
-}
+};

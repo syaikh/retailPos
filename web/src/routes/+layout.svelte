@@ -1,5 +1,5 @@
 <script>
-  import '../lib/app.css';
+  import '../app.postcss';
   let { children } = $props();
 </script>
 

@@ -19,9 +19,9 @@ func (r *UserRepo) Create(u *model.User) error {
 }
 
 func (r *UserRepo) GetByUsername(username string) (*model.User, error) {
-	query := `SELECT id, username, password_hash, role_id, role, created_at FROM users WHERE username = $1`
+	query := `SELECT id, username, password_hash, role_id, role, store_id, created_at FROM users WHERE username = $1`
 	var u model.User
-	if err := r.db.QueryRow(query, username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.CreatedAt); err != nil {
+	if err := r.db.QueryRow(query, username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.StoreID, &u.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -32,9 +32,9 @@ func (r *UserRepo) GetByUsername(username string) (*model.User, error) {
 
 // GetByID selects user by ID including role_id and legacy role string
 func (r *UserRepo) GetByID(id int) (*model.User, error) {
-	query := `SELECT id, username, password_hash, role_id, role, created_at FROM users WHERE id = $1`
+	query := `SELECT id, username, password_hash, role_id, role, store_id, created_at FROM users WHERE id = $1`
 	var u model.User
-	if err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.CreatedAt); err != nil {
+	if err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.StoreID, &u.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -95,7 +95,7 @@ func (r *UserRepo) ListUserPermissions(userID int) ([]string, error) {
 
 // GetAll returns all users
 func (r *UserRepo) GetAll() ([]model.User, error) {
-	query := `SELECT id, username, password_hash, role_id, role, created_at FROM users ORDER BY id`
+	query := `SELECT id, username, password_hash, role_id, role, store_id, created_at FROM users ORDER BY id`
 	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (r *UserRepo) GetAll() ([]model.User, error) {
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.RoleID, &u.Role, &u.StoreID, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)

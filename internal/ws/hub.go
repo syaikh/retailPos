@@ -225,7 +225,8 @@ func checkOrigin(r *http.Request) bool {
 	}
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:3000,http://localhost:5173"
+		// Include the server's own origin by default to support same-origin deployments
+		allowedOrigins = "http://" + r.Host + ",https://" + r.Host
 	}
 	allowed := strings.Split(allowedOrigins, ",")
 	origin := r.Header.Get("Origin")
@@ -234,7 +235,7 @@ func checkOrigin(r *http.Request) bool {
 			return true
 		}
 	}
-	log.Printf("[WS] origin rejected: %s", origin)
+	log.Printf("[WS] origin rejected: %s (allowed: %s)", origin, allowedOrigins)
 	return false
 }
 

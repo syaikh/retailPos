@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
-  import { products, user } from '$lib/stores.js';
+  import { products } from '$lib/stores/products';
   import api from '$lib/api.js';
   import { 
     Plus, 
@@ -559,29 +559,22 @@
     cursor: pointer;
   }
 
-  .export-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+   .export-controls {
+     display: flex;
+     align-items: center;
+     gap: 8px;
+   }
 
-  .export-label {
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-  }
+   .export-controls select {
+     padding: 8px 12px;
+     background: #1e293b;
+     border: 1px solid var(--border);
+     border-radius: 6px;
+     color: white;
+     font-size: 0.875rem;
+   }
 
-  .export-controls input[type="date"],
-  .export-controls select {
-    padding: 8px 12px;
-    background: #1e293b;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: white;
-    font-size: 0.875rem;
-  }
-
-  .export-btn {
+   .export-btn {
     background: var(--success);
     color: white;
     padding: 8px 12px;

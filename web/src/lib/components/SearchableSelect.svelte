@@ -1,41 +1,43 @@
-<script>
+<script lang="ts">
   import { Search, ChevronDown, Check } from 'lucide-svelte';
 
   /** 
-   * @typedef {Object} Option
-   * @property {any} value
-   * @property {string} label
+   * @typedef {{ value: any; label: string }} Option
    */
 
-  /** @type {{ options: Option[], value: any, placeholder?: string, width?: string }} */
   let { 
     options = [], 
-    value = $bindable(), 
+    value = $bindable<any>(), 
     placeholder = "Pilih opsi...",
     width = "250px"
-  } = $props();
+  } = $props<{
+    options: { value: any; label: string }[];
+    value: any;
+    placeholder?: string;
+    width?: string;
+  }>();
 
   let isOpen = $state(false);
   let searchQuery = $state('');
 
   let filteredOptions = $derived(
-    options.filter(o => {
-      if (o.value === 'all') return true; // Always show "Semua" or default if you want. Actually, let's just let it filter if typed
+    options.filter((o: { value: any; label: string }) => {
+      if (o.value === 'all') return true;
       return o.label.toLowerCase().includes(searchQuery.toLowerCase());
     })
   );
 
-  let selectedOption = $derived(options.find(o => o.value === value));
+  let selectedOption = $derived(options.find((o: { value: any; label: string }) => o.value === value));
 
-  function selectOption(val) {
+  function selectOption(val: any) {
     value = val;
     isOpen = false;
     searchQuery = '';
   }
 
-  function clickOutsideAction(node) {
-    const handleClick = event => {
-      if (isOpen && node && !node.contains(event.target)) {
+  function clickOutsideAction(node: HTMLElement) {
+    const handleClick = (event: MouseEvent) => {
+      if (isOpen && node && !node.contains(event.target as Node)) {
         isOpen = false;
         searchQuery = '';
       }
@@ -55,7 +57,7 @@
     }
   }
 
-  function autoFocusAction(node) {
+  function autoFocusAction(node: HTMLElement) {
     node.focus();
     return {
       destroy() {}

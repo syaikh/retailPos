@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { page } from '$app/stores';
-  import { auth } from '$lib/stores/auth';
-  import { logout as apiLogout } from '$lib/api/auth';
-  import { cart } from '$lib/stores.js';
+import { page } from '$app/stores';
+import { auth } from '$lib/stores/auth';
+import { logout as apiLogout } from '$lib/api/auth';
+import { cart } from '$lib/stores/cart';
   import { 
     LayoutDashboard, 
     ShoppingCart, 
