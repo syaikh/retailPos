@@ -56,3 +56,4 @@ Thumbs.db
 
 # Kilo agent
 .kilo/
+*.tsbuildinfo
