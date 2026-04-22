@@ -340,10 +340,10 @@
         {#if exportDropdownOpen}
           <div class="export-menu">
             <button onclick={() => { exportFormat = 'csv'; exportInventory(); exportDropdownOpen = false; }}>
-              Export CSV
+              <Download size={16} /> Export CSV
             </button>
             <button onclick={() => { exportFormat = 'xlsx'; exportInventory(); exportDropdownOpen = false; }}>
-              Export Excel
+              <Download size={16} /> Export Excel
             </button>
           </div>
         {/if}
@@ -777,7 +777,9 @@
   }
 
   .export-menu button {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     padding: 8px 16px;
     background: transparent;
@@ -786,6 +788,7 @@
     text-align: left;
     cursor: pointer;
     font-size: 0.875rem;
+    white-space: nowrap;
   }
 
   .export-menu button:hover {

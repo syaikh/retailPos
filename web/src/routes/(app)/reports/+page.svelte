@@ -772,6 +772,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    z-index: 100;
   }
 
   .title {
@@ -781,13 +782,14 @@
   }
 
   .export-btn {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 10px 20px;
+    background: var(--success);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     cursor: pointer;
   }
 
@@ -798,6 +800,7 @@
 
   .export-dropdown {
     position: relative;
+    z-index: 100;
   }
 
   .export-menu {
@@ -805,32 +808,31 @@
     top: 100%;
     right: 0;
     margin-top: 4px;
-    background: var(--bg-surface);
+    background: #1e293b;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    z-index: 100;
-    min-width: 160px;
+    border-radius: 6px;
     overflow: hidden;
+    z-index: 101;
+    min-width: 160px;
   }
 
   .export-menu button {
-    width: 100%;
-    padding: 10px 16px;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
     display: flex;
     align-items: center;
     gap: 8px;
-    cursor: pointer;
+    width: 100%;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: white;
     text-align: left;
+    cursor: pointer;
     font-size: 0.875rem;
+    white-space: nowrap;
   }
 
   .export-menu button:hover {
-    background: var(--primary);
-    color: white;
+    background: rgba(99, 102, 241, 0.1);
   }
 
   .export-menu button:disabled {
