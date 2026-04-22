@@ -55,7 +55,7 @@ func main() {
 	authRepo := auth.NewPostgresRepo(db)
 	tokenService := auth.NewTokenService(secret, refreshSecret)
 	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
-	salesService := service.NewSalesService(db, productRepo, hub)
+	salesService := service.NewSalesService(db, productRepo, userRepo, hub)
 	inventoryService := service.NewInventoryService(productRepo)
 
 	// Initialize Handlers
@@ -89,7 +89,7 @@ func main() {
 
 		// Protected Routes
 		protected := api.Group("/")
-		protected.Use(auth.AuthMiddleware(tokenService, roleRepo))
+		protected.Use(auth.AuthMiddleware(tokenService, roleRepo, userRepo))
 		{
 			// Auth: get current user with permissions
 			protected.GET("/auth/validate", h.ValidateSession)

@@ -16,11 +16,11 @@ func NewSalesRepo(db *sql.DB) *SalesRepo {
 	return &SalesRepo{db: db}
 }
 
-func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir string, startDate, endDate string) ([]model.Sale, int, error) {
+func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir string, startDate, endDate string, storeID *int) ([]model.Sale, int, error) {
 	fmt.Printf("SalesRepo.GetAll: startDate=%s, endDate=%s, limit=%d, offset=%d\n", startDate, endDate, limit, offset)
 
 	// Base query with join only if searching by item name
-	query := `SELECT DISTINCT s.id, s.total_amount, s.payment_method, s.cashier_id, s.created_at 
+	query := `SELECT DISTINCT s.id, s.total_amount, s.payment_method, s.cashier_id, s.store_id, s.created_at 
 	          FROM sales s 
 	          LEFT JOIN sale_items si ON s.id = si.sale_id 
 	          WHERE 1=1`
@@ -30,6 +30,15 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	               WHERE 1=1`
 	args := []any{}
 	placeholderIdx := 1
+
+	// Store filter
+	if storeID != nil {
+		filter := " AND s.store_id = $" + strconv.Itoa(placeholderIdx)
+		query += filter
+		countQuery += filter
+		args = append(args, *storeID)
+		placeholderIdx++
+	}
 
 	// Add date filtering if provided
 	if startDate != "" && endDate != "" {
@@ -93,7 +102,7 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	var saleIds []int
 	for rows.Next() {
 		var s model.Sale
-		if err := rows.Scan(&s.ID, &s.TotalAmount, &s.PaymentMethod, &s.CashierID, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.TotalAmount, &s.PaymentMethod, &s.CashierID, &s.StoreID, &s.CreatedAt); err != nil {
 			return nil, 0, err
 		}
 		sales = append(sales, s)

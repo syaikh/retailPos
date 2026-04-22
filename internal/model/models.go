@@ -24,25 +24,27 @@ type ProductGroup struct {
 }
 
 type Product struct {
-	ID         int        `json:"id"`
-	Name       string     `json:"name"`
-	SKU        string     `json:"sku"`
-	Barcode    *string    `json:"barcode"` // Using *string to handle NULL values
-	Price      int        `json:"price"`
-	Stock      int        `json:"stock"`
-	GroupID    *int       `json:"group_id"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
-	RestoredAt *time.Time `json:"restored_at,omitempty"`
+	ID         int        `json:"id" db:"id"`
+	Name       string     `json:"name" db:"name"`
+	SKU        string     `json:"sku" db:"sku"`
+	Barcode    *string    `json:"barcode" db:"barcode"`
+	Price      int        `json:"price" db:"price"`
+	Stock      int        `json:"stock" db:"stock"`
+	GroupID    *int       `json:"group_id" db:"group_id"`
+	StoreID    *int       `json:"store_id,omitempty" db:"store_id"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	RestoredAt *time.Time `json:"restored_at,omitempty" db:"restored_at"`
 }
 
 type Sale struct {
-	ID            int        `json:"id"`
-	TotalAmount   int        `json:"total_amount"`
-	PaymentMethod string     `json:"payment_method"`
-	CashierID     int        `json:"cashier_id"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID            int        `json:"id" db:"id"`
+	TotalAmount   int        `json:"total_amount" db:"total_amount"`
+	PaymentMethod string     `json:"payment_method" db:"payment_method"`
+	CashierID     int        `json:"cashier_id" db:"cashier_id"`
+	StoreID       *int       `json:"store_id,omitempty" db:"store_id"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	Items         []SaleItem `json:"items,omitempty"`
 }
 

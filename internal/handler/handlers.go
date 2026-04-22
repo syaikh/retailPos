@@ -85,6 +85,20 @@ func (h *Handler) hasPermission(c *gin.Context, permCode string) bool {
 	return false
 }
 
+// getStoreIDFromContext extracts store_id from Gin context
+// Returns nil if user is admin (no store_id set)
+func (h *Handler) getStoreIDFromContext(c *gin.Context) *int {
+	storeIDInterface, exists := c.Get("store_id")
+	if !exists {
+		return nil
+	}
+	storeID, ok := storeIDInterface.(int)
+	if !ok || storeID == 0 {
+		return nil
+	}
+	return &storeID
+}
+
 // Auth Handlers
 func (h *Handler) Login(c *gin.Context) {
 	var input struct {
@@ -417,17 +431,19 @@ func (h *Handler) UpdateUserRole(c *gin.Context) {
 
 // Product Handlers
 func (h *Handler) GetProducts(c *gin.Context) {
+	storeID := h.getStoreIDFromContext(c)
+
 	barcode := c.Query("barcode")
 	if barcode != "" {
 		// First try by barcode
-		p, err := h.productRepo.GetByBarcode(barcode)
+		p, err := h.productRepo.GetByBarcode(barcode, storeID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		// If not found by barcode, try by SKU (legacy support)
 		if p == nil {
-			p, err = h.productRepo.GetBySKU(barcode)
+			p, err = h.productRepo.GetBySKU(barcode, storeID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -460,7 +476,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.productRepo.GetAll(limit, offset, search, groupID, sortBy, sortDir, maxStock)
+	products, total, err := h.productRepo.GetAll(limit, offset, search, groupID, sortBy, sortDir, maxStock, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -479,6 +495,8 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	storeID := h.getStoreIDFromContext(c)
+
 	var p model.Product
 	if err := c.ShouldBindJSON(&p); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -490,8 +508,13 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		p.Barcode = nil
 	}
 
+	// Set store_id from user's context (admin can set explicitly, cashier gets from context)
+	if p.StoreID == nil && storeID != nil {
+		p.StoreID = storeID
+	}
+
 	// 1. Check SKU Uniqueness (including deleted)
-	existingBySKU, err := h.productRepo.GetBySKUWithDeleted(p.SKU)
+	existingBySKU, err := h.productRepo.GetBySKUWithDeleted(p.SKU, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check SKU existence"})
 		return
@@ -514,7 +537,7 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 
 	// 2. Check Barcode Uniqueness if provided
 	if p.Barcode != nil && *p.Barcode != "" {
-		existingByBarcode, err := h.productRepo.GetByBarcodeWithDeleted(*p.Barcode)
+		existingByBarcode, err := h.productRepo.GetByBarcodeWithDeleted(*p.Barcode, storeID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check Barcode existence"})
 			return
@@ -556,6 +579,8 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
+	storeID := h.getStoreIDFromContext(c)
+
 	var p model.Product
 	if err := c.ShouldBindJSON(&p); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -568,7 +593,12 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		p.Barcode = nil
 	}
 
-	if err := h.productRepo.Update(&p); err != nil {
+	// Set store_id from user's context (admin can set explicitly)
+	if p.StoreID == nil && storeID != nil {
+		p.StoreID = storeID
+	}
+
+	if err := h.productRepo.Update(&p, storeID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -594,7 +624,9 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	existingP, err := h.productRepo.GetByID(idInt)
+	storeID := h.getStoreIDFromContext(c)
+
+	existingP, err := h.productRepo.GetByID(idInt, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check product"})
 		return
@@ -610,7 +642,7 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	if err := h.productRepo.Delete(idInt); err != nil {
+	if err := h.productRepo.Delete(idInt, storeID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -746,8 +778,9 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 
 func (h *Handler) GetSalesHistory(c *gin.Context) {
 	limit, offset, search, sortBy, sortDir, startDate, endDate := h.parseCommonParams(c)
+	storeID := h.getStoreIDFromContext(c)
 	fmt.Printf("GetSalesHistory: startDate=%s, endDate=%s, limit=%d, offset=%d\n", startDate, endDate, limit, offset)
-	sales, total, err := h.salesRepo.GetAll(limit, offset, search, sortBy, sortDir, startDate, endDate)
+	sales, total, err := h.salesRepo.GetAll(limit, offset, search, sortBy, sortDir, startDate, endDate, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

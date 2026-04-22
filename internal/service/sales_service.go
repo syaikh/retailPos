@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	model "retailPos/internal/model"
 	"retailPos/internal/repo"
 	"retailPos/internal/ws"
@@ -12,13 +13,15 @@ import (
 type SalesService struct {
 	db          *sql.DB
 	productRepo *repo.ProductRepo
+	userRepo    *repo.UserRepo
 	hub         *ws.Hub
 }
 
-func NewSalesService(db *sql.DB, productRepo *repo.ProductRepo, hub *ws.Hub) *SalesService {
+func NewSalesService(db *sql.DB, productRepo *repo.ProductRepo, userRepo *repo.UserRepo, hub *ws.Hub) *SalesService {
 	return &SalesService{
 		db:          db,
 		productRepo: productRepo,
+		userRepo:    userRepo,
 		hub:         hub,
 	}
 }
@@ -35,20 +38,32 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 		return errors.New("invalid payment method: must be 'cash' or 'card'")
 	}
 
-	// 1. Insert Sale record
-	querySale := `INSERT INTO sales (total_amount, payment_method, cashier_id) VALUES ($1, $2, $3) RETURNING id, created_at`
-	err = tx.QueryRowContext(ctx, querySale, sale.TotalAmount, sale.PaymentMethod, sale.CashierID).Scan(&sale.ID, &sale.CreatedAt)
+	// 1. Get cashier's store_id
+	cashier, err := s.userRepo.GetByID(sale.CashierID)
+	if err != nil || cashier == nil {
+		return errors.New("cashier not found")
+	}
+	if cashier.StoreID == nil {
+		return errors.New("cashier must be assigned to a store")
+	}
+
+	// Set store_id on sale
+	sale.StoreID = cashier.StoreID
+
+	// 2. Insert Sale record with store_id
+	querySale := `INSERT INTO sales (total_amount, payment_method, cashier_id, store_id) VALUES ($1, $2, $3, $4) RETURNING id, created_at`
+	err = tx.QueryRowContext(ctx, querySale, sale.TotalAmount, sale.PaymentMethod, sale.CashierID, sale.StoreID).Scan(&sale.ID, &sale.CreatedAt)
 	if err != nil {
 		return err
 	}
 
-	// 2. Insert Sale Items and Update Stock
+	// 3. Insert Sale Items and Update Stock
 	for i := range sale.Items {
 		item := &sale.Items[i]
 		item.SaleID = sale.ID
 
 		// Fetch snapshot product name
-		p, err := s.productRepo.GetByID(item.ProductID)
+		p, err := s.productRepo.GetByID(item.ProductID, sale.StoreID)
 		if err != nil || p == nil {
 			return errors.New("product not found during snapshot")
 		}
@@ -77,10 +92,14 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *model.Sale) error {
 		return err
 	}
 
-	// 3. Broadcast events
-	_ = s.hub.Broadcast("", "sale.created", sale)
+	// 4. Broadcast events to the store
+	var storeIDStr string
+	if sale.StoreID != nil {
+		storeIDStr = fmt.Sprintf("%d", *sale.StoreID)
+	}
+	_ = s.hub.Broadcast(storeIDStr, "sale.created", sale)
 	for _, item := range sale.Items {
-		_ = s.hub.Broadcast("", "stock.updated", map[string]any{
+		_ = s.hub.Broadcast(storeIDStr, "stock.updated", map[string]any{
 			"product_id": item.ProductID,
 		})
 	}

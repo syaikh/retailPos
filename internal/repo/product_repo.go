@@ -18,16 +18,33 @@ func NewProductRepo(db *sql.DB) *ProductRepo {
 }
 
 func (r *ProductRepo) Create(p *model.Product) error {
-	query := `INSERT INTO products (name, sku, barcode, price, stock, group_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at`
-	return r.db.QueryRow(query, p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	var query string
+	var args []any
+	if p.StoreID != nil {
+		query = `INSERT INTO products (name, sku, barcode, price, stock, group_id, store_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at`
+		args = []any{p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID, p.StoreID}
+	} else {
+		query = `INSERT INTO products (name, sku, barcode, price, stock, group_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at`
+		args = []any{p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID}
+	}
+	return r.db.QueryRow(query, args...).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sortBy, sortDir string, maxStock *int) ([]model.Product, int, error) {
+func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sortBy, sortDir string, maxStock *int, storeID *int) ([]model.Product, int, error) {
 	// Base query
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE deleted_at IS NULL`
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE deleted_at IS NULL`
 	countQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
 	args := []any{}
 	placeholderIdx := 1
+
+	// Store filter
+	if storeID != nil {
+		filter := " AND store_id = $" + strconv.Itoa(placeholderIdx)
+		query += filter
+		countQuery += filter
+		args = append(args, *storeID)
+		placeholderIdx++
+	}
 
 	// Search filter
 	if search != "" {
@@ -96,7 +113,7 @@ func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sor
 	var products []model.Product
 	for rows.Next() {
 		var p model.Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 			return nil, 0, err
 		}
 		products = append(products, p)
@@ -104,10 +121,17 @@ func (r *ProductRepo) GetAll(limit, offset int, search string, groupID *int, sor
 	return products, total, nil
 }
 
-func (r *ProductRepo) GetBySKU(sku string) (*model.Product, error) {
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE sku = $1 AND deleted_at IS NULL`
+func (r *ProductRepo) GetBySKU(sku string, storeID *int) (*model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE sku = $1 AND deleted_at IS NULL`
+	args := []any{sku}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
 	var p model.Product
-	if err := r.db.QueryRow(query, sku).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+	if err := r.db.QueryRow(query, args...).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -116,10 +140,17 @@ func (r *ProductRepo) GetBySKU(sku string) (*model.Product, error) {
 	return &p, nil
 }
 
-func (r *ProductRepo) GetByBarcode(barcode string) (*model.Product, error) {
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE barcode = $1 AND deleted_at IS NULL`
+func (r *ProductRepo) GetByBarcode(barcode string, storeID *int) (*model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE barcode = $1 AND deleted_at IS NULL`
+	args := []any{barcode}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
 	var p model.Product
-	if err := r.db.QueryRow(query, barcode).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+	if err := r.db.QueryRow(query, args...).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -128,10 +159,17 @@ func (r *ProductRepo) GetByBarcode(barcode string) (*model.Product, error) {
 	return &p, nil
 }
 
-func (r *ProductRepo) GetByID(id int) (*model.Product, error) {
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE id = $1 AND deleted_at IS NULL`
+func (r *ProductRepo) GetByID(id int, storeID *int) (*model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE id = $1 AND deleted_at IS NULL`
+	args := []any{id}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
 	var p model.Product
-	if err := r.db.QueryRow(query, id).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+	if err := r.db.QueryRow(query, args...).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -140,10 +178,17 @@ func (r *ProductRepo) GetByID(id int) (*model.Product, error) {
 	return &p, nil
 }
 
-func (r *ProductRepo) GetBySKUWithDeleted(sku string) (*model.Product, error) {
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE sku = $1`
+func (r *ProductRepo) GetBySKUWithDeleted(sku string, storeID *int) (*model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE sku = $1`
+	args := []any{sku}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
 	var p model.Product
-	if err := r.db.QueryRow(query, sku).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+	if err := r.db.QueryRow(query, args...).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -152,10 +197,17 @@ func (r *ProductRepo) GetBySKUWithDeleted(sku string) (*model.Product, error) {
 	return &p, nil
 }
 
-func (r *ProductRepo) GetByBarcodeWithDeleted(barcode string) (*model.Product, error) {
-	query := `SELECT id, name, sku, barcode, price, stock, group_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE barcode = $1`
+func (r *ProductRepo) GetByBarcodeWithDeleted(barcode string, storeID *int) (*model.Product, error) {
+	query := `SELECT id, name, sku, barcode, price, stock, group_id, store_id, created_at, updated_at, deleted_at, restored_at FROM products WHERE barcode = $1`
+	args := []any{barcode}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
 	var p model.Product
-	if err := r.db.QueryRow(query, barcode).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
+	if err := r.db.QueryRow(query, args...).Scan(&p.ID, &p.Name, &p.SKU, &p.Barcode, &p.Price, &p.Stock, &p.GroupID, &p.StoreID, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.RestoredAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -175,15 +227,22 @@ func (r *ProductRepo) UpdateStock(id int, delta int) error {
 	return err
 }
 
-func (r *ProductRepo) Update(p *model.Product) error {
-	query := `UPDATE products SET name = $1, sku = $2, barcode = $3, price = $4, stock = $5, group_id = $6, updated_at = NOW() WHERE id = $7`
-	_, err := r.db.Exec(query, p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID, p.ID)
+func (r *ProductRepo) Update(p *model.Product, storeID *int) error {
+	query := `UPDATE products SET name = $1, sku = $2, barcode = $3, price = $4, stock = $5, group_id = $6, store_id = $7, updated_at = NOW() WHERE id = $8`
+	_, err := r.db.Exec(query, p.Name, p.SKU, p.Barcode, p.Price, p.Stock, p.GroupID, p.StoreID, p.ID)
 	return err
 }
 
-func (r *ProductRepo) Delete(id int) error {
+func (r *ProductRepo) Delete(id int, storeID *int) error {
 	query := `UPDATE products SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.Exec(query, id)
+	args := []any{id}
+
+	if storeID != nil {
+		query += " AND store_id = $2"
+		args = append(args, *storeID)
+	}
+
+	_, err := r.db.Exec(query, args...)
 	return err
 }
 

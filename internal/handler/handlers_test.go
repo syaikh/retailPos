@@ -54,7 +54,7 @@ func setupServer() *gin.Engine {
 	authRepo := auth.NewPostgresRepo(db)
 	tokenService := auth.NewTokenService("test-secret", "test-refresh-secret")
 	authService := auth.NewAuthService(userRepo, authRepo, tokenService)
-	salesService := service.NewSalesService(db, productRepo, hub)
+	salesService := service.NewSalesService(db, productRepo, userRepo, hub)
 	inventoryService := service.NewInventoryService(productRepo)
 	h = handler.NewHandler(authService, userRepo, roleRepo, productRepo, productGroupRepo, statsRepo, salesRepo, salesService, inventoryService)
 
@@ -65,6 +65,7 @@ func setupServer() *gin.Engine {
 	r.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
 		c.Set("user_id", 1) // Mock cashier ID
+		// No store_id set - admin can see all
 		c.Next()
 	})
 
@@ -110,7 +111,7 @@ func TestProductSoftDeleteAndRestoreFlow(t *testing.T) {
 	}
 
 	// Memastikan Delete berhasil di basis data
-	deletedP, _ := productRepo.GetBySKUWithDeleted(skuTest)
+	deletedP, _ := productRepo.GetBySKUWithDeleted(skuTest, nil)
 	if deletedP.DeletedAt == nil {
 		t.Fatalf("Expected DeletedAt to be populated, got nil")
 	}
@@ -132,7 +133,7 @@ func TestProductSoftDeleteAndRestoreFlow(t *testing.T) {
 		t.Fatalf("Failed restoring product: %v", w3.Body.String())
 	}
 
-	restoredP, _ := productRepo.GetByID(createdProduct.ID)
+	restoredP, _ := productRepo.GetByID(createdProduct.ID, nil)
 	if restoredP.Name != "Test Produk Alpha (Restored)" {
 		t.Fatalf("Expected product name to be restored & updated, got %s", restoredP.Name)
 	}
