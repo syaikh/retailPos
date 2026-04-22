@@ -20,7 +20,7 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	fmt.Printf("SalesRepo.GetAll: startDate=%s, endDate=%s, limit=%d, offset=%d\n", startDate, endDate, limit, offset)
 
 	// Base query with join only if searching by item name
-	query := `SELECT DISTINCT s.id, s.total_amount, s.payment_method, s.cashier_id, s.store_id, s.created_at 
+	query := `SELECT DISTINCT s.id, s.total_amount, s.payment_method, s.cashier_id, s.store_id, (s.created_at AT TIME ZONE 'Asia/Jakarta') as created_at 
 	          FROM sales s 
 	          LEFT JOIN sale_items si ON s.id = si.sale_id 
 	          WHERE 1=1`
@@ -40,7 +40,7 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 		placeholderIdx++
 	}
 
-	// Add date filtering if provided
+	// Add date filtering if provided - use original column for filter
 	if startDate != "" && endDate != "" {
 		dateFilter := fmt.Sprintf(" AND s.created_at::date >= $%d AND s.created_at::date <= $%d", placeholderIdx, placeholderIdx+1)
 		query += dateFilter
@@ -48,6 +48,8 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 		args = append(args, startDate, endDate)
 		placeholderIdx += 2
 	}
+
+	fmt.Printf("DEBUG: query=%s\nargs=%v\n", query, args)
 
 	if search != "" {
 		// handle #TRX-, TRX-, and padding
@@ -71,13 +73,15 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	}
 
 	var total int
+	fmt.Printf("DEBUG: running countQuery=%s\nargs=%v\n", countQuery, args)
 	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		fmt.Printf("ERROR count: %v\n", err)
 		return nil, 0, err
 	}
 
 	validSortFields := map[string]string{
 		"id":         "s.id",
-		"created_at": "s.created_at",
+		"created_at": "(s.created_at AT TIME ZONE 'Asia/Jakarta')",
 		"total":      "s.total_amount",
 	}
 	sortField, ok := validSortFields[sortBy]
@@ -92,8 +96,10 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 	query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortDir)
 	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
+	fmt.Printf("DEBUG: running query=%s\nargs=%v\n", query, args)
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
+		fmt.Printf("ERROR query: %v\n", err)
 		return nil, 0, err
 	}
 	defer rows.Close()

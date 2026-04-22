@@ -96,7 +96,7 @@ func (r *StatsRepo) GetDashboardStats() (*DashboardStats, error) {
 	}
 
 	// 6. Recent Activities (Sales)
-	rows, err = r.db.Query(`SELECT 'sale' as type, 'Memproses transaksi #TRX-' || s.id as message, u.username, s.created_at 
+	rows, err = r.db.Query(`SELECT 'sale' as type, 'Memproses transaksi #TRX-' || s.id as message, u.username, (s.created_at AT TIME ZONE 'Asia/Jakarta') as created_at 
 	                         FROM sales s JOIN users u ON s.cashier_id = u.id ORDER BY s.created_at DESC LIMIT 5`)
 	if err != nil {
 		return nil, err
