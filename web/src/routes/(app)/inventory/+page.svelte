@@ -725,6 +725,7 @@
     font-weight: 600;
     font-size: 1rem;
     color: white;
+    margin-bottom: 4px;
   }
 
   .product-meta {
@@ -767,7 +768,8 @@
 
   .price-cell {
     text-align: right;
-    font-weight: 500;
+    font-weight: 700;
+    color: var(--accent);
   }
 
   .export-dropdown {
@@ -947,5 +949,43 @@
   .cancel-btn {
     background: transparent;
     color: var(--text-secondary);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  table thead {
+    background: var(--color-bg-elevated);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.2s;
+  }
+
+  table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  table th {
+    padding: 14px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--accent);
+    border-bottom: 2px solid var(--primary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  table td {
+    padding: 12px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    vertical-align: middle;
   }
 </style>
