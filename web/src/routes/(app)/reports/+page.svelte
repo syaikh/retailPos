@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { 
     BarChart3, 
     Download, 
@@ -12,6 +12,22 @@
   import { DateInput } from 'date-picker-svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
+  import DatePicker from '$lib/components/DatePicker.svelte';
+
+  interface TransactionItem {
+    id: number;
+    product_name: string;
+    price_at_sale: number;
+    quantity: number;
+  }
+
+  interface Transaction {
+    id: number;
+    created_at: string;
+    total_amount: number;
+    payment_method: string;
+    items: TransactionItem[];
+  }
 
   const DEBOUNCE_DELAY = 300;
 
@@ -21,7 +37,7 @@
     weekStartsOn: 1
   };
 
-  function dateToString(date) {
+  function dateToString(date: Date | null) {
     if (!date) return '';
     const d = new Date(date);
     if (isNaN(d.getTime())) return '';
@@ -32,9 +48,9 @@
     return `${year}-${month}-${day}`;
   }
 
-  let transactions = $state([]);
+  let transactions = $state<Transaction[]>([]);
   let loading = $state(true);
-  let selectedTransaction = $state(null);
+  let selectedTransaction = $state<Transaction | null>(null);
   let showDetailModal = $state(false);
 
   let limit = $state(10);
@@ -45,12 +61,12 @@
   let sortDir = $state('desc');
   let activeSearch = $state('');
 
-  let chartCanvas = $state(null);
-  let chartInstance = $state(null);
+  let chartCanvas = $state<HTMLCanvasElement | null>(null);
+  let chartInstance = $state<any>(null);
   let chartLoading = $state(true);
   let chartError = $state('');
-  let dateRangeStart = $state(null);
-  let dateRangeEnd = $state(null);
+  let dateRangeStart = $state<Date | null>(null);
+  let dateRangeEnd = $state<Date | null>(null);
   let groupBy = $state('day');
   let chartInitialized = $state(false);
   let exporting = $state(false);
@@ -58,9 +74,9 @@
 
   $effect(() => {
     if (showExportMenu) {
-      function handleClickOutside(e) {
+      function handleClickOutside(e: MouseEvent) {
         const dropdown = document.querySelector('.export-dropdown');
-        if (dropdown && !dropdown.contains(e.target)) {
+        if (dropdown && !dropdown.contains(e.target as Node)) {
           showExportMenu = false;
         }
       }
@@ -71,7 +87,7 @@
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-  function formatIndonesianDate(dateStr) {
+  function formatIndonesianDate(dateStr: string) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
@@ -83,7 +99,7 @@
     return `${day} ${month} ${year} ${hours}:${minutes}`;
   }
 
-  function getPaymentMethodLabel(method) {
+  function getPaymentMethodLabel(method: string) {
     if (method === 'cash') return 'Tunai';
     if (method === 'card') return 'Kartu';
     return method;
@@ -125,14 +141,14 @@
       
       await tick();
       await renderChart(data.labels || [], data.values || []);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to fetch chart data:', e);
       chartError = e.response?.data?.error || e.message;
       chartLoading = false;
     }
   }
 
-  function formatChartLabel(label, groupByValue) {
+  function formatChartLabel(label: string, groupByValue: string) {
     if (!label) return '';
     
     // Weekly format: "2024-15" (ISO week "YYYY-IW")
@@ -169,7 +185,7 @@
     return `${day} ${month} ${year}`;
   }
 
-  function getWeekDateRange(year, week) {
+  function getWeekDateRange(year: number, week: number) {
     const simple = new Date(year, 0, 1 + (week - 1) * 7);
     const dow = simple.getDay();
     const isoWeekStart = simple;
@@ -183,7 +199,7 @@
     return { start: isoWeekStart, end: isoWeekEnd };
   }
 
-  function formatTooltipTitle(label, groupByValue, startDate, endDate) {
+  function formatTooltipTitle(label: string, groupByValue: string, startDate: Date | null, endDate: Date | null) {
     if (!label) return '';
     
     // WEEKLY
@@ -245,7 +261,7 @@
     return formatChartLabel(label, groupByValue);
   }
 
-  async function renderChart(labels, values) {
+  async function renderChart(labels: string[], values: number[]) {
     console.log('Rendering chart with labels:', labels, 'values:', values, 'canvas:', !!chartCanvas);
     
     if (!chartCanvas) {
@@ -277,6 +293,7 @@
     
     // Clear canvas
     const ctx = chartCanvas.getContext('2d');
+    if (!ctx) return;
     ctx.clearRect(0, 0, chartCanvas.width || 300, chartCanvas.height || 200);
     
     chartInstance = new Chart(ctx, {
@@ -301,11 +318,11 @@
           },
           tooltip: {
             callbacks: {
-              title: function(context) {
+              title: function(context: any) {
                 const label = context[0].label;
                 return formatTooltipTitle(label, groupBy, dateRangeStart, dateRangeEnd);
               },
-              label: function(context) {
+              label: function(context: any) {
                 return 'Rp ' + context.raw.toLocaleString();
               }
             }
@@ -315,14 +332,14 @@
           y: {
             beginAtZero: true,
             ticks: {
-              callback: function(value) {
+              callback: function(value: string | number) {
                 return 'Rp ' + (Number(value) / 1000).toLocaleString() + 'rb';
               }
             }
           },
           x: {
             ticks: {
-              callback: function(value, index) {
+              callback: function(value: any, index: number) {
                 const label = labels[index];
                 return formatChartLabel(label, groupBy);
               },
@@ -345,7 +362,7 @@
       const { data, total: totalCount } = resp.data;
       transactions = Array.isArray(data) ? data : [];
       total = totalCount ?? 0;
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to fetch transactions:', e);
       transactions = [];
     } finally {
@@ -370,7 +387,7 @@
     fetchChartData();
   });
 
-  let searchDebounceTimer = null;
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function handleSearchInput() {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
@@ -395,12 +412,12 @@
     }
   });
 
-  function handlePageChange(newOffset, newLimit) {
+  function handlePageChange(newOffset: number, newLimit?: number) {
     if (newLimit !== undefined) limit = newLimit;
     offset = newOffset;
   }
 
-  function handleSort(field) {
+  function handleSort(field: string) {
     if (sortField === field) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {
@@ -410,7 +427,7 @@
     offset = 0;
   }
 
-  function openDetail(tx) {
+  function openDetail(tx: Transaction) {
     selectedTransaction = tx;
     showDetailModal = true;
   }
@@ -461,12 +478,12 @@
         }
       }
       
-      const tableData = allTransactions.map(tx => [
+      const tableData = allTransactions.map((tx: Transaction) => [
         `#TRX-${tx.id.toString().padStart(4, '0')}`,
         formatIndonesianDate(tx.created_at),
         `Rp ${tx.total_amount.toLocaleString()}`,
         getPaymentMethodLabel(tx.payment_method),
-        `${tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit`
+        `${tx.items?.reduce((sum: number, i: TransactionItem) => sum + i.quantity, 0) || 0} unit`
       ]);
       
       autoTable(doc, {
@@ -478,7 +495,7 @@
       });
       
       doc.save(`laporan-penjualan-${dateToString(dateRangeStart)}-${dateToString(dateRangeEnd)}.pdf`);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Export PDF failed:', e);
       alert('Gagal mengekspor PDF: ' + e.message);
     } finally {
@@ -494,12 +511,12 @@
       
       const allTransactions = await fetchAllTransactionsForExport();
       
-       const data = allTransactions.map(tx => ({
+       const data = allTransactions.map((tx: Transaction) => ({
          ID: `#TRX-${tx.id.toString().padStart(4, '0')}`,
          Waktu: formatIndonesianDate(tx.created_at),
          Total: tx.total_amount,
          Metode: getPaymentMethodLabel(tx.payment_method),
-         'Qty Item': tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+         'Qty Item': tx.items?.reduce((sum: number, i: TransactionItem) => sum + i.quantity, 0) || 0
        }));
       
       const ws = XLSX.utils.json_to_sheet(data);
@@ -516,7 +533,7 @@
       ws['!cols'] = colWidths;
       
       XLSX.writeFile(wb, `laporan-penjualan-${dateToString(dateRangeStart)}-${dateToString(dateRangeEnd)}.xlsx`);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Export Excel failed:', e);
       alert('Gagal mengekspor Excel: ' + e.message);
     } finally {
@@ -567,7 +584,7 @@
           placeholder="Cari ID TRX atau Nama Produk..."
           bind:value={searchQuery}
           oninput={handleSearchInput}
-          onkeydown={(e) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { if (searchDebounceTimer) clearTimeout(searchDebounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' && searchQuery.trim().length >= 3) { if (searchDebounceTimer) clearTimeout(searchDebounceTimer); activeSearch = searchQuery.trim(); offset = 0; } }}
         />
         {#if searchQuery.trim().length > 0 && searchQuery.trim().length < 3}
           <div class="search-warning">Minimal 3 karakter</div>
@@ -578,24 +595,24 @@
       <div class="filter-item date-filter">
         <Calendar size={18} />
         <div class="date-display">
-          <DateInput 
+          <DatePicker 
             bind:value={dateRangeStart}
             format="dd MMM yyyy"
             locale={indonesianLocale}
             max={dateRangeEnd}
             placeholder="Pilih tanggal"
-            closeOnSelection={true}
+            on:change={fetchChartData}
           />
         </div>
         <span class="separator">-</span>
         <div class="date-display">
-          <DateInput 
+          <DatePicker 
             bind:value={dateRangeEnd}
             format="dd MMM yyyy"
             locale={indonesianLocale}
             min={dateRangeStart}
             placeholder="Pilih tanggal"
-            closeOnSelection={true}
+            on:change={fetchChartData}
           />
         </div>
       </div>
@@ -657,7 +674,7 @@
               <td>{formatIndonesianDate(tx.created_at)}</td>
               <td><strong>Rp {tx.total_amount.toLocaleString()}</strong></td>
                <td><span class="method-badge">{getPaymentMethodLabel(tx.payment_method)}</span></td>
-              <td>{tx.items?.reduce((sum, i) => sum + i.quantity, 0) || 0} unit</td>
+              <td>{tx.items?.reduce((sum: number, i: TransactionItem) => sum + i.quantity, 0) || 0} unit</td>
               <td>
                 <button class="detail-link" onclick={() => openDetail(tx)}>
                   Detail <ArrowUpRight size={14} />

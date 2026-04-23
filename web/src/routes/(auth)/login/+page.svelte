@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { auth } from '$lib/stores/auth';
   import client from '$lib/api/client';
   import { goto } from '$app/navigation';
@@ -9,7 +9,7 @@
   let error = $state('');
   let loading = $state(false);
 
-  async function handleLogin(event) {
+  async function handleLogin(event: SubmitEvent) {
     event.preventDefault();
     error = '';
     loading = true;
@@ -31,7 +31,7 @@
           goto('/pos');
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       error = e.response?.data?.error || 'Login failed';
     } finally {
       loading = false;
