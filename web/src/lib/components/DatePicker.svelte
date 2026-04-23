@@ -1,10 +1,17 @@
 <script lang="ts">
   import { DateInput } from 'date-picker-svelte';
-  import { createEventDispatcher } from 'svelte';
   
-  let { value = $bindable(null), min = null, max = null, format = 'yyyy-MM-dd', locale = {}, placeholder = 'Pilih tanggal' } = $props();
+  let { 
+    value = $bindable(null), 
+    min = null, 
+    max = null, 
+    format = 'yyyy-MM-dd', 
+    locale = {}, 
+    placeholder = 'Pilih tanggal',
+    onchange
+  } = $props();
   
-  const dispatch = createEventDispatcher();
+
   
   // Working value that gets updated as user interacts with calendar
   let workingValue: Date | null | undefined = $state(value);
@@ -49,7 +56,7 @@
     // Only update the bound value when OK is clicked
     if (workingValue && workingValue instanceof Date) {
       value = new Date(workingValue.getTime());
-      dispatch('change', value);
+      onchange?.(value);
     }
     // Hide picker
     showPicker = false;

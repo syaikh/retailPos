@@ -24,12 +24,15 @@
 
   let searchQuery = $state('');
   let showModal = $state(false);
+  /** @type {any} */
   let editingProduct = $state(null);
   let loading = $state(false);
+  /** @type {HTMLInputElement | null} */
   let searchInput = $state(null);
   let hideEmptyStock = $state(true);
   /** @type {any[]} */
   let groups = $state([]);
+  /** @type {number | null} */
   let openMenuId = $state(null);
   let exportDropdownOpen = $state(false);
 
@@ -61,7 +64,7 @@
     }
   });
 
-  function autofocus(node) {
+  function autofocus(/** @type {HTMLElement} */ node) {
     requestAnimationFrame(() => {
       node.focus({ preventScroll: true });
     });
@@ -72,9 +75,9 @@
     };
   }
 
-  function clickOutsideExport(e) {
+  function clickOutsideExport(/** @type {MouseEvent} */ e) {
     const dropdown = document.querySelector('.export-dropdown');
-    if (exportDropdownOpen && dropdown && !dropdown.contains(e.target)) {
+    if (exportDropdownOpen && dropdown && !dropdown.contains(/** @type {Node} */ (e.target))) {
       exportDropdownOpen = false;
     }
   }
@@ -114,7 +117,7 @@
       a.click();
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       alert('Export gagal: ' + e.message);
     } finally {
       exportLoading = false;
@@ -136,7 +139,7 @@
   $effect(() => {
     if (!showModal && searchInput) {
       requestAnimationFrame(() => {
-        searchInput.focus({ preventScroll: true });
+        if (searchInput) searchInput.focus({ preventScroll: true });
       });
     }
   });
@@ -153,7 +156,7 @@
       const { data, total: totalCount } = resp.data;
       products.set(Array.isArray(data) ? data : []);
       total = totalCount;
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       console.error('Failed to fetch products:', e);
       products.set([]);
     } finally {
@@ -162,6 +165,7 @@
   }
 
   // Debounce timer
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let searchDebounceTimer = null;
 
   // Reload data when filters/paging changes
@@ -184,7 +188,7 @@
     }, 150);
   });
 
-  function handlePageChange(newOffset, newLimit) {
+  function handlePageChange(/** @type {number} */ newOffset, /** @type {number | undefined} */ newLimit) {
     if (newLimit !== undefined) limit = newLimit;
     offset = newOffset;
   }
@@ -193,7 +197,7 @@
     try {
       const resp = await api.get('/product-groups?limit=1000');
       groups = Array.isArray(resp.data.data) ? resp.data.data : [];
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       console.error('Failed to fetch groups:', e);
       groups = [];
     }
@@ -208,13 +212,13 @@
   /**
    * @param {{ id: number; name: string; sku: string; barcode?: string | null; price: number; stock: number; group_id: number | null; }} p
    */
-  function openEdit(p) {
+  function openEdit(/** @type {any} */ p) {
     editingProduct = p;
     form = { ...p, barcode: p.barcode || '' };
     showModal = true;
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(/** @type {SubmitEvent} */ event) {
     event.preventDefault();
     try {
       if (editingProduct) {
@@ -224,22 +228,22 @@
       }
       showModal = false;
       fetchProducts();
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       alert(e.response?.data?.error || 'Operation failed');
     }
   }
 
-  async function deleteProduct(id) {
+  async function deleteProduct(/** @type {number} */ id) {
     if (!confirm('Yakin ingin menghapus produk ini?')) return;
     try {
       await api.delete(`/products/${id}`);
       fetchProducts();
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       alert(e.response?.data?.error || 'Delete failed');
     }
   }
 
-  function handleSort(field) {
+  function handleSort(/** @type {string} */ field) {
     if (sortField === field) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {
@@ -257,13 +261,13 @@
     return $products;
   });
 
-  function getStockLevel(stock) {
+  function getStockLevel(/** @type {number} */ stock) {
     if (stock < 5) return 'rendah';
     if (stock < 20) return 'sedang';
     return 'aman';
   }
 
-  function truncateBarcode(barcode) {
+  function truncateBarcode(/** @type {string} */ barcode) {
     if (!barcode || barcode.length < 9) return barcode || '-';
     return barcode.slice(0, 4) + '••••' + barcode.slice(-4);
   }
@@ -407,7 +411,7 @@
                     <code>{truncateBarcode(p.barcode)}</code>
                     <button 
                       class="copy-btn" 
-                      onclick={() => copyToClipboard(p.barcode, 'Barcode')}
+                      onclick={() => copyToClipboard(p.barcode || '', 'Barcode')}
                       title="Salin Barcode"
                     >
                       <Copy size={12} />

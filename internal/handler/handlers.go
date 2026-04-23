@@ -489,6 +489,29 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetProductByID(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	storeID := h.getStoreIDFromContext(c)
+	p, err := h.productRepo.GetByID(id, storeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if p == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, p)
+}
+
 func (h *Handler) CreateProduct(c *gin.Context) {
 	if !h.hasPermission(c, "product:create") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient permissions"})

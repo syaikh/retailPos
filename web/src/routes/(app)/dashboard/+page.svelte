@@ -16,9 +16,11 @@
     monthSalesTrend: 0,
     transactionCount: 0,
     lowStockCount: 0,
+    /** @type {any[]} */
     recentActivities: []
   });
 
+  /** @type {any[]} */
   let lowStockProducts = $state([]);
   let lowStockTotal = $state(0);
   let lowStockLimit = $state(10);
@@ -64,13 +66,13 @@
     }
   }
 
-  function handleLowStockPageChange(newOffset, newLimit) {
+  function handleLowStockPageChange(/** @type {number} */ newOffset, /** @type {number | undefined} */ newLimit) {
     if (newLimit !== undefined) lowStockLimit = newLimit;
     lowStockOffset = newOffset;
     fetchLowStock();
   }
 
-  function formatTimeAgo(dateString) {
+  function formatTimeAgo(/** @type {string} */ dateString) {
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -83,7 +85,7 @@
     return date.toLocaleDateString();
   }
 
-  function formatMessageWithLinks(message) {
+  function formatMessageWithLinks(/** @type {string} */ message) {
     return message.replace(/(#TRX-[A-Z0-9]+)/g, '<a href="/reports" class="trx-link">$1</a>');
   }
 </script>

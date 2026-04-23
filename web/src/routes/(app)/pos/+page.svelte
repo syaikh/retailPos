@@ -13,6 +13,7 @@
 	import CartPanel from '$lib/components/pos/CartPanel.svelte';
 	import CheckoutPanel from '$lib/components/pos/CheckoutPanel.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
+	import { calculateTotal } from '$lib/domain/services/CartService';
 
 	// Initialize composables
 	const cart = useCart();
@@ -54,6 +55,9 @@
 	let posLimit = $state(10);
 	let posOffset = $state(0);
 	let searchInput!: HTMLInputElement;
+
+	// Reactive total calculation
+	let cartTotal = $derived(calculateTotal($cartItems));
 
 	// Barcode scanner state
 	let barcodeBuffer = '';
@@ -262,10 +266,11 @@
 			onIncrement={handleIncrement}
 			onDecrement={handleDecrement}
 			onSetQuantity={handleSetQuantity}
+			onClear={cart.clearCart}
 		/>
 
 		<CheckoutPanel
-			total={getTotal()}
+			total={cartTotal}
 			{paymentMethod}
 			isLoading={$checkoutLoading}
 			onCheckout={handleCheckout}

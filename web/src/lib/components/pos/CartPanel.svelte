@@ -9,20 +9,22 @@
 		onRemove,
 		onIncrement,
 		onDecrement,
-		onSetQuantity
+		onSetQuantity,
+		onClear
 	}: {
 		items: CartItem[];
 		onRemove: (id: number) => void;
 		onIncrement: (id: number) => void;
 		onDecrement: (id: number) => void;
 		onSetQuantity: (id: number, qty: number) => void;
+		onClear: () => void;
 	} = $props();
 </script>
 
 <div class="cart-panel">
 	<div class="cart-header">
 		<h2>Keranjang</h2>
-		<button class="clear-btn" onclick={() => items.forEach(i => onRemove(i.id))}>Clear All</button>
+		<button class="clear-btn" onclick={onClear}>Clear All</button>
 	</div>
 
 	<div class="cart-items">
@@ -201,6 +203,7 @@
 
 	.qty-input[type=number] {
 		-moz-appearance: textfield;
+		appearance: textfield;
 	}
 
 	.remove-btn {

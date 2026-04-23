@@ -12,7 +12,7 @@ export const productApi = {
 	 * Get product by barcode
 	 */
 	findByBarcode: (barcode: string) =>
-		client.get<Product | null>(`/products/barcode/${encodeURIComponent(barcode)}`),
+		client.get<Product | null>(`/products?barcode=${encodeURIComponent(barcode)}`),
 
 	/**
 	 * Get all products with optional pagination

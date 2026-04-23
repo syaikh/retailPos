@@ -261,9 +261,9 @@ func main() {
 
 		var id int
 		err := db.QueryRow(
-			`INSERT INTO products (name, sku, barcode, price, stock, group_id)
-			 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-			name, sku, barcodeArg, price, stock, groupID,
+			`INSERT INTO products (name, sku, barcode, price, stock, group_id, store_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+			name, sku, barcodeArg, price, stock, groupID, 1,
 		).Scan(&id)
 		if err != nil {
 			log.Fatalf("insert product %d: %v", i, err)

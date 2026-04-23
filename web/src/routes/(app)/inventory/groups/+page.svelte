@@ -6,8 +6,10 @@
 
   const DEBOUNCE_DELAY = 300;
 
+  /** @type {any[]} */
   let groups = $state([]);
   let showModal = $state(false);
+  /** @type {any} */
   let editingGroup = $state(null);
   let loading = $state(false);
 
@@ -36,7 +38,7 @@
       const { data, total: totalCount } = resp.data;
       groups = Array.isArray(data) ? data : [];
       total = totalCount;
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       console.error('Failed to fetch groups:', e);
       groups = [];
     } finally {
@@ -53,6 +55,7 @@
     fetchGroups();
   });
 
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let searchDebounceTimer = null;
 
   function handleSearchInput() {
@@ -73,7 +76,7 @@
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   });
 
-  function handlePageChange(newOffset, newLimit) {
+  function handlePageChange(/** @type {number} */ newOffset, /** @type {number | undefined} */ newLimit) {
     if (newLimit !== undefined) limit = newLimit;
     offset = newOffset;
   }
@@ -84,13 +87,13 @@
     showModal = true;
   }
 
-  function openEdit(g) {
+  function openEdit(/** @type {any} */ g) {
     editingGroup = g;
     form = { ...g };
     showModal = true;
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(/** @type {SubmitEvent} */ event) {
     event.preventDefault();
     try {
       if (editingGroup) {
@@ -100,22 +103,22 @@
       }
       showModal = false;
       fetchGroups();
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       alert(e.response?.data?.error || 'Operation failed');
     }
   }
 
-  async function deleteGroup(id) {
+  async function deleteGroup(/** @type {number} */ id) {
     if (!confirm('Yakin ingin menghapus kategori ini?')) return;
     try {
       await api.delete(`/product-groups/${id}`);
       fetchGroups();
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       alert(e.response?.data?.error || 'Delete failed');
     }
   }
 
-  function handleSort(field) {
+  function handleSort(/** @type {string} */ field) {
     if (sortField === field) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {

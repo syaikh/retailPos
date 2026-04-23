@@ -601,7 +601,7 @@
             locale={indonesianLocale}
             max={dateRangeEnd}
             placeholder="Pilih tanggal"
-            on:change={fetchChartData}
+            onchange={fetchChartData}
           />
         </div>
         <span class="separator">-</span>
@@ -612,7 +612,7 @@
             locale={indonesianLocale}
             min={dateRangeStart}
             placeholder="Pilih tanggal"
-            on:change={fetchChartData}
+            onchange={fetchChartData}
           />
         </div>
       </div>

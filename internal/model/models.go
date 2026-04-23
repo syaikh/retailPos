@@ -42,9 +42,10 @@ type Sale struct {
 	ID            int        `json:"id" db:"id"`
 	TotalAmount   int        `json:"total_amount" db:"total_amount"`
 	PaymentMethod string     `json:"payment_method" db:"payment_method"`
-	CashierID     int        `json:"cashier_id" db:"cashier_id"`
-	StoreID       *int       `json:"store_id,omitempty" db:"store_id"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	CashierID       int        `json:"cashier_id" db:"cashier_id"`
+	StoreID         *int       `json:"store_id,omitempty" db:"store_id"`
+	TransactionCode string     `json:"transaction_code" db:"-"`
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
 	Items         []SaleItem `json:"items,omitempty"`
 }
 

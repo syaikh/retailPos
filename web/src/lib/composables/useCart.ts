@@ -16,7 +16,7 @@ export function useCart() {
 	 */
 	async function addToCart(product: Product) {
 		try {
-			const { data: freshProduct } = await productApi.findByBarcode(product.barcode || '');
+			const { data: freshProduct } = await productApi.getById(product.id);
 			if (!freshProduct) {
 				ui.error('Produk tidak ditemukan');
 				return;

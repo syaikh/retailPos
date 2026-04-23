@@ -111,6 +111,7 @@ func (r *SalesRepo) GetAll(limit, offset int, search string, sortBy, sortDir str
 		if err := rows.Scan(&s.ID, &s.TotalAmount, &s.PaymentMethod, &s.CashierID, &s.StoreID, &s.CreatedAt); err != nil {
 			return nil, 0, err
 		}
+		s.TransactionCode = fmt.Sprintf("TRX-%06d", s.ID)
 		sales = append(sales, s)
 		saleIds = append(saleIds, s.ID)
 	}

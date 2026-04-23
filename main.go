@@ -119,6 +119,7 @@ func main() {
 			// Protected routes (admin + cashier)
 			protected.GET("/product-groups", h.GetProductGroups)
 			protected.GET("/products", h.GetProducts)
+			protected.GET("/products/:id", h.GetProductByID)
 			protected.GET("/stats", h.GetDashboardStats)
 			protected.GET("/sales", h.GetSalesHistory)
 			protected.POST("/sales", h.CreateSale)
