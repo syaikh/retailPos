@@ -9,7 +9,6 @@
   } from 'lucide-svelte';
 
   import { onMount, onDestroy, tick } from 'svelte';
-  import { DateInput } from 'date-picker-svelte';
   import api from '$lib/api.js';
   import Pagination from '$lib/components/Pagination.svelte';
   import DatePicker from '$lib/components/DatePicker.svelte';

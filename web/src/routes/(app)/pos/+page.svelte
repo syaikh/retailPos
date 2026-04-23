@@ -6,13 +6,13 @@
 	import { useCheckout } from '$lib/composables/useCheckout';
 	import { useProductSearch } from '$lib/composables/useProductSearch';
 	import { useWebSocket } from '$lib/composables/useWebSocket';
-	import { auth, type User } from '$lib/stores/auth';
+	import { auth } from '$lib/stores/auth';
 	import { ui } from '$lib/stores/ui';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import ProductTable from '$lib/components/pos/ProductTable.svelte';
 	import CartPanel from '$lib/components/pos/CartPanel.svelte';
 	import CheckoutPanel from '$lib/components/pos/CheckoutPanel.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
+
 	import { calculateTotal } from '$lib/domain/services/CartService';
 
 	// Initialize composables

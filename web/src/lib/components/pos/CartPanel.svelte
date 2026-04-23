@@ -1,8 +1,6 @@
 <script lang="ts">
-	import type { Product, CartItem } from '$lib/domain/entities';
+	import type { CartItem } from '$lib/domain/entities';
 	import { Plus, Trash2, Minus } from 'lucide-svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
 
 	let {
 		items,

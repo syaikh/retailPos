@@ -9,7 +9,7 @@
 </script>
 
 <span class="stock-badge {level}">
-  {value}
+  {value} pcs
 </span>
 
 <style>

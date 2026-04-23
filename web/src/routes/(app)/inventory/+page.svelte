@@ -262,8 +262,8 @@
   });
 
   function getStockLevel(/** @type {number} */ stock) {
-    if (stock < 5) return 'rendah';
-    if (stock < 20) return 'sedang';
+    if (stock <= 0) return 'rendah';
+    if (stock < 10) return 'sedang';
     return 'aman';
   }
 
@@ -383,8 +383,8 @@
       <thead>
         <tr>
           <th class="col-name">Nama Produk</th>
-          <th class="col-stock">Stok</th>
           <th class="col-price">Harga</th>
+          <th class="col-stock">Stok</th>
           <th>Kategori</th>
           <th>Diperbarui</th>
           <th class="col-actions">Aksi</th>
@@ -396,7 +396,8 @@
             <td>
               <div class="product-name">{p.name}</div>
               <div class="product-meta">
-                <span class="meta-item">
+                <div class="meta-item">
+                  <span class="meta-label">SKU:</span>
                   <code>{p.sku}</code>
                   <button 
                     class="copy-btn" 
@@ -405,10 +406,12 @@
                   >
                     <Copy size={12} />
                   </button>
-                </span>
-                {#if p.barcode}
-                  <span class="meta-item">
-                    <code>{truncateBarcode(p.barcode)}</code>
+                </div>
+                <span class="meta-divider">|</span>
+                <div class="meta-item">
+                  <span class="meta-label">BC:</span>
+                  {#if p.barcode}
+                    <code>{p.barcode}</code>
                     <button 
                       class="copy-btn" 
                       onclick={() => copyToClipboard(p.barcode || '', 'Barcode')}
@@ -416,14 +419,16 @@
                     >
                       <Copy size={12} />
                     </button>
-                  </span>
-                {/if}
+                  {:else}
+                    <span class="text-dim">-</span>
+                  {/if}
+                </div>
               </div>
             </td>
-            <td>
+            <td class="col-price price-cell">Rp {p.price.toLocaleString('id-ID')}</td>
+            <td class="col-stock">
               <StockBadge level={getStockLevel(p.stock)} value={p.stock} />
             </td>
-            <td class="price-cell">Rp {p.price.toLocaleString()}</td>
             <td>
               {#if p.group_id}
                 <span class="group-pill">
@@ -697,18 +702,24 @@
   }
 
   code {
-    background: #1e293b;
-    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 4px;
     border-radius: 4px;
     color: var(--accent);
-    display: inline-block;
+    font-family: monospace;
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
 
   /* Table Redesign */
-  .col-name { width: 30%; }
-  .col-stock { width: 12%; text-align: right; }
-  .col-price { width: 12%; text-align: right; }
-  .col-actions { width: 10%; }
+  .col-name { width: auto; }
+  .col-price { width: 160px; text-align: right; }
+  .col-stock { width: 120px; text-align: right; }
+  .col-actions { width: 100px; }
+
+  /* Ensure spacing between columns */
+  .col-price { padding-right: 24px !important; }
+  .col-stock { padding-left: 12px !important; }
 
   .product-name {
     font-weight: 600;
@@ -718,16 +729,28 @@
 
   .product-meta {
     display: flex;
-    gap: 12px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
     margin-top: 4px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
   }
 
+  .meta-divider {
+    color: var(--border);
+    font-size: 0.75rem;
+  }
+
   .meta-item {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .meta-label {
+    color: var(--text-dim);
+    font-weight: 500;
   }
 
   .copy-btn {

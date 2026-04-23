@@ -2,7 +2,7 @@
 	import type { Product } from '$lib/domain/entities';
 	import { Search, Package, AlertCircle, X, Plus, Copy } from 'lucide-svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
+	import StockBadge from '$lib/components/ui/StockBadge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { ui } from '$lib/stores/ui';
 
@@ -25,6 +25,12 @@
 		onPageChange?: (newOffset: number, newLimit?: number) => void;
 		onAddToCart: (product: Product) => void;
 	} = $props();
+
+	function getStockLevel(stock: number) {
+		if (stock <= 0) return 'rendah';
+		if (stock < 10) return 'sedang';
+		return 'aman';
+	}
 
 	async function copyToClipboard(text: string, label: string) {
 		try {
@@ -108,9 +114,7 @@
 							</td>
 							<td class="col-price price">Rp {product.price.toLocaleString('id-ID')}</td>
 							<td class="col-stock">
-								<Badge variant={product.stock > 0 ? 'success' : 'danger'}>
-									{product.stock} {product.stock <= 0 ? 'habis' : 'pcs'}
-								</Badge>
+								<StockBadge level={getStockLevel(product.stock)} value={product.stock} />
 							</td>
 							<td class="col-action">
 								<Button
@@ -240,7 +244,7 @@
 	/* Column Widths - Balanced */
 	.col-product { width: 55%; }
 	.col-price { width: 160px; text-align: right; }
-	.col-stock { width: 100px; text-align: center; }
+	.col-stock { width: 100px; text-align: right; }
 	.col-action { width: 70px; text-align: center; }
 
 	.product-name {
