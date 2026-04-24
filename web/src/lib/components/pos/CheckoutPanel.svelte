@@ -1,6 +1,6 @@
 <script lang="ts">
 import Button from '$lib/components/ui/Button.svelte';
-import { CreditCard, Banknote } from 'lucide-svelte';
+import { CreditCard, Banknote, ShoppingCart } from 'lucide-svelte';
 
 	let {
 		total = 0,
@@ -14,6 +14,10 @@ import { CreditCard, Banknote } from 'lucide-svelte';
 		onCheckout: () => void;
 	} = $props();
 </script>
+
+{#snippet cartIcon()}
+	<ShoppingCart size={16} />
+{/snippet}
 
 <div class="checkout-panel">
 	<div class="payment-methods">
@@ -40,16 +44,17 @@ import { CreditCard, Banknote } from 'lucide-svelte';
 		<div class="total-amount">Rp {total.toLocaleString()}</div>
 	</div>
 
-	<Button
-		class="checkout-btn"
-		variant="primary"
-		size="lg"
-		loading={isLoading}
-		disabled={isLoading || total <= 0}
-		onclick={onCheckout}
-	>
-		{isLoading ? 'Memproses...' : 'BAYAR SEKARANG'}
-	</Button>
+<Button
+  class="checkout-btn"
+  variant={undefined}
+  size={undefined}
+  loading={isLoading}
+  disabled={isLoading || total <= 0}
+  onclick={onCheckout}
+  icon={cartIcon}
+>
+  {isLoading ? 'Memproses...' : 'BAYAR SEKARANG'}
+</Button>
 </div>
 
 <style>
@@ -117,42 +122,33 @@ import { CreditCard, Banknote } from 'lucide-svelte';
 		color: var(--accent);
 	}
 
-	.checkout-btn {
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
-		box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+	:global(.checkout-btn) {
+		background: var(--success);
+		color: white;
+		padding: 8px 12px;
+		border-radius: 6px;
 		border: none;
-		padding: 14px 24px;
-		font-size: 1rem;
-		transition: all 0.3s ease;
-		position: relative;
-		overflow: hidden;
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-weight: 600;
+		transition: all 0.2s;
 	}
 
-	.checkout-btn::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: -100%;
-		width: 100%;
-		height: 100%;
-		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-		transition: left 0.5s ease;
+	:global(.checkout-btn:hover:not(:disabled)) {
+		background: var(--success);
+		opacity: 0.9;
 	}
 
-	.checkout-btn:hover:not(:disabled)::before {
-		left: 100%;
+	:global(.checkout-btn:active:not(:disabled)) {
+		transform: scale(0.98);
 	}
 
-	.checkout-btn:hover:not(:disabled) {
-		box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
-		transform: translateY(-2px);
-	}
-
-	.checkout-btn:active:not(:disabled) {
-		transform: translateY(0px);
-		box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
+	/* Ensure icon has proper size and color */
+	:global(.checkout-btn .lucide) {
+		width: 1rem;
+		height: 1rem;
+		color: white;
 	}
 </style>

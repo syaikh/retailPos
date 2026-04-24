@@ -9,6 +9,7 @@
 		loading = false,
 		class: className = '',
 		children,
+		icon,
 		...rest
 	}: HTMLButtonAttributes & {
 		variant?: 'primary' | 'secondary' | 'ghost' | 'destructive';
@@ -16,6 +17,7 @@
 		loading?: boolean;
 		class?: string;
 		children: Snippet;
+		icon?: Snippet;
 	} = $props();
 
 	const variants = {
@@ -41,8 +43,12 @@
 		<svg class="spinner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 			<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="30 60" />
 		</svg>
+	{:else}
+		{#if icon}
+			<div class="button-icon">{@render icon()}</div>
+		{/if}
+		<div class="button-content">{@render children()}</div>
 	{/if}
-	{@render children()}
 </button>
 
 <style>
@@ -59,6 +65,10 @@
 
 	.btn:disabled {
 		cursor: not-allowed;
+	}
+
+	.button-icon {
+		flex-shrink: 0;
 	}
 
 	.spinner {
