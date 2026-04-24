@@ -341,6 +341,7 @@
 		flex-direction: column;
 		height: 100%;
 		overflow: hidden;
+		min-height: 0;
 	}
 
 	.ws-indicator {
