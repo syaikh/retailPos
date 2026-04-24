@@ -22,7 +22,6 @@ export function useCart() {
 				return;
 			}
 			cart.update(items => addItem(items, freshProduct));
-			ui.success('Produk ditambahkan ke keranjang');
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Gagal menambahkan produk';
 			ui.error(message);

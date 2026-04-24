@@ -118,15 +118,41 @@ import { CreditCard, Banknote } from 'lucide-svelte';
 	}
 
 	.checkout-btn {
-		font-weight: 700;
-		letter-spacing: 0.05em;
+		font-weight: 800;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-		transition: all 0.2s ease;
+		background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+		box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+		border: none;
+		padding: 14px 24px;
+		font-size: 1rem;
+		transition: all 0.3s ease;
+		position: relative;
+		overflow: hidden;
+	}
+
+	.checkout-btn::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+		transition: left 0.5s ease;
+	}
+
+	.checkout-btn:hover:not(:disabled)::before {
+		left: 100%;
 	}
 
 	.checkout-btn:hover:not(:disabled) {
-		box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-		transform: translateY(-1px);
+		box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+		transform: translateY(-2px);
+	}
+
+	.checkout-btn:active:not(:disabled) {
+		transform: translateY(0px);
+		box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
 	}
 </style>
