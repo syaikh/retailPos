@@ -132,8 +132,10 @@ func (h *Handler) Login(c *gin.Context) {
 		Expires:  time.Now().Add(24 * time.Hour),
 	})
 
-	// Token tidak lagi di-response body
-	c.JSON(http.StatusOK, gin.H{"user": user})
+	c.JSON(http.StatusOK, gin.H{
+		"user":          user,
+		"refresh_token": tokenPair.RefreshToken,
+	})
 }
 
 func (h *Handler) Logout(c *gin.Context) {

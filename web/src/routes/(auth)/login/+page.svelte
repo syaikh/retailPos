@@ -14,7 +14,11 @@
     error = '';
     loading = true;
     try {
-      await client.post('/login', { username, password });
+      const { data: loginData } = await client.post('/login', { username, password });
+      
+      if (loginData.refresh_token) {
+        sessionStorage.setItem('refresh_token', loginData.refresh_token);
+      }
       
       const { data } = await client.get('/auth/validate');
       

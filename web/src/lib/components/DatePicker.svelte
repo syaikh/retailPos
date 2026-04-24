@@ -73,6 +73,84 @@
     // Hide picker
     showPicker = false;
   }
+  
+  // Hide empty week rows in the date picker
+  let observer: MutationObserver | null = null;
+  
+  function hideEmptyWeeks() {
+    if (typeof document === 'undefined') return;
+    
+    const picker = document.querySelector('.date-input-wrapper .picker');
+    if (!picker) return;
+    
+    const weeks = picker.querySelectorAll('.week');
+    weeks.forEach((week) => {
+      const cells = week.querySelectorAll('.cell');
+      let allOtherMonth = true;
+      
+      cells.forEach((cell) => {
+        if (!cell.classList.contains('other-month')) {
+          allOtherMonth = false;
+        }
+      });
+      
+      // Hide week if all cells are from other months
+      if (allOtherMonth && cells.length > 0) {
+        (week as HTMLElement).style.display = 'none';
+      } else {
+        (week as HTMLElement).style.display = 'flex';
+      }
+    });
+  }
+  
+  function setupObserver() {
+    if (typeof document === 'undefined') return;
+    
+    // Disconnect previous observer
+    if (observer) {
+      observer.disconnect();
+    }
+    
+    // Use setTimeout to ensure picker is rendered
+    setTimeout(() => {
+      const picker = document.querySelector('.date-input-wrapper .picker');
+      if (!picker) return;
+      
+      // Hide empty weeks initially
+      hideEmptyWeeks();
+      
+      // Observe changes to the picker (e.g., month navigation)
+      observer = new MutationObserver(() => {
+        hideEmptyWeeks();
+      });
+      
+      observer.observe(picker, {
+        childList: true,
+        subtree: true
+      });
+    }, 50);
+  }
+  
+  // Watch for showPicker changes to hide empty weeks and setup observer
+  $effect(() => {
+    if (showPicker) {
+      setupObserver();
+    } else {
+      // Cleanup observer when picker is closed
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    }
+    
+    // Cleanup on component destroy
+    return () => {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    };
+  });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -150,5 +228,14 @@
   .cancel-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: white;
+  }
+  
+  /* Hide week rows that only contain other-month days */
+  :global(.picker .week) {
+    display: flex;
+  }
+  
+  :global(.picker .week:empty) {
+    display: none;
   }
 </style>

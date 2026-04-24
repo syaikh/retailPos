@@ -38,13 +38,14 @@
 
   function dateToString(date: Date | null) {
     if (!date) return '';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    // Use local time instead of UTC to avoid timezone issues
-    const year = d.getFullYear();
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // Use Asia/Jakarta timezone to match backend database timezone
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return formatter.format(date);
   }
 
   let transactions = $state<Transaction[]>([]);
@@ -90,12 +91,29 @@
     if (!dateStr) return '';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    const day = d.getDate();
-    const month = monthNames[d.getMonth()];
-    const year = d.getFullYear();
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
-    return `${day} ${month} ${year} ${hours}:${minutes}`;
+    // Use Asia/Jakarta timezone to match backend
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(d);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const hour = parts.find(p => p.type === 'hour')?.value || '';
+    const minute = parts.find(p => p.type === 'minute')?.value || '';
+    
+    // Convert month number to name
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const monthIndex = parseInt(month) - 1;
+    const monthName = monthNames[monthIndex] || month;
+    
+    return `${day} ${monthName} ${year} ${hour}:${minute}`;
   }
 
   function getPaymentMethodLabel(method: string) {
@@ -104,7 +122,20 @@
     return method;
   }
 
-  const today = new Date();
+  // Get today's date in Asia/Jakarta timezone
+  function getTodayInJakarta() {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const dateStr = formatter.format(now);
+    return new Date(dateStr + 'T00:00:00');
+  }
+  
+  const today = getTodayInJakarta();
   const defaultStart = new Date(today);
   defaultStart.setDate(today.getDate() - 7);
   dateRangeStart = defaultStart;
@@ -145,6 +176,39 @@
       chartError = e.response?.data?.error || e.message;
       chartLoading = false;
     }
+  }
+
+  function handleEndDateChange(newEndDate: Date | null) {
+    if (!newEndDate) {
+      dateRangeEnd = newEndDate;
+      return;
+    }
+    
+    // Validate that endDate is not less than startDate
+    if (dateRangeStart && newEndDate < dateRangeStart) {
+      // If endDate is less than startDate, set it to startDate
+      dateRangeEnd = new Date(dateRangeStart);
+    } else {
+      dateRangeEnd = newEndDate;
+    }
+    
+    fetchChartData();
+  }
+
+  function handleStartDateChange(newStartDate: Date | null) {
+    if (!newStartDate) {
+      dateRangeStart = newStartDate;
+      return;
+    }
+    
+    // Validate that startDate is not greater than endDate
+    if (dateRangeEnd && newStartDate > dateRangeEnd) {
+      // If startDate is greater than endDate, adjust endDate
+      dateRangeEnd = new Date(newStartDate);
+    }
+    
+    dateRangeStart = newStartDate;
+    fetchChartData();
   }
 
   function formatChartLabel(label: string, groupByValue: string) {
@@ -598,9 +662,9 @@
             bind:value={dateRangeStart}
             format="dd MMM yyyy"
             locale={indonesianLocale}
-            max={dateRangeEnd}
+            max={today}
             placeholder="Pilih tanggal"
-            onchange={fetchChartData}
+            onchange={handleStartDateChange}
           />
         </div>
         <span class="separator">-</span>
@@ -609,9 +673,9 @@
             bind:value={dateRangeEnd}
             format="dd MMM yyyy"
             locale={indonesianLocale}
-            min={dateRangeStart}
+            max={today}
             placeholder="Pilih tanggal"
-            onchange={fetchChartData}
+            onchange={handleEndDateChange}
           />
         </div>
       </div>
