@@ -25,6 +25,7 @@
       if (data.user) {
         auth.setUser(data.user);
         
+        // Permission-based redirect
         const perms = data.user.permissions || [];
         if (perms.includes('dashboard:read')) {
           goto('/');
@@ -42,70 +43,122 @@
   }
 </script>
 
-<div class="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#1e1b4b,#0f172a)]">
-  <div class="w-full max-w-[400px] p-10 bg-[var(--color-glass)] backdrop-blur-md border border-[var(--color-border)] rounded-xl">
-    <div class="text-center mb-8">
-      <LogIn size={40} color="var(--color-primary)" />
-      <h1 class="mt-4 text-2xl font-bold">RetailPOS</h1>
-      <p class="text-sm text-[var(--color-text-secondary)]">Masuk ke sistem kasir & stok</p>
+<div class="login-container">
+  <div class="login-card premium-card glass">
+    <div class="header">
+      <LogIn size={40} color="var(--primary)" />
+      <h1>RetailPOS</h1>
+      <p>Masuk ke sistem kasir & stok</p>
     </div>
 
-    <form onsubmit={handleLogin} class="space-y-5">
-      <div class="mb-5">
-        <label for="username" class="block mb-2 text-sm text-[var(--color-text-secondary)]">Username</label>
-        <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]">
-            <User size={18} />
-          </span>
-          <input
-            type="text"
-            id="username"
-            bind:value={username}
-            placeholder="Username admin/cashier"
-            required
-            class="w-full pl-10 h-12 bg-transparent border border-[var(--color-border)] rounded-lg text-white placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-          />
+    <form onsubmit={handleLogin}>
+      <div class="field">
+        <label for="username">Username</label>
+        <div class="input-wrapper">
+          <span class="icon"><User size={18} /></span>
+          <input type="text" id="username" bind:value={username} placeholder="Username admin/cashier" required />
         </div>
       </div>
 
-      <div class="mb-5">
-        <label for="password" class="block mb-2 text-sm text-[var(--color-text-secondary)]">Password</label>
-        <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]">
-            <Key size={18} />
-          </span>
-          <input
-            type="password"
-            id="password"
-            bind:value={password}
-            placeholder="••••••••"
-            required
-            class="w-full pl-10 h-12 bg-transparent border border-[var(--color-border)] rounded-lg text-white placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-          />
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="input-wrapper">
+          <span class="icon"><Key size={18} /></span>
+          <input type="password" id="password" bind:value={password} placeholder="••••••••" required />
         </div>
       </div>
 
       {#if error}
-        <div class="p-2.5 mb-4 rounded-md text-sm text-center text-[var(--color-danger)] bg-[var(--color-danger)]/10">{error}</div>
+        <div class="error-msg">{error}</div>
       {/if}
 
-      <button
-        type="submit"
-        disabled={loading}
-        class="w-full h-12 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium mt-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {#if loading}
-          <span class="flex items-center justify-center gap-2">
-            <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Memproses...
-          </span>
-        {:else}
-          Masuk
-        {/if}
+      <button type="submit" class="login-btn" disabled={loading}>
+        {loading ? 'Memproses...' : 'Login'}
       </button>
     </form>
   </div>
 </div>
+
+<style>
+  .login-container {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .header h1 {
+    margin-top: 16px;
+    font-size: 1.75rem;
+    font-weight: 800;
+  }
+
+  .header p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .input-wrapper {
+    position: relative;
+  }
+
+  .icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+  }
+
+  input {
+    width: 100%;
+    padding-left: 40px;
+    height: 48px;
+  }
+
+  .login-btn {
+    width: 100%;
+    height: 48px;
+    background: var(--primary);
+    color: white;
+    font-size: 1rem;
+    margin-top: 12px;
+  }
+
+  .login-btn:hover {
+    background: var(--primary-hover);
+  }
+
+  .error-msg {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+</style>
