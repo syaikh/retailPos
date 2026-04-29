@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/google/uuid"
 )
 
 var (
@@ -165,6 +166,7 @@ func (s *AuthService) generateRefreshToken(user *domain.User) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "retail-pos-system-refresh",
+			ID:        uuid.New().String(), // unique JTI to prevent token collisions
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

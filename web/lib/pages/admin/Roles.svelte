@@ -112,21 +112,25 @@
   </Card>
 {/if}
 
-{#if showModal}
-   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showModal = false}>
-     <div class="bg-white rounded-lg p-6 w-full max-w-md" onclick={(e) => { e.stopPropagation(); }}>
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">{editingRole ? 'Edit Role' : 'Tambah Role Baru'}</h2>
-         <button onclick={() => showModal = false} class="text-gray-500 hover:text-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-      </div>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium mb-1">Nama Role</label>
-          <input type="text" bind:value={newRoleName} class="w-full px-3 py-2 border rounded" placeholder="Contoh: editor" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Permissions</label>
-          <div class="flex flex-wrap gap-2 max-h-48 overflow-y-auto border rounded p-2">
+ {#if showModal}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showModal = false} onkeydown={(e) => { if (e.key === 'Escape') showModal = false; }} role="dialog" aria-modal="true" tabindex="-1">
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+      <div class="bg-white rounded-lg p-6 w-full max-w-md" onclick={(e) => { e.stopPropagation(); }} role="document">
+       <div class="flex justify-between items-center mb-4">
+         <h2 class="text-xl font-bold">{editingRole ? 'Edit Role' : 'Tambah Role Baru'}</h2>
+          <button onclick={() => showModal = false} class="text-gray-500 hover:text-gray-700" aria-label="Close modal"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+       </div>
+       <div class="space-y-4">
+         <div>
+           <label for="role_name" class="block text-sm font-medium mb-1">Nama Role</label>
+           <input id="role_name" type="text" bind:value={newRoleName} class="w-full px-3 py-2 border rounded" placeholder="Contoh: editor" />
+         </div>
+         <div>
+           <h3 class="block text-sm font-medium mb-1">Permissions</h3>
+           <div class="flex flex-wrap gap-2 max-h-48 overflow-y-auto border rounded p-2">
             {#each permissions as perm}
               <label class="flex items-center gap-1 text-sm">
                 <input type="checkbox" value={perm.code} bind:group={selectedPerms} />

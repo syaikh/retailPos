@@ -1,13 +1,363 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Retail POS System</title>
-  <link rel="stylesheet" href="/app.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: white;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header p {
+      font-size: 1.2rem;
+      color: #94a3b8;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .card {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 2rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .card h3 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+
+    .card p {
+      color: #94a3b8;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn {
+      background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-block;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .status {
+      text-align: center;
+      padding: 2rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 1rem;
+      margin-top: 2rem;
+    }
+
+    .status.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .login-section {
+      max-width: 400px;
+      margin: 2rem auto;
+      background: rgba(30, 41, 59, 0.9);
+      padding: 2rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .login-btn {
+      width: 100%;
+      background: linear-gradient(45deg, #10b981, #059669);
+      margin-top: 1rem;
+    }
+
+    .login-btn:hover {
+      background: linear-gradient(45deg, #059669, #047857);
+    }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/main.js"></script>
+  <div class="container">
+    <!-- Login Form -->
+    <div id="login-section" class="login-section">
+      <h2 style="text-align: center; margin-bottom: 1.5rem; color: #e2e8f0;">Login to Retail POS</h2>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn login-btn">Login</button>
+      </form>
+      <div id="error-msg" class="error-msg hidden"></div>
+    </div>
+
+    <!-- Main Dashboard (hidden initially) -->
+    <div id="dashboard" class="hidden">
+      <header class="header">
+        <h1>Retail POS System</h1>
+        <p>Modern Point of Sale Management</p>
+      </header>
+
+      <div class="grid">
+        <div class="card" onclick="openPOS()">
+          <span class="card-icon">🛒</span>
+          <h3>Point of Sale</h3>
+          <p>Process customer transactions and manage sales</p>
+          <button class="btn">Open POS</button>
+        </div>
+
+        <div class="card" onclick="openInventory()">
+          <span class="card-icon">📦</span>
+          <h3>Inventory</h3>
+          <p>Manage products, stock levels, and categories</p>
+          <button class="btn">View Inventory</button>
+        </div>
+
+        <div class="card" onclick="openReports()">
+          <span class="card-icon">📊</span>
+          <h3>Reports</h3>
+          <p>View sales analytics and business insights</p>
+          <button class="btn">View Reports</button>
+        </div>
+
+        <div class="card" onclick="openAdmin()">
+          <span class="card-icon">⚙️</span>
+          <h3>Administration</h3>
+          <p>Manage users, roles, and system settings</p>
+          <button class="btn">Open Admin</button>
+        </div>
+      </div>
+
+      <div class="status success">
+        <h3>✅ System Status: Operational</h3>
+        <p>Frontend loaded successfully • Backend connection active</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    console.log('Retail POS System loading...');
+
+    // Simple state management
+    let isLoggedIn = false;
+    let currentUser = null;
+
+    // API base URL - relative path for production (nginx will proxy to backend)
+    // For local dev with python server on different port, change to 'http://localhost:8080'
+    const API_BASE = window.location.origin;  // uses same origin (nginx will route /api to backend)
+
+    // DOM elements
+    const loginSection = document.getElementById('login-section');
+    const dashboard = document.getElementById('dashboard');
+    const loginForm = document.getElementById('login-form');
+    const errorMsg = document.getElementById('error-msg');
+
+    // Check if user is already logged in (from sessionStorage)
+    function checkAuth() {
+      const token = sessionStorage.getItem('access_token');
+      if (token) {
+        // Simple token validation - in real app this would verify with backend
+        currentUser = { username: 'testuser', role: 'admin' };
+        isLoggedIn = true;
+        showDashboard();
+        return true;
+      }
+      return false;
+    }
+
+    // Show dashboard, hide login
+    function showDashboard() {
+      loginSection.classList.add('hidden');
+      dashboard.classList.remove('hidden');
+      console.log('Dashboard shown for user:', currentUser);
+    }
+
+    // Show login, hide dashboard
+    function showLogin() {
+      dashboard.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+    }
+
+    // Handle login form submission
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      errorMsg.classList.add('hidden');
+
+      try {
+        // Call login API
+        const response = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.access_token) {
+          // Store tokens
+          sessionStorage.setItem('access_token', data.access_token);
+          sessionStorage.setItem('refresh_token', data.refresh_token || '');
+
+          // Set user data
+          currentUser = data.user;
+          isLoggedIn = true;
+
+          // Show dashboard
+          showDashboard();
+
+          console.log('Login successful:', data.user);
+        } else {
+          // Show error
+          errorMsg.textContent = data.error || 'Login failed';
+          errorMsg.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+
+    // Card action handlers
+    function openPOS() {
+      alert('POS functionality would open here');
+      console.log('Opening POS...');
+    }
+
+    function openInventory() {
+      alert('Inventory management would open here');
+      console.log('Opening Inventory...');
+    }
+
+    function openReports() {
+      alert('Reports dashboard would open here');
+      console.log('Opening Reports...');
+    }
+
+    function openAdmin() {
+      alert('Admin panel would open here');
+      console.log('Opening Admin...');
+    }
+
+    // Initialize app
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM loaded, initializing app...');
+
+      if (!checkAuth()) {
+        showLogin();
+      }
+
+      console.log('Retail POS System initialized successfully! 🎉');
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,92 @@
+# =============================================================================
+# Systemd service for Retail POS System (Podman)
+# =============================================================================
+# This service starts the entire application as a pod with multiple containers.
+#
+# Installation:
+#   1. Build images:  podman build -t retail-pos-backend -f deploy/backend/Dockerfile .
+#                    podman build -t retail-pos-frontend -f deploy/frontend/Dockerfile .
+#   2. Copy this file: sudo cp deploy/retail-pos.service /etc/systemd/system/
+#   3. Reload systemd: sudo systemctl daemon-reload
+#   4. Enable service: sudo systemctl enable retail-pos
+#   5. Start service:  sudo systemctl start retail-pos
+#   6. Check status:   sudo systemctl status retail-pos
+#
+# Note: This service uses podman pod with restart policies on containers.
+# =============================================================================
+
+[Unit]
+Description=Retail POS System
+Documentation=https://github.com/your-repo/retail-pos-system
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/posuser/retail-pos-system
+
+# Podman executable
+ExecStartPre=/usr/bin/podman pod create \
+    --name retail-pos-pod \
+    --network bridge \
+    -p 80:80 \
+    -p 443:443 \
+    -p 8080:8080
+
+# PostgreSQL container
+ExecStartPre=/usr/bin/podman run -d \
+    --pod retail-pos-pod \
+    --name retail-pos-postgres \
+    -e POSTGRES_USER=pos \
+    -e POSTGRES_PASSWORD_FILE=/run/secrets/db_password \
+    -e POSTGRES_DB=retail_pos \
+    -v retail-pos-postgres-data:/var/lib/postgresql/data \
+    --restart unless-stopped \
+    postgres:15-alpine
+
+# Backend container
+ExecStartPre=/usr/bin/podman run -d \
+    --pod retail-pos-pod \
+    --name retail-pos-backend \
+    -e DB_HOST=localhost \
+    -e DB_PORT=5432 \
+    -e DB_USER=pos \
+    -e DB_PASSWORD_FILE=/run/secrets/db_password \
+    -e DB_NAME=retail_pos \
+    -e GIN_MODE=release \
+    --restart unless-stopped \
+    retail-pos-backend:latest
+
+# Frontend container
+ExecStartPre=/usr/bin/podman run -d \
+    --pod retail-pos-pod \
+    --name retail-pos-frontend \
+    --restart unless-stopped \
+    retail-pos-frontend:latest
+
+# Main start command (just a marker)
+ExecStart=/bin/true
+
+# Stop all containers in the pod
+ExecStop=/usr/bin/podman pod stop retail-pos-pod
+ExecStopPost=/usr/bin/podman pod rm retail-pos-pod
+
+# Restart policy (oneshot services use this)
+Restart=on-failure
+RestartSec=10
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/posuser/retail-pos-system
+ReadWritePaths=/var/lib/containers/storage
+
+# Resources (adjust as needed)
+# MemoryLimit=2G
+# CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

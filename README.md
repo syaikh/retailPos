@@ -1,468 +1,583 @@
 # Retail POS System
 
-A modern, real-time Point of Sale system built with Go backend, Svelte frontend, and PostgreSQL database. Features JWT authentication, WebSocket real-time updates, role-based access control (RBAC), and thermal receipt printing.
+Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, penjualan, reporting, dan kontrol akses berbasis role.
 
 ## 🚀 Features
 
-### Core Functionality
-- **User Management**: Multi-role user system (Super Admin, Admin, Manager, Cashier)
-- **Product Inventory**: SKU-based product management with categories
-- **Sales Transactions**: Real-time POS with cart management and receipt generation
-- **Dashboard Analytics**: Sales statistics and inventory insights
-- **Audit Logging**: Complete transaction and user activity tracking
-
-### Technical Features
-- **JWT Authentication**: Secure token-based authentication with refresh tokens
-- **Role-Based Access Control**: Granular permissions system
-- **Real-time Updates**: WebSocket broadcasting for live inventory and sales updates
-- **Thermal Receipt Printing**: Browser-based receipt generation (58mm thermal format)
-- **RESTful API**: Clean, documented API endpoints
-- **Database Migrations**: Automated schema management
-- **Comprehensive Testing**: 30+ unit and integration tests
-
-### Security
-- Password hashing with bcrypt
-- CORS protection
-- Rate limiting on WebSocket connections
-- Origin validation for WebSocket upgrades
-- Connection limits per user
-- SQL injection prevention
+- **Point of Sale (POS)** - Transaksi penjualan dengan scanner, diskon, payment methods
+- **Inventory Management** - Tracking stok, movement, low stock alerts
+- **User Management** - RBAC (Role-Based Access Control) dengan permissions
+- **Audit Logging** - Full audit trail untuk semua aksi
+- **Real-time Dashboard** - Statistik penjualan, revenue, analytics
+- **WebSocket Support** - Notifikasi real-time
+- **Multi-store Ready** - Architecture mendukung multiple stores
 
 ## 🏗️ Architecture
 
-The application follows Clean Architecture principles:
-
 ```
-cmd/                    # Application entrypoints
-├── server/            # Main HTTP server
-├── migrate/           # Database migration tool
-└── seed/              # Database seeding tool
-
-internal/
-├── domain/            # Business entities and models
-├── repository/        # Data access layer (PostgreSQL)
-├── auth/              # Authentication & authorization
-├── middleware/        # HTTP middleware (auth, CORS)
-└── delivery/http/     # HTTP handlers and routing
-
-pkg/websocket/         # Real-time WebSocket hub
-web/                   # Svelte frontend application
-database/              # SQL migrations and seed data
+┌─────────────────────────────────────────────────────────┐
+│                    Frontend (Nginx)                     │
+│  Port 5173 (HTTP) / 443 (HTTPS)                        │
+│  Serves static files + Reverse Proxy                   │
+└────────────┬────────────────────────────────────────────┘
+             │ /api/* → Backend
+             │ /ws/*  → WebSocket
+┌────────────┴────────────────────────────────────────────┐
+│              Podman Pod (Shared Network)               │
+├──────────────┬──────────────┬───────────────────────────┤
+│ PostgreSQL   │ Go Backend   │ Nginx Frontend           │
+│ Port 5432    │ Port 8080    │ Port 8081 → Host 5173    │
+│ (Volume)     │ (Stateless)  │ (Static files)           │
+└──────────────┴──────────────┴───────────────────────────┘
 ```
 
-## 📋 Prerequisites
+**Tech Stack:**
+- **Backend:** Go (Gin), PostgreSQL, JWT Auth, WebSocket (gorilla/websocket)
+- **Frontend:** HTML/CSS/JavaScript (Vanilla - no framework needed)
+- **Infrastructure:** Podman (rootless), Nginx, systemd
 
-- **Go 1.21+** (tested with 1.21)
-- **PostgreSQL 15+** (tested with PostgreSQL 18)
-- **Node.js 18+** (for frontend development)
-- **Podman/Docker** (for database container, optional)
+## 📦 Quick Start (5 menit)
 
-## 🚀 Quick Start
-
-### Option 1: One-Command Setup (Recommended)
+### Prerequisites
 
 ```bash
-# Start PostgreSQL in Podman
-podman run -d --name postgres18 -p 5432:5432 \
-  -e POSTGRES_USER=devuser \
-  -e POSTGRES_PASSWORD=devuser123 \
-  -e POSTGRES_DB=retailpos \
-  postgres:18
+# Fedora/RHEL/CentOS
+sudo dnf install podman git make
 
-# Wait for database to be ready
-sleep 10
+# Ubuntu/Debian
+sudo apt install podman git make
+```
 
-# Clone and setup project
-cd /path/to/projects
-git clone <repository-url> retail-pos-system
+### 1. Clone Repository
+
+```bash
+git clone <repository-url>
 cd retail-pos-system
-
-# Build and run
-go build -o retailpos ./cmd/server
-go build -o seeder ./cmd/seeder
-./seeder
-
-# Set environment and run
-export DB_HOST=localhost DB_PORT=5432 DB_USER=devuser \
-       DB_PASSWORD=devuser123 DB_NAME=retailpos \
-       JWT_SECRET=your-secret-key-change-in-production \
-       PORT=8080
-./retailpos
 ```
 
-### Option 2: Manual Setup
-
-#### 1. Start PostgreSQL
+### 2. Build Images
 
 ```bash
-# Using Podman
-podman run -d --name postgres18 -p 5432:5432 \
-  -e POSTGRES_USER=devuser \
-  -e POSTGRES_PASSWORD=devuser123 \
-  -e POSTGRES_DB=retailpos \
-  postgres:18
+# Backend (Go binary)
+make build-backend
 
-# Or using Docker
-docker run -d --name postgres18 -p 5432:5432 \
-  -e POSTGRES_USER=devuser \
-  -e POSTGRES_PASSWORD=devuser123 \
-  -e POSTGRES_DB=retailpos \
-  postgres:18
+# Frontend (Nginx + static files)
+make build-frontend
 
-# Or local PostgreSQL installation
-# Create database and user manually
+# Or build both:
+make build-all
 ```
 
-#### 2. Build the Application
+### 3. Deploy dengan Podman
 
 ```bash
-# Navigate to project directory
-cd retail-pos-system
+# Start all services (Postgres + Backend + Nginx)
+./deploy/podman-deploy.sh start
 
-# Download dependencies
-go mod tidy
-
-# Build server binary
-go build -o retailpos ./cmd/server
-
-# Build utility tools
-go build -o seeder ./cmd/seeder
-go build -o migrate ./cmd/migrate
+# Wait for services to be ready (~10 detik)
+./deploy/podman-deploy.sh status
 ```
 
-#### 3. Initialize Database
+### 4. Access Application
+
+```
+Frontend: http://localhost:5173
+Default credentials:
+  Username: superadmin
+  Password: admin123
+```
+
+## 🔧 Detailed Installation
+
+### Using Podman (Recommended Production)
+
+The `deploy/podman-deploy.sh` script automates everything:
 
 ```bash
-# Run database migrations and seed data
-./seeder
+# Start services
+./deploy/podman-deploy.sh start
+
+# Check status
+./deploy/podman-deploy.sh status
+
+# View logs
+./deploy/podman-deploy.sh logs          # all services
+./deploy/podman-deploy.sh logs backend  # specific service
+
+# Stop services
+./deploy/podman-deploy.sh stop
+
+# Restart
+./deploy/podman-deploy.sh restart
 ```
 
-#### 4. Configure Environment
+**What it does:**
+1. Creates a Podman pod with shared network
+2. Starts PostgreSQL container with persistent volume
+3. Runs database migrations & seeds (roles, permissions, users)
+4. Starts Go backend container (listens on port 8080 internally)
+5. Starts Nginx frontend container (maps host port 5173 → container 8081)
+6. Waits for backend to be healthy
+7. Shows connection details
+
+### Systemd Service (Auto-start on Boot)
+
+For production servers, configure systemd:
 
 ```bash
-# Set required environment variables
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=devuser
-export DB_PASSWORD=devuser123
-export DB_NAME=retailpos
-export JWT_SECRET=your-secret-key-change-in-production
-export PORT=8080
-export FRONTEND_URL=http://localhost:5173  # For CORS
+# Option 1: Use generated service
+podman generate systemd --name retail-pos-pod --new --files
+sudo cp retail-pos-pod*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now retail-pos-pod.service
+
+# Option 2: Use pre-made service
+sudo cp deploy/retail-pos.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now retail-pos
 ```
 
-#### 5. Run the Application
+Check status:
+```bash
+sudo systemctl status retail-pos
+sudo journalctl -u retail-pos -f
+```
+
+### Docker Compose Alternative
+
+If you prefer Docker Compose:
 
 ```bash
-# Start the server
-./retailpos
+# Build images first
+podman build -t retail-pos-backend -f deploy/backend/Dockerfile .
+podman build -t retail-pos-frontend -f deploy/frontend/Dockerfile .
 
-# Server will start on http://localhost:8080
+# Start with compose
+podman compose -f deploy/docker-compose.yml up -d
+
+# Check status
+podman compose -f deploy/docker-compose.yml ps
+
+# View logs
+podman compose -f deploy/docker-compose.yml logs -f
+
+# Stop
+podman compose -f deploy/docker-compose.yml down
 ```
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
+Backend (in `deploy/podman-deploy.sh` or systemd service):
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_HOST` | `localhost` | PostgreSQL host |
+| `DB_HOST` | `localhost` | PostgreSQL host (inside pod) |
 | `DB_PORT` | `5432` | PostgreSQL port |
-| `DB_USER` | `devuser` | Database username |
-| `DB_PASSWORD` | `devuser123` | Database password |
-| `DB_NAME` | `retailpos` | Database name |
-| `JWT_SECRET` | `your-secret-key-change-in-production` | JWT signing secret |
-| `PORT` | `8080` | HTTP server port |
-| `FRONTEND_URL` | `http://localhost:5173` | Frontend URL for CORS |
+| `DB_USER` | `pos` | Database username |
+| `DB_PASSWORD` | (auto-generated) | Database password |
+| `DB_NAME` | `retail_pos` | Database name |
+| `GIN_MODE` | `release` | Gin framework mode |
 
-## 📖 API Documentation
+Postgres (in deployment script):
 
-### Authentication
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_USER` | `pos` | DB superuser |
+| `POSTGRES_PASSWORD` | (auto-generated) | DB password |
+| `POSTGRES_DB` | `retail_pos` | Initial database |
 
-#### Login
-```http
-POST /api/login
-Content-Type: application/json
+Frontend:
+- `VITE_API_URL` set to `/api` during build (npx will proxy to backend)
 
-{
-  "username": "superadmin",
-  "password": "admin123"
-}
+### Changing Ports
+
+Edit `deploy/podman-deploy.sh`:
+
+```bash
+HOST_FRONTEND_PORT=8080   # External port (host)
 ```
 
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": 1,
-    "username": "superadmin",
-    "email": "superadmin@retailpos.local",
-    "role_id": 1,
-    "is_active": true
-  }
-}
+Or set environment variable before running:
+```bash
+HOST_FRONTEND_PORT=80 ./deploy/podman-deploy.sh start
+# Note: port 80 requires rootful podman or capability
 ```
 
-#### Refresh Token
-```http
-POST /api/refresh
-Authorization: Bearer <refresh_token>
+### Custom Database Credentials
+
+```bash
+# Create .env file
+cp deploy/.env.example .env
+# Edit .env with your values
+
+# Or set inline
+DB_USER=myuser DB_PASSWORD=mypass ./deploy/podman-deploy.sh start
 ```
 
-### Products
+## 🔐 Security
 
-#### Get Products
-```http
-GET /api/products
-Authorization: Bearer <access_token>
+### Production Hardening Checklist
+
+- [ ] **Change default passwords** - Edit seed files or set `DB_PASSWORD` env var
+- [ ] **Use SSL/TLS** - Add Let's Encrypt certificates to nginx
+- [ ] **Firewall rules** - Only open ports 80, 443 (and 5173 if needed)
+- [ ] **Non-root containers** - Already implemented (nginx UID 1000, retailpos UID 1000)
+- [ ] **Secrets management** - Use Docker/Podman secrets or mounted files
+- [ ] **Regular updates** - Update base images monthly
+
+### Enable HTTPS with Let's Encrypt
+
+```bash
+# 1. Stop nginx temporarily
+./deploy/podman-deploy.sh stop
+
+# 2. Obtain certificate (standalone mode)
+sudo certbot certonly --standalone -d yourdomain.com
+
+# 3. Copy certs to nginx config directory
+sudo mkdir -p /etc/retail-pos/ssl
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem /etc/retail-pos/ssl/
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem /etc/retail-pos/ssl/
+sudo chmod 600 /etc/retail-pos/ssl/privkey.pem
+
+# 4. Update nginx config (deploy/nginx/nginx.conf) - uncomment SSL section
+# Change:
+#   listen 8081 ssl;
+#   ssl_certificate /etc/retail-pos/ssl/fullchain.pem;
+#   ssl_certificate_key /etc/retail-pos/ssl/privkey.pem;
+
+# 5. Rebuild frontend image
+make build-frontend
+
+# 6. Start services
+./deploy/podman-deploy.sh start
+
+# 7. Setup auto-renewal
+sudo crontab -e
+# Add: 0 12 * * * /usr/bin/certbot renew --quiet --post-hook "podman restart retail-pos-frontend"
 ```
 
-**Query Parameters:**
-- `limit`: Number of items (default: 10)
-- `offset`: Pagination offset (default: 0)
-- `search`: Search term
-- `category_id`: Filter by category
+## 🗄️ Database Management
 
-#### Create Product
-```http
-POST /api/products
-Authorization: Bearer <access_token>
-Content-Type: application/json
+### Backup
 
-{
-  "sku": "PRD-001",
-  "name": "Sample Product",
-  "category_id": 1,
-  "price": 15000,
-  "cost": 12000,
-  "stock": 100,
-  "stock_min": 10,
-  "stock_max": 200,
-  "is_active": true
-}
+```bash
+# Manual backup
+podman exec postgres pg_dump -U pos retail_pos > backup_$(date +%Y%m%d).sql
+
+# Automated backup script (cron)
+0 2 * * * podman exec postgres pg_dump -U pos retail_pos > /backup/pos_$(date +\%Y\%m\%d).sql
 ```
 
-#### Update Product
-```http
-PUT /api/products/{id}
-Authorization: Bearer <access_token>
+### Restore
+
+```bash
+# Stop backend (to prevent writes)
+podman stop backend
+
+# Restore
+podman exec -i postgres psql -U pos -d retail_pos < backup_20260429.sql
+
+# Restart backend
+podman start backend
 ```
 
-#### Delete Product
-```http
-DELETE /api/products/{id}
-Authorization: Bearer <access_token>
+### Volume Management
+
+Data stored in Podman volume `retail-pos-postgres-data`:
+
+```bash
+# Backup volume
+podman volume export retail-pos-postgres-data > postgres-volume.tar
+
+# Restore volume
+podman volume import retail-pos-postgres-data postgres-volume.tar
 ```
-
-### Sales
-
-#### Create Sale
-```http
-POST /api/sales
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "items": [
-    {
-      "product_id": 1,
-      "quantity": 2,
-      "unit_price": 15000
-    }
-  ],
-  "payment_method": "cash"
-}
-```
-
-#### Get Sales History
-```http
-GET /api/sales
-Authorization: Bearer <access_token>
-```
-
-**Query Parameters:**
-- `limit`, `offset`: Pagination
-- `start_date`, `end_date`: Date range (YYYY-MM-DD)
-- `search`: Invoice number or customer info
-
-### Dashboard
-
-#### Get Statistics
-```http
-GET /api/stats
-Authorization: Bearer <access_token>
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "total_sales": 1250000,
-    "total_revenue": 1250000,
-    "total_products": 45,
-    "low_stock_count": 3
-  }
-}
-```
-
-### WebSocket
-
-#### Connect to Real-time Updates
-```javascript
-const ws = new WebSocket('ws://localhost:8080/api/ws?token=<access_token>');
-```
-
-**Events:**
-- `product_updated`: Product stock/price changes
-- `user_online_count`: User connection count updates
-- `sale_created`: New sales notifications
-
-## 👥 Default Accounts
-
-| Username | Password | Role | Permissions |
-|----------|----------|------|-------------|
-| `superadmin` | `admin123` | Super Admin | All permissions |
-| `admin` | `admin123` | Admin | Full store management |
-| `manager` | `admin123` | Manager | Reports + inventory adjustment |
-| `cashier` | `admin123` | Cashier | POS transactions only |
 
 ## 🧪 Testing
 
-### Run All Tests
+### Unit Tests (Backend)
+
 ```bash
-# Run all test suites
-go test ./...
-
-# Run with coverage
-go test -cover ./...
-
-# Run specific packages
-go test ./internal/auth/
-go test ./internal/repository/
-go test ./pkg/websocket/
-go test ./internal/delivery/http/handler/
+cd cmd/server
+go test ./... -v
 ```
 
-### Test Database
-Tests automatically create isolated PostgreSQL databases and clean them up after execution.
+### E2E Tests (Playwright)
 
-## 📊 Database Schema
-
-### Core Tables
-- `users` - User accounts and authentication
-- `roles` - User roles (superadmin, admin, manager, cashier)
-- `permissions` - Granular permission definitions
-- `role_permissions` - Role-permission mappings
-- `products` - Product inventory
-- `categories` - Product categories
-- `sales` - Sales transactions
-- `sale_items` - Individual sale line items
-- `inventory_movements` - Stock adjustment history
-- `audit_logs` - System activity logging
-
-## 🔒 Security Features
-
-- **JWT Authentication**: Stateless token-based auth with refresh tokens
-- **Password Security**: bcrypt hashing with salt
-- **Role-Based Access**: Granular permission system
-- **Rate Limiting**: WebSocket connection rate limiting
-- **CORS Protection**: Configurable origin validation
-- **Connection Limits**: Maximum concurrent connections per user
-- **Audit Logging**: Complete activity tracking
-- **SQL Injection Prevention**: Parameterized queries
-
-## 🚀 Production Deployment
-
-### Build for Production
 ```bash
-# Build optimized binary
-CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o retailpos ./cmd/server
+# Ensure both servers are running
+./deploy/podman-deploy.sh start
 
-# Build with version info
-go build -ldflags "-X main.version=1.0.0 -X main.build=$(date -u +%Y%m%d_%H%M%S)" -o retailpos ./cmd/server
+# Run tests
+npx playwright test --reporter=list
+
+# With UI (headed mode)
+npx playwright test --headed --slowMo 1000
 ```
 
-### Docker Deployment
-```dockerfile
-FROM golang:1.21-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o retailpos ./cmd/server
+### API Testing
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/retailpos .
-CMD ["./retailpos"]
+```bash
+# Health check (no auth)
+curl http://localhost:5173/api/stats
+# Returns: {"error":"authorization token required"}
+
+# Login
+curl -X POST http://localhost:5173/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"superadmin","password":"admin123"}'
+
+# Get stats (with token)
+TOKEN="<access_token_from_login>"
+curl http://localhost:5173/api/stats \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### Systemd Service
-```ini
-[Unit]
-Description=Retail POS System
-After=network.target postgresql.service
+## 📊 Monitoring
 
-[Service]
-Type=simple
-User=retailpos
-WorkingDirectory=/opt/retail-pos
-ExecStart=/opt/retail-pos/retailpos
-Restart=always
-RestartSec=5
-Environment=DB_HOST=localhost
-Environment=DB_PORT=5432
-Environment=DB_USER=retailpos
-Environment=DB_PASSWORD=secure_password
-Environment=DB_NAME=retailpos
-Environment=JWT_SECRET=production_secret_key
-Environment=PORT=8080
+### Service Status
 
-[Install]
-WantedBy=multi-user.target
+```bash
+# Using script
+./deploy/podman-deploy.sh status
+
+# Raw podman
+podman pod ps
+podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
-## 🤝 Contributing
+### Logs
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```bash
+# All logs
+./deploy/podman-deploy.sh logs
 
-### Development Guidelines
+# Specific service
+./deploy/podman-deploy.sh logs backend
+./deploy/podman-deploy.sh logs postgres
+./deploy/podman-deploy.sh logs frontend
 
-- Follow Go naming conventions
-- Add tests for new features
-- Update documentation
-- Ensure all tests pass
-- Use meaningful commit messages
+# Systemd journal (if using systemd service)
+sudo journalctl -u retail-pos -f
+```
+
+### Health Endpoints
+
+```bash
+# Backend API (requires auth for /api/*)
+curl -I http://localhost:5173/api/health
+
+# Nginx status
+curl http://localhost:5173/
+
+# Database
+podman exec postgres pg_isready -U pos
+```
+
+## 🔄 Updates & Maintenance
+
+### Update Application Code
+
+```bash
+# 1. Pull latest code
+git pull
+
+# 2. Rebuild images
+make build-all
+
+# 3. Restart services
+./deploy/podman-deploy.sh restart
+```
+
+### Update Base Images (Security)
+
+```bash
+# Update nginx image
+podman pull nginx:alpine
+make build-frontend
+./deploy/podman-deploy.sh restart
+
+# Update postgres image
+podman pull postgres:15-alpine
+# Recreate pod (will keep volume)
+./deploy/podman-deploy.sh stop
+./deploy/podman-deploy.sh start
+```
+
+### Clean Up
+
+```bash
+# Stop services
+./deploy/podman-deploy.sh stop
+
+# Remove everything (WARNING: deletes data!)
+make clean
+
+# Remove only images
+make clean-images
+
+# Remove orphaned resources
+podman system prune -a
+```
+
+## 📁 Project Structure
+
+```
+retail-pos-system/
+├── cmd/
+│   ├── server/          # Go backend main
+│   ├── seed/            # Database seeder
+│   └── dummy/           # Test utilities
+├── web/                 # Frontend source
+│   ├── index.html       # Single page app
+│   ├── app.css          # Styles
+│   └── vite.config.js   # Build config
+├── internal/            # Backend logic (clean architecture)
+│   ├── delivery/http/   # HTTP handlers
+│   ├── domain/          # Business entities
+│   ├── repository/      # Data access
+│   └── usecase/         # Business logic
+├── database/
+│   ├── migrations/      # SQL migrations
+│   └── seeds/           # Seed data (users, roles, products)
+├── deploy/
+│   ├── backend/         # Backend Dockerfile
+│   ├── frontend/        # Frontend Dockerfile + nginx.conf
+│   ├── podman-deploy.sh # Deployment script
+│   ├── docker-compose.yml
+│   ├── retail-pos.service # systemd unit
+│   └── PRODUCTION-DEPLOYMENT.md
+├── tests/
+│   └── e2e/             # Playwright E2E tests
+└── Makefile             # Commands shortcut
+```
+
+## 🔑 Default Credentials
+
+| Role | Username | Password | Permissions |
+|------|----------|----------|-------------|
+| Superadmin | `superadmin` | `admin123` | All permissions |
+| Admin | `admin` | `admin123` | User management, reports |
+| Manager | `manager` | `admin123` | Inventory, sales view |
+| Cashier | `cashier` | `admin123` | POS only |
+
+⚠️ **Change these in production!** Edit `database/seeds/004_users.sql` before first deployment.
+
+## 🆘 Troubleshooting
+
+### Frontend shows "503 Service Temporarily Unavailable"
+
+```bash
+# Check nginx logs
+./deploy/podman-deploy.sh logs frontend
+
+# Likely causes:
+# 1. Backend not running → check backend logs
+# 2. Rate limit exceeded → wait 1 minute or adjust nginx.conf
+# 3. Port conflict → check if port 5173 already in use
+```
+
+### Backend "health check failed"
+
+```bash
+# Check backend logs
+podman logs backend
+
+# Common issues:
+# - Database not ready → wait longer or check postgres logs
+# - DB connection string wrong → verify env vars
+# - Migration failed → check migration SQL syntax
+```
+
+### Database "relation does not exist"
+
+```bash
+# Migrations didn't run
+./deploy/podman-deploy.sh stop
+podman volume rm retail-pos-postgres-data  # WARNING: deletes data!
+./deploy/podman-deploy.sh start
+```
+
+### Port 5173 already in use
+
+```bash
+# Find what's using the port
+sudo ss -tulpn | grep 5173
+
+# Kill it or change HOST_FRONTEND_PORT
+HOST_FRONTEND_PORT=8080 ./deploy/podman-deploy.sh start
+```
+
+### E2E tests fail with "Connection refused"
+
+```bash
+# Ensure services are running
+./deploy/podman-deploy.sh status
+
+# Check if frontend is accessible
+curl http://localhost:5173/
+
+# If not, restart
+./deploy/podman-deploy.sh restart
+```
+
+### "Address already in use" (nginx bind error)
+
+This happens when multiple nginx containers try to bind same port. Clean up:
+
+```bash
+podman pod rm -f retail-pos-pod
+podman stop nginx 2>/dev/null || true
+./deploy/podman-deploy.sh start
+```
+
+## 📚 API Documentation
+
+API endpoints are documented in code handlers. Key endpoints:
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/login` | User login | No |
+| POST | `/api/refresh` | Refresh token | No |
+| POST | `/api/logout` | Logout | Yes |
+| GET | `/api/stats` | Dashboard stats | Yes |
+| GET | `/api/products` | List products | Yes |
+| POST | `/api/sales` | Create sale | Yes |
+| GET | `/api/inventory/export` | Export inventory | Yes |
+| GET | `/api/admin/users` | List users (admin) | Yes |
+| POST | `/api/admin/users` | Create user (admin) | Yes |
+| GET | `/ws` | WebSocket hub | Yes (token query) |
+
+Full OpenAPI spec can be generated from handlers.
+
+## 🚀 Production Deployment Checklist
+
+- [ ] Build images on production server (or push to registry)
+- [ ] Configure firewall (open 80/443, optionally 5173)
+- [ ] Set strong `DB_PASSWORD` in `deploy/.env` or script
+- [ ] Change default user passwords in `database/seeds/004_users.sql`
+- [ ] Configure SSL certificates (Let's Encrypt)
+- [ ] Enable systemd service for auto-start
+- [ ] Set up log rotation (`logrotate` for nginx + journald)
+- [ ] Configure automated backups (cron + `pg_dump`)
+- [ ] Set up monitoring (Prometheus metrics from `/metrics` if enabled)
+- [ ] Test failover (restart services, verify auto-recovery)
+
+## 🆘 Support
+
+- **Logs:** `./deploy/podman-deploy.sh logs`
+- **Systemd:** `sudo journalctl -u retail-pos -f`
+- **Podman:** `podman pod ps` & `podman ps -a`
+
+For bugs/features, open an issue on GitHub (if available).
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For support and questions:
-- Create an issue in the GitHub repository
-- Check the documentation
-- Review the test cases for usage examples
-
-## 🔄 Version History
-
-- **v1.0.0** - Complete POS system with authentication, real-time updates, and testing
-  - JWT authentication with refresh tokens
-  - Role-based access control
-  - WebSocket real-time communication
-  - Comprehensive test coverage
-  - Thermal receipt printing
-  - Audit logging
+Proprietary - Developed for retail business use.
 
 ---
 
-Built with ❤️ using Go, Svelte, PostgreSQL, and modern web technologies.</content>
-<parameter name="filePath">/home/my-excellency/Projects/retail-pos-system/README.md
+**Ready to deploy?** Run `./deploy/podman-deploy.sh start` and open http://localhost:5173 🎉

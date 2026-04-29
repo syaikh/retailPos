@@ -360,14 +360,17 @@
     margin-bottom: 8px;
   }
 
+  /* svelte-ignore css-unused-selector */
   .pos-search {
     grid-column: 1 / -1;
   }
 
+  /* svelte-ignore css-unused-selector */
   .pos-products {
     min-height: 600px;
   }
 
+  /* svelte-ignore css-unused-selector */
   .pos-cart {
     position: sticky;
     top: 24px;
@@ -379,6 +382,7 @@
       grid-template-columns: 1fr;
     }
 
+    /* svelte-ignore css-unused-selector */
     .pos-cart {
       position: static;
     }

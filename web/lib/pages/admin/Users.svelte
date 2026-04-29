@@ -219,39 +219,86 @@
   {/if}
 </div>
 
-{#if showModal}
-   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showModal = false}>
-     <div class="bg-white rounded-lg p-6 w-full max-w-md" onclick={(e) => { e.stopPropagation(); }}>
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">{isEditing ? 'Edit User' : 'Tambah User Baru'}</h2>
-         <button onclick={() => showModal = false} class="text-gray-500 hover:text-gray-700"><X size={20} /></button>
-      </div>
+ {#if showModal}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showModal = false} onkeydown={(e) => { if (e.key === 'Escape') showModal = false; }} role="dialog" aria-modal="true" tabindex="-1">
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+      <div class="bg-white rounded-lg p-6 w-full max-w-md" onclick={(e) => { e.stopPropagation(); }} role="document">
+       <div class="flex justify-between items-center mb-4">
+         <h2 class="text-xl font-bold">{isEditing ? 'Edit User' : 'Tambah User Baru'}</h2>
+          <button onclick={() => showModal = false} class="text-gray-500 hover:text-gray-700" aria-label="Close modal"><X size={20} /></button>
+       </div>
 
        <form onsubmit={(e) => { e.preventDefault(); saveUser(); }}>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-            <input type="text" bind:value={form.username} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.username} />
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input id="username" type="text" bind:value={form.username} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.username} />
             {#if formErrors.username}<p class="text-red-600 text-xs mt-1">{formErrors.username}</p>{/if}
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" bind:value={form.email} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.email} />
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input id="email" type="email" bind:value={form.email} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.email} />
             {#if formErrors.email}<p class="text-red-600 text-xs mt-1">{formErrors.email}</p>{/if}
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
               Password {isEditing ? '(kosongkan jika tidak diubah)' : ''}
             </label>
-            <input type="password" bind:value={form.password} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.password} />
+            <input id="password" type="password" bind:value={form.password} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.password} />
             {#if formErrors.password}<p class="text-red-600 text-xs mt-1">{formErrors.password}</p>{/if}
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select bind:value={form.role_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" class:border-red-500={formErrors.role_id}>
+            <label for="role_id" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select id="role_id" bind:value={form.role_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" class:border-red-500={formErrors.role_id}>
+              <option value={null}>Pilih role...</option>
+            </select>
+            {#if formErrors.role_id}<p class="text-red-600 text-xs mt-1">{formErrors.role_id}</p>{/if}
+          </div>
+
+          <div>
+            <label for="store_id" class="block text-sm font-medium text-gray-700 mb-1">Store ID (opsional)</label>
+            <input id="store_id" type="number" bind:value={form.store_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="Kosongkan jika tidak ada" />
+          </div>
+
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input id="email" type="email" bind:value={form.email} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.email} />
+            {#if formErrors.email}<p class="text-red-600 text-xs mt-1">{formErrors.email}</p>{/if}
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+              Password {isEditing ? '(kosongkan jika tidak diubah)' : ''}
+            </label>
+            <input id="password" type="password" bind:value={form.password} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.password} />
+            {#if formErrors.password}<p class="text-red-600 text-xs mt-1">{formErrors.password}</p>{/if}
+          </div>
+
+          <div>
+            <label for="role_id" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select id="role_id" bind:value={form.role_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" class:border-red-500={formErrors.role_id}>
+              <option value={null}>Pilih role...</option>
+            </select>
+            {#if formErrors.role_id}<p class="text-red-600 text-xs mt-1">{formErrors.role_id}</p>{/if}
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+              Password {isEditing ? '(kosongkan jika tidak diubah)' : ''}
+            </label>
+            <input id="password" type="password" bind:value={form.password} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" class:border-red-500={formErrors.password} />
+            {#if formErrors.password}<p class="text-red-600 text-xs mt-1">{formErrors.password}</p>{/if}
+          </div>
+
+          <div>
+            <label for="role_id" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select id="role_id" bind:value={form.role_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" class:border-red-500={formErrors.role_id}>
               <option value={null}>Pilih role...</option>
               {#each roles as role}
                 <option value={role.id}>{role.name} {role.description ? '- ' + role.description : ''}</option>
@@ -261,8 +308,8 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Store ID (opsional)</label>
-            <input type="number" bind:value={form.store_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="Kosongkan jika tidak ada" />
+            <label for="store_id" class="block text-sm font-medium text-gray-700 mb-1">Store ID (opsional)</label>
+            <input id="store_id" type="number" bind:value={form.store_id} class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="Kosongkan jika tidak ada" />
           </div>
 
           <div class="flex items-center gap-2">
