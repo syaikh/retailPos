@@ -37,14 +37,8 @@ POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.io/library/postgres:15-alpine}"
 # Database configuration
 DB_NAME="${DB_NAME:-retail_pos}"
 DB_USER="${DB_USER:-pos}"
-# Generate random password if not set
-if [ -z "$DB_PASSWORD" ]; then
-    if command -v openssl &>/dev/null; then
-        DB_PASSWORD=$(openssl rand -base64 12 2>/dev/null || echo "pospass123")
-    else
-        DB_PASSWORD="pospass123"
-    fi
-fi
+# Use fixed password for consistency with seed data
+DB_PASSWORD="${DB_PASSWORD:-admin123}"
 DB_PORT="${DB_PORT:-5432}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-${DB_PASSWORD}}"
 

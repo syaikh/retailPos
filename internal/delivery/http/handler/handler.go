@@ -213,8 +213,18 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		PaymentMethod: req.PaymentMethod,
 		Status:        "completed",
 	}
-	if err := h.saleRepo.CreateSale(getCtx(c), nil, sale, req.Items); err != nil {
+	tx, err := h.saleRepo.BeginTx(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to begin transaction"})
+		return
+	}
+	defer tx.Rollback(getCtx(c))
+	if err := h.saleRepo.CreateSale(getCtx(c), tx, sale, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create sale: " + err.Error()})
+		return
+	}
+	if err := tx.Commit(getCtx(c)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit transaction"})
 		return
 	}
 	newSale, _ := h.saleRepo.GetSaleByID(getCtx(c), sale.ID)

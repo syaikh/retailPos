@@ -537,15 +537,18 @@ func (r *postgresRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 }
 
 func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *domain.Sale, items []domain.SaleItem) error {
+	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
 		INSERT INTO sales (invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status).
-		Scan(&sale.ID, &sale.CreatedAt, &sale.UpdatedAt)
+		Scan(&sale.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return err
 	}
+	sale.CreatedAt = createdAt.Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
 
 	for i := range items {
 		_, err = tx.Exec(ctx, `
@@ -556,7 +559,7 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 			return err
 		}
 	}
-
+	
 	return nil
 }
 
