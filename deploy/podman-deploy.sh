@@ -32,7 +32,7 @@ HOST_FRONTEND_PORT="${HOST_FRONTEND_PORT:-5173}"
 # Image names (fully qualified with localhost for local images)
 BACKEND_IMAGE="${BACKEND_IMAGE:-localhost/retail-pos-backend:latest}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-localhost/retail-pos-frontend:latest}"
-POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.io/library/postgres:15-alpine}"
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.io/library/postgres:18-alpine}"
 
 # Database configuration
 DB_NAME="${DB_NAME:-retail_pos}"
@@ -185,8 +185,7 @@ start() {
         -e POSTGRES_USER="$DB_USER" \
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
         -e POSTGRES_DB="$DB_NAME" \
-        -e PGDATA=/var/lib/postgresql/data/pgdata \
-        -v "$POSTGRES_VOLUME:/var/lib/postgresql/data" \
+        -v "$POSTGRES_VOLUME:/var/lib/postgresql" \
         --restart unless-stopped \
         "$POSTGRES_IMAGE"
 

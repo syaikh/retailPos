@@ -11,8 +11,9 @@
   import Navbar from '$lib/components/Navbar.svelte';
   import { auth } from '$lib/stores/auth';
 
-  let Component = Home;
+  let Component = LoginPage;
   let currentPath = getPath();
+  let isInitializing = true;
 
   function getComponent(path) {
     switch (path) {
@@ -29,21 +30,21 @@
   }
 
   function handleRoute(path) {
-    currentPath = path;
+    const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
 
     // Check authentication for all non-login routes
-    if (path !== '/login') {
-      const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
-      if (!hasToken) {
-        // Not authenticated - redirect to login immediately
-        Component = LoginPage;
-        currentPath = '/login';
-        window.history.replaceState({}, '', '/login');
-        return;
-      }
+    if (path !== '/login' && !hasToken) {
+      // Not authenticated - force redirect to login
+      Component = LoginPage;
+      currentPath = '/login';
+      window.history.replaceState({}, '', '/login');
+      isInitializing = false;
+      return;
     }
 
     // Authenticated or on login page - set appropriate component
+    currentPath = path;
+    isInitializing = false;
     if (path === '/login') {
       Component = LoginPage;
     } else if (path === '/') {
@@ -53,28 +54,35 @@
     }
   }
 
-  // Initial route handling with immediate auth check
+  // Initial authentication check and route handling
   const initialPath = getPath();
   const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
 
   if (initialPath !== '/login' && !hasToken) {
-    // Trying to access protected route without auth - redirect immediately
+    // Accessing protected route without auth - redirect to login
     Component = LoginPage;
     currentPath = '/login';
     window.history.replaceState({}, '', '/login');
+    isInitializing = false;
   } else {
-    // Valid access - proceed with route
+    // Valid access - proceed normally
     handleRoute(initialPath);
   }
-
-  // Subscribe to route changes
-  subscribe(handleRoute);
 
   // Subscribe to route changes (popstate, etc.)
   subscribe(handleRoute);
 </script>
 
-{#if currentPath !== '/login'}
-  <Navbar />
+{#if isInitializing}
+  <div class="min-h-screen bg-bg flex items-center justify-center">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+      <p class="text-slate-400">Loading...</p>
+    </div>
+  </div>
+{:else}
+  {#if currentPath !== '/login'}
+    <Navbar />
+  {/if}
+  <svelte:component this={Component} />
 {/if}
-<svelte:component this={Component} />
