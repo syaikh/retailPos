@@ -29,21 +29,21 @@
   }
 
   function handleRoute(path) {
-    // First, check authentication for all non-login routes
+    currentPath = path;
+
+    // Check authentication for all non-login routes
     if (path !== '/login') {
       const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
       if (!hasToken) {
-        // User not authenticated - force redirect to login
+        // Not authenticated - redirect to login immediately
         Component = LoginPage;
         currentPath = '/login';
-        // Use replaceState to avoid adding to history
         window.history.replaceState({}, '', '/login');
         return;
       }
     }
 
-    // User is authenticated (or accessing login page) - set appropriate component
-    currentPath = path;
+    // Authenticated or on login page - set appropriate component
     if (path === '/login') {
       Component = LoginPage;
     } else if (path === '/') {
@@ -53,8 +53,22 @@
     }
   }
 
-  // Initial route handling
-  handleRoute(getPath());
+  // Initial route handling with immediate auth check
+  const initialPath = getPath();
+  const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+
+  if (initialPath !== '/login' && !hasToken) {
+    // Trying to access protected route without auth - redirect immediately
+    Component = LoginPage;
+    currentPath = '/login';
+    window.history.replaceState({}, '', '/login');
+  } else {
+    // Valid access - proceed with route
+    handleRoute(initialPath);
+  }
+
+  // Subscribe to route changes
+  subscribe(handleRoute);
 
   // Subscribe to route changes (popstate, etc.)
   subscribe(handleRoute);
