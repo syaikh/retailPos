@@ -7,13 +7,19 @@ import { TEST_USERS } from './fixtures';
 
 async function loginAndNavigateToPos(page: any) {
   await page.goto('/');
+  await page.waitForTimeout(1000); // Slow down for visibility
   await page.waitForSelector('#login-section', { timeout: 10000 });
+  await page.waitForTimeout(500); // Slow down for visibility
   await page.locator('input[type="text"]').fill(TEST_USERS.superadmin.username);
+  await page.waitForTimeout(800); // Slow down for visibility
   await page.locator('input[type="password"]').fill(TEST_USERS.superadmin.password);
+  await page.waitForTimeout(800); // Slow down for visibility
   await page.locator('button[type="submit"]').click();
   // After login, redirect to home, then navigate to POS
   await page.waitForURL(/\/$/, { timeout: 10000 });
+  await page.waitForTimeout(1000); // Slow down for visibility
   await page.goto('/pos');
+  await page.waitForTimeout(800); // Slow down for visibility
   await expect(page.locator('.pos-page')).toBeVisible({ timeout: 10000 });
 }
 
@@ -58,13 +64,16 @@ test.describe('Point of Sale (POS) Module', () => {
 
     // Wait for products
     await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1000); // Pause to see products loaded
 
     // Click Add button on first product
     const firstAddBtn = page.locator('tbody tr').first().getByRole('button', { name: 'Add' });
     await firstAddBtn.click();
+    await page.waitForTimeout(800); // Pause to see button click
 
     // Cart should no longer be empty
     await expect(page.getByText('Your cart is empty')).not.toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(1000); // Pause to see cart updated
   });
 
   test('should update cart when adding multiple items', async ({ page }) => {
@@ -103,14 +112,17 @@ test.describe('Point of Sale (POS) Module', () => {
 
     const firstRow = page.locator('tbody tr').first();
     await firstRow.getByRole('button', { name: 'Add' }).click();
+    await page.waitForTimeout(1000); // Pause to see initial cart
 
     // Click + button
     const plusBtn = page.locator('.max-h-96 button').filter({ hasText: '+' }).first();
     await plusBtn.click();
+    await page.waitForTimeout(800); // Pause to see quantity increase
 
     // Quantity should be 2
     const quantitySpan = page.locator('.max-h-96 span.w-8').first();
     await expect(quantitySpan).toContainText('2', { timeout: 5000 });
+    await page.waitForTimeout(1000); // Pause to see final quantity
   });
 
   test('should decrease quantity with - button (min 1)', async ({ page }) => {
@@ -139,13 +151,16 @@ test.describe('Point of Sale (POS) Module', () => {
 
     const firstRow = page.locator('tbody tr').first();
     await firstRow.getByRole('button', { name: 'Add' }).click();
+    await page.waitForTimeout(1000); // Pause to see item added
 
     // Remove item
     const removeBtn = page.locator('.max-h-96 button').filter({ hasText: '×' }).first();
     await removeBtn.click();
+    await page.waitForTimeout(800); // Pause to see item removed
 
     // Cart should be empty
     await expect(page.getByText('Your cart is empty')).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(1000); // Pause to see empty cart
   });
 
   test('should display subtotal, tax, and total in cart', async ({ page }) => {
@@ -271,5 +286,58 @@ test.describe('Point of Sale (POS) Module', () => {
     const addButtons = page.locator('tbody tr button:has-text("Add")');
     const count = await addButtons.count();
     expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  test('should redirect unauthenticated users to login for protected routes', async ({ page }) => {
+    // Start with a fresh context to ensure no authentication
+    await page.goto('/');
+
+    // Wait for initial route handling
+    await page.waitForTimeout(1000);
+
+    // Try to access POS page directly without authentication
+    await page.goto('/pos');
+    await page.waitForTimeout(2000);
+
+    // Should be redirected to login page
+    await expect(page.locator('#login-section')).toBeVisible({ timeout: 5000 });
+    expect(page.url()).toContain('/login');
+
+    // Navbar should NOT be visible for unauthenticated users
+    await expect(page.locator('.navbar')).toBeHidden();
+
+    // Try to access inventory page directly
+    await page.goto('/inventory');
+    await page.waitForTimeout(2000);
+
+    // Should still be on login page
+    await expect(page.locator('#login-section')).toBeVisible({ timeout: 5000 });
+    expect(page.url()).toContain('/login');
+
+    // Try to access reports page directly
+    await page.goto('/reports');
+    await page.waitForTimeout(2000);
+
+    // Should still be on login page
+    await expect(page.locator('#login-section')).toBeVisible({ timeout: 5000 });
+    expect(page.url()).toContain('/login');
+
+    // Try to access admin page directly
+    await page.goto('/admin');
+    await page.waitForTimeout(2000);
+
+    // Should still be on login page
+    await expect(page.locator('#login-section')).toBeVisible({ timeout: 5000 });
+    expect(page.url()).toContain('/login');
+
+    // Now login and verify access works
+    await page.locator('input[type="text"]').fill(TEST_USERS.superadmin.username);
+    await page.locator('input[type="password"]').fill(TEST_USERS.superadmin.password);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(3000);
+
+    // Should be on home page now with navbar visible
+    await expect(page.locator('.navbar')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Retail POS System')).toBeVisible();
   });
 });

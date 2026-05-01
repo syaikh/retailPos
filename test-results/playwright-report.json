@@ -74,7 +74,7 @@
         {
           "title": "Point of Sale (POS) Module",
           "file": "pos-flow.spec.ts",
-          "line": 20,
+          "line": 26,
           "column": 6,
           "specs": [
             {
@@ -93,12 +93,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 706,
+                      "duration": 5610,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:29:57.322Z",
+                      "startTime": "2026-05-01T02:19:01.875Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -108,7 +108,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-5d586ff114cea497964e",
               "file": "pos-flow.spec.ts",
-              "line": 21,
+              "line": 27,
               "column": 7
             },
             {
@@ -127,12 +127,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 585,
+                      "duration": 5531,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:29:58.194Z",
+                      "startTime": "2026-05-01T02:19:07.677Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -142,7 +142,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-56d62b955af493868831",
               "file": "pos-flow.spec.ts",
-              "line": 32,
+              "line": 38,
               "column": 7
             },
             {
@@ -161,12 +161,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 528,
+                      "duration": 5482,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:29:58.807Z",
+                      "startTime": "2026-05-01T02:19:13.236Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -176,7 +176,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-5ab02897b1a35e1dea79",
               "file": "pos-flow.spec.ts",
-              "line": 44,
+              "line": 50,
               "column": 7
             },
             {
@@ -195,12 +195,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 607,
+                      "duration": 8403,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:29:59.361Z",
+                      "startTime": "2026-05-01T02:19:18.758Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -210,7 +210,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-e7038f730f5a771c3720",
               "file": "pos-flow.spec.ts",
-              "line": 56,
+              "line": 62,
               "column": 7
             },
             {
@@ -229,12 +229,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 642,
+                      "duration": 5597,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:00.011Z",
+                      "startTime": "2026-05-01T02:19:27.197Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -244,7 +244,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-1dbf641a6f0e9ba39d6e",
               "file": "pos-flow.spec.ts",
-              "line": 70,
+              "line": 79,
               "column": 7
             },
             {
@@ -263,12 +263,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 600,
+                      "duration": 5625,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:00.686Z",
+                      "startTime": "2026-05-01T02:19:32.824Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -278,7 +278,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-bab857358dac2591ca3d",
               "file": "pos-flow.spec.ts",
-              "line": 86,
+              "line": 95,
               "column": 7
             },
             {
@@ -297,12 +297,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 607,
+                      "duration": 8370,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:01.310Z",
+                      "startTime": "2026-05-01T02:19:38.475Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -312,7 +312,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-d0c82bcbb1ee0964e98d",
               "file": "pos-flow.spec.ts",
-              "line": 100,
+              "line": 109,
               "column": 7
             },
             {
@@ -331,12 +331,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 686,
+                      "duration": 5628,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:01.944Z",
+                      "startTime": "2026-05-01T02:19:46.871Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -346,7 +346,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-35b3469303d6d0740fd8",
               "file": "pos-flow.spec.ts",
-              "line": 116,
+              "line": 128,
               "column": 7
             },
             {
@@ -365,12 +365,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 608,
+                      "duration": 8359,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:02.650Z",
+                      "startTime": "2026-05-01T02:19:52.518Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -380,7 +380,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-09620b3ca13aacc2a209",
               "file": "pos-flow.spec.ts",
-              "line": 136,
+              "line": 148,
               "column": 7
             },
             {
@@ -399,12 +399,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 586,
+                      "duration": 5531,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:03.282Z",
+                      "startTime": "2026-05-01T02:20:00.901Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -414,7 +414,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-e464b6a6e569e9f61f8f",
               "file": "pos-flow.spec.ts",
-              "line": 151,
+              "line": 166,
               "column": 7
             },
             {
@@ -433,12 +433,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 548,
+                      "duration": 5565,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:03.885Z",
+                      "startTime": "2026-05-01T02:20:06.453Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -448,7 +448,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-a78ab91b96594081bc35",
               "file": "pos-flow.spec.ts",
-              "line": 165,
+              "line": 180,
               "column": 7
             },
             {
@@ -467,12 +467,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 539,
+                      "duration": 5434,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:04.454Z",
+                      "startTime": "2026-05-01T02:20:12.038Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -482,7 +482,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-3b858573bc67f362a9b3",
               "file": "pos-flow.spec.ts",
-              "line": 175,
+              "line": 190,
               "column": 7
             },
             {
@@ -501,12 +501,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1037,
+                      "duration": 5984,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:05.014Z",
+                      "startTime": "2026-05-01T02:20:17.493Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -516,7 +516,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-1fa76a26b6eb99cc73eb",
               "file": "pos-flow.spec.ts",
-              "line": 190,
+              "line": 205,
               "column": 7
             },
             {
@@ -535,12 +535,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 273,
+                      "duration": 278,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:06.069Z",
+                      "startTime": "2026-05-01T02:20:23.499Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -550,7 +550,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-36ef7cc1a1737e3bbaa6",
               "file": "pos-flow.spec.ts",
-              "line": 213,
+              "line": 228,
               "column": 7
             },
             {
@@ -569,12 +569,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 208,
+                      "duration": 224,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:06.358Z",
+                      "startTime": "2026-05-01T02:20:23.822Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -584,7 +584,7 @@
               ],
               "id": "9f437e23d4f107cc6be2-9d7e0fdcb395e0919b2f",
               "file": "pos-flow.spec.ts",
-              "line": 246,
+              "line": 261,
               "column": 7
             },
             {
@@ -603,12 +603,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 506,
+                      "duration": 5429,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-01T01:30:06.588Z",
+                      "startTime": "2026-05-01T02:20:24.067Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -618,7 +618,41 @@
               ],
               "id": "9f437e23d4f107cc6be2-99d19fef5798e11677a2",
               "file": "pos-flow.spec.ts",
-              "line": 265,
+              "line": 280,
+              "column": 7
+            },
+            {
+              "title": "should redirect unauthenticated users to login for protected routes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12542,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-01T02:20:29.517Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9f437e23d4f107cc6be2-487e0c826edc60d6320a",
+              "file": "pos-flow.spec.ts",
+              "line": 291,
               "column": 7
             }
           ]
@@ -628,9 +662,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-05-01T01:29:56.292Z",
-    "duration": 10888.234999999999,
-    "expected": 16,
+    "startTime": "2026-05-01T02:19:00.855Z",
+    "duration": 101287.019,
+    "expected": 17,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

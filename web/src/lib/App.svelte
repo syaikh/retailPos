@@ -29,16 +29,21 @@
   }
 
   function handleRoute(path) {
-    currentPath = path;
-    // Protect all routes except login
+    // First, check authentication for all non-login routes
     if (path !== '/login') {
       const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
       if (!hasToken) {
-        goto('/login');
+        // User not authenticated - force redirect to login
         Component = LoginPage;
+        currentPath = '/login';
+        // Use replaceState to avoid adding to history
+        window.history.replaceState({}, '', '/login');
         return;
       }
     }
+
+    // User is authenticated (or accessing login page) - set appropriate component
+    currentPath = path;
     if (path === '/login') {
       Component = LoginPage;
     } else if (path === '/') {
