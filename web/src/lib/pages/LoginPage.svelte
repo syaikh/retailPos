@@ -1,12 +1,36 @@
 <script>
   import { goto } from '$lib/router';
   import { login } from '$lib/api/auth';
+  import { auth } from '$lib/stores/auth';
 
   let username = $state('');
   let password = $state('');
   let loading = $state(false);
   let errorMsg = $state('');
   let errorVisible = $state(false);
+
+  async function handleLogin() {
+    errorVisible = false;
+    
+    if (!username.trim() || !password.trim()) {
+      errorMsg = 'Username and password are required';
+      errorVisible = true;
+      return;
+    }
+
+    loading = true;
+    const result = await login(username.trim(), password);
+    loading = false;
+    
+    if (result && result !== false) {
+      // Store user in auth store
+      auth.setUser(result.user);
+      goto('/');
+    } else {
+      errorMsg = 'Invalid username or password';
+      errorVisible = true;
+    }
+  }
 </script>
 
 <div id="login-section">
@@ -20,27 +44,7 @@
   <div class="max-w-md mx-auto bg-slate-800/50 backdrop-blur-sm p-8 rounded-xl border border-slate-700">
     <h2 class="text-xl font-bold text-center mb-6 text-white">Login to Retail POS</h2>
 
-    <form onsubmit={async (e) => {
-      e.preventDefault();
-      errorVisible = false;
-      
-      if (!username.trim() || !password.trim()) {
-        errorMsg = 'Username and password are required';
-        errorVisible = true;
-        return;
-      }
-
-      loading = true;
-      const success = await login(username.trim(), password);
-      loading = false;
-
-      if (success) {
-        goto('/');
-      } else {
-        errorMsg = 'Invalid username or password';
-        errorVisible = true;
-      }
-    }}>
+    <form on:submit|preventDefault={handleLogin}>
       <div class="mb-4">
         <label for="username" class="block text-sm font-medium text-slate-300 mb-2">Username</label>
         <input 

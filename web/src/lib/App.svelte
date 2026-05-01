@@ -8,8 +8,11 @@
   import AdminUsers from '$lib/pages/admin/Users.svelte';
   import AdminRoles from '$lib/pages/admin/Roles.svelte';
   import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
+  import Navbar from '$lib/components/Navbar.svelte';
+  import { auth } from '$lib/stores/auth';
 
   let Component = Home;
+  let currentPath = getPath();
 
   function getComponent(path) {
     switch (path) {
@@ -26,16 +29,20 @@
   }
 
   function handleRoute(path) {
-    if (path === '/login') {
-      Component = LoginPage;
-    } else if (path === '/') {
+    currentPath = path;
+    // Protect all routes except login
+    if (path !== '/login') {
       const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
       if (!hasToken) {
         goto('/login');
         Component = LoginPage;
-      } else {
-        Component = Home;
+        return;
       }
+    }
+    if (path === '/login') {
+      Component = LoginPage;
+    } else if (path === '/') {
+      Component = Home;
     } else {
       Component = getComponent(path);
     }
@@ -48,4 +55,7 @@
   subscribe(handleRoute);
 </script>
 
+{#if currentPath !== '/login'}
+  <Navbar />
+{/if}
 <svelte:component this={Component} />

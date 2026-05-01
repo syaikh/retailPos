@@ -261,7 +261,7 @@ Total: Rp${sale.total_amount.toLocaleString()}
                     <td class="px-4 py-3">
                       <button
                         class="btn btn-primary text-sm py-1 px-3"
-                        on:click={() => addToCart(product)}
+                        onclick={() => addToCart(product)}
                         disabled={product.stock === 0}
                       >
                         Add
@@ -301,16 +301,16 @@ Total: Rp${sale.total_amount.toLocaleString()}
                 <div class="flex items-center gap-2">
                   <button
                     class="w-7 h-7 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 text-sm"
-                    on:click={() => updateQuantity(item.id, -1)}
+                    onclick={() => updateQuantity(item.id, -1)}
                   >-</button>
                   <span class="w-8 text-center text-sm font-medium">{item.quantity}</span>
                   <button
                     class="w-7 h-7 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 text-sm"
-                    on:click={() => updateQuantity(item.id, 1)}
+                    onclick={() => updateQuantity(item.id, 1)}
                   >+</button>
                   <button
                     class="w-7 h-7 rounded bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white ml-1 text-sm"
-                    on:click={() => removeFromCart(item.id)}
+                    onclick={() => removeFromCart(item.id)}
                   >×</button>
                 </div>
               </div>
@@ -332,7 +332,7 @@ Total: Rp${sale.total_amount.toLocaleString()}
             </div>
             <button
               class="btn btn-success w-full mt-4"
-              on:click={() => processCheckout('cash')}
+              onclick={() => processCheckout('cash')}
             >
               Complete Purchase
             </button>

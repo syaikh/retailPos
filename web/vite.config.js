@@ -3,12 +3,7 @@ import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
-  plugins: [svelte({
-    compilerOptions: {
-      // Disable hydration for client-only SPA
-      hydratable: false
-    }
-  })],
+  plugins: [svelte()],
   resolve: {
     alias: {
       '$lib': fileURLToPath(new URL('./src/lib', import.meta.url))

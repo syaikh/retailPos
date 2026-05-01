@@ -27,10 +27,10 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <div 
       class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      on:click={openPOS}
+      onclick={openPOS}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && openPOS()}
+      onkeydown={(e) => e.key === 'Enter' && openPOS()}
     >
       <span class="text-4xl mb-4 block">🛒</span>
       <h3 class="text-lg font-bold text-white mb-2">Point of Sale</h3>
@@ -40,10 +40,10 @@
 
     <div 
       class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      on:click={openInventory}
+      onclick={openInventory}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && openInventory()}
+      onkeydown={(e) => e.key === 'Enter' && openInventory()}
     >
       <span class="text-4xl mb-4 block">📦</span>
       <h3 class="text-lg font-bold text-white mb-2">Inventory</h3>
@@ -53,10 +53,10 @@
 
     <div 
       class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      on:click={openReports}
+      onclick={openReports}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && openReports()}
+      onkeydown={(e) => e.key === 'Enter' && openReports()}
     >
       <span class="text-4xl mb-4 block">📊</span>
       <h3 class="text-lg font-bold text-white mb-2">Reports</h3>
@@ -66,10 +66,10 @@
 
     <div 
       class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      on:click={openAdmin}
+      onclick={openAdmin}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && openAdmin()}
+      onkeydown={(e) => e.key === 'Enter' && openAdmin()}
     >
       <span class="text-4xl mb-4 block">⚙️</span>
       <h3 class="text-lg font-bold text-white mb-2">Administration</h3>

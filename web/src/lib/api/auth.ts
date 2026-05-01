@@ -18,7 +18,7 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
-export async function login(username: string, password: string): Promise<boolean> {
+export async function login(username: string, password: string): Promise<{ access_token: string; refresh_token: string; user: User } | false> {
   try {
     const response = await fetch('/api/login', {
       method: 'POST',
@@ -38,7 +38,7 @@ export async function login(username: string, password: string): Promise<boolean
       if (data.refresh_token) {
         sessionStorage.setItem('refresh_token', data.refresh_token);
       }
-      return true;
+      return data;
     } else {
       return false;
     }
