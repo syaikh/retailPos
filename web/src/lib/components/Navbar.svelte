@@ -41,8 +41,8 @@
         <ChevronDown size={16} class="chevron text-slate-400" />
       </div>
 
-      <button 
-        on:click={handleLogout}
+      <button
+        onclick={handleLogout}
         class="btn btn-sm btn-outline ml-3"
       >
         Logout
