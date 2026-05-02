@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -61,7 +62,17 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("refresh_token", resp.RefreshToken, 7*24*3600, "/", "", false, true)
+	// Set refresh token as HttpOnly cookie (Secure: false in dev, true in prod)
+	isProd := os.Getenv("ENV") == "production"
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    resp.RefreshToken,
+		MaxAge:   7 * 24 * 3600,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   isProd,
+		SameSite: http.SameSiteLaxMode,
+	})
 	c.JSON(http.StatusOK, gin.H{"access_token": resp.AccessToken, "refresh_token": resp.RefreshToken, "user": resp.User})
 }
 
@@ -71,7 +82,16 @@ func (h *Handler) Logout(c *gin.Context) {
 	if token != "" && userID > 0 {
 		h.authService.Logout(getCtx(c), userID, token)
 	}
-	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+	// Clear cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   os.Getenv("ENV") == "production",
+		SameSite: http.SameSiteLaxMode,
+	})
 	c.JSON(http.StatusOK, gin.H{"status": "logged out"})
 }
 
