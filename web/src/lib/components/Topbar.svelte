@@ -34,15 +34,21 @@
 
 <header class="topbar">
   <!-- Breadcrumb -->
-  <nav class="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
+  <nav class="flex items-center gap-2" aria-label="Breadcrumb">
     {#each breadcrumb() as crumb, i}
       {#if i > 0}
-        <span class="text-text-muted">/</span>
+        <span class="text-text-muted text-xs">/</span>
       {/if}
       {#if i === breadcrumb().length - 1}
-        <span class="text-text-primary font-semibold">{crumb.label}</span>
+        <span class="text-lg font-bold tracking-tight text-text-primary">
+          {#if i === 0 && crumb.label === 'Dashboard'}
+            <span class="gradient-text">Dashboard</span>
+          {:else}
+            {crumb.label}
+          {/if}
+        </span>
       {:else}
-        <span class="text-text-muted hover:text-text-secondary transition-colors cursor-pointer">
+        <span class="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer">
           {crumb.label}
         </span>
       {/if}

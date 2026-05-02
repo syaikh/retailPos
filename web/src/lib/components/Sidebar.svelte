@@ -32,7 +32,7 @@
   });
 
   let username = $derived($auth.user?.username || 'User');
-  let role = $derived($auth.user?.role || 'cashier');
+  let role = $derived($auth.user?.role?.name || $auth.user?.role || 'cashier');
 
   const navItems = [
     { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
@@ -134,10 +134,11 @@
         </div>
         <button
           onclick={handleLogout}
-          class="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-colors"
+          class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-all duration-200 group"
           title="Logout"
         >
-          <LogOut size={14} />
+          <LogOut size={14} class="group-hover:scale-110 transition-transform" />
+          <span class="text-xs font-medium">Logout</span>
         </button>
       {/if}
     </div>

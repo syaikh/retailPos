@@ -9,6 +9,7 @@
     TrendingUp, DollarSign, AlertTriangle, Receipt,
     ArrowRight,
   } from 'lucide-svelte';
+  import RpIcon from '$lib/components/ui/RpIcon.svelte';
 
   let username = $derived($auth.user?.username || 'there');
   let stats = $state({
@@ -99,16 +100,16 @@
   <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
     <StatCard
       label="Today's Revenue"
-      value={`Rp ${stats.todays_revenue?.toLocaleString('id-ID') || 0}`}
+      value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
       sub={stats.todays_revenue > 0 ? "Invoiced today" : "No sales yet today"}
-      icon={DollarSign}
+      icon={RpIcon}
       iconBg="bg-primary-subtle"
       iconColor="text-primary-light"
       {loading}
     />
     <StatCard
       label="Transactions"
-      value={stats.todays_sales || 0}
+      value={stats.todays_sales?.toLocaleString('id-ID') || 0}
       sub="Completed today"
       icon={Receipt}
       iconBg="bg-success-subtle"
@@ -117,7 +118,7 @@
     />
     <StatCard
       label="Total Products"
-      value={stats.total_products || 0}
+      value={stats.total_products?.toLocaleString('id-ID') || 0}
       sub="Units in catalog"
       icon={TrendingUp}
       iconBg="bg-info-subtle"
@@ -126,7 +127,7 @@
     />
     <StatCard
       label="Low Stock Alerts"
-      value={stats.low_stock_count || 0}
+      value={stats.low_stock_count?.toLocaleString('id-ID') || 0}
       sub={stats.low_stock_count > 0 ? "Action required" : "All stock healthy"}
       icon={AlertTriangle}
       iconBg="bg-warning-subtle"

@@ -255,8 +255,7 @@
 }
 
 @utility sidebar-item-active {
-  @apply bg-primary-subtle text-primary-light border-l-2 border-primary-default shadow-glow-primary-sm;
-  padding-left: 10px;
+  @apply bg-primary-subtle text-primary-light rounded-xl shadow-glow-primary-sm;
 }
 
 @utility gradient-text {
