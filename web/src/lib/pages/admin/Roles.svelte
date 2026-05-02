@@ -270,9 +270,9 @@
       </div>
     {/if}
     
-    <div>
-      <label class="block text-sm font-medium text-text-secondary mb-3">Permissions</label>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+<div>
+  <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {#each permissions as perm}
           <label 
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors

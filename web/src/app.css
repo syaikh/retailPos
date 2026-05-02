@@ -251,11 +251,25 @@
 @utility sidebar-item {
   @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
          text-text-secondary transition-all duration-200 cursor-pointer select-none
-         hover:bg-sidebar-hover hover:text-text-primary;
+         hover:bg-blue-400/10 hover:text-text-primary hover:border hover:border-blue-400/20
+         hover:shadow-[0_0_24px_rgba(59,130,246,0.15)];
 }
 
 @utility sidebar-item-active {
-  @apply bg-primary-subtle text-primary-light rounded-xl shadow-glow-primary-sm;
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+         text-blue-500 bg-blue-500/10 cursor-pointer select-none
+         hover:bg-blue-500/15 hover:text-blue-600
+         active:scale-[0.97] active:bg-blue-500/20;
+}
+
+@utility sidebar-item-active {
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+         text-blue-300 transition-all duration-200 cursor-pointer select-none
+         bg-blue-500/10 backdrop-blur-xl border border-blue-400/30
+         shadow-[0_0_24px_rgba(59,130,246,0.2)]
+         hover:bg-blue-500/15 hover:text-blue-200 hover:border-blue-400/40
+         hover:shadow-[0_0_36px_rgba(59,130,246,0.3)] active:scale-[0.965]
+         active:shadow-[0_0_48px_rgba(59,130,246,0.4)] active:-translate-y-px;
 }
 
 @utility gradient-text {
@@ -281,4 +295,21 @@ td {
 
 tbody tr {
   @apply transition-colors duration-150 hover:bg-surface-default/60;
+}
+
+/* Sidebar ripple effect (tactile click feedback) */
+.sidebar-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.35);
+  transform: scale(0);
+  animation: sidebar-ripple-anim 0.6s linear;
+  pointer-events: none;
+}
+
+@keyframes sidebar-ripple-anim {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
 }

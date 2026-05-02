@@ -60,6 +60,28 @@
     await logout();
     goto('/login');
   }
+
+  function createRipple(event: MouseEvent, el: HTMLElement) {
+    const button = el;
+    const circle = document.createElement('span');
+    const diameter = Math.max(button.clientWidth, button.clientHeight);
+    const radius = diameter / 2;
+
+    const rect = button.getBoundingClientRect();
+    const x = event.clientX - rect.left - radius;
+    const y = event.clientY - rect.top - radius;
+
+    circle.style.width = circle.style.height = `${diameter}px`;
+    circle.style.left = `${x}px`;
+    circle.style.top = `${y}px`;
+    circle.classList.add('sidebar-ripple');
+
+    const ripple = button.getElementsByClassName('sidebar-ripple')[0];
+    if (ripple) ripple.remove();
+
+    button.appendChild(circle);
+    setTimeout(() => circle.remove(), 600);
+  }
 </script>
 
 <!-- Sidebar -->
@@ -84,13 +106,13 @@
   <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar">
     {#each navItems as item}
       <button
-        onclick={() => navigate(item.href)}
-        class={isActive(item.href) ? 'sidebar-item-active w-full text-left' : 'sidebar-item w-full text-left'}
+        onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
+        class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         title={collapsed ? item.label : ''}
       >
         <item.icon size={18} class="flex-shrink-0" />
         {#if !collapsed}
-          <span class="animate-fade-in">{item.label}</span>
+          <span class="animate-fade-in relative z-10">{item.label}</span>
         {/if}
       </button>
     {/each}
@@ -108,13 +130,13 @@
 
     {#each adminItems as item}
       <button
-        onclick={() => navigate(item.href)}
-        class={isActive(item.href) ? 'sidebar-item-active w-full text-left' : 'sidebar-item w-full text-left'}
+        onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
+        class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         title={collapsed ? item.label : ''}
       >
         <item.icon size={18} class="flex-shrink-0" />
         {#if !collapsed}
-          <span class="animate-fade-in">{item.label}</span>
+          <span class="animate-fade-in relative z-10">{item.label}</span>
         {/if}
       </button>
     {/each}
