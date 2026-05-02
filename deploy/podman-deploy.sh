@@ -2,20 +2,15 @@
 set -e
 
 # =============================================================================
-# Retail POS System - Podman Deployment Script
+# Retail POS System - Podman Deployment Script (Refactored)
 # =============================================================================
-# This script deploys the entire Retail POS System using Podman containers:
-#  - PostgreSQL database
-#  - Go backend (API + WebSocket)
-#  - Nginx frontend (static files + reverse proxy)
-#
 # Usage:
-#   ./deploy/podman-deploy.sh [start|stop|restart|logs|status]
-#
-# Prerequisites:
-#   - Podman installed and running
-#   - Images built: retail-pos-backend:latest, retail-pos-frontend:latest
-#   - Optionally: podman-docker package for docker-compatible CLI
+#   ./deploy/podman-deploy.sh start [postgres|backend|frontend|all]
+#   ./deploy/podman-deploy.sh stop [postgres|backend|frontend|all]
+#   ./deploy/podman-deploy.sh migrate
+#   ./deploy/podman-deploy.sh seed
+#   ./deploy/podman-deploy.sh status
+#   ./deploy/podman-deploy.sh logs [backend|frontend|postgres|all]
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,12 +19,9 @@ cd "$SCRIPT_DIR"
 # Configuration
 POD_NAME="retail-pos-pod"
 NETWORK_NAME="retail-pos-network"
-
-# Host port mapping: external port (e.g., 5173) -> frontend container port 80
-# Backend not exposed externally, only accessible within pod via localhost:8080
 HOST_FRONTEND_PORT="${HOST_FRONTEND_PORT:-5173}"
 
-# Image names (fully qualified with localhost for local images)
+# Image names
 BACKEND_IMAGE="${BACKEND_IMAGE:-localhost/retail-pos-backend:latest}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-localhost/retail-pos-frontend:latest}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.io/library/postgres:18-alpine}"
@@ -37,7 +29,6 @@ POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.io/library/postgres:18-alpine}"
 # Database configuration
 DB_NAME="${DB_NAME:-retail_pos}"
 DB_USER="${DB_USER:-pos}"
-# Use fixed password for consistency with seed data
 DB_PASSWORD="${DB_PASSWORD:-admin123}"
 DB_PORT="${DB_PORT:-5432}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-${DB_PASSWORD}}"
@@ -49,31 +40,28 @@ POSTGRES_VOLUME="retail-pos-postgres-data"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# Checks
+pod_exists() { podman pod exists "$POD_NAME" 2>/dev/null || return 1; }
+container_exists() { podman container exists "$1" 2>/dev/null || return 1; }
+
+ensure_pod() {
+    if ! pod_exists; then
+        log_info "Creating pod '$POD_NAME'..."
+        podman pod create \
+            --name "$POD_NAME" \
+            --network bridge \
+            -p "${HOST_FRONTEND_PORT}:8081" \
+            -p "5432:5432" \
+            -p "8080:8080"
+    fi
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Check if pod exists
-pod_exists() {
-    podman pod exists "$POD_NAME" 2>/dev/null || return 1
-}
-
-# Check if container exists
-container_exists() {
-    podman container exists "$1" 2>/dev/null || return 1
-}
-
-# Wait for PostgreSQL to be ready
 wait_for_postgres() {
     log_info "Waiting for PostgreSQL to be ready..."
     local max_attempts=30
@@ -91,14 +79,12 @@ wait_for_postgres() {
     return 1
 }
 
-# Wait for backend to be ready
 wait_for_backend() {
     log_info "Waiting for backend API to be ready..."
     local max_attempts=30
     local attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        # Use curl inside backend container; any response (even 401) means backend is alive
-        if podman exec backend curl -s -o /dev/null http://localhost:8080/api/stats; then
+        if podman exec backend curl -s -o /dev/null http://localhost:8080/api/stats 2>/dev/null; then
             log_info "Backend API is ready!"
             return 0
         fi
@@ -110,94 +96,55 @@ wait_for_backend() {
     return 1
 }
 
-init_db() {
-    log_info "Initializing database..."
-
-    # Wait for postgres to be ready inside container
-    podman exec postgres pg_isready -U postgres >/dev/null 2>&1 || sleep 3
-
-    # Create database if not exists
-    if podman exec postgres psql -U "$DB_USER" -lqt | cut -d\| -f1 | grep -qw "$DB_NAME"; then
-        log_info "Database '$DB_NAME' already exists"
-    else
-        log_info "Creating database '$DB_NAME'..."
-        podman exec postgres createdb -U "$DB_USER" "$DB_NAME"
-    fi
-
-    # Run migrations (as application superuser)
-    log_info "Running database migrations..."
-    local migration_dir="$SCRIPT_DIR/database/migrations"
-    if [ -d "$migration_dir" ]; then
-        for sql_file in "$migration_dir"/*.sql; do
-            if [ -f "$sql_file" ]; then
-                log_info "  Migrating: $(basename "$sql_file")"
-                podman exec -i postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
-            fi
-        done
-    else
-        log_warn "Migration directory not found: $migration_dir"
-    fi
-
-    # Run seed files
-    log_info "Running database seeds..."
-    local seed_dir="$SCRIPT_DIR/database/seeds"
-    if [ -d "$seed_dir" ]; then
-        for sql_file in "$seed_dir"/*.sql; do
-            if [ -f "$sql_file" ]; then
-                log_info "  Seeding: $(basename "$sql_file")"
-                podman exec -i postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
-            fi
-        done
-        log_info "Seeds applied successfully."
-    else
-        log_warn "Seed directory not found: $seed_dir"
-    fi
-
-    log_info "Database initialized"
+# Service Management
+build_image() {
+    local service=$1
+    log_info "Building latest $service image..."
+    case "$service" in
+        backend)
+            podman build -t "$BACKEND_IMAGE" -f deploy/backend/Dockerfile .
+            ;;
+        frontend)
+            podman build -t "$FRONTEND_IMAGE" -f deploy/frontend/Dockerfile .
+            ;;
+    esac
 }
 
-start() {
-    log_info "Starting Retail POS System..."
-
-    if pod_exists; then
-        log_warn "Pod '$POD_NAME' already exists. Use 'restart' to recreate."
-        return 0
-    fi
-
-    # 1. Create pod with shared network
-    # Only frontend port is exposed externally. Backend is only accessible within pod via localhost:8080
-    log_info "Creating pod '$POD_NAME'..."
-    podman pod create \
-        --name "$POD_NAME" \
-        --network bridge \
-        -p "${HOST_FRONTEND_PORT}:8081" \
-        -p "5432:5432"
-        # SSL port 8443 can be added: -p 8443:8443
-
-    # 2. Create volume for Postgres data (if not exists)
-    log_info "Creating persistent volume for PostgreSQL..."
+start_postgres() {
+    ensure_pod
     podman volume create "$POSTGRES_VOLUME" 2>/dev/null || true
+    
+    if container_exists "postgres"; then
+        local status=$(podman container inspect postgres --format '{{.State.Status}}')
+        if [ "$status" == "running" ]; then
+            log_info "PostgreSQL is already running"
+        else
+            log_info "Starting existing PostgreSQL container..."
+            podman start postgres
+        fi
+    else
+        log_info "Starting new PostgreSQL container..."
+        podman run -d \
+            --pod "$POD_NAME" \
+            --name postgres \
+            -e POSTGRES_USER="$DB_USER" \
+            -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            -e POSTGRES_DB="$DB_NAME" \
+            -v "$POSTGRES_VOLUME:/var/lib/postgresql" \
+            --restart unless-stopped \
+            "$POSTGRES_IMAGE"
+    fi
+    wait_for_postgres
+}
 
-    # 3. Start PostgreSQL container in the pod
-    log_info "Starting PostgreSQL container..."
-    podman run -d \
-        --pod "$POD_NAME" \
-        --name postgres \
-        -e POSTGRES_USER="$DB_USER" \
-        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-        -e POSTGRES_DB="$DB_NAME" \
-        -v "$POSTGRES_VOLUME:/var/lib/postgresql" \
-        --restart unless-stopped \
-        "$POSTGRES_IMAGE"
-
-    # Wait for Postgres
-    sleep 5
-    wait_for_postgres || exit 1
-
-    # 4. Initialize database (run migrations + seeds)
-    init_db
-
-    # 5. Start backend container
+start_backend() {
+    ensure_pod
+    build_image backend
+    if container_exists "backend"; then
+        log_info "Replacing existing backend container..."
+        podman stop backend 2>/dev/null || true
+        podman rm backend 2>/dev/null || true
+    fi
     log_info "Starting Go backend container..."
     podman run -d \
         --pod "$POD_NAME" \
@@ -207,133 +154,148 @@ start() {
         -e DB_USER="$DB_USER" \
         -e DB_PASSWORD="$DB_PASSWORD" \
         -e DB_NAME="$DB_NAME" \
+        -e FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173,http://localhost:5174}" \
         -e GIN_MODE=release \
         --restart unless-stopped \
         "$BACKEND_IMAGE"
+    wait_for_backend
+}
 
-    # 6. Start frontend container
+start_frontend() {
+    ensure_pod
+    build_image frontend
+    if container_exists "frontend"; then
+        log_info "Replacing existing frontend container..."
+        podman stop frontend 2>/dev/null || true
+        podman rm frontend 2>/dev/null || true
+    fi
     log_info "Starting Nginx frontend container..."
     podman run -d \
         --pod "$POD_NAME" \
         --name frontend \
         --restart unless-stopped \
         "$FRONTEND_IMAGE"
+}
 
-    # 7. Wait for services
-    wait_for_backend || exit 1
+migrate() {
+    log_info "Running database migrations..."
+    if ! container_exists "postgres"; then
+        log_error "PostgreSQL must be running to migrate. Run: $0 start postgres"
+        return 1
+    fi
 
-    # 8. Show credentials
-    log_info "============================================"
-    log_info "Retail POS System is running!"
-    log_info "  Frontend:  http://localhost:${HOST_FRONTEND_PORT}"
-    log_info "  API (internal only):  http://localhost:8080"
-    log_info "  Database:  ${DB_NAME}@localhost:5432"
-    log_info "  DB User:   ${DB_USER}"
-    log_info "  DB Pass:   ${POSTGRES_PASSWORD}"
-    log_info "============================================"
+    # Create database if not exists
+    if podman exec postgres psql -U "$DB_USER" -lqt | cut -d\| -f1 | grep -qw "$DB_NAME"; then
+        log_info "Database '$DB_NAME' already exists"
+    else
+        log_info "Creating database '$DB_NAME'..."
+        podman exec postgres createdb -U "$DB_USER" "$DB_NAME"
+    fi
+
+    local migration_dir="$SCRIPT_DIR/database/migrations"
+    for sql_file in "$migration_dir"/*.sql; do
+        if [ -f "$sql_file" ]; then
+            log_info "  Migrating: $(basename "$sql_file")"
+            podman exec -i postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
+        fi
+    done
+    log_info "Migrations applied."
+}
+
+seed() {
+    log_info "Running dummy data injection via Go..."
+    # Run from host (ensure DB is accessible)
+    DB_HOST=localhost \
+    DB_PORT=5432 \
+    DB_USER="$DB_USER" \
+    DB_PASSWORD="$DB_PASSWORD" \
+    DB_NAME="$DB_NAME" \
+    go run cmd/dummy/main.go
 }
 
 stop() {
-    log_info "Stopping Retail POS System..."
-
-    if ! pod_exists; then
-        log_warn "Pod '$POD_NAME' does not exist"
-        return 0
-    fi
-
-    # Stop and remove pod (containers are removed automatically)
-    podman pod stop "$POD_NAME"
-    podman pod rm "$POD_NAME"
-
-    # Remove volume (data will be lost - comment out if you want to keep data)
-    # podman volume rm "$POSTGRES_VOLUME" 2>/dev/null || true
-
-    log_info "All services stopped"
-}
-
-restart() {
-    stop
-    sleep 2
-    start
+    local target="${1:-all}"
+    case "$target" in
+        postgres|backend|frontend)
+            log_info "Stopping $target..."
+            podman stop "$target" 2>/dev/null || log_warn "$target not running"
+            ;;
+        all|*)
+            log_info "Stopping all services in pod '$POD_NAME'..."
+            if pod_exists; then
+                podman pod stop "$POD_NAME"
+                podman pod rm "$POD_NAME"
+                log_info "Pod and containers removed"
+            else
+                log_warn "Pod '$POD_NAME' does not exist"
+            fi
+            ;;
+    esac
 }
 
 status() {
     echo ""
     log_info "Pod status:"
     podman pod ls | grep "$POD_NAME" || echo "  Pod not found"
-
     echo ""
     log_info "Container status:"
     podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "postgres|backend|frontend" || echo "  No containers"
-
     echo ""
-    log_info "Network connectivity:"
-    # Backend is accessed via nginx proxy on HOST_FRONTEND_PORT
+    log_info "Connectivity:"
     if curl -s "http://localhost:${HOST_FRONTEND_PORT}/api/stats" >/dev/null 2>&1; then
-        echo -e "  ${GREEN}✓ Backend API responding (via Nginx)${NC}"
+        echo -e "  ${GREEN}✓ Backend API responding${NC}"
     else
         echo -e "  ${RED}✗ Backend API not responding${NC}"
     fi
-
     if curl -s "http://localhost:${HOST_FRONTEND_PORT}/" >/dev/null 2>&1; then
-        echo -e "  ${GREEN}✓ Frontend accessible on port ${HOST_FRONTEND_PORT}${NC}"
+        echo -e "  ${GREEN}✓ Frontend accessible on ${HOST_FRONTEND_PORT}${NC}"
     else
         echo -e "  ${RED}✗ Frontend not accessible${NC}"
     fi
 }
 
 logs() {
-    if ! pod_exists; then
-        log_error "Pod '$POD_NAME' not running"
-        return 1
-    fi
-
+    if ! pod_exists; then log_error "Pod not running"; return 1; fi
     case "${1:-all}" in
-        backend)
-            podman logs -f backend
-            ;;
-        frontend)
-            podman logs -f frontend
-            ;;
-        postgres)
-            podman logs -f postgres
-            ;;
-        all|*)
-            echo "=== Backend ==="
-            podman logs backend 2>&1 | tail -20
-            echo ""
-            echo "=== Frontend ==="
-            podman logs frontend 2>&1 | tail -20
-            echo ""
-            echo "=== PostgreSQL ==="
-            podman logs postgres 2>&1 | tail -20
+        backend|frontend|postgres) podman logs -f "$1" ;;
+        *)
+            for s in backend frontend postgres; do
+                echo "=== $s ==="
+                podman logs "$s" 2>&1 | tail -20
+                echo ""
+            done
             ;;
     esac
 }
 
-# Main command dispatcher
-case "${1:-status}" in
+# Main
+case "$1" in
     start)
-        start
+        case "$2" in
+            postgres) start_postgres ;;
+            backend)  start_backend ;;
+            frontend) start_frontend ;;
+            all|"")
+                start_postgres
+                start_backend
+                start_frontend
+                ;;
+            *) log_error "Unknown service: $2"; exit 1 ;;
+        esac
         ;;
     stop)
-        stop
+        stop "$2"
         ;;
+    migrate) migrate ;;
+    seed)    seed ;;
+    status)  status ;;
+    logs)    logs "$2" ;;
     restart)
-        restart
-        ;;
-    status)
-        status
-        ;;
-    logs)
-        logs "${2:-all}"
-        ;;
-    init-db)
-        # Helper to initialize DB manually
-        init_db
+        stop "$2"
+        $0 start "$2"
         ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|logs [backend|frontend|postgres|all]}"
+        echo "Usage: $0 {start|stop|migrate|seed|status|logs|restart} [service]"
         exit 1
         ;;
 esac
