@@ -6,6 +6,7 @@
   import StatCard from '$lib/components/ui/StatCard.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     DollarSign, Receipt, TrendingUp, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
@@ -13,6 +14,9 @@
 
   let loading = $state(true);
   let salesData = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
 
   // Date range
   let startDate = $state(new Date(new Date().setDate(1)).toISOString().slice(0, 10));
@@ -20,25 +24,38 @@
 
   const stats = $derived({
     revenue: salesData.reduce((s, r) => s + (r.total_amount || 0), 0),
-    orders:  salesData.length,
-    avgOrder: salesData.length
-      ? Math.floor(salesData.reduce((s, r) => s + (r.total_amount || 0), 0) / salesData.length)
+    orders:  total, // Use total from server
+    avgOrder: total > 0
+      ? Math.floor(salesData.reduce((s, r) => s + (r.total_amount || 0), 0) / salesData.length) // This is just an estimate for the current page
       : 0,
   });
 
   async function fetchSales() {
     try {
       loading = true;
-      const r = await apiFetch(`/api/sales?startDate=${startDate}&endDate=${endDate}`);
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+        limit: limit.toString(),
+        offset: offset.toString()
+      });
+      const r = await apiFetch(`/api/sales?${params.toString()}`);
       if (r.ok) {
         const data = await r.json();
         salesData = data.data || [];
+        total = data.total || 0;
       }
     } catch {
       toast.error('Failed to load sales data');
     } finally {
       loading = false;
     }
+  }
+
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
+    fetchSales();
   }
 
   const statusVariant = (s) =>
@@ -70,7 +87,7 @@
       <span class="text-text-muted text-sm">to</span>
       <input type="date" class="input w-40" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} />
     </div>
-    <button class="btn btn-primary btn-sm" onclick={fetchSales}>Apply</button>
+    <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
   </div>
 
   <!-- KPI stats -->
@@ -121,7 +138,7 @@
     <div class="px-4 py-3 border-b border-border flex items-center justify-between">
       <p class="text-sm font-semibold text-text-primary">Transaction History</p>
       {#if !loading}
-        <span class="badge badge-muted">{salesData.length} records</span>
+        <span class="badge badge-muted">{total} records</span>
       {/if}
     </div>
 
@@ -184,6 +201,15 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <div class="p-4 bg-surface-subtle/30">
+        <Pagination 
+          {total} 
+          {limit} 
+          {offset} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     {/if}
   </div>

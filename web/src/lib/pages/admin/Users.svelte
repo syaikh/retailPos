@@ -2,14 +2,19 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { debounce } from '$lib/utils/debounce';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
   import { Search, Plus, Pencil, Trash2, User, Users, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
   let roles = $state([]);
   let searchQuery = $state('');
   let showModal = $state(false);
@@ -27,14 +32,6 @@
     is_active: true
   });
 
-  const filtered = $derived(
-    users.filter(u =>
-      !searchQuery ||
-      (u.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
-
   const roleVariant = (r) => {
     const roleName = typeof r === 'object' ? r.name : r;
     if (roleName === 'admin') return 'primary';
@@ -42,18 +39,30 @@
     return 'muted';
   };
 
-  async function fetchData() {
+  async function fetchUsers() {
     try {
       loading = true;
-      const [uRes, rRes] = await Promise.all([
-        apiFetch('/api/admin/users'),
-        apiFetch('/api/admin/roles')
-      ]);
-
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+        search: searchQuery
+      });
+      const uRes = await apiFetch(`/api/admin/users?${params.toString()}`);
       if (uRes.ok) {
         const data = await uRes.json();
         users = data.data || [];
+        total = data.total || 0;
       }
+    } catch {
+      toast.error('Failed to load users');
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function fetchRoles() {
+    try {
+      const rRes = await apiFetch('/api/admin/roles');
       if (rRes.ok) {
         const data = await rRes.json();
         roles = data.data || [];
@@ -62,10 +71,34 @@
         }
       }
     } catch {
-      toast.error('Failed to load user data');
-    } finally {
-      loading = false;
+      toast.error('Failed to load roles');
     }
+  }
+
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    fetchUsers();
+  }, 400);
+
+  $effect(() => {
+    searchQuery;
+    debouncedSearch();
+  });
+
+  $effect(() => {
+    offset;
+    limit;
+    untrackedFetch();
+  });
+
+  function untrackedFetch() {
+    fetchUsers();
+  }
+
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
   }
 
   function openAdd() {
@@ -106,7 +139,7 @@
       if (r.ok) {
         toast.success(modalMode === 'add' ? 'User created' : 'User updated');
         showModal = false;
-        await fetchData();
+        await fetchUsers();
       } else {
         const err = await r.json();
         toast.error(err.error || 'Failed to save user');
@@ -123,8 +156,8 @@
     try {
       const r = await apiFetch(`/api/admin/users/${selectedUser.id}`, { method: 'DELETE' });
       if (r.ok) {
-        users = users.filter(u => u.id !== selectedUser.id);
         toast.success(`User "${selectedUser.username}" removed`);
+        await fetchUsers();
       } else {
         toast.error('Failed to delete user');
       }
@@ -136,7 +169,10 @@
     }
   }
 
-  onMount(fetchData);
+  onMount(() => {
+    fetchUsers();
+    fetchRoles();
+  });
 </script>
 
 <div class="space-y-5">
@@ -161,7 +197,7 @@
     <div class="px-4 py-3 border-b border-border flex items-center justify-between">
       <p class="text-sm font-semibold text-text-primary">User Accounts</p>
       {#if !loading}
-        <span class="badge badge-muted">{filtered.length} users</span>
+        <span class="badge badge-muted">{total} users</span>
       {/if}
     </div>
 
@@ -180,7 +216,7 @@
           </div>
         {/each}
       </div>
-    {:else if filtered.length === 0}
+    {:else if users.length === 0}
       <div class="empty-state py-16">
         <div class="empty-state-icon bg-surface w-20 h-20">
           <Users size={32} class="text-text-muted" />
@@ -203,7 +239,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each filtered as user (user.id)}
+            {#each users as user (user.id)}
               <tr>
                 <td>
                   <div class="flex items-center gap-3">
@@ -252,6 +288,15 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <div class="p-4 bg-surface-subtle/30">
+        <Pagination 
+          {total} 
+          {limit} 
+          {offset} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     {/if}
   </div>

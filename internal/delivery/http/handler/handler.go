@@ -308,7 +308,19 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 // Admin Handlers
 func (h *Handler) ListUsers(c *gin.Context) {
-	users, total, err := h.authRepo.GetAllUsers(getCtx(c), 50, 0, c.Query("search"))
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
+			offset = val
+		}
+	}
+	users, total, err := h.authRepo.GetAllUsers(getCtx(c), limit, offset, c.Query("search"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return

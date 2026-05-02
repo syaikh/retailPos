@@ -31,13 +31,20 @@
   }
 
   function handleRoute(path) {
-    const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+    const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
 
-    if (path !== '/login' && !hasToken) {
+    if (path !== '/login' && !hasValidToken) {
       Component = LoginPage;
       currentPath = '/login';
       window.history.replaceState({}, '', '/login');
       isInitializing = false;
+      return;
+    }
+
+    if (path === '/login' && hasValidToken) {
+      // If already logged in and trying to access login page, redirect to home
+      goto('/');
       return;
     }
 
@@ -48,16 +55,7 @@
 
   // Initial route resolution
   const initialPath = getPath();
-  const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
-
-  if (initialPath !== '/login' && !hasToken) {
-    Component = LoginPage;
-    currentPath = '/login';
-    window.history.replaceState({}, '', '/login');
-    isInitializing = false;
-  } else {
-    handleRoute(initialPath);
-  }
+  handleRoute(initialPath);
 
   subscribe(handleRoute);
 </script>

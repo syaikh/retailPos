@@ -4,6 +4,8 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { debounce } from '$lib/utils/debounce';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, ShoppingCart, Trash2, Plus, Minus,
     X, CreditCard, Banknote, QrCode, Tag,
@@ -12,7 +14,9 @@
   // ── State ────────────────────────────────────────────────────
   let loading = $state(true);
   let products = $state([]);
-  let filteredProducts = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
   let searchQuery = $state('');
   let selectedCategory = $state('Semua');
   let cart = $state([]);
@@ -25,17 +29,25 @@
   // ── Derived ──────────────────────────────────────────────────
   let subtotal = $derived(cart.reduce((s, i) => s + i.price * i.quantity, 0));
   let tax      = $derived(Math.floor(subtotal * 0.1));
-  let total    = $derived(subtotal + tax);
+  let totalAmount = $derived(subtotal + tax);
   let totalItems = $derived(cart.reduce((s, i) => s + i.quantity, 0));
 
   // ── Products ─────────────────────────────────────────────────
   async function fetchProducts() {
     try {
       loading = true;
-      const r = await apiFetch('/api/products');
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+        search: searchQuery
+      });
+      if (selectedCategory !== 'Semua') params.append('category', selectedCategory);
+
+      const r = await apiFetch(`/api/products?${params.toString()}`);
       if (r.ok) {
         const data = await r.json();
         products = data.data || [];
+        total = data.total || 0;
       }
     } catch (e) {
       toast.error('Failed to load products');
@@ -44,20 +56,32 @@
     }
   }
 
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    fetchProducts();
+  }, 300);
+
   $effect(() => {
-    let result = products;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.sku  || '').toLowerCase().includes(q)
-      );
-    }
-    if (selectedCategory && selectedCategory !== 'Semua') {
-      result = result.filter(p => p.category === selectedCategory);
-    }
-    filteredProducts = result;
+    searchQuery;
+    debouncedSearch();
   });
+
+  $effect(() => {
+    selectedCategory;
+    offset;
+    limit;
+    untrackedFetch();
+  });
+
+  function untrackedFetch() {
+    fetchProducts();
+  }
+
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
+  }
 
   // ── Cart ─────────────────────────────────────────────────────
   function addToCart(product) {
@@ -101,7 +125,7 @@
         subtotal,
         discount: 0,
         tax,
-        total_amount: total,
+        total_amount: totalAmount,
         payment_method: paymentMethod,
         items: cart.map(i => ({
           product_id: i.id,
@@ -191,7 +215,7 @@
       <div class="px-4 py-3 border-b border-border flex items-center justify-between">
         <p class="text-sm font-semibold text-text-primary">Products</p>
         {#if !loading}
-          <span class="badge badge-muted">{filteredProducts.length} items</span>
+          <span class="badge badge-muted">{total} items</span>
         {/if}
       </div>
 
@@ -207,7 +231,7 @@
               </div>
             {/each}
           </div>
-        {:else if filteredProducts.length === 0}
+        {:else if products.length === 0}
           <div class="empty-state">
             <div class="empty-state-icon bg-surface">
               <Tag size={28} class="text-text-muted" />
@@ -229,7 +253,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each filteredProducts as product (product.id)}
+              {#each products as product (product.id)}
                 <tr>
                   <td>
                     <div class="font-medium text-text-primary">{product.name}</div>
@@ -263,6 +287,18 @@
           </table>
         {/if}
       </div>
+      
+      <!-- Pagination Footer -->
+      {#if total > 0}
+        <div class="p-3 border-t border-border bg-surface-subtle/20">
+          <Pagination 
+            {total} 
+            {limit} 
+            {offset} 
+            onPageChange={handlePageChange} 
+          />
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -347,7 +383,7 @@
             </div>
             <div class="flex justify-between font-bold text-text-primary border-t border-border pt-2">
               <span>Total</span>
-              <span class="text-primary-light text-base">Rp {total.toLocaleString('id-ID')}</span>
+              <span class="text-primary-light text-base">Rp {totalAmount.toLocaleString('id-ID')}</span>
             </div>
           </div>
 
@@ -376,7 +412,7 @@
               <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
               Processing…
             {:else}
-              Complete Purchase · Rp {total.toLocaleString('id-ID')}
+              Complete Purchase · Rp {totalAmount.toLocaleString('id-ID')}
             {/if}
           </button>
         </div>

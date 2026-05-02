@@ -2,50 +2,79 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { debounce } from '$lib/utils/debounce';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
   import { Search, ScrollText, RefreshCw, CalendarDays } from 'lucide-svelte';
 
   let loading = $state(true);
   let items = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
   let searchQuery = $state('');
   let selectedAction = $state('all');
 
   const actionTypes = ['all', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'];
 
-  const filtered = $derived(
-    items.filter(log => {
-      const matchesSearch = !searchQuery ||
-        (log.actor || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (log.resource || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (log.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesAction = selectedAction === 'all' || log.action === selectedAction;
-      return matchesSearch && matchesAction;
-    })
-  );
-
   const actionVariant = (a) => {
-    if (a === 'CREATE') return 'success';
-    if (a === 'DELETE') return 'danger';
-    if (a === 'UPDATE') return 'warning';
-    if (a === 'LOGIN' || a === 'LOGOUT') return 'primary';
+    if (a?.toUpperCase() === 'CREATE') return 'success';
+    if (a?.toUpperCase() === 'DELETE') return 'danger';
+    if (a?.toUpperCase() === 'UPDATE') return 'warning';
+    if (a?.toUpperCase() === 'LOGIN' || a?.toUpperCase() === 'LOGOUT') return 'primary';
     return 'muted';
   };
 
   async function fetchLogs() {
     try {
       loading = true;
-      const r = await apiFetch('/api/admin/audit-logs');
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+        search: searchQuery
+      });
+      if (selectedAction !== 'all') params.append('action', selectedAction);
+
+      const r = await apiFetch(`/api/admin/audit-logs?${params.toString()}`);
       if (r.ok) {
         const data = await r.json();
-        items = data.data || data || [];
+        items = data.data || [];
+        total = data.total || 0;
       }
     } catch {
       toast.error('Failed to load audit logs');
     } finally {
       loading = false;
     }
+  }
+
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    fetchLogs();
+  }, 400);
+
+  $effect(() => {
+    searchQuery;
+    debouncedSearch();
+  });
+
+  $effect(() => {
+    selectedAction;
+    offset;
+    limit;
+    untrackedFetch();
+  });
+
+  function untrackedFetch() {
+    fetchLogs();
+  }
+
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
   }
 
   onMount(fetchLogs);
@@ -86,7 +115,7 @@
     <div class="px-4 py-3 border-b border-border flex items-center justify-between">
       <p class="text-sm font-semibold text-text-primary">Activity Log</p>
       {#if !loading}
-        <span class="badge badge-muted">{filtered.length} entries</span>
+        <span class="badge badge-muted">{total} entries</span>
       {/if}
     </div>
 
@@ -102,7 +131,7 @@
           </div>
         {/each}
       </div>
-    {:else if filtered.length === 0}
+    {:else if items.length === 0}
       <div class="empty-state py-16">
         <div class="empty-state-icon bg-surface w-20 h-20">
           <ScrollText size={32} class="text-text-muted" />
@@ -126,7 +155,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each filtered as log (log.id)}
+            {#each items as log (log.id)}
               <tr>
                 <td class="text-text-muted text-xs whitespace-nowrap">
                   <div class="flex items-center gap-1.5">
@@ -157,6 +186,15 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <div class="p-4 bg-surface-subtle/30">
+        <Pagination 
+          {total} 
+          {limit} 
+          {offset} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     {/if}
   </div>

@@ -2,10 +2,12 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { debounce } from '$lib/utils/debounce';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
     SlidersHorizontal, AlertTriangle, Loader2
@@ -13,6 +15,9 @@
 
   let loading = $state(true);
   let products = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
   let searchQuery = $state('');
   let selectedCategory = $state('all');
   let lowStockOnly = $state(false);
@@ -34,30 +39,59 @@
 
   const categories = ['all', 'Makanan', 'Minuman', 'Snack', 'Lainnya'];
 
-  const filtered = $derived(() => {
-    let r = products;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      r = r.filter(p => (p.name || '').toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q));
-    }
-    if (selectedCategory !== 'all') r = r.filter(p => p.category === selectedCategory);
-    if (lowStockOnly) r = r.filter(p => p.stock <= (p.stock_min || 5));
-    return r;
-  });
-
   async function fetchProducts() {
     try {
       loading = true;
-      const r = await apiFetch('/api/products');
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+        search: searchQuery
+      });
+      if (selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
+
+      const r = await apiFetch(`/api/products?${params.toString()}`);
       if (r.ok) {
         const data = await r.json();
         products = data.data || [];
+        total = data.total || 0;
       }
     } catch {
       toast.error('Failed to load inventory');
     } finally {
       loading = false;
     }
+  }
+
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    fetchProducts();
+  }, 400);
+
+  $effect(() => {
+    searchQuery; // Track search
+    debouncedSearch();
+  });
+
+  $effect(() => {
+    // Other filters (no debounce needed for dropdown/toggle)
+    selectedCategory;
+    lowStockOnly;
+    offset;
+    limit;
+    // We wrap this in a non-tracked fetch to avoid infinite loops if fetch modifies dependencies
+    // But here we are just calling it.
+    untrackedFetch();
+  });
+
+  function untrackedFetch() {
+    fetchProducts();
+  }
+
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
   }
 
   function openAdd() {
@@ -114,8 +148,8 @@
     try {
       const r = await apiFetch(`/api/products/${selectedProduct.id}`, { method: 'DELETE' });
       if (r.ok) {
-        products = products.filter(p => p.id !== selectedProduct.id);
         toast.success(`"${selectedProduct.name}" removed`);
+        await fetchProducts();
       } else {
         toast.error('Failed to delete product');
       }
@@ -166,7 +200,7 @@
     <div class="px-4 py-3 border-b border-border flex items-center justify-between">
       <p class="text-sm font-semibold text-text-primary">Product List</p>
       {#if !loading}
-        <span class="badge badge-muted">{filtered().length} products</span>
+        <span class="badge badge-muted">{total} products</span>
       {/if}
     </div>
 
@@ -182,7 +216,7 @@
           </div>
         {/each}
       </div>
-    {:else if filtered().length === 0}
+    {:else if products.length === 0}
       <div class="empty-state py-20">
         <div class="empty-state-icon bg-surface w-20 h-20">
           <Package size={32} class="text-text-muted" />
@@ -209,7 +243,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each filtered() as product (product.id)}
+            {#each products as product (product.id)}
               <tr>
                 <td>
                   <div class="font-medium text-text-primary">{product.name}</div>
@@ -252,6 +286,15 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <div class="p-4 bg-surface-subtle/30">
+        <Pagination 
+          {total} 
+          {limit} 
+          {offset} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     {/if}
   </div>
