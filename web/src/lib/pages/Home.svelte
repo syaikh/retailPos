@@ -1,89 +1,172 @@
 <script>
-  function openPOS() {
-    window.location.href = '/pos';
+  import { onMount } from 'svelte';
+  import { goto } from '$lib/router';
+  import { auth } from '$lib/stores/auth';
+  import { apiFetch } from '$lib/api/client';
+  import StatCard from '$lib/components/ui/StatCard.svelte';
+  import {
+    ShoppingCart, Package, BarChart3, Users,
+    TrendingUp, DollarSign, AlertTriangle, Receipt,
+    ArrowRight,
+  } from 'lucide-svelte';
+
+  let username = $derived($auth.user?.username || 'there');
+  let stats = $state({
+    todays_revenue: 0,
+    todays_sales: 0,
+    total_products: 0,
+    low_stock_count: 0
+  });
+  let loading = $state(true);
+
+  async function fetchStats() {
+    try {
+      loading = true;
+      const res = await apiFetch('/api/stats');
+      if (res.ok) {
+        const data = await res.json();
+        stats = data.data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+    } finally {
+      loading = false;
+    }
   }
-  
-  function openInventory() {
-    window.location.href = '/inventory';
-  }
-  
-  function openReports() {
-    window.location.href = '/reports';
-  }
-  
-  function openAdmin() {
-    window.location.href = '/admin';
-  }
+
+  onMount(fetchStats);
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  })();
+
+  // Quick-access modules
+  const modules = [
+    {
+      label: 'Point of Sale',
+      desc: 'Process transactions & manage sales',
+      href: '/pos',
+      icon: ShoppingCart,
+      iconBg: 'bg-primary-subtle',
+      iconColor: 'text-primary-light',
+      gradient: 'from-primary/10 to-accent/5',
+    },
+    {
+      label: 'Inventory',
+      desc: 'Manage products, stock & categories',
+      href: '/inventory',
+      icon: Package,
+      iconBg: 'bg-success-subtle',
+      iconColor: 'text-success-light',
+      gradient: 'from-success/10 to-emerald-600/5',
+    },
+    {
+      label: 'Reports',
+      desc: 'Analytics, sales reports & export',
+      href: '/reports',
+      icon: BarChart3,
+      iconBg: 'bg-info-subtle',
+      iconColor: 'text-info-light',
+      gradient: 'from-info/10 to-sky-600/5',
+    },
+    {
+      label: 'Administration',
+      desc: 'Users, roles & system settings',
+      href: '/admin',
+      icon: Users,
+      iconBg: 'bg-warning-subtle',
+      iconColor: 'text-warning-light',
+      gradient: 'from-warning/10 to-amber-600/5',
+    },
+  ];
 </script>
 
-<div class="p-6 bg-bg min-h-screen">
-  <header class="mb-8">
-    <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
-      Retail POS System
+<div class="space-y-8">
+  <!-- Greeting -->
+  <div>
+    <h1 class="text-2xl font-bold text-text-primary">
+      {greeting}, <span class="gradient-text capitalize">{username}</span> 👋
     </h1>
-    <p class="text-slate-400">Ringkasan real-time</p>
-  </header>
+    <p class="text-text-muted text-sm mt-1">
+      Here's what's happening at your store today.
+    </p>
+  </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-    <div 
-      class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      onclick={openPOS}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && openPOS()}
-    >
-      <span class="text-4xl mb-4 block">🛒</span>
-      <h3 class="text-lg font-bold text-white mb-2">Point of Sale</h3>
-      <p class="text-slate-400 text-sm">Proses transaksi dan kelola penjualan</p>
-      <button class="btn btn-primary w-full mt-4">Open POS</button>
-    </div>
+  <!-- KPI Stats -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <StatCard
+      label="Today's Revenue"
+      value={`Rp ${stats.todays_revenue?.toLocaleString('id-ID') || 0}`}
+      sub={stats.todays_revenue > 0 ? "Invoiced today" : "No sales yet today"}
+      icon={DollarSign}
+      iconBg="bg-primary-subtle"
+      iconColor="text-primary-light"
+      {loading}
+    />
+    <StatCard
+      label="Transactions"
+      value={stats.todays_sales || 0}
+      sub="Completed today"
+      icon={Receipt}
+      iconBg="bg-success-subtle"
+      iconColor="text-success-light"
+      {loading}
+    />
+    <StatCard
+      label="Total Products"
+      value={stats.total_products || 0}
+      sub="Units in catalog"
+      icon={TrendingUp}
+      iconBg="bg-info-subtle"
+      iconColor="text-info-light"
+      {loading}
+    />
+    <StatCard
+      label="Low Stock Alerts"
+      value={stats.low_stock_count || 0}
+      sub={stats.low_stock_count > 0 ? "Action required" : "All stock healthy"}
+      icon={AlertTriangle}
+      iconBg="bg-warning-subtle"
+      iconColor="text-warning-light"
+      {loading}
+    />
+  </div>
 
-    <div 
-      class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      onclick={openInventory}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && openInventory()}
-    >
-      <span class="text-4xl mb-4 block">📦</span>
-      <h3 class="text-lg font-bold text-white mb-2">Inventory</h3>
-      <p class="text-slate-400 text-sm">Kelola produk, stok, dan kategori</p>
-      <button class="btn btn-primary w-full mt-4">View Inventory</button>
-    </div>
-
-    <div 
-      class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      onclick={openReports}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && openReports()}
-    >
-      <span class="text-4xl mb-4 block">📊</span>
-      <h3 class="text-lg font-bold text-white mb-2">Reports</h3>
-      <p class="text-slate-400 text-sm">Lihat analitik penjualan dan laporan</p>
-      <button class="btn btn-primary w-full mt-4">View Reports</button>
-    </div>
-
-    <div 
-      class="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 cursor-pointer hover:translate-y-[-4px] hover:shadow-xl hover:shadow-blue-500/10 transition-all"
-      onclick={openAdmin}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && openAdmin()}
-    >
-      <span class="text-4xl mb-4 block">⚙️</span>
-      <h3 class="text-lg font-bold text-white mb-2">Administration</h3>
-      <p class="text-slate-400 text-sm">Kelola pengguna, role, dan pengaturan</p>
-      <button class="btn btn-primary w-full mt-4">Open Admin</button>
+  <!-- Module cards -->
+  <div>
+    <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {#each modules as mod}
+        <button
+          onclick={() => goto(mod.href)}
+          class="card-hover p-5 text-left group bg-gradient-to-br {mod.gradient} border-border"
+        >
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-11 h-11 rounded-xl {mod.iconBg} flex items-center justify-center">
+              <mod.icon size={22} class={mod.iconColor} />
+            </div>
+            <ArrowRight size={16} class="text-text-muted group-hover:text-text-primary group-hover:translate-x-0.5 transition-all" />
+          </div>
+          <h3 class="font-semibold text-text-primary mb-1">{mod.label}</h3>
+          <p class="text-xs text-text-muted leading-snug">{mod.desc}</p>
+        </button>
+      {/each}
     </div>
   </div>
 
-  <div class="mt-8 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-    <div class="flex items-center gap-2 text-emerald-400 mb-1">
-      <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
-      <span class="text-xs font-semibold uppercase">System Status</span>
+  <!-- System status -->
+  <div class="card p-4 flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <span class="w-2.5 h-2.5 bg-success rounded-full animate-pulse-dot"></span>
+      <span class="text-xs font-semibold uppercase tracking-wide text-success-light">System Operational</span>
     </div>
-    <h3 class="text-lg font-semibold text-white">Operational</h3>
-    <p class="text-slate-400 text-sm mt-1">Frontend loaded successfully • Backend connection active</p>
+    <div class="w-px h-4 bg-border"></div>
+    <p class="text-xs text-text-muted">Frontend loaded • Backend connection active</p>
+    <div class="ml-auto text-xs text-text-muted">
+      {new Date().toLocaleString('id-ID')}
+    </div>
   </div>
 </div>

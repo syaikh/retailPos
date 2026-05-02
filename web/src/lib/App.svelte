@@ -8,33 +8,32 @@
   import AdminUsers from '$lib/pages/admin/Users.svelte';
   import AdminRoles from '$lib/pages/admin/Roles.svelte';
   import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
-  import Navbar from '$lib/components/Navbar.svelte';
+  import Layout from '$lib/components/Layout.svelte';
+  import Toast from '$lib/components/ui/Toast.svelte';
   import { auth } from '$lib/stores/auth';
 
-  let Component = LoginPage;
-  let currentPath = getPath();
-  let isInitializing = true;
+  let Component = $state(LoginPage);
+  let currentPath = $state(getPath());
+  let isInitializing = $state(true);
 
   function getComponent(path) {
     switch (path) {
-      case '/login': return LoginPage;
-      case '/pos': return PosPage;
-      case '/inventory': return InventoryPage;
-      case '/reports': return ReportsPage;
-      case '/admin': return AdminUsers;
-      case '/admin/users': return AdminUsers;
-      case '/admin/roles': return AdminRoles;
+      case '/login':            return LoginPage;
+      case '/pos':              return PosPage;
+      case '/inventory':        return InventoryPage;
+      case '/reports':          return ReportsPage;
+      case '/admin':            return AdminUsers;
+      case '/admin/users':      return AdminUsers;
+      case '/admin/roles':      return AdminRoles;
       case '/admin/audit-logs': return AdminAuditLogs;
-      default: return Home;
+      default:                  return Home;
     }
   }
 
   function handleRoute(path) {
     const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
 
-    // Check authentication for all non-login routes
     if (path !== '/login' && !hasToken) {
-      // Not authenticated - force redirect to login
       Component = LoginPage;
       currentPath = '/login';
       window.history.replaceState({}, '', '/login');
@@ -42,47 +41,50 @@
       return;
     }
 
-    // Authenticated or on login page - set appropriate component
     currentPath = path;
     isInitializing = false;
-    if (path === '/login') {
-      Component = LoginPage;
-    } else if (path === '/') {
-      Component = Home;
-    } else {
-      Component = getComponent(path);
-    }
+    Component = getComponent(path);
   }
 
-  // Initial authentication check and route handling
+  // Initial route resolution
   const initialPath = getPath();
   const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
 
   if (initialPath !== '/login' && !hasToken) {
-    // Accessing protected route without auth - redirect to login
     Component = LoginPage;
     currentPath = '/login';
     window.history.replaceState({}, '', '/login');
     isInitializing = false;
   } else {
-    // Valid access - proceed normally
     handleRoute(initialPath);
   }
 
-  // Subscribe to route changes (popstate, etc.)
   subscribe(handleRoute);
 </script>
 
 {#if isInitializing}
+  <!-- Boot splash -->
   <div class="min-h-screen bg-bg flex items-center justify-center">
-    <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-      <p class="text-slate-400">Loading...</p>
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-12 h-12 rounded-2xl gradient-bg-primary flex items-center justify-center shadow-glow-primary animate-pulse">
+        <span class="text-white text-xl font-bold">R</span>
+      </div>
+      <div class="flex gap-1.5">
+        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:0ms"></span>
+        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:150ms"></span>
+        <span class="w-2 h-2 bg-primary rounded-full animate-bounce" style="animation-delay:300ms"></span>
+      </div>
     </div>
   </div>
+{:else if currentPath === '/login'}
+  <Component />
 {:else}
-  {#if currentPath !== '/login'}
-    <Navbar />
-  {/if}
-  <svelte:component this={Component} />
+  <Layout {currentPath}>
+    {#key currentPath}
+      <Component />
+    {/key}
+  </Layout>
 {/if}
+
+<!-- Global toast notifications -->
+<Toast />

@@ -170,7 +170,8 @@ start() {
     podman pod create \
         --name "$POD_NAME" \
         --network bridge \
-        -p "${HOST_FRONTEND_PORT}:8081"
+        -p "${HOST_FRONTEND_PORT}:8081" \
+        -p "5432:5432"
         # SSL port 8443 can be added: -p 8443:8443
 
     # 2. Create volume for Postgres data (if not exists)

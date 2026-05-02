@@ -279,10 +279,26 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 }
 
 func (h *Handler) GetDashboardStats(c *gin.Context) {
-	// Temporarily return simple response without any repo calls
+	ctx := getCtx(c)
+	today := time.Now().Format("2006-01-02")
+	
+	// Get total revenue & sales (simplified)
+	sales, _, _ := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
+	var todaysRev int
+	for _, s := range sales {
+		todaysRev += s.TotalAmount
+	}
+
+	_, totalProducts, _ := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", nil, nil)
+	
+	lowStock := 5
+	_, lowStockCount, _ := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", &lowStock, nil)
+
 	c.JSON(http.StatusOK, gin.H{"data": map[string]interface{}{
-		"total_sales": 0, "total_revenue": 0, "total_products": 0,
-		"low_stock_count": 0, "todays_sales": 0, "todays_revenue": 0, "active_customers": 0,
+		"todays_revenue":  todaysRev,
+		"todays_sales":    len(sales),
+		"total_products":   totalProducts,
+		"low_stock_count": lowStockCount,
 	}})
 }
 
@@ -306,7 +322,23 @@ func (h *Handler) ListRoles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch roles"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": roles})
+
+	// Fetch permissions for each role
+	type roleWithPerms struct {
+		domain.Role
+		Permissions []string `json:"permissions"`
+	}
+	var resp []roleWithPerms
+	for _, r := range roles {
+		perms, _ := h.roleRepo.GetRolePermissions(getCtx(c), r.ID)
+		pCodes := []string{}
+		for _, p := range perms {
+			pCodes = append(pCodes, p.Code)
+		}
+		resp = append(resp, roleWithPerms{Role: r, Permissions: pCodes})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": resp})
 }
 
 func (h *Handler) CreateRole(c *gin.Context) {
