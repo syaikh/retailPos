@@ -12,7 +12,6 @@
   } from 'lucide-svelte';
   import RpIcon from '$lib/components/ui/RpIcon.svelte';
 
-  let username = $derived($auth.user?.username || 'there');
   let stats = $state({
     todays_revenue: 0,
     todays_sales: 0,
@@ -37,13 +36,6 @@ async function fetchStats() {
   }
 
   onMount(fetchStats);
-
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  })();
 
   // Quick-access modules
   const modules = [
@@ -87,16 +79,6 @@ async function fetchStats() {
 </script>
 
 <div class="space-y-8">
-  <!-- Greeting -->
-  <div>
-    <h1 class="text-2xl font-bold text-text-primary">
-      {greeting}, <span class="gradient-text capitalize">{username}</span> 👋
-    </h1>
-    <p class="text-text-muted text-sm mt-1">
-      Here's what's happening at your store today.
-    </p>
-  </div>
-
   <!-- KPI Stats -->
   <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
     <StatCard
