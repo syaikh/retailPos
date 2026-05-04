@@ -132,11 +132,11 @@
         {/each}
       </div>
     {:else if items.length === 0}
-      <div class="empty-state py-16">
-        <div class="empty-state-icon bg-surface w-20 h-20">
+      <div class="px-4 py-12 text-center">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
           <ScrollText size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold">No log entries found</p>
+        <p class="text-text-primary font-semibold mt-4">No log entries found</p>
         <p class="text-text-muted text-sm mt-1">
           {searchQuery ? `No results for "${searchQuery}"` : 'System activity will appear here'}
         </p>

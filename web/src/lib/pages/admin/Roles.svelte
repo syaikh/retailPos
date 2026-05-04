@@ -177,11 +177,11 @@
       {/each}
     </div>
   {:else if roles.length === 0}
-    <div class="card empty-state py-16">
-      <div class="empty-state-icon bg-surface w-20 h-20">
+    <div class="card px-4 py-12 text-center">
+      <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
         <Shield size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold">No roles defined</p>
+      <p class="text-text-primary font-semibold mt-4">No roles defined</p>
       <p class="text-text-muted text-sm mt-1">Create your first role to get started</p>
       <button class="btn btn-primary mt-4" onclick={openAdd}>
         <Plus size={14} /> Add First Role

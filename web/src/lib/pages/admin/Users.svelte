@@ -219,11 +219,11 @@
         {/each}
       </div>
     {:else if users.length === 0}
-      <div class="empty-state py-16">
-        <div class="empty-state-icon bg-surface w-20 h-20">
+      <div class="px-4 py-12 text-center">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
           <Users size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold">No users found</p>
+        <p class="text-text-primary font-semibold mt-4">No users found</p>
         <p class="text-text-muted text-sm mt-1">
           {searchQuery ? `No match for "${searchQuery}"` : 'Start by adding a user'}
         </p>

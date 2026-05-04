@@ -170,6 +170,16 @@
           </div>
         {/each}
       </div>
+    {:else if products.length === 0}
+      <div class="px-4 py-12 text-center">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+          <Package size={32} class="text-text-muted" />
+        </div>
+        <p class="text-text-primary font-semibold mt-4">No products found</p>
+        <p class="text-text-muted text-sm mt-1">
+          {searchQuery || selectedCategory !== 'all' ? 'Try adjusting your filters' : 'Start by adding your first product'}
+        </p>
+      </div>
     {:else}
       <table class="w-full">
         <thead class="bg-muted/50">
