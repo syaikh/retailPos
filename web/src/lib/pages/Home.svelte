@@ -80,7 +80,8 @@ async function fetchStats() {
 
 <div class="space-y-8">
   <!-- KPI Stats -->
-  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+  <div class="card p-6 rounded-2xl border-border">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <StatCard
       label="Today's Revenue"
       value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
@@ -117,6 +118,7 @@ async function fetchStats() {
       iconColor="text-warning-light"
       {loading}
     />
+    </div>
   </div>
 
   <!-- Module cards -->

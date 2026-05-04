@@ -32,7 +32,7 @@
   });
 </script>
 
-<header class="topbar">
+<header class="topbar px-6 py-4">
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-2" aria-label="Breadcrumb">
     {#each breadcrumb() as crumb, i}
@@ -40,12 +40,8 @@
         <span class="text-text-muted text-xs">/</span>
       {/if}
       {#if i === breadcrumb().length - 1}
-        <span class="text-lg font-bold tracking-tight text-text-primary">
-          {#if i === 0 && crumb.label === 'Dashboard'}
-            <span class="gradient-text">Dashboard</span>
-          {:else}
-            {crumb.label}
-          {/if}
+        <span class="text-lg font-bold tracking-tight text-white">
+          {crumb.label}
         </span>
       {:else}
         <span class="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer">

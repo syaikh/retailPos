@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import { Search, Plus, Minus, ShoppingCart, X } from 'lucide-svelte';
@@ -117,15 +117,8 @@
   });
 </script>
 
-<div class="p-6 bg-bg min-h-screen">
-  <PageHeader title="Point of Sale" description="Process customer transactions">
-    <button onclick={processCheckout} class="btn btn-success" disabled={cart.length === 0 || checkingOut}>
-      <ShoppingCart size={16} />
-      Checkout · {totalAmount.toLocaleString('id-ID')}
-    </button>
-  </PageHeader>
-
-  <div class="flex gap-6 mt-6">
+<div class="space-y-6">
+  <div class="flex gap-6">
     <!-- Products -->
     <div class="flex-1 flex flex-col gap-4">
       <div class="card p-4">

@@ -3,7 +3,7 @@
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -122,22 +122,22 @@
 </script>
 
 <div class="space-y-6">
-  <PageHeader title="Inventory" description="Manage your product inventory">
-    <button
-      onclick={() => {
-        modalMode = 'add';
-        resetForm();
-        showModal = true;
-      }}
-      class="btn-primary"
-    >
-      <Plus size={18} />
-      Add Product
-    </button>
-  </PageHeader>
-
   <!-- Filters -->
   <div class="card p-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold text-text-primary">Inventory Management</h2>
+      <button
+        onclick={() => {
+          modalMode = 'add';
+          resetForm();
+          showModal = true;
+        }}
+        class="btn btn-primary"
+      >
+        <Plus size={18} />
+        Add Product
+      </button>
+    </div>
     <div class="flex flex-col sm:flex-row gap-4">
       <div class="flex-1">
         <input
