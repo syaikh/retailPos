@@ -37,7 +37,7 @@
       });
       if (selectedAction !== 'all') params.append('action', selectedAction);
 
-      const r = await apiFetch(`/api/admin/audit-logs?${params.toString()}`);
+      const r = await apiFetch(`/api/audit-logs?${params.toString()}`);
       if (r.ok) {
         const data = await r.json();
         items = data.data || [];

@@ -1,44 +1,104 @@
 import { writable } from 'svelte/store';
 import { dev } from '$app/environment';
 
-class UseWebSocket {
-  constructor() {
-    this.status = writable('disconnected');
-    this.wsEvents = {
-      _listeners: {},
-      on: (event, callback) => {
-        if (!this.wsEvents._listeners[event]) {
-          this.wsEvents._listeners[event] = [];
+class WebSocketService {
+  status = writable('disconnected');
+  private ws = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectTimeout = null;
+  private eventHandlers = {};
+
+  connect(token) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    this.status.set('connecting');
+    
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token || '')}`;
+      
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.status.set('connected');
+        this.reconnectAttempts = 0;
+        this.emit('connection', { status: 'connected' });
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.emit(data.type || 'message', data);
+        } catch (e) {
+          console.error('WS parse error:', e);
         }
-        this.wsEvents._listeners[event].push(callback);
-      },
-      off: (event, callback) => {
-        if (this.wsEvents._listeners[event]) {
-          this.wsEvents._listeners[event] = this.wsEvents._listeners[event].filter(l => l !== callback);
+      };
+
+      this.ws.onclose = () => {
+        this.status.set('disconnected');
+        this.emit('disconnection', { status: 'disconnected' });
+        
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          this.reconnectTimeout = setTimeout(() => this.connect(token), 2000 * this.reconnectAttempts);
         }
-      },
-      emit: (event, data) => {
-        if (this.wsEvents._listeners[event]) {
-          this.wsEvents._listeners[event].forEach(l => l(data));
-        }
-      }
+      };
+
+      this.ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        this.status.set('error');
+      };
+    } catch (e) {
+      this.status.set('error');
+      console.error('WebSocket connection failed:', e);
+    }
+  }
+
+  disconnect() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.status.set('disconnected');
+  }
+
+  emit(event, data) {
+    if (this.eventHandlers[event]) {
+      this.eventHandlers[event].forEach(callback => callback(data));
+    }
+  }
+
+  on(event, callback) {
+    if (!this.eventHandlers[event]) {
+      this.eventHandlers[event] = [];
+    }
+    this.eventHandlers[event].push(callback);
+    
+    return () => {
+      this.eventHandlers[event] = this.eventHandlers[event].filter(cb => cb !== callback);
     };
   }
 
-  connect() {
-    this.status.set('connecting');
-    try {
-      // In production, the websocket connects via backend
-      this.status.set('connected');
-    } catch (e) {
-      this.status.set('disconnected');
+  send(type, payload) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type, ...payload }));
     }
   }
 }
 
+let instance = null;
+
 export function useWebSocket() {
-  if (!globalThis._wsInstance) {
-    globalThis._wsInstance = new UseWebSocket();
+  if (!instance) {
+    instance = new WebSocketService();
   }
-  return globalThis._wsInstance;
+  return instance;
 }
+
+export default WebSocketService;

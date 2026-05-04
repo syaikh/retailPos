@@ -8,9 +8,10 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
-    DollarSign, Receipt, TrendingUp, BarChart3,
+    Receipt, TrendingUp, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
   } from 'lucide-svelte';
+  import RpIcon from '$lib/components/ui/RpIcon.svelte';
 
   let loading = $state(true);
   let salesData = $state([]);
@@ -94,9 +95,9 @@
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <StatCard
       label="Total Revenue"
-      value={loading ? '—' : `Rp ${stats.revenue.toLocaleString('id-ID')}`}
+      value={loading ? '—' : stats.revenue.toLocaleString('id-ID')}
       {loading}
-      icon={DollarSign}
+      icon={RpIcon}
       iconBg="bg-primary-subtle"
       iconColor="text-primary-light"
     />
@@ -104,13 +105,13 @@
       label="Total Orders"
       value={loading ? '—' : stats.orders}
       {loading}
-      icon={Receipt}
+      icon={RpIcon}
       iconBg="bg-success-subtle"
       iconColor="text-success-light"
     />
     <StatCard
       label="Avg Order Value"
-      value={loading ? '—' : `Rp ${stats.avgOrder.toLocaleString('id-ID')}`}
+      value={loading ? '—' : stats.avgOrder.toLocaleString('id-ID')}
       {loading}
       icon={TrendingUp}
       iconBg="bg-info-subtle"
@@ -195,7 +196,7 @@
                   </Badge>
                 </td>
                 <td class="text-right font-semibold text-text-primary">
-                  Rp {(sale.total_amount || 0).toLocaleString('id-ID')}
+                  {(sale.total_amount || 0).toLocaleString('id-ID')}
                 </td>
               </tr>
             {/each}

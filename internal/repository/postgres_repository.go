@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -11,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var jakartaLoc *time.Location
 
 type postgresRepository struct {
 	db *pgxpool.Pool
@@ -140,12 +143,12 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 			v := int(storeID.Int64)
 			u.StoreID = &v
 		}
-	if u.RoleID > 0 {
-		role, _ := r.GetRoleByID(ctx, u.RoleID)
-		if role != nil {
-			u.Role = *role
+		if u.RoleID > 0 {
+			role, _ := r.GetRoleByID(ctx, u.RoleID)
+			if role != nil {
+				u.Role = *role
+			}
 		}
-	}
 		users = append(users, u)
 	}
 	return users, total, nil
@@ -585,6 +588,27 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 	}
 	sale.CreatedAt = createdAt.Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
+	
+// Load sale items
+		itemRows, err := r.db.Query(ctx, `
+			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
+			FROM sale_items 
+			WHERE sale_id = $1
+		`, sale.ID)
+		if err != nil {
+			log.Printf("Warning: failed to load items for sale %d: %v", sale.ID, err)
+		} else {
+			for itemRows.Next() {
+				var item domain.SaleItem
+				if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+					log.Printf("Warning: failed to scan item row: %v", scanErr)
+					continue
+				}
+				sale.Items = append(sale.Items, item)
+			}
+			itemRows.Close()
+		}
+	
 	return &sale, nil
 }
 
@@ -666,6 +690,24 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		}
 		s.CreatedAt = createdAt.Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.Format(time.RFC3339)
+		
+		// Load sale items
+		itemRows, err := r.db.Query(ctx, `
+			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
+			FROM sale_items 
+			WHERE sale_id = $1
+		`, s.ID)
+		if err == nil {
+			for itemRows.Next() {
+				var item domain.SaleItem
+				err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal)
+				if err == nil {
+					s.Items = append(s.Items, item)
+				}
+			}
+			itemRows.Close()
+		}
+		
 		sales = append(sales, s)
 	}
 	return sales, total, nil

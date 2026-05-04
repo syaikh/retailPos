@@ -57,7 +57,7 @@ func run() error {
 	productIDs := []int{}
 	for i := 0; i < 2000; i++ {
 		name := fmt.Sprintf("%s %s %s #%d", randElem(adjectives), randElem(nouns), randElem(models), i)
-		sku := fmt.Sprintf("SKU-%05d-%d", i, rand.Intn(1000))
+		sku := fmt.Sprintf("SKU-%05d-%d-%d", i, rand.Intn(1000), time.Now().Unix()%10000)
 		price := (rand.Intn(100) + 5) * 1000 // 5k to 100k
 		cost := price / 2
 		stock := rand.Intn(500)
@@ -82,7 +82,7 @@ func run() error {
 	// 3. Inject Transactions (5000+)
 	fmt.Printf("Injecting 5000 transactions...\n")
 	for i := 0; i < 5000; i++ {
-		invoice := fmt.Sprintf("INV-%d-%06d", time.Now().Year(), i)
+		invoice := fmt.Sprintf("INV-%d-%06d-%d", time.Now().Year(), i, time.Now().Unix()%1000)
 		cashierID := randElemInt(userIDs)
 		method := randElem(methods)
 		createdAt := time.Now().AddDate(0, 0, -rand.Intn(30)).Add(time.Duration(rand.Intn(24)) * time.Hour)
@@ -164,6 +164,6 @@ func getDSN() string {
 	dbname := os.Getenv("DB_NAME")
 	if dbname == "" { dbname = "retail_pos" }
 
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=Asia/Jakarta",
 		user, password, host, port, dbname)
 }

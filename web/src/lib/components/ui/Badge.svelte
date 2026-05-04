@@ -7,7 +7,7 @@
     class: className = '',
     children
   }: {
-    variant?: 'default' | 'success' | 'warning' | 'danger';
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'destructive' | 'primary' | 'muted';
     size?: 'sm' | 'md';
     class?: string;
     children: Snippet;
@@ -17,7 +17,10 @@
     default: 'bg-blue-500/20 text-blue-300',
     success: 'bg-emerald-500/20 text-emerald-300',
     warning: 'bg-amber-500/20 text-amber-300',
-    danger: 'bg-red-500/20 text-red-300'
+    danger: 'bg-red-500/20 text-red-300',
+    destructive: 'bg-red-500/20 text-red-300',
+    primary: 'bg-primary-subtle text-primary-light',
+    muted: 'bg-surface-default text-text-muted border border-border-default'
   };
 
   const sizes = {

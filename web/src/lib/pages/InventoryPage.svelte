@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { apiFetch } from '$lib/api/client';
+  import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -50,13 +50,12 @@
       if (selectedCategory !== 'all') params.append('category', selectedCategory);
       if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
 
-      const r = await apiFetch(`/api/products?${params.toString()}`);
-      if (r.ok) {
-        const data = await r.json();
-        products = data.data || [];
-        total = data.total || 0;
-      }
-    } catch {
+      // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
+      const r = await apiClient.get(`/products?${params.toString()}`);
+      // Axios otomatis parse JSON, akses via r.data
+      products = r.data.data || [];
+      total = r.data.total || 0;
+    } catch (err) {
       toast.error('Failed to load inventory');
     } finally {
       loading = false;
@@ -69,287 +68,211 @@
     fetchProducts();
   }, 400);
 
-  $effect(() => {
-    searchQuery; // Track search
-    debouncedSearch();
-  });
-
-  $effect(() => {
-    // Other filters (no debounce needed for dropdown/toggle)
-    selectedCategory;
-    lowStockOnly;
-    offset;
-    limit;
-    // We wrap this in a non-tracked fetch to avoid infinite loops if fetch modifies dependencies
-    // But here we are just calling it.
-    untrackedFetch();
-  });
-
-  function untrackedFetch() {
-    fetchProducts();
-  }
-
-  function handlePageChange(newOffset, newLimit) {
-    offset = newOffset;
-    limit = newLimit;
-  }
-
-  function openAdd() {
-    modalMode = 'add';
-    form = { name: '', sku: '', category: 'Makanan', price: 0, stock: 0, stock_min: 5 };
-    showModal = true;
-  }
-
-  function openEdit(product) {
-    modalMode = 'edit';
-    selectedProduct = product;
-    form = { ...product };
-    showModal = true;
-  }
-
-  async function saveProduct() {
-    if (!form.name || !form.sku) {
-      toast.error('Name and SKU are required');
-      return;
-    }
-    
+  async function handleAdd() {
+    saving = true;
     try {
-      saving = true;
-      const method = modalMode === 'add' ? 'POST' : 'PUT';
-      const url = modalMode === 'add' ? '/api/products' : `/api/products/${selectedProduct.id}`;
-      
-      const r = await apiFetch(url, {
-        method,
-        body: JSON.stringify(form)
-      });
-
-      if (r.ok) {
-        toast.success(modalMode === 'add' ? 'Product created' : 'Product updated');
-        showModal = false;
-        await fetchProducts();
-      } else {
-        const err = await r.json();
-        toast.error(err.error || 'Failed to save product');
-      }
-    } catch {
-      toast.error('Network error');
+      await apiClient.post('/products', form);
+      toast.success('Product added');
+      showModal = false;
+      resetForm();
+      await fetchProducts();
+    } catch (err) {
+      toast.error('Failed to add product');
     } finally {
       saving = false;
     }
   }
 
-  function openDelete(product) {
-    selectedProduct = product;
-    showDeleteModal = true;
-  }
-
-  async function confirmDelete() {
-    if (!selectedProduct) return;
+  async function handleUpdate() {
+    saving = true;
     try {
-      const r = await apiFetch(`/api/products/${selectedProduct.id}`, { method: 'DELETE' });
-      if (r.ok) {
-        toast.success(`"${selectedProduct.name}" removed`);
-        await fetchProducts();
-      } else {
-        toast.error('Failed to delete product');
-      }
-    } catch {
-      toast.error('Failed to delete product');
+      await apiClient.put(`/products/${selectedProduct.id}`, form);
+      toast.success('Product updated');
+      showModal = false;
+      resetForm();
+      await fetchProducts();
+    } catch (err) {
+      toast.error('Failed to update product');
     } finally {
-      showDeleteModal = false;
-      selectedProduct = null;
+      saving = false;
     }
   }
 
-  onMount(fetchProducts);
+  async function handleDelete() {
+    try {
+      await apiClient.delete(`/products/${selectedProduct.id}`);
+      toast.success('Product deleted');
+      showDeleteModal = false;
+      selectedProduct = null;
+      await fetchProducts();
+    } catch (err) {
+      toast.error('Failed to delete product');
+    }
+  }
+
+  function resetForm() {
+    form = { name: '', sku: '', category: 'Makanan', price: 0, stock: 0, stock_min: 5 };
+  }
+
+  $effect(() => {
+    fetchProducts();
+  });
+
+  $inspect({ products, total });
 </script>
 
-<div class="space-y-5">
-  <PageHeader title="Inventory" subtitle="Manage products, stock levels, and categories">
-    {#snippet actions()}
-      <button class="btn btn-primary" onclick={openAdd}>
-        <Plus size={16} /> Add Product
-      </button>
-    {/snippet}
+<div class="space-y-6">
+  <PageHeader title="Inventory" description="Manage your product inventory">
+    <button
+      onclick={() => {
+        modalMode = 'add';
+        resetForm();
+        showModal = true;
+      }}
+      class="btn-primary"
+    >
+      <Plus size={18} />
+      Add Product
+    </button>
   </PageHeader>
 
   <!-- Filters -->
-  <div class="card p-4 flex flex-col sm:flex-row gap-3">
-    <div class="relative flex-1">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-      <input type="text" placeholder="Search products by name or SKU…" class="input pl-9" bind:value={searchQuery} />
+  <div class="card p-4">
+    <div class="flex flex-col sm:flex-row gap-4">
+      <div class="flex-1">
+        <input
+          type="text"
+          placeholder="Search products..."
+          bind:value={searchQuery}
+          oninput={debouncedSearch}
+          class="input"
+        />
+      </div>
+      <select bind:value={selectedCategory} onchange={fetchProducts} class="input max-w-xs">
+        {#each categories as cat}
+          <option value={cat}>{cat}</option>
+        {/each}
+      </select>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} />
+        <span class="text-sm text-text-secondary">Low stock only</span>
+      </label>
     </div>
-
-    <select class="select sm:w-44" bind:value={selectedCategory}>
-      {#each categories as cat}
-        <option value={cat}>{cat === 'all' ? 'All Categories' : cat}</option>
-      {/each}
-    </select>
-
-    <button
-      class="btn {lowStockOnly ? 'btn-warning' : 'btn-secondary'} gap-2"
-      onclick={() => lowStockOnly = !lowStockOnly}
-    >
-      <AlertTriangle size={14} />
-      Low Stock
-    </button>
   </div>
 
   <!-- Table -->
-  <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-      <p class="text-sm font-semibold text-text-primary">Product List</p>
-      {#if !loading}
-        <span class="badge badge-muted">{total} products</span>
-      {/if}
-    </div>
-
+  <div class="card overflow-hidden">
     {#if loading}
       <div class="divide-y divide-border">
-        {#each { length: 6 } as _}
-          <div class="flex items-center gap-4 px-4 py-3.5">
-            <Skeleton width="w-44" height="h-4" />
-            <Skeleton width="w-24" height="h-4" class="ml-auto" />
-            <Skeleton width="w-16" height="h-6" rounded="rounded-full" />
-            <Skeleton width="w-24" height="h-4" />
-            <Skeleton width="w-16" height="h-8" rounded="rounded-xl" />
+        {#each Array(5) as _}
+          <div class="p-4">
+            <Skeleton class="h-10 w-full" />
           </div>
         {/each}
       </div>
-    {:else if products.length === 0}
-      <div class="empty-state py-20">
-        <div class="empty-state-icon bg-surface w-20 h-20">
-          <Package size={32} class="text-text-muted" />
-        </div>
-        <p class="text-text-primary font-semibold">No products found</p>
-        <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding a product'}
-        </p>
-        <button class="btn btn-primary mt-4" onclick={openAdd}>
-          <Plus size={14} /> Add First Product
-        </button>
-      </div>
     {:else}
-      <div class="overflow-x-auto">
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th class="text-center">Stock</th>
-              <th class="text-right">Price</th>
-              <th class="text-center">Actions</th>
+      <table class="w-full">
+        <thead class="bg-muted/50">
+          <tr>
+            <th class="text-left p-4 font-semibold">SKU</th>
+            <th class="text-left p-4 font-semibold">Name</th>
+            <th class="text-left p-4 font-semibold">Category</th>
+            <th class="text-left p-4 font-semibold">Price</th>
+            <th class="text-left p-4 font-semibold">Stock</th>
+            <th class="text-left p-4 font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each products as product}
+            <tr class="border-t border-border hover:bg-muted/30 transition-colors">
+              <td class="p-4 font-medium">{product.sku}</td>
+              <td class="p-4">{product.name}</td>
+              <td class="p-4">{product.category?.name || '-'}</td>
+              <td class="p-4">{product.price?.toLocaleString()}</td>
+              <td class="p-4">
+                <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
+                  {product.stock}
+                </Badge>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <button
+                    onclick={() => {
+                      selectedProduct = product;
+                      form = { ...product };
+                      modalMode = 'edit';
+                      showModal = true;
+                    }}
+                    class="p-2 hover:bg-primary/10 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil size={16} class="text-primary" />
+                  </button>
+                  <button
+                    onclick={() => {
+                      selectedProduct = product;
+                      showDeleteModal = true;
+                    }}
+                    class="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} class="text-destructive" />
+                  </button>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {#each products as product (product.id)}
-              <tr>
-                <td>
-                  <div class="font-medium text-text-primary">{product.name}</div>
-                </td>
-                <td>
-                  <span class="font-mono text-xs text-text-muted bg-surface px-2 py-0.5 rounded-md">{product.sku}</span>
-                </td>
-                <td class="text-text-secondary">{product.category || '—'}</td>
-                <td class="text-center">
-                  {#if product.stock === 0}
-                    <Badge variant="danger">Out of stock</Badge>
-                  {:else if product.stock <= (product.stock_min || 5)}
-                    <Badge variant="warning">Low: {product.stock}</Badge>
-                  {:else}
-                    <Badge variant="success">{product.stock}</Badge>
-                  {/if}
-                </td>
-                <td class="text-right font-semibold text-text-primary">
-                  Rp {product.price?.toLocaleString('id-ID')}
-                </td>
-                <td>
-                  <div class="flex items-center justify-center gap-2">
-                    <button 
-                      class="btn-icon btn-ghost text-text-muted hover:text-primary-light" 
-                      title="Edit"
-                      onclick={() => openEdit(product)}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
-                      onclick={() => openDelete(product)}
-                      title="Delete"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="p-4 bg-surface-subtle/30">
-        <Pagination 
-          {total} 
-          {limit} 
-          {offset} 
-          onPageChange={handlePageChange} 
-        />
-      </div>
+          {/each}
+        </tbody>
+      </table>
     {/if}
   </div>
+
+  <!-- Pagination -->
+  <Pagination {total} {limit} {offset} onPageChange={fetchProducts} />
 </div>
 
-<!-- Add/Edit Product Modal -->
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Add New Product' : 'Edit Product'} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); saveProduct(); }} class="space-y-4">
+<!-- Add/Edit Modal -->
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Product' : 'Edit Product'}>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      modalMode === 'add' ? handleAdd() : handleUpdate();
+    }}
+    class="space-y-4"
+  >
     <div>
-      <label for="inv-name" class="block text-sm font-medium text-text-secondary mb-2">Product Name</label>
-      <input id="inv-name" type="text" placeholder="e.g. Indomie Goreng" class="input" bind:value={form.name} required />
+      <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name</label>
+      <input id="prod-name" bind:value={form.name} type="text" class="input" required />
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="inv-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU</label>
-        <input id="inv-sku" type="text" placeholder="SKU-001" class="input" bind:value={form.sku} required />
-      </div>
-      <div>
-        <label for="inv-cat" class="block text-sm font-medium text-text-secondary mb-2">Category</label>
-        <select id="inv-cat" class="select" bind:value={form.category}>
-          {#each categories.slice(1) as cat}
-            <option value={cat}>{cat}</option>
-          {/each}
-        </select>
-      </div>
+    <div>
+      <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU</label>
+      <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="inv-price" class="block text-sm font-medium text-text-secondary mb-2">Price (Rp)</label>
-        <input id="inv-price" type="number" placeholder="5000" class="input" bind:value={form.price} min="0" />
-      </div>
-      <div>
-        <label for="inv-stock" class="block text-sm font-medium text-text-secondary mb-2">
-          {modalMode === 'add' ? 'Initial Stock' : 'Current Stock'}
-        </label>
-        <input id="inv-stock" type="number" placeholder="100" class="input" bind:value={form.stock} min="0" />
-      </div>
+    <div>
+      <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category</label>
+      <select id="prod-category" bind:value={form.category} class="input">
+        {#each categories as cat}
+          <option value={cat}>{cat}</option>
+        {/each}
+      </select>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="inv-stock-min" class="block text-sm font-medium text-text-secondary mb-2">Min Stock Alert</label>
-        <input id="inv-stock-min" type="number" placeholder="5" class="input" bind:value={form.stock_min} min="0" />
-      </div>
+    <div>
+      <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR)</label>
+      <input id="prod-price" bind:value={form.price} type="number" class="input" required />
+    </div>
+    <div>
+      <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock</label>
+      <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
+    </div>
+    <div class="flex justify-end gap-4 pt-4">
+      <button type="button" onclick={() => (showModal = false)} class="btn-secondary">
+        Cancel
+      </button>
+      <button type="submit" disabled={saving} class="btn-primary">
+        {saving ? 'Saving...' : modalMode === 'add' ? 'Add' : 'Update'}
+      </button>
     </div>
   </form>
-  {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveProduct} disabled={saving}>
-      {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Saving...
-      {:else}
-        {modalMode === 'add' ? 'Add Product' : 'Save Changes'}
-      {/if}
-    </button>
-  {/snippet}
 </Modal>
 
 <!-- Delete Confirm Modal -->
@@ -363,6 +286,6 @@
   </div>
   {#snippet footer()}
     <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
+    <button class="btn btn-danger" onclick={handleDelete}>Delete</button>
   {/snippet}
 </Modal>

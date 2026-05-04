@@ -3,10 +3,11 @@
   import { goto } from '$lib/router';
   import { auth } from '$lib/stores/auth';
   import { apiFetch } from '$lib/api/client';
+  import { toast } from '$lib/stores/toast';
   import StatCard from '$lib/components/ui/StatCard.svelte';
   import {
     ShoppingCart, Package, BarChart3, Users,
-    TrendingUp, DollarSign, AlertTriangle, Receipt,
+    TrendingUp, AlertTriangle, Receipt,
     ArrowRight,
   } from 'lucide-svelte';
   import RpIcon from '$lib/components/ui/RpIcon.svelte';
@@ -20,16 +21,16 @@
   });
   let loading = $state(true);
 
-  async function fetchStats() {
+async function fetchStats() {
     try {
       loading = true;
-      const res = await apiFetch('/api/stats');
+      const res = await apiFetch('/api/dashboard/stats');
       if (res.ok) {
         const data = await res.json();
         stats = data.data;
       }
     } catch (err) {
-      console.error('Failed to fetch stats:', err);
+      toast.error('Failed to load stats');
     } finally {
       loading = false;
     }
@@ -111,7 +112,7 @@
       label="Transactions"
       value={stats.todays_sales?.toLocaleString('id-ID') || 0}
       sub="Completed today"
-      icon={Receipt}
+      icon={RpIcon}
       iconBg="bg-success-subtle"
       iconColor="text-success-light"
       {loading}

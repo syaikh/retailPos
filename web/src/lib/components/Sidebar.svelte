@@ -32,7 +32,7 @@
   });
 
   let username = $derived($auth.user?.username || 'User');
-  let role = $derived($auth.user?.role?.name || $auth.user?.role || 'cashier');
+  let role = $derived($auth.user?.role?.name || ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) || ($auth.user?.role_id === 1 ? 'superadmin' : $auth.user?.role_id === 2 ? 'admin' : $auth.user?.role_id === 3 ? 'cashier' : $auth.user?.role_id === 4 ? 'manager' : 'cashier'));
 
   const navItems = [
     { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
