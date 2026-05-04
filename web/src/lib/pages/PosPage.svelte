@@ -25,8 +25,8 @@
   let checkingOut = $state(false);
 
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
-  const tax = $derived(Math.round(subtotal * 0.1));
-  const totalAmount = $derived(subtotal + tax);
+  // const tax = $derived(Math.round(subtotal * 0.1)); // Temporarily removed
+  const totalAmount = $derived(subtotal); // No tax for now
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
   async function fetchProducts() {
@@ -86,7 +86,7 @@
         store_id: 1,
         subtotal,
         discount: 0,
-        tax,
+        tax: 0, // No tax for now
         total_amount: totalAmount,
         payment_method: paymentMethod,
         status: 'completed',
@@ -218,9 +218,10 @@
     </div>
 
     <!-- Cart -->
-    <div class="w-[340px] flex-shrink-0 flex flex-col gap-4">
-      <div class="card flex-1 flex flex-col overflow-hidden p-0">
-        <div class="px-4 py-3.5 border-b border-border flex items-center justify-between">
+    <div class="w-[340px] flex-shrink-0 flex flex-col">
+      <div class="card flex flex-col overflow-hidden p-0" style="height: calc(100vh - 120px); max-height: 600px;">
+        <!-- Cart Header -->
+        <div class="px-4 py-3.5 border-b border-border flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-2">
             <ShoppingCart size={18} class="text-primary-light" />
             <span class="font-semibold text-text-primary">Cart</span>
@@ -235,13 +236,14 @@
           {/if}
         </div>
 
+        <!-- Cart Items Area -->
         {#if cart.length === 0}
-          <div class="empty-state h-full">
-            <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl">
+          <div class="flex-1 p-4 flex flex-col items-center justify-center text-center overflow-y-auto">
+            <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl mb-4">
               <ShoppingCart size={32} class="text-text-muted opacity-50" />
             </div>
-            <p class="text-text-secondary font-medium">Cart is empty</p>
-            <p class="text-text-muted text-xs mt-1">Add products to get started</p>
+            <p class="text-text-secondary font-medium">Your cart is empty</p>
+            <p class="text-text-muted text-xs mt-1">Add products to start selling</p>
           </div>
         {:else}
           <div class="flex-1 overflow-y-auto divide-y divide-border">
@@ -278,52 +280,46 @@
               </div>
             {/each}
           </div>
-
-          <div class="border-t border-border p-4 space-y-3 bg-bg-secondary">
-            <div class="space-y-2 text-sm">
-              <div class="flex justify-between text-text-muted">
-                <span>Subtotal</span>
-                <span>{subtotal.toLocaleString('id-ID')}</span>
-              </div>
-              <div class="flex justify-between text-text-muted">
-                <span>Tax (10%)</span>
-                <span>{tax.toLocaleString('id-ID')}</span>
-              </div>
-              <div class="flex justify-between font-bold text-text-primary border-t border-border pt-2">
-                <span>Total</span>
-                <span class="text-primary-light text-base">{totalAmount.toLocaleString('id-ID')}</span>
-              </div>
-            </div>
-
-            <div>
-              <p class="text-xs text-text-muted mb-2 font-medium">Payment method</p>
-              <div class="grid grid-cols-3 gap-2">
-                {#each paymentOptions as opt}
-                  <button
-                    class="flex flex-col items-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-                    onclick={() => paymentMethod = opt.id}
-                  >
-                    <opt.icon size={16} />
-                    {opt.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-
-            <button
-              class="btn btn-success w-full py-3"
-              onclick={processCheckout}
-              disabled={checkingOut}
-            >
-              {#if checkingOut}
-                <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                Processing…
-              {:else}
-                Complete Purchase · {totalAmount.toLocaleString('id-ID')}
-              {/if}
-            </button>
-          </div>
         {/if}
+
+        <!-- Summary Section (Always Visible) -->
+        <div class="border-t border-border p-4 space-y-3 bg-bg-secondary flex-shrink-0">
+          <!-- Total -->
+          <div class="flex justify-between font-bold text-text-primary">
+            <span>Total</span>
+            <span class="text-primary-light text-base">{totalAmount.toLocaleString('id-ID')}</span>
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <p class="text-xs text-text-muted mb-2 font-medium">Payment method</p>
+            <div class="grid grid-cols-3 gap-2">
+              {#each paymentOptions as opt}
+                <button
+                  class="flex flex-col items-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+                  onclick={() => paymentMethod = opt.id}
+                >
+                  <opt.icon size={16} />
+                  {opt.label}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <!-- Complete Purchase Button -->
+          <button
+            class="btn btn-success w-full py-3"
+            onclick={processCheckout}
+            disabled={checkingOut || cart.length === 0}
+          >
+            {#if checkingOut}
+              <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              Processing…
+            {:else}
+              Complete Purchase · {totalAmount.toLocaleString('id-ID')}
+            {/if}
+          </button>
+        </div>
       </div>
     </div>
   </div>
