@@ -124,13 +124,13 @@
 <div class="space-y-6">
   <!-- Filters -->
   <div class="card p-4">
-    <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+    <div class="flex items-center gap-3">
       <input
         type="text"
         placeholder="Search products..."
         bind:value={searchQuery}
         oninput={debouncedSearch}
-        class="input w-full sm:w-64"
+        class="input max-w-xs"
       />
       <select bind:value={selectedCategory} onchange={fetchProducts} class="input max-w-xs">
         {#each categories as cat}
@@ -147,7 +147,7 @@
           resetForm();
           showModal = true;
         }}
-        class="btn btn-primary whitespace-nowrap"
+        class="btn btn-primary"
       >
         <Plus size={18} />
         Add Product
