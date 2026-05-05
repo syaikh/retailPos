@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -111,22 +112,39 @@
     <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
     <div class="ml-auto relative">
       <button
-        class="btn btn-primary flex items-center gap-2"
+        class="btn btn-primary flex items-center gap-2 transition-all duration-300"
         onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
+        aria-haspopup="menu"
+        aria-expanded={showExportDropdown}
       >
         <Download size={15} />
         Export
-        <ChevronDown size={14} />
+        <ChevronDown 
+          size={14} 
+          class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" 
+        />
       </button>
       {#if showExportDropdown}
-        <div class="absolute right-0 top-full mt-1 bg-primary border border-border rounded-lg shadow-lg py-1 z-50 min-w-32" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="menu">
-          <button class="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-primary-hover w-full text-left transition-colors">
-            <FileSpreadsheet size={14} />
-            Excel
+        <div 
+          class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5" 
+          onclick={(e) => e.stopPropagation()} 
+          onkeydown={(e) => e.stopPropagation()} 
+          role="menu"
+          transition:fly={{ y: -8, duration: 200 }}
+        >
+          <button 
+            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+            role="menuitem"
+          >
+            <FileSpreadsheet size={16} class="text-success-light" />
+            Export to Excel
           </button>
-          <button class="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-primary-hover w-full text-left transition-colors">
-            <Download size={14} />
-            PDF
+          <button 
+            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+            role="menuitem"
+          >
+            <Download size={16} class="text-danger-light" />
+            Export to PDF
           </button>
         </div>
       {/if}
