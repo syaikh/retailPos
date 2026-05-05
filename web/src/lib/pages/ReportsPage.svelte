@@ -28,10 +28,20 @@
   let showTransactionModal = $state(false);
   let selectedTransaction = $state(null);
 
-  // Format date and time in Indonesian format: dd mmm yyyy hh:mm:ss
-  const formatIndonesianDateTime = (date) => {
+  // Format date: dd mmm yyyy (English locale)
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
     const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('id-ID', { month: 'short' });
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+
+  // Format date and time: dd mmm yyyy hh:mm:ss (English locale)
+  const formatDateTime = (date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleString('en-US', { month: 'short' });
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -39,6 +49,10 @@
 
     return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
   };
+
+  // Reactive tooltips
+  const startDateTooltip = $derived(formatDate(startDate));
+  const endDateTooltip = $derived(formatDate(endDate));
 
 
 
@@ -84,33 +98,33 @@
 <div class="space-y-5">
 
   <!-- Date range filter -->
-  <div class="card p-4 flex flex-wrap items-center gap-4">
+  <div class="card p-4 flex flex-wrap items-center gap-4" onclick={() => showExportDropdown = false}>
     <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
       <CalendarDays size={16} class="text-white" />
       Date Range
     </div>
     <div class="flex items-center gap-3">
-      <input type="date" class="input w-40" bind:value={startDate} max={endDate} />
+      <input type="date" class="input w-40" bind:value={startDate} max={endDate} title={startDateTooltip} />
       <span class="text-text-muted text-sm">to</span>
-      <input type="date" class="input w-40" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} />
+      <input type="date" class="input w-40" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} title={endDateTooltip} />
     </div>
     <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
     <div class="ml-auto relative">
       <button
-        class="btn btn-secondary flex items-center gap-2"
-        onclick={() => showExportDropdown = !showExportDropdown}
+        class="btn btn-primary flex items-center gap-2"
+        onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
       >
         <Download size={15} />
         Export
         <ChevronDown size={14} />
       </button>
       {#if showExportDropdown}
-        <div class="absolute right-0 top-full mt-1 bg-bg border border-border rounded-lg shadow-lg py-1 z-10 min-w-32">
-          <button class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface w-full text-left">
+        <div class="absolute right-0 top-full mt-1 bg-primary border border-border rounded-lg shadow-lg py-1 z-50 min-w-32" onclick={(e) => e.stopPropagation()}>
+          <button class="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-primary-hover w-full text-left transition-colors">
             <FileSpreadsheet size={14} />
             Excel
           </button>
-          <button class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface w-full text-left">
+          <button class="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-primary-hover w-full text-left transition-colors">
             <Download size={14} />
             PDF
           </button>
@@ -188,7 +202,7 @@
                   </button>
                 </td>
                 <td class="text-text-muted text-xs">
-                  {formatIndonesianDateTime(new Date(sale.created_at))}
+                  {formatDateTime(new Date(sale.created_at))}
                 </td>
                 <td class="text-text-secondary">{sale.items?.length || 0} items</td>
                 <td>
@@ -235,7 +249,7 @@
             </div>
             <div>
               <label class="text-sm font-medium text-text-secondary">Date & Time</label>
-              <p class="text-text-primary">{formatIndonesianDateTime(new Date(selectedTransaction.created_at))}</p>
+              <p class="text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
             <div>
               <label class="text-sm font-medium text-text-secondary">Payment Method</label>
@@ -275,3 +289,17 @@
     </div>
   {/if}
 </div>
+
+<style>
+  /* Style the calendar picker indicator (WebKit browsers) */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(2); /* Make it white */
+    cursor: pointer;
+  }
+
+  /* Firefox fallback */
+  input[type="date"]::-moz-calendar-picker-indicator {
+    filter: invert(1) brightness(2);
+    cursor: pointer;
+  }
+</style>
