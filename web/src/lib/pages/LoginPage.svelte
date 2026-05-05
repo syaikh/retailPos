@@ -3,6 +3,7 @@
   import { login } from '$lib/api/auth';
   import { auth } from '$lib/stores/auth';
   import { Eye, EyeOff, Store, ShieldCheck } from 'lucide-svelte';
+  import { fade, fly } from 'svelte/transition';
 
   let username = $state('');
   let password = $state('');
@@ -29,7 +30,7 @@
   }
 </script>
 
-<div class="min-h-screen flex bg-bg overflow-hidden">
+<div class="min-h-screen flex bg-bg overflow-hidden" in:fade={{ duration: 400 }}>
 
   <!-- Left panel — animated brand -->
   <div class="hidden lg:flex flex-col flex-1 relative bg-bg-secondary overflow-hidden">
@@ -81,7 +82,7 @@
   </div>
 
   <!-- Right panel — login form -->
-  <div class="flex flex-col justify-center w-full lg:w-[480px] px-8 md:px-16 bg-bg">
+  <div class="flex flex-col justify-center w-full lg:w-[480px] px-8 md:px-16 bg-surface/30 backdrop-blur-2xl border-l border-border/30 relative z-20" in:fly={{ x: 20, duration: 500, delay: 200 }}>
     <div class="max-w-sm w-full mx-auto">
 
       <!-- Mobile logo -->
@@ -102,7 +103,7 @@
             id="username"
             type="text"
             placeholder="Enter your username"
-            class="input"
+            class="input bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
             bind:value={username}
             disabled={loading}
             autocomplete="username"
@@ -116,7 +117,7 @@
               id="password"
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
-              class="input pr-11"
+              class="input pr-11 bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
               bind:value={password}
               disabled={loading}
               autocomplete="current-password"
@@ -145,7 +146,7 @@
 
         <button
           type="submit"
-          class="btn btn-primary w-full py-3 text-base mt-2"
+          class="btn btn-primary w-full py-3.5 text-base mt-2 shadow-glow-primary hover:-translate-y-0.5 active:scale-95 transition-all"
           disabled={loading}
         >
           {#if loading}
