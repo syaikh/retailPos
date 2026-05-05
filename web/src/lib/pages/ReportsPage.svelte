@@ -6,6 +6,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
   import {
     Receipt, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
@@ -213,7 +214,7 @@
               <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                 <td>
                   <button
-                    class="font-mono text-sm font-medium text-primary-light hover:text-primary transition-colors flex items-center gap-1.5 group"
+                    class="font-mono text-sm font-medium text-white hover:text-primary-light transition-colors flex items-center gap-1.5 group underline decoration-border-strong underline-offset-4 hover:decoration-primary-light cursor-pointer"
                     onclick={() => openTransactionDetails(sale)}
                   >
                     <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity" />
@@ -257,60 +258,52 @@
   </div>
 
   <!-- Transaction Details Modal -->
-  {#if showTransactionModal && selectedTransaction}
-    <div transition:fade={{ duration: 200 }} class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick={() => showTransactionModal = false} onkeydown={(e) => { if (e.key === 'Escape') showTransactionModal = false; }} role="dialog" aria-modal="true">
-      <div transition:fly={{ y: 20, duration: 300 }} class="bg-surface border border-border rounded-2xl shadow-modal max-w-md w-full max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-text-primary">Transaction Details</h3>
-            <button class="text-text-muted hover:text-text-primary" onclick={() => showTransactionModal = false}>×</button>
-          </div>
-          <div class="space-y-4">
-            <div>
-              <p class="text-sm font-medium text-text-secondary">Invoice Number</p>
-              <p class="text-text-primary">{selectedTransaction.invoice_number}</p>
-            </div>
-            <div>
-              <p class="text-sm font-medium text-text-secondary">Date & Time</p>
-              <p class="text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
-            </div>
-            <div>
-              <p class="text-sm font-medium text-text-secondary">Payment Method</p>
-              <p class="text-text-primary capitalize">{selectedTransaction.payment_method || '—'}</p>
-            </div>
-            <div>
-              <p class="text-sm font-medium text-text-secondary">Status</p>
-              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1">
-                {selectedTransaction.status || 'completed'}
-              </Badge>
-            </div>
-            {#if selectedTransaction.items && selectedTransaction.items.length > 0}
-              <div>
-                <p class="text-sm font-medium text-text-secondary mb-2 block">Items</p>
-                <div class="space-y-2">
-                  {#each selectedTransaction.items as item}
-                    <div class="flex justify-between items-center py-2 px-3 bg-surface rounded-md">
-                      <div>
-                        <p class="text-sm font-medium text-text-primary">{item.name}</p>
-                        <p class="text-xs text-text-secondary">Qty: {item.quantity}</p>
-                      </div>
-                      <p class="text-sm text-text-primary">{(item.price * item.quantity).toLocaleString('id-ID')}</p>
-                    </div>
-                  {/each}
+  <Modal bind:open={showTransactionModal} title="Transaction Details" size="md">
+    {#if selectedTransaction}
+      <div class="space-y-4">
+        <div>
+          <p class="text-sm font-medium text-text-secondary">Invoice Number</p>
+          <p class="text-text-primary">{selectedTransaction.invoice_number}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-text-secondary">Date & Time</p>
+          <p class="text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-text-secondary">Payment Method</p>
+          <p class="text-text-primary capitalize">{selectedTransaction.payment_method || '—'}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-text-secondary">Status</p>
+          <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1">
+            {selectedTransaction.status || 'completed'}
+          </Badge>
+        </div>
+        {#if selectedTransaction.items && selectedTransaction.items.length > 0}
+          <div>
+            <p class="text-sm font-medium text-text-secondary mb-2 block">Items</p>
+            <div class="space-y-2">
+              {#each selectedTransaction.items as item}
+                <div class="flex justify-between items-center py-2 px-3 bg-surface rounded-md border border-border">
+                  <div>
+                    <p class="text-sm font-medium text-text-primary">{item.name}</p>
+                    <p class="text-xs text-text-secondary">Qty: {item.quantity}</p>
+                  </div>
+                  <p class="text-sm text-text-primary">{(item.price * item.quantity).toLocaleString('id-ID')}</p>
                 </div>
-              </div>
-            {/if}
-            <div class="border-t border-border pt-4">
-              <div class="flex justify-between items-center">
-                <span class="text-sm font-medium text-text-secondary">Total Amount</span>
-                <span class="text-lg font-semibold text-text-primary">{(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
-              </div>
+              {/each}
             </div>
+          </div>
+        {/if}
+        <div class="border-t border-border pt-4">
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-medium text-text-secondary">Total Amount</span>
+            <span class="text-lg font-semibold text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
           </div>
         </div>
       </div>
-    </div>
-  {/if}
+    {/if}
+  </Modal>
 </div>
 
 <style>
