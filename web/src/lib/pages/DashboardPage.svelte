@@ -100,7 +100,7 @@
   <div>
     <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      <button onclick={() => goTo('/pos')} class="card-hover p-5 text-left group bg-gradient-to-br from-primary/10 to-accent/5 border-border">
+      <button onclick={() => goTo('/pos')} class="card-hover p-5 text-left group bg-linear-to-br from-primary/10 to-accent/5 border-border">
         <div class="flex items-start justify-between mb-4">
           <div class="w-11 h-11 rounded-xl bg-primary-subtle flex items-center justify-center">
             <ShoppingCart size={22} class="text-primary-light" />
@@ -110,7 +110,7 @@
         <p class="text-xs text-text-muted leading-snug">Process transactions & manage sales</p>
       </button>
 
-      <button onclick={() => goTo('/inventory')} class="card-hover p-5 text-left group bg-gradient-to-br from-success/10 to-emerald-600/5 border-border">
+      <button onclick={() => goTo('/inventory')} class="card-hover p-5 text-left group bg-linear-to-br from-success/10 to-emerald-600/5 border-border">
         <div class="flex items-start justify-between mb-4">
           <div class="w-11 h-11 rounded-xl bg-success-subtle flex items-center justify-center">
             <Package size={22} class="text-success-light" />
@@ -120,7 +120,7 @@
         <p class="text-xs text-text-muted leading-snug">Manage products, stock & categories</p>
       </button>
 
-      <button onclick={() => goTo('/reports')} class="card-hover p-5 text-left group bg-gradient-to-br from-info/10 to-sky-600/5 border-border">
+      <button onclick={() => goTo('/reports')} class="card-hover p-5 text-left group bg-linear-to-br from-info/10 to-sky-600/5 border-border">
         <div class="flex items-start justify-between mb-4">
           <div class="w-11 h-11 rounded-xl bg-info-subtle flex items-center justify-center">
             <BarChart3 size={22} class="text-info-light" />
@@ -130,7 +130,7 @@
         <p class="text-xs text-text-muted leading-snug">Analytics, sales reports & export</p>
       </button>
 
-      <button onclick={() => goTo('/admin')} class="card-hover p-5 text-left group bg-gradient-to-br from-warning/10 to-amber-600/5 border-border">
+      <button onclick={() => goTo('/admin')} class="card-hover p-5 text-left group bg-linear-to-br from-warning/10 to-amber-600/5 border-border">
         <div class="flex items-start justify-between mb-4">
           <div class="w-11 h-11 rounded-xl bg-warning-subtle flex items-center justify-center">
             <Users size={22} class="text-warning-light" />

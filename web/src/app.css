@@ -72,24 +72,61 @@
 
   /* Animations */
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
+
   @keyframes slide-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
+
   @keyframes slide-in-right {
-    from { opacity: 0; transform: translateX(20px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
+
   @keyframes shimmer {
-    from { background-position: -600px 0; }
-    to { background-position: 600px 0; }
+    from {
+      background-position: -600px 0;
+    }
+
+    to {
+      background-position: 600px 0;
+    }
   }
+
   @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.85); }
+
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.4;
+      transform: scale(0.85);
+    }
   }
 
   --animate-fade-in: fade-in 0.3s ease-out;
@@ -130,13 +167,16 @@
     width: 5px;
     height: 5px;
   }
+
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+
   ::-webkit-scrollbar-thumb {
     background: #1e293b;
     border-radius: 99px;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: #334155;
   }
@@ -145,34 +185,27 @@
 /* Custom Components & Utilities (Tailwind 4 Style) */
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold
-         transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-         focus:ring-offset-bg-default disabled:opacity-40 disabled:cursor-not-allowed select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg-default disabled:opacity-40 disabled:cursor-not-allowed select-none;
 }
 
 @utility btn-primary {
-  @apply bg-primary-default text-white hover:bg-primary-hover focus:ring-primary-default
-         shadow-glow-primary-sm hover:shadow-glow-primary active:scale-[0.97];
+  @apply bg-primary-default text-white hover:bg-primary-hover focus:ring-primary-default shadow-glow-primary-sm hover:shadow-glow-primary active:scale-[0.97];
 }
 
 @utility btn-secondary {
-  @apply bg-surface-default text-text-primary border border-border-strong hover:bg-surface-hover
-         focus:ring-primary-default active:scale-[0.97];
+  @apply bg-surface-default text-text-primary border border-border-strong hover:bg-surface-hover focus:ring-primary-default active:scale-[0.97];
 }
 
 @utility btn-success {
-  @apply bg-success-default text-white hover:bg-emerald-600 focus:ring-success-default
-         shadow-glow-success active:scale-[0.97];
+  @apply bg-success-default text-white hover:bg-emerald-600 focus:ring-success-default shadow-glow-success active:scale-[0.97];
 }
 
 @utility btn-danger {
-  @apply bg-danger-default text-white hover:bg-rose-600 focus:ring-danger-default
-         shadow-glow-danger active:scale-[0.97];
+  @apply bg-danger-default text-white hover:bg-rose-600 focus:ring-danger-default shadow-glow-danger active:scale-[0.97];
 }
 
 @utility btn-ghost {
-  @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-surface-default
-         focus:ring-primary-default active:scale-[0.97];
+  @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-surface-default focus:ring-primary-default active:scale-[0.97];
 }
 
 @utility btn-sm {
@@ -188,8 +221,7 @@
 }
 
 @utility card-hover {
-  @apply transition-all duration-300 hover:border-border-strong hover:shadow-card-hover
-         hover:-translate-y-0.5;
+  @apply transition-all duration-300 hover:border-border-strong hover:shadow-card-hover hover:-translate-y-0.5;
   /* Composition via plain CSS instead of @apply card to avoid recursive dependency issues in some v4 versions */
   background-color: var(--color-surface-default);
   border: 1px solid var(--color-border-default);
@@ -202,10 +234,7 @@
 }
 
 @utility input {
-  @apply w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm
-         text-text-primary placeholder-text-muted
-         focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20
-         disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200;
+  @apply w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200;
 }
 
 @utility select {
@@ -240,33 +269,24 @@
 }
 
 @utility skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-surface-default) 0%,
-    var(--color-surface-hover) 40%,
-    var(--color-surface-default) 80%
-  );
+  background: linear-gradient(90deg,
+      var(--color-surface-default) 0%,
+      var(--color-surface-hover) 40%,
+      var(--color-surface-default) 80%);
   background-size: 600px 100%;
   @apply animate-shimmer rounded-lg;
 }
 
 @utility sidebar-item {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
-         text-text-secondary transition-all duration-200 cursor-pointer select-none
-         hover:bg-surface-hover/50 hover:text-text-primary hover:shadow-glow-primary-sm;
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:text-text-primary hover:shadow-glow-primary-sm;
 }
 
 @utility sidebar-item-active {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
-         text-primary-light transition-all duration-200 cursor-pointer select-none
-         bg-primary-subtle backdrop-blur-xl border border-primary-default/20
-         shadow-glow-primary
-         hover:bg-primary-default/20 hover:text-white hover:border-primary-default/30
-         active:scale-[0.965] active:-translate-y-px;
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light transition-all duration-200 cursor-pointer select-none bg-primary-subtle backdrop-blur-xl border border-primary-default/20 shadow-glow-primary hover:bg-primary-default/20 hover:text-white hover:border-primary-default/30 active:scale-[0.965] active:-translate-y-px;
 }
 
 @utility gradient-text {
-  @apply bg-gradient-to-r from-primary-light to-accent-light bg-clip-text text-transparent;
+  @apply bg-linear-to-r from-primary-light to-accent-light bg-clip-text text-transparent;
 }
 
 /* Global Table Styles */

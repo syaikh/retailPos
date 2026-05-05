@@ -148,7 +148,7 @@ async function fetchStats() {
       {#each modules as mod, index}
         <button
           onclick={() => goto(mod.href)}
-          class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-gradient-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
+          class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-linear-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
           style="animation-delay: {index * 100 + 500}ms"
         >
           <div class="flex items-start justify-between mb-4">

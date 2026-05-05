@@ -132,7 +132,7 @@
   <!-- Filters -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      <div class="relative flex-[2]">
+      <div class="relative flex-2">
         <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
         <input
           type="text"

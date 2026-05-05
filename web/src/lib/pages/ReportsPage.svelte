@@ -97,10 +97,15 @@
   onMount(fetchSales);
 </script>
 
+<svelte:window 
+  onclick={() => { if(showExportDropdown) showExportDropdown = false; }} 
+  onkeydown={(e) => { if(e.key === 'Escape' && showExportDropdown) showExportDropdown = false; }} 
+/>
+
 <div class="space-y-5">
 
   <!-- Date range filter -->
-  <div class="card p-4 flex flex-wrap items-center gap-4" onclick={() => showExportDropdown = false} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showExportDropdown = false; }} role="region" tabindex="0">
+  <div class="card p-4 flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
       <CalendarDays size={16} class="text-white" />
       Date Range
@@ -131,6 +136,7 @@
           onclick={(e) => e.stopPropagation()} 
           onkeydown={(e) => e.stopPropagation()} 
           role="menu"
+          tabindex="-1"
           transition:fly={{ y: -8, duration: 200 }}
         >
           <button 
@@ -159,7 +165,7 @@
       <span class="badge badge-muted">This period</span>
     </div>
     <div class="flex items-center justify-center h-48 rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden relative">
-      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
+      <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
       <div class="text-center">
         <BarChart3 size={36} class="text-text-muted mx-auto mb-2 opacity-40" />
         <p class="text-text-muted text-sm">Chart visualization</p>
