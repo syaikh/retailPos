@@ -37,10 +37,10 @@ async function fetchStats() {
 
   onMount(fetchStats);
 
-  // Format date and time in Indonesian format: dd mmm yyyy hh:mm:ss
-  const formatIndonesianDateTime = (date) => {
+  // Format date and time: dd mmm yyyy hh:mm:ss (English locale)
+  const formatDateTime = (date) => {
     const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('id-ID', { month: 'short' });
+    const month = date.toLocaleString('en-US', { month: 'short' });
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -164,7 +164,7 @@ async function fetchStats() {
     <div class="w-px h-4 bg-border"></div>
     <p class="text-xs text-text-muted">Frontend loaded • Backend connection active</p>
     <div class="ml-auto text-xs text-text-muted">
-      {formatIndonesianDateTime(new Date())}
+      {formatDateTime(new Date())}
     </div>
   </div>
 </div>

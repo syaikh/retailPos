@@ -151,7 +151,7 @@
     <div class="w-px h-4 bg-border"></div>
     <p class="text-xs text-text-muted">Backend connection active</p>
     <div class="ml-auto text-xs text-text-muted">
-      {new Date().toLocaleString('id-ID')}
+      {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' })}
     </div>
   </div>
 </div>

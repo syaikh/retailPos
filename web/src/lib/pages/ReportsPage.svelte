@@ -98,7 +98,7 @@
 <div class="space-y-5">
 
   <!-- Date range filter -->
-  <div class="card p-4 flex flex-wrap items-center gap-4" onclick={() => showExportDropdown = false}>
+  <div class="card p-4 flex flex-wrap items-center gap-4" onclick={() => showExportDropdown = false} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showExportDropdown = false; }} role="region" tabindex="0">
     <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
       <CalendarDays size={16} class="text-white" />
       Date Range
@@ -119,7 +119,7 @@
         <ChevronDown size={14} />
       </button>
       {#if showExportDropdown}
-        <div class="absolute right-0 top-full mt-1 bg-primary border border-border rounded-lg shadow-lg py-1 z-50 min-w-32" onclick={(e) => e.stopPropagation()}>
+        <div class="absolute right-0 top-full mt-1 bg-primary border border-border rounded-lg shadow-lg py-1 z-50 min-w-32" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="menu">
           <button class="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-primary-hover w-full text-left transition-colors">
             <FileSpreadsheet size={14} />
             Excel
@@ -235,8 +235,8 @@
 
   <!-- Transaction Details Modal -->
   {#if showTransactionModal && selectedTransaction}
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showTransactionModal = false}>
-      <div class="bg-bg border border-border rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showTransactionModal = false} onkeydown={(e) => { if (e.key === 'Escape') showTransactionModal = false; }} role="dialog" aria-modal="true">
+      <div class="bg-bg border border-border rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
         <div class="p-6">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-text-primary">Transaction Details</h3>
@@ -244,26 +244,26 @@
           </div>
           <div class="space-y-4">
             <div>
-              <label class="text-sm font-medium text-text-secondary">Invoice Number</label>
+              <p class="text-sm font-medium text-text-secondary">Invoice Number</p>
               <p class="text-text-primary">{selectedTransaction.invoice_number}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-text-secondary">Date & Time</label>
+              <p class="text-sm font-medium text-text-secondary">Date & Time</p>
               <p class="text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-text-secondary">Payment Method</label>
+              <p class="text-sm font-medium text-text-secondary">Payment Method</p>
               <p class="text-text-primary capitalize">{selectedTransaction.payment_method || '—'}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-text-secondary">Status</label>
+              <p class="text-sm font-medium text-text-secondary">Status</p>
               <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1">
                 {selectedTransaction.status || 'completed'}
               </Badge>
             </div>
             {#if selectedTransaction.items && selectedTransaction.items.length > 0}
               <div>
-                <label class="text-sm font-medium text-text-secondary mb-2 block">Items</label>
+                <p class="text-sm font-medium text-text-secondary mb-2 block">Items</p>
                 <div class="space-y-2">
                   {#each selectedTransaction.items as item}
                     <div class="flex justify-between items-center py-2 px-3 bg-surface rounded-md">

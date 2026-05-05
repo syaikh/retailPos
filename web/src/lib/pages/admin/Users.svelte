@@ -266,7 +266,7 @@
                   </div>
                 </td>
                 <td class="text-text-muted text-sm">
-                  {user.last_login ? new Date(user.last_login).toLocaleString('id-ID') : 'Never'}
+                  {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
                 </td>
                 <td>
                   <div class="flex items-center justify-center gap-2">
