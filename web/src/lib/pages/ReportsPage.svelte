@@ -241,7 +241,6 @@
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-text-primary">Revenue Overview</h3>
-      <span class="badge badge-muted">This period</span>
     </div>
     <div class="h-64 relative">
       {#if loading}
@@ -291,8 +290,7 @@
               <th>Date</th>
               <th>Items</th>
               <th>Payment</th>
-              <th>Status</th>
-              <th class="text-right">Total</th>
+              <th class="text-right">Total (Rp)</th>
             </tr>
           </thead>
           <tbody>
@@ -318,13 +316,8 @@
                     {sale.payment_method || '—'}
                   </span>
                 </td>
-                <td>
-                  <Badge variant={statusVariant(sale.status)}>
-                    {sale.status || 'completed'}
-                  </Badge>
-                </td>
                 <td class="text-right text-sm font-semibold text-text-primary">
-                  Rp {(sale.total_amount || 0).toLocaleString('id-ID')}
+                  {(sale.total_amount || 0).toLocaleString('id-ID')}
                 </td>
               </tr>
             {/each}
