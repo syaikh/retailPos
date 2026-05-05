@@ -78,6 +78,11 @@ coverage.xml
 .kilo/
 *.session
 
-# Documentation files (except README)
+# Documentation files (except essential ones)
 *.md
 !README.md
+!.github/CODE_OF_CONDUCT.md
+!.github/ISSUE_TEMPLATE/bug_report.md
+!.github/ISSUE_TEMPLATE/feature_request.md
+!CONTRIBUTING.md
+!deploy/PRODUCTION-DEPLOYMENT.md
