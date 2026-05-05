@@ -2,16 +2,14 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
-  import StatCard from '$lib/components/ui/StatCard.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
-    Receipt, TrendingUp, BarChart3,
+    Receipt, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
+    ChevronDown, Eye,
   } from 'lucide-svelte';
-  import RpIcon from '$lib/components/ui/RpIcon.svelte';
 
   let loading = $state(true);
   let salesData = $state([]);
@@ -23,13 +21,26 @@
   let startDate = $state(new Date(new Date().setDate(1)).toISOString().slice(0, 10));
   let endDate = $state(new Date().toISOString().slice(0, 10));
 
-  const stats = $derived({
-    revenue: salesData.reduce((s, r) => s + (r.total_amount || 0), 0),
-    orders:  total, // Use total from server
-    avgOrder: total > 0
-      ? Math.floor(salesData.reduce((s, r) => s + (r.total_amount || 0), 0) / salesData.length) // This is just an estimate for the current page
-      : 0,
-  });
+  // Export dropdown
+  let showExportDropdown = $state(false);
+
+  // Transaction details modal
+  let showTransactionModal = $state(false);
+  let selectedTransaction = $state(null);
+
+  // Format date and time in Indonesian format: dd mmm yyyy hh:mm:ss
+  const formatIndonesianDateTime = (date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleString('id-ID', { month: 'short' });
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+
+    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+  };
+
+
 
   async function fetchSales() {
     try {
@@ -62,25 +73,20 @@
   const statusVariant = (s) =>
     s === 'completed' ? 'success' : s === 'refunded' ? 'danger' : 'warning';
 
+  function openTransactionDetails(transaction) {
+    selectedTransaction = transaction;
+    showTransactionModal = true;
+  }
+
   onMount(fetchSales);
 </script>
 
 <div class="space-y-5">
-  <PageHeader title="Sales Reports" subtitle="Analytics and business reporting">
-    {#snippet actions()}
-      <button class="btn btn-secondary">
-        <FileSpreadsheet size={15} /> Export Excel
-      </button>
-      <button class="btn btn-primary">
-        <Download size={15} /> Export PDF
-      </button>
-    {/snippet}
-  </PageHeader>
 
   <!-- Date range filter -->
   <div class="card p-4 flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
-      <CalendarDays size={16} class="text-text-muted" />
+      <CalendarDays size={16} class="text-white" />
       Date Range
     </div>
     <div class="flex items-center gap-3">
@@ -89,34 +95,28 @@
       <input type="date" class="input w-40" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} />
     </div>
     <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
-  </div>
-
-  <!-- KPI stats -->
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-    <StatCard
-      label="Total Revenue"
-      value={loading ? '—' : stats.revenue.toLocaleString('id-ID')}
-      {loading}
-      icon={RpIcon}
-      iconBg="bg-primary-subtle"
-      iconColor="text-primary-light"
-    />
-    <StatCard
-      label="Total Orders"
-      value={loading ? '—' : stats.orders}
-      {loading}
-      icon={RpIcon}
-      iconBg="bg-success-subtle"
-      iconColor="text-success-light"
-    />
-    <StatCard
-      label="Avg Order Value"
-      value={loading ? '—' : stats.avgOrder.toLocaleString('id-ID')}
-      {loading}
-      icon={TrendingUp}
-      iconBg="bg-info-subtle"
-      iconColor="text-info-light"
-    />
+    <div class="ml-auto relative">
+      <button
+        class="btn btn-secondary flex items-center gap-2"
+        onclick={() => showExportDropdown = !showExportDropdown}
+      >
+        <Download size={15} />
+        Export
+        <ChevronDown size={14} />
+      </button>
+      {#if showExportDropdown}
+        <div class="absolute right-0 top-full mt-1 bg-bg border border-border rounded-lg shadow-lg py-1 z-10 min-w-32">
+          <button class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface w-full text-left">
+            <FileSpreadsheet size={14} />
+            Excel
+          </button>
+          <button class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface w-full text-left">
+            <Download size={14} />
+            PDF
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
 
   <!-- Chart placeholder -->
@@ -179,12 +179,16 @@
             {#each salesData as sale (sale.id)}
               <tr>
                 <td>
-                  <span class="font-mono text-xs text-text-secondary bg-surface px-2 py-0.5 rounded-md">
+                  <button
+                    class="text-xs text-text-secondary bg-surface px-2 py-0.5 rounded-md hover:bg-surface-subtle transition-colors flex items-center gap-1"
+                    onclick={() => openTransactionDetails(sale)}
+                  >
+                    <Eye size={10} />
                     {sale.invoice_number}
-                  </span>
+                  </button>
                 </td>
                 <td class="text-text-muted text-xs">
-                  {new Date(sale.created_at).toLocaleString('id-ID')}
+                  {formatIndonesianDateTime(new Date(sale.created_at))}
                 </td>
                 <td class="text-text-secondary">{sale.items?.length || 0} items</td>
                 <td>
@@ -214,4 +218,60 @@
       </div>
     {/if}
   </div>
+
+  <!-- Transaction Details Modal -->
+  {#if showTransactionModal && selectedTransaction}
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showTransactionModal = false}>
+      <div class="bg-bg border border-border rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-text-primary">Transaction Details</h3>
+            <button class="text-text-muted hover:text-text-primary" onclick={() => showTransactionModal = false}>×</button>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="text-sm font-medium text-text-secondary">Invoice Number</label>
+              <p class="text-text-primary">{selectedTransaction.invoice_number}</p>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-text-secondary">Date & Time</label>
+              <p class="text-text-primary">{formatIndonesianDateTime(new Date(selectedTransaction.created_at))}</p>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-text-secondary">Payment Method</label>
+              <p class="text-text-primary capitalize">{selectedTransaction.payment_method || '—'}</p>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-text-secondary">Status</label>
+              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1">
+                {selectedTransaction.status || 'completed'}
+              </Badge>
+            </div>
+            {#if selectedTransaction.items && selectedTransaction.items.length > 0}
+              <div>
+                <label class="text-sm font-medium text-text-secondary mb-2 block">Items</label>
+                <div class="space-y-2">
+                  {#each selectedTransaction.items as item}
+                    <div class="flex justify-between items-center py-2 px-3 bg-surface rounded-md">
+                      <div>
+                        <p class="text-sm font-medium text-text-primary">{item.name}</p>
+                        <p class="text-xs text-text-secondary">Qty: {item.quantity}</p>
+                      </div>
+                      <p class="text-sm text-text-primary">{(item.price * item.quantity).toLocaleString('id-ID')}</p>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+            <div class="border-t border-border pt-4">
+              <div class="flex justify-between items-center">
+                <span class="text-sm font-medium text-text-secondary">Total Amount</span>
+                <span class="text-lg font-semibold text-text-primary">{(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
