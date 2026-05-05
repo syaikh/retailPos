@@ -14,12 +14,12 @@
   } = $props();
 
   const variants = {
-    default: 'bg-blue-500/20 text-blue-300',
-    success: 'bg-emerald-500/20 text-emerald-300',
-    warning: 'bg-amber-500/20 text-amber-300',
-    danger: 'bg-red-500/20 text-red-300',
-    destructive: 'bg-red-500/20 text-red-300',
-    primary: 'bg-primary-subtle text-primary-light',
+    default: 'bg-info-subtle text-info-light shadow-[0_0_12px_rgba(14,165,233,0.15)]',
+    success: 'bg-success-subtle text-success-light shadow-[0_0_12px_rgba(16,185,129,0.15)]',
+    warning: 'bg-warning-subtle text-warning-light shadow-[0_0_12px_rgba(245,158,11,0.15)]',
+    danger: 'bg-danger-subtle text-danger-light shadow-[0_0_12px_rgba(239,68,68,0.15)]',
+    destructive: 'bg-danger-subtle text-danger-light shadow-[0_0_12px_rgba(239,68,68,0.15)]',
+    primary: 'bg-primary-subtle text-primary-light shadow-glow-primary-sm',
     muted: 'bg-surface-default text-text-muted border border-border-default'
   };
 

@@ -231,7 +231,7 @@
     {:else}
       <div class="overflow-x-auto">
         <table>
-          <thead>
+          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
             <tr>
               <th>User</th>
               <th>Role</th>
@@ -242,7 +242,7 @@
           </thead>
           <tbody>
             {#each users as user (user.id)}
-              <tr>
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                 <td>
                   <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
@@ -325,9 +325,13 @@
         </select>
       </div>
       <div class="flex items-end pb-2">
-        <label class="flex items-center gap-3 cursor-pointer select-none">
-          <input type="checkbox" class="w-4 h-4 accent-primary rounded" bind:checked={form.is_active} />
-          <span class="text-sm font-medium text-text-secondary">Active Account</span>
+        <label class="flex items-center gap-3 cursor-pointer select-none group">
+          <div class="relative">
+            <input type="checkbox" class="sr-only peer" bind:checked={form.is_active} />
+            <div class="w-10 h-5 bg-surface-default border border-border rounded-full peer peer-checked:bg-primary-subtle peer-checked:border-primary/50 transition-colors"></div>
+            <div class="absolute left-1 top-1 w-3 h-3 bg-text-muted rounded-full peer-checked:translate-x-5 peer-checked:bg-primary-light transition-transform shadow-sm"></div>
+          </div>
+          <span class="text-sm font-medium text-text-secondary group-hover:text-text-primary transition-colors">Active Account</span>
         </label>
       </div>
     </div>

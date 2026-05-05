@@ -144,7 +144,7 @@
     {:else}
       <div class="overflow-x-auto">
         <table>
-          <thead>
+          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
             <tr>
               <th>Timestamp</th>
               <th>Actor</th>
@@ -156,7 +156,7 @@
           </thead>
           <tbody>
             {#each items as log (log.id)}
-              <tr>
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                 <td class="text-text-muted text-xs whitespace-nowrap">
                   <div class="flex items-center gap-1.5">
                     <CalendarDays size={12} class="opacity-50 shrink-0" />

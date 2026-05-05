@@ -94,42 +94,50 @@ async function fetchStats() {
   <!-- KPI Stats -->
   <div class="card p-6 rounded-2xl border-border">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-    <StatCard
-      label="Today's Revenue"
-      value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
-      sub={stats.todays_revenue > 0 ? "Invoiced today" : "No sales yet today"}
-      icon={RpIcon}
-      iconBg="bg-primary-subtle"
-      iconColor="text-primary-light"
-      {loading}
-    />
-    <StatCard
-      label="Transactions"
-      value={stats.todays_sales?.toLocaleString('id-ID') || 0}
-      sub="Completed today"
-      icon={RpIcon}
-      iconBg="bg-success-subtle"
-      iconColor="text-success-light"
-      {loading}
-    />
-    <StatCard
-      label="Total Products"
-      value={stats.total_products?.toLocaleString('id-ID') || 0}
-      sub="Units in catalog"
-      icon={TrendingUp}
-      iconBg="bg-info-subtle"
-      iconColor="text-info-light"
-      {loading}
-    />
-    <StatCard
-      label="Low Stock Alerts"
-      value={stats.low_stock_count?.toLocaleString('id-ID') || 0}
-      sub={stats.low_stock_count > 0 ? "Action required" : "All stock healthy"}
-      icon={AlertTriangle}
-      iconBg="bg-warning-subtle"
-      iconColor="text-warning-light"
-      {loading}
-    />
+    <div class="animate-slide-up" style="animation-delay: 100ms;">
+      <StatCard
+        label="Today's Revenue"
+        value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
+        sub={stats.todays_revenue > 0 ? "Invoiced today" : "No sales yet today"}
+        icon={RpIcon}
+        iconBg="bg-primary-subtle"
+        iconColor="text-primary-light"
+        {loading}
+      />
+    </div>
+    <div class="animate-slide-up" style="animation-delay: 200ms;">
+      <StatCard
+        label="Transactions"
+        value={stats.todays_sales?.toLocaleString('id-ID') || 0}
+        sub="Completed today"
+        icon={RpIcon}
+        iconBg="bg-success-subtle"
+        iconColor="text-success-light"
+        {loading}
+      />
+    </div>
+    <div class="animate-slide-up" style="animation-delay: 300ms;">
+      <StatCard
+        label="Total Products"
+        value={stats.total_products?.toLocaleString('id-ID') || 0}
+        sub="Units in catalog"
+        icon={TrendingUp}
+        iconBg="bg-info-subtle"
+        iconColor="text-info-light"
+        {loading}
+      />
+    </div>
+    <div class="animate-slide-up" style="animation-delay: 400ms;">
+      <StatCard
+        label="Low Stock Alerts"
+        value={stats.low_stock_count?.toLocaleString('id-ID') || 0}
+        sub={stats.low_stock_count > 0 ? "Action required" : "All stock healthy"}
+        icon={AlertTriangle}
+        iconBg="bg-warning-subtle"
+        iconColor="text-warning-light"
+        {loading}
+      />
+    </div>
     </div>
   </div>
 
@@ -137,10 +145,11 @@ async function fetchStats() {
   <div>
     <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      {#each modules as mod}
+      {#each modules as mod, index}
         <button
           onclick={() => goto(mod.href)}
-          class="card-hover p-5 text-left group bg-gradient-to-br {mod.gradient} border-border cursor-pointer"
+          class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-gradient-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
+          style="animation-delay: {index * 100 + 500}ms"
         >
           <div class="flex items-start justify-between mb-4">
             <div class="w-11 h-11 rounded-xl {mod.iconBg} flex items-center justify-center">
@@ -156,14 +165,13 @@ async function fetchStats() {
   </div>
 
   <!-- System status -->
-  <div class="card p-4 flex items-center gap-4">
+  <div class="fixed bottom-6 right-6 flex items-center gap-4 rounded-full backdrop-blur-xl bg-surface/80 border border-border px-5 py-2.5 shadow-glow-primary-sm z-50 animate-slide-up" style="animation-delay: 900ms;">
     <div class="flex items-center gap-2">
-      <span class="w-2.5 h-2.5 bg-success rounded-full animate-pulse-dot"></span>
-      <span class="text-xs font-semibold uppercase tracking-wide text-success-light">System Operational</span>
+      <span class="w-2.5 h-2.5 bg-success rounded-full animate-pulse-dot shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+      <span class="text-[11px] font-bold uppercase tracking-widest text-success-light">Operational</span>
     </div>
-    <div class="w-px h-4 bg-border"></div>
-    <p class="text-xs text-text-muted">Frontend loaded • Backend connection active</p>
-    <div class="ml-auto text-xs text-text-muted">
+    <div class="w-px h-4 bg-border/50"></div>
+    <div class="text-[10px] text-text-muted font-medium">
       {formatDateTime(new Date())}
     </div>
   </div>
