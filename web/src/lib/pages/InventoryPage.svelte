@@ -124,20 +124,20 @@
 <div class="space-y-6">
   <!-- Filters -->
   <div class="card p-4">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-4">
       <input
         type="text"
         placeholder="Search products..."
         bind:value={searchQuery}
         oninput={debouncedSearch}
-        class="input max-w-xs"
+        class="input flex-[2]"
       />
-      <select bind:value={selectedCategory} onchange={fetchProducts} class="input max-w-xs">
+      <select bind:value={selectedCategory} onchange={fetchProducts} class="input flex-1">
         {#each categories as cat}
           <option value={cat}>{cat}</option>
         {/each}
       </select>
-      <label class="flex items-center gap-2">
+      <label class="flex items-center gap-2 flex-1">
         <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} />
         <span class="text-sm text-text-secondary">Low stock only</span>
       </label>
@@ -147,7 +147,7 @@
           resetForm();
           showModal = true;
         }}
-        class="btn btn-primary"
+        class="btn btn-primary flex-shrink-0"
       >
         <Plus size={18} />
         Add Product
