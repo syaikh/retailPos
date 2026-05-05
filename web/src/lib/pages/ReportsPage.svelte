@@ -104,10 +104,10 @@
       <CalendarDays size={16} class="text-white" />
       Date Range
     </div>
-    <div class="flex items-center gap-3">
-      <input type="date" class="input w-40" bind:value={startDate} max={endDate} title={startDateTooltip} />
-      <span class="text-text-muted text-sm">to</span>
-      <input type="date" class="input w-40" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} title={endDateTooltip} />
+    <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner ring-1 ring-black/20">
+      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={startDate} max={endDate} title={startDateTooltip} />
+      <span class="text-text-muted text-sm px-1">-</span>
+      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} title={endDateTooltip} />
     </div>
     <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
     <div class="ml-auto relative">
@@ -157,7 +157,8 @@
       <h3 class="text-sm font-semibold text-text-primary">Revenue Overview</h3>
       <span class="badge badge-muted">This period</span>
     </div>
-    <div class="flex items-center justify-center h-48 rounded-xl bg-bg border border-border border-dashed">
+    <div class="flex items-center justify-center h-48 rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden relative">
+      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
       <div class="text-center">
         <BarChart3 size={36} class="text-text-muted mx-auto mb-2 opacity-40" />
         <p class="text-text-muted text-sm">Chart visualization</p>
@@ -197,7 +198,7 @@
     {:else}
       <div class="overflow-x-auto">
         <table>
-          <thead>
+          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
             <tr>
               <th>Invoice</th>
               <th>Date</th>
@@ -209,30 +210,34 @@
           </thead>
           <tbody>
             {#each salesData as sale (sale.id)}
-              <tr>
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                 <td>
                   <button
-                    class="text-xs text-text-secondary bg-surface px-2 py-0.5 rounded-md hover:bg-surface-subtle transition-colors flex items-center gap-1"
+                    class="font-mono text-sm font-medium text-primary-light hover:text-primary transition-colors flex items-center gap-1.5 group"
                     onclick={() => openTransactionDetails(sale)}
                   >
-                    <Eye size={10} />
+                    <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity" />
                     {sale.invoice_number}
                   </button>
                 </td>
-                <td class="text-text-muted text-xs">
+                <td class="text-sm text-text-secondary">
                   {formatDateTime(new Date(sale.created_at))}
                 </td>
-                <td class="text-text-secondary">{sale.items?.length || 0} items</td>
+                <td class="text-sm text-text-secondary">
+                  {sale.items?.length || 0} items
+                </td>
                 <td>
-                  <span class="capitalize text-text-secondary text-sm">{sale.payment_method || '—'}</span>
+                  <span class="text-sm text-text-secondary capitalize">
+                    {sale.payment_method || '—'}
+                  </span>
                 </td>
                 <td>
                   <Badge variant={statusVariant(sale.status)}>
                     {sale.status || 'completed'}
                   </Badge>
                 </td>
-                <td class="text-right font-semibold text-text-primary">
-                  {(sale.total_amount || 0).toLocaleString('id-ID')}
+                <td class="text-right text-sm font-semibold text-text-primary">
+                  Rp {(sale.total_amount || 0).toLocaleString('id-ID')}
                 </td>
               </tr>
             {/each}
@@ -253,8 +258,8 @@
 
   <!-- Transaction Details Modal -->
   {#if showTransactionModal && selectedTransaction}
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showTransactionModal = false} onkeydown={(e) => { if (e.key === 'Escape') showTransactionModal = false; }} role="dialog" aria-modal="true">
-      <div class="bg-bg border border-border rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+    <div transition:fade={{ duration: 200 }} class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick={() => showTransactionModal = false} onkeydown={(e) => { if (e.key === 'Escape') showTransactionModal = false; }} role="dialog" aria-modal="true">
+      <div transition:fly={{ y: 20, duration: 300 }} class="bg-surface border border-border rounded-2xl shadow-modal max-w-md w-full max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
         <div class="p-6">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-text-primary">Transaction Details</h3>
