@@ -7,6 +7,8 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import { Search, Plus, Minus, ShoppingCart, X, Package } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
+  import { slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
 
   let cart = $state([]);
   let products = $state([]);
@@ -163,7 +165,7 @@
         {:else}
           <div class="flex-1 overflow-y-auto">
             <table>
-              <thead>
+              <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
                 <tr>
                   <th>Product</th>
                   <th>SKU</th>
@@ -174,7 +176,7 @@
               </thead>
               <tbody>
                 {#each products as product (product.id)}
-                  <tr>
+                  <tr class="hover:bg-surface-hover/50 transition-colors">
                     <td>
                       <div class="font-medium text-text-primary">{product.name}</div>
                       <div class="text-xs text-text-muted">{product.category?.name || '—'}</div>
@@ -215,8 +217,8 @@
     </div>
 
     <!-- Cart -->
-    <div class="w-[340px] shrink-0 flex flex-col">
-      <div class="card flex flex-col overflow-hidden p-0" style="height: calc(100vh - 120px); max-height: 640px;">
+    <div class="w-[340px] shrink-0 flex flex-col relative">
+      <div class="card flex flex-col overflow-hidden p-0 sticky top-0 h-[calc(100vh-120px)] max-h-[800px]">
         <!-- Cart Header -->
         <div class="px-4 py-3.5 border-b border-border flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
@@ -236,16 +238,20 @@
         <!-- Cart Items Area -->
         {#if cart.length === 0}
           <div class="flex-1 p-4 flex flex-col items-center justify-center text-center overflow-y-auto">
-            <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl mb-4">
+            <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl mb-4 border border-dashed border-border-strong flex items-center justify-center animate-pulse">
               <ShoppingCart size={32} class="text-text-muted opacity-50" />
             </div>
             <p class="text-text-secondary font-medium">Your cart is empty</p>
             <p class="text-text-muted text-xs mt-1">Add products to start selling</p>
           </div>
         {:else}
-          <div class="flex-1 overflow-y-auto divide-y divide-border">
+          <div class="flex-1 overflow-y-auto divide-y divide-border overflow-x-hidden">
             {#each cart as item (item.id)}
-              <div class="flex items-start gap-3 px-4 py-3 hover:bg-surface/40 transition-colors">
+              <div 
+                class="flex items-start gap-3 px-4 py-3 hover:bg-surface-hover/50 transition-colors"
+                animate:flip={{ duration: 300 }}
+                transition:slide={{ duration: 250 }}
+              >
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-text-primary truncate">{item.name}</p>
                   <p class="text-xs text-text-muted mt-0.5">
@@ -255,23 +261,23 @@
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
                   <button
-                    class="w-6 h-6 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border"
+                    class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
                     onclick={() => updateQty(item.id, -1)}
                   >
-                    <Minus size={11} />
+                    <Minus size={14} />
                   </button>
                   <span class="w-7 text-center text-sm font-semibold text-text-primary">{item.quantity}</span>
                   <button
-                    class="w-6 h-6 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border"
+                    class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
                     onclick={() => updateQty(item.id, 1)}
                   >
-                    <Plus size={11} />
+                    <Plus size={14} />
                   </button>
                   <button
-                    class="w-6 h-6 rounded-lg hover:bg-danger-subtle text-text-muted hover:text-danger flex items-center justify-center transition-colors ml-1"
+                    class="w-8 h-8 rounded-lg hover:bg-danger-subtle text-text-muted hover:text-danger flex items-center justify-center transition-colors ml-1 active:scale-95"
                     onclick={() => removeFromCart(item.id)}
                   >
-                    <X size={11} />
+                    <X size={14} />
                   </button>
                 </div>
               </div>

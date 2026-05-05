@@ -26,6 +26,7 @@
   let selectedProduct = $state(null);
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
+  let isSearching = $state(false);
 
   // Form State
   let form = $state({
@@ -59,6 +60,7 @@
       toast.error('Failed to load inventory');
     } finally {
       loading = false;
+      isSearching = false;
     }
   }
 
@@ -67,6 +69,11 @@
     offset = 0;
     fetchProducts();
   }, 400);
+
+  function handleSearchInput() {
+    isSearching = true;
+    debouncedSearch();
+  }
 
   async function handleAdd() {
     saving = true;
@@ -125,21 +132,27 @@
   <!-- Filters -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      <input
-        type="text"
-        placeholder="Search products..."
-        bind:value={searchQuery}
-        oninput={debouncedSearch}
-        class="input flex-[2]"
-      />
-      <select bind:value={selectedCategory} onchange={fetchProducts} class="input flex-1">
+      <div class="relative flex-[2]">
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+        <input
+          type="text"
+          placeholder="Search products..."
+          bind:value={searchQuery}
+          oninput={handleSearchInput}
+          class="input pl-10 pr-10 rounded-full bg-surface-subtle border-transparent focus:bg-surface focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all w-full"
+        />
+        {#if isSearching}
+          <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
+        {/if}
+      </div>
+      <select bind:value={selectedCategory} onchange={fetchProducts} class="input flex-1 rounded-full bg-surface-subtle border-transparent focus:bg-surface focus:border-primary-light transition-all cursor-pointer">
         {#each categories as cat}
           <option value={cat}>{cat}</option>
         {/each}
       </select>
-      <label class="flex items-center gap-2 flex-1">
-        <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} />
-        <span class="text-sm text-text-secondary">Low stock only</span>
+      <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
+        <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
+        <span class="text-sm text-text-secondary font-medium">Low stock only</span>
       </label>
       <button
         onclick={() => {
@@ -147,7 +160,7 @@
           resetForm();
           showModal = true;
         }}
-        class="btn btn-primary flex-shrink-0"
+        class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
       >
         <Plus size={18} />
         Add Product
@@ -189,7 +202,7 @@
         </thead>
         <tbody>
           {#each products as product}
-            <tr class="border-t border-border hover:bg-muted/30 transition-colors">
+            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
               <td class="p-4 font-medium">{product.sku}</td>
               <td class="p-4">{product.name}</td>
               <td class="p-4">{product.category?.name || '-'}</td>
@@ -200,7 +213,7 @@
                 </Badge>
               </td>
               <td class="p-4">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onclick={() => {
                       selectedProduct = product;

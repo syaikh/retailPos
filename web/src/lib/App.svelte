@@ -11,6 +11,7 @@
   import Layout from '$lib/components/Layout.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
   import { auth } from '$lib/stores/auth';
+  import { fade } from 'svelte/transition';
 
   let Component = $state(LoginPage);
   let currentPath = $state(getPath());
@@ -62,7 +63,7 @@
 
 {#if isInitializing}
   <!-- Boot splash -->
-  <div class="min-h-screen bg-bg flex items-center justify-center">
+  <div class="min-h-screen bg-bg flex items-center justify-center absolute inset-0 z-50" out:fade={{ duration: 300 }}>
     <div class="flex flex-col items-center gap-4">
       <div class="w-12 h-12 rounded-2xl gradient-bg-primary flex items-center justify-center shadow-glow-primary animate-pulse">
         <span class="text-white text-xl font-bold">R</span>
@@ -78,9 +79,7 @@
   <Component />
 {:else}
   <Layout {currentPath}>
-    {#key currentPath}
-      <Component />
-    {/key}
+    <Component />
   </Layout>
 {/if}
 

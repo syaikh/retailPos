@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { X } from 'lucide-svelte';
+  import { fade, fly } from 'svelte/transition';
 
   let {
     open = $bindable(false),
@@ -49,7 +50,8 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    transition:fade={{ duration: 200 }}
     role="button"
     tabindex="0"
     aria-label="Close modal"
@@ -58,7 +60,8 @@
   >
     <!-- Panel -->
     <div
-      class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal animate-slide-up"
+      class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal"
+      transition:fly={{ y: 20, duration: 300 }}
       role="dialog"
       aria-modal="true"
       aria-label={title || 'Dialog'}
