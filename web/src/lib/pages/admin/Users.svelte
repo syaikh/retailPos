@@ -245,7 +245,7 @@
               <tr>
                 <td>
                   <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center flex-shrink-0">
+                    <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
                       <User size={14} class="text-white" />
                     </div>
                     <div>

@@ -37,6 +37,18 @@ async function fetchStats() {
 
   onMount(fetchStats);
 
+  // Format date and time in Indonesian format: dd mmm yyyy hh:mm:ss
+  const formatIndonesianDateTime = (date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleString('id-ID', { month: 'short' });
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+
+    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+  };
+
   // Quick-access modules
   const modules = [
     {
@@ -81,7 +93,7 @@ async function fetchStats() {
 <div class="space-y-8">
   <!-- KPI Stats -->
   <div class="card p-6 rounded-2xl border-border">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
     <StatCard
       label="Today's Revenue"
       value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
@@ -128,7 +140,7 @@ async function fetchStats() {
       {#each modules as mod}
         <button
           onclick={() => goto(mod.href)}
-          class="card-hover p-5 text-left group bg-gradient-to-br {mod.gradient} border-border"
+          class="card-hover p-5 text-left group bg-gradient-to-br {mod.gradient} border-border cursor-pointer"
         >
           <div class="flex items-start justify-between mb-4">
             <div class="w-11 h-11 rounded-xl {mod.iconBg} flex items-center justify-center">
@@ -152,7 +164,7 @@ async function fetchStats() {
     <div class="w-px h-4 bg-border"></div>
     <p class="text-xs text-text-muted">Frontend loaded • Backend connection active</p>
     <div class="ml-auto text-xs text-text-muted">
-      {new Date().toLocaleString('id-ID')}
+      {formatIndonesianDateTime(new Date())}
     </div>
   </div>
 </div>

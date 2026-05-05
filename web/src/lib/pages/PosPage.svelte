@@ -5,7 +5,7 @@
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X } from 'lucide-svelte';
+  import { Search, Plus, Minus, ShoppingCart, X, Package } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
 
   let cart = $state([]);
@@ -153,8 +153,12 @@
             {/each}
           </div>
         {:else if products.length === 0}
-          <div class="empty-state h-full">
-            <p class="text-text-muted">No products found</p>
+          <div class="px-4 py-12 text-center">
+            <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+              <Package size={32} class="text-text-muted" />
+            </div>
+            <p class="text-text-primary font-semibold mt-4">No products found</p>
+            <p class="text-text-muted text-sm mt-1">Add products to start selling</p>
           </div>
         {:else}
           <div class="flex-1 overflow-y-auto">
@@ -211,10 +215,10 @@
     </div>
 
     <!-- Cart -->
-    <div class="w-[340px] flex-shrink-0 flex flex-col">
-      <div class="card flex flex-col overflow-hidden p-0" style="height: calc(100vh - 120px); max-height: 600px;">
+    <div class="w-[340px] shrink-0 flex flex-col">
+      <div class="card flex flex-col overflow-hidden p-0" style="height: calc(100vh - 120px); max-height: 640px;">
         <!-- Cart Header -->
-        <div class="px-4 py-3.5 border-b border-border flex items-center justify-between flex-shrink-0">
+        <div class="px-4 py-3.5 border-b border-border flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <ShoppingCart size={18} class="text-primary-light" />
             <span class="font-semibold text-text-primary">Cart</span>
@@ -249,7 +253,7 @@
                     = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
                   </p>
                 </div>
-                <div class="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
                   <button
                     class="w-6 h-6 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border"
                     onclick={() => updateQty(item.id, -1)}
@@ -276,11 +280,11 @@
         {/if}
 
         <!-- Summary Section (Always Visible) -->
-        <div class="border-t border-border p-4 space-y-3 bg-bg-secondary flex-shrink-0">
+        <div class="border-t border-border p-4 space-y-3 bg-bg-secondary shrink-0">
           <!-- Total -->
           <div class="flex justify-between font-bold text-text-primary">
             <span>Total</span>
-            <span class="text-primary-light text-base">{totalAmount.toLocaleString('id-ID')}</span>
+            <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
           </div>
 
           <!-- Payment Method -->

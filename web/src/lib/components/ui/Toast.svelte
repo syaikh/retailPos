@@ -25,11 +25,11 @@
              backdrop-blur-xl min-w-72 max-w-sm animate-slide-in-right {styles[t.variant]}"
       role="alert"
     >
-      <svelte:component this={icons[t.variant]} size={18} class="flex-shrink-0 mt-0.5" />
+      <svelte:component this={icons[t.variant]} size={18} class="shrink-0 mt-0.5" />
       <p class="flex-1 text-sm font-medium leading-snug">{t.message}</p>
       <button
         onclick={() => toast.remove(t.id)}
-        class="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity -mr-1"
+        class="shrink-0 opacity-60 hover:opacity-100 transition-opacity -mr-1"
         aria-label="Dismiss"
       >
         <X size={14} />

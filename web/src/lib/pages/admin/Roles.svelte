@@ -234,7 +234,7 @@
               {#each role.permissions as permCode}
                 {@const permObj = permissions.find(p => p.code === permCode)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium border-primary/25 bg-primary-subtle text-primary-light">
-                  <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary-light"></span>
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-primary-light"></span>
                   {permObj?.name || permCode}
                 </div>
               {/each}

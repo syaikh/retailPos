@@ -70,7 +70,7 @@
       <div class="space-y-4">
         {#each ['Real-time inventory tracking', 'Multi-role access control', 'Sales analytics & reports', 'WebSocket live updates'] as feat}
           <div class="flex items-center gap-3">
-            <div class="w-6 h-6 rounded-full bg-primary-subtle border border-primary/30 flex items-center justify-center flex-shrink-0">
+            <div class="w-6 h-6 rounded-full bg-primary-subtle border border-primary/30 flex items-center justify-center shrink-0">
               <ShieldCheck size={12} class="text-primary-light" />
             </div>
             <span class="text-sm text-text-secondary">{feat}</span>
@@ -138,7 +138,7 @@
 
         {#if errorMsg}
           <div class="flex items-center gap-2 p-3 rounded-xl bg-danger-subtle border border-danger/25 text-danger-light text-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-danger shrink-0"></span>
             {errorMsg}
           </div>
         {/if}

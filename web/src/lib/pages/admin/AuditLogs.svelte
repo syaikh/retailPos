@@ -159,7 +159,7 @@
               <tr>
                 <td class="text-text-muted text-xs whitespace-nowrap">
                   <div class="flex items-center gap-1.5">
-                    <CalendarDays size={12} class="opacity-50 flex-shrink-0" />
+                    <CalendarDays size={12} class="opacity-50 shrink-0" />
                     {new Date(log.created_at || log.timestamp).toLocaleString('id-ID')}
                   </div>
                 </td>

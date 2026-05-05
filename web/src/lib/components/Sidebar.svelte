@@ -86,12 +86,12 @@
 
 <!-- Sidebar -->
 <aside
-  class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar flex-shrink-0 transition-all duration-300 ease-spring"
+  class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar shrink-0 transition-all duration-300 ease-spring"
   style:width={collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'}
 >
   <!-- Brand -->
   <div class="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border min-h-[65px]">
-    <div class="w-9 h-9 rounded-xl gradient-bg-primary flex items-center justify-center flex-shrink-0 shadow-glow-primary-sm">
+    <div class="w-9 h-9 rounded-xl gradient-bg-primary flex items-center justify-center shrink-0 shadow-glow-primary-sm">
       <Store size={18} class="text-white" />
     </div>
     {#if !collapsed}
@@ -110,7 +110,7 @@
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         title={collapsed ? item.label : ''}
       >
-        <item.icon size={18} class="flex-shrink-0" />
+        <item.icon size={18} class="shrink-0" />
         {#if !collapsed}
           <span class="animate-fade-in relative z-10">{item.label}</span>
         {/if}
@@ -134,7 +134,7 @@
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         title={collapsed ? item.label : ''}
       >
-        <item.icon size={18} class="flex-shrink-0" />
+        <item.icon size={18} class="shrink-0" />
         {#if !collapsed}
           <span class="animate-fade-in relative z-10">{item.label}</span>
         {/if}
@@ -146,7 +146,7 @@
   <div class="mt-auto border-t border-sidebar-border px-2.5 py-3 space-y-0.5">
     <!-- User row -->
     <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl" title={collapsed ? username : ''}>
-      <div class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center flex-shrink-0">
+      <div class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
         <User size={14} class="text-white" />
       </div>
       {#if !collapsed}

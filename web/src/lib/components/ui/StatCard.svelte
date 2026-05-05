@@ -27,7 +27,7 @@
 </script>
 
 <div class="flex items-center gap-4">
-  <div class="w-14 h-14 rounded-xl {iconBg} flex items-center justify-center flex-shrink-0">
+    <div class="w-14 h-14 rounded-xl {iconBg} flex items-center justify-center shrink-0">
     <Icon size={28} class={iconColor} />
   </div>
 
