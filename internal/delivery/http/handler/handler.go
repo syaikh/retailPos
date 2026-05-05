@@ -325,7 +325,49 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesChartData(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+	ctx := getCtx(c)
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	
+	if startDate == "" || endDate == "" {
+		now := time.Now()
+		endDate = now.Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+	}
+
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
+		return
+	}
+
+	dailyTotals := make(map[string]int)
+	for _, s := range sales {
+		dateStr := s.CreatedAt
+		if len(dateStr) >= 10 {
+			dateStr = dateStr[:10]
+		}
+		dailyTotals[dateStr] += s.TotalAmount
+	}
+
+	type ChartDataPoint struct {
+		Date  string `json:"date"`
+		Total int    `json:"total"`
+	}
+	
+	var data []ChartDataPoint
+	start, _ := time.Parse("2006-01-02", startDate)
+	end, _ := time.Parse("2006-01-02", endDate)
+	
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+		data = append(data, ChartDataPoint{
+			Date:  dateStr,
+			Total: dailyTotals[dateStr],
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 
 // Admin Handlers

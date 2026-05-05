@@ -3,6 +3,7 @@
   import { fly } from 'svelte/transition';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { chart } from '$lib/actions/chart';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -15,6 +16,7 @@
 
   let loading = $state(true);
   let salesData = $state([]);
+  let chartData = $state([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
@@ -56,6 +58,74 @@
   const startDateTooltip = $derived(formatDate(startDate));
   const endDateTooltip = $derived(formatDate(endDate));
 
+  // Chart configuration
+  const chartConfig = $derived.by(() => {
+    const labels = chartData.map(d => {
+      const date = new Date(d.date);
+      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    });
+    const values = chartData.map(d => d.total);
+
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Revenue',
+          data: values,
+          borderColor: '#7c3aed', // Primary
+          backgroundColor: 'rgba(124, 58, 237, 0.1)',
+          borderWidth: 2,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#7c3aed',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) label += ': ';
+                if (context.parsed.y !== null) {
+                  label += 'Rp ' + context.parsed.y.toLocaleString('id-ID');
+                }
+                return label;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#9ca3af', font: { family: 'inherit' } }
+          },
+          y: {
+            border: { display: false },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { 
+              color: '#9ca3af', 
+              font: { family: 'inherit' },
+              callback: function(value) {
+                if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + 'M';
+                if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'k';
+                return 'Rp ' + value;
+              }
+            }
+          }
+        }
+      }
+    };
+  });
+
 
 
   async function fetchSales() {
@@ -67,11 +137,20 @@
         limit: limit.toString(),
         offset: offset.toString()
       });
-      const r = await apiFetch(`/api/sales?${params.toString()}`);
-      if (r.ok) {
-        const data = await r.json();
+      const [salesRes, chartRes] = await Promise.all([
+        apiFetch(`/api/sales?${params.toString()}`),
+        apiFetch(`/api/dashboard/chart?startDate=${startDate}&endDate=${endDate}`)
+      ]);
+      
+      if (salesRes.ok) {
+        const data = await salesRes.json();
         salesData = data.data || [];
         total = data.total || 0;
+      }
+      
+      if (chartRes.ok) {
+        const cData = await chartRes.json();
+        chartData = cData.data || [];
       }
     } catch {
       toast.error('Failed to load sales data');
@@ -158,19 +237,20 @@
     </div>
   </div>
 
-  <!-- Chart placeholder -->
+  <!-- Chart -->
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-text-primary">Revenue Overview</h3>
       <span class="badge badge-muted">This period</span>
     </div>
-    <div class="flex items-center justify-center h-48 rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden relative">
-      <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
-      <div class="text-center">
-        <BarChart3 size={36} class="text-text-muted mx-auto mb-2 opacity-40" />
-        <p class="text-text-muted text-sm">Chart visualization</p>
-        <p class="text-text-muted text-xs mt-1">Connect Chart.js to render data</p>
-      </div>
+    <div class="h-64 relative">
+      {#if loading}
+        <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
+          <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
+        </div>
+      {:else}
+        <canvas use:chart={chartConfig}></canvas>
+      {/if}
     </div>
   </div>
 
