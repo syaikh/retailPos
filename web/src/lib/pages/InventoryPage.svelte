@@ -124,30 +124,14 @@
 <div class="space-y-6">
   <!-- Filters -->
   <div class="card p-4">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-lg font-semibold text-text-primary">Inventory Management</h2>
-      <button
-        onclick={() => {
-          modalMode = 'add';
-          resetForm();
-          showModal = true;
-        }}
-        class="btn btn-primary"
-      >
-        <Plus size={18} />
-        Add Product
-      </button>
-    </div>
-    <div class="flex flex-col sm:flex-row gap-4">
-      <div class="flex-1">
-        <input
-          type="text"
-          placeholder="Search products..."
-          bind:value={searchQuery}
-          oninput={debouncedSearch}
-          class="input"
-        />
-      </div>
+    <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+      <input
+        type="text"
+        placeholder="Search products..."
+        bind:value={searchQuery}
+        oninput={debouncedSearch}
+        class="input w-full sm:w-64"
+      />
       <select bind:value={selectedCategory} onchange={fetchProducts} class="input max-w-xs">
         {#each categories as cat}
           <option value={cat}>{cat}</option>
@@ -157,6 +141,17 @@
         <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} />
         <span class="text-sm text-text-secondary">Low stock only</span>
       </label>
+      <button
+        onclick={() => {
+          modalMode = 'add';
+          resetForm();
+          showModal = true;
+        }}
+        class="btn btn-primary whitespace-nowrap"
+      >
+        <Plus size={18} />
+        Add Product
+      </button>
     </div>
   </div>
 
