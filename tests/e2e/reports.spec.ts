@@ -1,59 +1,113 @@
 import { test, expect } from '@playwright/test';
 
-// ============================================================================
-// Reports & Analytics E2E Tests
-// ============================================================================
-// Status: NOT YET IMPLEMENTED
-// ============================================================================
-
 test.describe('Reports & Analytics', () => {
+  test.beforeEach(async ({ page }) => {
+    // Login first
+    await page.goto('http://localhost:5173/login');
+    await page.fill('#username', 'superadmin');
+    await page.fill('#password', 'admin123');
+    await page.click('.login-btn');
+    await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+    await expect(page.locator('#dashboard')).toBeVisible({ timeout: 5000 });
+  });
+
   test('should navigate to reports page from dashboard', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Click "Reports" card
+    // Click "View Reports" button on Reports card
+    await page.locator('.card').nth(2).locator('.btn').click();
     // URL changes to /reports
+    await expect(page).toHaveURL(/\/reports$/);
+    // Reports page elements should be visible
+    await expect(page.locator('h3').filter({ hasText: 'Revenue Overview' })).toBeVisible();
   });
 
   test('should display sales chart', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Chart component visible
-    // Shows line chart with sales trend over last 7 days
+    await page.goto('http://localhost:5173/reports');
+    // Chart canvas should be visible
+    await expect(page.locator('canvas')).toBeVisible();
+    // Chart title should be visible
+    await expect(page.locator('h3').filter({ hasText: 'Revenue Overview' })).toBeVisible();
   });
 
   test('should filter reports by date range', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Date picker inputs: start date, end date
-    // Select range and click "Apply"
-    // Chart updates
+    await page.goto('http://localhost:5173/reports');
+    // Date inputs should be visible
+    const startDateInput = page.locator('input[type="date"]').first();
+    const endDateInput = page.locator('input[type="date"]').nth(1);
+    await expect(startDateInput).toBeVisible();
+    await expect(endDateInput).toBeVisible();
+
+    // Change date range
+    await startDateInput.fill('2025-11-01');
+    await endDateInput.fill('2025-11-10');
+    await page.locator('button').filter({ hasText: 'Apply' }).click();
+
+    // Chart should still be visible (data may change)
+    await expect(page.locator('canvas')).toBeVisible();
   });
 
-  test('should export sales report to CSV', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Click "Export CSV" button
-    // File downloads
+  test('should export sales report to Excel', async ({ page }) => {
+    await page.goto('http://localhost:5173/reports');
+    // Set up download listener
+    const downloadPromise = page.waitForEvent('download');
+
+    // Click Export dropdown and then Excel option
+    await page.locator('button').filter({ hasText: 'Export' }).click();
+    await page.locator('button').filter({ hasText: 'Export Chart to Excel' }).click();
+
+    // Wait for download
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/revenue-report.*\.xlsx$/);
   });
 
   test('should export sales report to PDF', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Click "Export PDF" button
-    // PDF downloads with proper formatting
+    await page.goto('http://localhost:5173/reports');
+    // Set up download listener
+    const downloadPromise = page.waitForEvent('download');
+
+    // Click Export dropdown and then PDF option
+    await page.locator('button').filter({ hasText: 'Export' }).click();
+    await page.locator('button').filter({ hasText: 'Export Chart to PDF' }).click();
+
+    // Wait for download
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/revenue-report.*\.pdf$/);
   });
 
   test('should show summary statistics cards', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Cards: Total Sales, Total Revenue, Avg Order Value, Top Product
+    await page.goto('http://localhost:5173/reports');
+    // KPI cards should be visible
+    await expect(page.locator('text=Total Revenue')).toBeVisible();
+    await expect(page.locator('text=Total Orders')).toBeVisible();
+    await expect(page.locator('text=Avg Order Value')).toBeVisible();
+    await expect(page.locator('text=Revenue per Day')).toBeVisible();
+    await expect(page.locator('text=vs Previous Period')).toBeVisible();
   });
 
   test('should filter by payment method', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Dropdown: Cash, Card, QR, All
-    // Chart filters accordingly
+    // Payment method filter not implemented in current UI
+    test.skip(true, 'Payment method filter not implemented');
   });
 
   test('should drill down to detailed transaction list', async ({ page }) => {
-    test.skip(true, 'Reports page not yet implemented');
-    // Below chart: table with transactions
-    // Columns: Invoice #, Date, Cashier, Amount, Status
-    // Pagination
+    await page.goto('http://localhost:5173/reports');
+    // Transaction table should be visible
+    await expect(page.locator('table')).toBeVisible();
+    // Table headers should be present
+    await expect(page.locator('th').filter({ hasText: 'Invoice' })).toBeVisible();
+    await expect(page.locator('th').filter({ hasText: 'Date' })).toBeVisible();
+    await expect(page.locator('th').filter({ hasText: 'Items' })).toBeVisible();
+    await expect(page.locator('th').filter({ hasText: 'Payment' })).toBeVisible();
+    await expect(page.locator('th').filter({ hasText: 'Total (Rp)' })).toBeVisible();
+
+    // Click on an invoice number to open modal
+    const invoiceLink = page.locator('button').filter({ hasText: /^INV-/ }).first();
+    if (await invoiceLink.isVisible()) {
+      await invoiceLink.click();
+      // Modal should open
+      await expect(page.locator('text=Transaction Details')).toBeVisible();
+      // Close modal
+      await page.locator('[aria-label="Close"]').click();
+    }
   });
 });
 

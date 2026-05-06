@@ -373,7 +373,6 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 // injectProducts generates 4000-5000 realistic products across 5-6 months
 func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count int) ([]ProductInfo, error) {
 	products := make([]ProductInfo, 0, count)
-	sixMonthsAgo := time.Now().AddDate(0, -6, 0)
 
 	// Pre-fetch category names for product generation
 	categoryNames := make(map[int]string)
@@ -415,8 +414,9 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 			stock = generateStockLevel(catName)
 		}
 
-		// Random date within last 5-6 months (weighted towards more recent)
-		createdAt := generateWeightedDate(sixMonthsAgo, 180)
+	// Random date within last month (evenly distributed across the period)
+	randomDays := rand.Intn(30) + 1 // 1-30 days ago (1 month span)
+	createdAt := time.Now().AddDate(0, 0, -randomDays)
 
 		var id int
 		err := db.QueryRowContext(ctx,
@@ -447,29 +447,55 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 // injectSales generates transactions ensuring every day has at least 10 transactions across 5-6 months
 func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, count int) error {
 	now := time.Now()
-	sixMonthsAgo := now.AddDate(0, -6, 0)
 	productMap := make(map[int]ProductInfo)
 	for _, p := range products {
 		productMap[p.ID] = p
 	}
 
-	// Calculate number of days (approximately 6 months = 180 days)
-	totalDays := 180
-	minSalesPerDay := 10 // Minimum 10 transactions per day
+	// Calculate date range for last month (always span full period)
+	startDate := time.Now().AddDate(0, 0, -30) // 30 days ago
+	endDate := time.Now()                       // now
+	totalDays := int(endDate.Sub(startDate).Hours() / 24) // Actual days in period (~30 days)
+	minSalesPerDay := 10
 
-	// Calculate base sales per day to distribute evenly
+	// Distribute sales across the full date range
+	// Allow flexible sales per day to ensure full period coverage
 	baseSalesPerDay := count / totalDays
-	extraSales := count % totalDays // Remainder to distribute
+	extraSales := count % totalDays
+
+	// Ensure minimum distribution
+	if baseSalesPerDay == 0 {
+		baseSalesPerDay = 1
+		totalDays = count // Each day gets 1 sale
+	}
 
 	salesCreated := 0
 
 	for day := 0; day < totalDays && salesCreated < count; day++ {
+		// Calculate remaining sales needed
+		remainingNeeded := count - salesCreated
+
 		// Base sales for this day
 		salesForDay := baseSalesPerDay
 
-		// Distribute extra sales to first 'extraSales' days
+		// Distribute extra sales across days
 		if day < extraSales {
 			salesForDay += 1
+		}
+
+		// Add some randomness to sales distribution
+		if salesForDay == 0 && rand.Intn(10) < 3 { // 30% chance of 1 sale on empty days
+			salesForDay = 1
+		}
+
+		// Ensure we don't exceed remaining sales needed
+		if salesForDay > remainingNeeded {
+			salesForDay = remainingNeeded
+		}
+
+		// Skip days with no sales
+		if salesForDay <= 0 {
+			continue
 		}
 
 		// Ensure minimum of 10 transactions per day
@@ -478,7 +504,6 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 		}
 
 		// Ensure we don't exceed remaining sales needed
-		remainingNeeded := count - salesCreated
 		if salesForDay > remainingNeeded {
 			salesForDay = remainingNeeded
 		}
@@ -499,7 +524,7 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
 
 			// Calculate transaction time for this day
-			dayDate := sixMonthsAgo.AddDate(0, 0, day)
+			dayDate := startDate.AddDate(0, 0, day)
 
 			var createdAt time.Time
 			if dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day() {
