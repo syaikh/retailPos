@@ -37,8 +37,8 @@ test.describe('Reports & Analytics', () => {
     await expect(endDateInput).toBeVisible();
 
     // Change date range
-    await startDateInput.fill('2025-11-01');
-    await endDateInput.fill('2025-11-10');
+    await startDateInput.fill('2026-04-01');
+    await endDateInput.fill('2026-04-10');
     await page.locator('button').filter({ hasText: 'Apply' }).click();
 
     // Chart should still be visible (data may change)
