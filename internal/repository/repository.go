@@ -35,6 +35,8 @@ type ProductRepository interface {
 	CreateProduct(ctx context.Context, product *domain.Product) error
 	UpdateProduct(ctx context.Context, product *domain.Product, storeID *int) error
 	DeleteProduct(ctx context.Context, id int, storeID *int) error
+	ListCategories(ctx context.Context) ([]domain.Category, error)
+	GetCategoryIDByName(ctx context.Context, name string) (int, error)
 }
 
 type SaleRepository interface {

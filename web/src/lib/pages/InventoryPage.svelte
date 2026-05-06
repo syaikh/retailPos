@@ -19,7 +19,8 @@
   let limit = $state(20);
   let offset = $state(0);
   let searchQuery = $state('');
-  let selectedCategory = $state('all');
+  let selectedCategory = $state('All');
+  let categories = $state(['All']); // Will be populated from API
   let lowStockOnly = $state(false);
   let showModal = $state(false);
   let showDeleteModal = $state(false);
@@ -28,17 +29,34 @@
   let saving = $state(false);
   let isSearching = $state(false);
 
+  // Searchable category dropdown state
+  let categorySearchQuery = $state('');
+  let showCategoryDropdown = $state(false);
+  let categoryInputRef = $state(null);
+
   // Form State
   let form = $state({
     name: '',
     sku: '',
-    category: 'Makanan',
+    category: '',
     price: 0,
     stock: 0,
     stock_min: 5
   });
 
-  const categories = ['all', 'Makanan', 'Minuman', 'Snack', 'Lainnya'];
+  async function fetchCategories() {
+    try {
+      const r = await apiClient.get('/categories');
+      const catList = r.data.data || [];
+      categories = ['All', ...catList.map(c => c.name)];
+      // Set default category if not set
+      if (!form.category && catList.length > 0) {
+        form.category = catList[0].name;
+      }
+    } catch (err) {
+      toast.error('Failed to load categories');
+    }
+  }
 
   async function fetchProducts() {
     try {
@@ -70,40 +88,70 @@
     fetchProducts();
   }, 400);
 
-  function handleSearchInput() {
-    isSearching = true;
-    debouncedSearch();
+  // Watch for search query changes and trigger debounced search
+  $effect(() => {
+    if (searchQuery !== undefined) {
+      isSearching = true;
+      debouncedSearch();
+    }
+  });
+
+  // Filtered categories for searchable dropdown
+  let filteredCategories = $derived(
+    categories.filter(cat =>
+      cat.toLowerCase().includes(categorySearchQuery.toLowerCase())
+    )
+  );
+
+  function selectCategory(category) {
+    selectedCategory = category;
+    categorySearchQuery = '';
+    showCategoryDropdown = false;
+    fetchProducts();
   }
 
-  async function handleAdd() {
-    saving = true;
-    try {
-      await apiClient.post('/products', form);
-      toast.success('Product added');
-      showModal = false;
-      resetForm();
-      await fetchProducts();
-    } catch (err) {
-      toast.error('Failed to add product');
-    } finally {
-      saving = false;
-    }
+  function handleCategoryInputFocus() {
+    showCategoryDropdown = true;
   }
 
-  async function handleUpdate() {
-    saving = true;
-    try {
-      await apiClient.put(`/products/${selectedProduct.id}`, form);
-      toast.success('Product updated');
-      showModal = false;
-      resetForm();
-      await fetchProducts();
-    } catch (err) {
-      toast.error('Failed to update product');
-    } finally {
-      saving = false;
-    }
+  function handleCategoryInputBlur() {
+    // Delay hiding dropdown to allow for selection
+    setTimeout(() => {
+      showCategoryDropdown = false;
+    }, 150);
   }
+
+   async function handleAdd() {
+     saving = true;
+     try {
+       const payload = { ...form, category_name: form.category };
+       await apiClient.post('/products', payload);
+       toast.success('Product added');
+       showModal = false;
+       resetForm();
+       await fetchProducts();
+     } catch (err) {
+       toast.error('Failed to add product');
+     } finally {
+       saving = false;
+     }
+   }
+
+   async function handleUpdate() {
+     saving = true;
+     try {
+       const payload = { ...form, category_name: form.category };
+       await apiClient.put(`/products/${selectedProduct.id}`, payload);
+       toast.success('Product updated');
+       showModal = false;
+       resetForm();
+       await fetchProducts();
+     } catch (err) {
+       toast.error('Failed to update product');
+     } finally {
+       saving = false;
+     }
+   }
 
   async function handleDelete() {
     try {
@@ -118,14 +166,13 @@
   }
 
   function resetForm() {
-    form = { name: '', sku: '', category: 'Makanan', price: 0, stock: 0, stock_min: 5 };
+    form = { name: '', sku: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
   }
 
-  $effect(() => {
-    fetchProducts();
-  });
-
-  $inspect({ products, total });
+   $effect(() => {
+     fetchProducts();
+     fetchCategories();
+   });
 </script>
 
 <div class="space-y-6">
@@ -138,18 +185,41 @@
           type="text"
           placeholder="Search products..."
           bind:value={searchQuery}
-          oninput={handleSearchInput}
-          class="input pl-10 pr-10 rounded-full bg-surface-subtle border-transparent focus:bg-surface focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all w-full"
+          class="input pl-10 pr-10"
         />
         {#if isSearching}
           <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
         {/if}
       </div>
-      <select bind:value={selectedCategory} onchange={fetchProducts} class="input flex-1 rounded-full bg-surface-subtle border-transparent focus:bg-surface focus:border-primary-light transition-all cursor-pointer">
-        {#each categories as cat}
-          <option value={cat}>{cat}</option>
-        {/each}
-      </select>
+      <!-- Searchable Category Dropdown -->
+      <div class="relative flex-1">
+        <div class="relative">
+          <input
+            bind:value={categorySearchQuery}
+            placeholder={categorySearchQuery || showCategoryDropdown ? "Search categories..." : selectedCategory}
+            onfocus={handleCategoryInputFocus}
+            onblur={handleCategoryInputBlur}
+            class="input w-full pr-10"
+          />
+          <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <svg class="w-4 h-4 text-text-muted transition-transform {showCategoryDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </div>
+        </div>
+        {#if showCategoryDropdown && filteredCategories.length > 0}
+          <div class="absolute top-full mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+            {#each filteredCategories as cat}
+              <button
+                onclick={() => selectCategory(cat)}
+                class="w-full text-left px-4 py-2 hover:bg-surface-hover transition-colors first:rounded-t-lg last:rounded-b-lg {selectedCategory === cat ? 'bg-primary-subtle text-primary' : 'text-text-primary'}"
+              >
+                {cat}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
         <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
         <span class="text-sm text-text-secondary font-medium">Low stock only</span>
@@ -205,7 +275,7 @@
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
               <td class="p-4 font-medium">{product.sku}</td>
               <td class="p-4">{product.name}</td>
-              <td class="p-4">{product.category?.name || '-'}</td>
+               <td class="p-4">{product.category_name || '-'}</td>
               <td class="p-4">{product.price?.toLocaleString()}</td>
               <td class="p-4">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
@@ -217,7 +287,7 @@
                   <button
                     onclick={() => {
                       selectedProduct = product;
-                      form = { ...product };
+                      form = { ...product, category: product.category_name || categories.find(c => c !== 'All') || '' };
                       modalMode = 'edit';
                       showModal = true;
                     }}
@@ -268,11 +338,11 @@
     </div>
     <div>
       <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category</label>
-      <select id="prod-category" bind:value={form.category} class="input">
-        {#each categories as cat}
-          <option value={cat}>{cat}</option>
-        {/each}
-      </select>
+       <select id="prod-category" bind:value={form.category} class="input">
+         {#each categories.filter(c => c !== 'all') as cat}
+           <option value={cat}>{cat}</option>
+         {/each}
+       </select>
     </div>
     <div>
       <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR)</label>

@@ -90,6 +90,15 @@ type UserWithPermissions struct {
 	StoreID     *int     `json:"store_id,omitempty"`
 }
 
+type Category struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	IsActive    bool     `json:"is_active"`
+	CreatedAt   string   `json:"created_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
+}
+
 type InventoryMovement struct {
 	ID          int      `json:"id"`
 	ProductID    int    `json:"product_id"`

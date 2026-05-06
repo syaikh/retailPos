@@ -556,6 +556,42 @@ func (r *postgresRepository) DeleteProduct(ctx context.Context, id int, storeID 
 	return err
 }
 
+// ==================== CATEGORY ====================
+
+func (r *postgresRepository) ListCategories(ctx context.Context) ([]domain.Category, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, description, is_active, created_at
+		FROM categories
+		WHERE is_active = true
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []domain.Category
+	for rows.Next() {
+		var c domain.Category
+		var createdAt time.Time
+		err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.IsActive, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		c.CreatedAt = createdAt.Format(time.RFC3339)
+		c.UpdatedAt = "" // Not stored in database
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+func (r *postgresRepository) GetCategoryIDByName(ctx context.Context, name string) (int, error) {
+	var id int
+	query := "SELECT id FROM categories WHERE name = $1 AND is_active = true"
+	err := r.db.QueryRow(ctx, query, name).Scan(&id)
+	return id, err
+}
+
 // ==================== SALE ====================
 
 func (r *postgresRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {

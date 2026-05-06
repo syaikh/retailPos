@@ -148,7 +148,24 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			offset = val
 		}
 	}
-	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), nil, "created_at", "DESC", nil, nil)
+
+	// Handle category parameter
+	var categoryID *int
+	if cat := c.Query("category"); cat != "" && cat != "all" {
+		if id, err := h.productRepo.GetCategoryIDByName(getCtx(c), cat); err == nil {
+			categoryID = &id
+		}
+	}
+
+	// Handle maxStock parameter for low stock filtering
+	var maxStock *int
+	if ms := c.Query("maxStock"); ms != "" {
+		if val, err := strconv.Atoi(ms); err == nil && val > 0 {
+			maxStock = &val
+		}
+	}
+
+	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), categoryID, "created_at", "DESC", maxStock, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return
@@ -822,6 +839,15 @@ func getUserID(c *gin.Context) int {
 		return uid.(int)
 	}
 	return 0
+}
+
+func (h *Handler) ListCategories(c *gin.Context) {
+	categories, err := h.productRepo.ListCategories(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list categories"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": categories})
 }
 
 func getRole(c *gin.Context) string {
