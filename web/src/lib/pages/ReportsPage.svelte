@@ -37,9 +37,10 @@
     periodInfo: null
   });
 
-  // Date range - default to November 2025 where the sales data exists
-  let startDate = $state('2025-11-06');
-  let endDate = $state('2025-11-08');
+  // Date range - default to last 7 days inclusive of today
+  const now = new Date();
+  let startDate = $state(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  let endDate = $state(now.toISOString().slice(0, 10));
 
   // Export dropdown
   let showExportDropdown = $state(false);
