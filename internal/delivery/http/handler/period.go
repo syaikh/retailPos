@@ -70,12 +70,12 @@ func getDailyRanges(refDate time.Time, completedMode bool) PeriodRange {
 		}
 	}
 
-	// Today vs yesterday (same day offset)
+	// To-date: last 7 days including today vs previous 7 days
 	return PeriodRange{
-		CurrentStart:  refDate,
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: refDate.AddDate(0, 0, -1),
-		PreviousEnd:   refDate,
+		CurrentStart:  refDate.AddDate(0, 0, -6), // 7 days ago including today
+		CurrentEnd:    refDate.AddDate(0, 0, 1),  // tomorrow (exclusive)
+		PreviousStart: refDate.AddDate(0, 0, -13), // 13 days ago
+		PreviousEnd:   refDate.AddDate(0, 0, -6),  // 7 days ago (exclusive)
 	}
 }
 
