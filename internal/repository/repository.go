@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"retail-pos-system/internal/domain"
@@ -40,6 +41,7 @@ type SaleRepository interface {
 	CreateSale(ctx context.Context, tx pgx.Tx, sale *domain.Sale, items []domain.SaleItem) error
 	GetSaleByID(ctx context.Context, id int) (*domain.Sale, error)
 	GetAllSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate string, storeID *int) ([]domain.Sale, int, error)
+	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (*domain.PeriodComparison, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
 }
 

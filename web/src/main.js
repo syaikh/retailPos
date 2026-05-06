@@ -3,11 +3,10 @@ import App from './lib/App.svelte';
 import { mount } from 'svelte';
 
 // Import apiClient dan setup interceptors untuk Auto-Refresh Token
-import apiClient from './lib/api/client';
-import { setupAxiosInterceptors } from './lib/api/auth';
+import apiClient, { setupApiInterceptors } from './lib/api/client';
 
-// Setup interceptors (ini akan mengaktifkan logika auto-refresh 401)
-setupAxiosInterceptors(apiClient);
+// Setup interceptors dynamically (ini akan mengaktifkan logika auto-refresh 401)
+setupApiInterceptors();
 
 // Mount the app using mount() for client-only SPA (no hydration)
 const target = document.getElementById('app');

@@ -21,12 +21,31 @@
   let limit = $state(20);
   let offset = $state(0);
 
+  // KPI data
+  let kpiData = $state({
+    totalRevenue: 0,
+    previousRevenue: 0,
+    totalOrders: 0,
+    previousOrders: 0,
+    avgOrderValue: 0,
+    previousAvgOrderValue: 0,
+    revenuePerDay: 0,
+    previousRevenuePerDay: 0,
+    percentChange: 0,
+    comparisonType: 'zero',
+    isPartial: false,
+    periodInfo: null
+  });
+
   // Date range
   let startDate = $state(new Date(new Date().setDate(1)).toISOString().slice(0, 10));
   let endDate = $state(new Date().toISOString().slice(0, 10));
 
   // Export dropdown
   let showExportDropdown = $state(false);
+
+  // Tab state for granularity switching
+  let activeTab = $state('daily'); // 'daily', 'weekly', 'monthly'
 
   // Transaction details modal
   let showTransactionModal = $state(false);
@@ -60,29 +79,53 @@
 
   // Chart configuration
   const chartConfig = $derived.by(() => {
-    const labels = chartData.map(d => {
-      const date = new Date(d.date);
-      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-    });
-    const values = chartData.map(d => d.total);
+    let labels = [];
+    let values = [];
+    let chartType = 'line';
+
+    if (activeTab === 'daily') {
+      chartType = 'line';
+      labels = chartData.map(d => {
+        const date = new Date(d.date);
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+      });
+      values = chartData.map(d => d.total);
+    } else if (activeTab === 'weekly') {
+      chartType = 'bar';
+      labels = chartData.map(d => {
+        const start = new Date(d.week_start);
+        const end = new Date(d.week_end);
+        const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        return `${startStr} - ${endStr}`;
+      });
+      values = chartData.map(d => d.total);
+    } else if (activeTab === 'monthly') {
+      chartType = 'bar';
+      labels = chartData.map(d => {
+        const date = new Date(d.month_start);
+        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      });
+      values = chartData.map(d => d.total);
+    }
 
     return {
-      type: 'line',
+      type: chartType,
       data: {
         labels,
         datasets: [{
           label: 'Revenue',
           data: values,
           borderColor: '#7c3aed', // Primary
-          backgroundColor: 'rgba(124, 58, 237, 0.1)',
-          borderWidth: 2,
+          backgroundColor: chartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
+          borderWidth: chartType === 'bar' ? 0 : 2,
           pointBackgroundColor: '#fff',
           pointBorderColor: '#7c3aed',
           pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          fill: true,
-          tension: 0.4
+          pointRadius: chartType === 'bar' ? 0 : 4,
+          pointHoverRadius: chartType === 'bar' ? 0 : 6,
+          fill: chartType === 'bar' ? true : true,
+          tension: chartType === 'bar' ? 0 : 0.4
         }]
       },
       options: {
@@ -111,8 +154,8 @@
           y: {
             border: { display: false },
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: { 
-              color: '#9ca3af', 
+            ticks: {
+              color: '#9ca3af',
               font: { family: 'inherit' },
               callback: function(value) {
                 if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + 'M';
@@ -137,21 +180,66 @@
         limit: limit.toString(),
         offset: offset.toString()
       });
-      const [salesRes, chartRes] = await Promise.all([
+
+      // Choose chart endpoint based on active tab
+      const chartEndpoint = activeTab === 'weekly' ? '/api/dashboard/chart/weekly' :
+                           activeTab === 'monthly' ? '/api/dashboard/chart/monthly' :
+                           '/api/dashboard/chart';
+
+      const [salesRes, chartRes, comparisonRes] = await Promise.all([
         apiFetch(`/api/sales?${params.toString()}`),
-        apiFetch(`/api/dashboard/chart?startDate=${startDate}&endDate=${endDate}`)
+        apiFetch(`${chartEndpoint}?startDate=${startDate}&endDate=${endDate}`),
+        apiFetch(`/api/dashboard/comparison?period=${activeTab}&mode=todate&date=${endDate}`)
       ]);
-      
+
       if (salesRes.ok) {
         const data = await salesRes.json();
         salesData = data.data || [];
         total = data.total || 0;
       }
-      
+
       if (chartRes.ok) {
         const cData = await chartRes.json();
         chartData = cData.data || [];
       }
+
+      // Enhanced KPI calculation with comparison data
+      if (comparisonRes.ok) {
+        const compData = await comparisonRes.json();
+        const comparison = compData.data;
+        const meta = compData.meta;
+
+        // Calculate percent change with type detection
+        let percentChange = 0;
+        let comparisonType = 'zero';
+
+        if (comparison.previous_revenue === 0 && comparison.current_revenue > 0) {
+          comparisonType = 'new';
+          percentChange = Infinity;
+        } else if (comparison.previous_revenue === 0 && comparison.current_revenue === 0) {
+          comparisonType = 'zero';
+          percentChange = 0;
+        } else if (comparison.previous_revenue > 0) {
+          comparisonType = 'normal';
+          percentChange = ((comparison.current_revenue - comparison.previous_revenue) / comparison.previous_revenue) * 100;
+        }
+
+        kpiData = {
+          totalRevenue: comparison.current_revenue,
+          previousRevenue: comparison.previous_revenue,
+          totalOrders: comparison.current_orders,
+          previousOrders: comparison.previous_orders,
+          avgOrderValue: comparison.current_aov,
+          previousAvgOrderValue: comparison.previous_aov,
+          revenuePerDay: comparison.revenue_per_day,
+          previousRevenuePerDay: comparison.previous_revenue_per_day,
+          percentChange,
+          comparisonType,
+          isPartial: meta.is_partial,
+          periodInfo: meta
+        };
+      }
+
     } catch {
       toast.error('Failed to load sales data');
     } finally {
@@ -163,6 +251,136 @@
     offset = newOffset;
     limit = newLimit;
     fetchSales();
+  }
+
+  function handleTabChange(newTab) {
+    activeTab = newTab;
+    offset = 0; // Reset pagination
+
+    // Set default date ranges based on tab
+    const now = new Date();
+    if (newTab === 'daily') {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days ago
+      endDate = now.toISOString().slice(0, 10);
+    } else if (newTab === 'weekly') {
+      startDate = new Date(now.getTime() - 84 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 12 weeks ago
+      endDate = now.toISOString().slice(0, 10);
+    } else if (newTab === 'monthly') {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10); // 12 months ago
+      endDate = now.toISOString().slice(0, 10);
+    }
+
+    fetchSales();
+  }
+
+  async function exportToExcel() {
+    try {
+      const { utils, writeFile } = await import('xlsx');
+
+      // Create summary sheet
+      const summaryData = [
+        ['Revenue Report Summary', ''],
+        ['Period', `${startDate} to ${endDate}`],
+        ['Granularity', activeTab],
+        ['', ''],
+        ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
+        ['Total Orders', kpiData.totalOrders],
+        ['Average Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
+        ['Change vs Previous Period', `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`]
+      ];
+
+      // Create data sheet
+      const headers = activeTab === 'daily' ? ['Date', 'Revenue'] :
+                     activeTab === 'weekly' ? ['Week Start', 'Week End', 'Revenue', 'Orders'] :
+                     ['Month', 'Revenue', 'Orders'];
+
+      const dataRows = chartData.map(item => {
+        if (activeTab === 'daily') return [item.date, item.total];
+        if (activeTab === 'weekly') return [item.week_start, item.week_end, item.total, item.order_count];
+        return [item.month, item.total, item.order_count];
+      });
+
+      const dataData = [headers, ...dataRows];
+
+      const workbook = utils.book_new();
+      utils.book_append_sheet(workbook, utils.aoa_to_sheet(summaryData), 'Summary');
+      utils.book_append_sheet(workbook, utils.aoa_to_sheet(dataData), 'Data');
+
+      const fileName = `revenue-report-${activeTab}-${startDate}-to-${endDate}.xlsx`;
+      writeFile(workbook, fileName);
+
+      toast.success('Excel export completed');
+    } catch (error) {
+      toast.error('Failed to export to Excel');
+    }
+  }
+
+  async function exportToPDF() {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const doc = new jsPDF();
+
+      // Title
+      doc.setFontSize(16);
+      doc.text(`Revenue Report - ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`, 20, 20);
+
+      // Period
+      doc.setFontSize(12);
+      doc.text(`Period: ${startDate} to ${endDate}`, 20, 30);
+
+      // Summary table
+      const summaryBody = [
+        ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
+        ['Total Orders', kpiData.totalOrders.toString()],
+        ['Average Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
+        ['Change vs Previous Period', `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`]
+      ];
+
+      autoTable(doc, {
+        startY: 40,
+        head: [['Metric', 'Value']],
+        body: summaryBody,
+        theme: 'grid'
+      });
+
+      // Data table
+      let dataHeaders, dataBody;
+      if (activeTab === 'daily') {
+        dataHeaders = ['Date', 'Revenue'];
+        dataBody = chartData.map(item => [item.date, `Rp ${item.total.toLocaleString('id-ID')}`]);
+      } else if (activeTab === 'weekly') {
+        dataHeaders = ['Week Start', 'Week End', 'Revenue', 'Orders'];
+        dataBody = chartData.map(item => [
+          item.week_start,
+          item.week_end,
+          `Rp ${item.total.toLocaleString('id-ID')}`,
+          item.order_count
+        ]);
+      } else {
+        dataHeaders = ['Month', 'Revenue', 'Orders'];
+        dataBody = chartData.map(item => [
+          item.month,
+          `Rp ${item.total.toLocaleString('id-ID')}`,
+          item.order_count
+        ]);
+      }
+
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 10,
+        head: [dataHeaders],
+        body: dataBody,
+        theme: 'grid'
+      });
+
+      const fileName = `revenue-report-${activeTab}-${startDate}-to-${endDate}.pdf`;
+      doc.save(fileName);
+
+      toast.success('PDF export completed');
+    } catch (error) {
+      toast.error('Failed to export to PDF');
+    }
   }
 
   const statusVariant = (s) =>
@@ -218,30 +436,154 @@
           tabindex="-1"
           transition:fly={{ y: -8, duration: 200 }}
         >
-          <button 
+          <button
             class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
             role="menuitem"
+            onclick={() => { showExportDropdown = false; exportToExcel(); }}
           >
             <FileSpreadsheet size={16} class="text-success-light" />
-            Export to Excel
+            Export Chart to Excel
           </button>
-          <button 
+          <button
             class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
             role="menuitem"
+            onclick={() => { showExportDropdown = false; exportToPDF(); }}
           >
             <Download size={16} class="text-danger-light" />
-            Export to PDF
+            Export Chart to PDF
           </button>
         </div>
       {/if}
     </div>
   </div>
 
+  <!-- Tab Navigation -->
+  <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner overflow-x-auto">
+    <button
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'daily' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      onclick={() => handleTabChange('daily')}
+    >
+      Daily
+    </button>
+    <button
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'weekly' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      onclick={() => handleTabChange('weekly')}
+    >
+      Weekly
+    </button>
+    <button
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      onclick={() => handleTabChange('monthly')}
+    >
+      Monthly
+    </button>
+  </div>
+
   <!-- Chart -->
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-sm font-semibold text-text-primary">Revenue Overview</h3>
+      <h3 class="text-sm font-semibold text-text-primary">
+        Revenue Overview - {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+      </h3>
     </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      {#if loading}
+        {#each { length: 5 } as _}
+          <div class="bg-surface rounded-lg p-4 border border-border/50">
+            <Skeleton width="w-20" height="h-3" class="mb-2" />
+            <Skeleton width="w-16" height="h-6" />
+          </div>
+        {/each}
+      {:else}
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            Rp {kpiData.totalRevenue.toLocaleString('id-ID')}
+          </div>
+          {#if kpiData.previousRevenue > 0}
+            <div class="text-xs text-text-muted mt-1">
+              vs Rp {kpiData.previousRevenue.toLocaleString('id-ID')}
+            </div>
+          {/if}
+        </div>
+
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            {kpiData.totalOrders.toLocaleString()}
+          </div>
+          {#if kpiData.previousOrders > 0}
+            <div class="text-xs text-text-muted mt-1">
+              vs {kpiData.previousOrders.toLocaleString()}
+            </div>
+          {/if}
+        </div>
+
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            Rp {kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+          </div>
+          {#if kpiData.previousAvgOrderValue > 0}
+            <div class="text-xs text-text-muted mt-1">
+              vs Rp {kpiData.previousAvgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+            </div>
+          {/if}
+        </div>
+
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Revenue per Day</div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            Rp {kpiData.revenuePerDay.toLocaleString('id-ID')}
+          </div>
+          {#if kpiData.previousRevenuePerDay > 0}
+            <div class="text-xs text-text-muted mt-1">
+              vs Rp {kpiData.previousRevenuePerDay.toLocaleString('id-ID')}
+            </div>
+          {/if}
+        </div>
+
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+            vs Previous Period
+            {#if kpiData.isPartial}
+              <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
+                Partial
+              </span>
+            {/if}
+          </div>
+          <div class="flex items-center mt-1">
+            <span class={`text-lg font-bold ${
+              kpiData.comparisonType === 'new' ? 'text-success' :
+              kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
+              kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
+            }`}>
+              {kpiData.comparisonType === 'new' ? 'NEW' :
+               kpiData.comparisonType === 'zero' ? '±0%' :
+               kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
+               kpiData.percentChange.toFixed(1) + '%'}
+            </span>
+            <span class={`ml-2 ${
+              kpiData.comparisonType === 'new' ? 'text-success' :
+              kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
+              kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
+            }`}>
+              {kpiData.comparisonType === 'new' ? '🚀' :
+               kpiData.comparisonType === 'zero' ? '—' :
+               kpiData.percentChange > 0 ? '↗' : '↘'}
+            </span>
+          </div>
+          {#if kpiData.periodInfo}
+            <div class="text-xs text-text-muted mt-1">
+              {kpiData.periodInfo.current_period.start} to {kpiData.periodInfo.current_period.end}
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+
     <div class="h-64 relative">
       {#if loading}
         <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">

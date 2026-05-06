@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -303,18 +304,30 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 func (h *Handler) GetDashboardStats(c *gin.Context) {
 	ctx := getCtx(c)
 	today := time.Now().Format("2006-01-02")
-	
+
 	// Get total revenue & sales (simplified)
-	sales, _, _ := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales data"})
+		return
+	}
 	var todaysRev int
 	for _, s := range sales {
 		todaysRev += s.TotalAmount
 	}
 
-	_, totalProducts, _ := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", nil, nil)
-	
+	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products data"})
+		return
+	}
+
 	lowStock := 5
-	_, lowStockCount, _ := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", &lowStock, nil)
+	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", &lowStock, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch low stock data"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": map[string]interface{}{
 		"todays_revenue":  todaysRev,
@@ -368,6 +381,173 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": data})
+}
+
+func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
+	ctx := getCtx(c)
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	if startDate == "" || endDate == "" {
+		now := time.Now()
+		endDate = now.Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -84).Format("2006-01-02") // 12 weeks back
+	}
+
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
+		return
+	}
+
+	weeklyTotals := make(map[string]map[string]interface{})
+	for _, s := range sales {
+		createdTime, _ := time.Parse("2006-01-02T15:04:05Z07:00", s.CreatedAt)
+		weekStart := createdTime.AddDate(0, 0, -int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
+		weekEnd := createdTime.AddDate(0, 0, 6-int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
+
+		weekKey := weekStart + "|" + weekEnd
+		if weeklyTotals[weekKey] == nil {
+			weeklyTotals[weekKey] = map[string]interface{}{
+				"week_start": weekStart,
+				"week_end":   weekEnd,
+				"total":      0,
+				"order_count": 0,
+			}
+		}
+		weeklyTotals[weekKey]["total"] = weeklyTotals[weekKey]["total"].(int) + s.TotalAmount
+		weeklyTotals[weekKey]["order_count"] = weeklyTotals[weekKey]["order_count"].(int) + 1
+	}
+
+	type WeeklyDataPoint struct {
+		WeekStart  string `json:"week_start"`
+		WeekEnd    string `json:"week_end"`
+		Total      int    `json:"total"`
+		OrderCount int    `json:"order_count"`
+	}
+
+	var data []WeeklyDataPoint
+	for _, v := range weeklyTotals {
+		data = append(data, WeeklyDataPoint{
+			WeekStart:  v["week_start"].(string),
+			WeekEnd:    v["week_end"].(string),
+			Total:      v["total"].(int),
+			OrderCount: v["order_count"].(int),
+		})
+	}
+
+	// Sort by week start date
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].WeekStart < data[j].WeekStart
+	})
+
+	c.JSON(http.StatusOK, gin.H{"data": data})
+}
+
+func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
+	ctx := getCtx(c)
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	if startDate == "" || endDate == "" {
+		now := time.Now()
+		endDate = now.Format("2006-01-02")
+		startDate = now.AddDate(-1, 1, 0).Format("2006-01-02") // 12 months back
+	}
+
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
+		return
+	}
+
+	monthlyTotals := make(map[string]map[string]interface{})
+	for _, s := range sales {
+		createdTime, _ := time.Parse("2006-01-02T15:04:05Z07:00", s.CreatedAt)
+		monthKey := createdTime.Format("2006-01")
+		monthStart := createdTime.Format("2006-01-01")
+
+		if monthlyTotals[monthKey] == nil {
+			monthlyTotals[monthKey] = map[string]interface{}{
+				"month":      monthKey,
+				"month_start": monthStart,
+				"total":      0,
+				"order_count": 0,
+			}
+		}
+		monthlyTotals[monthKey]["total"] = monthlyTotals[monthKey]["total"].(int) + s.TotalAmount
+		monthlyTotals[monthKey]["order_count"] = monthlyTotals[monthKey]["order_count"].(int) + 1
+	}
+
+	type MonthlyDataPoint struct {
+		Month      string `json:"month"`
+		MonthStart string `json:"month_start"`
+		Total      int    `json:"total"`
+		OrderCount int    `json:"order_count"`
+	}
+
+	var data []MonthlyDataPoint
+	for _, v := range monthlyTotals {
+		data = append(data, MonthlyDataPoint{
+			Month:      v["month"].(string),
+			MonthStart: v["month_start"].(string),
+			Total:      v["total"].(int),
+			OrderCount: v["order_count"].(int),
+		})
+	}
+
+	// Sort by month
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Month < data[j].Month
+	})
+
+	c.JSON(http.StatusOK, gin.H{"data": data})
+}
+
+func (h *Handler) GetPeriodComparison(c *gin.Context) {
+	ctx := getCtx(c)
+
+	periodType := PeriodType(c.Query("period")) // daily, weekly, monthly
+	if periodType == "" {
+		periodType = PeriodDaily
+	}
+
+	completedMode := c.Query("mode") == "completed"
+
+	refDate := time.Now()
+	if dateStr := c.Query("date"); dateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+			refDate = parsed
+		}
+	}
+
+	ranges := GetComparisonRanges(periodType, refDate, completedMode)
+
+	comparison, err := h.saleRepo.GetPeriodComparison(ctx,
+		ranges.CurrentStart, ranges.CurrentEnd,
+		ranges.PreviousStart, ranges.PreviousEnd,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comparison"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": comparison,
+		"meta": map[string]interface{}{
+			"current_period": map[string]string{
+				"start": ranges.CurrentStart.Format("2006-01-02"),
+				"end":   ranges.CurrentEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+			},
+			"previous_period": map[string]string{
+				"start": ranges.PreviousStart.Format("2006-01-02"),
+				"end":   ranges.PreviousEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+			},
+			"is_partial": ranges.IsPartial,
+			"days_in_period": ranges.DaysInPeriod,
+		},
+	})
 }
 
 // Admin Handlers

@@ -774,3 +774,66 @@ func (r *postgresRepository) Create(ctx context.Context, log *domain.AuditLog) e
 func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int) ([]domain.AuditLog, int, error) {
 	return r.GetAuditLogs(ctx, limit, offset, userID)
 }
+
+// GetPeriodComparison fetches and calculates period comparison data
+func (r *postgresRepository) GetPeriodComparison(
+	ctx context.Context,
+	currentStart, currentEnd time.Time,
+	previousStart, previousEnd time.Time,
+) (*domain.PeriodComparison, error) {
+
+	query := `
+		WITH current_period AS (
+			SELECT
+				COALESCE(SUM(total_amount), 0) as revenue,
+				COUNT(*) as orders
+			FROM sales
+			WHERE created_at >= $1 AND created_at < $2
+				AND status = 'completed'
+		),
+		previous_period AS (
+			SELECT
+				COALESCE(SUM(total_amount), 0) as revenue,
+				COUNT(*) as orders
+			FROM sales
+			WHERE created_at >= $3 AND created_at < $4
+				AND status = 'completed'
+		)
+		SELECT
+			cp.revenue, cp.orders,
+			pp.revenue, pp.orders
+		FROM current_period cp, previous_period pp`
+
+	var result domain.PeriodComparison
+	err := r.db.QueryRow(ctx, query,
+		currentStart, currentEnd,
+		previousStart, previousEnd,
+	).Scan(
+		&result.CurrentRevenue,
+		&result.CurrentOrders,
+		&result.PreviousRevenue,
+		&result.PreviousOrders,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate derived metrics
+	days := int(currentEnd.Sub(currentStart).Hours() / 24)
+	if days == 0 {
+		days = 1
+	}
+
+	if result.CurrentOrders > 0 {
+		result.CurrentAOV = result.CurrentRevenue / result.CurrentOrders
+	}
+	if result.PreviousOrders > 0 {
+		result.PreviousAOV = result.PreviousRevenue / result.PreviousOrders
+	}
+
+	result.RevenuePerDay = result.CurrentRevenue / days
+	result.PreviousRevenuePerDay = result.PreviousRevenue / days
+
+	return &result, nil
+}
