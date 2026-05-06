@@ -265,9 +265,10 @@
             <th class="text-left p-4 font-semibold">SKU</th>
             <th class="text-left p-4 font-semibold">Name</th>
             <th class="text-left p-4 font-semibold">Category</th>
-            <th class="text-left p-4 font-semibold">Price</th>
+            <th class="text-left p-4 font-semibold">Barcode</th>
+            <th class="text-right p-4 font-semibold">Price</th>
             <th class="text-left p-4 font-semibold">Stock</th>
-            <th class="text-left p-4 font-semibold">Actions</th>
+            <th class="text-left p-4 font-semibold w-20">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -276,14 +277,15 @@
               <td class="p-4 font-medium">{product.sku}</td>
               <td class="p-4">{product.name}</td>
                <td class="p-4">{product.category_name || '-'}</td>
-              <td class="p-4">{product.price?.toLocaleString()}</td>
+              <td class="p-4">{product.barcode}</td>
+              <td class="p-4 text-right">{product.price?.toLocaleString()}</td>
               <td class="p-4">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
               </td>
-              <td class="p-4">
-                <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <td class="p-4 w-20">
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onclick={() => {
                       selectedProduct = product;
@@ -291,20 +293,20 @@
                       modalMode = 'edit';
                       showModal = true;
                     }}
-                    class="p-2 hover:bg-primary/10 rounded-lg transition-colors"
+                    class="p-1.5 hover:bg-primary/10 rounded-lg transition-colors"
                     title="Edit"
                   >
-                    <Pencil size={16} class="text-primary" />
+                    <Pencil size={14} class="text-primary" />
                   </button>
                   <button
                     onclick={() => {
                       selectedProduct = product;
                       showDeleteModal = true;
                     }}
-                    class="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
+                    class="p-1.5 hover:bg-destructive/10 rounded-lg transition-colors"
                     title="Delete"
                   >
-                    <Trash2 size={16} class="text-destructive" />
+                    <Trash2 size={14} class="text-destructive" />
                   </button>
                 </div>
               </td>
