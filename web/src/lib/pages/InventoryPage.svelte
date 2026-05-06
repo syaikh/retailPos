@@ -278,7 +278,7 @@
               <td class="p-4">{product.name}</td>
                <td class="p-4">{product.category_name || '-'}</td>
               <td class="p-4">{product.barcode}</td>
-              <td class="p-4 text-right">{product.price?.toLocaleString()}</td>
+              <td class="p-4 text-right">{product.price?.toLocaleString('id-ID')}</td>
               <td class="p-4">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
