@@ -414,8 +414,8 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 			stock = generateStockLevel(catName)
 		}
 
-	// Random date within last month (evenly distributed across the period)
-	randomDays := rand.Intn(30) + 1 // 1-30 days ago (1 month span)
+	// Random date within last 6 months (evenly distributed across the period)
+	randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
 	createdAt := time.Now().AddDate(0, 0, -randomDays)
 
 		var id int
@@ -452,68 +452,19 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 		productMap[p.ID] = p
 	}
 
-	// Calculate date range for last month (always span full period)
-	startDate := time.Now().AddDate(0, 0, -30) // 30 days ago
+	// Calculate date range for 6 months back (always span full period)
+	startDate := time.Now().AddDate(0, -6, 0) // 6 months ago
 	endDate := time.Now()                       // now
-	totalDays := int(endDate.Sub(startDate).Hours() / 24) // Actual days in period (~30 days)
-	minSalesPerDay := 10
+	totalDays := int(endDate.Sub(startDate).Hours() / 24) // Actual days in period (~180 days)
 
-	// Distribute sales across the full date range
-	// Allow flexible sales per day to ensure full period coverage
-	baseSalesPerDay := count / totalDays
-	extraSales := count % totalDays
-
-	// Ensure minimum distribution
-	if baseSalesPerDay == 0 {
-		baseSalesPerDay = 1
-		totalDays = count // Each day gets 1 sale
-	}
-
+	// Ensure 10-20 transactions per day
 	salesCreated := 0
 
-	for day := 0; day < totalDays && salesCreated < count; day++ {
-		// Calculate remaining sales needed
-		remainingNeeded := count - salesCreated
+	for day := 0; day < totalDays; day++ {
+		// 10-20 transactions per day
+		salesForDay := 10 + rand.Intn(11)
 
-		// Base sales for this day
-		salesForDay := baseSalesPerDay
-
-		// Distribute extra sales across days
-		if day < extraSales {
-			salesForDay += 1
-		}
-
-		// Add some randomness to sales distribution
-		if salesForDay == 0 && rand.Intn(10) < 3 { // 30% chance of 1 sale on empty days
-			salesForDay = 1
-		}
-
-		// Ensure we don't exceed remaining sales needed
-		if salesForDay > remainingNeeded {
-			salesForDay = remainingNeeded
-		}
-
-		// Skip days with no sales
-		if salesForDay <= 0 {
-			continue
-		}
-
-		// Ensure minimum of 10 transactions per day
-		if salesForDay < minSalesPerDay {
-			salesForDay = minSalesPerDay
-		}
-
-		// Ensure we don't exceed remaining sales needed
-		if salesForDay > remainingNeeded {
-			salesForDay = remainingNeeded
-		}
-
-		// Skip days with no sales (shouldn't happen with our logic)
-		if salesForDay <= 0 {
-			continue
-		}
-
-		for s := 0; s < salesForDay && salesCreated < count; s++ {
+		for s := 0; s < salesForDay; s++ {
 			// Generate invoice number
 			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), salesCreated+1)
 
