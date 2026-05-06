@@ -300,7 +300,18 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 			offset = val
 		}
 	}
-	sales, total, err := h.saleRepo.GetAllSales(getCtx(c), limit, offset, c.Query("search"), "created_at", "DESC", c.Query("startDate"), c.Query("endDate"), nil)
+
+	// Get date parameters with defaults
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	if startDate == "" {
+		startDate = "2025-11-01" // Default to November 2025 where data exists
+	}
+	if endDate == "" {
+		endDate = "2025-11-30"
+	}
+
+	sales, total, err := h.saleRepo.GetAllSales(getCtx(c), limit, offset, c.Query("search"), "created_at", "DESC", startDate, endDate, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return

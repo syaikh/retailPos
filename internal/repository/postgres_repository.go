@@ -706,12 +706,12 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		args2 = append(args2, "%"+search+"%")
 	}
 	if startDate != "" {
-		query += " AND DATE(created_at) >= $" + fmt.Sprintf("%d", len(args2)+1)
-		args2 = append(args2, startDate)
+		query += " AND created_at >= $" + fmt.Sprintf("%d", len(args2)+1)
+		args2 = append(args2, startDate+" 00:00:00")
 	}
 	if endDate != "" {
-		query += " AND DATE(created_at) <= $" + fmt.Sprintf("%d", len(args2)+1)
-		args2 = append(args2, endDate)
+		query += " AND created_at <= $" + fmt.Sprintf("%d", len(args2)+1)
+		args2 = append(args2, endDate+" 23:59:59")
 	}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", len(args2)+1)

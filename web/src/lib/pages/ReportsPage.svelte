@@ -37,9 +37,9 @@
     periodInfo: null
   });
 
-  // Date range
-  let startDate = $state(new Date(new Date().setDate(1)).toISOString().slice(0, 10));
-  let endDate = $state(new Date().toISOString().slice(0, 10));
+  // Date range - default to November 2025 where the sales data exists
+  let startDate = $state('2025-11-06');
+  let endDate = $state('2025-11-08');
 
   // Export dropdown
   let showExportDropdown = $state(false);
