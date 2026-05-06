@@ -668,23 +668,33 @@ func generateSKU(category string, index int) string {
 }
 
 func generateBarcode(index int) string {
-	// Generate EAN-13 or custom barcode (6-13 characters)
-	// For simplicity, we'll generate custom barcodes of varying lengths
+	// Generate valid EAN-13 barcode (13 digits with proper check digit)
 
-	// 70% chance of EAN-13 (13 digits), 30% chance of custom (6-12 digits)
-	if rand.Intn(100) < 70 {
-		// EAN-13: 13 digits
-		return fmt.Sprintf("%013d", rand.Int63n(9999999999999))
-	} else {
-		// Custom barcode: 6-12 characters (mix of letters and numbers)
-		length := 6 + rand.Intn(7) // 6-12 characters
-		chars := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		barcode := make([]byte, length)
-		for i := range barcode {
-			barcode[i] = chars[rand.Intn(len(chars))]
-		}
-		return string(barcode)
+	// Generate first 12 random digits
+	digits := make([]int, 12)
+	for i := 0; i < 12; i++ {
+		digits[i] = rand.Intn(10)
 	}
+
+	// Calculate check digit (EAN-13 algorithm)
+	sum := 0
+	for i := 0; i < 12; i++ {
+		if (i % 2) == 0 {
+			sum += digits[i] * 3  // odd positions (1-based): i=0->pos1, i=2->pos3, etc.
+		} else {
+			sum += digits[i] * 1  // even positions (1-based): i=1->pos2, i=3->pos4, etc.
+		}
+	}
+	checkDigit := (10 - (sum % 10)) % 10
+
+	// Build the 13-digit barcode string
+	barcode := ""
+	for _, d := range digits {
+		barcode += fmt.Sprintf("%d", d)
+	}
+	barcode += fmt.Sprintf("%d", checkDigit)
+
+	return barcode
 }
 
 func generateStockLevel(category string) int {
