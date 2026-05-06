@@ -301,35 +301,41 @@ func (r *postgresRepository) GetAllPermissions(ctx context.Context) ([]domain.Pe
 func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID *int) (*domain.Product, error) {
 	var p domain.Product
 	var barcode sql.NullString
-	var categoryID, storeIDVal sql.NullInt64
+	var categoryIDVal, storeIDVal sql.NullInt64
+	var categoryName sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT id, sku, name, barcode, category_id, price, cost, stock, stock_min, stock_max,
-		       store_id, is_active, created_at, updated_at
-		FROM products WHERE id = $1 AND deleted_at IS NULL`
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.stock_max,
+		       p.store_id, p.is_active, p.created_at, p.updated_at
+		FROM products p 
+		LEFT JOIN categories c ON p.category_id = c.id 
+		WHERE p.id = $1 AND p.deleted_at IS NULL`
+	
 	args := []interface{}{id}
 	if storeID != nil {
-		query += " AND store_id = $2"
+		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&p.ID, &p.SKU, &p.Name, &barcode, &categoryID, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
-		&storeIDVal, &p.IsActive, &createdAt, &updatedAt,
-	)
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
+		&storeIDVal, &p.IsActive, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("product not found")
 		}
 		return nil, err
 	}
+
 	if barcode.Valid {
 		p.Barcode = &barcode.String
 	}
-	if categoryID.Valid {
-		v := int(categoryID.Int64)
+	if categoryIDVal.Valid {
+		v := int(categoryIDVal.Int64)
 		p.CategoryID = &v
+	}
+	if categoryName.Valid {
+		p.CategoryName = &categoryName.String
 	}
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
@@ -337,41 +343,48 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	}
 	p.CreatedAt = createdAt.Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+
 	return &p, nil
 }
 
 func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, storeID *int) (*domain.Product, error) {
 	var p domain.Product
 	var barcode sql.NullString
-	var categoryID, storeIDVal sql.NullInt64
+	var categoryIDVal, storeIDVal sql.NullInt64
+	var categoryName sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT id, sku, name, barcode, category_id, price, cost, stock, stock_min, stock_max,
-		       store_id, is_active, created_at, updated_at
-		FROM products WHERE sku = $1 AND deleted_at IS NULL`
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.stock_max,
+		       p.store_id, p.is_active, p.created_at, p.updated_at
+		FROM products p 
+		LEFT JOIN categories c ON p.category_id = c.id 
+		WHERE p.sku = $1 AND p.deleted_at IS NULL`
+	
 	args := []interface{}{sku}
 	if storeID != nil {
-		query += " AND store_id = $2"
+		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&p.ID, &p.SKU, &p.Name, &barcode, &categoryID, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
-		&storeIDVal, &p.IsActive, &createdAt, &updatedAt,
-	)
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
+		&storeIDVal, &p.IsActive, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("product not found")
 		}
 		return nil, err
 	}
+
 	if barcode.Valid {
 		p.Barcode = &barcode.String
 	}
-	if categoryID.Valid {
-		v := int(categoryID.Int64)
+	if categoryIDVal.Valid {
+		v := int(categoryIDVal.Int64)
 		p.CategoryID = &v
+	}
+	if categoryName.Valid {
+		p.CategoryName = &categoryName.String
 	}
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
@@ -379,6 +392,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	}
 	p.CreatedAt = createdAt.Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+
 	return &p, nil
 }
 
@@ -386,22 +400,24 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	var products []domain.Product
 	var total int
 
-	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
+	query := `SELECT COUNT(*) 
+		FROM products p 
+		WHERE p.deleted_at IS NULL`
 	args := []interface{}{}
 	if search != "" {
-		query += " AND (name ILIKE $1 OR sku ILIKE $1)"
+		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1)"
 		args = append(args, "%"+search+"%")
 	}
 	if categoryID != nil {
-		query += fmt.Sprintf(" AND category_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND p.category_id = $%d", len(args)+1)
 		args = append(args, *categoryID)
 	}
 	if maxStock != nil {
-		query += fmt.Sprintf(" AND stock <= $%d", len(args)+1)
+		query += fmt.Sprintf(" AND p.stock <= $%d", len(args)+1)
 		args = append(args, *maxStock)
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
 
@@ -410,22 +426,25 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query = `SELECT id, sku, name, barcode, category_id, price, cost, stock, stock_min, stock_max, store_id, is_active, created_at, updated_at FROM products WHERE deleted_at IS NULL`
+	query = `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.stock_max, p.store_id, p.is_active, p.created_at, p.updated_at 
+		FROM products p 
+		LEFT JOIN categories c ON p.category_id = c.id 
+		WHERE p.deleted_at IS NULL`
 	args2 := []interface{}{}
 	if search != "" {
-		query += " AND (name ILIKE $1 OR sku ILIKE $1)"
+		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1)"
 		args2 = append(args2, "%"+search+"%")
 	}
 	if categoryID != nil {
-		query += fmt.Sprintf(" AND category_id = $%d", len(args2)+1)
+		query += fmt.Sprintf(" AND p.category_id = $%d", len(args2)+1)
 		args2 = append(args2, *categoryID)
 	}
 	if maxStock != nil {
-		query += fmt.Sprintf(" AND stock <= $%d", len(args2)+1)
+		query += fmt.Sprintf(" AND p.stock <= $%d", len(args2)+1)
 		args2 = append(args2, *maxStock)
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", len(args2)+1)
+		query += fmt.Sprintf(" AND p.store_id = $%d", len(args2)+1)
 		args2 = append(args2, *storeID)
 	}
 	if sortBy != "" {
@@ -434,7 +453,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 			query += " " + sortDir
 		}
 	} else {
-		query += " ORDER BY id DESC"
+		query += " ORDER BY p.id DESC"
 	}
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)
@@ -449,9 +468,10 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		var p domain.Product
 		var barcodeVal sql.NullString
 		var categoryIDVal, storeIDVal sql.NullInt64
+		var categoryName sql.NullString
 		var createdAt, updatedAt time.Time
 
-		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
+		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
 			&storeIDVal, &p.IsActive, &createdAt, &updatedAt)
 		if err != nil {
 			continue
@@ -462,6 +482,9 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		if categoryIDVal.Valid {
 			v := int(categoryIDVal.Int64)
 			p.CategoryID = &v
+		}
+		if categoryName.Valid {
+			p.CategoryName = &categoryName.String
 		}
 		if storeIDVal.Valid {
 			v := int(storeIDVal.Int64)

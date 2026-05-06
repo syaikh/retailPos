@@ -29,20 +29,21 @@ type Permission struct {
 }
 
 type Product struct {
-	ID          int      `json:"id"`
-	SKU         string   `json:"sku"`
-	Name        string   `json:"name"`
-	Barcode     *string  `json:"barcode,omitempty"`
-	CategoryID  *int     `json:"category_id,omitempty"`
-	Price       int      `json:"price"`
-	Cost        int      `json:"cost"`
-	Stock       int      `json:"stock"`
-	StockMin    int      `json:"stock_min"`
-	StockMax    int      `json:"stock_max"`
-	StoreID     *int     `json:"store_id,omitempty"`
-	IsActive    bool     `json:"is_active"`
-	CreatedAt   string   `json:"created_at,omitempty"`
-	UpdatedAt   string   `json:"updated_at,omitempty"`
+	ID           int      `json:"id"`
+	SKU          string   `json:"sku"`
+	Name         string   `json:"name"`
+	Barcode      *string  `json:"barcode,omitempty"`
+	CategoryID   *int     `json:"category_id,omitempty"`
+	CategoryName *string  `json:"category_name,omitempty"`
+	Price        int      `json:"price"`
+	Cost         int      `json:"cost"`
+	Stock        int      `json:"stock"`
+	StockMin     int      `json:"stock_min"`
+	StockMax     int      `json:"stock_max"`
+	StoreID      *int     `json:"store_id,omitempty"`
+	IsActive     bool     `json:"is_active"`
+	CreatedAt    string   `json:"created_at,omitempty"`
+	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
 
 type Sale struct {
