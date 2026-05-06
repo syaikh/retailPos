@@ -573,15 +573,24 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 				}
 			}
 
-			// Update sale totals
-			_, err = db.ExecContext(ctx,
-				"UPDATE sales SET subtotal = $1, total_amount = $1 WHERE id = $2",
-				totalAmount, saleID)
+			// Ensure transaction has positive value (skip if no items or zero total)
+			if totalAmount > 0 {
+				// Update sale totals
+				_, err = db.ExecContext(ctx,
+					"UPDATE sales SET subtotal = $1, total_amount = $1 WHERE id = $2",
+					totalAmount, saleID)
 
-			salesCreated++
+				salesCreated++
 
-			if salesCreated%500 == 0 && salesCreated > 0 {
-				fmt.Printf("     ...%d sales injected\n", salesCreated)
+				if salesCreated%500 == 0 && salesCreated > 0 {
+					fmt.Printf("     ...%d sales injected\n", salesCreated)
+				}
+			} else {
+				// Remove the sale if it has no valid items
+				_, err = db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
+				if err != nil {
+					fmt.Printf("Warning: failed to remove invalid sale %d: %v\n", saleID, err)
+				}
 			}
 		}
 	}
