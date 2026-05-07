@@ -10,7 +10,7 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, AlertTriangle, Loader2, Copy
+    SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -28,6 +28,10 @@
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
   let isSearching = $state(false);
+
+  // Sorting state
+  let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
+  let sortDir = $state('asc'); // 'asc' or 'desc'
 
   // Searchable category dropdown state
   let categorySearchQuery = $state('');
@@ -169,6 +173,51 @@
     form = { name: '', sku: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
   }
 
+  function handleSort(column) {
+    if (sortBy === column) {
+      // Toggle direction
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      // New column, default to asc
+      sortBy = column;
+      sortDir = 'asc';
+    }
+    // Client-side sorting
+    sortProducts();
+  }
+
+  function sortProducts() {
+    products.sort((a, b) => {
+      let aVal, bVal;
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'category':
+          aVal = (a.category_name || '').toLowerCase();
+          bVal = (b.category_name || '').toLowerCase();
+          break;
+        case 'price':
+          aVal = a.price || 0;
+          bVal = b.price || 0;
+          break;
+        case 'stock':
+          aVal = a.stock || 0;
+          bVal = b.stock || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortDir === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    });
+  }
+
    $effect(() => {
      fetchProducts();
      fetchCategories();
@@ -262,17 +311,49 @@
       <table class="w-full">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold">Name</th>
-            <th class="text-left p-4 font-semibold w-40">Category</th>
-            <th class="text-right p-4 font-semibold w-36">Price</th>
-            <th class="text-left p-4 font-semibold w-28">Stock</th>
+            <th class="text-left p-4 font-semibold border-r border-border">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('name')}
+              >
+                Name
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-40 border-r border-border">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('category')}
+              >
+                Category
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-right p-4 font-semibold w-36 border-r border-border">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors justify-end"
+                onclick={() => handleSort('price')}
+              >
+                Price
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-28 border-r border-border">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('stock')}
+              >
+                Stock
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
             <th class="text-left p-4 font-semibold w-20">Actions</th>
           </tr>
         </thead>
         <tbody>
           {#each products as product}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
-              <td class="p-4">
+              <td class="p-4 border-r border-border">
                 <!-- Product name (normal size) -->
                 <div class="font-medium">{product.name}</div>
 
@@ -313,9 +394,9 @@
                   {/if}
                 </div>
               </td>
-               <td class="p-4 w-40">{product.category_name || '-'}</td>
-              <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
-              <td class="p-4 w-28">
+               <td class="p-4 w-40 border-r border-border">{product.category_name || '-'}</td>
+              <td class="p-4 text-right w-36 border-r border-border">{product.price?.toLocaleString('id-ID')}</td>
+              <td class="p-4 w-28 border-r border-border">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
