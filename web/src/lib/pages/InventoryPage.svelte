@@ -316,7 +316,7 @@
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('name')}
               >
-                Name
+                NAME
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
@@ -325,7 +325,7 @@
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('category')}
               >
-                Category
+                CATEGORY
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
@@ -334,7 +334,7 @@
                 class="flex items-center gap-1 hover:text-primary transition-colors justify-end"
                 onclick={() => handleSort('price')}
               >
-                Price
+                PRICE
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
@@ -343,11 +343,11 @@
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('stock')}
               >
-                Stock
+                STOCK
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-20">Actions</th>
+            <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
