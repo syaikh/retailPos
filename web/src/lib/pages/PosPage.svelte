@@ -5,7 +5,7 @@
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X, Package } from 'lucide-svelte';
+  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
@@ -158,25 +158,62 @@
           </div>
         {:else}
           <div class="flex-1 overflow-y-auto">
-            <table>
+            <table class="w-full table-fixed">
               <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
                 <tr>
-                  <th>PRODUCT NAME</th>
-                  <th>SKU</th>
-                  <th class="text-center">Stock</th>
-                  <th class="text-right">Price</th>
-                  <th></th>
+                  <th class="p-4 w-64">PRODUCT NAME</th>
+                  <th class="p-4 text-center w-24">Stock</th>
+                  <th class="p-4 text-right w-28">Price</th>
+                  <th class="p-4 w-20"></th>
                 </tr>
               </thead>
               <tbody>
                 {#each products as product (product.id)}
                   <tr class="hover:bg-surface-hover/50 transition-colors">
-                    <td>
-                      <div class="font-medium text-text-primary">{product.name}</div>
-                      <div class="text-xs text-text-muted">{product.category?.name || '—'}</div>
+                    <td class="p-4 w-64">
+                      <!-- Product name (normal size) -->
+                      <div class="font-medium truncate w-full text-text-primary" title={product.name}>
+                        {product.name}
+                      </div>
+
+                      <!-- SKU and Barcode details (smaller font) -->
+                      <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
+                        <!-- SKU with copy button -->
+                        <span class="flex items-center gap-1">
+                          {product.sku}
+                          <button
+                            class="p-0.5 hover:text-primary transition-colors"
+                            title="Salin SKU"
+                            onclick={() => {
+                              navigator.clipboard.writeText(product.sku).then(() => {
+                                toast.info(`SKU copied: ${product.sku}`, 2000);
+                              });
+                            }}
+                          >
+                            <Copy size={14} class="text-text-muted hover:text-primary" />
+                          </button>
+                        </span>
+
+                        <!-- Barcode with copy button (only if barcode exists) -->
+                        {#if product.barcode}
+                          <span class="flex items-center gap-1 ml-4">
+                            {product.barcode}
+                            <button
+                              class="p-0.5 hover:text-primary transition-colors"
+                              title="Salin barcode"
+                              onclick={() => {
+                                navigator.clipboard.writeText(product.barcode).then(() => {
+                                  toast.info(`Barcode copied: ${product.barcode}`, 2000);
+                                });
+                              }}
+                            >
+                              <Copy size={14} class="text-text-muted hover:text-primary" />
+                            </button>
+                          </span>
+                        {/if}
+                      </div>
                     </td>
-                    <td class="text-text-muted font-mono text-xs">{product.sku}</td>
-                    <td class="text-center">
+                    <td class="p-4 text-center w-24">
                       {#if product.stock === 0}
                         <Badge variant="destructive">Out of stock</Badge>
                       {:else if product.stock <= 5}
@@ -185,10 +222,10 @@
                         <Badge variant="success">{product.stock}</Badge>
                       {/if}
                     </td>
-                    <td class="text-right font-semibold text-text-primary">
+                    <td class="p-4 text-right font-semibold text-text-primary w-28">
                       {product.price?.toLocaleString('id-ID')}
                     </td>
-                    <td class="text-right">
+                    <td class="p-4 text-right w-20">
                       <button
                         class="btn btn-primary btn-sm"
                         onclick={() => addToCart(product)}
