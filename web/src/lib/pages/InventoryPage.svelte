@@ -10,7 +10,7 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, AlertTriangle, Loader2, Copy
+    SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -28,6 +28,10 @@
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
   let isSearching = $state(false);
+
+  // Sorting state
+  let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
+  let sortDir = $state('asc'); // 'asc' or 'desc'
 
 
 
@@ -171,7 +175,50 @@
     form = { name: '', sku: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
   }
 
+  function handleSort(column) {
+    if (sortBy === column) {
+      // Toggle direction
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      // New column, default to asc
+      sortBy = column;
+      sortDir = 'asc';
+    }
+    // Client-side sorting
+    sortProducts();
+  }
 
+  function sortProducts() {
+    products.sort((a, b) => {
+      let aVal, bVal;
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'category':
+          aVal = (a.category_name || '').toLowerCase();
+          bVal = (b.category_name || '').toLowerCase();
+          break;
+        case 'price':
+          aVal = a.price || 0;
+          bVal = b.price || 0;
+          break;
+        case 'stock':
+          aVal = a.stock || 0;
+          bVal = b.stock || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortDir === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    });
+  }
 
    $effect(() => {
      fetchProducts();
@@ -281,10 +328,42 @@
           <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold">PRODUCT NAME</th>
-            <th class="text-left p-4 font-semibold w-60">CATEGORY</th>
-            <th class="text-right p-4 font-semibold w-36">PRICE</th>
-            <th class="text-left p-4 font-semibold w-28">STOCK</th>
+            <th class="text-left p-4 font-semibold">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('name')}
+              >
+                PRODUCT NAME
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-60">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('category')}
+              >
+                CATEGORY
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-right p-4 font-semibold w-36">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors justify-end"
+                onclick={() => handleSort('price')}
+              >
+                PRICE
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-28">
+              <button
+                class="flex items-center gap-1 hover:text-primary transition-colors"
+                onclick={() => handleSort('stock')}
+              >
+                STOCK
+                <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
             <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
