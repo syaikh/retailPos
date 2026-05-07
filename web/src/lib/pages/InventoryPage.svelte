@@ -95,11 +95,14 @@
   }, 400);
 
   // Watch for search query changes and trigger debounced search
+  let hasInitialLoad = $state(false);
   $effect(() => {
-    if (searchQuery !== undefined) {
-      isSearching = true;
-      debouncedSearch();
+    if (!hasInitialLoad) {
+      hasInitialLoad = true;
+      return; // Skip the initial run
     }
+    isSearching = true;
+    debouncedSearch();
   });
 
   // Filtered categories for searchable dropdown
