@@ -24,6 +24,9 @@
   let saving = $state(false);
   let isSearching = $state(false);
   let isInitialMount = $state(true);
+  let prevSearchQuery = $state('');
+  let prevOffset = $state(0);
+  let prevLimit = $state(20);
 
   // Form State
   let form = $state({
@@ -90,27 +93,43 @@
   // Debounced search
   const debouncedSearch = debounce(() => {
     offset = 0;
+    prevOffset = 0;
     fetchUsers(true);
   }, 400);
 
-  // Watch for search query changes and trigger debounced search
+  // Track search query changes with explicit tracking
   $effect(() => {
-    // Skip the initial render to prevent double fetch
+    // Access searchQuery to establish dependency
+    const sq = searchQuery;
+    
     if (isInitialMount) return;
     
-    if (searchQuery === '') {
-      offset = 0;
-      isSearching = false;
-      fetchUsers(false);
-    } else {
-      isSearching = true;
-      debouncedSearch();
+    if (sq !== prevSearchQuery) {
+      prevSearchQuery = sq;
+      
+      if (sq === '') {
+        offset = 0;
+        prevOffset = 0;
+        isSearching = false;
+        fetchUsers(false);
+      } else {
+        isSearching = true;
+        debouncedSearch();
+      }
     }
   });
 
-  // Watch for pagination changes
+  // Track pagination changes with explicit tracking
   $effect(() => {
-    if (!isInitialMount) {
+    // Access offset and limit to establish dependency
+    const off = offset;
+    const lim = limit;
+    
+    if (isInitialMount) return;
+    
+    if (off !== prevOffset || lim !== prevLimit) {
+      prevOffset = off;
+      prevLimit = lim;
       fetchUsers(false);
     }
   });
