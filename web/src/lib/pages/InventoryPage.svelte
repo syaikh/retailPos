@@ -316,7 +316,7 @@
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('name')}
               >
-                NAME
+                PRODUCT NAME
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>

@@ -167,7 +167,7 @@
             <table>
               <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
                 <tr>
-                  <th>Product</th>
+                  <th>PRODUCT NAME</th>
                   <th>SKU</th>
                   <th class="text-center">Stock</th>
                   <th class="text-right">Price</th>
