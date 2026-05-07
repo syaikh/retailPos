@@ -3,7 +3,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -178,13 +178,11 @@
 </script>
 
 <div class="space-y-5">
-  <PageHeader title="Users" subtitle="Manage user accounts and access">
-    {#snippet actions()}
-      <button class="btn btn-primary" onclick={openAdd}>
-        <Plus size={15} /> Add User
-      </button>
-    {/snippet}
-  </PageHeader>
+  <div class="flex items-center justify-end">
+    <button class="btn btn-primary" onclick={openAdd}>
+      <Plus size={15} /> Add User
+    </button>
+  </div>
 
   <!-- Search -->
   <div class="card p-4">
