@@ -3,7 +3,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -81,32 +81,45 @@
 </script>
 
 <div class="space-y-5">
-  <PageHeader title="Audit Logs" subtitle="System activity and security trail">
-    {#snippet actions()}
-      <button class="btn btn-secondary" onclick={fetchLogs} disabled={loading}>
-        <RefreshCw size={14} class={loading ? 'animate-spin' : ''} />
-        Refresh
-      </button>
-    {/snippet}
-  </PageHeader>
+
 
   <!-- Filters -->
-  <div class="card p-4 flex flex-col sm:flex-row gap-3">
-    <div class="relative flex-1">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-      <input type="text" placeholder="Search by actor, resource…" class="input pl-9" bind:value={searchQuery} />
+  <div class="card p-4">
+    <!-- Search Section -->
+    <div class="mb-4">
+      <div class="relative">
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <input type="text" placeholder="Search by actor, resource…" class="input w-full pl-9" bind:value={searchQuery} />
+      </div>
     </div>
 
-    <!-- Action type pill filter -->
-    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+    <!-- Filter and Action Section -->
+    <div class="flex flex-wrap items-center gap-2">
       {#each actionTypes as action}
         <button
-          class={selectedAction === action ? 'pill-tab-active' : 'pill-tab'}
+          class={selectedAction === action
+            ? 'pill-tab-active px-3 py-1.5 rounded-full font-medium text-primary'
+            : 'pill-tab px-3 py-1.5 rounded-full font-medium text-text-muted hover:bg-surface-hover/50 transition-colors'}
           onclick={() => selectedAction = action}
         >
           {action === 'all' ? 'All' : action}
         </button>
       {/each}
+
+      <!-- Refresh Button -->
+      <button
+        onclick={fetchLogs}
+        disabled={loading}
+        class="ml-auto btn btn-outline btn-primary px-4 py-1.5"
+      >
+        {#if loading}
+          <RefreshCw size={14} class="animate-spin mr-2" />
+          Refreshing...
+        {:else}
+          <RefreshCw size={14} class="mr-2" />
+          Refresh
+        {/if}
+      </button>
     </div>
   </div>
 
