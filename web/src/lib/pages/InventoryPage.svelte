@@ -290,13 +290,28 @@
   <!-- Table -->
   <div class="card overflow-hidden">
     {#if loading}
-      <div class="divide-y divide-border">
-        {#each Array(5) as _}
-          <div class="p-4">
-            <Skeleton class="h-10 w-full" />
-          </div>
-        {/each}
-      </div>
+      <table class="w-full table-fixed">
+        <thead class="bg-muted/50">
+          <tr>
+            <th class="text-left p-4 font-semibold">PRODUCT NAME</th>
+            <th class="text-left p-4 font-semibold w-60">CATEGORY</th>
+            <th class="text-right p-4 font-semibold w-36">PRICE</th>
+            <th class="text-left p-4 font-semibold w-28">STOCK</th>
+            <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each Array(5) as _}
+            <tr class="border-t border-border">
+              <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
+              <td class="p-4 w-60"><Skeleton class="h-4 w-3/4" /></td>
+              <td class="p-4 text-right w-36"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
+              <td class="p-4 w-28 text-right"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
+              <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     {:else if products.length === 0}
       <div class="px-4 py-12 text-center">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
