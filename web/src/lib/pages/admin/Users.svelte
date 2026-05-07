@@ -178,10 +178,17 @@
 </script>
 
 <div class="space-y-5">
-  <div class="flex items-center justify-end">
-    <button class="btn btn-primary" onclick={openAdd}>
-      <Plus size={15} /> Add User
-    </button>
+  <!-- Header Section -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-text-primary">User Management</h2>
+      <p class="text-text-muted">Manage user accounts, roles, and access permissions</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-primary" onclick={openAdd}>
+        <Plus size={16} /> Add User
+      </button>
+    </div>
   </div>
 
   <!-- Search -->

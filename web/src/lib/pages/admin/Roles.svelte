@@ -154,10 +154,17 @@
 </script>
 
 <div class="space-y-5">
-  <div class="flex items-center justify-end">
-    <button class="btn btn-primary" onclick={openAdd}>
-      <Plus size={15} /> Add Role
-    </button>
+  <!-- Header Section -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-text-primary">Roles Management</h2>
+      <p class="text-text-muted">Create and manage user roles and permission sets</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-primary" onclick={openAdd}>
+        <Plus size={16} /> Add Role
+      </button>
+    </div>
   </div>
 
   {#if loading}
