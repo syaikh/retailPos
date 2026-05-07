@@ -8,7 +8,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, User, Users, Loader2 } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
@@ -22,6 +22,8 @@
   let selectedUser = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+  let isSearching = $state(false);
+  let isInitialMount = $state(true);
 
   // Form State
   let form = $state({
@@ -41,9 +43,9 @@
     return 'muted';
   };
 
-  async function fetchUsers() {
+  async function fetchUsers(isSearch = false) {
     try {
-      loading = true;
+      if (!isSearch) loading = true;
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
@@ -58,7 +60,8 @@
     } catch {
       toast.error('Failed to load users');
     } finally {
-      loading = false;
+      if (!isSearch) loading = false;
+      isSearching = false;
     }
   }
 
@@ -77,26 +80,40 @@
     }
   }
 
+  onMount(async () => {
+    isInitialMount = true;
+    await fetchRoles();
+    await fetchUsers(false);
+    isInitialMount = false;
+  });
+
   // Debounced search
   const debouncedSearch = debounce(() => {
     offset = 0;
-    fetchUsers();
+    fetchUsers(true);
   }, 400);
 
+  // Watch for search query changes and trigger debounced search
   $effect(() => {
-    searchQuery;
-    debouncedSearch();
+    // Skip the initial render to prevent double fetch
+    if (isInitialMount) return;
+    
+    if (searchQuery === '') {
+      offset = 0;
+      isSearching = false;
+      fetchUsers(false);
+    } else {
+      isSearching = true;
+      debouncedSearch();
+    }
   });
 
+  // Watch for pagination changes
   $effect(() => {
-    offset;
-    limit;
-    untrackedFetch();
+    if (!isInitialMount) {
+      fetchUsers(false);
+    }
   });
-
-  function untrackedFetch() {
-    fetchUsers();
-  }
 
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
@@ -195,7 +212,16 @@
   <div class="card p-4">
     <div class="relative max-w-sm">
       <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-      <input type="text" placeholder="Search users by name or email…" class="input pl-9" bind:value={searchQuery} />
+      <input type="text" placeholder="Search users by name or email…" class="input pl-9 pr-10" bind:value={searchQuery} />
+      {#if searchQuery}
+        <button
+          onclick={() => searchQuery = ''}
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+          title="Clear search"
+        >
+          <X size={14} />
+        </button>
+      {/if}
     </div>
   </div>
 

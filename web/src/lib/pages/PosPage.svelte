@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { debounce } from '$lib/utils/debounce';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -17,6 +18,8 @@
   let loading = $state(false);
   let limit = $state(20);
   let offset = $state(0);
+  let isSearching = $state(false);
+  let isInitialMount = $state(true);
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -31,18 +34,41 @@
   const totalAmount = $derived(subtotal); // No tax for now
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
-  async function fetchProducts() {
+  async function fetchProducts(isSearch = false) {
     try {
-      loading = true;
+      if (!isSearch) loading = true;
       const r = await apiClient.get(`/products?limit=${limit}&offset=${offset}&search=${searchQuery}`);
       products = r.data.data || [];
       total = r.data.total || 0;
     } catch (err) {
       toast.error('Failed to load products');
     } finally {
-      loading = false;
+      if (!isSearch) loading = false;
+      isSearching = false;
     }
   }
+
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    offset = 0;
+    fetchProducts(true);
+  }, 400);
+
+  // Watch for search query changes and trigger debounced search
+  $effect(() => {
+    // Skip the initial render to prevent double fetch
+    if (isInitialMount) return;
+    
+    if (searchQuery === '') {
+      // Immediate fetch when clearing search
+      offset = 0;
+      isSearching = false;
+      fetchProducts(false);
+    } else {
+      isSearching = true;
+      debouncedSearch();
+    }
+  });
 
   function addToCart(product) {
     const existing = cart.find((item) => item.id === product.id);
@@ -97,7 +123,7 @@
 
       toast.success('Sale completed');
       cart = [];
-      await fetchProducts();
+      await fetchProducts(false);
     } catch (err) {
       toast.error('Checkout failed');
     } finally {
@@ -111,11 +137,13 @@
 
   function handlePageChange(newOffset) {
     offset = newOffset;
-    fetchProducts();
+    fetchProducts(false);
   }
 
-  $effect(() => {
-    fetchProducts();
+  onMount(async () => {
+    isInitialMount = true;
+    await fetchProducts(false);
+    isInitialMount = false;
   });
 </script>
 
@@ -125,13 +153,22 @@
     <div class="flex-1 flex flex-col gap-4">
       <div class="card p-4">
         <div class="relative">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <input
             type="text"
             placeholder="Search products..."
             bind:value={searchQuery}
-            class="input pl-10"
+            class="input pl-10 pr-10"
           />
+          {#if searchQuery}
+            <button
+              onclick={() => searchQuery = ''}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+              title="Clear search"
+            >
+              <X size={16} />
+            </button>
+          {/if}
         </div>
       </div>
 

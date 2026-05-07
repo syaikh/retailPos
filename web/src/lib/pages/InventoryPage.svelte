@@ -61,9 +61,9 @@
     }
   }
 
-  async function fetchProducts() {
+  async function fetchProducts(isSearch = false) {
     try {
-      loading = true;
+      if (!isSearch) loading = true;
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
@@ -80,7 +80,7 @@
     } catch (err) {
       toast.error('Failed to load inventory');
     } finally {
-      loading = false;
+      if (!isSearch) loading = false;
       isSearching = false;
     }
   }
@@ -88,14 +88,23 @@
   // Debounced search
   const debouncedSearch = debounce(() => {
     offset = 0;
-    fetchProducts();
+    fetchProducts(true);
   }, 400);
 
+  // Track if this is initial mount (to prevent double fetch)
+  let isInitialMount = $state(true);
+
   // Watch for search query changes and trigger debounced search
-  let prevSearchQuery = $state('');
   $effect(() => {
-    if (searchQuery !== prevSearchQuery && searchQuery !== '') {
-      prevSearchQuery = searchQuery;
+    // Skip the initial render to prevent double fetch
+    if (isInitialMount) return;
+    
+    if (searchQuery === '') {
+      // Immediate fetch when clearing search
+      offset = 0;
+      isSearching = false;
+      fetchProducts(false);
+    } else {
       isSearching = true;
       debouncedSearch();
     }
@@ -112,7 +121,8 @@
     selectedCategory = category;
     categorySearchQuery = '';
     showCategoryDropdown = false;
-    fetchProducts();
+    offset = 0;
+    fetchProducts(false);
   }
 
   function handleCategoryInputFocus() {
@@ -135,7 +145,7 @@
        toast.success('Product added');
        showModal = false;
        resetForm();
-       await fetchProducts();
+       await fetchProducts(false);
      } catch (err) {
        toast.error('Failed to add product');
      } finally {
@@ -151,7 +161,7 @@
        toast.success('Product updated');
        showModal = false;
        resetForm();
-       await fetchProducts();
+       await fetchProducts(false);
      } catch (err) {
        toast.error('Failed to update product');
      } finally {
@@ -165,7 +175,7 @@
       toast.success('Product deleted');
       showDeleteModal = false;
       selectedProduct = null;
-      await fetchProducts();
+      await fetchProducts(false);
     } catch (err) {
       toast.error('Failed to delete product');
     }
@@ -220,13 +230,11 @@
     });
   }
 
-   $effect(() => {
-     fetchCategories();
-   });
-
-   // Initial products load
-   $effect(() => {
-     fetchProducts();
+   onMount(async () => {
+     isInitialMount = true;
+     await fetchCategories();
+     await fetchProducts(false);
+     isInitialMount = false;
    });
 </script>
 
@@ -307,7 +315,7 @@
         {/if}
       </div>
       <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
-        <input type="checkbox" bind:checked={lowStockOnly} onchange={fetchProducts} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
+        <input type="checkbox" bind:checked={lowStockOnly} onchange={() => { offset = 0; fetchProducts(false); }} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
         <span class="text-sm text-text-secondary font-medium">Low stock only</span>
       </label>
       <button
