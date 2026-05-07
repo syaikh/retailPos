@@ -10,7 +10,7 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, AlertTriangle, Loader2
+    SlidersHorizontal, AlertTriangle, Loader2, Copy
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -265,7 +265,6 @@
             <th class="text-left p-4 font-semibold">SKU</th>
             <th class="text-left p-4 font-semibold">Name</th>
             <th class="text-left p-4 font-semibold">Category</th>
-            <th class="text-left p-4 font-semibold">Barcode</th>
             <th class="text-right p-4 font-semibold">Price</th>
             <th class="text-left p-4 font-semibold">Stock</th>
             <th class="text-left p-4 font-semibold w-20">Actions</th>
@@ -275,9 +274,46 @@
           {#each products as product}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
               <td class="p-4 font-medium">{product.sku}</td>
-              <td class="p-4">{product.name}</td>
+              <td class="p-4">
+                <!-- Product name (normal size) -->
+                <div class="font-medium">{product.name}</div>
+
+                <!-- Barcode and SKU details (smaller font) -->
+                <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
+                  <!-- Barcode with copy button -->
+                  <span class="flex items-center gap-1">
+                    {product.barcode}
+                    <button
+                      class="p-0.5 hover:text-primary transition-colors"
+                      title="Salin barcode"
+                      onclick={() => {
+                        navigator.clipboard.writeText(product.barcode).then(() => {
+                          toast.info(`Barcode copied: ${product.barcode}`, 2000);
+                        });
+                      }}
+                    >
+                      <Copy size={14} class="text-text-muted hover:text-primary" />
+                    </button>
+                  </span>
+
+                  <!-- SKU with copy button -->
+                  <span class="flex items-center gap-1 ml-4">
+                    {product.sku}
+                    <button
+                      class="p-0.5 hover:text-primary transition-colors"
+                      title="Salin SKU"
+                      onclick={() => {
+                        navigator.clipboard.writeText(product.sku).then(() => {
+                          toast.info(`SKU copied: ${product.sku}`, 2000);
+                        });
+                      }}
+                    >
+                      <Copy size={14} class="text-text-muted hover:text-primary" />
+                    </button>
+                  </span>
+                </div>
+              </td>
                <td class="p-4">{product.category_name || '-'}</td>
-              <td class="p-4">{product.barcode}</td>
               <td class="p-4 text-right">{product.price?.toLocaleString('id-ID')}</td>
               <td class="p-4">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
