@@ -95,14 +95,13 @@
   }, 400);
 
   // Watch for search query changes and trigger debounced search
-  let hasInitialLoad = $state(false);
+  let prevSearchQuery = $state('');
   $effect(() => {
-    if (!hasInitialLoad) {
-      hasInitialLoad = true;
-      return; // Skip the initial run
+    if (searchQuery !== prevSearchQuery && searchQuery !== '') {
+      prevSearchQuery = searchQuery;
+      isSearching = true;
+      debouncedSearch();
     }
-    isSearching = true;
-    debouncedSearch();
   });
 
   // Filtered categories for searchable dropdown
@@ -224,8 +223,12 @@
   }
 
    $effect(() => {
-     fetchProducts();
      fetchCategories();
+   });
+
+   // Initial products load
+   $effect(() => {
+     fetchProducts();
    });
 </script>
 
