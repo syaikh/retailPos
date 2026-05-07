@@ -126,6 +126,7 @@
     // Delay hiding dropdown to allow for selection
     setTimeout(() => {
       showCategoryDropdown = false;
+      categorySearchQuery = '';
     }, 150);
   }
 
@@ -232,6 +233,21 @@
    });
 </script>
 
+<svelte:window
+  onclick={(e) => {
+    if (showCategoryDropdown && !e.target.closest('.relative')) {
+      showCategoryDropdown = false;
+      categorySearchQuery = '';
+    }
+  }}
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && showCategoryDropdown) {
+      showCategoryDropdown = false;
+      categorySearchQuery = '';
+    }
+  }}
+/>
+
 <div class="space-y-6">
   <!-- Filters -->
   <div class="card p-4">
@@ -250,20 +266,32 @@
       </div>
       <!-- Searchable Category Dropdown -->
       <div class="relative flex-1">
-        <div class="relative">
-          <input
-            bind:value={categorySearchQuery}
-            placeholder={categorySearchQuery || showCategoryDropdown ? "Search categories..." : selectedCategory}
-            onfocus={handleCategoryInputFocus}
-            onblur={handleCategoryInputBlur}
-            class="input w-full pr-10"
-          />
-          <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <svg class="w-4 h-4 text-text-muted transition-transform {showCategoryDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
+        <button
+          onclick={() => { showCategoryDropdown = !showCategoryDropdown; }}
+          class="btn btn-outline btn-primary w-full flex items-center justify-between px-4 py-2 pr-3 transition-all duration-200"
+          aria-haspopup="listbox"
+          aria-expanded={showCategoryDropdown}
+        >
+          <span class="truncate">
+            {categorySearchQuery || selectedCategory}
+          </span>
+          <svg class="w-4 h-4 text-text-muted transition-transform duration-200 flex-shrink-0 {showCategoryDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        {#if showCategoryDropdown}
+          <div class="absolute top-full mt-1 w-full z-10">
+            <input
+              bind:value={categorySearchQuery}
+              placeholder="Search categories..."
+              onfocus={handleCategoryInputFocus}
+              onblur={handleCategoryInputBlur}
+              class="input w-full"
+              use:categoryInputRef
+            />
           </div>
-        </div>
+        {/if}
         {#if showCategoryDropdown && filteredCategories.length > 0}
           <div class="absolute top-full mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
             {#each filteredCategories as cat}
