@@ -308,7 +308,7 @@
         </p>
       </div>
     {:else}
-      <table class="w-full">
+          <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">
@@ -353,9 +353,9 @@
         <tbody>
           {#each products as product}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
-              <td class="p-4">
+              <td class="p-4 min-w-0">
                 <!-- Product name (normal size) -->
-                <div class="font-medium truncate max-w-[200px]" title={product.name}>
+                <div class="font-medium truncate w-full" title={product.name}>
                   {product.name}
                 </div>
 
