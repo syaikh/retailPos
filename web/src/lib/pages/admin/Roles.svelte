@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
-  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -154,13 +154,11 @@
 </script>
 
 <div class="space-y-5">
-  <PageHeader title="Roles" subtitle="Define roles and permission sets">
-    {#snippet actions()}
-      <button class="btn btn-primary" onclick={openAdd}>
-        <Plus size={15} /> Add Role
-      </button>
-    {/snippet}
-  </PageHeader>
+  <div class="flex items-center justify-end">
+    <button class="btn btn-primary" onclick={openAdd}>
+      <Plus size={15} /> Add Role
+    </button>
+  </div>
 
   {#if loading}
     <div class="grid gap-4">
