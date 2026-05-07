@@ -320,7 +320,7 @@
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-40">
+            <th class="text-left p-4 font-semibold w-60">
               <button
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('category')}
@@ -394,9 +394,9 @@
                   {/if}
                 </div>
               </td>
-               <td class="p-4 w-40">{product.category_name || '-'}</td>
+               <td class="p-4 w-60">{product.category_name || '-'}</td>
               <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
-              <td class="p-4 w-28">
+              <td class="p-4 w-28 text-right">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
