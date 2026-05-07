@@ -33,12 +33,9 @@
   let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
   let sortDir = $state('asc'); // 'asc' or 'desc'
 
-
-
-  // Searchable category dropdown state
+  // Category search state
   let categorySearchQuery = $state('');
   let showCategoryDropdown = $state(false);
-  let categoryInputRef = $state(null);
 
   // Form State
   let form = $state({
@@ -233,6 +230,8 @@
    });
 </script>
 
+
+
 <svelte:window
   onclick={(e) => {
     if (showCategoryDropdown && !e.target.closest('.relative')) {
@@ -264,40 +263,25 @@
           <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
         {/if}
       </div>
-      <!-- Searchable Category Dropdown -->
+      <!-- Category Search Input -->
       <div class="relative flex-1">
-        <button
-          onclick={() => { showCategoryDropdown = !showCategoryDropdown; }}
-          class="btn btn-outline btn-primary w-full flex items-center justify-between px-4 py-2 pr-3 transition-all duration-200"
-          aria-haspopup="listbox"
-          aria-expanded={showCategoryDropdown}
-        >
-          <span class="truncate">
-            {categorySearchQuery || selectedCategory}
-          </span>
-          <svg class="w-4 h-4 text-text-muted transition-transform duration-200 flex-shrink-0 {showCategoryDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </button>
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Filter categories"
+          bind:value={categorySearchQuery}
+          onfocus={handleCategoryInputFocus}
+          onblur={handleCategoryInputBlur}
+          class="input w-full pl-10 pr-4"
+        />
 
-        {#if showCategoryDropdown}
-          <div class="absolute top-full mt-1 w-full z-10">
-            <input
-              bind:value={categorySearchQuery}
-              placeholder="Search categories..."
-              onfocus={handleCategoryInputFocus}
-              onblur={handleCategoryInputBlur}
-              class="input w-full"
-              use:categoryInputRef
-            />
-          </div>
-        {/if}
         {#if showCategoryDropdown && filteredCategories.length > 0}
-          <div class="absolute top-full mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+          <div class="absolute top-full mt-2 w-full card-glass p-1.5 z-50 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
             {#each filteredCategories as cat}
               <button
                 onclick={() => selectCategory(cat)}
-                class="w-full text-left px-4 py-2 hover:bg-surface-hover transition-colors first:rounded-t-lg last:rounded-b-lg {selectedCategory === cat ? 'bg-primary-subtle text-primary' : 'text-text-primary'}"
+                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                role="menuitem"
               >
                 {cat}
               </button>
