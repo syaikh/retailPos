@@ -355,7 +355,9 @@
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
               <td class="p-4">
                 <!-- Product name (normal size) -->
-                <div class="font-medium">{product.name}</div>
+                <div class="font-medium truncate max-w-[150px]" title={product.name}>
+                  {product.name}
+                </div>
 
                 <!-- SKU and Barcode details (smaller font) -->
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
