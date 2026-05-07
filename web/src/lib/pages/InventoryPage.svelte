@@ -263,9 +263,9 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">Name</th>
-            <th class="text-left p-4 font-semibold w-32">Category</th>
-            <th class="text-right p-4 font-semibold w-28">Price</th>
-            <th class="text-left p-4 font-semibold w-20">Stock</th>
+            <th class="text-left p-4 font-semibold w-40">Category</th>
+            <th class="text-right p-4 font-semibold w-36">Price</th>
+            <th class="text-left p-4 font-semibold w-28">Stock</th>
             <th class="text-left p-4 font-semibold w-20">Actions</th>
           </tr>
         </thead>
@@ -313,9 +313,9 @@
                   {/if}
                 </div>
               </td>
-               <td class="p-4 w-32">{product.category_name || '-'}</td>
-              <td class="p-4 text-right w-28">{product.price?.toLocaleString('id-ID')}</td>
-              <td class="p-4 w-20">
+               <td class="p-4 w-40">{product.category_name || '-'}</td>
+              <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
+              <td class="p-4 w-28">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
