@@ -136,12 +136,6 @@
       </div>
 
       <div class="card flex-1 overflow-hidden flex flex-col p-0">
-        <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-          <p class="text-sm font-semibold text-text-primary">Products</p>
-          {#if !loading}
-            <span class="badge badge-muted">{total} items</span>
-          {/if}
-        </div>
 
         {#if loading}
           <div class="flex-1 overflow-y-auto">
