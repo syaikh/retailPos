@@ -355,7 +355,7 @@
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
               <td class="p-4">
                 <!-- Product name (normal size) -->
-                <div class="font-medium truncate max-w-[150px]" title={product.name}>
+                <div class="font-medium truncate max-w-[200px]" title={product.name}>
                   {product.name}
                 </div>
 
