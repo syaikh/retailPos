@@ -10,7 +10,7 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown
+    SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -252,15 +252,23 @@
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="relative flex-2">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
         <input
           type="text"
           placeholder="Search products..."
           bind:value={searchQuery}
-          class="input pl-10 pr-10"
+          class="input pl-10 pr-12"
         />
         {#if isSearching}
           <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
+        {:else if searchQuery}
+          <button
+            onclick={() => searchQuery = ''}
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
         {/if}
       </div>
       <!-- Category Search Input -->
@@ -272,8 +280,17 @@
           bind:value={categorySearchQuery}
           onfocus={handleCategoryInputFocus}
           onblur={handleCategoryInputBlur}
-          class="input w-full pl-10 pr-4"
+          class="input w-full pl-10 pr-10"
         />
+        {#if categorySearchQuery}
+          <button
+            onclick={() => categorySearchQuery = ''}
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            title="Clear filter"
+          >
+            <X size={14} />
+          </button>
+        {/if}
 
         {#if showCategoryDropdown && filteredCategories.length > 0}
           <div class="absolute top-full mt-2 w-full card-glass p-1.5 z-50 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">

@@ -7,7 +7,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, ScrollText, RefreshCw, CalendarDays } from 'lucide-svelte';
+  import { Search, ScrollText, RefreshCw, CalendarDays, X } from 'lucide-svelte';
 
   let loading = $state(true);
   let items = $state([]);
@@ -89,7 +89,16 @@
     <div class="mb-4">
       <div class="relative">
         <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input type="text" placeholder="Search by actor, resource…" class="input w-full pl-9" bind:value={searchQuery} />
+        <input type="text" placeholder="Search by actor, resource…" class="input w-full pl-9 pr-10" bind:value={searchQuery} />
+        {#if searchQuery}
+          <button
+            onclick={() => searchQuery = ''}
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        {/if}
       </div>
     </div>
 
