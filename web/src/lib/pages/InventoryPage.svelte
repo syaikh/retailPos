@@ -311,7 +311,7 @@
       <table class="w-full">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold border-r border-border">
+            <th class="text-left p-4 font-semibold">
               <button
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('name')}
@@ -320,7 +320,7 @@
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-40 border-r border-border">
+            <th class="text-left p-4 font-semibold w-40">
               <button
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('category')}
@@ -329,7 +329,7 @@
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-36 border-r border-border">
+            <th class="text-right p-4 font-semibold w-36">
               <button
                 class="flex items-center gap-1 hover:text-primary transition-colors justify-end"
                 onclick={() => handleSort('price')}
@@ -338,7 +338,7 @@
                 <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-28 border-r border-border">
+            <th class="text-left p-4 font-semibold w-28">
               <button
                 class="flex items-center gap-1 hover:text-primary transition-colors"
                 onclick={() => handleSort('stock')}
@@ -353,7 +353,7 @@
         <tbody>
           {#each products as product}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
-              <td class="p-4 border-r border-border">
+              <td class="p-4">
                 <!-- Product name (normal size) -->
                 <div class="font-medium">{product.name}</div>
 
@@ -394,9 +394,9 @@
                   {/if}
                 </div>
               </td>
-               <td class="p-4 w-40 border-r border-border">{product.category_name || '-'}</td>
-              <td class="p-4 text-right w-36 border-r border-border">{product.price?.toLocaleString('id-ID')}</td>
-              <td class="p-4 w-28 border-r border-border">
+               <td class="p-4 w-40">{product.category_name || '-'}</td>
+              <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
+              <td class="p-4 w-28">
                 <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
