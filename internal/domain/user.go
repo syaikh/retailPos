@@ -66,6 +66,7 @@ type SaleItem struct {
 	ID          int      `json:"id"`
 	SaleID    int `json:"sale_id"`
 	ProductID int `json:"product_id"`
+	Name      string `json:"name"`
 	Quantity  int `json:"quantity"`
 	UnitPrice int `json:"unit_price"`
 	Subtotal  int `json:"subtotal"`

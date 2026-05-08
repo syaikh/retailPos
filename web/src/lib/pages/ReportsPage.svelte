@@ -711,7 +711,7 @@
                     <p class="text-sm font-medium text-text-primary">{item.name}</p>
                     <p class="text-xs text-text-secondary">Qty: {item.quantity}</p>
                   </div>
-                  <p class="text-sm text-text-primary">{(item.price * item.quantity).toLocaleString('id-ID')}</p>
+                  <p class="text-sm text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</p>
                 </div>
               {/each}
             </div>

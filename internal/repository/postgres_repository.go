@@ -650,16 +650,17 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 
 	// Load sale items
 	itemRows, err := r.db.Query(ctx, `
-			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
-			FROM sale_items 
-			WHERE sale_id = $1
+			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+			FROM sale_items si
+			JOIN products p ON si.product_id = p.id
+			WHERE si.sale_id = $1
 		`, sale.ID)
 	if err != nil {
 		log.Printf("Warning: failed to load items for sale %d: %v", sale.ID, err)
 	} else {
 		for itemRows.Next() {
 			var item domain.SaleItem
-			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
 				log.Printf("Warning: failed to scan item row: %v", scanErr)
 				continue
 			}
@@ -752,14 +753,15 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 
 		// Load sale items
 		itemRows, err := r.db.Query(ctx, `
-			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
-			FROM sale_items 
-			WHERE sale_id = $1
+			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+			FROM sale_items si
+			JOIN products p ON si.product_id = p.id
+			WHERE si.sale_id = $1
 		`, s.ID)
 		if err == nil {
 			for itemRows.Next() {
 				var item domain.SaleItem
-				err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal)
+				err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal)
 				if err == nil {
 					s.Items = append(s.Items, item)
 				}
