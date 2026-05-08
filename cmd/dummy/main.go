@@ -647,7 +647,7 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 
 	// Start workers
 	var wg sync.WaitGroup
-	salesCreated := make(chan int, numWorkers*100) // Buffered channel for progress updates
+	salesCreated := make(chan int, numWorkers*1000) // Buffered channel for progress updates
 
 	for _, job := range jobs {
 		wg.Add(1)
@@ -662,18 +662,10 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	// Progress monitoring
 	go func() {
 		total := 0
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case count := <-salesCreated:
-				total += count
-				if total%500 == 0 {
-					fmt.Printf("     ...%d sales injected\n", total)
-				}
-			case <-ticker.C:
-				// Continue monitoring
+		for count := range salesCreated {
+			total += count
+			if total%100 == 0 {
+				fmt.Printf("     ...%d sales injected\n", total)
 			}
 		}
 	}()
@@ -685,11 +677,34 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	return nil
 }
 
-// processWorkerJob handles a single worker's portion of the work
+// SaleBatch represents a batch of sales data for efficient insertion
+type SaleBatch struct {
+	Sales     []SaleRecord
+	SaleItems []SaleItemRecord
+}
+
+type SaleRecord struct {
+	Invoice      string
+	CashierID    int
+	PaymentMethod string
+	CreatedAt    time.Time
+	TotalAmount  int
+}
+
+type SaleItemRecord struct {
+	SaleID      int
+	ProductID   int
+	Quantity    int
+	UnitPrice   int
+	Subtotal    int
+}
+
+// processWorkerJob handles a single worker's portion of the work with optimized individual transactions
 func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, now time.Time, progress chan<- int) int {
 	salesCreated := 0
 	invoiceCounter := 0 // Local counter for this worker
 
+	// Process each day
 	for _, dayOffset := range job.days {
 		dayDate := startDate.AddDate(0, 0, dayOffset)
 
@@ -715,9 +730,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			if isToday {
 				// Today: generate time from 6 hours ago until 5 minutes ago to ensure it's in the past
-				now := time.Now()
-				sixHoursAgo := now.Add(-6 * time.Hour)
-				fiveMinutesAgo := now.Add(-5 * time.Minute)
+				currentNow := time.Now()
+				sixHoursAgo := currentNow.Add(-6 * time.Hour)
+				fiveMinutesAgo := currentNow.Add(-5 * time.Minute)
 
 				// Generate random time between 6 hours ago and 5 minutes ago
 				timeRange := fiveMinutesAgo.Sub(sixHoursAgo)
@@ -734,76 +749,98 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 					randomHour, randomMinute, rand.Intn(60), 0, time.UTC)
 			}
 
-			// Create sale record
-			var saleID int
-			err := db.QueryRowContext(ctx,
-				`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, created_at)
-				 VALUES ($1, $2, $3, 'completed', $4) RETURNING id`,
-				invoice, cashierID, paymentMethod, createdAt,
-			).Scan(&saleID)
+			// Process sale with individual transaction for reliability
+			if err := processIndividualSale(ctx, db, invoice, cashierID, paymentMethod, createdAt, products, productMap); err == nil {
+				salesCreated++
 
-			if err != nil {
-				fmt.Printf("Warning: failed to insert sale %d: %v\n", salesCreated, err)
-				continue
-			}
-
-			// Generate sale items (1-8 items, realistic distribution)
-			numItems := generateItemCount()
-			totalAmount := 0
-
-			// Select products for this sale
-			saleProducts := selectProductsForSale(products, numItems)
-
-			for _, productID := range saleProducts {
-				product := productMap[productID]
-
-				// Generate quantity (depends on product type)
-				quantity := generateQuantity(product.Category)
-
-				// Use current product price as snapshot (transaction-time pricing)
-				unitPrice := product.Price
-				subtotal := unitPrice * quantity
-				totalAmount += subtotal
-
-				_, err = db.ExecContext(ctx,
-					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-					 VALUES ($1, $2, $3, $4, $5)`,
-					saleID, productID, quantity, unitPrice, subtotal,
-				)
-
-				if err != nil {
-					fmt.Printf("Warning: failed to insert sale item for sale %d: %v\n", saleID, err)
+				// Send progress update every 25 sales
+				if salesCreated%25 == 0 {
+					select {
+					case progress <- 25:
+					default:
+						// Channel full, skip progress update
+					}
 				}
-			}
-
-			// Ensure transaction has positive value (skip if no items or zero total)
-			if totalAmount > 0 {
-				// Update sale totals
-				_, err = db.ExecContext(ctx,
-					"UPDATE sales SET subtotal = $1, total_amount = $1 WHERE id = $2",
-					totalAmount, saleID)
-
-				if err == nil {
-					salesCreated++
-				} else {
-					// Remove the sale if update failed
-					db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
-				}
-			} else {
-				// Remove the sale if it has no valid items
-				db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
 			}
 		}
 	}
 
 	// Send final count to progress channel
 	select {
-	case progress <- salesCreated:
+	case progress <- (salesCreated % 25): // Send remaining count
 	default:
 		// Channel full, skip progress update
 	}
 
 	return salesCreated
+}
+
+// processIndividualSale handles one sale with optimized transaction
+func processIndividualSale(ctx context.Context, db *sql.DB, invoice string, cashierID int, paymentMethod string, createdAt time.Time, products []ProductInfo, productMap map[int]ProductInfo) error {
+	// Start individual transaction for this sale
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Generate sale items first to calculate total
+	numItems := generateItemCount()
+	totalAmount := 0
+	saleItemRecords := make([]SaleItemRecord, 0, numItems)
+
+	// Select products for this sale
+	saleProducts := selectProductsForSale(products, numItems)
+
+	for _, productID := range saleProducts {
+		product := productMap[productID]
+
+		// Generate quantity (depends on product type)
+		quantity := generateQuantity(product.Category)
+
+		// Use current product price as snapshot (transaction-time pricing)
+		unitPrice := product.Price
+		subtotal := unitPrice * quantity
+		totalAmount += subtotal
+
+		saleItemRecords = append(saleItemRecords, SaleItemRecord{
+			ProductID: productID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		})
+	}
+
+	// Skip sale if no valid items
+	if totalAmount <= 0 || len(saleItemRecords) == 0 {
+		return fmt.Errorf("no valid items for sale")
+	}
+
+	// Insert sale record with pre-calculated total
+	var saleID int
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
+		 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`,
+		invoice, cashierID, paymentMethod, totalAmount, createdAt,
+	).Scan(&saleID)
+	if err != nil {
+		return fmt.Errorf("failed to insert sale: %w", err)
+	}
+
+	// Insert sale items in batch within the same transaction
+	for _, item := range saleItemRecords {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
+			 VALUES ($1, $2, $3, $4, $5)`,
+			saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert sale item: %w", err)
+		}
+	}
+
+	// Commit the transaction
+	return tx.Commit()
 }
 
 // Helper functions for realistic data generation
