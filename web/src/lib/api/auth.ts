@@ -160,7 +160,7 @@ export async function login(username: string, password: string): Promise<{ acces
 
 export async function logout(): Promise<void> {
   try {
-    await authApi.post('/logout');
+    await authApi.post('/logout', {}, { headers: getAuthHeaders() });
   } catch (err) {
     // Ignore errors on logout
   }

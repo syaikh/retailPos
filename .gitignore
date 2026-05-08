@@ -12,6 +12,9 @@ migrate
 server
 retail-pos-system
 
+# Server source directory (uncomment if you want to ignore it)
+# cmd/server/
+
 # Test binary, built with `go test -c`
 *.test
 
