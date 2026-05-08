@@ -11,9 +11,9 @@ import (
 	"retail-pos-system/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/google/uuid"
 )
 
 var (
@@ -67,7 +67,9 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*do
 	}
 
 	var perms []string
-	if rp, ok := s.repo.(interface{ GetRolePermissions(context.Context, int) ([]domain.Permission, error) }); ok {
+	if rp, ok := s.repo.(interface {
+		GetRolePermissions(context.Context, int) ([]domain.Permission, error)
+	}); ok {
 		permissions, _ := rp.GetRolePermissions(ctx, user.RoleID)
 		perms = make([]string, len(permissions))
 		for i, p := range permissions {
@@ -96,7 +98,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*do
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, error) {
-	claims, err := s.parseToken(oldRefreshToken, s.refreshTTL)
+	claims, err := s.parseRefreshToken(oldRefreshToken)
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +110,9 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", ErrUserNotFound
 	}
 	var perms []string
-	if rp, ok := s.repo.(interface{ GetRolePermissions(context.Context, int) ([]domain.Permission, error) }); ok {
+	if rp, ok := s.repo.(interface {
+		GetRolePermissions(context.Context, int) ([]domain.Permission, error)
+	}); ok {
 		permissions, _ := rp.GetRolePermissions(ctx, user.RoleID)
 		perms = make([]string, len(permissions))
 		for i, p := range permissions {
@@ -190,6 +194,25 @@ func (s *AuthService) parseToken(tokenString string, ttl time.Duration) (*Claims
 		return claims, nil
 	}
 	return nil, errors.New("invalid token")
+}
+
+func (s *AuthService) parseRefreshToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(s.jwtSecret + "-refresh"), nil
+	})
+	if err != nil {
+		var ve interface{ Errors() uint32 }
+		if errors.As(err, &ve) {
+			if ve.Errors()&1 != 0 {
+				return nil, ErrTokenExpired
+			}
+		}
+		return nil, fmt.Errorf("failed to parse refresh token: %w", err)
+	}
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, errors.New("invalid refresh token")
 }
 
 func (s *AuthService) storeRefreshToken(ctx context.Context, userID int, token string) error {

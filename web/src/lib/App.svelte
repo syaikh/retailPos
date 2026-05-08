@@ -11,6 +11,7 @@
   import Layout from '$lib/components/Layout.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
   import { auth } from '$lib/stores/auth';
+  import { checkAuth } from '$lib/api/auth';
   import { fade } from 'svelte/transition';
 
   let Component = $state(LoginPage);
@@ -44,7 +45,6 @@
     }
 
     if (path === '/login' && hasValidToken) {
-      // If already logged in and trying to access login page, redirect to home
       goto('/');
       return;
     }
@@ -54,11 +54,51 @@
     Component = getComponent(path);
   }
 
+  async function initializeRoute(path) {
+    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+    const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
+
+    if (!hasValidToken) {
+      if (path !== '/login') {
+        Component = LoginPage;
+        currentPath = '/login';
+        window.history.replaceState({}, '', '/login');
+      } else {
+        Component = LoginPage;
+        currentPath = '/login';
+      }
+      isInitializing = false;
+      subscribe(handleRoute);
+      return;
+    }
+
+    const validSession = await checkAuth();
+    if (!validSession) {
+      auth.clearUser();
+      Component = LoginPage;
+      currentPath = '/login';
+      window.history.replaceState({}, '', '/login');
+      isInitializing = false;
+      subscribe(handleRoute);
+      return;
+    }
+
+    if (path === '/login') {
+      Component = Home;
+      currentPath = '/';
+      window.history.replaceState({}, '', '/');
+    } else {
+      currentPath = path;
+      Component = getComponent(path);
+    }
+
+    isInitializing = false;
+    subscribe(handleRoute);
+  }
+
   // Initial route resolution
   const initialPath = getPath();
-  handleRoute(initialPath);
-
-  subscribe(handleRoute);
+  initializeRoute(initialPath);
 </script>
 
 {#if isInitializing}

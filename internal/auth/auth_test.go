@@ -218,3 +218,23 @@ func TestAuthService_ValidateToken_Invalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAuthService_RefreshToken_Success(t *testing.T) {
+	testDB := repository.NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := repository.NewPostgresRepository(testDB.Pool())
+	authService := NewAuthService(repo, testDB.Pool())
+
+	response, err := authService.Login(context.Background(), "superadmin", "admin123")
+	require.NoError(t, err)
+	require.NotEmpty(t, response.RefreshToken)
+
+	newAccessToken, err := authService.RefreshToken(context.Background(), response.RefreshToken)
+	require.NoError(t, err)
+	assert.NotEmpty(t, newAccessToken)
+
+	claims, err := authService.ValidateToken(newAccessToken)
+	require.NoError(t, err)
+	assert.Equal(t, 1, claims.ID)
+	assert.Equal(t, "superadmin", claims.Username)
+}

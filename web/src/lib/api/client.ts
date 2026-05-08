@@ -1,6 +1,7 @@
 // Web API Client (Axios)
 import axios from 'axios';
 import { getAuthToken } from '$lib/stores/auth';
+import { refreshAccessToken, logout, setupAxiosInterceptors } from './auth';
 
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({
@@ -23,11 +24,11 @@ apiClient.interceptors.request.use(
 );
 
 // 3. Setup Response Interceptor untuk menangani Auto-Refresh 401
-// (Fungsi ini menggunakan instance axios khusus untuk menghindari loop)
-// This will be called from main.js to avoid the static import warning
+let interceptorsInitialized = false;
 export const setupApiInterceptors = async () => {
-  const { setupAxiosInterceptors } = await import('./auth');
+  if (interceptorsInitialized) return;
   setupAxiosInterceptors(apiClient);
+  interceptorsInitialized = true;
 };
 
 export default apiClient;
@@ -53,7 +54,6 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
 
   // Handle 401 - try refresh and retry once
   if (response.status === 401) {
-    const { refreshAccessToken, logout } = await import('./auth');
     const newToken = await refreshAccessToken();
     if (newToken) {
       headers['Authorization'] = `Bearer ${newToken}`;

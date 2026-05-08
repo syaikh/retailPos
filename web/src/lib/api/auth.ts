@@ -90,11 +90,28 @@ export function setupAxiosInterceptors(apiClient: axios.AxiosInstance) {
   );
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const accessToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await authApi.get('/validate');
+    const response = await authApi.get('/validate', { headers: getAuthHeaders() });
     return response.status === 200;
-  } catch (err) {
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (!newToken) {
+        return false;
+      }
+      try {
+        const response = await authApi.get('/validate', { headers: { Authorization: `Bearer ${newToken}` } });
+        return response.status === 200;
+      } catch (_err) {
+        return false;
+      }
+    }
     return false;
   }
 }

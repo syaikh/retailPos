@@ -18,8 +18,11 @@
   let loading = $state(false);
   let limit = $state(20);
   let offset = $state(0);
-  let isSearching = $state(false);
   let isInitialMount = $state(true);
+  let isSearching = $state(false);
+  
+  // Track previous search to avoid duplicate fetches
+  let previousSearchQuery = '';
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -59,6 +62,11 @@
     // Skip the initial render to prevent double fetch
     if (isInitialMount) return;
     
+    // Only proceed if searchQuery actually changed
+    if (previousSearchQuery === searchQuery) return;
+    
+    previousSearchQuery = searchQuery;
+
     if (searchQuery === '') {
       // Immediate fetch when clearing search
       offset = 0;

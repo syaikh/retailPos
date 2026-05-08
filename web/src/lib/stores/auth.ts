@@ -23,12 +23,13 @@ function createAuthStore() {
     setUser: (user: User) => update(() => ({ isAuthenticated: true, user, loading: false })),
     clearUser: () => {
       sessionStorage.removeItem('access_token');
+      localStorage.removeItem('access_token');
       // Catatan: refresh_token dihapus oleh backend via cookie, atau kita biarkan expire
       update(() => ({ isAuthenticated: false, user: null, loading: false }));
     },
     setLoading: (loading: boolean) => update(state => ({ ...state, loading })),
     // Helper untuk dapatkan token (dipakai oleh api client)
-    getToken: () => sessionStorage.getItem('access_token')
+    getToken: () => sessionStorage.getItem('access_token') || localStorage.getItem('access_token')
   };
 }
 

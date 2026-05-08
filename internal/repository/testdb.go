@@ -14,7 +14,7 @@ import (
 
 // TestDB represents a test database helper
 type TestDB struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
 	dbName string
 }
 
@@ -40,7 +40,7 @@ func NewTestDB(t *testing.T) *TestDB {
 	require.NoError(t, err, "Failed to connect to test database")
 
 	testDB := &TestDB{
-		pool: testPool,
+		pool:   testPool,
 		dbName: dbName,
 	}
 
@@ -143,17 +143,29 @@ func (tdb *TestDB) setupSchema(t *testing.T) {
 func createTestPool(dbName string) (*pgxpool.Pool, error) {
 	host := os.Getenv("TEST_DB_HOST")
 	if host == "" {
+		host = os.Getenv("DB_HOST")
+	}
+	if host == "" {
 		host = "localhost"
 	}
 	port := os.Getenv("TEST_DB_PORT")
+	if port == "" {
+		port = os.Getenv("DB_PORT")
+	}
 	if port == "" {
 		port = "5432"
 	}
 	user := os.Getenv("TEST_DB_USER")
 	if user == "" {
+		user = os.Getenv("DB_USER")
+	}
+	if user == "" {
 		user = "devuser"
 	}
 	password := os.Getenv("TEST_DB_PASSWORD")
+	if password == "" {
+		password = os.Getenv("DB_PASSWORD")
+	}
 	if password == "" {
 		password = "devuser123"
 	}

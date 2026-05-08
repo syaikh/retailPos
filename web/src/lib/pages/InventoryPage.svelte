@@ -28,6 +28,10 @@
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
   let isSearching = $state(false);
+  
+  // Track previous values to avoid duplicate fetches
+  let previousSearchQuery = '';
+  let previousCategory = 'All';
 
   // Sorting state
   let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
@@ -99,6 +103,11 @@
     // Skip the initial render to prevent double fetch
     if (isInitialMount) return;
     
+    // Only proceed if searchQuery actually changed
+    if (previousSearchQuery === searchQuery) return;
+    
+    previousSearchQuery = searchQuery;
+    
     if (searchQuery === '') {
       // Immediate fetch when clearing search
       offset = 0;
@@ -108,6 +117,19 @@
       isSearching = true;
       debouncedSearch();
     }
+  });
+
+  // Watch for category selection changes
+  $effect(() => {
+    // Skip the initial render
+    if (isInitialMount) return;
+    
+    // Only proceed if selectedCategory actually changed
+    if (previousCategory === selectedCategory) return;
+    
+    previousCategory = selectedCategory;
+    offset = 0;
+    fetchProducts(false);
   });
 
   // Filtered categories for searchable dropdown
