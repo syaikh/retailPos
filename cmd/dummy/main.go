@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -166,19 +167,19 @@ var (
 )
 
 func main() {
-	// Parse command line flags
+	// Parse command line flags (values are randomized if not specified)
 	truncateFlag := flag.Bool("truncate", true, "Truncate existing data before injection")
-	productsFlag := flag.Int("products", 4500, "Number of products to generate (4000-5000)")
-	salesFlag := flag.Int("sales", 4500, "Number of sales transactions to generate (4000-5000)")
-	categoriesFlag := flag.Int("categories", 65, "Number of categories to ensure exist (50-80)")
+	productsFlag := flag.Int("products", 0, "Number of products to generate (random if 0)")
+	daysFlag := flag.Int("days", 0, "Number of days to generate data for (150-180, random if 0)")
+	categoriesFlag := flag.Int("categories", 0, "Number of categories to ensure exist (65-80, random if 0)")
 	flag.Parse()
 
-	if err := run(*truncateFlag, *productsFlag, *salesFlag, *categoriesFlag); err != nil {
+	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag); err != nil {
 		log.Fatalf("Dummy seeder failed: %v", err)
 	}
 }
 
-func run(truncateData bool, numProducts, numSales, numCategories int) error {
+func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ctx := context.Background()
 	rand.Seed(time.Now().UnixNano())
 
@@ -186,12 +187,27 @@ func run(truncateData bool, numProducts, numSales, numCategories int) error {
 	if numProducts < 0 || numProducts > 5000 {
 		return fmt.Errorf("products count must be between 0-5000, got %d", numProducts)
 	}
-	if numSales < 0 || numSales > 5000 {
-		return fmt.Errorf("sales count must be between 0-5000, got %d", numSales)
+	if numDays < 0 || numDays > 180 {
+		return fmt.Errorf("days count must be between 0-180, got %d", numDays)
 	}
 	if numCategories < 0 || numCategories > 80 {
 		return fmt.Errorf("categories count must be between 0-80, got %d", numCategories)
 	}
+
+	// Randomize counts if not specified (0 means random)
+	if numProducts == 0 {
+		numProducts = rand.Intn(501) + 4500 // 4500-5000
+	}
+	if numDays == 0 {
+		numDays = rand.Intn(31) + 150 // 150-180 days
+	}
+	if numCategories == 0 {
+		numCategories = rand.Intn(16) + 65 // 65-80
+	}
+
+	// Calculate date range
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -numDays)
 
 	// Connect to database
 	db, err := sql.Open("postgres", getDSN())
@@ -205,7 +221,7 @@ func run(truncateData bool, numProducts, numSales, numCategories int) error {
 	}
 
 	fmt.Println("Connected to database. Starting comprehensive dummy data injection...")
-	fmt.Printf("Target: %d products, %d sales, %d categories\n", numProducts, numSales, numCategories)
+	fmt.Printf("Target: %d products, %d days, %d categories\n", numProducts, numDays, numCategories)
 
 	// 1. Truncate existing data if requested
 	if truncateData {
@@ -231,19 +247,10 @@ func run(truncateData bool, numProducts, numSales, numCategories int) error {
 		fmt.Printf("   Found %d existing categories\n", len(categoryIDs))
 	}
 
-	// 3. Get users for cashier assignment (only needed for sales)
-	var userIDs []int
-	if numSales > 0 {
-		userIDs = getIDs(ctx, db, "users")
-		if len(userIDs) == 0 {
-			return fmt.Errorf("no users found. Please run migrations/seeds first")
-		}
-	}
-
-	// 4. Inject products (4000-5000, spanning 5-6 months)
+	// 3. Inject products
 	var productData []ProductInfo
 	if numProducts > 0 {
-		fmt.Printf("📦 Injecting %d products (5-6 months span)...\n", numProducts)
+		fmt.Printf("📦 Injecting %d products...\n", numProducts)
 		var err error
 		productData, err = injectProducts(ctx, db, categoryIDs, numProducts)
 		if err != nil {
@@ -256,17 +263,23 @@ func run(truncateData bool, numProducts, numSales, numCategories int) error {
 		fmt.Printf("   Found %d existing products\n", len(productData))
 	}
 
-	// 5. Inject sales transactions (4000-5000, spanning 5-6 months)
-	if numSales > 0 {
-		fmt.Printf("💰 Injecting %d sales transactions (5-6 months span)...\n", numSales)
-		if err := injectSales(ctx, db, userIDs, productData, numSales); err != nil {
-			return fmt.Errorf("failed to inject sales: %w", err)
+	// 4. Get users for cashier assignment (needed for sales)
+	var userIDs []int
+	if len(productData) > 0 {
+		userIDs = getIDs(ctx, db, "users")
+		if len(userIDs) == 0 {
+			return fmt.Errorf("no users found. Please run migrations/seeds first")
 		}
-		fmt.Printf("   ✅ %d sales transactions injected\n", numSales)
+	}
+
+	// 5. Inject sales transactions (10-20 per day across all days)
+	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
+
+	if err := injectDailySales(ctx, db, userIDs, productData, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
 	fmt.Println("🎉 Dummy data injection completed successfully!")
-	fmt.Printf("   📊 Summary: %d products, %d sales, %d categories\n", len(productData), numSales, len(categoryIDs))
 	return nil
 }
 
@@ -444,29 +457,125 @@ func injectProducts(ctx context.Context, db *sql.DB, categoryIDs []int, count in
 	return products, nil
 }
 
-// injectSales generates transactions ensuring every day has at least 10 transactions across 5-6 months
-func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, count int) error {
+// workerJob represents a job for a worker in the concurrent pool
+type workerJob struct {
+	workerID     int
+	startInvoice int
+	days         []int // Days this worker handles (relative to startDate)
+}
+
+// injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
+func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, startDate, endDate time.Time) error {
+	numWorkers := 4 // Concurrent workers for performance
+
 	now := time.Now()
 	productMap := make(map[int]ProductInfo)
 	for _, p := range products {
 		productMap[p.ID] = p
 	}
 
-	// Calculate date range for 6 months back (always span full period)
-	startDate := time.Now().AddDate(0, -6, 0) // 6 months ago
-	endDate := time.Now()                       // now
-	totalDays := int(endDate.Sub(startDate).Hours() / 24) // Actual days in period (~180 days)
+	totalDays := int(endDate.Sub(startDate).Hours() / 24)
+	if totalDays < 0 {
+		return fmt.Errorf("invalid date range: end date must be after start date")
+	}
 
-	// Ensure 10-20 transactions per day
+	// Include the end date as well (total days inclusive)
+	totalDaysInclusive := totalDays + 1
+
+	// Calculate generous invoice ranges to prevent overlaps
+	const invoicesPerWorker = 100000 // Each worker gets 100k invoice numbers
+	jobs := make([]workerJob, numWorkers)
+
+	// Distribute days evenly among workers
+	if numWorkers <= 0 {
+		return fmt.Errorf("invalid number of workers: %d", numWorkers)
+	}
+	daysPerWorker := totalDaysInclusive / numWorkers
+	remainingDays := totalDaysInclusive % numWorkers
+
+	currentDay := 0
+	for i := 0; i < numWorkers; i++ {
+		job := workerJob{
+			workerID:     i,
+			startInvoice: i*invoicesPerWorker + 1,
+			days:         []int{},
+		}
+
+		// Calculate how many days this worker gets
+		workerDays := daysPerWorker
+		if i < remainingDays {
+			workerDays++ // Extra day for first 'remainingDays' workers
+		}
+
+			// Assign consecutive days to this worker
+		for d := 0; d < workerDays; d++ {
+			if currentDay < totalDaysInclusive {
+				job.days = append(job.days, currentDay)
+				currentDay++
+			}
+		}
+
+		jobs[i] = job
+	}
+
+	fmt.Printf("🚀 Starting %d workers to process %d days with pre-allocated invoice ranges\n", numWorkers, totalDaysInclusive)
+
+	// Start workers
+	var wg sync.WaitGroup
+	salesCreated := make(chan int, numWorkers*100) // Buffered channel for progress updates
+
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(job workerJob) {
+			defer wg.Done()
+
+			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, now, salesCreated)
+			fmt.Printf("   ✅ Worker %d completed: %d sales\n", job.workerID, workerSales)
+		}(job)
+	}
+
+	// Progress monitoring
+	go func() {
+		total := 0
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case count := <-salesCreated:
+				total += count
+				if total%500 == 0 {
+					fmt.Printf("     ...%d sales injected\n", total)
+				}
+			case <-ticker.C:
+				// Continue monitoring
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(salesCreated)
+
+	fmt.Printf("   ✅ All sales transactions injected across %d days (min 10 per day)\n", totalDaysInclusive)
+	return nil
+}
+
+// processWorkerJob handles a single worker's portion of the work
+func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, now time.Time, progress chan<- int) int {
 	salesCreated := 0
+	invoiceCounter := 0 // Local counter for this worker
 
-	for day := 0; day < totalDays; day++ {
+	for _, dayOffset := range job.days {
+		dayDate := startDate.AddDate(0, 0, dayOffset)
+
 		// 10-20 transactions per day
 		salesForDay := 10 + rand.Intn(11)
 
 		for s := 0; s < salesForDay; s++ {
-			// Generate invoice number
-			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), salesCreated+1)
+			// Generate sequential invoice number for this worker's range
+			invoiceNum := job.startInvoice + invoiceCounter
+			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), invoiceNum)
+			invoiceCounter++
 
 			// Random cashier
 			cashierID := randElemInt(userIDs)
@@ -474,31 +583,24 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 			// Random payment method (weighted)
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
 
-			// Calculate transaction time for this day
-			dayDate := startDate.AddDate(0, 0, day)
-
 			var createdAt time.Time
-			if dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day() {
-				// Today: ensure transaction time is before current time
-				maxHour := now.Hour()
-				maxMinute := now.Minute()
-				if maxHour < 8 {
-					maxHour = 8 // Minimum 8 AM
+
+			// Check if this is today
+			isToday := dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day()
+
+			if isToday {
+				// Today: generate time from 6 hours ago until 5 minutes ago to ensure it's in the past
+				now := time.Now()
+				sixHoursAgo := now.Add(-6 * time.Hour)
+				fiveMinutesAgo := now.Add(-5 * time.Minute)
+
+				// Generate random time between 6 hours ago and 5 minutes ago
+				timeRange := fiveMinutesAgo.Sub(sixHoursAgo)
+				if timeRange <= 0 {
+					timeRange = time.Hour // fallback to 1 hour range
 				}
-				randomHour := 8 + rand.Intn(maxHour-7) // 8 AM to current hour
-				randomMinute := rand.Intn(60)
-				if randomHour == maxHour && randomMinute >= maxMinute {
-					randomMinute = maxMinute - 1
-					if randomMinute < 0 {
-						randomMinute = 0
-						randomHour--
-						if randomHour < 8 {
-							randomHour = 8
-						}
-					}
-				}
-				createdAt = time.Date(now.Year(), now.Month(), now.Day(),
-					randomHour, randomMinute, rand.Intn(60), 0, time.UTC)
+				randomOffset := time.Duration(rand.Int63n(int64(timeRange)))
+				createdAt = sixHoursAgo.Add(randomOffset)
 			} else {
 				// Other days: random hour between 8 AM and 8 PM
 				randomHour := 8 + rand.Intn(12)
@@ -556,23 +658,27 @@ func injectSales(ctx context.Context, db *sql.DB, userIDs []int, products []Prod
 					"UPDATE sales SET subtotal = $1, total_amount = $1 WHERE id = $2",
 					totalAmount, saleID)
 
-				salesCreated++
-
-				if salesCreated%500 == 0 && salesCreated > 0 {
-					fmt.Printf("     ...%d sales injected\n", salesCreated)
+				if err == nil {
+					salesCreated++
+				} else {
+					// Remove the sale if update failed
+					db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
 				}
 			} else {
 				// Remove the sale if it has no valid items
-				_, err = db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
-				if err != nil {
-					fmt.Printf("Warning: failed to remove invalid sale %d: %v\n", saleID, err)
-				}
+				db.ExecContext(ctx, "DELETE FROM sales WHERE id = $1", saleID)
 			}
 		}
 	}
 
-	fmt.Printf("   ✅ %d sales transactions injected across %d days (min 10 per day)\n", salesCreated, totalDays)
-	return nil
+	// Send final count to progress channel
+	select {
+	case progress <- salesCreated:
+	default:
+		// Channel full, skip progress update
+	}
+
+	return salesCreated
 }
 
 // Helper functions for realistic data generation
