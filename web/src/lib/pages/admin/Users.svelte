@@ -24,9 +24,11 @@
   let saving = $state(false);
   let isSearching = $state(false);
   let isInitialMount = $state(true);
-  let prevSearchQuery = $state('');
-  let prevOffset = $state(0);
-  let prevLimit = $state(20);
+  
+  // Track previous values to avoid duplicate fetches (regular variables, not $state)
+  let prevSearchQuery = '';
+  let prevOffset = 0;
+  let prevLimit = 20;
 
   // Form State
   let form = $state({
@@ -206,11 +208,6 @@
       selectedUser = null;
     }
   }
-
-  onMount(() => {
-    fetchUsers();
-    fetchRoles();
-  });
 </script>
 
 <div class="space-y-5">
