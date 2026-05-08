@@ -15,7 +15,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     const response = await authApi.post('/refresh');
     const newAccessToken = response.data.access_token;
     
-    // Simpan ke sessionStorage
+    // Simpan ke sessionStorage (safe dari XSS, refresh token ada di HttpOnly cookie)
     sessionStorage.setItem('access_token', newAccessToken);
     return newAccessToken;
   } catch (err) {
@@ -91,7 +91,8 @@ export function setupAxiosInterceptors(apiClient: axios.AxiosInstance) {
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const accessToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+  // Use sessionStorage for access token to reduce XSS risk
+  const accessToken = sessionStorage.getItem('access_token');
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
@@ -116,13 +117,32 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
+// Fungsi khusus untuk restore session saat refresh halaman
+export async function restoreSession(): Promise<{ success: boolean; user?: User }> {
+  try {
+    // Langsung coba refresh token tanpa validate dulu
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      return { success: false };
+    }
+    // Validate token baru dan ambil user data
+    const response = await authApi.get('/validate', { headers: { Authorization: `Bearer ${newToken}` } });
+    if (response.status === 200 && response.data.user) {
+      return { success: true, user: response.data.user };
+    }
+    return { success: false };
+  } catch (err) {
+    return { success: false };
+  }
+}
+
 export async function login(username: string, password: string): Promise<{ access_token: string; refresh_token: string; user: User } | false> {
   try {
     const response = await authApi.post('/login', { username, password });
 
     if (response.status === 200) {
       const data = response.data;
-      // Store tokens for API access
+      // Store access token to sessionStorage (refresh token is HttpOnly cookie)
       if (data.access_token) {
         sessionStorage.setItem('access_token', data.access_token);
       }

@@ -11,7 +11,7 @@
   import Layout from '$lib/components/Layout.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
   import { auth } from '$lib/stores/auth';
-  import { checkAuth } from '$lib/api/auth';
+  import { checkAuth, restoreSession } from '$lib/api/auth';
   import { fade } from 'svelte/transition';
 
   let Component = $state(LoginPage);
@@ -33,7 +33,7 @@
   }
 
   function handleRoute(path) {
-    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+    const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
 
     if (path !== '/login' && !hasValidToken) {
@@ -55,10 +55,20 @@
   }
 
   async function initializeRoute(path) {
-    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
-    const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
+    const token = sessionStorage.getItem('access_token');
+    const hasToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
+    let isAuthenticated = hasToken;
 
-    if (!hasValidToken) {
+    if (!hasToken) {
+      // Try to restore session using HttpOnly refresh_token cookie
+      const restoreResult = await restoreSession();
+      isAuthenticated = restoreResult.success;
+      if (isAuthenticated && restoreResult.user) {
+        auth.setUser(restoreResult.user);
+      }
+    }
+
+    if (!isAuthenticated) {
       if (path !== '/login') {
         Component = LoginPage;
         currentPath = '/login';
@@ -72,17 +82,7 @@
       return;
     }
 
-    const validSession = await checkAuth();
-    if (!validSession) {
-      auth.clearUser();
-      Component = LoginPage;
-      currentPath = '/login';
-      window.history.replaceState({}, '', '/login');
-      isInitializing = false;
-      subscribe(handleRoute);
-      return;
-    }
-
+    // Token is valid, proceed to route
     if (path === '/login') {
       Component = Home;
       currentPath = '/';

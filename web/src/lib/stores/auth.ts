@@ -11,8 +11,8 @@ function createAuthStore() {
   // Initialize from sessionStorage on page load
   const token = sessionStorage.getItem('access_token');
   if (token) {
-    // Jika ada token di storage, anggap sudah login
-    // (Di aplikasi sungguhan, ini bisa panggil /api/validate)
+    // Token exists, set as authenticated
+    // Note: Full user data validation/reload happens in App.svelte via checkAuth()
     update(() => ({ isAuthenticated: true, user: null, loading: false }));
   } else {
     update(() => ({ isAuthenticated: false, user: null, loading: false }));
@@ -23,13 +23,11 @@ function createAuthStore() {
     setUser: (user: User) => update(() => ({ isAuthenticated: true, user, loading: false })),
     clearUser: () => {
       sessionStorage.removeItem('access_token');
-      localStorage.removeItem('access_token');
-      // Catatan: refresh_token dihapus oleh backend via cookie, atau kita biarkan expire
       update(() => ({ isAuthenticated: false, user: null, loading: false }));
     },
     setLoading: (loading: boolean) => update(state => ({ ...state, loading })),
-    // Helper untuk dapatkan token (dipakai oleh api client)
-    getToken: () => sessionStorage.getItem('access_token') || localStorage.getItem('access_token')
+    // Helper untuk dapatkan token dari sessionStorage
+    getToken: () => sessionStorage.getItem('access_token')
   };
 }
 
