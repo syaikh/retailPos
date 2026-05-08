@@ -594,8 +594,16 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	// Include the end date as well (total days inclusive)
 	totalDaysInclusive := totalDays + 1
 
-	// Calculate generous invoice ranges to prevent overlaps
-	const invoicesPerWorker = 100000 // Each worker gets 100k invoice numbers
+	// Calculate conservative invoice ranges with generous buffer
+	avgSalesPerDay := 15 // Average 10-20 transactions per day
+	estimatedTotalSales := totalDaysInclusive * avgSalesPerDay
+	estimatedTotalSales = int(float64(estimatedTotalSales) * 1.5) // 50% buffer for safety
+
+	invoicesPerWorker := estimatedTotalSales / numWorkers
+	if estimatedTotalSales%numWorkers != 0 {
+		invoicesPerWorker++ // Round up to ensure coverage
+	}
+
 	jobs := make([]workerJob, numWorkers)
 
 	// Distribute days evenly among workers
@@ -606,12 +614,16 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	remainingDays := totalDaysInclusive % numWorkers
 
 	currentDay := 0
+	currentInvoice := 1
 	for i := 0; i < numWorkers; i++ {
 		job := workerJob{
 			workerID:     i,
-			startInvoice: i*invoicesPerWorker + 1,
+			startInvoice: currentInvoice,
 			days:         []int{},
 		}
+
+		// Update invoice counter for next worker
+		currentInvoice += invoicesPerWorker
 
 		// Calculate how many days this worker gets
 		workerDays := daysPerWorker
@@ -619,7 +631,7 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 			workerDays++ // Extra day for first 'remainingDays' workers
 		}
 
-			// Assign consecutive days to this worker
+		// Assign consecutive days to this worker
 		for d := 0; d < workerDays; d++ {
 			if currentDay < totalDaysInclusive {
 				job.days = append(job.days, currentDay)
@@ -630,7 +642,8 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 		jobs[i] = job
 	}
 
-	fmt.Printf("🚀 Starting %d workers to process %d days with pre-allocated invoice ranges\n", numWorkers, totalDaysInclusive)
+	fmt.Printf("🚀 Starting %d workers to process %d days with estimated %d total sales\n", numWorkers, totalDaysInclusive, estimatedTotalSales)
+	fmt.Printf("   Each worker allocated up to %d invoice numbers\n", invoicesPerWorker)
 
 	// Start workers
 	var wg sync.WaitGroup
