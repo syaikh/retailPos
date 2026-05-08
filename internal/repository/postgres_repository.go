@@ -311,7 +311,7 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
 		WHERE p.id = $1 AND p.deleted_at IS NULL`
-	
+
 	args := []interface{}{id}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
@@ -360,7 +360,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
 		WHERE p.sku = $1 AND p.deleted_at IS NULL`
-	
+
 	args := []interface{}{sku}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
@@ -405,7 +405,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		WHERE p.deleted_at IS NULL`
 	args := []interface{}{}
 	if search != "" {
-		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1)"
+		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1 OR p.barcode ILIKE $1)"
 		args = append(args, "%"+search+"%")
 	}
 	if categoryID != nil {
@@ -432,7 +432,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		WHERE p.deleted_at IS NULL`
 	args2 := []interface{}{}
 	if search != "" {
-		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1)"
+		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1 OR p.barcode ILIKE $1)"
 		args2 = append(args2, "%"+search+"%")
 	}
 	if categoryID != nil {
@@ -621,7 +621,7 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -647,27 +647,27 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 	}
 	sale.CreatedAt = createdAt.Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
-	
-// Load sale items
-		itemRows, err := r.db.Query(ctx, `
+
+	// Load sale items
+	itemRows, err := r.db.Query(ctx, `
 			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
 			FROM sale_items 
 			WHERE sale_id = $1
 		`, sale.ID)
-		if err != nil {
-			log.Printf("Warning: failed to load items for sale %d: %v", sale.ID, err)
-		} else {
-			for itemRows.Next() {
-				var item domain.SaleItem
-				if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
-					log.Printf("Warning: failed to scan item row: %v", scanErr)
-					continue
-				}
-				sale.Items = append(sale.Items, item)
+	if err != nil {
+		log.Printf("Warning: failed to load items for sale %d: %v", sale.ID, err)
+	} else {
+		for itemRows.Next() {
+			var item domain.SaleItem
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+				log.Printf("Warning: failed to scan item row: %v", scanErr)
+				continue
 			}
-			itemRows.Close()
+			sale.Items = append(sale.Items, item)
 		}
-	
+		itemRows.Close()
+	}
+
 	return &sale, nil
 }
 
@@ -749,7 +749,7 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		}
 		s.CreatedAt = createdAt.Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.Format(time.RFC3339)
-		
+
 		// Load sale items
 		itemRows, err := r.db.Query(ctx, `
 			SELECT id, sale_id, product_id, quantity, unit_price, subtotal 
@@ -766,7 +766,7 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 			}
 			itemRows.Close()
 		}
-		
+
 		sales = append(sales, s)
 	}
 	return sales, total, nil
