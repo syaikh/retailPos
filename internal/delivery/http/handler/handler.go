@@ -242,10 +242,28 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
+	userID := getUserID(c)
+	if userID == 0 {
+		userID = req.CashierID
+	}
+
+	// Get storeID from context (set by AuthMiddleware)
+	var storeID *int
+	if sid, exists := c.Get("storeID"); exists {
+		if v, ok := sid.(*int); ok {
+			storeID = v
+		}
+	}
+	
+	// If storeID is still nil, fallback to request
+	if storeID == nil {
+		storeID = req.StoreID
+	}
+
 	sale := &domain.Sale{
 		InvoiceNumber: req.InvoiceNumber,
-		CashierID:     req.CashierID,
-		StoreID:       req.StoreID,
+		CashierID:     userID,
+		StoreID:       storeID,
 		Subtotal:      req.Subtotal,
 		Discount:      req.Discount,
 		Tax:           req.Tax,
@@ -266,7 +284,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	if err := tx.Commit(getCtx(c)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit transaction"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit transaction: " + err.Error()})
 		return
 	}
 	newSale, _ := h.saleRepo.GetSaleByID(getCtx(c), sale.ID)
@@ -902,19 +920,18 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 	}
 
 	// Format action for display
-	var displayAction string
-	switch action {
-	case "create":
+	displayAction := action
+	if action == "create" {
 		displayAction = "Created"
-	case "update":
+	} else if action == "update" {
 		displayAction = "Updated"
-	case "delete":
+	} else if action == "delete" {
 		displayAction = "Deleted"
-	case "login":
+	} else if action == "login" {
 		displayAction = "Logged in"
-	case "logout":
+	} else if action == "logout" {
 		displayAction = "Logged out"
-	default:
+	} else {
 		displayAction = strings.Title(action)
 	}
 

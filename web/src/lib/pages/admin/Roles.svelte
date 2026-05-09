@@ -267,7 +267,7 @@
 </div>
 
 <!-- Add/Edit Role Modal -->
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="md" footer={roleModalFooter}>
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="md">
   <div class="space-y-4">
     {#if modalMode === 'add'}
       <div>
@@ -288,9 +288,9 @@
       </div>
     {/if}
     
-    <div class="space-y-4">
-      <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+<div>
+  <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {#each permissions as perm}
           <label 
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors
@@ -311,26 +311,20 @@
       </div>
     </div>
   </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
+    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving}>
+      {#if saving}
+        <Loader2 size={16} class="animate-spin" /> Saving...
+      {:else}
+        {modalMode === 'add' ? 'Create Role' : 'Update Permissions'}
+      {/if}
+    </button>
+  {/snippet}
 </Modal>
 
-{#snippet deleteModalFooter()}
-  <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
-  <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
-{/snippet}
-
-{#snippet roleModalFooter()}
-  <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-  <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving}>
-    {#if saving}
-      <Loader2 size={16} class="animate-spin" /> Saving...
-    {:else}
-      {modalMode === 'add' ? 'Create Role' : 'Update Permissions'}
-    {/if}
-  </button>
-{/snippet}
-
 <!-- Delete Confirm -->
-<Modal bind:open={showDeleteModal} title="Delete Role" size="sm" footer={deleteModalFooter}>
+<Modal bind:open={showDeleteModal} title="Delete Role" size="sm">
   <div class="text-center py-2">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
       <Trash2 size={24} class="text-danger" />
@@ -338,4 +332,8 @@
     <p class="text-text-primary font-semibold mb-1">Delete role "{selectedRole?.name}"?</p>
     <p class="text-text-muted text-sm">Users with this role will lose their assigned permissions. This action cannot be undone.</p>
   </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
+    <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
+  {/snippet}
 </Modal>

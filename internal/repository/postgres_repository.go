@@ -607,18 +607,43 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status).
 		Scan(&sale.ID, &createdAt, &updatedAt)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to insert sale: %w", err)
 	}
 	sale.CreatedAt = createdAt.Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
 
 	for i := range items {
+		// 1. Insert sale item
 		_, err = tx.Exec(ctx, `
 			INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
 			VALUES ($1, $2, $3, $4, $5)
 		`, sale.ID, items[i].ProductID, items[i].Quantity, items[i].UnitPrice, items[i].Subtotal)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
+		}
+
+		// 2. Update product stock (database constraint CHECK (stock >= 0) will prevent negative stock)
+		cmd, err := tx.Exec(ctx, `
+			UPDATE products 
+			SET stock = stock - $1, updated_at = NOW() 
+			WHERE id = $2 AND deleted_at IS NULL
+		`, items[i].Quantity, items[i].ProductID)
+		
+		if err != nil {
+			// This could be a constraint violation (insufficient stock)
+			return fmt.Errorf("failed to update stock for product %d: %w", items[i].ProductID, err)
+		}
+		if cmd.RowsAffected() == 0 {
+			return fmt.Errorf("product %d not found or already deleted", items[i].ProductID)
+		}
+
+		// 3. Record inventory movement
+		_, err = tx.Exec(ctx, `
+			INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, items[i].ProductID, -items[i].Quantity, "sale", sale.ID, "sales", sale.CashierID, fmt.Sprintf("Sale %s", sale.InvoiceNumber))
+		if err != nil {
+			return fmt.Errorf("failed to record inventory movement for product %d: %w", items[i].ProductID, err)
 		}
 	}
 

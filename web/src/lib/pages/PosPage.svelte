@@ -119,7 +119,7 @@
       await apiClient.post('/sales', {
         invoice_number: `INV-${Date.now()}`,
         cashier_id: $auth.user?.id || 1,
-        store_id: 1,
+        store_id: $auth.user?.store_id || null,
         subtotal,
         discount: 0,
         tax: 0, // No tax for now
@@ -133,7 +133,8 @@
       cart = [];
       await fetchProducts(false);
     } catch (err) {
-      toast.error('Checkout failed');
+      const errMsg = err.response?.data?.error || 'Checkout failed';
+      toast.error(errMsg);
     } finally {
       checkingOut = false;
     }
