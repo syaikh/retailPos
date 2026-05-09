@@ -82,6 +82,7 @@ test-results/
 
 # Local development files
 .kilo/
+session-*.md
 *.session
 
 # Documentation files (except essential ones)
