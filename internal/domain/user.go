@@ -127,6 +127,7 @@ type AuditLog struct {
 	Role       string `json:"role"`
 	Action     string `json:"action"`
 	EntityType string `json:"entity_type"`
+	Description string `json:"description"`
 	IPAddress   string  `json:"ip_address,omitempty"`
 	EntityID   *int   `json:"entity_id,omitempty"`
 	OldValues  any    `json:"old_values,omitempty"`

@@ -155,14 +155,14 @@
 
 <div class="space-y-5">
   <!-- Header Section -->
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex items-center justify-between mb-8">
     <div>
-      <h2 class="text-2xl font-bold text-text-primary">Roles Management</h2>
-      <p class="text-text-muted">Create and manage user roles and permission sets</p>
+      <h2 class="text-3xl font-extrabold text-text-primary tracking-tight">Roles Management</h2>
+      <p class="text-text-muted mt-1">Define and orchestrate system-wide access control and permission sets</p>
     </div>
-    <div class="flex items-center gap-2">
-      <button class="btn btn-primary" onclick={openAdd}>
-        <Plus size={16} /> Add Role
+    <div class="flex items-center gap-3">
+      <button class="btn btn-primary px-6 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95" onclick={openAdd}>
+        <Plus size={18} class="mr-1.5" /> Create Role
       </button>
     </div>
   </div>
@@ -193,59 +193,72 @@
       </button>
     </div>
   {:else}
-    <div class="grid gap-4">
+    <div class="grid gap-6">
       {#each roles as role (role.id)}
-        <div class="card p-5">
-          <div class="flex items-start justify-between mb-3">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center">
-                <Shield size={16} class="text-primary-light" />
+        <div class="card p-6 bg-surface/40 backdrop-blur-xl border-border/40 hover:border-primary/30 hover:shadow-glow-primary-sm transition-all duration-300 group relative overflow-hidden">
+          <!-- Subtle decorative background element -->
+          <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors"></div>
+          
+          <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-2xl bg-linear-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 shadow-inner">
+                <Shield size={22} class="text-primary-light" />
               </div>
               <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-semibold text-text-primary capitalize">{role.name}</h3>
+                <div class="flex items-center gap-3">
+                  <h3 class="text-lg font-bold text-text-primary capitalize tracking-tight">{role.name}</h3>
                   {#if role.is_system}
-                    <Badge variant="muted">System</Badge>
+                    <span class="px-2 py-0.5 rounded-md bg-info-subtle/30 text-info-light text-[10px] font-bold uppercase tracking-widest border border-info/20 shadow-sm">System</span>
                   {/if}
+                  <span class="px-2 py-0.5 rounded-md bg-surface-hover/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border border-border/50">
+                    {Array.isArray(role.permissions) ? role.permissions.length : 0} Perms
+                  </span>
                 </div>
                 {#if role.description}
-                  <p class="text-xs text-text-muted mt-0.5">{role.description}</p>
+                  <p class="text-sm text-text-muted mt-1 leading-relaxed max-w-xl">{role.description}</p>
                 {/if}
               </div>
             </div>
-            <div class="flex items-center gap-2">
+            
+            <div class="flex items-center gap-2 self-end md:self-start bg-surface-subtle/30 p-1.5 rounded-xl border border-border/30 backdrop-blur-sm">
               <button 
-                class="btn-icon btn-ghost text-text-muted hover:text-primary-light" 
+                class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-primary-light hover:bg-primary-subtle/50 transition-all active:scale-90" 
                 title="Edit Permissions"
                 onclick={() => openEdit(role)}
               >
-                <Pencil size={14} />
+                <Pencil size={15} />
               </button>
               {#if !role.is_system}
                 <button
-                  class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
+                  class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-danger-light hover:bg-danger-subtle/50 transition-all active:scale-90"
                   onclick={() => { selectedRole = role; showDeleteModal = true; }}
                   title="Delete Role"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={15} />
                 </button>
               {/if}
             </div>
           </div>
 
           <!-- Permission grid -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-3">
-            {#if Array.isArray(role.permissions) && role.permissions.length > 0}
-              {#each role.permissions as permCode}
-                {@const permObj = permissions.find(p => p.code === permCode)}
-                <div class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium border-primary/25 bg-primary-subtle text-primary-light">
-                  <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-primary-light"></span>
-                  {permObj?.name || permCode}
+          <div class="bg-surface-subtle/20 rounded-2xl p-4 border border-border/20">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {#if Array.isArray(role.permissions) && role.permissions.length > 0}
+                {#each role.permissions as permCode}
+                  {@const permObj = permissions.find(p => p.code === permCode)}
+                  <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/10 bg-surface/40 text-xs font-semibold text-text-secondary hover:border-primary/30 hover:bg-surface-hover/30 transition-all cursor-default shadow-sm group/tag">
+                    <div class="w-2 h-2 rounded-full shrink-0 bg-primary/40 group-hover/tag:bg-primary-light transition-colors shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]"></div>
+                    <span class="truncate">{permObj?.name || permCode}</span>
+                  </div>
+                {/each}
+              {:else}
+                <div class="col-span-full py-4 text-center">
+                  <p class="text-sm text-text-muted italic opacity-60 flex items-center justify-center gap-2">
+                    <Loader2 size={14} class="opacity-50" /> No permissions assigned to this role
+                  </p>
                 </div>
-              {/each}
-            {:else}
-              <p class="text-xs text-text-muted italic px-1">No permissions assigned</p>
-            {/if}
+              {/if}
+            </div>
           </div>
         </div>
       {/each}
@@ -254,7 +267,7 @@
 </div>
 
 <!-- Add/Edit Role Modal -->
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="md" footer={roleModalFooter}>
   <div class="space-y-4">
     {#if modalMode === 'add'}
       <div>
@@ -275,9 +288,9 @@
       </div>
     {/if}
     
-<div>
-  <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div class="space-y-4">
+      <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {#each permissions as perm}
           <label 
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors
@@ -298,20 +311,26 @@
       </div>
     </div>
   </div>
-  {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving}>
-      {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Saving...
-      {:else}
-        {modalMode === 'add' ? 'Create Role' : 'Update Permissions'}
-      {/if}
-    </button>
-  {/snippet}
 </Modal>
 
+{#snippet deleteModalFooter()}
+  <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
+  <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
+{/snippet}
+
+{#snippet roleModalFooter()}
+  <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
+  <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving}>
+    {#if saving}
+      <Loader2 size={16} class="animate-spin" /> Saving...
+    {:else}
+      {modalMode === 'add' ? 'Create Role' : 'Update Permissions'}
+    {/if}
+  </button>
+{/snippet}
+
 <!-- Delete Confirm -->
-<Modal bind:open={showDeleteModal} title="Delete Role" size="sm">
+<Modal bind:open={showDeleteModal} title="Delete Role" size="sm" footer={deleteModalFooter}>
   <div class="text-center py-2">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
       <Trash2 size={24} class="text-danger" />
@@ -319,8 +338,4 @@
     <p class="text-text-primary font-semibold mb-1">Delete role "{selectedRole?.name}"?</p>
     <p class="text-text-muted text-sm">Users with this role will lose their assigned permissions. This action cannot be undone.</p>
   </div>
-  {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
-  {/snippet}
 </Modal>

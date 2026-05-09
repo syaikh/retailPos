@@ -2,10 +2,12 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -700,6 +702,10 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		return
 	}
 
+	for i := range logs {
+		logs[i].Description = h.generateAuditDescription(&logs[i])
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
 }
 
@@ -846,8 +852,81 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 		IPAddress:  ip,
 		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
+	log.Description = h.generateAuditDescription(log)
+
 	// Fire and forget
 	go h.auditRepo.Create(context.Background(), log)
+}
+
+func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
+	action := strings.ToLower(log.Action)
+	entity := strings.ToLower(log.EntityType)
+
+	getIdentifier := func(val interface{}) string {
+		if val == nil {
+			return ""
+		}
+		// Try to cast to map if it was unmarshaled from JSON (for ListAuditLogs)
+		if m, ok := val.(map[string]interface{}); ok {
+			if name, ok := m["name"].(string); ok {
+				return name
+			}
+			if name, ok := m["username"].(string); ok {
+				return name
+			}
+			if inv, ok := m["invoice_number"].(string); ok {
+				return inv
+			}
+		}
+		// Fallback for direct struct usage (for logAudit)
+		switch v := val.(type) {
+		case *domain.Product:
+			return v.Name
+		case domain.Product:
+			return v.Name
+		case *domain.User:
+			return v.Username
+		case domain.User:
+			return v.Username
+		case *domain.Sale:
+			return v.InvoiceNumber
+		case domain.Sale:
+			return v.InvoiceNumber
+		}
+		return ""
+	}
+
+	identifier := getIdentifier(log.NewValues)
+	if identifier == "" {
+		identifier = getIdentifier(log.OldValues)
+	}
+
+	// Format action for display
+	var displayAction string
+	switch action {
+	case "create":
+		displayAction = "Created"
+	case "update":
+		displayAction = "Updated"
+	case "delete":
+		displayAction = "Deleted"
+	case "login":
+		displayAction = "Logged in"
+	case "logout":
+		displayAction = "Logged out"
+	default:
+		displayAction = strings.Title(action)
+	}
+
+	if identifier != "" {
+		return fmt.Sprintf("%s %s: %s", displayAction, entity, identifier)
+	}
+
+	if log.EntityID != nil && *log.EntityID > 0 {
+		return fmt.Sprintf("%s %s #%d", displayAction, entity, *log.EntityID)
+	}
+
+	return fmt.Sprintf("%s %s", displayAction, entity)
 }
 
 func getUserID(c *gin.Context) int {
