@@ -77,6 +77,9 @@ build/
 coverage.html
 coverage.xml
 
+# Test results and screenshots
+test-results/
+
 # Local development files
 .kilo/
 *.session
