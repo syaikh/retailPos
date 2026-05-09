@@ -17,6 +17,11 @@
   let searchQuery = $state('');
   let selectedAction = $state('all');
 
+  // Request tracking to prevent duplicate requests
+  let currentRequestId = $state(0);
+  let abortController = $state(null);
+  let hasInitialized = $state(false);
+
   const actionTypes = ['all', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'];
 
   const actionVariant = (a) => {
@@ -28,6 +33,14 @@
   };
 
   async function fetchLogs() {
+    // Cancel any ongoing request
+    if (abortController) {
+      abortController.abort();
+    }
+
+    const requestId = ++currentRequestId;
+    abortController = new AbortController();
+
     try {
       loading = true;
       const params = new URLSearchParams({
@@ -37,47 +50,89 @@
       });
       if (selectedAction !== 'all') params.append('action', selectedAction);
 
-      const r = await apiFetch(`/api/audit-logs?${params.toString()}`);
+      const r = await apiFetch(`/api/audit-logs?${params.toString()}`, {
+        signal: abortController.signal
+      });
+
+      // Check if this request is still the current one
+      if (requestId !== currentRequestId) {
+        return; // Request was cancelled, ignore result
+      }
+
       if (r.ok) {
         const data = await r.json();
         items = data.data || [];
         total = data.total || 0;
       }
-    } catch {
-      toast.error('Failed to load audit logs');
+    } catch (error) {
+      // Don't show error for aborted requests
+      if (error.name !== 'AbortError') {
+        toast.error('Failed to load audit logs');
+      }
     } finally {
-      loading = false;
+      // Only clear loading if this is the current request
+      if (requestId === currentRequestId) {
+        loading = false;
+        abortController = null;
+      }
     }
   }
 
-  // Debounced search
-  const debouncedSearch = debounce(() => {
-    offset = 0;
+  // Track previous values to detect what changed
+  let prevSearchQuery = $state('');
+  let prevSelectedAction = $state('all');
+  let prevOffset = $state(0);
+  let prevLimit = $state(20);
+
+  // Debounced search function
+  const debouncedSearchFetch = debounce(() => {
+    offset = 0; // Reset to first page when searching
     fetchLogs();
   }, 400);
 
+  // Single effect that handles all state changes
   $effect(() => {
-    searchQuery;
-    debouncedSearch();
-  });
+    const currentSearchQuery = searchQuery;
+    const currentSelectedAction = selectedAction;
+    const currentOffset = offset;
+    const currentLimit = limit;
 
-  $effect(() => {
-    selectedAction;
-    offset;
-    limit;
-    untrackedFetch();
-  });
+    // Skip if component hasn't initialized yet
+    if (!hasInitialized) {
+      hasInitialized = true;
+      fetchLogs(); // Initial load
+      // Update previous values
+      prevSearchQuery = currentSearchQuery;
+      prevSelectedAction = currentSelectedAction;
+      prevOffset = currentOffset;
+      prevLimit = currentLimit;
+      return;
+    }
 
-  function untrackedFetch() {
-    fetchLogs();
-  }
+    // Check what changed
+    const searchChanged = currentSearchQuery !== prevSearchQuery;
+    const filterChanged = currentSelectedAction !== prevSelectedAction;
+    const paginationChanged = currentOffset !== prevOffset || currentLimit !== prevLimit;
+
+    if (searchChanged) {
+      // Search changed - use debounced fetch
+      debouncedSearchFetch();
+    } else if (filterChanged || paginationChanged) {
+      // Filter or pagination changed - immediate fetch
+      fetchLogs();
+    }
+
+    // Update previous values
+    prevSearchQuery = currentSearchQuery;
+    prevSelectedAction = currentSelectedAction;
+    prevOffset = currentOffset;
+    prevLimit = currentLimit;
+  });
 
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
     limit = newLimit;
   }
-
-  onMount(fetchLogs);
 </script>
 
 <div class="space-y-5">

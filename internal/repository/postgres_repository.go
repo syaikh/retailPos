@@ -800,7 +800,7 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		return nil, 0, err
 	}
 
-	query = `SELECT id, user_id, username, role, action, entity_type, entity_id, ip_address, created_at FROM audit_logs`
+	query = `SELECT al.id, al.user_id, u.username, al.role, al.action, al.entity_type, al.entity_id, al.ip_address::text, al.created_at::text FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id`
 	args2 := []interface{}{}
 	if userID != nil {
 		query += fmt.Sprintf(" WHERE user_id = $%d", len(args2)+1)

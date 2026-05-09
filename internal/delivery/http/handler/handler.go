@@ -690,11 +690,13 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 			userID = &val
 		}
 	}
+
 	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
 }
 
