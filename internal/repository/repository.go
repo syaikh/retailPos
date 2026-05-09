@@ -53,7 +53,7 @@ type PermissionRepository interface {
 
 type AuditLogRepository interface {
 	Create(ctx context.Context, log *domain.AuditLog) error
-	GetAll(ctx context.Context, limit, offset int, userID *int) ([]domain.AuditLog, int, error)
+	GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string) ([]domain.AuditLog, int, error)
 }
 
 type InventoryRepository interface {

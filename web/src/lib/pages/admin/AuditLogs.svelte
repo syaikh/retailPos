@@ -7,7 +7,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, ScrollText, RefreshCw, CalendarDays, X } from 'lucide-svelte';
+  import { Search, ScrollText, RefreshCw, CalendarDays, X, List, Plus, Edit, Trash, LogIn, LogOut } from 'lucide-svelte';
 
   let loading = $state(true);
   let items = $state([]);
@@ -22,7 +22,14 @@
   let abortController = $state(null);
   let hasInitialized = $state(false);
 
-  const actionTypes = ['all', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'];
+  const actionFilters = [
+    { id: 'all', label: 'All', icon: List, color: 'text-text-muted', activeBg: 'bg-surface-default', activeText: 'text-text-primary' },
+    { id: 'CREATE', label: 'Create', icon: Plus, color: 'text-success-light', activeBg: 'bg-success-subtle/50', activeText: 'text-success-light' },
+    { id: 'UPDATE', label: 'Update', icon: Edit, color: 'text-warning-light', activeBg: 'bg-warning-subtle/50', activeText: 'text-warning-light' },
+    { id: 'DELETE', label: 'Delete', icon: Trash, color: 'text-danger-light', activeBg: 'bg-danger-subtle/50', activeText: 'text-danger-light' },
+    { id: 'LOGIN', label: 'Login', icon: LogIn, color: 'text-primary-light', activeBg: 'bg-primary-subtle/50', activeText: 'text-primary-light' },
+    { id: 'LOGOUT', label: 'Logout', icon: LogOut, color: 'text-primary-light', activeBg: 'bg-primary-subtle/50', activeText: 'text-primary-light' }
+  ];
 
   const actionVariant = (a) => {
     if (a?.toUpperCase() === 'CREATE') return 'success';
@@ -158,29 +165,34 @@
     </div>
 
     <!-- Filter and Action Section -->
-    <div class="flex flex-wrap items-center gap-2">
-      {#each actionTypes as action}
-        <button
-          class={selectedAction === action
-            ? 'pill-tab-active px-3 py-1.5 rounded-full font-medium text-primary'
-            : 'pill-tab px-3 py-1.5 rounded-full font-medium text-text-muted hover:bg-surface-hover/50 transition-colors'}
-          onclick={() => selectedAction = action}
-        >
-          {action === 'all' ? 'All' : action}
-        </button>
-      {/each}
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap p-1 bg-surface-subtle/40 rounded-xl border border-border/40 backdrop-blur-md">
+        {#each actionFilters as action}
+          {@const Icon = action.icon}
+          <button
+            class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 group
+              {selectedAction === action.id
+                ? `${action.activeBg} ${action.activeText} shadow-sm scale-105 z-10`
+                : `text-text-muted hover:text-text-secondary hover:bg-surface-hover/30`}"
+            onclick={() => selectedAction = action.id}
+          >
+            <Icon size={16} class={selectedAction === action.id ? '' : 'opacity-60 group-hover:opacity-100 transition-opacity'} />
+            <span class="text-sm">{action.label}</span>
+          </button>
+        {/each}
+      </div>
 
       <!-- Refresh Button -->
       <button
         onclick={fetchLogs}
         disabled={loading}
-        class="ml-auto btn btn-outline btn-primary px-4 py-1.5"
+        class="ml-auto btn btn-outline btn-primary px-5 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95"
       >
         {#if loading}
-          <RefreshCw size={14} class="animate-spin mr-2" />
+          <RefreshCw size={16} class="animate-spin mr-2" />
           Refreshing...
         {:else}
-          <RefreshCw size={14} class="mr-2" />
+          <RefreshCw size={16} class="mr-2" />
           Refresh
         {/if}
       </button>

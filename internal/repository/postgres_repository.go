@@ -784,15 +784,23 @@ func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *domain.Aud
 	return err
 }
 
-func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int) ([]domain.AuditLog, int, error) {
+func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string) ([]domain.AuditLog, int, error) {
 	var logs []domain.AuditLog
 	var total int
 
-	query := `SELECT COUNT(*) FROM audit_logs`
+	query := `SELECT COUNT(*) FROM audit_logs WHERE 1=1`
 	args := []interface{}{}
 	if userID != nil {
-		query += fmt.Sprintf(" WHERE user_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND user_id = $%d", len(args)+1)
 		args = append(args, *userID)
+	}
+	if action != "" {
+		query += fmt.Sprintf(" AND action = $%d", len(args)+1)
+		args = append(args, action)
+	}
+	if search != "" {
+		query += fmt.Sprintf(" AND (username ILIKE $%d OR entity_type ILIKE $%d OR ip_address ILIKE $%d)", len(args)+1, len(args)+1, len(args)+1)
+		args = append(args, "%"+search+"%")
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -800,13 +808,21 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		return nil, 0, err
 	}
 
-	query = `SELECT al.id, al.user_id, u.username, al.role, al.action, al.entity_type, al.entity_id, al.ip_address::text, al.created_at::text FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id`
+	query = `SELECT al.id, al.user_id, u.username, al.role, al.action, al.entity_type, al.entity_id, al.ip_address::text, al.created_at::text FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
 	args2 := []interface{}{}
 	if userID != nil {
-		query += fmt.Sprintf(" WHERE user_id = $%d", len(args2)+1)
+		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
 		args2 = append(args2, *userID)
 	}
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
+	if action != "" {
+		query += fmt.Sprintf(" AND al.action = $%d", len(args2)+1)
+		args2 = append(args2, action)
+	}
+	if search != "" {
+		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address ILIKE $%d)", len(args2)+1, len(args2)+1, len(args2)+1)
+		args2 = append(args2, "%"+search+"%")
+	}
+	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args2...)
@@ -832,8 +848,8 @@ func (r *postgresRepository) Create(ctx context.Context, log *domain.AuditLog) e
 	return r.CreateAuditLog(ctx, log)
 }
 
-func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int) ([]domain.AuditLog, int, error) {
-	return r.GetAuditLogs(ctx, limit, offset, userID)
+func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string) ([]domain.AuditLog, int, error) {
+	return r.GetAuditLogs(ctx, limit, offset, userID, search, action)
 }
 
 // GetPeriodComparison fetches and calculates period comparison data

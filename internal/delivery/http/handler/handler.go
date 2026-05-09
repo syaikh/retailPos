@@ -691,7 +691,10 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		}
 	}
 
-	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID)
+	search := c.Query("search")
+	action := c.Query("action")
+
+	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID, search, action)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return
@@ -868,4 +871,10 @@ func getRole(c *gin.Context) string {
 		return role.(string)
 	}
 	return ""
+}
+
+func (h *Handler) ServeWS(c *gin.Context) {
+	if h.hub != nil {
+		websocket.ServeWebSocket(h.hub, c)
+	}
 }

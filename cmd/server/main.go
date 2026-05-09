@@ -51,10 +51,6 @@ func main() {
 	}
 	fmt.Println("✅ Connected to PostgreSQL")
 
-	if cfg.Env == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
 	router := gin.Default()
 
 	// CORS
@@ -76,7 +72,12 @@ func main() {
 
 	// Auth service with real DB pool
 	authService := auth.NewAuthService(authRepo, dbPool)
-	h := handler.NewHandler(authRepo, roleRepo, productRepo, saleRepo, authService, nil, auditRepo)
+
+	// WebSocket hub
+	hub := websocket.NewHub(authService)
+	go hub.Run()
+
+	h := handler.NewHandler(authRepo, roleRepo, productRepo, saleRepo, authService, hub, auditRepo)
 
 	// Public routes
 	public := router.Group("/api")
@@ -132,17 +133,15 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "timestamp": time.Now().Format(time.RFC3339)})
 	})
 
+	// WebSocket
+	router.GET("/ws", h.ServeWS)
+
 	// Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "9095"
 	}
 	addr := ":" + port
-
-	// WebSocket hub
-	hub := websocket.NewHub(authService)
-	go hub.Run()
-	_ = hub
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -152,12 +151,9 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Simpan server instance jika perlu (misal untuk graceful shutdown)
-	_ = srv
-
 	// Start
 	println("Server starting on " + addr + " (env: " + cfg.Env + ")")
-	if err := router.Run(addr); err != nil && err != http.ErrServerClosed {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		panic(err)
 	}
 }
