@@ -118,7 +118,7 @@ test.describe('Reports & Analytics', () => {
 test.describe('Reports API', () => {
   test('GET /api/stats returns valid dashboard data', async ({ page }) => {
     // Already tested in api-integration.spec.ts, but keeping here for completeness
-    const response = await page.request.get('http://localhost:8080/api/stats');
+    const response = await page.request.get('http://localhost:9095/api/stats');
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.data).toHaveProperty('total_sales');
@@ -127,7 +127,7 @@ test.describe('Reports API', () => {
   });
 
   test('GET /api/reports/chart returns chart data', async ({ page }) => {
-    const response = await page.request.get('http://localhost:8080/api/reports/chart');
+    const response = await page.request.get('http://localhost:9095/api/reports/chart');
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     // Should be array of { day: date, sales: number, revenue: number }
@@ -138,7 +138,7 @@ test.describe('Reports API', () => {
   });
 
   test('GET /api/sales supports pagination and filters', async ({ page }) => {
-    const response = await page.request.get('http://localhost:8080/api/sales?limit=5');
+    const response = await page.request.get('http://localhost:9095/api/sales?limit=5');
     expect(response.ok()).toBeTruthy();
   });
 });

@@ -592,6 +592,76 @@ func (r *postgresRepository) GetCategoryIDByName(ctx context.Context, name strin
 	return id, err
 }
 
+func (r *postgresRepository) GetDeletedProductByBarcode(ctx context.Context, barcode string, storeID *int) (*domain.Product, error) {
+	var p domain.Product
+	var barcodeVal sql.NullString
+	var categoryIDVal, storeIDVal sql.NullInt64
+	var categoryName sql.NullString
+	var createdAt, updatedAt time.Time
+
+	query := `
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.stock_max,
+		       p.store_id, p.is_active, p.created_at, p.updated_at
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE p.barcode = $1 AND p.deleted_at IS NOT NULL`
+
+	args := []interface{}{barcode}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.StockMax,
+		&storeIDVal, &p.IsActive, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("product not found")
+		}
+		return nil, err
+	}
+
+	if barcodeVal.Valid {
+		p.Barcode = &barcodeVal.String
+	}
+	if categoryIDVal.Valid {
+		v := int(categoryIDVal.Int64)
+		p.CategoryID = &v
+	}
+	if categoryName.Valid {
+		p.CategoryName = &categoryName.String
+	}
+	if storeIDVal.Valid {
+		v := int(storeIDVal.Int64)
+		p.StoreID = &v
+	}
+	p.CreatedAt = createdAt.Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+
+	return &p, nil
+}
+
+func (r *postgresRepository) RestoreProduct(ctx context.Context, product *domain.Product) error {
+	var barcode interface{}
+	if product.Barcode != nil {
+		barcode = *product.Barcode
+	}
+	var categoryID, storeIDVal interface{}
+	if product.CategoryID != nil {
+		categoryID = *product.CategoryID
+	}
+	if product.StoreID != nil {
+		storeIDVal = *product.StoreID
+	}
+
+	_, err := r.db.Exec(ctx, `
+		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5, cost = $6, stock = $7, stock_min = $8, stock_max = $9,
+		    store_id = $10, is_active = $11, deleted_at = NULL, updated_at = NOW()
+		WHERE id = $12
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, product.StockMax, storeIDVal, product.IsActive, product.ID)
+	return err
+}
+
 // ==================== SALE ====================
 
 func (r *postgresRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
@@ -628,7 +698,7 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 			SET stock = stock - $1, updated_at = NOW() 
 			WHERE id = $2 AND deleted_at IS NULL
 		`, items[i].Quantity, items[i].ProductID)
-		
+
 		if err != nil {
 			// This could be a constraint violation (insufficient stock)
 			return fmt.Errorf("failed to update stock for product %d: %w", items[i].ProductID, err)

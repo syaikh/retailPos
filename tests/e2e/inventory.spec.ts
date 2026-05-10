@@ -47,7 +47,7 @@ test.describe('Inventory Management', () => {
 test.describe('Inventory API Endpoints', () => {
   test('GET /api/products returns seeded data', async ({ page }) => {
     // Even without UI, we can test backend directly
-    const response = await page.request.get('http://localhost:8080/api/products');
+    const response = await page.request.get('http://localhost:9095/api/products');
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.data).toBeInstanceOf(Array);
@@ -55,13 +55,13 @@ test.describe('Inventory API Endpoints', () => {
 
   test('GET /api/products supports query parameters', async ({ page }) => {
     // Test ?maxStock=1 for low stock items
-    const response = await page.request.get('http://localhost:8080/api/products?maxStock=1');
+    const response = await page.request.get('http://localhost:9095/api/products?maxStock=1');
     expect(response.ok()).toBeTruthy();
   });
 
   test('GET /api/products/:id returns single product', async ({ page }) => {
     // Assuming product ID 1 exists from seeds
-    const response = await page.request.get('http://localhost:8080/api/products/1');
+    const response = await page.request.get('http://localhost:9095/api/products/1');
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.data).toHaveProperty('name');

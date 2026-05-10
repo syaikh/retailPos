@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"retail-pos-system/internal/auth"
 	"retail-pos-system/internal/domain"
 	"retail-pos-system/internal/repository"
 	"retail-pos-system/pkg/websocket"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getCtx(c *gin.Context) context.Context {
@@ -22,13 +23,13 @@ func getCtx(c *gin.Context) context.Context {
 }
 
 type Handler struct {
-	authRepo       repository.UserRepository
-	roleRepo       repository.RoleRepository
-	productRepo    repository.ProductRepository
-	saleRepo       repository.SaleRepository
-	authService    *auth.AuthService
-	hub            *websocket.Hub
-	auditRepo      repository.AuditLogRepository
+	authRepo    repository.UserRepository
+	roleRepo    repository.RoleRepository
+	productRepo repository.ProductRepository
+	saleRepo    repository.SaleRepository
+	authService *auth.AuthService
+	hub         *websocket.Hub
+	auditRepo   repository.AuditLogRepository
 }
 
 func NewHandler(
@@ -49,6 +50,86 @@ func NewHandler(
 		hub:         hub,
 		auditRepo:   auditRepo,
 	}
+}
+
+func (h *Handler) userRole(c *gin.Context) string {
+	role, exists := c.Get("role")
+	if !exists {
+		return ""
+	}
+	if roleStr, ok := role.(string); ok {
+		return strings.ToLower(strings.TrimSpace(roleStr))
+	}
+	return ""
+}
+
+func (h *Handler) hasPermission(c *gin.Context, permission string) bool {
+	perms, exists := c.Get("permissions")
+	if !exists {
+		return false
+	}
+	permissions, ok := perms.([]string)
+	if !ok {
+		return false
+	}
+	for _, perm := range permissions {
+		if perm == permission {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Handler) canManageProduct(c *gin.Context, permission string) bool {
+	role := h.userRole(c)
+	if role == "superadmin" || role == "admin" || role == "inventory officer" {
+		return true
+	}
+	return h.hasPermission(c, permission)
+}
+
+func (h *Handler) normalizeProductBarcode(product *domain.Product) {
+	if product.Barcode != nil {
+		trimmed := strings.TrimSpace(*product.Barcode)
+		if trimmed == "" {
+			product.Barcode = nil
+		} else {
+			product.Barcode = &trimmed
+		}
+	}
+}
+
+func (h *Handler) resolveProductCategory(c *gin.Context, product *domain.Product) error {
+	if product.CategoryName == nil || strings.TrimSpace(*product.CategoryName) == "" {
+		return fmt.Errorf("category is required")
+	}
+
+	categoryName := strings.TrimSpace(*product.CategoryName)
+	categoryID, err := h.productRepo.GetCategoryIDByName(getCtx(c), categoryName)
+	if err != nil {
+		return err
+	}
+	product.CategoryID = &categoryID
+	return nil
+}
+
+func (h *Handler) validateProductPayload(product *domain.Product) error {
+	if strings.TrimSpace(product.Name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	if strings.TrimSpace(product.SKU) == "" {
+		return fmt.Errorf("sku is required")
+	}
+	if product.CategoryName == nil && product.CategoryID == nil {
+		return fmt.Errorf("category is required")
+	}
+	if product.Price <= 0 {
+		return fmt.Errorf("price must be greater than 0")
+	}
+	if product.Stock < 0 {
+		return fmt.Errorf("stock must not be negative")
+	}
+	return nil
 }
 
 // Auth Handlers
@@ -197,12 +278,51 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
+
+	if !h.canManageProduct(c, "product:create") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	h.normalizeProductBarcode(&product)
+	if err := h.validateProductPayload(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.resolveProductCategory(c, &product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
+		return
+	}
+
+	if product.Barcode != nil {
+		deletedProduct, err := h.productRepo.GetDeletedProductByBarcode(getCtx(c), *product.Barcode, nil)
+		if err == nil && deletedProduct != nil {
+			old := *deletedProduct
+			product.ID = deletedProduct.ID
+			product.IsActive = true
+			if err := h.productRepo.RestoreProduct(getCtx(c), &product); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to restore product"})
+				return
+			}
+			h.logAudit(c, "restore", "product", product.ID, old, product)
+			if h.hub != nil {
+				websocket.BroadcastProductUpdate(h.hub, &product)
+			}
+			c.JSON(http.StatusOK, gin.H{"data": product})
+			return
+		}
+		if err != nil && !strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check deleted product"})
+			return
+		}
+	}
+
 	if err := h.productRepo.CreateProduct(getCtx(c), &product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create product"})
 		return
 	}
 	h.logAudit(c, "create", "product", product.ID, nil, product)
-	// Broadcast product update
 	if h.hub != nil {
 		websocket.BroadcastProductUpdate(h.hub, &product)
 	}
@@ -212,18 +332,36 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 func (h *Handler) UpdateProduct(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	old, _ := h.productRepo.GetProductByID(getCtx(c), id, nil)
+	if old == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+
+	if !h.canManageProduct(c, "product:update") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
 	var product domain.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 	product.ID = id
+	h.normalizeProductBarcode(&product)
+	if err := h.validateProductPayload(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.resolveProductCategory(c, &product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
+		return
+	}
 	if err := h.productRepo.UpdateProduct(getCtx(c), &product, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update product"})
 		return
 	}
 	h.logAudit(c, "update", "product", product.ID, old, product)
-	// Broadcast product update
 	if h.hub != nil {
 		websocket.BroadcastProductUpdate(h.hub, &product)
 	}
@@ -232,7 +370,22 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 
 func (h *Handler) DeleteProduct(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	old, _ := h.productRepo.GetProductByID(getCtx(c), id, nil)
+	old, err := h.productRepo.GetProductByID(getCtx(c), id, nil)
+	if err != nil || old == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+
+	if !h.canManageProduct(c, "product:delete") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	if old.Stock > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product must have zero stock before deletion"})
+		return
+	}
+
 	if err := h.productRepo.DeleteProduct(getCtx(c), id, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete product"})
 		return
@@ -260,7 +413,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			storeID = v
 		}
 	}
-	
+
 	// If storeID is still nil, fallback to request
 	if storeID == nil {
 		storeID = req.StoreID
@@ -386,7 +539,7 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": map[string]interface{}{
 		"todays_revenue":  todaysRev,
 		"todays_sales":    len(sales),
-		"total_products":   totalProducts,
+		"total_products":  totalProducts,
 		"low_stock_count": lowStockCount,
 	}})
 }
@@ -395,7 +548,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	ctx := getCtx(c)
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
-	
+
 	if startDate == "" || endDate == "" {
 		now := time.Now()
 		endDate = now.Format("2006-01-02")
@@ -421,11 +574,11 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 		Date  string `json:"date"`
 		Total int    `json:"total"`
 	}
-	
+
 	var data []ChartDataPoint
 	start, _ := time.Parse("2006-01-02", startDate)
 	end, _ := time.Parse("2006-01-02", endDate)
-	
+
 	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		dateStr := d.Format("2006-01-02")
 		data = append(data, ChartDataPoint{
@@ -463,9 +616,9 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 		weekKey := weekStart + "|" + weekEnd
 		if weeklyTotals[weekKey] == nil {
 			weeklyTotals[weekKey] = map[string]interface{}{
-				"week_start": weekStart,
-				"week_end":   weekEnd,
-				"total":      0,
+				"week_start":  weekStart,
+				"week_end":    weekEnd,
+				"total":       0,
 				"order_count": 0,
 			}
 		}
@@ -523,9 +676,9 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 
 		if monthlyTotals[monthKey] == nil {
 			monthlyTotals[monthKey] = map[string]interface{}{
-				"month":      monthKey,
+				"month":       monthKey,
 				"month_start": monthStart,
-				"total":      0,
+				"total":       0,
 				"order_count": 0,
 			}
 		}
@@ -598,7 +751,7 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 				"start": ranges.PreviousStart.Format("2006-01-02"),
 				"end":   ranges.PreviousEnd.AddDate(0, 0, -1).Format("2006-01-02"),
 			},
-			"is_partial": ranges.IsPartial,
+			"is_partial":     ranges.IsPartial,
 			"days_in_period": ranges.DaysInPeriod,
 		},
 	})
@@ -666,7 +819,9 @@ func (h *Handler) CreateRole(c *gin.Context) {
 
 func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	var req struct{ PermissionIDs []int `json:"permission_ids"` }
+	var req struct {
+		PermissionIDs []int `json:"permission_ids"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
@@ -736,12 +891,12 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 // User CRUD (Admin)
 func (h *Handler) CreateUser(c *gin.Context) {
 	var input struct {
-		Username  string `json:"username" binding:"required"`
-		Email     string `json:"email" binding:"required,email"`
-		Password  string `json:"password" binding:"required,min=6"`
-		RoleID    int    `json:"role_id" binding:"required"`
-		StoreID   *int   `json:"store_id"`
-		IsActive  bool   `json:"is_active"`
+		Username string `json:"username" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+		RoleID   int    `json:"role_id" binding:"required"`
+		StoreID  *int   `json:"store_id"`
+		IsActive bool   `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -779,12 +934,12 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) UpdateUser(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var input struct {
-		Username   string  `json:"username"`
-		Email      string  `json:"email"`
-		Password   string  `json:"password"` // optional
-		RoleID     int     `json:"role_id"`
-		StoreID    *int    `json:"store_id"`
-		IsActive   bool    `json:"is_active"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"` // optional
+		RoleID   int    `json:"role_id"`
+		StoreID  *int   `json:"store_id"`
+		IsActive bool   `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

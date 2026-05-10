@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"retail-pos-system/internal/domain"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type UserRepository interface {
@@ -31,10 +32,12 @@ type RoleRepository interface {
 type ProductRepository interface {
 	GetProductByID(ctx context.Context, id int, storeID *int) (*domain.Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*domain.Product, error)
-	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryID *int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error)
+	GetDeletedProductByBarcode(ctx context.Context, barcode string, storeID *int) (*domain.Product, error)
 	CreateProduct(ctx context.Context, product *domain.Product) error
 	UpdateProduct(ctx context.Context, product *domain.Product, storeID *int) error
+	RestoreProduct(ctx context.Context, product *domain.Product) error
 	DeleteProduct(ctx context.Context, id int, storeID *int) error
+	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryID *int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error)
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
 }

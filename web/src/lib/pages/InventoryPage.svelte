@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
-  import { toast } from '$lib/stores/toast';
+  import { auth } from '$lib/stores/auth';
   import { debounce } from '$lib/utils/debounce';
 
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -28,6 +28,8 @@
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
   let isSearching = $state(false);
+  let canManageInventory = $state(false);
+  const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
   
   // Track previous values to avoid duplicate fetches
   let previousSearchQuery = '';
@@ -45,6 +47,7 @@
   let form = $state({
     name: '',
     sku: '',
+    barcode: '',
     category: '',
     price: 0,
     stock: 0,
@@ -73,7 +76,7 @@
         offset: offset.toString(),
         search: searchQuery
       });
-      if (selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (selectedCategory.toLowerCase() !== 'all') params.append('category', selectedCategory);
       if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
 
       // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
@@ -160,9 +163,15 @@
   }
 
    async function handleAdd() {
+     if (!canManageInventory) {
+       toast.error('Insufficient permission to add products');
+       return;
+     }
+     if (!validateProductForm()) return;
+
      saving = true;
      try {
-       const payload = { ...form, category_name: form.category };
+       const payload = { ...form, category_name: form.category, barcode: form.barcode?.trim() || undefined };
        await apiClient.post('/products', payload);
        toast.success('Product added');
        showModal = false;
@@ -176,9 +185,15 @@
    }
 
    async function handleUpdate() {
+     if (!canManageInventory) {
+       toast.error('Insufficient permission to update products');
+       return;
+     }
+     if (!validateProductForm()) return;
+
      saving = true;
      try {
-       const payload = { ...form, category_name: form.category };
+       const payload = { ...form, category_name: form.category, barcode: form.barcode?.trim() || undefined };
        await apiClient.put(`/products/${selectedProduct.id}`, payload);
        toast.success('Product updated');
        showModal = false;
@@ -204,8 +219,40 @@
   }
 
   function resetForm() {
-    form = { name: '', sku: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
+    form = { name: '', sku: '', barcode: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
   }
+
+  function getUserRoleName() {
+    const user = $auth.user;
+    if (!user) return '';
+    if (typeof user.role === 'string') return user.role.toLowerCase();
+    if (user.role && typeof user.role === 'object' && user.role.name) return user.role.name.toLowerCase();
+    if (user.role_id === 1) return 'superadmin';
+    if (user.role_id === 2) return 'admin';
+    if (user.role_id === 3) return 'cashier';
+    if (user.role_id === 4) return 'manager';
+    return '';
+  }
+
+  function validateProductForm() {
+    if (!form.name.trim() || !form.sku.trim() || !form.category.trim()) {
+      toast.error('Please complete all required fields');
+      return false;
+    }
+    if (form.price <= 0) {
+      toast.error('Price must be greater than zero');
+      return false;
+    }
+    if (form.stock < 0) {
+      toast.error('Stock must not be negative');
+      return false;
+    }
+    return true;
+  }
+
+  $effect(() => {
+    canManageInventory = allowedInventoryRoles.includes(getUserRoleName());
+  });
 
   function handleSort(column) {
     if (sortBy === column) {
@@ -342,11 +389,14 @@
       </label>
       <button
         onclick={() => {
+          if (!canManageInventory) return;
           modalMode = 'add';
           resetForm();
           showModal = true;
         }}
-        class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
+        disabled={!canManageInventory}
+        class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+        title={canManageInventory ? 'Add product' : 'Requires inventory role'}
       >
         <Plus size={18} />
         Add Product
@@ -386,7 +436,7 @@
         </div>
         <p class="text-text-primary font-semibold mt-4">No products found</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery || selectedCategory !== 'all' ? 'Try adjusting your filters' : 'Start by adding your first product'}
+          {searchQuery || selectedCategory.toLowerCase() !== 'all' ? 'Try adjusting your filters' : 'Start by adding your first product'}
         </p>
       </div>
     {:else}
@@ -489,13 +539,15 @@
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onclick={() => {
+                      if (!canManageInventory) return;
                       selectedProduct = product;
-                      form = { ...product, category: product.category_name || categories.find(c => c !== 'All') || '' };
+                      form = { ...product, barcode: product.barcode || '', category: product.category_name || categories.find(c => c !== 'All') || '' };
                       modalMode = 'edit';
                       showModal = true;
                     }}
-                    class="p-1.5 hover:bg-primary/10 rounded-lg transition-colors"
-                    title="Edit"
+                    disabled={!canManageInventory}
+                    class="p-1.5 rounded-lg transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={canManageInventory ? 'Edit' : 'Requires inventory role'}
                   >
                     <Pencil size={14} class="text-primary" />
                   </button>
@@ -504,8 +556,9 @@
                       selectedProduct = product;
                       showDeleteModal = true;
                     }}
-                    class="p-1.5 hover:bg-destructive/10 rounded-lg transition-colors"
-                    title="Delete"
+                    disabled={!canManageInventory || product.stock > 0}
+                    class="p-1.5 rounded-lg transition-colors hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={product.stock > 0 ? 'Cannot delete products with stock remaining' : canManageInventory ? 'Delete' : 'Requires inventory role'}
                   >
                     <Trash2 size={14} class="text-destructive" />
                   </button>
@@ -540,8 +593,12 @@
       <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
     </div>
     <div>
+      <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">Barcode <span class="text-text-muted text-xs">(optional)</span></label>
+      <input id="prod-barcode" bind:value={form.barcode} type="text" class="input" placeholder="Optional barcode" />
+    </div>
+    <div>
       <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category</label>
-       <select id="prod-category" bind:value={form.category} class="input">
+       <select id="prod-category" bind:value={form.category} class="input" required>
          {#each categories.filter(c => c !== 'all') as cat}
            <option value={cat}>{cat}</option>
          {/each}
@@ -556,10 +613,18 @@
       <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
     </div>
     <div class="flex justify-end gap-4 pt-4">
-      <button type="button" onclick={() => (showModal = false)} class="btn-secondary">
+      <button 
+        type="button" 
+        onclick={() => (showModal = false)} 
+        class="btn btn-secondary rounded-full px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
         Cancel
       </button>
-      <button type="submit" disabled={saving} class="btn-primary">
+      <button 
+        type="submit" 
+        disabled={saving} 
+        class="btn btn-primary rounded-full shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
         {saving ? 'Saving...' : modalMode === 'add' ? 'Add' : 'Update'}
       </button>
     </div>
@@ -576,7 +641,7 @@
     <p class="text-text-muted text-sm">This action cannot be undone and will remove the product from the catalog.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger" onclick={handleDelete}>Delete</button>
+    <button class="btn btn-secondary rounded-full px-5" onclick={() => showDeleteModal = false}>Cancel</button>
+    <button class="btn btn-danger rounded-full px-5" onclick={handleDelete}>Delete</button>
   {/snippet}
 </Modal>
