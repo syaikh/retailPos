@@ -76,6 +76,11 @@ func (h *Handler) Login(c *gin.Context) {
 		Secure:   isProd,
 		SameSite: http.SameSiteLaxMode,
 	})
+	c.Set("userID", resp.User.ID)
+	c.Set("username", resp.User.Username)
+	c.Set("role", resp.User.Role.Name)
+	h.logAudit(c, "login", "auth", resp.User.ID, nil, nil)
+
 	c.JSON(http.StatusOK, gin.H{"access_token": resp.AccessToken, "refresh_token": resp.RefreshToken, "user": resp.User})
 }
 
@@ -95,6 +100,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		Secure:   os.Getenv("ENV") == "production",
 		SameSite: http.SameSiteLaxMode,
 	})
+	h.logAudit(c, "logout", "auth", userID, nil, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "logged out"})
 }
 
@@ -840,6 +846,7 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 	usernameVal, _ := c.Get("username")
 	roleVal, _ := c.Get("role")
 	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
 
 	var userID int
 	var username string
@@ -868,6 +875,7 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 		OldValues:  oldValues,
 		NewValues:  newValues,
 		IPAddress:  ip,
+		UserAgent:  ua,
 		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 	log.Description = h.generateAuditDescription(log)
@@ -921,17 +929,18 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 
 	// Format action for display
 	displayAction := action
-	if action == "create" {
+	switch action {
+	case "create":
 		displayAction = "Created"
-	} else if action == "update" {
+	case "update":
 		displayAction = "Updated"
-	} else if action == "delete" {
+	case "delete":
 		displayAction = "Deleted"
-	} else if action == "login" {
+	case "login":
 		displayAction = "Logged in"
-	} else if action == "logout" {
+	case "logout":
 		displayAction = "Logged out"
-	} else {
+	default:
 		displayAction = strings.Title(action)
 	}
 
@@ -941,6 +950,10 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 
 	if log.EntityID != nil && *log.EntityID > 0 {
 		return fmt.Sprintf("%s %s #%d", displayAction, entity, *log.EntityID)
+	}
+
+	if entity == "auth" {
+		return displayAction
 	}
 
 	return fmt.Sprintf("%s %s", displayAction, entity)
