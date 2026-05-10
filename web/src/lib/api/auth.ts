@@ -14,13 +14,25 @@ export async function refreshAccessToken(): Promise<string | null> {
     // Request ke /api/refresh, cookie HttpOnly otomatis terkirim
     const response = await authApi.post('/refresh');
     const newAccessToken = response.data.access_token;
-    
+
     // Simpan ke sessionStorage (safe dari XSS, refresh token ada di HttpOnly cookie)
     sessionStorage.setItem('access_token', newAccessToken);
     return newAccessToken;
   } catch (err) {
     // Jika gagal refresh, logout user
     logout();
+    return null;
+  }
+}
+
+// Function to refresh token without automatic logout (for session restoration)
+export async function refreshTokenSilently(): Promise<string | null> {
+  try {
+    const response = await authApi.post('/refresh');
+    const newAccessToken = response.data.access_token;
+    sessionStorage.setItem('access_token', newAccessToken);
+    return newAccessToken;
+  } catch (err) {
     return null;
   }
 }
@@ -98,7 +110,7 @@ function getAuthHeaders(): Record<string, string> {
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await authApi.get('/validate', { headers: getAuthHeaders() });
+    const response = await authApi.post('/validate', {}, { headers: getAuthHeaders() });
     return response.status === 200;
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
@@ -107,7 +119,7 @@ export async function checkAuth(): Promise<boolean> {
         return false;
       }
       try {
-        const response = await authApi.get('/validate', { headers: { Authorization: `Bearer ${newToken}` } });
+        const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
         return response.status === 200;
       } catch (_err) {
         return false;
@@ -120,16 +132,32 @@ export async function checkAuth(): Promise<boolean> {
 // Fungsi khusus untuk restore session saat refresh halaman
 export async function restoreSession(): Promise<{ success: boolean; user?: User }> {
   try {
-    // Langsung coba refresh token tanpa validate dulu
-    const newToken = await refreshAccessToken();
-    if (!newToken) {
+    const accessToken = sessionStorage.getItem('access_token');
+    if (!accessToken) {
       return { success: false };
     }
-    // Validate token baru dan ambil user data
-    const response = await authApi.get('/validate', { headers: { Authorization: `Bearer ${newToken}` } });
-    if (response.status === 200 && response.data.user) {
-      return { success: true, user: response.data.user };
+
+    // First try to validate the existing token
+    try {
+      const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (response.status === 200 && response.data.user) {
+        return { success: true, user: response.data.user };
+      }
+    } catch (err) {
+      // If validation fails with 401, try to refresh the token
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        const newToken = await refreshTokenSilently();
+        if (!newToken) {
+          return { success: false };
+        }
+        // Validate the new token
+        const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
+        if (response.status === 200 && response.data.user) {
+          return { success: true, user: response.data.user };
+        }
+      }
     }
+
     return { success: false };
   } catch (err) {
     return { success: false };

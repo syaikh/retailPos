@@ -59,8 +59,15 @@
     const hasToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
     let isAuthenticated = hasToken;
 
-    if (!hasToken) {
-      // Try to restore session using HttpOnly refresh_token cookie
+    if (hasToken) {
+      // Token exists, try to validate and get user data
+      const restoreResult = await restoreSession();
+      isAuthenticated = restoreResult.success;
+      if (isAuthenticated && restoreResult.user) {
+        auth.setUser(restoreResult.user);
+      }
+    } else {
+      // No token, try to restore session using HttpOnly refresh_token cookie
       const restoreResult = await restoreSession();
       isAuthenticated = restoreResult.success;
       if (isAuthenticated && restoreResult.user) {

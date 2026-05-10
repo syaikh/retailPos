@@ -38,8 +38,31 @@ type ProductRepository interface {
 	RestoreProduct(ctx context.Context, product *domain.Product) error
 	DeleteProduct(ctx context.Context, id int, storeID *int) error
 	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryID *int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error)
+	GetNextSKU(ctx context.Context) (string, error)
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
+	
+	// Brand operations
+	GetBrandByID(ctx context.Context, id int) (*domain.Brand, error)
+	GetAllBrands(ctx context.Context) ([]domain.Brand, error)
+	CreateBrand(ctx context.Context, brand *domain.Brand) error
+	UpdateBrand(ctx context.Context, brand *domain.Brand) error
+	DeleteBrand(ctx context.Context, id int) error
+	GetBrandIDByName(ctx context.Context, name string) (int, error)
+	
+	// Tax class operations
+	GetTaxClassByID(ctx context.Context, id int) (*domain.TaxClass, error)
+	GetAllTaxClasses(ctx context.Context) ([]domain.TaxClass, error)
+	GetTaxClassIDByName(ctx context.Context, name string) (int, error)
+	
+	// Unit of measure operations
+	GetUnitOfMeasureByID(ctx context.Context, id int) (*domain.UnitOfMeasure, error)
+	GetAllUnitsOfMeasure(ctx context.Context) ([]domain.UnitOfMeasure, error)
+	GetUnitOfMeasureIDByCode(ctx context.Context, code string) (int, error)
+	
+	// Warehouse operations
+	GetWarehouseByID(ctx context.Context, id int) (*domain.Warehouse, error)
+	GetAllWarehouses(ctx context.Context, storeID *int) ([]domain.Warehouse, error)
 }
 
 type SaleRepository interface {

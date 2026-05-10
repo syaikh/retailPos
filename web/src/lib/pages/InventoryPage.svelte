@@ -13,6 +13,70 @@
     SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X
   } from 'lucide-svelte';
 
+  // Toast notifications
+  const toast = {
+    success: (message, timeout = 3000) => {
+      console.log('✓', message);
+      // Create a simple notification
+      const notification = document.createElement('div');
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), timeout);
+    },
+    error: (message, timeout = 3000) => {
+      console.error('✗', message);
+      // Create a simple notification
+      const notification = document.createElement('div');
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ef4444;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), timeout);
+    },
+    info: (message, timeout = 2000) => {
+      console.log('ℹ', message);
+      // Create a simple notification
+      const notification = document.createElement('div');
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #3b82f6;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), timeout);
+    }
+  };
+
   let loading = $state(true);
   let products = $state([]);
   let total = $state(0);
@@ -27,6 +91,7 @@
   let selectedProduct = $state(null);
   let modalMode = $state('add'); // 'add' or 'edit'
   let saving = $state(false);
+  let isDeleting = $state(false);
   let isSearching = $state(false);
   let canManageInventory = $state(false);
   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
@@ -207,14 +272,24 @@
    }
 
   async function handleDelete() {
+    if (!selectedProduct) {
+      toast.error('No product selected');
+      return;
+    }
+    
+    isDeleting = true;
     try {
-      await apiClient.delete(`/products/${selectedProduct.id}`);
-      toast.success('Product deleted');
+      const response = await apiClient.delete(`/products/${selectedProduct.id}`);
+      toast.success('Product deleted successfully');
       showDeleteModal = false;
       selectedProduct = null;
       await fetchProducts(false);
     } catch (err) {
-      toast.error('Failed to delete product');
+      console.error('Delete error:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
+      toast.error(errorMessage);
+    } finally {
+      isDeleting = false;
     }
   }
 
@@ -641,7 +716,9 @@
     <p class="text-text-muted text-sm">This action cannot be undone and will remove the product from the catalog.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary rounded-full px-5" onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger rounded-full px-5" onclick={handleDelete}>Delete</button>
+    <button class="btn btn-secondary rounded-full px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</button>
+    <button class="btn btn-danger rounded-full px-5" disabled={isDeleting} onclick={() => handleDelete()}>
+      {isDeleting ? 'Deleting...' : 'Delete'}
+    </button>
   {/snippet}
 </Modal>

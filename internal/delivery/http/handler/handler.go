@@ -1130,6 +1130,96 @@ func (h *Handler) ListCategories(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": categories})
 }
 
+// Phase 1 Extension Handlers - Brands, Tax, UOM, Warehouses
+
+func (h *Handler) GetNextSKU(c *gin.Context) {
+	sku, err := h.productRepo.GetNextSKU(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate SKU"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sku": sku})
+}
+
+func (h *Handler) GetBrands(c *gin.Context) {
+	brands, err := h.productRepo.GetAllBrands(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch brands"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": brands})
+}
+
+func (h *Handler) CreateBrand(c *gin.Context) {
+	var brand domain.Brand
+	if err := c.ShouldBindJSON(&brand); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if err := h.productRepo.CreateBrand(getCtx(c), &brand); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create brand"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": brand})
+}
+
+func (h *Handler) UpdateBrand(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var brand domain.Brand
+	if err := c.ShouldBindJSON(&brand); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	brand.ID = id
+	if err := h.productRepo.UpdateBrand(getCtx(c), &brand); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update brand"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": brand})
+}
+
+func (h *Handler) DeleteBrand(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if err := h.productRepo.DeleteBrand(getCtx(c), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete brand"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *Handler) GetTaxClasses(c *gin.Context) {
+	taxClasses, err := h.productRepo.GetAllTaxClasses(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tax classes"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": taxClasses})
+}
+
+func (h *Handler) GetUnitsOfMeasure(c *gin.Context) {
+	uoms, err := h.productRepo.GetAllUnitsOfMeasure(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch units of measure"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": uoms})
+}
+
+func (h *Handler) GetWarehouses(c *gin.Context) {
+	var storeID *int
+	if sid, exists := c.Get("storeID"); exists {
+		if v, ok := sid.(*int); ok && v != nil {
+			storeID = v
+		}
+	}
+	warehouses, err := h.productRepo.GetAllWarehouses(getCtx(c), storeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch warehouses"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": warehouses})
+}
+
 func getRole(c *gin.Context) string {
 	if role, exists := c.Get("role"); exists {
 		return role.(string)

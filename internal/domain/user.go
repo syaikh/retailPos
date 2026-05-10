@@ -29,21 +29,35 @@ type Permission struct {
 }
 
 type Product struct {
-	ID           int      `json:"id"`
-	SKU          string   `json:"sku"`
-	Name         string   `json:"name"`
-	Barcode      *string  `json:"barcode,omitempty"`
-	CategoryID   *int     `json:"category_id,omitempty"`
-	CategoryName *string  `json:"category_name,omitempty"`
-	Price        int      `json:"price"`
-	Cost         int      `json:"cost"`
-	Stock        int      `json:"stock"`
-	StockMin     int      `json:"stock_min"`
-	StockMax     int      `json:"stock_max"`
-	StoreID      *int     `json:"store_id,omitempty"`
-	IsActive     bool     `json:"is_active"`
-	CreatedAt    string   `json:"created_at,omitempty"`
-	UpdatedAt    string   `json:"updated_at,omitempty"`
+	ID                  int            `json:"id"`
+	SKU                 string         `json:"sku"`
+	Name                string         `json:"name"`
+	Barcode             *string        `json:"barcode,omitempty"`
+	CategoryID          *int           `json:"category_id,omitempty"`
+	CategoryName        *string        `json:"category_name,omitempty"`
+	BrandID             *int           `json:"brand_id,omitempty"`
+	BrandName           *string        `json:"brand_name,omitempty"`
+	Description         *string        `json:"description,omitempty"`
+	Price               int            `json:"price"`
+	Cost                int            `json:"cost"`
+	Stock               int            `json:"stock"`
+	StockMin            int            `json:"stock_min"`
+	StockMax            int            `json:"stock_max"`
+	StoreID             *int           `json:"store_id,omitempty"`
+	IsActive            bool           `json:"is_active"`
+	TaxClassID          *int           `json:"tax_class_id,omitempty"`
+	TaxRate             *float64       `json:"tax_rate,omitempty"`
+	WeightGrams         *int           `json:"weight_grams,omitempty"`
+	DimensionsCM        map[string]any `json:"dimensions_cm,omitempty"`
+	UnitOfMeasureID     *int           `json:"unit_of_measure_id,omitempty"`
+	UnitOfMeasure       *string        `json:"unit_of_measure,omitempty"`
+	DefaultDiscountPct  *float64       `json:"default_discount_percent,omitempty"`
+	IsTrackExpiry       *bool          `json:"is_track_expiry,omitempty"`
+	IsTrackBatch        *bool          `json:"is_track_batch,omitempty"`
+	IsActiveForSale     *bool          `json:"is_active_for_sale,omitempty"`
+	IsActiveForPurchase *bool          `json:"is_active_for_purchase,omitempty"`
+	CreatedAt           string         `json:"created_at,omitempty"`
+	UpdatedAt           string         `json:"updated_at,omitempty"`
 }
 
 type Sale struct {
@@ -155,4 +169,43 @@ type SaleCreateRequest struct {
 	TotalAmount   int         `json:"total_amount"`
 	PaymentMethod string      `json:"payment_method"`
 	Items         []SaleItem  `json:"items"`
+}
+
+// New domain types for Phase 1 - Core Extensions
+
+type Brand struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	IsActive    bool   `json:"is_active"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+type TaxClass struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	RatePercent  float64 `json:"rate_percent"`
+	Description  string  `json:"description,omitempty"`
+	IsActive     bool    `json:"is_active"`
+	CreatedAt    string  `json:"created_at,omitempty"`
+}
+
+type UnitOfMeasure struct {
+	ID          int    `json:"id"`
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	IsActive    bool   `json:"is_active"`
+	CreatedAt   string `json:"created_at,omitempty"`
+}
+
+type Warehouse struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Address     string `json:"address,omitempty"`
+	StoreID     *int   `json:"store_id,omitempty"`
+	IsActive    bool   `json:"is_active"`
+	CreatedAt   string `json:"created_at,omitempty"`
 }

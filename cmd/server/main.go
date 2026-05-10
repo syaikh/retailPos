@@ -85,9 +85,13 @@ func main() {
 	{
 		public.POST("/login", h.Login)
 		public.POST("/refresh", h.RefreshToken)
-		public.POST("/validate", h.ValidateSession)
 		public.GET("/categories", h.ListCategories)
 		public.GET("/products", h.GetProducts)
+		public.GET("/products/next-sku", h.GetNextSKU)
+		public.GET("/brands", h.GetBrands)
+		public.GET("/tax-classes", h.GetTaxClasses)
+		public.GET("/units-of-measure", h.GetUnitsOfMeasure)
+		public.GET("/warehouses", h.GetWarehouses)
 	}
 
 	// Protected routes (require authentication)
@@ -98,11 +102,16 @@ func main() {
 	})
 	protected.Use(middleware.AuthMiddleware())
 	{
+		protected.POST("/validate", h.ValidateSession)
 		protected.POST("/logout", h.Logout)
 		protected.GET("/products/:id", h.GetProductByID)
 		protected.POST("/products", h.CreateProduct)
 		protected.PUT("/products/:id", h.UpdateProduct)
 		protected.DELETE("/products/:id", h.DeleteProduct)
+
+		protected.POST("/brands", h.CreateBrand)
+		protected.PUT("/brands/:id", h.UpdateBrand)
+		protected.DELETE("/brands/:id", h.DeleteBrand)
 
 		protected.POST("/sales", h.CreateSale)
 		protected.GET("/sales", h.GetSalesHistory)

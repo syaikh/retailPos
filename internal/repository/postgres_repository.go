@@ -58,8 +58,10 @@ func (r *postgresRepository) GetByUsername(ctx context.Context, username string)
 		u.StoreID = &v
 	}
 	if u.RoleID > 0 {
-		role, _ := r.GetRoleByID(ctx, u.RoleID)
-		if role != nil {
+		role, err := r.GetRoleByID(ctx, u.RoleID)
+		if err != nil {
+			log.Printf("GetRoleByID error for role_id %d: %v", u.RoleID, err)
+		} else if role != nil {
 			u.Role = *role
 		}
 	}
@@ -186,8 +188,9 @@ func (r *postgresRepository) DeleteUser(ctx context.Context, id int) error {
 func (r *postgresRepository) GetRoleByID(ctx context.Context, id int) (*domain.Role, error) {
 	var role domain.Role
 	var isSystem bool
+	var createdAt time.Time
 	err := r.db.QueryRow(ctx, "SELECT id, name, description, is_system, created_at FROM roles WHERE id = $1", id).Scan(
-		&role.ID, &role.Name, &role.Description, &isSystem, &role.CreatedAt)
+		&role.ID, &role.Name, &role.Description, &isSystem, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("role not found")
@@ -195,6 +198,7 @@ func (r *postgresRepository) GetRoleByID(ctx context.Context, id int) (*domain.R
 		return nil, err
 	}
 	role.IsSystem = isSystem
+	role.CreatedAt = createdAt.Format(time.RFC3339)
 	return &role, nil
 }
 
@@ -516,11 +520,33 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 		storeIDVal = nil
 	}
 
+	// Phase 1 extension fields
+	var brandID, taxClassID, unitOfMeasureID interface{}
+	var weightGrams, defaultDiscount interface{}
+	
+	if product.BrandID != nil {
+		brandID = *product.BrandID
+	}
+	if product.TaxClassID != nil {
+		taxClassID = *product.TaxClassID
+	}
+	if product.UnitOfMeasureID != nil {
+		unitOfMeasureID = *product.UnitOfMeasureID
+	}
+	if product.WeightGrams != nil {
+		weightGrams = *product.WeightGrams
+	}
+	if product.DefaultDiscountPct != nil {
+		defaultDiscount = *product.DefaultDiscountPct
+	}
+
 	return r.db.QueryRow(ctx, `
-		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, stock_min, stock_max, store_id, is_active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, stock_min, stock_max, store_id, is_active,
+		                    brand_id, description, tax_class_id, weight_grams, unit_of_measure_id, default_discount_percent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING id, created_at, updated_at
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, product.StockMax, storeIDVal, product.IsActive).
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, product.StockMax, storeIDVal, product.IsActive,
+		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
 		Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
 }
 
@@ -543,11 +569,43 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 		storeIDVal = nil
 	}
 
+	// Phase 1 extension fields
+	var brandID, taxClassID, unitOfMeasureID interface{}
+	var weightGrams, defaultDiscount interface{}
+	
+	if product.BrandID != nil {
+		brandID = *product.BrandID
+	} else {
+		brandID = nil
+	}
+	if product.TaxClassID != nil {
+		taxClassID = *product.TaxClassID
+	} else {
+		taxClassID = nil
+	}
+	if product.UnitOfMeasureID != nil {
+		unitOfMeasureID = *product.UnitOfMeasureID
+	} else {
+		unitOfMeasureID = nil
+	}
+	if product.WeightGrams != nil {
+		weightGrams = *product.WeightGrams
+	} else {
+		weightGrams = nil
+	}
+	if product.DefaultDiscountPct != nil {
+		defaultDiscount = *product.DefaultDiscountPct
+	} else {
+		defaultDiscount = nil
+	}
+
 	_, err := r.db.Exec(ctx, `
 		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
-			cost = $6, stock = $7, stock_min = $8, stock_max = $9, store_id = $10, is_active = $11, updated_at = NOW()
-		WHERE id = $12
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, product.StockMax, storeIDVal, product.IsActive, product.ID)
+			cost = $6, stock = $7, stock_min = $8, stock_max = $9, store_id = $10, is_active = $11, updated_at = NOW(),
+			brand_id = $12, description = $13, tax_class_id = $14, weight_grams = $15, unit_of_measure_id = $16, default_discount_percent = $17
+		WHERE id = $18
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, product.StockMax, storeIDVal, product.IsActive,
+		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
 	return err
 }
 
@@ -1009,4 +1067,220 @@ func (r *postgresRepository) GetPeriodComparison(
 	result.PreviousRevenuePerDay = result.PreviousRevenue / days
 
 	return &result, nil
+}
+
+// ==================== PHASE 1 EXTENSIONS: Brands, Tax, UOM, Warehouses ====================
+
+// GetNextSKU generates the next SKU using sequence
+func (r *postgresRepository) GetNextSKU(ctx context.Context) (string, error) {
+	var skuNum int
+	err := r.db.QueryRow(ctx, "SELECT nextval('sku_seq')").Scan(&skuNum)
+	if err != nil {
+		return "", fmt.Errorf("failed to get next SKU: %w", err)
+	}
+	return fmt.Sprintf("SKU-%06d", skuNum), nil
+}
+
+// Brand operations
+func (r *postgresRepository) GetBrandByID(ctx context.Context, id int) (*domain.Brand, error) {
+	var brand domain.Brand
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, "SELECT id, name, description, is_active, created_at, updated_at FROM brands WHERE id = $1", id).Scan(
+		&brand.ID, &brand.Name, &brand.Description, &brand.IsActive, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("brand not found")
+		}
+		return nil, err
+	}
+	brand.CreatedAt = createdAt.Format(time.RFC3339)
+	brand.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return &brand, nil
+}
+
+func (r *postgresRepository) GetAllBrands(ctx context.Context) ([]domain.Brand, error) {
+	rows, err := r.db.Query(ctx, "SELECT id, name, description, is_active, created_at, updated_at FROM brands WHERE is_active = true ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var brands []domain.Brand
+	for rows.Next() {
+		var b domain.Brand
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		b.CreatedAt = createdAt.Format(time.RFC3339)
+		b.UpdatedAt = updatedAt.Format(time.RFC3339)
+		brands = append(brands, b)
+	}
+	return brands, nil
+}
+
+func (r *postgresRepository) CreateBrand(ctx context.Context, brand *domain.Brand) error {
+	var createdAt, updatedAt time.Time
+	return r.db.QueryRow(ctx, `
+		INSERT INTO brands (name, description, is_active) 
+		VALUES ($1, $2, $3) 
+		RETURNING id, created_at, updated_at
+	`, brand.Name, brand.Description, brand.IsActive).Scan(&brand.ID, &createdAt, &updatedAt)
+}
+
+func (r *postgresRepository) UpdateBrand(ctx context.Context, brand *domain.Brand) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE brands SET name = $1, description = $2, is_active = $3, updated_at = NOW() 
+		WHERE id = $4
+	`, brand.Name, brand.Description, brand.IsActive, brand.ID)
+	return err
+}
+
+func (r *postgresRepository) DeleteBrand(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM brands WHERE id = $1", id)
+	return err
+}
+
+func (r *postgresRepository) GetBrandIDByName(ctx context.Context, name string) (int, error) {
+	var id int
+	err := r.db.QueryRow(ctx, "SELECT id FROM brands WHERE name = $1 AND is_active = true", name).Scan(&id)
+	return id, err
+}
+
+// Tax class operations
+func (r *postgresRepository) GetTaxClassByID(ctx context.Context, id int) (*domain.TaxClass, error) {
+	var tc domain.TaxClass
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, "SELECT id, name, rate_percent, description, is_active, created_at FROM tax_classes WHERE id = $1", id).Scan(
+		&tc.ID, &tc.Name, &tc.RatePercent, &tc.Description, &tc.IsActive, &createdAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("tax class not found")
+		}
+		return nil, err
+	}
+	tc.CreatedAt = createdAt.Format(time.RFC3339)
+	return &tc, nil
+}
+
+func (r *postgresRepository) GetAllTaxClasses(ctx context.Context) ([]domain.TaxClass, error) {
+	rows, err := r.db.Query(ctx, "SELECT id, name, rate_percent, description, is_active, created_at FROM tax_classes WHERE is_active = true ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var taxClasses []domain.TaxClass
+	for rows.Next() {
+		var tc domain.TaxClass
+		var createdAt time.Time
+		if err := rows.Scan(&tc.ID, &tc.Name, &tc.RatePercent, &tc.Description, &tc.IsActive, &createdAt); err != nil {
+			return nil, err
+		}
+		tc.CreatedAt = createdAt.Format(time.RFC3339)
+		taxClasses = append(taxClasses, tc)
+	}
+	return taxClasses, nil
+}
+
+func (r *postgresRepository) GetTaxClassIDByName(ctx context.Context, name string) (int, error) {
+	var id int
+	err := r.db.QueryRow(ctx, "SELECT id FROM tax_classes WHERE name = $1 AND is_active = true", name).Scan(&id)
+	return id, err
+}
+
+// Unit of measure operations
+func (r *postgresRepository) GetUnitOfMeasureByID(ctx context.Context, id int) (*domain.UnitOfMeasure, error) {
+	var uom domain.UnitOfMeasure
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, "SELECT id, code, name, description, is_active, created_at FROM units_of_measure WHERE id = $1", id).Scan(
+		&uom.ID, &uom.Code, &uom.Name, &uom.Description, &uom.IsActive, &createdAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("unit of measure not found")
+		}
+		return nil, err
+	}
+	uom.CreatedAt = createdAt.Format(time.RFC3339)
+	return &uom, nil
+}
+
+func (r *postgresRepository) GetAllUnitsOfMeasure(ctx context.Context) ([]domain.UnitOfMeasure, error) {
+	rows, err := r.db.Query(ctx, "SELECT id, code, name, description, is_active, created_at FROM units_of_measure WHERE is_active = true ORDER BY code")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var uoms []domain.UnitOfMeasure
+	for rows.Next() {
+		var uom domain.UnitOfMeasure
+		var createdAt time.Time
+		if err := rows.Scan(&uom.ID, &uom.Code, &uom.Name, &uom.Description, &uom.IsActive, &createdAt); err != nil {
+			return nil, err
+		}
+		uom.CreatedAt = createdAt.Format(time.RFC3339)
+		uoms = append(uoms, uom)
+	}
+	return uoms, nil
+}
+
+func (r *postgresRepository) GetUnitOfMeasureIDByCode(ctx context.Context, code string) (int, error) {
+	var id int
+	err := r.db.QueryRow(ctx, "SELECT id FROM units_of_measure WHERE code = $1 AND is_active = true", code).Scan(&id)
+	return id, err
+}
+
+// Warehouse operations
+func (r *postgresRepository) GetWarehouseByID(ctx context.Context, id int) (*domain.Warehouse, error) {
+	var w domain.Warehouse
+	var storeID sql.NullInt64
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, "SELECT id, name, code, address, store_id, is_active, created_at FROM warehouses WHERE id = $1", id).Scan(
+		&w.ID, &w.Name, &w.Code, &w.Address, &storeID, &w.IsActive, &createdAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("warehouse not found")
+		}
+		return nil, err
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		w.StoreID = &v
+	}
+	w.CreatedAt = createdAt.Format(time.RFC3339)
+	return &w, nil
+}
+
+func (r *postgresRepository) GetAllWarehouses(ctx context.Context, storeID *int) ([]domain.Warehouse, error) {
+	query := "SELECT id, name, code, address, store_id, is_active, created_at FROM warehouses WHERE is_active = true"
+	args := []interface{}{}
+	if storeID != nil {
+		query += " AND store_id = $1"
+		args = append(args, *storeID)
+	}
+	query += " ORDER BY name"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var warehouses []domain.Warehouse
+	for rows.Next() {
+		var w domain.Warehouse
+		var storeIDVal sql.NullInt64
+		var createdAt time.Time
+		if err := rows.Scan(&w.ID, &w.Name, &w.Code, &w.Address, &storeIDVal, &w.IsActive, &createdAt); err != nil {
+			return nil, err
+		}
+		if storeIDVal.Valid {
+			v := int(storeIDVal.Int64)
+			w.StoreID = &v
+		}
+		w.CreatedAt = createdAt.Format(time.RFC3339)
+		warehouses = append(warehouses, w)
+	}
+	return warehouses, nil
 }
