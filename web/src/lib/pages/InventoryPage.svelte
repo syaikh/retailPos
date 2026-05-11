@@ -268,14 +268,14 @@ function handleCategoryInputBlur() {
      }, 150);
    }
 
-   // Modal category searchable dropdown
-   let filteredModalCategories = $derived(
-     categories.filter(cat =>
-       cat !== 'All' && cat.toLowerCase().includes(modalCategorySearch.toLowerCase())
-     )
-   );
+// Modal category searchable dropdown
+    let filteredModalCategories = $derived(
+      categories.filter(cat =>
+        cat !== 'All' && cat.toLowerCase().includes(modalCategorySearch.toLowerCase())
+      )
+    );
 
-function selectModalCategory(category) {
+    function selectModalCategory(category) {
       form.category = category;
       modalCategorySearch = category;
       showModalCategoryDropdown = false;
@@ -286,6 +286,7 @@ function selectModalCategory(category) {
     }
 
     function handleModalCategoryBlur() {
+      // Don't hide if clicking within dropdown
       setTimeout(() => {
         showModalCategoryDropdown = false;
       }, 150);
@@ -814,16 +815,16 @@ onMount(async () => {
               {#if filteredModalCategories.length === 0}
                 <div class="px-3 py-2 text-sm text-text-muted">No categories found</div>
               {:else}
-                {#each filteredModalCategories as cat}
-                  <button
-                    type="button"
-                    onclick={() => selectModalCategory(cat)}
-                    class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-                    role="menuitem"
-                  >
-                    {cat}
-                  </button>
-                {/each}
+{#each filteredModalCategories as cat}
+                   <button
+                     type="button"
+                     onmousedown={() => selectModalCategory(cat)}
+                     class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                     role="menuitem"
+                   >
+                     {cat}
+                   </button>
+                 {/each}
               {/if}
             </div>
           {/if}
