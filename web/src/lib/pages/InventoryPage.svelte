@@ -8,10 +8,10 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import {
-    Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X
-  } from 'lucide-svelte';
+import {
+     Search, Plus, Pencil, Trash2, Package,
+     SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
+   } from 'lucide-svelte';
 
   // Toast notifications
   const toast = {
@@ -87,13 +87,17 @@
   let categories = $state(['All']); // Will be populated from API
   let lowStockOnly = $state(false);
   let showModal = $state(false);
-  let showDeleteModal = $state(false);
-  let selectedProduct = $state(null);
-  let modalMode = $state('add'); // 'add' or 'edit'
-  let saving = $state(false);
-  let isDeleting = $state(false);
-  let isSearching = $state(false);
-  let canManageInventory = $state(false);
+let showDeleteModal = $state(false);
+   let selectedProduct = $state(null);
+   let modalMode = $state('add'); // 'add' or 'edit'
+   let saving = $state(false);
+   let isDeleting = $state(false);
+   let isSearching = $state(false);
+   // Phase 1 Extension States
+   let brands = $state([]);
+   let unitsOfMeasure = $state([]);
+   let taxClasses = $state([]);
+   let canManageInventory = $state(false);
   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
   
   // Track previous values to avoid duplicate fetches
@@ -104,20 +108,30 @@
   let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
   let sortDir = $state('asc'); // 'asc' or 'desc'
 
-  // Category search state
-  let categorySearchQuery = $state('');
-  let showCategoryDropdown = $state(false);
+// Category search state
+   let categorySearchQuery = $state('');
+   let showCategoryDropdown = $state(false);
 
-  // Form State
-  let form = $state({
-    name: '',
-    sku: '',
-    barcode: '',
-    category: '',
-    price: 0,
-    stock: 0,
-    stock_min: 5
-  });
+   // Modal category search state
+   let modalCategorySearch = $state('');
+   let showModalCategoryDropdown = $state(false);
+
+// Form State
+   let form = $state({
+     name: '',
+     sku: '',
+     barcode: '',
+     category: '',
+     brand_id: null,
+     price: 0,
+     cost: 0,
+     stock: 0,
+     stock_min: 5,
+     unit_of_measure_id: null,
+     tax_class_id: null,
+     weight_grams: null,
+     description: ''
+   });
 
   async function fetchCategories() {
     try {
@@ -128,12 +142,39 @@
       if (!form.category && catList.length > 0) {
         form.category = catList[0].name;
       }
-    } catch (err) {
-      toast.error('Failed to load categories');
-    }
-  }
+} catch (err) {
+       toast.error('Failed to load categories');
+     }
+   }
 
-  async function fetchProducts(isSearch = false) {
+   async function fetchBrands() {
+     try {
+       const r = await apiClient.get('/brands');
+       brands = r.data.data || [];
+     } catch (err) {
+       toast.error('Failed to load brands');
+     }
+   }
+
+   async function fetchTaxClasses() {
+     try {
+       const r = await apiClient.get('/tax-classes');
+       taxClasses = r.data.data || [];
+     } catch (err) {
+       toast.error('Failed to load tax classes');
+     }
+   }
+
+   async function fetchUnitsOfMeasure() {
+     try {
+       const r = await apiClient.get('/units-of-measure');
+       unitsOfMeasure = r.data.data || [];
+     } catch (err) {
+       toast.error('Failed to load units of measure');
+     }
+   }
+
+   async function fetchProducts(isSearch = false) {
     try {
       if (!isSearch) loading = true;
       const params = new URLSearchParams({
@@ -219,15 +260,38 @@
     showCategoryDropdown = true;
   }
 
-  function handleCategoryInputBlur() {
-    // Delay hiding dropdown to allow for selection
-    setTimeout(() => {
-      showCategoryDropdown = false;
-      categorySearchQuery = '';
-    }, 150);
-  }
+function handleCategoryInputBlur() {
+     // Delay hiding dropdown to allow for selection
+     setTimeout(() => {
+       showCategoryDropdown = false;
+       categorySearchQuery = '';
+     }, 150);
+   }
 
-   async function handleAdd() {
+   // Modal category searchable dropdown
+   let filteredModalCategories = $derived(
+     categories.filter(cat =>
+       cat !== 'All' && cat.toLowerCase().includes(modalCategorySearch.toLowerCase())
+     )
+   );
+
+function selectModalCategory(category) {
+      form.category = category;
+      modalCategorySearch = category;
+      showModalCategoryDropdown = false;
+    }
+
+    function handleModalCategoryFocus() {
+      showModalCategoryDropdown = true;
+    }
+
+    function handleModalCategoryBlur() {
+      setTimeout(() => {
+        showModalCategoryDropdown = false;
+      }, 150);
+    }
+
+async function handleAdd() {
      if (!canManageInventory) {
        toast.error('Insufficient permission to add products');
        return;
@@ -236,7 +300,14 @@
 
      saving = true;
      try {
-       const payload = { ...form, category_name: form.category, barcode: form.barcode?.trim() || undefined };
+       const payload = {
+         ...form,
+         category_name: form.category,
+         barcode: form.barcode?.trim() || undefined,
+         description: form.description?.trim() || undefined,
+         cost: form.cost || undefined,
+         weight_grams: form.weight_grams || undefined
+       };
        await apiClient.post('/products', payload);
        toast.success('Product added');
        showModal = false;
@@ -258,7 +329,14 @@
 
      saving = true;
      try {
-       const payload = { ...form, category_name: form.category, barcode: form.barcode?.trim() || undefined };
+       const payload = {
+         ...form,
+         category_name: form.category,
+         barcode: form.barcode?.trim() || undefined,
+         description: form.description?.trim() || undefined,
+         cost: form.cost || undefined,
+         weight_grams: form.weight_grams || undefined
+       };
        await apiClient.put(`/products/${selectedProduct.id}`, payload);
        toast.success('Product updated');
        showModal = false;
@@ -293,9 +371,25 @@
     }
   }
 
-  function resetForm() {
-    form = { name: '', sku: '', barcode: '', category: categories.length > 1 ? categories[1] : '', price: 0, stock: 0, stock_min: 5 };
-  }
+function resetForm() {
+      form = {
+        name: '',
+        sku: '',
+        barcode: '',
+        category: '',
+        price: 0,
+        cost: 0,
+        stock: 0,
+        stock_min: 5,
+        brand_id: null,
+        description: '',
+        unit_of_measure_id: null,
+        tax_class_id: null,
+        weight_grams: null
+      };
+      modalCategorySearch = '';
+      showModalCategoryDropdown = false;
+    }
 
   function getUserRoleName() {
     const user = $auth.user;
@@ -374,12 +468,17 @@
     });
   }
 
-   onMount(async () => {
-     isInitialMount = true;
-     await fetchCategories();
-     await fetchProducts(false);
-     isInitialMount = false;
-   });
+onMount(async () => {
+      isInitialMount = true;
+      await Promise.all([
+        fetchCategories(),
+        fetchBrands(),
+        fetchTaxClasses(),
+        fetchUnitsOfMeasure()
+      ]);
+      await fetchProducts(false);
+      isInitialMount = false;
+    });
 </script>
 
 
@@ -659,34 +758,129 @@
     }}
     class="space-y-4"
   >
-    <div>
-      <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name</label>
-      <input id="prod-name" bind:value={form.name} type="text" class="input" required />
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name</label>
+        <input id="prod-name" bind:value={form.name} type="text" class="input" required />
+      </div>
+      <div>
+        <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU
+          <button
+            type="button"
+            onclick={generateNextSKU}
+            class="ml-2 text-xs text-primary hover:underline"
+            title="Generate next SKU"
+          >
+            Auto
+          </button>
+</label>
+        <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
+      </div>
     </div>
-    <div>
-      <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU</label>
-      <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">Barcode <span class="text-text-muted text-xs">(optional)</span></label>
+        <input id="prod-barcode" bind:value={form.barcode} type="text" class="input" placeholder="Optional barcode" />
+      </div>
+      <div>
+        <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category <span class="text-destructive">*</span></label>
+        <div class="relative">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input
+            type="text"
+            id="prod-category"
+            placeholder="Select a category"
+            bind:value={modalCategorySearch}
+            onfocus={handleModalCategoryFocus}
+            onblur={handleModalCategoryBlur}
+            class="input w-full pl-10 pr-10"
+            required
+          />
+          {#if modalCategorySearch}
+            <button
+              type="button"
+              onclick={() => { modalCategorySearch = ''; form.category = ''; }}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+              title="Clear"
+            >
+              <X size={14} />
+            </button>
+          {:else}
+            <ChevronDown size={16} class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          {/if}
+          {#if showModalCategoryDropdown}
+            <div class="absolute top-full mt-2 w-full card-glass p-1.5 z-50 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+              {#if filteredModalCategories.length === 0}
+                <div class="px-3 py-2 text-sm text-text-muted">No categories found</div>
+              {:else}
+                {#each filteredModalCategories as cat}
+                  <button
+                    type="button"
+                    onclick={() => selectModalCategory(cat)}
+                    class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                    role="menuitem"
+                  >
+                    {cat}
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
     </div>
-    <div>
-      <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">Barcode <span class="text-text-muted text-xs">(optional)</span></label>
-      <input id="prod-barcode" bind:value={form.barcode} type="text" class="input" placeholder="Optional barcode" />
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label for="prod-brand" class="block text-sm font-medium text-text-secondary mb-2">Brand</label>
+        <select id="prod-brand" bind:value={form.brand_id} class="input">
+          <option value={null}>Select brand</option>
+          {#each brands as brand}
+            <option value={brand.id}>{brand.name}</option>
+          {/each}
+        </select>
+      </div>
+      <div>
+        <label for="prod-uom" class="block text-sm font-medium text-text-secondary mb-2">Unit</label>
+        <select id="prod-uom" bind:value={form.unit_of_measure_id} class="input">
+          <option value={null}>Select unit</option>
+          {#each unitsOfMeasure as uom}
+            <option value={uom.id}>{uom.name} ({uom.code})</option>
+          {/each}
+        </select>
+      </div>
+      <div>
+        <label for="prod-tax" class="block text-sm font-medium text-text-secondary mb-2">Tax Class</label>
+        <select id="prod-tax" bind:value={form.tax_class_id} class="input">
+          <option value={null}>Select tax</option>
+          {#each taxClasses as tax}
+            <option value={tax.id}>{tax.name} ({tax.rate_percent}%)</option>
+          {/each}
+        </select>
+      </div>
     </div>
-    <div>
-      <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category</label>
-       <select id="prod-category" bind:value={form.category} class="input" required>
-         {#each categories.filter(c => c !== 'all') as cat}
-           <option value={cat}>{cat}</option>
-         {/each}
-       </select>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR)</label>
+        <input id="prod-price" bind:value={form.price} type="number" class="input" required />
+      </div>
+      <div>
+        <label for="prod-cost" class="block text-sm font-medium text-text-secondary mb-2">Cost (IDR)</label>
+        <input id="prod-cost" bind:value={form.cost} type="number" class="input" />
+      </div>
+      <div>
+        <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock</label>
+        <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
+      </div>
     </div>
+
     <div>
-      <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR)</label>
-      <input id="prod-price" bind:value={form.price} type="number" class="input" required />
+      <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">Description</label>
+      <textarea id="prod-description" bind:value={form.description} class="input" rows="2" placeholder="Product description (optional)"></textarea>
     </div>
-    <div>
-      <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock</label>
-      <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
-    </div>
+
     <div class="flex justify-end gap-4 pt-4">
       <button 
         type="button" 
