@@ -117,21 +117,22 @@ let showDeleteModal = $state(false);
    let showModalCategoryDropdown = $state(false);
 
 // Form State
-   let form = $state({
-     name: '',
-     sku: '',
-     barcode: '',
-     category: '',
-     brand_id: null,
-     price: 0,
-     cost: 0,
-     stock: 0,
-     stock_min: 5,
-     unit_of_measure_id: null,
-     tax_class_id: null,
-     weight_grams: null,
-     description: ''
-   });
+    let form = $state({
+      name: '',
+      sku: '',
+      barcode: '',
+      category: '',
+      brand_id: null,
+      price: 0,
+      cost: 0,
+      stock: 0,
+      stock_min: 5,
+      unit_of_measure_id: null,
+      tax_class_id: null,
+      weight_grams: null,
+      description: '',
+      status: 'draft'
+    });
 
   async function fetchCategories() {
     try {
@@ -174,35 +175,37 @@ let showDeleteModal = $state(false);
      }
    }
 
-   async function fetchProducts(isSearch = false) {
-    try {
-      if (!isSearch) loading = true;
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        offset: offset.toString(),
-        search: searchQuery
-      });
-      if (selectedCategory.toLowerCase() !== 'all') params.append('category', selectedCategory);
-      if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
+async function fetchProducts(newOffset, newLimit) {
+      if (newOffset !== undefined) offset = newOffset;
+      if (newLimit !== undefined) limit = newLimit;
+      try {
+        loading = true;
+        const params = new URLSearchParams({
+          limit: limit.toString(),
+          offset: offset.toString(),
+          search: searchQuery
+        });
+        if (selectedCategory.toLowerCase() !== 'all') params.append('category', selectedCategory);
+        if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
 
-      // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
-      const r = await apiClient.get(`/products?${params.toString()}`);
-      // Axios otomatis parse JSON, akses via r.data
-      products = r.data.data || [];
-      total = r.data.total || 0;
-    } catch (err) {
-      toast.error('Failed to load inventory');
-    } finally {
-      if (!isSearch) loading = false;
-      isSearching = false;
+        // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
+        const r = await apiClient.get(`/products?${params.toString()}`);
+        // Axios otomatis parse JSON, akses via r.data
+        products = r.data.data || [];
+        total = r.data.total || 0;
+      } catch (err) {
+        toast.error('Failed to load inventory');
+      } finally {
+        loading = false;
+        isSearching = false;
+      }
     }
-  }
 
-  // Debounced search
-  const debouncedSearch = debounce(() => {
-    offset = 0;
-    fetchProducts(true);
-  }, 400);
+    // Debounced search
+    const debouncedSearch = debounce(() => {
+      offset = 0;
+      fetchProducts(0, limit);
+    }, 400);
 
   // Track if this is initial mount (to prevent double fetch)
   let isInitialMount = $state(true);
@@ -217,15 +220,15 @@ let showDeleteModal = $state(false);
     
     previousSearchQuery = searchQuery;
     
-    if (searchQuery === '') {
-      // Immediate fetch when clearing search
-      offset = 0;
-      isSearching = false;
-      fetchProducts(false);
-    } else {
-      isSearching = true;
-      debouncedSearch();
-    }
+if (searchQuery === '') {
+       // Immediate fetch when clearing search
+       offset = 0;
+       isSearching = false;
+       fetchProducts(0, limit);
+     } else {
+       isSearching = true;
+       debouncedSearch();
+     }
   });
 
   // Watch for category selection changes
@@ -236,10 +239,10 @@ let showDeleteModal = $state(false);
     // Only proceed if selectedCategory actually changed
     if (previousCategory === selectedCategory) return;
     
-    previousCategory = selectedCategory;
-    offset = 0;
-    fetchProducts(false);
-  });
+previousCategory = selectedCategory;
+     offset = 0;
+     fetchProducts(0, limit);
+   });
 
   // Filtered categories for searchable dropdown
   let filteredCategories = $derived(
@@ -248,13 +251,13 @@ let showDeleteModal = $state(false);
     )
   );
 
-  function selectCategory(category) {
-    selectedCategory = category;
-    categorySearchQuery = '';
-    showCategoryDropdown = false;
-    offset = 0;
-    fetchProducts(false);
-  }
+function selectCategory(category) {
+     selectedCategory = category;
+     categorySearchQuery = '';
+     showCategoryDropdown = false;
+     offset = 0;
+     fetchProducts(0, limit);
+   }
 
   function handleCategoryInputFocus() {
     showCategoryDropdown = true;
@@ -309,20 +312,20 @@ async function handleAdd() {
          cost: form.cost || undefined,
          weight_grams: form.weight_grams || undefined
        };
-       await apiClient.post('/products', payload);
-       toast.success('Product added');
-       showModal = false;
-       resetForm();
-       await fetchProducts(false);
-     } catch (err) {
-       toast.error('Failed to add product');
-     } finally {
-       saving = false;
-     }
-   }
+await apiClient.post('/products', payload);
+        toast.success('Product added');
+        showModal = false;
+        resetForm();
+        await fetchProducts(offset, limit);
+      } catch (err) {
+        toast.error('Failed to add product');
+      } finally {
+        saving = false;
+      }
+    }
 
-   async function handleUpdate() {
-     if (!canManageInventory) {
+    async function handleUpdate() {
+      if (!canManageInventory) {
        toast.error('Insufficient permission to update products');
        return;
      }
@@ -338,17 +341,17 @@ async function handleAdd() {
          cost: form.cost || undefined,
          weight_grams: form.weight_grams || undefined
        };
-       await apiClient.put(`/products/${selectedProduct.id}`, payload);
-       toast.success('Product updated');
-       showModal = false;
-       resetForm();
-       await fetchProducts(false);
-     } catch (err) {
-       toast.error('Failed to update product');
-     } finally {
-       saving = false;
-     }
-   }
+await apiClient.put(`/products/${selectedProduct.id}`, payload);
+        toast.success('Product updated');
+        showModal = false;
+        resetForm();
+        await fetchProducts(offset, limit);
+      } catch (err) {
+        toast.error('Failed to update product');
+      } finally {
+        saving = false;
+      }
+    }
 
   async function handleDelete() {
     if (!selectedProduct) {
@@ -358,12 +361,12 @@ async function handleAdd() {
     
     isDeleting = true;
     try {
-      const response = await apiClient.delete(`/products/${selectedProduct.id}`);
-      toast.success('Product deleted successfully');
-      showDeleteModal = false;
-      selectedProduct = null;
-      await fetchProducts(false);
-    } catch (err) {
+const response = await apiClient.delete(`/products/${selectedProduct.id}`);
+       toast.success('Product deleted successfully');
+       showDeleteModal = false;
+       selectedProduct = null;
+       await fetchProducts(offset, limit);
+     } catch (err) {
       console.error('Delete error:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
       toast.error(errorMessage);
@@ -386,7 +389,8 @@ function resetForm() {
         description: '',
         unit_of_measure_id: null,
         tax_class_id: null,
-        weight_grams: null
+        weight_grams: null,
+        status: 'draft'
       };
       modalCategorySearch = '';
       showModalCategoryDropdown = false;
@@ -470,18 +474,17 @@ function resetForm() {
   }
 
 onMount(async () => {
-      isInitialMount = true;
-      await Promise.all([
-        fetchCategories(),
-        fetchBrands(),
-        fetchTaxClasses(),
-        fetchUnitsOfMeasure()
-      ]);
-      await fetchProducts(false);
-      isInitialMount = false;
-    });
+    isInitialMount = true;
+    await Promise.all([
+      fetchCategories(),
+      fetchBrands(),
+      fetchTaxClasses(),
+      fetchUnitsOfMeasure()
+    ]);
+    await fetchProducts(0, limit);
+    isInitialMount = false;
+  });
 </script>
-
 
 
 <svelte:window
@@ -559,7 +562,7 @@ onMount(async () => {
         {/if}
       </div>
       <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
-        <input type="checkbox" bind:checked={lowStockOnly} onchange={() => { offset = 0; fetchProducts(false); }} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
+        <input type="checkbox" bind:checked={lowStockOnly} onchange={() => { offset = 0; fetchProducts(0, limit); }} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
         <span class="text-sm text-text-secondary font-medium">Low stock only</span>
       </label>
       <button
@@ -706,20 +709,36 @@ onMount(async () => {
                <td class="p-4 w-60">{product.category_name || '-'}</td>
               <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
               <td class="p-4 w-28 text-right">
-                <Badge variant={product.stock <= (product.stock_min || 5) ? 'destructive' : 'default'}>
+                <Badge variant={product.stock <= product.stock_min ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
               </td>
               <td class="p-4 w-20">
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onclick={() => {
-                      if (!canManageInventory) return;
-                      selectedProduct = product;
-                      form = { ...product, barcode: product.barcode || '', category: product.category_name || categories.find(c => c !== 'All') || '' };
-                      modalMode = 'edit';
-                      showModal = true;
-                    }}
+onclick={() => {
+                       if (!canManageInventory) return;
+                       selectedProduct = product;
+                       form = {
+                         name: product.name || '',
+                         sku: product.sku || '',
+                         barcode: product.barcode || '',
+                         category: product.category_name || '',
+                         brand_id: product.brand_id || null,
+                         price: product.price || 0,
+                         cost: product.cost || 0,
+                         stock: product.stock || 0,
+                         stock_min: product.stock_min || 5,
+                         unit_of_measure_id: product.unit_of_measure_id || null,
+                         tax_class_id: product.tax_class_id || null,
+                         weight_grams: product.weight_grams || null,
+                         description: product.description || '',
+                         status: product.status || 'draft'
+                       };
+                       modalCategorySearch = product.category_name || '';
+                       modalMode = 'edit';
+                       showModal = true;
+                     }}
                     disabled={!canManageInventory}
                     class="p-1.5 rounded-lg transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={canManageInventory ? 'Edit' : 'Requires inventory role'}
@@ -761,12 +780,12 @@ onMount(async () => {
   >
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name</label>
+        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name <span class="text-destructive">*</span></label>
         <input id="prod-name" bind:value={form.name} type="text" class="input" required />
       </div>
       <div>
-        <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU
-          <button
+<label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU <span class="text-destructive">*</span>
+           <button
             type="button"
             onclick={generateNextSKU}
             class="ml-2 text-xs text-primary hover:underline"
@@ -864,7 +883,7 @@ onMount(async () => {
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR)</label>
+        <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR) <span class="text-destructive">*</span></label>
         <input id="prod-price" bind:value={form.price} type="number" class="input" required />
       </div>
       <div>
@@ -872,15 +891,33 @@ onMount(async () => {
         <input id="prod-cost" bind:value={form.cost} type="number" class="input" />
       </div>
       <div>
-        <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock</label>
+        <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock <span class="text-destructive">*</span></label>
         <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
       </div>
-    </div>
+</div>
 
-    <div>
-      <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">Description</label>
-      <textarea id="prod-description" bind:value={form.description} class="input" rows="2" placeholder="Product description (optional)"></textarea>
-    </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="prod-stock-min" class="block text-sm font-medium text-text-secondary mb-2">Minimum Stock</label>
+          <input id="prod-stock-min" bind:value={form.stock_min} type="number" class="input" placeholder="5" />
+        </div>
+      </div>
+
+      <div>
+        <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">Description</label>
+        <textarea id="prod-description" bind:value={form.description} class="input" rows="2" placeholder="Product description (optional)"></textarea>
+      </div>
+
+      <div>
+        <label for="prod-status" class="block text-sm font-medium text-text-secondary mb-2">Status</label>
+        <select id="prod-status" bind:value={form.status} class="input">
+          <option value="draft">Draft</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="discontinued">Discontinued</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
 
     <div class="flex justify-end gap-4 pt-4">
       <button 

@@ -295,12 +295,12 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	if product.Barcode != nil {
+if product.Barcode != nil {
 		deletedProduct, err := h.productRepo.GetDeletedProductByBarcode(getCtx(c), *product.Barcode, nil)
 		if err == nil && deletedProduct != nil {
 			old := *deletedProduct
 			product.ID = deletedProduct.ID
-			product.IsActive = true
+			product.Status = "active"
 			if err := h.productRepo.RestoreProduct(getCtx(c), &product); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to restore product"})
 				return

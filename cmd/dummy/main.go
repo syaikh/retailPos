@@ -323,7 +323,7 @@ func getExistingProducts(ctx context.Context, db *sql.DB) []ProductInfo {
 		SELECT p.id, p.price, c.name as category_name
 		FROM products p
 		JOIN categories c ON p.category_id = c.id
-		WHERE p.is_active = true
+		WHERE p.status = 'active'
 		ORDER BY p.id
 	`)
 	if err != nil {
@@ -491,8 +491,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	defer tx.Rollback()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, stock_min, stock_max, category_id, is_active, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, stock_min, category_id, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -535,7 +535,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		createdAt := time.Now().AddDate(0, 0, -randomDays)
 
 		var id int
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, stockMin, stock*2, catID, createdAt).Scan(&id)
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, stockMin, catID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue

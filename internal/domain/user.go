@@ -42,9 +42,8 @@ type Product struct {
 	Cost                int            `json:"cost"`
 	Stock               int            `json:"stock"`
 	StockMin            int            `json:"stock_min"`
-	StockMax            int            `json:"stock_max"`
 	StoreID             *int           `json:"store_id,omitempty"`
-	IsActive            bool           `json:"is_active"`
+	Status              string         `json:"status"` // draft, active, inactive, discontinued, archived
 	TaxClassID          *int           `json:"tax_class_id,omitempty"`
 	TaxRate             *float64       `json:"tax_rate,omitempty"`
 	WeightGrams         *int           `json:"weight_grams,omitempty"`

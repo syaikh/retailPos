@@ -68,6 +68,7 @@ export interface Product {
   price: number;
   stock: number;
   stock_min?: number;
+  unit?: string;
   category?: Category;
   category_id?: number;
   description?: string;
@@ -87,9 +88,10 @@ export interface Product {
   is_track_batch?: boolean;
   is_active_for_sale?: boolean;
   is_active_for_purchase?: boolean;
-  stock_max?: number;
+  status?: string; // draft, active, inactive, discontinued, archived
   store_id?: number;
-  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SaleItem {
