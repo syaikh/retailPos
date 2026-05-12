@@ -474,7 +474,6 @@
 
 <style>
 @media print {
-  body > *:not(#receipt-print-area) { display: none !important; }
   #receipt-print-area {
     display: block !important;
     position: absolute;
