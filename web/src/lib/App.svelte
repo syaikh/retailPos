@@ -1,24 +1,33 @@
 <script>
   import { goto, getPath, subscribe } from '$lib/router';
-  import LoginPage from '$lib/pages/LoginPage.svelte';
-  import Home from '$lib/pages/Home.svelte';
-  import PosPage from '$lib/pages/PosPage.svelte';
-  import InventoryPage from '$lib/pages/InventoryPage.svelte';
-  import ReportsPage from '$lib/pages/ReportsPage.svelte';
-  import AdminUsers from '$lib/pages/admin/Users.svelte';
-  import AdminRoles from '$lib/pages/admin/Roles.svelte';
-  import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
-  import Layout from '$lib/components/Layout.svelte';
-  import Toast from '$lib/components/ui/Toast.svelte';
-  import { auth } from '$lib/stores/auth';
-  import { checkAuth, restoreSession } from '$lib/api/auth';
-  import { fade } from 'svelte/transition';
+import LoginPage from '$lib/pages/LoginPage.svelte';
+import Home from '$lib/pages/Home.svelte';
+import PosPage from '$lib/pages/PosPage.svelte';
+import InventoryPage from '$lib/pages/InventoryPage.svelte';
+import ReportsPage from '$lib/pages/ReportsPage.svelte';
+import AdminUsers from '$lib/pages/admin/Users.svelte';
+import AdminRoles from '$lib/pages/admin/Roles.svelte';
+import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
+import Layout from '$lib/components/Layout.svelte';
+import Toast from '$lib/components/ui/Toast.svelte';
+import { auth } from '$lib/stores/auth';
+import { checkAuth, restoreSession } from '$lib/api/auth';
+import { fade } from 'svelte/transition';
+import { useWebSocket } from '$lib/composables/useWebSocket';
 
-  let Component = $state(LoginPage);
-  let currentPath = $state(getPath());
-  let isInitializing = $state(true);
+let Component = $state(LoginPage);
+let currentPath = $state(getPath());
+let isInitializing = $state(true);
+let ws = useWebSocket();
 
-  function getComponent(path) {
+$effect(() => {
+  const token = sessionStorage.getItem('access_token');
+  if (token && token.length > 10) {
+    ws.connect(token);
+  }
+});
+
+function getComponent(path) {
     switch (path) {
       case '/login':            return LoginPage;
       case '/pos':              return PosPage;

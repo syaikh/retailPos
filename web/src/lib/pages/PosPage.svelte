@@ -3,10 +3,11 @@
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
+  import { useWebSocket } from '$lib/composables/useWebSocket';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy } from 'lucide-svelte';
+  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
@@ -20,6 +21,13 @@
   let offset = $state(0);
   let isInitialMount = $state(true);
   let isSearching = $state(false);
+  let showReceipt = $state(false);
+  let lastSale = $state(null);
+  let ws = useWebSocket();
+  
+  // Listen for stock updates via WebSocket
+  let unsubscribeStock = null;
+  let unsubscribeSale = null;
   
   // Track previous search to avoid duplicate fetches
   let previousSearchQuery = '';
@@ -116,7 +124,7 @@
         subtotal: item.price * item.quantity,
       }));
 
-      await apiClient.post('/sales', {
+      const response = await apiClient.post('/sales', {
         invoice_number: `INV-${Date.now()}`,
         cashier_id: $auth.user?.id || 1,
         store_id: $auth.user?.store_id || null,
@@ -129,6 +137,7 @@
         items,
       });
 
+      lastSale = response.data;
       toast.success('Sale completed');
       cart = [];
       await fetchProducts(false);
@@ -144,6 +153,11 @@
     cart = [];
   }
 
+  function printReceipt() {
+    if (!lastSale) return;
+    window.print();
+  }
+
   function handlePageChange(newOffset) {
     offset = newOffset;
     fetchProducts(false);
@@ -153,6 +167,25 @@
     isInitialMount = true;
     await fetchProducts(false);
     isInitialMount = false;
+
+    // WebSocket event handlers for real-time updates
+    unsubscribeStock = ws.on('stock_update', (data) => {
+      const product = products.find(p => p.id === data.id);
+      if (product) {
+        product.stock = data.stock;
+        toast.info(`Stock updated: ${product.name} now has ${data.stock} units`);
+      }
+    });
+
+    unsubscribeSale = ws.on('sale_created', (data) => {
+      toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (unsubscribeStock) unsubscribeStock();
+      if (unsubscribeSale) unsubscribeSale();
+    };
   });
 </script>
 
@@ -399,8 +432,44 @@
               Complete Purchase · {totalAmount.toLocaleString('id-ID')}
             {/if}
           </button>
+
+          {#if lastSale}
+            <button
+              class="btn btn-ghost w-full py-2 mt-2"
+              onclick={printReceipt}
+            >
+              <Printer size={16} />
+              Print Receipt
+            </button>
+          {/if}
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+@media print {
+  /* Hide everything except receipt */
+  body > * { display: none !important; }
+  
+  /* Thermal receipt styling - 58mm width */
+  @page {
+    size: 58mm auto;
+    margin: 0;
+  }
+  
+  .receipt-print-area {
+    display: block !important;
+    width: 58mm;
+    padding: 5mm;
+    font-family: 'Courier New', monospace;
+    font-size: 10pt;
+  }
+  
+  .receipt-header { text-align: center; margin-bottom: 5mm; }
+  .receipt-item { display: flex; justify-content: space-between; margin-bottom: 2mm; }
+  .receipt-divider { border-top: 1px dashed #000; margin: 3mm 0; }
+  .receipt-total { font-weight: bold; font-size: 12pt; }
+}
+</style>

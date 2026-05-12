@@ -3,15 +3,16 @@
   import apiClient from '$lib/api/client';
   import { auth } from '$lib/stores/auth';
   import { debounce } from '$lib/utils/debounce';
+  import { useWebSocket } from '$lib/composables/useWebSocket';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-import {
+  import {
      Search, Plus, Pencil, Trash2, Package,
      SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
-   } from 'lucide-svelte';
+    } from 'lucide-svelte';
 
   // Toast notifications
   const toast = {
@@ -93,6 +94,7 @@ let showDeleteModal = $state(false);
    let saving = $state(false);
    let isDeleting = $state(false);
    let isSearching = $state(false);
+   let ws = useWebSocket();
    // Phase 1 Extension States
    let brands = $state([]);
    let unitsOfMeasure = $state([]);
@@ -483,6 +485,20 @@ onMount(async () => {
     ]);
     await fetchProducts(0, limit);
     isInitialMount = false;
+
+    // WebSocket event handlers for real-time updates
+    ws.on('product_updated', (data) => {
+      const product = products.find(p => p.id === data.id);
+      if (product) {
+        product.stock = data.stock;
+        product.price = data.price;
+        toast.info(`Product updated: ${product.name}`);
+      }
+    });
+
+    ws.on('low_stock_alert', (data) => {
+      toast.error(`Low stock alert: ${data.name} (stock: ${data.stock})`);
+    });
   });
 </script>
 
