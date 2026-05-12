@@ -21,7 +21,6 @@
   let offset = $state(0);
   let isInitialMount = $state(true);
   let isSearching = $state(false);
-  let showReceipt = $state(false);
   let lastSale = $state(null);
   let ws = useWebSocket();
   
@@ -448,26 +447,45 @@
   </div>
 </div>
 
+{#if lastSale}
+  <div class="receipt-print-area" id="receipt-print-area">
+    <div class="receipt-header">
+      <h2>RETAIL POS</h2>
+      <p>Invoice: {lastSale.invoice_number}</p>
+      <p>{new Date(lastSale.created_at).toLocaleString('id-ID')}</p>
+    </div>
+    <div class="receipt-divider"></div>
+    {#each lastSale.items as item}
+      <div class="receipt-item">
+        <span>{item.name} x{item.quantity}</span>
+        <span>{(item.unit_price * item.quantity).toLocaleString('id-ID')}</span>
+      </div>
+    {/each}
+    <div class="receipt-divider"></div>
+    <div class="receipt-total receipt-item">
+      <span>TOTAL</span>
+      <span>{lastSale.total_amount.toLocaleString('id-ID')}</span>
+    </div>
+    <div class="receipt-header" style="margin-top: 5mm;">
+      <p>Thank you for your purchase!</p>
+    </div>
+  </div>
+{/if}
+
 <style>
 @media print {
-  /* Hide everything except receipt */
-  body > * { display: none !important; }
-  
-  /* Thermal receipt styling - 58mm width */
-  @page {
-    size: 58mm auto;
-    margin: 0;
-  }
-  
-  .receipt-print-area {
+  body > *:not(#receipt-print-area) { display: none !important; }
+  #receipt-print-area {
     display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 58mm;
     padding: 5mm;
     font-family: 'Courier New', monospace;
     font-size: 10pt;
   }
-  
-  .receipt-header { text-align: center; margin-bottom: 5mm; }
+  .receipt-header { text-align: center; margin-bottom: 3mm; }
   .receipt-item { display: flex; justify-content: space-between; margin-bottom: 2mm; }
   .receipt-divider { border-top: 1px dashed #000; margin: 3mm 0; }
   .receipt-total { font-weight: bold; font-size: 12pt; }

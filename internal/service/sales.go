@@ -43,13 +43,17 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *domain.Sale, items 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
 
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
+		tx.Rollback(ctx)
 		return err
 	}
 
-	// Commit handled by repo
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 

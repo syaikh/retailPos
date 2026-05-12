@@ -391,10 +391,20 @@ func BroadcastStockUpdate(hub *Hub, product *domain.Product) {
 	if hub == nil {
 		return
 	}
+	payload, _ := json.Marshal(struct {
+		ID       int    `json:"id"`
+		SKU      string `json:"sku"`
+		Stock    int    `json:"stock"`
+		LowStock bool   `json:"low_stock"`
+	}{
+		ID:       product.ID,
+		SKU:      product.SKU,
+		Stock:    product.Stock,
+		LowStock: product.Stock <= product.StockMin,
+	})
 	event := Event{
 		Type:    EventStockUpdate,
-		Payload: []byte(fmt.Sprintf(`{"id":%d,"sku":"%s","stock":%d,"low_stock":%v}`,
-			product.ID, product.SKU, product.Stock, product.Stock <= product.StockMin)),
+		Payload: payload,
 		StoreID: product.StoreID,
 	}
 	hub.Broadcast(event)
@@ -404,10 +414,20 @@ func BroadcastSaleCreated(hub *Hub, sale *domain.Sale) {
 	if hub == nil {
 		return
 	}
+	payload, _ := json.Marshal(struct {
+		ID      int    `json:"id"`
+		Invoice string `json:"invoice"`
+		Total   int    `json:"total"`
+		Items   int    `json:"items"`
+	}{
+		ID:      sale.ID,
+		Invoice: sale.InvoiceNumber,
+		Total:   sale.TotalAmount,
+		Items:   len(sale.Items),
+	})
 	event := Event{
 		Type:    EventSaleCreated,
-		Payload: []byte(fmt.Sprintf(`{"id":%d,"invoice":"%s","total":%d,"items":%d}`,
-			sale.ID, sale.InvoiceNumber, sale.TotalAmount, len(sale.Items))),
+		Payload: payload,
 		StoreID: sale.StoreID,
 	}
 	hub.Broadcast(event)
@@ -417,10 +437,20 @@ func BroadcastProductUpdate(hub *Hub, product *domain.Product) {
 	if hub == nil {
 		return
 	}
+	payload, _ := json.Marshal(struct {
+		ID    int    `json:"id"`
+		SKU   string `json:"sku"`
+		Stock int    `json:"stock"`
+		Price int    `json:"price"`
+	}{
+		ID:    product.ID,
+		SKU:   product.SKU,
+		Stock: product.Stock,
+		Price: product.Price,
+	})
 	event := Event{
 		Type:    EventProductUpdate,
-		Payload: []byte(fmt.Sprintf(`{"id":%d,"sku":"%s","stock":%d,"price":%d}`,
-			product.ID, product.SKU, product.Stock, product.Price)),
+		Payload: payload,
 		StoreID: product.StoreID,
 	}
 	hub.Broadcast(event)
@@ -430,10 +460,22 @@ func BroadcastLowStockAlert(hub *Hub, product *domain.Product) {
 	if hub == nil {
 		return
 	}
+	payload, _ := json.Marshal(struct {
+		ID    int    `json:"id"`
+		SKU   string `json:"sku"`
+		Name  string `json:"name"`
+		Stock int    `json:"stock"`
+		Min   int    `json:"min"`
+	}{
+		ID:    product.ID,
+		SKU:   product.SKU,
+		Name:  product.Name,
+		Stock: product.Stock,
+		Min:   product.StockMin,
+	})
 	event := Event{
 		Type:    EventLowStockAlert,
-		Payload: []byte(fmt.Sprintf(`{"id":%d,"sku":"%s","name":"%s","stock":%d,"min":%d}`,
-			product.ID, product.SKU, product.Name, product.Stock, product.StockMin)),
+		Payload: payload,
 		StoreID: product.StoreID,
 	}
 	hub.Broadcast(event)
