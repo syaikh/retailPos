@@ -38,6 +38,28 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 
 ## 📦 Quick Start (5 menit)
 
+## 🛠 Development Setup
+
+For local development without containers:
+
+```bash
+# 1. Ensure postgres-dev is running (port 5433)
+podman run -d --name postgres-dev -p 5433:5432 \
+  -e POSTGRES_USER=pos -e POSTGRES_PASSWORD=admin123 -e POSTGRES_DB=retail_pos \
+  postgres:15-alpine
+
+# 2. Seed database with test data
+./seed-dev.sh
+
+# 3. Start backend (port 9095)
+./run-dev.sh
+
+# 4. In another terminal, start frontend (port 5173)
+cd web && npm run dev
+
+# 5. Open http://localhost:5173
+```
+
 ### Prerequisites
 
 ```bash
@@ -169,7 +191,35 @@ podman compose -f deploy/docker-compose.yml down
 
 ### Environment Variables
 
-Backend (in `deploy/podman-deploy.sh` or systemd service):
+#### Development Environment (`.env` file)
+
+For local development, copy `.env.example` to `.env` and customize:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FRONTEND_PORT` | `5173` | Frontend dev server port (Vite) |
+| `BACKEND_PORT` | `9095` | Backend dev server port |
+| `DATABASE_PORT` | `5433` | PostgreSQL dev container port (postgres-dev) |
+| `DB_HOST` | `localhost` | PostgreSQL host |
+| `DB_USER` | `pos` | Database username |
+| `DB_PASSWORD` | `admin123` | Database password |
+| `DB_NAME` | `retail_pos` | Database name |
+
+**Usage:**
+```bash
+# Start with custom ports
+FRONTEND_PORT=3001 BACKEND_PORT=3002 npm run dev
+
+# Or use the .env file (scripts auto-load it)
+./run-dev.sh
+./seed-dev.sh
+```
+
+#### Production Environment (`.env` file)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -180,31 +230,6 @@ Backend (in `deploy/podman-deploy.sh` or systemd service):
 | `DB_NAME` | `retail_pos` | Database name |
 | `GIN_MODE` | `release` | Gin framework mode |
 
-Postgres (in deployment script):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_USER` | `pos` | DB superuser |
-| `POSTGRES_PASSWORD` | (auto-generated) | DB password |
-| `POSTGRES_DB` | `retail_pos` | Initial database |
-
-Frontend:
-- `VITE_API_URL` set to `/api` during build (npx will proxy to backend)
-
-### Changing Ports
-
-Edit `deploy/podman-deploy.sh`:
-
-```bash
-HOST_FRONTEND_PORT=8080   # External port (host)
-```
-
-Or set environment variable before running:
-```bash
-HOST_FRONTEND_PORT=80 ./deploy/podman-deploy.sh start
-# Note: port 80 requires rootful podman or capability
-```
-
 ### Custom Database Credentials
 
 ```bash
@@ -214,6 +239,26 @@ cp deploy/.env.example .env
 
 # Or set inline
 DB_USER=myuser DB_PASSWORD=mypass ./deploy/podman-deploy.sh start
+```
+
+### Changing Ports
+
+**Development:**
+```bash
+# Edit .env file
+FRONTEND_PORT=3001
+BACKEND_PORT=3002
+DATABASE_PORT=5434
+```
+
+**Production:**
+```bash
+# Edit deploy/.env or set via environment
+HOST_FRONTEND_PORT=8080   # External port (host)
+
+# Or set environment variable before running:
+HOST_FRONTEND_PORT=80 ./deploy/podman-deploy.sh start
+# Note: port 80 requires rootful podman or capability
 ```
 
 ## 🔐 Security
