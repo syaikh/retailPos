@@ -4,9 +4,8 @@
 
   let { currentPath = '/' }: { currentPath?: string } = $props();
   let ws = useWebSocket();
-  let wsStatus = $derived($ws.status);
+  let wsStatus = $derived(ws.status);
 
-  // Build breadcrumb from path
   const breadcrumb = $derived(() => {
     const map: Record<string, string> = {
       '/':                  'Dashboard',
