@@ -1,4 +1,23 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
+
+// ============================================================================
+// Configuration - Base URLs from environment variables
+// ============================================================================
+
+export const FRONTEND_BASE = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+export const API_BASE = process.env.API_BASE_URL || 'http://localhost:9095';
+
+// Export full URLs for common endpoints
+export const API_URLS = {
+  LOGIN: `${API_BASE}/api/login`,
+  HEALTH: `${API_BASE}/health`,
+  STATS: `${API_BASE}/api/dashboard/stats`,
+  PRODUCTS: `${API_BASE}/api/products`,
+  SALES: `${API_BASE}/api/sales`,
+  INVENTORY_EXPORT: `${API_BASE}/api/inventory/export`,
+  ADMIN_USERS: `${API_BASE}/api/admin/users`,
+  ADMIN_ROLES: `${API_BASE}/api/admin/roles`
+};
 
 // ============================================================================
 // Global Fixtures & Helpers for E2E Tests
@@ -11,16 +30,13 @@ import { test as base } from '@playwright/test';
 export const test = base.extend({
   // Add authenticated page fixture
   page: async ({ page }, use) => {
-    // Store original page
-    const originalPage = page;
-    
     // Add helper methods to page
     page.authAs = async (username: string, password: string) => {
       await page.goto('/');
       await page.fill('#username', username);
       await page.fill('#password', password);
-      await page.click('.login-btn');
-      await expect(page.locator('#dashboard')).toBeVisible({ timeout: 5000 });
+      await page.click('button[type="submit"]');
+      await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
       
       // Return token
       return await page.evaluate(() => sessionStorage.getItem('access_token'));
@@ -29,7 +45,7 @@ export const test = base.extend({
     page.logout = async () => {
       await page.evaluate(() => sessionStorage.clear());
       await page.reload();
-      await expect(page.locator('#login-section')).toBeVisible();
+      await expect(page.locator('#username')).toBeVisible();
     };
 
     page.getJwtPayload = async () => {
@@ -83,7 +99,8 @@ export const TEST_USERS = {
 
 export const API_ENDPOINTS = {
   LOGIN: '/api/login',
-  STATS: '/api/stats',
+  HEALTH: '/health',
+  STATS: '/api/dashboard/stats',
   PRODUCTS: '/api/products',
   SALES: '/api/sales',
   INVENTORY_EXPORT: '/api/inventory/export',
@@ -101,7 +118,7 @@ export const API_ENDPOINTS = {
 export async function waitForAPI(page, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await page.request.get(API_ENDPOINTS.STATS);
+      const response = await page.request.get(`${API_BASE}/health`);
       if (response.ok()) return true;
     } catch (e) {
       // ignore

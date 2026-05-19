@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS } from './fixtures';
+import { TEST_USERS, API_BASE } from './fixtures';
 
 test.describe('Inventory Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -25,12 +25,12 @@ test.describe('Inventory Management', () => {
 
 test.describe('Inventory API Endpoints', () => {
   test('GET /api/products returns seeded data', async ({ request }) => {
-    const tokenResponse = await request.post('http://localhost:9095/api/login', {
+    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
       data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
     });
     const { access_token: token } = await tokenResponse.json();
 
-    const response = await request.get('http://localhost:9095/api/products', {
+    const response = await request.get(`${API_BASE}/api/products`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     expect(response.ok()).toBeTruthy();
@@ -39,24 +39,24 @@ test.describe('Inventory API Endpoints', () => {
   });
 
   test('GET /api/products supports query parameters', async ({ request }) => {
-    const tokenResponse = await request.post('http://localhost:9095/api/login', {
+    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
       data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
     });
     const { access_token: token } = await tokenResponse.json();
 
-    const response = await request.get('http://localhost:9095/api/products?limit=5', {
+    const response = await request.get(`${API_BASE}/api/products?limit=5`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     expect(response.ok()).toBeTruthy();
   });
 
   test('GET /api/products/:id returns single product', async ({ request }) => {
-    const tokenResponse = await request.post('http://localhost:9095/api/login', {
+    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
       data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
     });
     const { access_token: token } = await tokenResponse.json();
 
-    const response = await request.get('http://localhost:9095/api/products/1', {
+    const response = await request.get(`${API_BASE}/api/products/1`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     expect(response.ok()).toBeTruthy();

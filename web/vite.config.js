@@ -2,6 +2,13 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
+import dotenv from 'dotenv';
+
+// Load .env file from parent directory
+dotenv.config({ path: '../.env' });
+
+const frontendPort = Number(process.env.FRONTEND_PORT) || 5173;
+const backendPort = Number(process.env.BACKEND_PORT) || 9095;
 
 export default defineConfig({
   plugins: [
@@ -14,19 +21,19 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173,
+    port: frontendPort,
     proxy: {
       '/api': {
-        target: 'http://localhost:9095',
+        target: `http://localhost:${backendPort}`,
         changeOrigin: true
       },
       '/ws': {
-        target: 'ws://localhost:9095',
+        target: `ws://localhost:${backendPort}`,
         changeOrigin: true,
         ws: true
       },
       '/health': {
-        target: 'http://localhost:9095',
+        target: `http://localhost:${backendPort}`,
         changeOrigin: true
       }
     }

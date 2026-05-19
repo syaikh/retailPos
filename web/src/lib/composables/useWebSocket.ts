@@ -18,7 +18,9 @@ class WebSocketService {
     
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const backendHost = window.location.host === 'localhost:5173' ? 'localhost:9095' : window.location.host;
+      const frontendPort = import.meta.env.VITE_FRONTEND_PORT || '5173';
+      const backendPort = import.meta.env.VITE_BACKEND_PORT || '9095';
+      const backendHost = window.location.host === `localhost:${frontendPort}` ? `localhost:${backendPort}` : window.location.host;
       const wsUrl = `${protocol}//${backendHost}/ws?token=${encodeURIComponent(token || '')}`;
       
       this.ws = new WebSocket(wsUrl);
