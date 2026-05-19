@@ -24,6 +24,10 @@ export default defineConfig({
         target: 'ws://localhost:9095',
         changeOrigin: true,
         ws: true
+      },
+      '/health': {
+        target: 'http://localhost:9095',
+        changeOrigin: true
       }
     }
   }
