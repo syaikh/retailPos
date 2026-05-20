@@ -1,14 +1,15 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import { auth } from '$lib/stores/auth';
   import { debounce } from '$lib/utils/debounce';
   import { useWebSocket } from '$lib/composables/useWebSocket';
 
-  import Badge from '$lib/components/ui/Badge.svelte';
-  import Modal from '$lib/components/ui/Modal.svelte';
-  import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import Pagination from '$lib/components/ui/Pagination.svelte';
+import Badge from '$lib/components/ui/Badge.svelte';
+   import Modal from '$lib/components/ui/Modal.svelte';
+   import CategoryFilterModal from '$lib/components/ui/CategoryFilterModal.svelte';
+   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
      Search, Plus, Pencil, Trash2, Package,
      SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
@@ -103,20 +104,34 @@ let showDeleteModal = $state(false);
   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
   
 // Track previous values to avoid duplicate fetches
-   let previousSearchQuery = '';
-   let previousCategories = ['All'];
+    let previousSearchQuery = '';
+    let previousCategories = ['All'];
 
   // Sorting state
-  let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
-  let sortDir = $state('asc'); // 'asc' or 'desc'
+    let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
+    let sortDir = $state('asc'); // 'asc' or 'desc'
+    let showCategoryFilterModal = $state(false);
+    let modalCategorySearch = $state('');
+    let showModalCategoryDropdown = $state(false);
 
-// Category search state
-   let categorySearchQuery = $state('');
-   let showCategoryDropdown = $state(false);
+    // Derived style for category filter button
+    // Empty: dark surface + slate-700 border + muted text
+    // Active: purple tint + purple border + bright purple text
+    let categoryBtnStyle = $derived(selectedCategories.length > 0
+      ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
+      : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
+    );
 
-   // Modal category search state
-   let modalCategorySearch = $state('');
-   let showModalCategoryDropdown = $state(false);
+    // Derived style for low-stock toggle button — mirrors Category button when active
+    let lowStockBtnStyle = $derived(lowStockOnly
+      ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
+      : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
+    );
+    
+    // Popular categories (based on most commonly used)
+    const popularCategories = $derived(
+      ['Makanan', 'Minuman', 'Snack', 'Lainnya'].filter(cat => categories.includes(cat))
+    );
 
 // Form State
     let form = $state({
@@ -250,12 +265,7 @@ if (searchQuery === '') {
       fetchProducts(0, limit);
     });
 
-// Filtered categories for searchable dropdown
-   let filteredCategories = $derived(
-     categories.filter(cat =>
-       cat.toLowerCase().includes(categorySearchQuery.toLowerCase())
-     )
-   );
+
 
 function toggleCategory(category) {
       if (category === 'All') {
@@ -271,15 +281,10 @@ function toggleCategory(category) {
           selectedCategories = [...selectedCategories, category];
         }
       }
-      categorySearchQuery = '';
       offset = 0;
     }
 
-function handleCategoryInputFocus() {
-     showCategoryDropdown = true;
-   }
-
-// Modal category searchable dropdown
+  // Modal category searchable dropdown
     let filteredModalCategories = $derived(
       categories.filter(cat =>
         cat !== 'All' && cat.toLowerCase().includes(modalCategorySearch.toLowerCase())
@@ -400,8 +405,6 @@ function resetForm() {
         weight_grams: null,
         status: 'draft'
       };
-      modalCategorySearch = '';
-      showModalCategoryDropdown = false;
     }
 
   function getUserRoleName() {
@@ -524,18 +527,27 @@ onMount(async () => {
   }}
 />
 
+<!-- Category Filter Modal -->
+<CategoryFilterModal
+  bind:open={showCategoryFilterModal}
+  bind:selectedCategories
+  categories={categories}
+  popularCategories={popularCategories}
+  onApply={(cats) => { offset = 0; fetchProducts(0, limit); }}
+/>
+
 <div class="space-y-6">
   <!-- Filters -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      <div class="relative flex-2">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search products..."
-          bind:value={searchQuery}
-          class="input pl-10 pr-12"
-        />
+       <div class="relative flex-2">
+         <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+         <input
+           type="text"
+           placeholder="Search products..."
+           bind:value={searchQuery}
+           class="input pl-10 pr-12 h-10"
+         />
         {#if isSearching}
           <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
         {:else if searchQuery}
@@ -548,73 +560,45 @@ onMount(async () => {
           </button>
         {/if}
       </div>
-<!-- Category Search Input -->
-       <div class="relative flex-1">
-         <div class="flex items-center gap-2 p-3 min-h-12 card-glass rounded-2xl border border-border/60 cursor-text shadow-sm transition-all duration-200 hover:border-primary/40" onclick={() => showCategoryDropdown = true}>
-           <Search size={16} class="text-text-muted shrink-0" />
-           <div class="flex items-center gap-2 p-3 min-h-12 card-glass rounded-2xl border border-border/60 cursor-text shadow-sm transition-all duration-200 hover:border-primary/40" onclick={() => showCategoryDropdown = true}>
-             <Search size={16} class="text-text-muted shrink-0" />
-             <input
-               type="text"
-               placeholder="Search categories..."
-               bind:value={categorySearchQuery}
-               onfocus={() => showCategoryDropdown = true}
-               class="flex-1 min-w-[120px] outline-none text-sm bg-transparent placeholder:text-text-muted"
-             />
-           </div>
+<!-- Category Filter Button -->
+       <button
+         type="button"
+         onclick={() => showCategoryFilterModal = true}
+         class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200"
+         style={categoryBtnStyle}
+       >
+         <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}" />
+         <span class="text-[13px] font-medium whitespace-nowrap">
            {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
-             <div class="mt-2 flex flex-wrap gap-2">
-               {#each selectedCategories.slice(0, 5) as cat}
-                 <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary rounded-full ring-1 ring-primary/20 whitespace-nowrap">
-                   {cat}
-                   {#if cat !== 'All'}
-                     <button
-                       type="button"
-                       onclick={(e) => { e.stopPropagation(); toggleCategory(cat); }}
-                       class="rounded-full p-0.5 text-primary hover:bg-primary/10 transition-colors"
-                       aria-label={`Remove ${cat}`}
-                     >
-                       <X size={12} />
-                     </button>
-                   {/if}
-                 </span>
-               {/each}
-               {#if selectedCategories.length > 5}
-                 <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-text-secondary bg-surface-subtle rounded-full whitespace-nowrap">
-                   +{selectedCategories.length - 5} more
-                 </span>
-               {/if}
-             </div>
+             {selectedCategories.length} Kategori Dipilih
+           {:else}
+             Kategori
            {/if}
-         </div>
-         {#if showCategoryDropdown}
-           <div class="absolute top-full mt-2 w-full card-glass border border-border/70 rounded-2xl p-2 z-50 min-w-0 flex flex-col gap-1 max-h-52 overflow-y-auto shadow-xl">
-             {#if filteredCategories.length === 0}
-               <div class="px-3 py-2 text-sm text-text-muted">No categories found.</div>
-             {:else}
-               {#each filteredCategories as cat}
-                 <button
-                   type="button"
-                   class={`flex items-center gap-3 w-full rounded-2xl px-3 py-2 text-sm text-left transition-all duration-200 border ${selectedCategories.includes(cat) ? 'bg-primary/10 text-primary border-primary/20' : 'text-text-secondary border-transparent hover:bg-surface-hover'}`}
-                   onclick={(e) => {
-                     e.preventDefault();
-                     toggleCategory(cat);
-                   }}
-                 >
-                   <span class="flex items-center justify-center h-4 w-4 rounded-full border border-border/60 bg-white text-[0.65rem]">
-                     {selectedCategories.includes(cat) ? '✓' : ''}
-                   </span>
-                   <span class="grow truncate">{cat}</span>
-                 </button>
-               {/each}
-             {/if}
-           </div>
-         {/if}
-       </div>
-      <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
-        <input type="checkbox" bind:checked={lowStockOnly} onchange={() => { offset = 0; fetchProducts(0, limit); }} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
-        <span class="text-sm text-text-secondary font-medium">Low stock only</span>
-      </label>
+         </span>
+         <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
+        </button>
+       <!-- Low Stock Toggle Button -->
+      <button
+         type="button"
+         role="switch"
+         aria-checked={lowStockOnly}
+         onclick={() => {
+            lowStockOnly = !lowStockOnly;
+            offset = 0;
+            fetchProducts(0, limit);
+          }}
+         class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200"
+         style={lowStockBtnStyle}
+       >
+       <!-- Dot indicator -->
+         <span
+           class="block rounded-full shrink-0 transition-colors duration-200"
+           style="width: 8px; height: 8px; background: {lowStockOnly ? '#c4b5fd' : '#6b7280'}; box-shadow: {lowStockOnly ? '0 0 6px rgba(196,181,253,0.7)' : 'none'};"
+         ></span>
+         <span class="text-[13px] font-medium whitespace-nowrap">
+           Low Stock
+         </span>
+       </button>
       <button
         onclick={() => {
           if (!canManageInventory) return;
