@@ -4,21 +4,22 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 
 ## 🚀 Features
 
-- **Point of Sale (POS)** - Transaksi penjualan dengan scanner, diskon, payment methods
-- **Inventory Management** - Tracking stok, movement, low stock alerts
-- **User Management** - RBAC (Role-Based Access Control) dengan permissions
-- **Audit Logging** - Full audit trail untuk semua aksi
-- **Real-time Dashboard** - Statistik penjualan, revenue, analytics
-- **WebSocket Support** - Notifikasi real-time
-- **Multi-store Ready** - Architecture mendukung multiple stores
+- **Point of Sale (POS)** — Transaksi penjualan dengan scanner, diskon, payment methods
+- **Inventory Management** — Tracking stok, movement, low stock alerts, multi-category filter
+- **Category Filter Modal** — Side-drawer multi-select with search, popular chips, and responsive grid
+- **User Management** — RBAC (Role-Based Access Control) dengan permissions
+- **Audit Logging** — Full audit trail untuk semua aksi
+- **Real-time Dashboard** — Statistik penjualan, revenue, analytics
+- **WebSocket Support** — Notifikasi real-time
+- **Multi-store Ready** — Architecture mendukung multiple stores
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Frontend (Nginx)                     │
+│                    Frontend (Nginx + Vite)              │
 │  Port 5173 (HTTP) / 443 (HTTPS)                        │
-│  Serves static files + Reverse Proxy                   │
+│  Svelte 5 + Tailwind CSS 4 (dev: Vite HMR)             │
 └────────────┬────────────────────────────────────────────┘
              │ /api/* → Backend
              │ /ws/*  → WebSocket
@@ -33,14 +34,94 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 
 **Tech Stack:**
 - **Backend:** Go (Gin), PostgreSQL, JWT Auth, WebSocket (gorilla/websocket)
-- **Frontend:** HTML/CSS/JavaScript (Vanilla - no framework needed)
+- **Frontend:** Svelte 5, Tailwind CSS 4, Vite 6, Playwright
 - **Infrastructure:** Podman (rootless), Nginx, systemd
 
 ## 📦 Quick Start (5 menit)
+### Frontend Technologies
 
-## 🛠 Development Setup
+- **Svelte 5** — Component-based UI with reactive state (`$state`, `$derived`, `$effect`)
+- **Tailwind CSS 4** — Utility-first styling via Vite plugin
+- **Vite 6** — Fast build tool and dev server (port 5173)
+- **Playwright** — End-to-end browser testing
+- **Lucide Svelte** — Icon library
 
-For local development without containers:
+### Frontend Development
+
+```bash
+# Start frontend dev server (port 5173)
+cd web && npm run dev
+
+# Build for production
+cd web && npm run build
+
+# Run E2E tests
+cd web && npx playwright test
+```
+
+**Frontend architecture:**
+```
+web/
+├── src/
+│   ├── app.css               # Global styles & Tailwind imports
+│   ├── lib/
+│   │   ├── api/              # Axios client & auth helpers
+│   │   ├── components/ui/    # Reusable UI components (Modal, Badge, etc.)
+│   │   ├── composables/      # Svelte composables (useWebSocket, etc.)
+│   │   ├── pages/            # Page components (InventoryPage, PosPage, etc.)
+│   │   ├── stores/           # Svelte stores (auth, toast)
+│   │   └── utils/            # Utilities (debounce, etc.)
+│   └── index.html            # Entry point
+├── package.json
+└── vite.config.js            # Vite + Svelte + Tailwind config
+```
+
+**Key UI Components:**
+- `CategoryFilterModal.svelte` — Side-drawer multi-select category filter with search, popular chips, and grid layout
+- `Modal.svelte` — Reusable centered dialog with fade/fly transitions
+- `Badge.svelte` — Status badge (destructive, success, warning, default variants)
+- `Pagination.svelte` — Server-side pagination control
+- `Skeleton.svelte` — Loading skeleton placeholder
+
+### Prerequisites for Frontend
+
+```bash
+cd web
+npm install
+```
+
+### Frontend Folder Structure
+
+```
+web/src/lib/
+├── api/
+│   ├── client.ts          # Axios instance with interceptors (auto-refresh token)
+│   └── auth.ts            # Auth API calls (login, refresh, logout)
+├── components/
+│   └── ui/                # Reusable UI components (Svelte 5)
+│       ├── Badge.svelte
+│       ├── Card.svelte
+│       ├── Modal.svelte
+│       ├── Pagination.svelte
+│       ├── Skeleton.svelte
+│       ├── StatCard.svelte
+│       └── CategoryFilterModal.svelte
+├── composables/
+│   └── useWebSocket.ts    # WebSocket connection hook
+├── pages/
+│   ├── InventoryPage.svelte   # Product inventory with multi-category filter
+│   ├── PosPage.svelte         # Point of Sale interface
+│   ├── DashboardPage.svelte   # Sales dashboard
+│   ├── ReportsPage.svelte     # Sales reports
+│   └── LoginPage.svelte       # Authentication
+├── stores/
+│   ├── auth.ts            # Auth state store
+│   └── toast.ts           # Toast notifications
+└── utils/
+    └── debounce.ts        # Debounce utility for search
+```
+
+### Backend Development
 
 ```bash
 # 1. Ensure postgres-dev is running (port 5433)
@@ -60,53 +141,80 @@ cd web && npm run dev
 # 5. Open http://localhost:5173
 ```
 
-### Prerequisites
+### Backend Architecture
+
+```
+internal/
+├── domain/            # Business entities (Product, User, Sale, etc.)
+├── delivery/http/
+│   ├── handler/       # HTTP handlers (Gin routes + middleware)
+│   ├── middleware/    # Auth, CORS, logging
+│   └── router/        # Route definitions
+├── repository/        # Data access layer (interface + postgres impl)
+├── usecase/           # Business logic orchestration
+└── infrastructure/    # External services (email, websocket, etc.)
+```
+
+### Backend Folder Structure
+
+```
+go/
+├── cmd/
+│   ├── server/        # HTTP + WebSocket server entry point
+│   └── seed/          # Database seeder entry point
+├── internal/          # Core business logic (clean architecture)
+├── database/
+│   ├── migrations/    # SQL migration files (up/down)
+│   └── seeds/         # Seed data SQL files
+└── deploy/            # Deployment configurations
+```
+
+### Backend Build & Install
 
 ```bash
-# Fedora/RHEL/CentOS
-sudo dnf install podman git make
+# Build backend binary
+make build-backend            # builds for linux/amd64
+make build-backend-darwin     # builds for macOS (Apple Silicon)
 
-# Ubuntu/Debian
-sudo apt install podman git make
+# Install locally
+make install-backend          # installs to $GOPATH/bin
 ```
 
-### 1. Clone Repository
+### Deploy from Release
 
 ```bash
-git clone <repository-url>
-cd retail-pos-system
+# Option 1: Use installer script (recommended)
+curl -fsSL https://releases.example.com/install.sh | sudo bash
+
+# Option 2: Download binary
+VERSION=$(curl -s https://api.github.com/repos/owner/repo/releases/latest | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+wget https://releases.example.com/retail-pos-${VERSION}-linux-amd64.tar.gz
+tar -xzf retail-pos-${VERSION}-linux-amd64.tar.gz
+sudo mv retail-pos /usr/local/bin/
 ```
 
-### 2. Build Images
+### Backend API Testing
 
 ```bash
-# Backend (Go binary)
-make build-backend
+# Health check (no auth)
+curl http://localhost:9095/health
 
-# Frontend (Nginx + static files)
-make build-frontend
+# Login
+curl -X POST http://localhost:9095/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"superadmin","password":"admin123"}'
 
-# Or build both:
-make build-all
+# Get products (with token)
+TOKEN="<access_token_from_login>"
+curl http://localhost:9095/api/products \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### 3. Deploy dengan Podman
+### Run Backend Tests
 
 ```bash
-# Start all services (Postgres + Backend + Nginx)
-./deploy/podman-deploy.sh start
-
-# Wait for services to be ready (~10 detik)
-./deploy/podman-deploy.sh status
-```
-
-### 4. Access Application
-
-```
-Frontend: http://localhost:5173
-Default credentials:
-  Username: superadmin
-  Password: admin123
+cd cmd/server
+go test ./... -v
 ```
 
 ## 🔧 Detailed Installation
@@ -352,16 +460,26 @@ go test ./... -v
 
 ### E2E Tests (Playwright)
 
+E2E test suite covers inventory filtering, category multi-select, POS flow, dashboard, reports, admin, and login:
+
 ```bash
 # Ensure both servers are running
 ./deploy/podman-deploy.sh start
 
-# Run tests
+# Run tests (headless)
 npx playwright test --reporter=list
 
-# With UI (headed mode)
+# Run with UI (headed mode + slowMo)
 npx playwright test --headed --slowMo 1000
+
+# Run specific spec
+npx playwright test tests/e2e/inventory.spec.ts
+
+# View HTML report
+npx playwright show-report
 ```
+
+Test configuration: `tests/e2e/fixtures.ts`, run script: `run-e2e.sh`
 
 ### API Testing
 
@@ -392,6 +510,19 @@ curl http://localhost:5173/api/stats \
 # Raw podman
 podman pod ps
 podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+```
+
+### Frontend Dev Health Check
+
+```bash
+# Frontend Vite dev server (hot reload)
+curl -I http://localhost:5173
+
+# Backend API (requires auth for /api/*)
+curl -I http://localhost:5173/api/health
+
+# Backend direct (dev port)
+curl -I http://localhost:9095/health
 ```
 
 ### Logs
@@ -437,6 +568,16 @@ make build-all
 ./deploy/podman-deploy.sh restart
 ```
 
+### Update Frontend Dependencies
+
+```bash
+cd web
+npm update
+npm run build
+make build-frontend
+./deploy/podman-deploy.sh restart
+```
+
 ### Update Base Images (Security)
 
 ```bash
@@ -476,10 +617,17 @@ retail-pos-system/
 │   ├── server/          # Go backend main
 │   ├── seed/            # Database seeder
 │   └── dummy/           # Test utilities
-├── web/                 # Frontend source
-│   ├── index.html       # Single page app
-│   ├── app.css          # Styles
-│   └── vite.config.js   # Build config
+├── web/                 # Frontend (Svelte 5 + Tailwind CSS 4)
+│   ├── src/
+│   │   ├── app.css           # Global styles & Tailwind imports
+│   │   └── lib/
+│   │       ├── api/          # Axios client & auth helpers
+│   │       ├── components/   # Svelte components (pages + ui)
+│   │       ├── composables/  # Svelte composables (useWebSocket, etc.)
+│   │       ├── pages/        # Page components (Inventory, POS, Dashboard)
+│   │       ├── stores/       # Svelte stores (auth, toast)
+│   │       └── utils/        # Utilities (debounce, etc.)
+│   └── vite.config.js        # Vite + Svelte + Tailwind config
 ├── internal/            # Backend logic (clean architecture)
 │   ├── delivery/http/   # HTTP handlers
 │   ├── domain/          # Business entities
@@ -488,6 +636,8 @@ retail-pos-system/
 ├── database/
 │   ├── migrations/      # SQL migrations
 │   └── seeds/           # Seed data (users, roles, products)
+├── tests/
+│   └── e2e/             # Playwright E2E tests
 ├── deploy/
 │   ├── backend/         # Backend Dockerfile
 │   ├── frontend/        # Frontend Dockerfile + nginx.conf
@@ -495,9 +645,10 @@ retail-pos-system/
 │   ├── docker-compose.yml
 │   ├── retail-pos.service # systemd unit
 │   └── PRODUCTION-DEPLOYMENT.md
-├── tests/
-│   └── e2e/             # Playwright E2E tests
-└── Makefile             # Commands shortcut
+├── Makefile             # Commands shortcut
+├── .env.example         # Dev environment template
+├── .env                 # Dev environment (gitignored)
+└── .kilo/               # Kilo config & session state
 ```
 
 ## 🔑 Default Credentials
@@ -513,16 +664,20 @@ retail-pos-system/
 
 ## 🆘 Troubleshooting
 
-### Frontend shows "503 Service Temporarily Unavailable"
+### Frontend build "503 Service Temporarily Unavailable" or blank page
 
 ```bash
 # Check nginx logs
 ./deploy/podman-deploy.sh logs frontend
 
+# Dev server: check Vite compilation errors
+cd web && npm run build
+
 # Likely causes:
 # 1. Backend not running → check backend logs
 # 2. Rate limit exceeded → wait 1 minute or adjust nginx.conf
 # 3. Port conflict → check if port 5173 already in use
+# 4. Build error → cd web && npm run build to see compiler output
 ```
 
 ### Backend "health check failed"
@@ -589,14 +744,27 @@ API endpoints are documented in code handlers. Key endpoints:
 | POST | `/api/refresh` | Refresh token | No |
 | POST | `/api/logout` | Logout | Yes |
 | GET | `/api/stats` | Dashboard stats | Yes |
-| GET | `/api/products` | List products | Yes |
+| GET | `/api/products` | List products (supports search + multi-category filter) | Yes |
+| POST | `/api/products` | Create product | Yes |
+| PUT | `/api/products/:id` | Update product | Yes |
+| DELETE | `/api/products/:id` | Delete product | Yes |
+| GET | `/api/categories` | List product categories | Yes |
 | POST | `/api/sales` | Create sale | Yes |
 | GET | `/api/inventory/export` | Export inventory | Yes |
 | GET | `/api/admin/users` | List users (admin) | Yes |
 | POST | `/api/admin/users` | Create user (admin) | Yes |
 | GET | `/ws` | WebSocket hub | Yes (token query) |
 
-Full OpenAPI spec can be generated from handlers.
+### Product Filtering
+
+The `/api/products` endpoint supports:
+
+- `search` — substring match on product name/SKU
+- `category` — one or more category names, comma-separated (multi-select OR filter)
+- `limit` / `offset` — pagination
+- `maxStock` — low stock filter
+
+Example: `GET /api/products?search=mie&category=Makanan,Minuman&limit=20`
 
 ## 🚀 Production Deployment Checklist
 
