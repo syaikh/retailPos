@@ -37,18 +37,6 @@ async function fetchStats() {
 
   onMount(fetchStats);
 
-  // Format date and time: dd mmm yyyy hh:mm:ss (English locale)
-  const formatDateTime = (date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('en-US', { month: 'short' });
-    const year = date.getFullYear();
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-
-    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
-  };
-
   // Quick-access modules
   const modules = [
     {
@@ -161,18 +149,6 @@ async function fetchStats() {
           <p class="text-xs text-text-muted leading-snug">{mod.desc}</p>
         </button>
       {/each}
-    </div>
-  </div>
-
-  <!-- System status -->
-  <div class="fixed bottom-6 right-6 flex items-center gap-4 rounded-full backdrop-blur-xl bg-surface/80 border border-border px-5 py-2.5 shadow-glow-primary-sm z-50 animate-slide-up" style="animation-delay: 900ms;">
-    <div class="flex items-center gap-2">
-      <span class="w-2.5 h-2.5 bg-success rounded-full animate-pulse-dot shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-      <span class="text-[11px] font-bold uppercase tracking-widest text-success-light">Operational</span>
-    </div>
-    <div class="w-px h-4 bg-border/50"></div>
-    <div class="text-[10px] text-text-muted font-medium">
-      {formatDateTime(new Date())}
     </div>
   </div>
 </div>
