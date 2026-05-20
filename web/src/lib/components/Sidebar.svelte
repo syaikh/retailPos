@@ -90,7 +90,7 @@
   style:width={collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'}
 >
   <!-- Brand -->
-  <div class="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border min-h-[65px]">
+  <div class="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
     <div class="w-9 h-9 rounded-xl gradient-bg-primary flex items-center justify-center shrink-0 shadow-glow-primary-sm">
       <Store size={18} class="text-white" />
     </div>

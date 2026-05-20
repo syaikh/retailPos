@@ -140,7 +140,7 @@
   :root {
     --sidebar-width: 240px;
     --sidebar-collapsed-width: 72px;
-    --topbar-height: 64px;
+    --topbar-height: 4rem; /* 64px = h-16 */
   }
 
   * {

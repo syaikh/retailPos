@@ -51,7 +51,7 @@
   }
 </script>
 
-<header class="flex items-center px-6 py-4 border-b border-border-default bg-surface-default">
+<header class="flex items-center h-16 px-6 border-b border-border-default bg-surface-default">
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-2" aria-label="Breadcrumb">
     {#each breadcrumb as crumb, i}
