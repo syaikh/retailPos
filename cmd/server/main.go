@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"retail-pos-system/internal/auth"
@@ -43,7 +45,6 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Unable to connect to database: %v\n", err))
 	}
-	defer dbPool.Close()
 
 	// Verify DB connection
 	if err := dbPool.Ping(context.Background()); err != nil {
@@ -160,9 +161,33 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start
-	println("Server starting on " + addr + " (env: " + cfg.Env + ")")
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		panic(err)
+	// Graceful shutdown
+	go func() {
+		println("Server starting on " + addr + " (env: " + cfg.Env + ")")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		fmt.Printf("Server forced to shutdown: %v\n", err)
 	}
+
+	// Close WebSocket connections
+	hub.Shutdown()
+
+	// Close database connection
+	dbPool.Close()
+
+	println("Server exited")
 }

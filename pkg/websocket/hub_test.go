@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,6 +24,75 @@ func drainMessages(ch chan []byte) {
 		default:
 			return
 		}
+	}
+}
+
+// TestHub_Shutdown tests graceful shutdown of the hub
+func TestHub_Shutdown(t *testing.T) {
+	hub := &Hub{
+		clients:         make(map[*Client]bool),
+		register:        make(chan *Client, 100),
+		unregister:      make(chan *Client, 100),
+		broadcast:       make(chan Event, 1000),
+		userConnections: make(map[int]int),
+		done:            make(chan struct{}),
+	}
+
+	go hub.Run()
+	time.Sleep(50 * time.Millisecond)
+
+	// Create mock clients without actual WebSocket connections
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(context.Background())
+
+	client1 := &Client{
+		hub:     hub,
+		userID:  1,
+		send:    make(chan []byte, 256),
+		isAdmin: true,
+		ctx:     ctx1,
+		cancel:  cancel1,
+	}
+
+	client2 := &Client{
+		hub:     hub,
+		userID:  2,
+		send:    make(chan []byte, 256),
+		isAdmin: false,
+		ctx:     ctx2,
+		cancel:  cancel2,
+	}
+
+	hub.clients[client1] = true
+	hub.clients[client2] = true
+	hub.userConnections[1] = 1
+	hub.userConnections[2] = 1
+
+	// Verify clients are registered
+	assert.Len(t, hub.clients, 2)
+	assert.Equal(t, 1, hub.userConnections[1])
+	assert.Equal(t, 1, hub.userConnections[2])
+
+	// Call shutdown
+	hub.Shutdown()
+
+	// Verify all clients are removed
+	assert.Len(t, hub.clients, 0)
+	assert.Equal(t, 0, len(hub.userConnections))
+
+	// Verify contexts are cancelled
+	select {
+	case <-ctx1.Done():
+		// Expected - context was cancelled
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Context 1 not cancelled")
+	}
+
+	select {
+	case <-ctx2.Done():
+		// Expected - context was cancelled
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Context 2 not cancelled")
 	}
 }
 

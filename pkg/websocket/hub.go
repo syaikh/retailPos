@@ -125,6 +125,10 @@ type Hub struct {
 	
 	// Security: Auth service for token validation
 	authService     *auth.AuthService
+	
+	// Shutdown control
+	done    chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewHub(authService *auth.AuthService) *Hub {
@@ -136,12 +140,32 @@ func NewHub(authService *auth.AuthService) *Hub {
 		userConnections: make(map[int]int),
 		rateLimiter:     newRateLimiter(),
 		authService:     authService,
+		done:            make(chan struct{}),
 	}
 }
 
 func (h *Hub) Run() {
+	h.wg.Add(1)
+	defer h.wg.Done()
+	
 	for {
 		select {
+		case <-h.done:
+			// Graceful shutdown - close all connections
+			h.mutex.Lock()
+			for client := range h.clients {
+				if client.cancel != nil {
+					client.cancel()
+				}
+				close(client.send)
+				if client.conn != nil {
+					client.conn.Close()
+				}
+				delete(h.clients, client)
+			}
+			h.userConnections = make(map[int]int)
+			h.mutex.Unlock()
+			return
 		case client := <-h.register:
 			h.mutex.Lock()
 			
@@ -483,4 +507,10 @@ func BroadcastLowStockAlert(hub *Hub, product *domain.Product) {
 		StoreID: product.StoreID,
 	}
 	hub.Broadcast(event)
+}
+
+// Shutdown gracefully closes all WebSocket connections
+func (h *Hub) Shutdown() {
+	close(h.done)  // Signal the Run() loop to stop
+	h.wg.Wait()    // Wait for Run() to finish
 }

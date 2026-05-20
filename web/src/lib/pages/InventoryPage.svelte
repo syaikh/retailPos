@@ -512,20 +512,7 @@ onMount(async () => {
 </script>
 
 
-<svelte:window
-  onclick={(e) => {
-    if (showCategoryDropdown && !e.target.closest('.relative')) {
-      showCategoryDropdown = false;
-      categorySearchQuery = '';
-    }
-  }}
-  onkeydown={(e) => {
-    if (e.key === 'Escape' && showCategoryDropdown) {
-      showCategoryDropdown = false;
-      categorySearchQuery = '';
-    }
-  }}
-/>
+<!-- No global window handlers needed -->
 
 <!-- Category Filter Modal -->
 <CategoryFilterModal
@@ -805,34 +792,25 @@ onclick={() => {
 
 <!-- Add/Edit Modal -->
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Product' : 'Edit Product'}>
-  <form
-    onsubmit={(e) => {
-      e.preventDefault();
-      modalMode === 'add' ? handleAdd() : handleUpdate();
-    }}
-    class="space-y-4"
-  >
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name <span class="text-destructive">*</span></label>
-        <input id="prod-name" bind:value={form.name} type="text" class="input" required />
-      </div>
-      <div>
-<label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU <span class="text-destructive">*</span>
-           <button
-            type="button"
-            onclick={generateNextSKU}
-            class="ml-2 text-xs text-primary hover:underline"
-            title="Generate next SKU"
-          >
-            Auto
-          </button>
-</label>
-        <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
-      </div>
-    </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<form
+     onsubmit={(e) => {
+       e.preventDefault();
+       modalMode === 'add' ? handleAdd() : handleUpdate();
+     }}
+     class="space-y-4"
+   >
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+       <div>
+         <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name <span class="text-destructive">*</span></label>
+         <input id="prod-name" bind:value={form.name} type="text" class="input" required />
+       </div>
+       <div>
+         <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU <span class="text-destructive">*</span></label>
+         <input id="prod-sku" bind:value={form.sku} type="text" class="input" required />
+       </div>
+     </div>
+
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">Barcode <span class="text-text-muted text-xs">(optional)</span></label>
         <input id="prod-barcode" bind:value={form.barcode} type="text" class="input" placeholder="Optional barcode" />
