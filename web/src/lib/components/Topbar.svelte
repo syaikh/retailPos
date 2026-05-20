@@ -1,12 +1,17 @@
 <script lang="ts">
-  import { Bell, Search } from 'lucide-svelte';
+  import { Bell } from 'lucide-svelte';
   import { useWebSocket } from '$lib/composables/useWebSocket';
 
   let { currentPath = '/' }: { currentPath?: string } = $props();
-  let ws = useWebSocket();
-  let wsStatus = $derived(ws.status);
+  const ws = useWebSocket();
+  
+  // Get the status store reference
+  const status = ws.status;
 
-  const breadcrumb = $derived(() => {
+  // Breadcrumb computed as a derived value
+  const breadcrumb = $derived(getBreadcrumb(currentPath));
+
+  function getBreadcrumb(path: string): { label: string; href: string }[] {
     const map: Record<string, string> = {
       '/':                  'Dashboard',
       '/pos':               'Point of Sale',
@@ -20,35 +25,47 @@
 
     const parts: { label: string; href: string }[] = [];
 
-    if (currentPath !== '/') {
+    if (path !== '/') {
       parts.push({ label: 'Home', href: '/' });
 
-      if (currentPath.startsWith('/admin/')) {
+      if (path.startsWith('/admin/')) {
         parts.push({ label: 'Administration', href: '/admin' });
       }
     }
 
-    const label = map[currentPath] || currentPath;
-    parts.push({ label, href: currentPath });
+    const label = map[path] || path;
+    parts.push({ label, href: path });
     return parts;
-  });
+  }
+
+  const dateString = $derived(new Date().toLocaleDateString('id-ID', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }));
+
+  function handleNotifications() {
+    // TODO: Open notifications panel
+    console.log('Notifications clicked');
+  }
 </script>
 
-<header class="topbar px-6 py-4">
+<header class="flex items-center px-6 py-4 border-b border-border-default bg-surface-default">
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-2" aria-label="Breadcrumb">
-    {#each breadcrumb() as crumb, i}
+    {#each breadcrumb as crumb, i}
       {#if i > 0}
         <span class="text-text-muted text-xs">/</span>
       {/if}
-      {#if i === breadcrumb().length - 1}
+      {#if i === breadcrumb.length - 1}
         <span class="text-lg font-bold tracking-tight text-white">
           {crumb.label}
         </span>
       {:else}
-        <span class="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer">
+        <a href={crumb.href} class="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer">
           {crumb.label}
-        </span>
+        </a>
       {/if}
     {/each}
   </nav>
@@ -56,21 +73,21 @@
   <div class="ml-auto flex items-center gap-2">
     <!-- WebSocket connection status -->
     <div class="flex items-center gap-1.5 text-xs" title="Real-time connection">
-      <span class="w-2 h-2 rounded-full {wsStatus === 'connected' ? 'bg-success animate-pulse-dot' : wsStatus === 'connecting' ? 'bg-warning animate-pulse' : 'bg-text-muted'}"></span>
-      <span class="text-text-muted hidden lg:inline">{wsStatus === 'connected' ? 'Online' : wsStatus === 'connecting' ? 'Connecting...' : 'Offline'}</span>
+      <span class="w-2 h-2 rounded-full {$status === 'connected' ? 'bg-success animate-pulse-dot' : $status === 'connecting' ? 'bg-warning animate-pulse' : 'bg-text-muted'}"></span>
+      <span class="text-text-muted hidden lg:inline">{$status === 'connected' ? 'Online' : $status === 'connecting' ? 'Connecting...' : 'Offline'}</span>
     </div>
     
     <!-- Notification bell -->
-    <button class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary">
+    <button class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary" onclick={handleNotifications}>
       <Bell size={18} />
       <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full animate-pulse-dot"></span>
     </button>
 
-    <div class="w-px h-6 bg-border mx-1"></div>
+    <div class="w-px h-6 border-l border-border-default mx-1"></div>
 
     <!-- Date/time -->
     <span class="text-xs text-text-muted hidden lg:block">
-      {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      {dateString}
     </span>
   </div>
 </header>

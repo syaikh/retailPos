@@ -1,15 +1,14 @@
 import { writable } from 'svelte/store';
-import { dev } from '$app/environment';
 
 class WebSocketService {
-  status = writable('disconnected');
-  private ws = null;
+  status = writable<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+  private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectTimeout = null;
-  private eventHandlers = {};
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private eventHandlers: Record<string, ((data: unknown) => void)[]> = {};
 
-  connect(token) {
+  connect(token: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return;
     }
@@ -31,7 +30,7 @@ class WebSocketService {
         this.emit('connection', { status: 'connected' });
       };
 
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           this.emit(data.type || 'message', data);
@@ -50,7 +49,7 @@ class WebSocketService {
         }
       };
 
-      this.ws.onerror = (err) => {
+      this.ws.onerror = (err: Event) => {
         console.error('WebSocket error:', err);
         this.status.set('error');
       };
@@ -71,13 +70,13 @@ class WebSocketService {
     this.status.set('disconnected');
   }
 
-  emit(event, data) {
+  emit(event: string, data: unknown) {
     if (this.eventHandlers[event]) {
       this.eventHandlers[event].forEach(callback => callback(data));
     }
   }
 
-  on(event, callback) {
+  on(event: string, callback: (data: unknown) => void) {
     if (!this.eventHandlers[event]) {
       this.eventHandlers[event] = [];
     }
@@ -88,7 +87,7 @@ class WebSocketService {
     };
   }
 
-  send(type, payload) {
+  send(type: string, payload: Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, ...payload }));
     }

@@ -13,16 +13,16 @@
   } = $props();
 </script>
 
-<div class="flex h-screen overflow-hidden bg-bg">
-  <!-- Sidebar -->
-  <Sidebar bind:currentPath />
+<div class="flex h-screen overflow-hidden bg-bg-default">
+   <!-- Sidebar -->
+   <Sidebar bind:currentPath />
 
-  <!-- Main column -->
-  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
-    <Topbar {currentPath} />
+   <!-- Main column -->
+   <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+     <Topbar {currentPath} />
 
-    <!-- Scrollable content area -->
-    <main class="flex-1 overflow-y-auto bg-bg grid">
+     <!-- Scrollable content area -->
+     <main class="flex-1 overflow-y-auto bg-bg-default grid">
       {#key currentPath}
         <div 
           in:fly={{ y: 15, duration: 300, delay: 150 }} 
