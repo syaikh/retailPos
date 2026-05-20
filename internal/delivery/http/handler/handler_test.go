@@ -232,10 +232,10 @@ func TestAPI_GetStats_Authorized(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].(map[string]interface{})
-	assert.Contains(t, data, "total_sales")
-	assert.Contains(t, data, "total_revenue")
-	assert.Contains(t, data, "total_products")
-	assert.Contains(t, data, "low_stock_count")
-}
+data := response["data"].(map[string]interface{})
+ 	assert.Contains(t, data, "todays_sales")
+ 	assert.Contains(t, data, "todays_revenue")
+ 	assert.Contains(t, data, "total_products")
+ 	assert.Contains(t, data, "low_stock_count")
+ }
 
