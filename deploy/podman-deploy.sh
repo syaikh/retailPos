@@ -84,7 +84,7 @@ wait_for_backend() {
     local max_attempts=30
     local attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if podman exec backend curl -s -o /dev/null http://localhost:8080/api/stats 2>/dev/null; then
+        if podman exec backend curl -s -o /dev/null http://localhost:8080/health 2>/dev/null; then
             log_info "Backend API is ready!"
             return 0
         fi
@@ -154,6 +154,7 @@ start_backend() {
         -e DB_USER="$DB_USER" \
         -e DB_PASSWORD="$DB_PASSWORD" \
         -e DB_NAME="$DB_NAME" \
+        -e PORT=8080 \
         -e FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173,http://localhost:5174}" \
         -e GIN_MODE=release \
         --restart unless-stopped \
@@ -242,7 +243,7 @@ status() {
     podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "postgres|backend|frontend" || echo "  No containers"
     echo ""
     log_info "Connectivity:"
-    if curl -s "http://localhost:${HOST_FRONTEND_PORT}/api/stats" >/dev/null 2>&1; then
+    if curl -s "http://localhost:${HOST_FRONTEND_PORT}/health" >/dev/null 2>&1; then
         echo -e "  ${GREEN}✓ Backend API responding${NC}"
     else
         echo -e "  ${RED}✗ Backend API not responding${NC}"

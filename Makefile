@@ -75,6 +75,7 @@ test: ## Run all tests
 	npx playwright test --reporter=list
 
 test-e2e: ## Run E2E tests only
+	@echo "Ensure services are running: ./deploy/podman-deploy.sh start"
 	npx playwright test --reporter=list
 
 # Database targets

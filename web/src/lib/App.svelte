@@ -110,6 +110,8 @@ function getComponent(path) {
 
     isInitializing = false;
     subscribe(handleRoute);
+    // Call handleRoute once after subscription to sync state with current path
+    handleRoute(getPath());
   }
 
   // Initial route resolution

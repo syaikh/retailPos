@@ -1,0 +1,650 @@
+{
+  "config": {
+    "configFile": "/home/my-excellency/Projects/retail-pos-system/playwright.config.js",
+    "rootDir": "/home/my-excellency/Projects/retail-pos-system/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/my-excellency/Projects/retail-pos-system/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/my-excellency/Projects/retail-pos-system/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "inventory.spec.ts",
+      "file": "inventory.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Inventory Management",
+          "file": "inventory.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load inventory page with product table",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 26023,
+                      "error": {
+                        "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n",
+                        "stack": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:15:16",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 16,
+                          "line": 15
+                        },
+                        "snippet": "  13 |\n  14 |   test('should load inventory page with product table', async ({ page }) => {\n> 15 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  16 |     await expect(page.locator('text=PRODUCT NAME')).toBeVisible();\n  17 |     await expect(page.locator('text=No products found')).toBeHidden();\n  18 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 16,
+                            "line": 15
+                          },
+                          "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n\n  13 |\n  14 |   test('should load inventory page with product table', async ({ page }) => {\n> 15 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  16 |     await expect(page.locator('text=PRODUCT NAME')).toBeVisible();\n  17 |     await expect(page.locator('text=No products found')).toBeHidden();\n  18 |   });\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:15:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:10:00.589Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-981b9-ory-page-with-product-table-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-981b9-ory-page-with-product-table-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 16,
+                        "line": 15
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-e49e92e44b78ba2f2973",
+              "file": "inventory.spec.ts",
+              "line": 14,
+              "column": 7
+            },
+            {
+              "title": "should search products",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23507,
+                      "error": {
+                        "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n",
+                        "stack": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:21:16",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 16,
+                          "line": 21
+                        },
+                        "snippet": "  19 |\n  20 |   test('should search products', async ({ page }) => {\n> 21 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  22 |     await page.fill('input[placeholder=\"Search products...\"]', 'Indomie');\n  23 |     await expect(page.locator('text=Indomie')).toBeVisible({ timeout: 5000 });\n  24 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 16,
+                            "line": 21
+                          },
+                          "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n\n  19 |\n  20 |   test('should search products', async ({ page }) => {\n> 21 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  22 |     await page.fill('input[placeholder=\"Search products...\"]', 'Indomie');\n  23 |     await expect(page.locator('text=Indomie')).toBeVisible({ timeout: 5000 });\n  24 |   });\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:21:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:10:29.679Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Management-should-search-products-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Management-should-search-products-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 16,
+                        "line": 21
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-4547ff63c4c0ef9987b4",
+              "file": "inventory.spec.ts",
+              "line": 20,
+              "column": 7
+            },
+            {
+              "title": "should filter by single category",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23416,
+                      "error": {
+                        "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n",
+                        "stack": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:27:16",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 16,
+                          "line": 27
+                        },
+                        "snippet": "  25 |\n  26 |   test('should filter by single category', async ({ page }) => {\n> 27 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  28 |     \n  29 |     // Click the category filter input to open dropdown\n  30 |     await page.click('.relative.flex-1');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 16,
+                            "line": 27
+                          },
+                          "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n\n  25 |\n  26 |   test('should filter by single category', async ({ page }) => {\n> 27 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  28 |     \n  29 |     // Click the category filter input to open dropdown\n  30 |     await page.click('.relative.flex-1');\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:27:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:10:55.479Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-f22cd-d-filter-by-single-category-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-f22cd-d-filter-by-single-category-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 16,
+                        "line": 27
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-3cdc6b61ceb45b039bea",
+              "file": "inventory.spec.ts",
+              "line": 26,
+              "column": 7
+            },
+            {
+              "title": "should filter by multiple categories",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23407,
+                      "error": {
+                        "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n",
+                        "stack": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:46:16",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 16,
+                          "line": 46
+                        },
+                        "snippet": "  44 |\n  45 |   test('should filter by multiple categories', async ({ page }) => {\n> 46 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  47 |     \n  48 |     // Click the category filter input to open dropdown\n  49 |     await page.click('.relative.flex-1');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 16,
+                            "line": 46
+                          },
+                          "message": "TimeoutError: page.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"/inventory\"]')\u001b[22m\n\n\n  44 |\n  45 |   test('should filter by multiple categories', async ({ page }) => {\n> 46 |     await page.click('a[href=\"/inventory\"]');\n     |                ^\n  47 |     \n  48 |     // Click the category filter input to open dropdown\n  49 |     await page.click('.relative.flex-1');\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:46:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:20.925Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-c329a-lter-by-multiple-categories-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-Manage-c329a-lter-by-multiple-categories-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 16,
+                        "line": 46
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-0987e59e39ab8d4b3224",
+              "file": "inventory.spec.ts",
+              "line": 45,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Inventory API - Category Filter",
+          "file": "inventory.spec.ts",
+          "line": 64,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/products?category=single returns filtered products",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1543,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"Makanan\"\u001b[39m\nReceived: \u001b[31m\"Sunglasses\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"Makanan\"\u001b[39m\nReceived: \u001b[31m\"Sunglasses\"\u001b[39m\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:81:39",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 39,
+                          "line": 81
+                        },
+                        "snippet": "  79 |     if (body.data.length > 0) {\n  80 |       for (const product of body.data) {\n> 81 |         expect(product.category_name).toBe('Makanan');\n     |                                       ^\n  82 |       }\n  83 |     }\n  84 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 39,
+                            "line": 81
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"Makanan\"\u001b[39m\nReceived: \u001b[31m\"Sunglasses\"\u001b[39m\n\n  79 |     if (body.data.length > 0) {\n  80 |       for (const product of body.data) {\n> 81 |         expect(product.category_name).toBe('Makanan');\n     |                                       ^\n  82 |       }\n  83 |     }\n  84 |   });\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:81:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:46.494Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-API----b378e-e-returns-filtered-products-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 39,
+                        "line": 81
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-42ac2fdab5dd0d4fb0ad",
+              "file": "inventory.spec.ts",
+              "line": 65,
+              "column": 7
+            },
+            {
+              "title": "GET /api/products?category=multiple returns products matching any category",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1565,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Sunglasses\"\u001b[39m\nReceived array: \u001b[31m[\"Makanan\", \"Minuman\"]\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Sunglasses\"\u001b[39m\nReceived array: \u001b[31m[\"Makanan\", \"Minuman\"]\u001b[39m\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:103:33",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                          "column": 33,
+                          "line": 103
+                        },
+                        "snippet": "  101 |       const validCategories = ['Makanan', 'Minuman'];\n  102 |       for (const product of body.data) {\n> 103 |         expect(validCategories).toContain(product.category_name);\n      |                                 ^\n  104 |       }\n  105 |     }\n  106 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                            "column": 33,
+                            "line": 103
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Sunglasses\"\u001b[39m\nReceived array: \u001b[31m[\"Makanan\", \"Minuman\"]\u001b[39m\n\n  101 |       const validCategories = ['Makanan', 'Minuman'];\n  102 |       for (const product of body.data) {\n> 103 |         expect(validCategories).toContain(product.category_name);\n      |                                 ^\n  104 |       }\n  105 |     }\n  106 |   });\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts:103:33"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:49.603Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/inventory-Inventory-API----49a6b-ducts-matching-any-category-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/inventory.spec.ts",
+                        "column": 33,
+                        "line": 103
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "491382254a121adeeb47-a59e8fe0fa59fe54fcb7",
+              "file": "inventory.spec.ts",
+              "line": 86,
+              "column": 7
+            },
+            {
+              "title": "GET /api/products with all filters combined",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1582,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:52.777Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "491382254a121adeeb47-329bfad2623b05813e7e",
+              "file": "inventory.spec.ts",
+              "line": 108,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Inventory API Endpoints",
+          "file": "inventory.spec.ts",
+          "line": 124,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/products returns seeded data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1522,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:54.427Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "491382254a121adeeb47-5505ebfa8fe2179515b5",
+              "file": "inventory.spec.ts",
+              "line": 125,
+              "column": 7
+            },
+            {
+              "title": "GET /api/products supports query parameters",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1508,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:55.993Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "491382254a121adeeb47-a937c1d3b7be1ef0f65a",
+              "file": "inventory.spec.ts",
+              "line": 139,
+              "column": 7
+            },
+            {
+              "title": "GET /api/products/:id returns single product",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1563,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-20T05:11:57.541Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "491382254a121adeeb47-f311fafe3687adaf4edc",
+              "file": "inventory.spec.ts",
+              "line": 151,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-05-20T05:09:59.121Z",
+    "duration": 120057.12700000001,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 6,
+    "flaky": 0
+  }
+}

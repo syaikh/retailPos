@@ -232,10 +232,100 @@ func TestAPI_GetStats_Authorized(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-data := response["data"].(map[string]interface{})
- 	assert.Contains(t, data, "todays_sales")
- 	assert.Contains(t, data, "todays_revenue")
- 	assert.Contains(t, data, "total_products")
- 	assert.Contains(t, data, "low_stock_count")
+	data := response["data"].(map[string]interface{})
+	assert.Contains(t, data, "todays_sales")
+	assert.Contains(t, data, "todays_revenue")
+	assert.Contains(t, data, "total_products")
+	assert.Contains(t, data, "low_stock_count")
  }
+
+func TestAPI_GetProducts_WithCategoryFilter(t *testing.T) {
+	r, testDB := setupTestServer(t)
+	defer testDB.Close(t)
+
+	// First login to get token
+	loginReq := map[string]string{
+		"username": "superadmin",
+		"password": "admin123",
+	}
+	reqBody, _ := json.Marshal(loginReq)
+
+	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var loginResponse map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &loginResponse)
+	require.NoError(t, err)
+
+	token := loginResponse["access_token"].(string)
+
+	// Test products endpoint with category filter (using Indonesian category name from seed)
+	req, _ = http.NewRequest("GET", "/api/products?category=Makanan", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Contains(t, response, "data")
+	assert.Contains(t, response, "total")
+
+	data := response["data"].([]interface{})
+	for _, item := range data {
+		product := item.(map[string]interface{})
+		if categoryName, ok := product["category_name"].(string); ok {
+			assert.Equal(t, "Makanan", categoryName)
+		}
+	}
+}
+
+func TestAPI_GetProducts_WithMultipleCategoryFilter(t *testing.T) {
+	r, testDB := setupTestServer(t)
+	defer testDB.Close(t)
+
+	// First login to get token
+	loginReq := map[string]string{
+		"username": "superadmin",
+		"password": "admin123",
+	}
+	reqBody, _ := json.Marshal(loginReq)
+
+	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var loginResponse map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &loginResponse)
+	require.NoError(t, err)
+
+	token := loginResponse["access_token"].(string)
+
+	// Test products endpoint with multiple categories (comma-separated, using Indonesian names)
+	req, _ = http.NewRequest("GET", "/api/products?category=Makanan,Minuman", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Contains(t, response, "data")
+	assert.Contains(t, response, "total")
+}
 

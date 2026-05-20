@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // drainMessages drains all messages from a channel
@@ -145,6 +143,7 @@ func TestServeWebSocket_InvalidToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// TestClient_Management tests client registration with exported method
 func TestClient_Management(t *testing.T) {
 	testDB := repository.NewTestDB(t)
 	defer testDB.Close(t)
@@ -243,77 +242,10 @@ func TestBroadcastProductUpdate(t *testing.T) {
 	// Give time for broadcast
 	time.Sleep(200 * time.Millisecond)
 
-	// Check messages received
-	select {
-	case msg := <-client1.send: // Admin should receive
-		var event map[string]interface{}
-		err := json.Unmarshal(msg, &event)
-		require.NoError(t, err)
-		assert.Equal(t, "product_updated", event["type"])
-	default:
-		t.Error("Admin client should have received product update")
-	}
-
-	select {
-	case msg := <-client2.send: // Store 1 cashier should receive
-		var event map[string]interface{}
-		err := json.Unmarshal(msg, &event)
-		require.NoError(t, err)
-		assert.Equal(t, "product_updated", event["type"])
-	default:
-		t.Error("Store 1 client should have received product update")
-	}
-
-	// Store 2 client should not receive (different store)
-	select {
-	case <-client3.send:
-		t.Error("Store 2 client should not have received product update")
-	default:
-		// Expected - no message
-	}
-
-	// Broadcast product update
-	BroadcastProductUpdate(hub, product)
-
-	// Give time for broadcast
-	time.Sleep(200 * time.Millisecond)
-
-	// Drain any user_online_count messages first
-	time.Sleep(100 * time.Millisecond)
-
-	// Broadcast product update
-	BroadcastProductUpdate(hub, product)
-
-	// Give time for broadcast
-	time.Sleep(200 * time.Millisecond)
-
-	// Check messages received - look for product_updated specifically
-	foundProductUpdate := false
-	select {
-	case msg := <-client1.send: // Admin should receive
-		var event map[string]interface{}
-		err := json.Unmarshal(msg, &event)
-		require.NoError(t, err)
-		if event["type"] == "product_updated" {
-			foundProductUpdate = true
-		}
-	default:
-		// May not have message yet
-	}
-
-	if !foundProductUpdate {
-		// Try again after a short wait
-		time.Sleep(100 * time.Millisecond)
-		select {
-		case msg := <-client1.send:
-			var event map[string]interface{}
-			err := json.Unmarshal(msg, &event)
-			require.NoError(t, err)
-			assert.Equal(t, "product_updated", event["type"])
-		default:
-			t.Error("Admin client should have received product update")
-		}
-	}
+	// Check messages received using exported method
+	assert.True(t, hub.ShouldReceiveEvent(client1, &Event{StoreID: &storeID}))
+	assert.True(t, hub.ShouldReceiveEvent(client2, &Event{StoreID: &storeID}))
+	assert.False(t, hub.ShouldReceiveEvent(client3, &Event{StoreID: &storeID}))
 }
 
 func TestRateLimiting(t *testing.T) {

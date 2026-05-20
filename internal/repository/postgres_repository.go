@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -400,7 +401,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	return &p, nil
 }
 
-func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryID *int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error) {
+func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error) {
 	var products []domain.Product
 	var total int
 
@@ -408,21 +409,30 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		FROM products p 
 		WHERE p.deleted_at IS NULL`
 	args := []interface{}{}
+	argIdx := 1
 	if search != "" {
-		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1 OR p.barcode ILIKE $1)"
+		query += fmt.Sprintf(" AND (p.name ILIKE $%d OR p.sku ILIKE $%d OR p.barcode ILIKE $%d)", argIdx, argIdx, argIdx)
 		args = append(args, "%"+search+"%")
+		argIdx++
 	}
-	if categoryID != nil {
-		query += fmt.Sprintf(" AND p.category_id = $%d", len(args)+1)
-		args = append(args, *categoryID)
+	if len(categoryIDs) > 0 {
+		placeholders := make([]string, len(categoryIDs))
+		for i, cid := range categoryIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, cid)
+			argIdx++
+		}
+		query += fmt.Sprintf(" AND p.category_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
-		query += fmt.Sprintf(" AND p.stock <= $%d", len(args)+1)
+		query += fmt.Sprintf(" AND p.stock <= $%d", argIdx)
 		args = append(args, *maxStock)
+		argIdx++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND p.store_id = $%d", argIdx)
 		args = append(args, *storeID)
+		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -430,39 +440,48 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query = `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status, p.store_id, p.created_at, p.updated_at 
+	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status, p.store_id, p.created_at, p.updated_at 
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
 		WHERE p.deleted_at IS NULL`
 	args2 := []interface{}{}
+	argIdx2 := 1
 	if search != "" {
-		query += " AND (p.name ILIKE $1 OR p.sku ILIKE $1 OR p.barcode ILIKE $1)"
+		query2 += fmt.Sprintf(" AND (p.name ILIKE $%d OR p.sku ILIKE $%d OR p.barcode ILIKE $%d)", argIdx2, argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")
+		argIdx2++
 	}
-	if categoryID != nil {
-		query += fmt.Sprintf(" AND p.category_id = $%d", len(args2)+1)
-		args2 = append(args2, *categoryID)
+	if len(categoryIDs) > 0 {
+		placeholders := make([]string, len(categoryIDs))
+		for i, cid := range categoryIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx2)
+			args2 = append(args2, cid)
+			argIdx2++
+		}
+		query2 += fmt.Sprintf(" AND p.category_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
-		query += fmt.Sprintf(" AND p.stock <= $%d", len(args2)+1)
+		query2 += fmt.Sprintf(" AND p.stock <= $%d", argIdx2)
 		args2 = append(args2, *maxStock)
+		argIdx2++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", len(args2)+1)
+		query2 += fmt.Sprintf(" AND p.store_id = $%d", argIdx2)
 		args2 = append(args2, *storeID)
+		argIdx2++
 	}
 	if sortBy != "" {
-		query += fmt.Sprintf(" ORDER BY %s", sortBy)
+		query2 += fmt.Sprintf(" ORDER BY %s", sortBy)
 		if sortDir != "" {
-			query += " " + sortDir
+			query2 += " " + sortDir
 		}
 	} else {
-		query += " ORDER BY p.id DESC"
+		query2 += " ORDER BY p.id DESC"
 	}
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
+	query2 += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
-	rows, err := r.db.Query(ctx, query, args2...)
+	rows, err := r.db.Query(ctx, query2, args2...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query products: %w", err)
 	}

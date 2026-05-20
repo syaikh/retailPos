@@ -238,11 +238,15 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	// Handle category parameter
-	var categoryID *int
+	// Handle category parameter (supports multiple categories as comma-separated)
+	var categoryIDs []int
 	if cat := c.Query("category"); cat != "" && cat != "all" {
-		if id, err := h.productRepo.GetCategoryIDByName(getCtx(c), cat); err == nil {
-			categoryID = &id
+		catNames := strings.Split(cat, ",")
+		for _, name := range catNames {
+			name = strings.TrimSpace(name)
+			if id, err := h.productRepo.GetCategoryIDByName(getCtx(c), name); err == nil {
+				categoryIDs = append(categoryIDs, id)
+			}
 		}
 	}
 
@@ -254,7 +258,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), categoryID, "created_at", "DESC", maxStock, nil)
+	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), categoryIDs, "created_at", "DESC", maxStock, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return
@@ -523,14 +527,14 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 		todaysRev += s.TotalAmount
 	}
 
-	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", nil, nil)
+	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products data"})
 		return
 	}
 
 	lowStock := 5
-	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", nil, "", "", &lowStock, nil)
+	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", &lowStock, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch low stock data"})
 		return
@@ -992,7 +996,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 }
 
 func (h *Handler) ExportInventory(c *gin.Context) {
-	products, _, _ := h.productRepo.GetAllProducts(getCtx(c), 10000, 0, "", nil, "name", "ASC", nil, nil)
+	products, _, _ := h.productRepo.GetAllProducts(getCtx(c), 10000, 0, "", []int{}, "name", "ASC", nil, nil)
 	c.JSON(http.StatusOK, gin.H{"data": products})
 }
 

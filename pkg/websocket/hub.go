@@ -3,7 +3,6 @@ package websocket
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -191,7 +190,7 @@ func (h *Hub) Run() {
 			h.mutex.RLock()
 			var recipients []*Client
 			for client := range h.clients {
-				if h.shouldReceiveEvent(client, &event) {
+				if h.ShouldReceiveEvent(client, &event) {
 					recipients = append(recipients, client)
 				}
 			}
@@ -215,7 +214,7 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) shouldReceiveEvent(client *Client, event *Event) bool {
+func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
 	if event.StoreID != nil && client.storeID != nil {
 		if *event.StoreID != *client.storeID && !client.isAdmin {
 			return false
@@ -240,10 +239,15 @@ func (h *Hub) broadcastUserCount() {
 	count := len(h.clients)
 	h.mutex.RUnlock()
 
+	payload, _ := json.Marshal(struct {
+		Count int `json:"count"`
+	}{
+		Count: count,
+	})
 	event := Event{
 		Type:      EventUserOnline,
 		Timestamp: time.Now(),
-		Payload:   []byte(fmt.Sprintf(`{"count":%d}`, count)),
+		Payload:   payload,
 	}
 	data, _ := json.Marshal(event)
 

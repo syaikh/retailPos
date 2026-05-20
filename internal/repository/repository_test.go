@@ -196,7 +196,7 @@ func TestPostgresRepository_GetAllProducts(t *testing.T) {
 	repo := NewPostgresRepository(testDB.Pool())
 
 	// Test getting all products
-	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", nil, "name", "asc", nil, nil)
+	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", []int{}, "name", "asc", nil, nil)
 	require.NoError(t, err)
 	assert.Greater(t, total, 0)
 	assert.Len(t, products, total)
@@ -234,4 +234,43 @@ func TestPostgresRepository_GetProductBySKU_NotFound(t *testing.T) {
 	product, err := repo.GetProductBySKU(context.Background(), "NON-EXISTENT", nil)
 	assert.Error(t, err)
 	assert.Nil(t, product)
+}
+
+func TestPostgresRepository_GetAllProducts_WithMultipleCategoryFilter(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	// First, get a category ID to test with
+	var foodCategoryID int
+	err := testDB.Pool().QueryRow(context.Background(),
+		"SELECT id FROM categories WHERE name = 'Makanan' LIMIT 1").Scan(&foodCategoryID)
+	if err != nil {
+		t.Skip("Makanan category not found in test data")
+		return
+	}
+
+	var beverageCategoryID int
+	err = testDB.Pool().QueryRow(context.Background(),
+		"SELECT id FROM categories WHERE name = 'Minuman' LIMIT 1").Scan(&beverageCategoryID)
+	if err != nil {
+		t.Skip("Minuman category not found in test data")
+		return
+	}
+
+	// Test getting products with multiple category filter
+	products, total, err := repo.GetAllProducts(
+		context.Background(),
+		10, 0, "", []int{foodCategoryID, beverageCategoryID}, "name", "asc", nil, nil,
+	)
+	require.NoError(t, err)
+	if total > 0 {
+		// Verify all returned products belong to the filtered categories
+		for _, product := range products {
+			if product.CategoryID != nil {
+				assert.Contains(t, []int{foodCategoryID, beverageCategoryID}, *product.CategoryID)
+			}
+		}
+	}
 }

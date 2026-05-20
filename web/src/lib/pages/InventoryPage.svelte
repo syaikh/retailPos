@@ -78,15 +78,15 @@
     }
   };
 
-  let loading = $state(true);
-  let products = $state([]);
-  let total = $state(0);
-  let limit = $state(20);
-  let offset = $state(0);
-  let searchQuery = $state('');
-  let selectedCategory = $state('All');
-  let categories = $state(['All']); // Will be populated from API
-  let lowStockOnly = $state(false);
+let loading = $state(true);
+   let products = $state([]);
+   let total = $state(0);
+   let limit = $state(20);
+   let offset = $state(0);
+   let searchQuery = $state('');
+   let selectedCategories = $state(['All']); // Support multiple categories
+   let categories = $state(['All']); // Will be populated from API
+   let lowStockOnly = $state(false);
   let showModal = $state(false);
 let showDeleteModal = $state(false);
    let selectedProduct = $state(null);
@@ -102,9 +102,9 @@ let showDeleteModal = $state(false);
    let canManageInventory = $state(false);
   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
   
-  // Track previous values to avoid duplicate fetches
-  let previousSearchQuery = '';
-  let previousCategory = 'All';
+// Track previous values to avoid duplicate fetches
+   let previousSearchQuery = '';
+   let previousCategories = ['All'];
 
   // Sorting state
   let sortBy = $state('name'); // 'name', 'category', 'price', 'stock'
@@ -178,30 +178,32 @@ let showDeleteModal = $state(false);
    }
 
 async function fetchProducts(newOffset, newLimit) {
-      if (newOffset !== undefined) offset = newOffset;
-      if (newLimit !== undefined) limit = newLimit;
-      try {
-        loading = true;
-        const params = new URLSearchParams({
-          limit: limit.toString(),
-          offset: offset.toString(),
-          search: searchQuery
-        });
-        if (selectedCategory.toLowerCase() !== 'all') params.append('category', selectedCategory);
-        if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
+       if (newOffset !== undefined) offset = newOffset;
+       if (newLimit !== undefined) limit = newLimit;
+       try {
+         loading = true;
+         const params = new URLSearchParams({
+           limit: limit.toString(),
+           offset: offset.toString(),
+           search: searchQuery
+         });
+         // Filter categories: exclude 'All' and send as comma-separated string
+         const filteredCategories = selectedCategories.filter(c => c.toLowerCase() !== 'all');
+         if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
+         if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
 
-        // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
-        const r = await apiClient.get(`/products?${params.toString()}`);
-        // Axios otomatis parse JSON, akses via r.data
-        products = r.data.data || [];
-        total = r.data.total || 0;
-      } catch (err) {
-        toast.error('Failed to load inventory');
-      } finally {
-        loading = false;
-        isSearching = false;
-      }
-    }
+         // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
+         const r = await apiClient.get(`/products?${params.toString()}`);
+         // Axios otomatis parse JSON, akses via r.data
+         products = r.data.data || [];
+         total = r.data.total || 0;
+       } catch (err) {
+         toast.error('Failed to load inventory');
+       } finally {
+         loading = false;
+         isSearching = false;
+       }
+     }
 
     // Debounced search
     const debouncedSearch = debounce(() => {
@@ -233,44 +235,48 @@ if (searchQuery === '') {
      }
   });
 
-  // Watch for category selection changes
-  $effect(() => {
-    // Skip the initial render
-    if (isInitialMount) return;
-    
-    // Only proceed if selectedCategory actually changed
-    if (previousCategory === selectedCategory) return;
-    
-previousCategory = selectedCategory;
-     offset = 0;
-     fetchProducts(0, limit);
-   });
+// Watch for category selection changes
+    $effect(() => {
+      // Skip the initial render
+      if (isInitialMount) return;
+      
+      // Only proceed if selectedCategories actually changed
+      const prevCatStr = previousCategories.slice().sort().join(',');
+      const currCatStr = selectedCategories.slice().sort().join(',');
+      if (prevCatStr === currCatStr) return;
+      
+      previousCategories = [...selectedCategories];
+      offset = 0;
+      fetchProducts(0, limit);
+    });
 
-  // Filtered categories for searchable dropdown
-  let filteredCategories = $derived(
-    categories.filter(cat =>
-      cat.toLowerCase().includes(categorySearchQuery.toLowerCase())
-    )
-  );
+// Filtered categories for searchable dropdown
+   let filteredCategories = $derived(
+     categories.filter(cat =>
+       cat.toLowerCase().includes(categorySearchQuery.toLowerCase())
+     )
+   );
 
-function selectCategory(category) {
-     selectedCategory = category;
-     categorySearchQuery = '';
-     showCategoryDropdown = false;
-     offset = 0;
-     fetchProducts(0, limit);
-   }
+function toggleCategory(category) {
+      if (category === 'All') {
+        selectedCategories = ['All'];
+      } else {
+        if (selectedCategories.includes('All')) {
+          selectedCategories = selectedCategories.filter(c => c !== 'All');
+        }
+        if (selectedCategories.includes(category)) {
+          selectedCategories = selectedCategories.filter(c => c !== category);
+          if (selectedCategories.length === 0) selectedCategories = ['All'];
+        } else {
+          selectedCategories = [...selectedCategories, category];
+        }
+      }
+      categorySearchQuery = '';
+      offset = 0;
+    }
 
-  function handleCategoryInputFocus() {
-    showCategoryDropdown = true;
-  }
-
-function handleCategoryInputBlur() {
-     // Delay hiding dropdown to allow for selection
-     setTimeout(() => {
-       showCategoryDropdown = false;
-       categorySearchQuery = '';
-     }, 150);
+function handleCategoryInputFocus() {
+     showCategoryDropdown = true;
    }
 
 // Modal category searchable dropdown
@@ -542,41 +548,69 @@ onMount(async () => {
           </button>
         {/if}
       </div>
-      <!-- Category Search Input -->
-      <div class="relative flex-1">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Filter categories"
-          bind:value={categorySearchQuery}
-          onfocus={handleCategoryInputFocus}
-          onblur={handleCategoryInputBlur}
-          class="input w-full pl-10 pr-10"
-        />
-        {#if categorySearchQuery}
-          <button
-            onclick={() => categorySearchQuery = ''}
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Clear filter"
-          >
-            <X size={14} />
-          </button>
-        {/if}
-
-        {#if showCategoryDropdown && filteredCategories.length > 0}
-          <div class="absolute top-full mt-2 w-full card-glass p-1.5 z-50 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
-            {#each filteredCategories as cat}
-              <button
-                onclick={() => selectCategory(cat)}
-                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-                role="menuitem"
-              >
-                {cat}
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
+<!-- Category Search Input -->
+       <div class="relative flex-1">
+         <div class="flex items-center gap-2 p-3 min-h-12 card-glass rounded-2xl border border-border/60 cursor-text shadow-sm transition-all duration-200 hover:border-primary/40" onclick={() => showCategoryDropdown = true}>
+           <Search size={16} class="text-text-muted shrink-0" />
+           <div class="flex items-center gap-2 p-3 min-h-12 card-glass rounded-2xl border border-border/60 cursor-text shadow-sm transition-all duration-200 hover:border-primary/40" onclick={() => showCategoryDropdown = true}>
+             <Search size={16} class="text-text-muted shrink-0" />
+             <input
+               type="text"
+               placeholder="Search categories..."
+               bind:value={categorySearchQuery}
+               onfocus={() => showCategoryDropdown = true}
+               class="flex-1 min-w-[120px] outline-none text-sm bg-transparent placeholder:text-text-muted"
+             />
+           </div>
+           {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
+             <div class="mt-2 flex flex-wrap gap-2">
+               {#each selectedCategories.slice(0, 5) as cat}
+                 <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary rounded-full ring-1 ring-primary/20 whitespace-nowrap">
+                   {cat}
+                   {#if cat !== 'All'}
+                     <button
+                       type="button"
+                       onclick={(e) => { e.stopPropagation(); toggleCategory(cat); }}
+                       class="rounded-full p-0.5 text-primary hover:bg-primary/10 transition-colors"
+                       aria-label={`Remove ${cat}`}
+                     >
+                       <X size={12} />
+                     </button>
+                   {/if}
+                 </span>
+               {/each}
+               {#if selectedCategories.length > 5}
+                 <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-text-secondary bg-surface-subtle rounded-full whitespace-nowrap">
+                   +{selectedCategories.length - 5} more
+                 </span>
+               {/if}
+             </div>
+           {/if}
+         </div>
+         {#if showCategoryDropdown}
+           <div class="absolute top-full mt-2 w-full card-glass border border-border/70 rounded-2xl p-2 z-50 min-w-0 flex flex-col gap-1 max-h-52 overflow-y-auto shadow-xl">
+             {#if filteredCategories.length === 0}
+               <div class="px-3 py-2 text-sm text-text-muted">No categories found.</div>
+             {:else}
+               {#each filteredCategories as cat}
+                 <button
+                   type="button"
+                   class={`flex items-center gap-3 w-full rounded-2xl px-3 py-2 text-sm text-left transition-all duration-200 border ${selectedCategories.includes(cat) ? 'bg-primary/10 text-primary border-primary/20' : 'text-text-secondary border-transparent hover:bg-surface-hover'}`}
+                   onclick={(e) => {
+                     e.preventDefault();
+                     toggleCategory(cat);
+                   }}
+                 >
+                   <span class="flex items-center justify-center h-4 w-4 rounded-full border border-border/60 bg-white text-[0.65rem]">
+                     {selectedCategories.includes(cat) ? '✓' : ''}
+                   </span>
+                   <span class="grow truncate">{cat}</span>
+                 </button>
+               {/each}
+             {/if}
+           </div>
+         {/if}
+       </div>
       <label class="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-subtle hover:bg-surface-hover cursor-pointer transition-colors shrink-0">
         <input type="checkbox" bind:checked={lowStockOnly} onchange={() => { offset = 0; fetchProducts(0, limit); }} class="rounded border-border bg-surface text-primary-light focus:ring-primary-light" />
         <span class="text-sm text-text-secondary font-medium">Low stock only</span>
@@ -629,9 +663,9 @@ onMount(async () => {
           <Package size={32} class="text-text-muted" />
         </div>
         <p class="text-text-primary font-semibold mt-4">No products found</p>
-        <p class="text-text-muted text-sm mt-1">
-          {searchQuery || selectedCategory.toLowerCase() !== 'all' ? 'Try adjusting your filters' : 'Start by adding your first product'}
-        </p>
+<p class="text-text-muted text-sm mt-1">
+           {searchQuery || selectedCategories.length > 0 && !selectedCategories.includes('All') ? 'Try adjusting your filters' : 'Start by adding your first product'}
+         </p>
       </div>
     {:else}
           <table class="w-full table-fixed">
