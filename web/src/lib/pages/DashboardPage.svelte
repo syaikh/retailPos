@@ -141,17 +141,4 @@
       </button>
     </div>
   </div>
-
-  <!-- System Status -->
-  <div class="card p-4 flex items-center gap-4">
-    <div class="flex items-center gap-2">
-      <span class="w-2.5 h-2.5 bg-success rounded-full animate-pulse-dot"></span>
-      <span class="text-xs font-semibold uppercase tracking-wide text-success-light">System Operational</span>
-    </div>
-    <div class="w-px h-4 bg-border"></div>
-    <p class="text-xs text-text-muted">Backend connection active</p>
-    <div class="ml-auto text-xs text-text-muted">
-      {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' })}
-    </div>
-  </div>
 </div>
