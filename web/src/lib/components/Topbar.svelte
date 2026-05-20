@@ -38,15 +38,31 @@
     return parts;
   }
 
-  const dateString = $derived(new Date().toLocaleDateString('id-ID', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  }));
+  // Live clock - updates every minute
+  let currentTime = $state(new Date());
+  
+  $effect(() => {
+    const timer = setInterval(() => {
+      currentTime = new Date();
+    }, 60000);
+    return () => clearInterval(timer);
+  });
+
+  const dateTimeString = $derived(
+    currentTime.toLocaleDateString('id-ID', { 
+      weekday: 'long', 
+      day: 'numeric',
+      month: 'long', 
+      year: 'numeric' 
+    }) + ' • ' +
+    currentTime.toLocaleTimeString('id-ID', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    })
+  );
 
   function handleNotifications() {
-    // TODO: Open notifications panel
     console.log('Notifications clicked');
   }
 </script>
@@ -70,9 +86,9 @@
     {/each}
   </nav>
 
-  <div class="ml-auto flex items-center gap-2">
+  <div class="ml-auto flex items-center gap-4">
     <!-- WebSocket connection status -->
-    <div class="flex items-center gap-1.5 text-xs" title="Real-time connection">
+    <div class="flex items-center gap-2 text-xs" title="Real-time connection">
       <span class="w-2 h-2 rounded-full {$status === 'connected' ? 'bg-success animate-pulse-dot' : $status === 'connecting' ? 'bg-warning animate-pulse' : 'bg-text-muted'}"></span>
       <span class="text-text-muted hidden lg:inline">{$status === 'connected' ? 'Online' : $status === 'connecting' ? 'Connecting...' : 'Offline'}</span>
     </div>
@@ -83,11 +99,12 @@
       <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full animate-pulse-dot"></span>
     </button>
 
-    <div class="w-px h-6 border-l border-border-default mx-1"></div>
+    <!-- Subtle divider -->
+    <div class="w-px h-4 bg-border-subtle"></div>
 
-    <!-- Date/time -->
-    <span class="text-xs text-text-muted hidden lg:block">
-      {dateString}
+    <!-- Date & Time -->
+    <span class="text-xs text-text-muted font-medium tracking-wide">
+      {dateTimeString}
     </span>
   </div>
 </header>
