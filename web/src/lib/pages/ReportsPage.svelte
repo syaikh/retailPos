@@ -11,7 +11,7 @@
   import {
     Receipt, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye, Search,
+    ChevronDown, Eye, Search, X,
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -655,6 +655,18 @@
                    text-white rounded-full outline-none transition-colors
                    focus:border-purple-500 placeholder:text-text-muted"
           />
+          {#if searchQuery}
+            <button
+              type="button"
+              onclick={() => { searchQuery = ''; doSearch(); }}
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5
+                     rounded-full hover:bg-slate-700 active:scale-95
+                     text-text-muted hover:text-white transition-colors"
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          {/if}
         </div>
       </div>
     </div>
