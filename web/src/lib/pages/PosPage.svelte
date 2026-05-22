@@ -7,10 +7,11 @@
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer } from 'lucide-svelte';
+  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Receipt } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
+  import { fly } from 'svelte/transition';
 
   let cart = $state([]);
   let products = $state([]);
@@ -23,11 +24,11 @@
   let isSearching = $state(false);
   let lastSale = $state(null);
   let ws = useWebSocket();
-  
+
   // Listen for stock updates via WebSocket
   let unsubscribeStock = null;
   let unsubscribeSale = null;
-  
+
   // Track previous search to avoid duplicate fetches
   let previousSearchQuery = '';
 
@@ -39,10 +40,19 @@
   let paymentMethod = $state('Cash');
   let checkingOut = $state(false);
 
+  // ─── Checkout Modal State ────────────────────────────────────────────────────
+  let showCheckoutModal = $state(false);
+  let cashReceived = $state(0);
+  let changeDue = $derived(cashReceived - totalAmount);
+
+  // ─── Derived totals ─────────────────────────────────────────────────────────
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
   // const tax = $derived(Math.round(subtotal * 0.1)); // Temporarily removed
   const totalAmount = $derived(subtotal); // No tax for now
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
+
+  // ─── Quick Cash Presets ──────────────────────────────────────────────────────
+  const quickCashPresets = [50000, 100000, 150000, 200000];
 
   async function fetchProducts(isSearch = false) {
     try {
@@ -68,10 +78,10 @@
   $effect(() => {
     // Skip the initial render to prevent double fetch
     if (isInitialMount) return;
-    
+
     // Only proceed if searchQuery actually changed
     if (previousSearchQuery === searchQuery) return;
-    
+
     previousSearchQuery = searchQuery;
 
     if (searchQuery === '') {
@@ -162,6 +172,90 @@
     fetchProducts(false);
   }
 
+  // ─── Modal helpers ──────────────────────────────────────────────────────────
+  function openCheckoutModal() {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+    showCheckoutModal = true;
+    cashReceived = 0;
+    paymentMethod = 'Cash';
+  }
+
+  function closeCheckoutModal() {
+    showCheckoutModal = false;
+    cashReceived = 0;
+  }
+
+  function finalizeSale() {
+    // Skip if cart is empty or change < 0 (not enough cash)
+    if (cart.length === 0 || changeDue < 0) return;
+
+    closeCheckoutModal();
+    processCheckout().then(() => {
+      // Fire-and-forget receipt print; function handles lastSale guard internally
+      setTimeout(() => printReceipt(), 0);
+    });
+  }
+
+  // ─── Global Keyboard Shortcuts ──────────────────────────────────────────────
+  function handleGlobalKeydown(event) {
+    // Alt + Delete → Clear cart with confirmation
+    if (event.altKey && event.key === 'Delete') {
+      event.preventDefault();
+      if (cart.length > 0 && confirm('Kosongkan seluruh keranjang belanja?')) {
+        clearCart();
+        toast.info('Cart cleared');
+      }
+      return;
+    }
+
+    // F2 → Focus search input
+    if (event.key === 'F2') {
+      event.preventDefault();
+      const input = document.getElementById('pos-search-input');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      return;
+    }
+
+    // F4 → Open checkout modal
+    if (event.key === 'F4') {
+      event.preventDefault();
+      openCheckoutModal();
+      return;
+    }
+
+    // Shortcuts that only apply when checkout modal is visible
+    if (!showCheckoutModal) return;
+
+    // F3 / Esc → Close modal
+    if (event.key === 'Escape' || event.key === 'F3') {
+      event.preventDefault();
+      closeCheckoutModal();
+      return;
+    }
+
+    // F5 → Auto-fill exact amount
+    if (event.key === 'F5') {
+      event.preventDefault();
+      cashReceived = totalAmount;
+      return;
+    }
+
+    // Enter → Submit if cash >= total
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (changeDue >= 0) {
+        finalizeSale();
+      }
+      return;
+    }
+  }
+
   onMount(async () => {
     isInitialMount = true;
     await fetchProducts(false);
@@ -188,6 +282,8 @@
   });
 </script>
 
+<svelte:window on:keydown={handleGlobalKeydown} />
+
 <div class="space-y-6">
   <div class="flex gap-6">
     <!-- Products -->
@@ -198,6 +294,7 @@
           <input
             type="text"
             placeholder="Search products..."
+            id="pos-search-input"
             bind:value={searchQuery}
             class="input pl-10 pr-10"
           />
@@ -356,7 +453,7 @@
         {:else}
           <div class="flex-1 overflow-y-auto divide-y divide-border overflow-x-hidden">
             {#each cart as item (item.id)}
-              <div 
+              <div
                 class="flex items-start gap-3 px-4 py-3 hover:bg-surface-hover/50 transition-colors"
                 animate:flip={{ duration: 300 }}
                 transition:slide={{ duration: 250 }}
@@ -421,14 +518,15 @@
           <!-- Complete Purchase Button -->
           <button
             class="btn btn-success w-full py-3"
-            onclick={processCheckout}
+            onclick={openCheckoutModal}
             disabled={checkingOut || cart.length === 0}
           >
             {#if checkingOut}
               <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
               Processing…
             {:else}
-              Complete Purchase · {totalAmount.toLocaleString('id-ID')}
+              <Receipt size={16} />
+              Bayar · {totalAmount.toLocaleString('id-ID')}
             {/if}
           </button>
 
@@ -445,8 +543,154 @@
       </div>
     </div>
   </div>
+
+  <!-- ─── Shortcut Legend ─────────────────────────────────────────────────────── -->
+  <div class="text-center text-xs text-text-muted/40 select-none pb-2">
+    [F2] Cari Produk &nbsp;|&nbsp; [F4] Bayar &nbsp;|&nbsp; [ALT+DEL] Kosongkan Keranjang
+  </div>
 </div>
 
+<!-- ─── Checkout Modal ───────────────────────────────────────────────────────── -->
+{#if showCheckoutModal}
+  <!-- Overlay -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center"
+    transition:fly={{ y: 40, duration: 300 }}
+  >
+    <!-- Backdrop -->
+    <div
+      class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+      onclick={closeCheckoutModal}
+      role="presentation"
+    ></div>
+
+    <!-- Panel -->
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pembayaran Selesai"
+      class="relative z-[55] w-full max-w-xl rounded-2xl border border-border-default bg-bg-card shadow-modal p-6"
+    >
+      <!-- ── Header ── -->
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-text-primary">Pembayaran Selesai</h2>
+        <button
+          onclick={closeCheckoutModal}
+          class="w-9 h-9 flex items-center justify-center rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
+          title="Tutup [F3 / Esc]"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <!-- ── Grand Total ── -->
+      <div class="mb-6 text-center">
+        <p class="text-sm text-text-muted mb-1 font-medium">Total Tagihan</p>
+        <p class="text-4xl font-extrabold text-purple-400">
+          {totalAmount.toLocaleString('id-ID')}
+        </p>
+      </div>
+
+      <!-- ── Payment Method ── -->
+      <p class="text-xs text-text-muted mb-2 font-medium">Metode Pembayaran</p>
+      <div class="grid grid-cols-3 gap-2 mb-6">
+        {#each paymentOptions as opt}
+          <button
+            class="flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+            onclick={() => paymentMethod = opt.id}
+          >
+            <opt.icon size={18} />
+            {opt.label}
+          </button>
+        {/each}
+      </div>
+
+      <!-- ── Cash Received (only when Cash) ── -->
+      {#if paymentMethod === 'Cash'}
+        <div class="mb-4">
+          <label for="cash-received-input" class="text-xs text-text-muted mb-1.5 font-medium block">
+            Cash Received
+          </label>
+          <input
+            id="cash-received-input"
+            type="number"
+            min="0"
+            bind:value={cashReceived}
+            autofocus
+            class="input text-lg font-bold text-text-primary"
+            placeholder="0"
+          />
+        </div>
+
+        <!-- Quick cash presets -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          {#each quickCashPresets as preset}
+            <button
+              class="px-3.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
+              onclick={() => cashReceived = preset}
+            >
+              Rp {preset.toLocaleString('id-ID')}
+            </button>
+          {/each}
+        </div>
+
+        <!-- ── Change Due ── -->
+        <div
+          class="flex items-center justify-between p-4 rounded-xl
+            {changeDue >= 0
+              ? 'bg-success-subtle border border-success-default/20'
+              : 'bg-danger-subtle border border-danger-default/20'}"
+        >
+          <span class="text-sm font-medium text-text-secondary">Uang Kembali</span>
+          <span
+            class="text-2xl font-extrabold
+              {changeDue >= 0 ? 'text-emerald-400' : 'text-danger-light'}"
+          >
+            {Math.abs(changeDue).toLocaleString('id-ID')}
+            {#if changeDue < 0}
+              <span class="text-xs font-semibold text-danger-light ml-1">(kurang)</span>
+            {/if}
+          </span>
+        </div>
+      {:else}
+        <!-- Non-cash: show confirmation block -->
+        <div
+          class="flex items-center justify-between p-4 rounded-xl
+            bg-info-subtle border border-info-default/20"
+        >
+          <span class="text-sm font-medium text-text-secondary">Metode</span>
+          <span class="text-lg font-bold text-info-light">{paymentMethod}</span>
+        </div>
+      {/if}
+
+      <!-- ── F5 hint ── -->
+      {#if paymentMethod === 'Cash'}
+        <p class="text-[11px] text-text-muted/50 mt-2 text-center">Tekan [F5] untuk isi nominal pas</p>
+      {/if}
+
+      <!-- ── Actions ── -->
+      <div class="flex gap-3 mt-6">
+        <button
+          class="btn btn-secondary flex-1"
+          onclick={closeCheckoutModal}
+        >
+          Batal
+        </button>
+        <button
+          class="btn btn-success flex-1"
+          disabled={cart.length === 0 || changeDue < 0}
+          onclick={finalizeSale}
+        >
+          <Receipt size={16} />
+          Selesai &amp; Cetak [Enter]
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+
+<!-- ─── Print Receipt (Previous) ─────────────────────────────────────────── -->
 {#if lastSale}
   <div class="receipt-print-area" id="receipt-print-area">
     <div class="receipt-header">
@@ -472,8 +716,138 @@
   </div>
 {/if}
 
+
+<!-- ─── Thermal Receipt (Hidden — CSS Print Media) ─────────────────────────── -->
+{#if lastSale}
+<div class="thermal-receipt hidden" id="thermal-receipt">
+  <div class="thermal-shop-name">RETAIL POS</div>
+  <div class="thermal-row">
+    <span class="thermal-label">Invoice:</span>
+    <span class="thermal-value">{lastSale.invoice_number}</span>
+  </div>
+  <div class="thermal-row">
+    <span class="thermal-label">Waktu:</span>
+    <span class="thermal-value">{new Date(lastSale.created_at).toLocaleString('id-ID')}</span>
+  </div>
+  <div class="thermal-divider"></div>
+  {#each lastSale.items as item}
+    <div class="thermal-item">
+      <div class="thermal-item-name">{item.name} x{item.quantity}</div>
+      <div class="thermal-item-price">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</div>
+    </div>
+  {/each}
+  <div class="thermal-divider"></div>
+  <div class="thermal-item thermal-item-total">
+    <span>TOTAL</span>
+    <span>{lastSale.total_amount.toLocaleString('id-ID')}</span>
+  </div>
+  {#if lastSale.payment_method}
+    <div class="thermal-row">
+      <span class="thermal-label">Pembayaran:</span>
+      <span class="thermal-value">{lastSale.payment_method}</span>
+    </div>
+  {/if}
+  <div class="thermal-row">
+    <span class="thermal-label">Uang Tunai:</span>
+    <span class="thermal-value">{cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
+  </div>
+  <div class="thermal-row">
+    <span class="thermal-label">Kembali:</span>
+    <span class="thermal-value">{changeDue?.toLocaleString('id-ID') ?? '—'}</span>
+  </div>
+  <div class="thermal-divider"></div>
+  <div class="thermal-footer">
+    <p>Terima kasih atas kunjungan Anda!</p>
+    <p>Barang yang sudah dibeli tidak dapat dikembalikan.</p>
+  </div>
+</div>
+{/if}
+
+
 <style>
 @media print {
+  /* ── Hide all UI elements ── */
+  body * {
+    visibility: hidden;
+  }
+
+  /* ── Show only the thermal receipt ── */
+  .thermal-receipt,
+  .thermal-receipt * {
+    visibility: visible;
+  }
+
+  .thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white;
+    color: #000;
+    font-family: 'Courier New', monospace;
+    padding: 10mm;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* ── Receipt structure ── */
+  .thermal-shop-name {
+    font-size: 16pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2mm;
+  }
+
+  .thermal-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.5mm;
+  }
+
+  .thermal-label {
+    font-weight: normal;
+  }
+
+  .thermal-value {
+    font-weight: bold;
+  }
+
+  .thermal-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.5mm;
+  }
+
+  .thermal-item-name {
+    flex: 1;
+    word-break: break-all;
+    padding-right: 4mm;
+  }
+
+  .thermal-item-price {
+    white-space: nowrap;
+    font-weight: bold;
+  }
+
+  .thermal-item-total {
+    font-size: 13pt;
+    font-weight: bold;
+    margin-top: 2mm;
+  }
+
+  .thermal-divider {
+    border-top: 1px dashed #000;
+    margin: 4mm 0;
+  }
+
+  .thermal-footer {
+    text-align: center;
+    font-size: 9.5pt;
+    margin-top: 4mm;
+    line-height: 1.5;
+  }
+
+  /* ── Fallback: also show old receipt-print-area ── */
   #receipt-print-area {
     display: block !important;
     position: absolute;
@@ -484,6 +858,7 @@
     font-family: 'Courier New', monospace;
     font-size: 10pt;
   }
+
   .receipt-header { text-align: center; margin-bottom: 3mm; }
   .receipt-item { display: flex; justify-content: space-between; margin-bottom: 2mm; }
   .receipt-divider { border-top: 1px dashed #000; margin: 3mm 0; }
