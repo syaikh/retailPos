@@ -13,7 +13,7 @@
   } = $props();
 </script>
 
-<div class="flex h-screen overflow-hidden bg-bg-default">
+<div class="flex h-screen bg-bg-default">
    <!-- Sidebar -->
    <Sidebar bind:currentPath />
 

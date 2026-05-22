@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import apiClient from '$lib/api/client';
   import { auth } from '$lib/stores/auth';
   import { debounce } from '$lib/utils/debounce';
@@ -92,10 +93,12 @@ let loading = $state(true);
 let showDeleteModal = $state(false);
    let selectedProduct = $state(null);
    let modalMode = $state('add'); // 'add' or 'edit'
-   let saving = $state(false);
-   let isDeleting = $state(false);
-   let isSearching = $state(false);
-   let ws = useWebSocket();
+    let saving = $state(false);
+    let isDeleting = $state(false);
+    let isSearching = $state(false);
+    let showDetailDrawer = $state(false);
+    let showCopySuccess = $state('');
+    let ws = useWebSocket();
     // Phase 1 Extension States
     let brands = $state([]);
     let unitsOfMeasure = $state([]);
@@ -430,7 +433,7 @@ function resetForm() {
     return '';
   }
 
-  function validateProductForm() {
+    function validateProductForm() {
     if (!form.name.trim() || !form.sku.trim() || !form.category.trim()) {
       toast.error('Please complete all required fields');
       return false;
@@ -444,6 +447,114 @@ function resetForm() {
       return false;
     }
     return true;
+  }
+
+  // ── Product Detail Drawer helpers ────────────────────────────────────────────
+
+  /** Whether the logged-in user holds a super-admin role */
+  let isSuperAdmin = $derived(() => {
+    const role = getUserRoleName();
+    return role === 'superadmin';
+  });
+
+  /** Whether the logged-in user may view cost/margin data (superadmin | admin | manager) */
+  let isSensitive = $derived(() => {
+    const role = getUserRoleName();
+    return ['superadmin', 'admin', 'manager'].includes(role);
+  });
+
+  /** Whether the logged-in user may view Audit Trail (superadmin | admin) */
+  let isFullAudit = $derived(() => {
+    const role = getUserRoleName();
+    return ['superadmin', 'admin'].includes(role);
+  });
+
+  /** Whether the logged-in user may edit/delete products (superadmin | admin | manager) */
+  let canEdit = $derived(() => {
+    const role = getUserRoleName();
+    return ['superadmin', 'admin', 'manager'].includes(role);
+  });
+
+  let stock_stk = $derived(selectedProduct?.stock ?? 0);
+
+  /**
+   * Status → colour mapping.
+   * @returns {variant: 'success'|'muted'|'destructive', label: string}
+   */
+  function statusInfo(status?: string): { variant: 'success' | 'muted' | 'destructive'; label: string } {
+    switch ((status || '').toLowerCase()) {
+      case 'active':
+        return { variant: 'success', label: 'Active' };
+      case 'draft':
+      case 'inactive':
+        return { variant: 'muted', label: (status || 'Draft').charAt(0).toUpperCase() + (status || 'draft').slice(1) };
+      case 'discontinued':
+      case 'archived':
+        return { variant: 'destructive', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
+      default:
+        return { variant: 'muted', label: '- ' };
+    }
+  }
+
+  /**
+   * Reactive view over `statusInfo` tied to `selectedProduct.status`.
+   * Inherited by the drawer header where `{@const}` is not permitted.
+   */
+  let status_ = $derived(statusInfo(selectedProduct?.status || 'draft'));
+
+  /** Auto-computed profit margin for the selected product (\< 0 → loss shown in red) */
+  let margin = $derived(() => {
+    const p = selectedProduct;
+    if (!p) return null;
+    const price = p.price || 0;
+    const cost = p.cost || 0;
+    return price - cost;
+  });
+
+  let marginPct = $derived(() => {
+    const p = selectedProduct;
+    if (!p) return null;
+    const price = p.price;
+    const cost = p.cost;
+    if (!price || !cost) return null;
+    return ((price - cost) / price) * 100;
+  });
+
+  let margVal   = $derived(margin());
+  let margPctVal = $derived(marginPct());
+  let margIsLoss = $derived(margVal !== null && margVal < 0);
+
+  /** "Unit / Box" label combining unit-of-measure name and code */
+  let uomLabel = $derived(selectedProduct?.unit_of_measure || selectedProduct?.unit || null);
+
+  /**
+   * Copy a value to the clipboard, show a temporary success indicator,
+   * then revert to the original label after `ms`.
+   */
+  function copyToClipboard(value: string, field: string, ms = 2000): void {
+    navigator.clipboard.writeText(value).then(() => {
+      showCopySuccess = field;
+      setTimeout(() => (showCopySuccess = ''), ms);
+    });
+  }
+
+  function formatCurrency(value?: number): string {
+    if (value == null || isNaN(value)) return '-';
+    // Indonesian locale: Rp 1.418.000
+    return 'Rp ' + value.toLocaleString('id-ID');
+  }
+
+  function formatDate(value?: string): string {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('id-ID', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   $effect(() => {
@@ -745,23 +856,33 @@ function resetForm() {
                 <Badge variant={product.stock <= criticalThreshold ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
-              </td>
-              <td class="p-4 w-20">
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-onclick={() => {
+               </td>
+               <td class="p-4 w-20" style="width: 80px;">
+                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button
+                     class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
+                     title="View product details"
+                     onclick={() => {
+                       selectedProduct = product;
+                       showDetailDrawer = true;
+                     }}
+                   >
+                     <Package size={14} />
+                   </button>
+                   <button
+                     onclick={() => {
                        if (!canManageInventory) return;
                        selectedProduct = product;
-                        form = {
-                          name: product.name || '',
-                          sku: product.sku || '',
-                          barcode: product.barcode || '',
-                          category: product.category_name || '',
-                          brand_id: product.brand_id || null,
-                          price: product.price || 0,
-                          cost: product.cost || 0,
-                          stock: product.stock || 0,
-                          unit_of_measure_id: product.unit_of_measure_id || null,
+                       form = {
+                         name: product.name || '',
+                         sku: product.sku || '',
+                         barcode: product.barcode || '',
+                         category: product.category_name || '',
+                         brand_id: product.brand_id || null,
+                         price: product.price || 0,
+                         cost: product.cost || 0,
+                         stock: product.stock || 0,
+                         unit_of_measure_id: product.unit_of_measure_id || null,
                          tax_class_id: product.tax_class_id || null,
                          weight_grams: product.weight_grams || null,
                          description: product.description || '',
@@ -771,25 +892,26 @@ onclick={() => {
                        modalMode = 'edit';
                        showModal = true;
                      }}
-                    disabled={!canManageInventory}
-                    class="p-1.5 rounded-lg transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={canManageInventory ? 'Edit' : 'Requires inventory role'}
-                  >
-                    <Pencil size={14} class="text-primary" />
-                  </button>
-                  <button
-                    onclick={() => {
-                      selectedProduct = product;
-                      showDeleteModal = true;
-                    }}
-                    disabled={!canManageInventory || product.stock > 0}
-                    class="p-1.5 rounded-lg transition-colors hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={product.stock > 0 ? 'Cannot delete products with stock remaining' : canManageInventory ? 'Delete' : 'Requires inventory role'}
-                  >
-                    <Trash2 size={14} class="text-destructive" />
-                  </button>
-                </div>
-              </td>
+                     disabled={!canManageInventory}
+                     class="p-1.5 rounded-lg transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                     title={canManageInventory ? 'Edit' : 'Requires inventory role'}
+                   >
+                     <Pencil size={14} class="text-primary" />
+                   </button>
+                   <button
+                     onclick={() => {
+                       selectedProduct = product;
+                       showDeleteModal = true;
+                     }}
+                     disabled={!canManageInventory || product.stock > 0}
+                     class="p-1.5 rounded-lg transition-colors hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                     title={product.stock > 0 ? 'Cannot delete products with stock remaining' : canManageInventory ? 'Delete' : 'Requires inventory role'}
+                   >
+                     <Trash2 size={14} class="text-destructive" />
+                   </button>
+                 </div>
+                </td>
+
             </tr>
           {/each}
         </tbody>
@@ -970,3 +1092,349 @@ onclick={() => {
     </button>
   {/snippet}
 </Modal>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     PRODUCT DETAIL DRAWER
+     Slide-over panel shown when a product row is clicked.
+     Sensitive fields (cost / profit margin) render only for superadmin users.
+════════════════════════════════════════════════════════════════════════════ -->
+{#if showDetailDrawer && selectedProduct}
+  <!-- ── Overlay ── -->
+  <div
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+    onclick={() => (showDetailDrawer = false)}
+    aria-hidden="true"
+  ></div>
+
+  <!-- ── Drawer panel ── -->
+  <!-- Key Sections:
+       1. Header: title + status badge + close button
+       2. SKU / Barcode row
+       3. Product name + Blok 1 Stock & Logistics
+       4. Blok 2 Financial & Pricing (sensitive data gated)
+       5. Blok 3 Attributes
+       6. Blok 4 Description
+       7. Blok 5 Audit Trail metadata
+       8. Sticky action footer
+  -->
+  <div
+    class="fixed inset-y-0 right-0 w-[480px] max-w-full
+           bg-surface-drawer border-l border-border shadow-2xl z-[55]
+           flex flex-col
+           transition-transform duration-300 ease-out"
+    transition:fly={{ x: 480, duration: 300, easing: t => t * (2 - t) }}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
+
+    <!-- ── 1 · Header ──────────────────────────────────────────────────── -->
+    <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
+      <div class="flex items-center gap-3">
+        <h2 class="text-lg font-bold text-text-primary">Detail Produk</h2>
+        <Badge variant={status_.variant} size="sm">{status_.label}</Badge>
+      </div>
+      <button
+        class="p-2 rounded-lg text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors"
+        onkeydown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
+            e.preventDefault();
+            showDetailDrawer = false;
+          }
+        }}
+        onclick={() => {
+          showDetailDrawer = false;
+        }}
+        title="Close detail"
+        aria-label="Close detail panel"
+      >
+        <X size={18} />
+      </button>
+    </div>
+
+    <!-- ── Scrollable body ── -->
+    <div class="flex-1 overflow-y-auto px-6 py-4 pb-28 space-y-3">
+
+      <!-- ── SKU & Barcode (compact, single row) ───────────────────────── -->
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-0.5">
+        <!-- SKU -->
+          <span class="flex items-center gap-1 min-w-0">
+            <span class="text-[11px] font-semibold tracking-widest text-text-muted/60">SKU</span>
+            <span class="text-text-secondary font-mono text-sm max-w-[130px] truncate">{selectedProduct.sku || '-'}</span>
+          <button
+            class="p-0.5 rounded transition-colors"
+            title="Salin SKU"
+            onclick={() => copyToClipboard(selectedProduct.sku, 'sku')}
+          >
+            {#if showCopySuccess === 'sku'}
+              <span class="text-sm text-primary font-semibold">✓</span>
+            {:else}
+              <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>
+            {/if}
+          </button>
+        </span>
+        <!-- Barcode -->
+        {#if selectedProduct.barcode}
+          <span class="flex items-center gap-1 ml-1">
+            <span class="text-[11px] font-semibold tracking-widest text-text-muted/60">Barcode</span>
+            <span class="text-text-secondary font-mono text-sm max-w-[150px] truncate">{selectedProduct.barcode}</span>
+            <button
+              class="p-0.5 rounded transition-colors"
+              title="Salin barcode"
+              onclick={() => copyToClipboard(selectedProduct.barcode!, 'barcode')}
+            >
+            {#if showCopySuccess === 'barcode'}
+              <span class="text-sm text-primary font-semibold">✓</span>
+              {:else}
+                <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>
+              {/if}
+            </button>
+          </span>
+        {/if}
+      </div>
+
+      <!-- ── Product Name ────────────────────────────────────────────── -->
+      <div>
+        <h3 class="text-lg font-bold text-text-primary leading-tight">
+          {selectedProduct.name || '—'}
+        </h3>
+        <!-- Kategori • Brand as sub-header -->
+        {#if selectedProduct.category_name || selectedProduct.brand_name}
+          <span class="text-sm text-text-muted font-medium mt-1 block">
+            {#if selectedProduct.category_name}
+              <span>{selectedProduct.category_name}</span>
+            {/if}
+            {#if selectedProduct.category_name && selectedProduct.brand_name}
+              <span class="text-text-muted/40 mx-1.5">•</span>
+            {/if}
+            {#if selectedProduct.brand_name}
+              <span>{selectedProduct.brand_name}</span>
+            {/if}
+          </span>
+        {/if}
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           BLOK 1 · Stok & Logistik  — 2-column compact grid
+           Left: Stock (big coloured pill) + unit label
+           Right: Lokasi Gudang + Berat Produk
+      ════════════════════════════════════════════════════════════════ -->
+      <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
+        <!-- Section header -->
+        <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
+          <span class="text-base leading-none">📦</span>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Stok &amp; Logistik</h4>
+        </div>
+
+        <div class="px-3.5 py-2.5 grid grid-cols-2 gap-x-4 gap-y-3">
+          <!-- Left col: Stock -->
+          <div class="flex items-center gap-2">
+            {#if stock_stk <= criticalThreshold}
+              <span class="inline-flex items-center justify-center h-8 w-8 rounded-lg shrink-0 font-mono text-primary-light text-sm font-bold leading-none"
+                style="background: rgba(239,68,68,0.12);">{stock_stk}</span>
+            {:else if stock_stk <= warningThreshold}
+              <span class="inline-flex items-center justify-center h-8 w-8 rounded-lg shrink-0 font-mono text-warning-light text-sm font-bold leading-none"
+                style="background: rgba(245,158,11,0.12);">{stock_stk}</span>
+            {:else}
+              <span class="inline-flex items-center justify-center h-8 w-8 rounded-lg shrink-0 font-mono text-success-light text-sm font-bold leading-none"
+                style="background: rgba(16,185,129,0.12);">{stock_stk}</span>
+            {/if}
+            <span class="text-text-secondary text-xs">Unit {uomLabel ? `: ${uomLabel}` : ''}</span>
+          </div>
+
+          <!-- Right col: Berat -->
+          {#if selectedProduct.weight_grams != null}
+            <div class="text-right">
+              <span class="text-[10px] text-text-muted/60 font-medium uppercase tracking-wider">Berat Produk</span>
+              <p class="text-text-secondary text-xs pt-0.5">
+                {selectedProduct.weight_grams >= 1000
+                  ? `${(selectedProduct.weight_grams / 1000).toFixed(1)} kg`
+                  : `${selectedProduct.weight_grams} gram`}
+              </p>
+            </div>
+          {/if}
+
+          <!-- Left col: Lokasi (row 2) -->
+          {#if selectedProduct.store_id || selectedProduct.store_name}
+            <div class="text-right col-span-2">
+              <span class="text-text-secondary text-xs">
+                {selectedProduct.store_name || `Store #${selectedProduct.store_id ?? '-'}`}
+              </span>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           BLOK 2 · Finansial — grid-cols-2 compact
+           Left: Harga Jual (+ Harga Beli / Margin if superadmin)
+           Right: Persentase margin + Diskon Bawaan (always visible)
+      ════════════════════════════════════════════════════════════════ -->
+      <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
+        <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
+          <span class="text-base leading-none">💰</span>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Keuangan</h4>
+        </div>
+
+        <div class="p-4 grid grid-cols-2 gap-x-6 gap-y-5">
+          
+          <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+            <span class="text-xs font-semibold tracking-wide text-text-muted/80">Harga Jual</span>
+            <p class="text-primary-light text-base font-bold mt-0.5">{formatCurrency(selectedProduct.price)}</p>
+          </div>
+
+          <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+            <span class="text-xs font-semibold tracking-wide text-text-muted/80">Diskon</span>
+            <p class="text-text-secondary text-xs mt-0.5">
+              {selectedProduct.default_discount_percent != null
+                ? `${selectedProduct.default_discount_percent}%`
+                : '0%'}
+            </p>
+          </div>
+
+          {#if isSensitive()}
+            <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+              <span class="text-xs font-semibold tracking-wide text-text-muted/80">Harga Beli</span>
+              <p class="text-danger-light text-sm font-semibold mt-0.5">{formatCurrency(selectedProduct.cost ?? 0)}</p>
+            </div>
+
+            <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+              <span class="text-xs font-semibold tracking-wide text-text-muted/80">Margin</span>
+              <p class="text-sm font-bold {margIsLoss ? 'text-danger-light' : 'text-emerald-400'} mt-0.5">
+                {margVal !== null ? formatCurrency(margVal) : '—'}
+                {#if margPctVal !== null}
+                  <span class="{margIsLoss ? 'text-danger-light/70' : 'text-slate-400'} not-italic font-normal text-xs ml-0.5">
+                    {margIsLoss ? '-' : ''}{margPctVal.toFixed(1)}%
+                  </span>
+                {/if}
+              </p>
+            </div>
+          {:else}
+            <!-- Sensitive info hidden — kasir / role lain -->
+            <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+              <span class="text-[11px] text-text-muted/50 tracking-wide">Harga Beli &amp; Margin</span>
+              <p class="text-text-muted/40 text-sm italic mt-0.5">(tersembunyi)</p>
+            </div>
+
+            <div class="flex flex-col gap-1 border-b border-border/60 pb-3">
+              <span class="text-xs font-semibold tracking-wide text-text-muted/80">Margin</span>
+              <p class="text-text-muted/40 text-[11px] italic mt-0.5">Hanya tampil untuk admin, manager, dan superadmin</p>
+            </div>
+          {/if}
+
+          <div class="flex flex-col gap-1 col-span-2 pt-1">
+            <span class="text-xs font-semibold tracking-wide text-text-muted/80">Pajak</span>
+            <span class="text-text-secondary text-xs">
+              {selectedProduct.tax_rate != null ? `${selectedProduct.tax_rate}%` : (selectedProduct.tax_class_id ? `Class #${selectedProduct.tax_class_id}` : '-')}
+            </span>
+          </div>
+
+        </div>
+        </div>
+      <!-- ════════════════════════════════════════════════════════════════
+           BLOK 3 · Deskripsi Produk
+      ════════════════════════════════════════════════════════════════ -->
+      {#if selectedProduct.description}
+        <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
+          <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
+            <span class="text-base leading-none">📝</span>
+            <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Deskripsi</h4>
+          </div>
+          <div class="px-3.5 py-2.5">
+            <p class="text-text-secondary text-xs leading-relaxed whitespace-pre-wrap break-words">
+              {selectedProduct.description}
+            </p>
+          </div>
+        </div>
+      {/if}
+
+      <!-- ════════════════════════════════════════════════════════════════
+           BLOK 4 · Audit Trail — gated to superadmin & admin only
+      ════════════════════════════════════════════════════════════════ -->
+      {#if isFullAudit()}
+      <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
+        <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
+          <span class="text-base leading-none">📅</span>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Audit Trail</h4>
+        </div>
+
+        <div class="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
+          <div>
+            <span class="text-xs font-semibold tracking-wide text-text-muted/80">Dibuat pada</span>
+            <p class="text-text-secondary text-xs mt-1">{formatDate(selectedProduct.created_at)}</p>
+          </div>
+          <div>
+            <span class="text-xs font-semibold tracking-wide text-text-muted/80">Diubah pada</span>
+            <p class="text-text-secondary text-xs mt-1">{formatDate(selectedProduct.updated_at)}</p>
+          </div>
+        </div>
+      </div>
+      {/if}
+    </div><!-- /scrollable body -->
+
+    <!-- ── Sticky action footer (docked bottom, outside scrollable body) ─ -->
+    {#if canEdit()}
+    <div
+      class="absolute bottom-0 left-0 right-0 p-4
+             bg-gradient-to-t from-surface-drawer via-surface-drawer to-transparent
+             border-t border-border/50"
+    >
+      <div class="flex items-center gap-3">
+        <!-- Hapus Produk — superadmin only -->
+        {#if isSuperAdmin()}
+        <button
+          class="flex-1 btn btn-secondary
+                 rounded-xl px-4 h-11 text-sm font-semibold
+                 text-text-secondary border border-border
+                 hover:border-danger hover:text-danger
+                 hover:bg-danger-subtle transition-all duration-200"
+          onclick={() => {
+            showDetailDrawer = false;
+            showDeleteModal = true;
+          }}
+        >
+          <Trash2 size={15} class="mr-1.5" />
+          Hapus Produk
+        </button>
+        {/if}
+
+        <!-- Edit Produk — superadmin, admin, manager -->
+        <button
+          class="flex-1 btn btn-primary
+                 rounded-xl px-4 h-11 text-sm font-semibold
+                 text-white
+                 shadow-glow-primary-sm
+                 transition-all duration-200"
+          onclick={() => {
+            showDetailDrawer = false;
+            modalMode = 'edit';
+            const p = selectedProduct;
+            form = {
+              name: p.name || '',
+              sku: p.sku || '',
+              barcode: p.barcode || '',
+              category: p.category_name || '',
+              brand_id: p.brand_id || null,
+              price: p.price || 0,
+              cost: p.cost || 0,
+              stock: p.stock || 0,
+              unit_of_measure_id: p.unit_of_measure_id || null,
+              tax_class_id: p.tax_class_id || null,
+              weight_grams: p.weight_grams || null,
+              description: p.description || '',
+              status: p.status || 'draft'
+            };
+            modalCategorySearch = p.category_name || '';
+            showModal = true;
+          }}
+        >
+          <Pencil size={15} class="mr-1.5" />
+          Edit Produk
+        </button>
+      </div>
+    </div>
+    {/if}
+
+  </div><!-- /drawer panel -->
+{/if}
+
