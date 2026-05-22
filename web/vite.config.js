@@ -4,7 +4,6 @@ import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import dotenv from 'dotenv';
 
-// Load .env file from parent directory
 dotenv.config({ path: '../.env' });
 
 const frontendPort = Number(process.env.FRONTEND_PORT) || 5173;
@@ -37,5 +36,11 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.{test,spec}.{js,ts}'],
+    globals: true,
+    setupFiles: ['./src/test-setup.ts']
   }
 });

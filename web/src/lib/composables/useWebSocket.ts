@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { refreshTokenSilently } from '$lib/api/auth';
 
 class WebSocketService {
   status = writable<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
@@ -39,13 +40,16 @@ class WebSocketService {
         }
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = async () => {
         this.status.set('disconnected');
         this.emit('disconnection', { status: 'disconnected' });
-        
+
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          this.reconnectTimeout = setTimeout(() => this.connect(token), 2000 * this.reconnectAttempts);
+          // Attempt to silently refresh the token before reconnecting
+          await refreshTokenSilently();
+          const freshToken = sessionStorage.getItem('access_token') || token;
+          this.reconnectTimeout = setTimeout(() => this.connect(freshToken), 2000 * this.reconnectAttempts);
         }
       };
 
