@@ -41,20 +41,14 @@ type Product struct {
 	Price               int            `json:"price"`
 	Cost                int            `json:"cost"`
 	Stock               int            `json:"stock"`
-	StockMin            int            `json:"stock_min"`
 	StoreID             *int           `json:"store_id,omitempty"`
 	Status              string         `json:"status"` // draft, active, inactive, discontinued, archived
 	TaxClassID          *int           `json:"tax_class_id,omitempty"`
 	TaxRate             *float64       `json:"tax_rate,omitempty"`
 	WeightGrams         *int           `json:"weight_grams,omitempty"`
-	DimensionsCM        map[string]any `json:"dimensions_cm,omitempty"`
 	UnitOfMeasureID     *int           `json:"unit_of_measure_id,omitempty"`
 	UnitOfMeasure       *string        `json:"unit_of_measure,omitempty"`
 	DefaultDiscountPct  *float64       `json:"default_discount_percent,omitempty"`
-	IsTrackExpiry       *bool          `json:"is_track_expiry,omitempty"`
-	IsTrackBatch        *bool          `json:"is_track_batch,omitempty"`
-	IsActiveForSale     *bool          `json:"is_active_for_sale,omitempty"`
-	IsActiveForPurchase *bool          `json:"is_active_for_purchase,omitempty"`
 	CreatedAt           string         `json:"created_at,omitempty"`
 	UpdatedAt           string         `json:"updated_at,omitempty"`
 }

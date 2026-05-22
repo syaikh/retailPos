@@ -39,7 +39,7 @@ func main() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		// Default local DB -- sesuaikan dengan docker compose jika berbeda
-		dsn = "postgres://pos:admin123@localhost:5432/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
+		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
 	}
 	dbPool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
@@ -88,6 +88,7 @@ func main() {
 		public.POST("/refresh", h.RefreshToken)
 		public.GET("/categories", h.ListCategories)
 		public.GET("/products", h.GetProducts)
+		public.GET("/stock-thresholds", h.GetStockThresholds)
 		public.GET("/products/next-sku", h.GetNextSKU)
 		public.GET("/brands", h.GetBrands)
 		public.GET("/tax-classes", h.GetTaxClasses)

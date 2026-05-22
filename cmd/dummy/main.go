@@ -491,8 +491,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	defer tx.Rollback()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, stock_min, category_id, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -518,24 +518,14 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		// Generate barcode (6-13 characters)
 		barcode := generateBarcode(i)
 
-		// Stock levels - ensure 10-15% have low stock
-		stockMin := 5 // Default stock minimum
-		var stock int
-		lowStockPercentage := 12 // 12% of products will have low stock
-		if i < totalCount*lowStockPercentage/100 {
-			// Low stock: 0 to stock_min
-			stock = rand.Intn(stockMin + 1)
-		} else {
-			// Normal stock distribution
-			stock = generateStockLevel(catName)
-		}
+		stock := generateStockLevel(catName)
 
 		// Random date within last 6 months (evenly distributed across the period)
 		randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
 		createdAt := time.Now().AddDate(0, 0, -randomDays)
 
 		var id int
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, stockMin, catID, createdAt).Scan(&id)
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
@@ -1099,7 +1089,7 @@ func getDSN() string {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		// Default local DB -- sesuaikan dengan docker compose jika berbeda
-		dsn = "postgres://pos:admin123@localhost:5432/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
+		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
 	}
 	return dsn
 }

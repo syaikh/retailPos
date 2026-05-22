@@ -96,12 +96,14 @@ let showDeleteModal = $state(false);
    let isDeleting = $state(false);
    let isSearching = $state(false);
    let ws = useWebSocket();
-   // Phase 1 Extension States
-   let brands = $state([]);
-   let unitsOfMeasure = $state([]);
-   let taxClasses = $state([]);
-   let canManageInventory = $state(false);
-  const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
+    // Phase 1 Extension States
+    let brands = $state([]);
+    let unitsOfMeasure = $state([]);
+    let taxClasses = $state([]);
+    let canManageInventory = $state(false);
+    let warningThreshold = $state(10);
+    let criticalThreshold = $state(5);
+   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
   
 // Track previous values to avoid duplicate fetches
     let previousSearchQuery = '';
@@ -133,7 +135,7 @@ let showDeleteModal = $state(false);
       ['Makanan', 'Minuman', 'Snack', 'Lainnya'].filter(cat => categories.includes(cat))
     );
 
-// Form State
+   // Form State
     let form = $state({
       name: '',
       sku: '',
@@ -143,7 +145,6 @@ let showDeleteModal = $state(false);
       price: 0,
       cost: 0,
       stock: 0,
-      stock_min: 5,
       unit_of_measure_id: null,
       tax_class_id: null,
       weight_grams: null,
@@ -151,7 +152,18 @@ let showDeleteModal = $state(false);
       status: 'draft'
     });
 
-  async function fetchCategories() {
+ async function fetchThresholds() {
+      try {
+        const r = await apiClient.get('/stock-thresholds');
+        warningThreshold = r.data.warning ?? 10;
+        criticalThreshold = r.data.critical ?? 5;
+      } catch (err) {
+        warningThreshold = 10;
+        criticalThreshold = 5;
+      }
+    }
+
+   async function fetchCategories() {
     try {
       const r = await apiClient.get('/categories');
       const catList = r.data.data || [];
@@ -205,7 +217,7 @@ async function fetchProducts(newOffset, newLimit) {
          // Filter categories: exclude 'All' and send as comma-separated string
          const filteredCategories = selectedCategories.filter(c => c.toLowerCase() !== 'all');
          if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
-         if (lowStockOnly) params.append('maxStock', '5'); // Simplified logic
+         if (lowStockOnly) params.append('maxStock', criticalThreshold.toString()); // Simplified logic
 
          // GUNAKAN apiClient (Axios) agar Auto-Refresh Token bisa jalan
          const r = await apiClient.get(`/products?${params.toString()}`);
@@ -397,7 +409,6 @@ function resetForm() {
         price: 0,
         cost: 0,
         stock: 0,
-        stock_min: 5,
         brand_id: null,
         description: '',
         unit_of_measure_id: null,
@@ -484,13 +495,14 @@ function resetForm() {
     });
   }
 
-onMount(async () => {
+  onMount(async () => {
     isInitialMount = true;
     await Promise.all([
       fetchCategories(),
       fetchBrands(),
       fetchTaxClasses(),
-      fetchUnitsOfMeasure()
+      fetchUnitsOfMeasure(),
+      fetchThresholds()
     ]);
     await fetchProducts(0, limit);
     isInitialMount = false;
@@ -730,7 +742,7 @@ onMount(async () => {
                <td class="p-4 w-60">{product.category_name || '-'}</td>
               <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
               <td class="p-4 w-28 text-right">
-                <Badge variant={product.stock <= product.stock_min ? 'destructive' : 'default'}>
+                <Badge variant={product.stock <= criticalThreshold ? 'destructive' : 'default'}>
                   {product.stock}
                 </Badge>
               </td>
@@ -740,17 +752,16 @@ onMount(async () => {
 onclick={() => {
                        if (!canManageInventory) return;
                        selectedProduct = product;
-                       form = {
-                         name: product.name || '',
-                         sku: product.sku || '',
-                         barcode: product.barcode || '',
-                         category: product.category_name || '',
-                         brand_id: product.brand_id || null,
-                         price: product.price || 0,
-                         cost: product.cost || 0,
-                         stock: product.stock || 0,
-                         stock_min: product.stock_min || 5,
-                         unit_of_measure_id: product.unit_of_measure_id || null,
+                        form = {
+                          name: product.name || '',
+                          sku: product.sku || '',
+                          barcode: product.barcode || '',
+                          category: product.category_name || '',
+                          brand_id: product.brand_id || null,
+                          price: product.price || 0,
+                          cost: product.cost || 0,
+                          stock: product.stock || 0,
+                          unit_of_measure_id: product.unit_of_measure_id || null,
                          tax_class_id: product.tax_class_id || null,
                          weight_grams: product.weight_grams || null,
                          description: product.description || '',
@@ -907,13 +918,6 @@ onclick={() => {
         <input id="prod-stock" bind:value={form.stock} type="number" class="input" required />
       </div>
 </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label for="prod-stock-min" class="block text-sm font-medium text-text-secondary mb-2">Minimum Stock</label>
-          <input id="prod-stock-min" bind:value={form.stock_min} type="number" class="input" placeholder="5" />
-        </div>
-      </div>
 
       <div>
         <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">Description</label>

@@ -55,19 +55,12 @@ export interface Warehouse {
   created_at?: string;
 }
 
-export interface Dimensions {
-  length: number;
-  width: number;
-  height: number;
-}
-
 export interface Product {
   id: number;
   name: string;
   sku: string;
   price: number;
   stock: number;
-  stock_min?: number;
   unit?: string;
   category?: Category;
   category_id?: number;
@@ -80,14 +73,9 @@ export interface Product {
   tax_class_id?: number;
   tax_rate?: number;
   weight_grams?: number;
-  dimensions_cm?: Dimensions;
   unit_of_measure_id?: number;
   unit_of_measure?: string;
   default_discount_percent?: number;
-  is_track_expiry?: boolean;
-  is_track_batch?: boolean;
-  is_active_for_sale?: boolean;
-  is_active_for_purchase?: boolean;
   status?: string; // draft, active, inactive, discontinued, archived
   store_id?: number;
   created_at?: string;

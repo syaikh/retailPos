@@ -311,7 +311,7 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status,
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
 		       p.store_id, p.created_at, p.updated_at
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
@@ -323,7 +323,7 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.Status,
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -360,7 +360,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status,
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
 		       p.store_id, p.created_at, p.updated_at
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
@@ -372,7 +372,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.Status,
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -440,7 +440,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status, p.store_id, p.created_at, p.updated_at 
+	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status, p.store_id, p.created_at, p.updated_at 
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
 		WHERE p.deleted_at IS NULL`
@@ -494,7 +494,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		var categoryName sql.NullString
 		var createdAt, updatedAt time.Time
 
-		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.Status,
+		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 			&storeIDVal, &createdAt, &updatedAt)
 		if err != nil {
 			continue
@@ -559,15 +559,16 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 		defaultDiscount = *product.DefaultDiscountPct
 	}
 
-return r.db.QueryRow(ctx, `
-		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, stock_min, store_id, status,
+	return r.db.QueryRow(ctx, `
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, store_id, status,
 		                    brand_id, description, tax_class_id, weight_grams, unit_of_measure_id, default_discount_percent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, storeIDVal, product.Status,
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
 		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
 		Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
 }
+
 
 func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.Product, storeID *int) error {
 	var barcode interface{}
@@ -620,10 +621,10 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 
 	_, err := r.db.Exec(ctx, `
 		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
-			cost = $6, stock = $7, stock_min = $8, store_id = $9, status = $10, updated_at = NOW(),
-			brand_id = $11, description = $12, tax_class_id = $13, weight_grams = $14, unit_of_measure_id = $15, default_discount_percent = $16
-		WHERE id = $17
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, storeIDVal, product.Status,
+			cost = $6, stock = $7, store_id = $8, status = $9, updated_at = NOW(),
+			brand_id = $10, description = $11, tax_class_id = $12, weight_grams = $13, unit_of_measure_id = $14, default_discount_percent = $15
+		WHERE id = $16
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
 		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
 	return err
 }
@@ -677,7 +678,7 @@ func (r *postgresRepository) GetDeletedProductByBarcode(ctx context.Context, bar
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.stock_min, p.status,
+		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
 		       p.store_id, p.created_at, p.updated_at
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id
@@ -689,7 +690,7 @@ func (r *postgresRepository) GetDeletedProductByBarcode(ctx context.Context, bar
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.StockMin, &p.Status,
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -732,10 +733,10 @@ func (r *postgresRepository) RestoreProduct(ctx context.Context, product *domain
 	}
 
 	_, err := r.db.Exec(ctx, `
-		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5, cost = $6, stock = $7, stock_min = $8,
-		    store_id = $9, status = $10, deleted_at = NULL, updated_at = NOW()
-		WHERE id = $11
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, product.StockMin, storeIDVal, product.Status, product.ID)
+		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5, cost = $6, stock = $7,
+		    store_id = $8, status = $9, deleted_at = NULL, updated_at = NOW()
+		WHERE id = $10
+	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status, product.ID)
 	return err
 }
 
@@ -855,12 +856,18 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		args = append(args, "%"+search+"%")
 	}
 	if startDate != "" {
-		query += " AND DATE(created_at) >= $" + fmt.Sprintf("%d", len(args)+1)
-		args = append(args, startDate)
+		// Parse dates as UTC to avoid server-timezone shifts.
+		// DATE() evaluates in the connected server's time zone; passing time.Time
+		// values from a location-aware parser keeps comparisons aligned to Jakarta.
+		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
+		query += " AND created_at >= $" + fmt.Sprintf("%d", len(args)+1)
+		args = append(args, start)
 	}
 	if endDate != "" {
-		query += " AND DATE(created_at) <= $" + fmt.Sprintf("%d", len(args)+1)
-		args = append(args, endDate)
+		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
+		// End of day inclusive: add 1 day minus 1ns so `< $end` captures all of endDate
+		query += " AND created_at < $" + fmt.Sprintf("%d", len(args)+1)
+		args = append(args, end.Add(24*time.Hour-time.Nanosecond))
 	}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
@@ -879,12 +886,14 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		args2 = append(args2, "%"+search+"%")
 	}
 	if startDate != "" {
+		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
 		query += " AND created_at >= $" + fmt.Sprintf("%d", len(args2)+1)
-		args2 = append(args2, startDate+" 00:00:00")
+		args2 = append(args2, start)
 	}
 	if endDate != "" {
-		query += " AND created_at <= $" + fmt.Sprintf("%d", len(args2)+1)
-		args2 = append(args2, endDate+" 23:59:59")
+		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
+		query += " AND created_at < $" + fmt.Sprintf("%d", len(args2)+1)
+		args2 = append(args2, end.Add(24*time.Hour-time.Nanosecond))
 	}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", len(args2)+1)

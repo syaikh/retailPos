@@ -12,21 +12,34 @@
   } from 'lucide-svelte';
   import RpIcon from '$lib/components/ui/RpIcon.svelte';
 
-  let stats = $state({
-    todays_revenue: 0,
-    todays_sales: 0,
-    total_products: 0,
-    low_stock_count: 0
-  });
+  let todaysRevenue = $state(0);
+  let yesterdayRevenue = $state(0);
+  let todaysSales = $state(0);
+  let totalProducts = $state(0);
+  let lowStockCount = $state(0);
+  let trend = $state(null);
   let loading = $state(true);
 
-async function fetchStats() {
+  const displayTrend = $derived(trend !== null && todaysRevenue > 0);
+  const revSubText = $derived(trend === null ? 'No sales yet today' : 'Invoiced today');
+
+  async function fetchStats() {
     try {
       loading = true;
       const res = await apiFetch('/api/dashboard/stats');
       if (res.ok) {
         const data = await res.json();
-        stats = data.data;
+        todaysRevenue = data.data.todays_revenue || 0;
+        yesterdayRevenue = data.data.yesterday_revenue || 0;
+        todaysSales = data.data.todays_sales || 0;
+        totalProducts = data.data.total_products || 0;
+        lowStockCount = data.data.low_stock_count || 0;
+
+        if (todaysRevenue > 0 && yesterdayRevenue > 0) {
+           trend = Math.round((todaysRevenue - yesterdayRevenue) / yesterdayRevenue * 100);
+        } else {
+           trend = null;
+        }
       }
     } catch (err) {
       toast.error('Failed to load stats');
@@ -85,8 +98,10 @@ async function fetchStats() {
     <div class="animate-slide-up" style="animation-delay: 100ms;">
       <StatCard
         label="Today's Revenue"
-        value={stats.todays_revenue?.toLocaleString('id-ID') || 0}
-        sub={stats.todays_revenue > 0 ? "Invoiced today" : "No sales yet today"}
+        value={loading ? '—' : (todaysRevenue?.toLocaleString('id-ID') || 0)}
+        {trend}
+        {displayTrend}
+        sub={revSubText}
         icon={RpIcon}
         iconBg="bg-primary-subtle"
         iconColor="text-primary-light"
@@ -96,9 +111,9 @@ async function fetchStats() {
     <div class="animate-slide-up" style="animation-delay: 200ms;">
       <StatCard
         label="Transactions"
-        value={stats.todays_sales?.toLocaleString('id-ID') || 0}
-        sub="Completed today"
-        icon={RpIcon}
+        value={loading ? '—' : (todaysSales?.toLocaleString('id-ID') || 0)}
+        sub={todaysSales > 0 ? "Completed today" : "No transactions today"}
+        icon={ShoppingCart}
         iconBg="bg-success-subtle"
         iconColor="text-success-light"
         {loading}
@@ -107,9 +122,9 @@ async function fetchStats() {
     <div class="animate-slide-up" style="animation-delay: 300ms;">
       <StatCard
         label="Total Products"
-        value={stats.total_products?.toLocaleString('id-ID') || 0}
+        value={loading ? '—' : (totalProducts?.toLocaleString('id-ID') || 0)}
         sub="Units in catalog"
-        icon={TrendingUp}
+        icon={Package}
         iconBg="bg-info-subtle"
         iconColor="text-info-light"
         {loading}
@@ -118,8 +133,8 @@ async function fetchStats() {
     <div class="animate-slide-up" style="animation-delay: 400ms;">
       <StatCard
         label="Low Stock Alerts"
-        value={stats.low_stock_count?.toLocaleString('id-ID') || 0}
-        sub={stats.low_stock_count > 0 ? "Action required" : "All stock healthy"}
+        value={loading ? '—' : (lowStockCount?.toLocaleString('id-ID') || 0)}
+        sub={lowStockCount > 0 ? "Action required" : "All stock healthy"}
         icon={AlertTriangle}
         iconBg="bg-warning-subtle"
         iconColor="text-warning-light"

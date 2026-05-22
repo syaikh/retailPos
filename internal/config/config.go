@@ -1,11 +1,30 @@
 package config
 
-import "os"
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
 
 type Config struct {
-	Env        string
-	CORSOrigin string
-	JWTSecret  string
+	Env                    string
+	CORSOrigin             string
+	JWTSecret              string
+	StockWarningThreshold  int
+	StockCriticalThreshold int
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 0 {
+		fmt.Printf("Warning: invalid env %s=%q, using default %d\n", key, val, defaultVal)
+		return defaultVal
+	}
+	return n
 }
 
 func Load() *Config {
@@ -24,9 +43,14 @@ func Load() *Config {
 		jwtSecret = "your-secret-key-change-in-production"
 	}
 
+	warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
+	criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
+
 	return &Config{
-		Env:        env,
-		CORSOrigin: corsOrigin,
-		JWTSecret:  jwtSecret,
+		Env:                    env,
+		CORSOrigin:             corsOrigin,
+		JWTSecret:              jwtSecret,
+		StockWarningThreshold:  warningThreshold,
+		StockCriticalThreshold: criticalThreshold,
 	}
 }

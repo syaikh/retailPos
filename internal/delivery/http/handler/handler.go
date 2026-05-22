@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/auth"
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/domain"
 	"retail-pos-system/internal/repository"
 	"retail-pos-system/pkg/websocket"
@@ -458,9 +459,9 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		// Also broadcast stock updates for sold items
 		for _, item := range newSale.Items {
 			if product, err := h.productRepo.GetProductByID(getCtx(c), item.ProductID, newSale.StoreID); err == nil {
-				websocket.BroadcastStockUpdate(h.hub, product)
-				// Check for low stock
-				if product.Stock <= product.StockMin {
+				cfg := config.Load()
+				websocket.BroadcastStockUpdate(h.hub, product, product.Stock <= cfg.StockCriticalThreshold)
+				if product.Stock <= cfg.StockCriticalThreshold {
 					websocket.BroadcastLowStockAlert(h.hub, product)
 				}
 			}
@@ -515,6 +516,7 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 func (h *Handler) GetDashboardStats(c *gin.Context) {
 	ctx := getCtx(c)
 	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
 	// Get total revenue & sales (simplified)
 	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
@@ -527,13 +529,23 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 		todaysRev += s.TotalAmount
 	}
 
+	// Get yesterday's revenue for trend display
+	ydaySales, _, err2 := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", yesterday, yesterday, nil)
+	var ydayRev int
+	if err2 == nil {
+		for _, s := range ydaySales {
+			ydayRev += s.TotalAmount
+		}
+	}
+
 	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products data"})
 		return
 	}
 
-	lowStock := 5
+	cfg := config.Load()
+	lowStock := cfg.StockCriticalThreshold
 	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", &lowStock, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch low stock data"})
@@ -541,10 +553,11 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": map[string]interface{}{
-		"todays_revenue":  todaysRev,
-		"todays_sales":    len(sales),
-		"total_products":  totalProducts,
-		"low_stock_count": lowStockCount,
+		"todays_revenue":     todaysRev,
+		"yesterday_revenue":  ydayRev,
+		"todays_sales":       len(sales),
+		"total_products":     totalProducts,
+		"low_stock_count":    lowStockCount,
 	}})
 }
 
@@ -1207,6 +1220,14 @@ func (h *Handler) GetUnitsOfMeasure(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": uoms})
+}
+
+func (h *Handler) GetStockThresholds(c *gin.Context) {
+	cfg := config.Load()
+	c.JSON(http.StatusOK, gin.H{
+		"warning":  cfg.StockWarningThreshold,
+		"critical": cfg.StockCriticalThreshold,
+	})
 }
 
 func (h *Handler) GetWarehouses(c *gin.Context) {

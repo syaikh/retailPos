@@ -415,7 +415,7 @@ func (c *Client) writePump() {
 }
 
 // Broadcast helper functions
-func BroadcastStockUpdate(hub *Hub, product *domain.Product) {
+func BroadcastStockUpdate(hub *Hub, product *domain.Product, isLowStock bool) {
 	if hub == nil {
 		return
 	}
@@ -428,7 +428,7 @@ func BroadcastStockUpdate(hub *Hub, product *domain.Product) {
 		ID:       product.ID,
 		SKU:      product.SKU,
 		Stock:    product.Stock,
-		LowStock: product.Stock <= product.StockMin,
+		LowStock: isLowStock,
 	})
 	event := Event{
 		Type:    EventStockUpdate,
@@ -493,13 +493,11 @@ func BroadcastLowStockAlert(hub *Hub, product *domain.Product) {
 		SKU   string `json:"sku"`
 		Name  string `json:"name"`
 		Stock int    `json:"stock"`
-		Min   int    `json:"min"`
 	}{
 		ID:    product.ID,
 		SKU:   product.SKU,
 		Name:  product.Name,
 		Stock: product.Stock,
-		Min:   product.StockMin,
 	})
 	event := Event{
 		Type:    EventLowStockAlert,

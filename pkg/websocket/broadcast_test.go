@@ -12,9 +12,9 @@ import (
 // TestBroadcastStockUpdate tests the stock update broadcast function
 func TestBroadcastStockUpdate(t *testing.T) {
 	t.Run("nil hub does not panic", func(t *testing.T) {
-		product := &domain.Product{ID: 1, SKU: "TEST", Stock: 10, StockMin: 5}
+		product := &domain.Product{ID: 1, SKU: "TEST", Stock: 10}
 		// Should not panic
-		BroadcastStockUpdate(nil, product)
+		BroadcastStockUpdate(nil, product, false)
 	})
 
 	t.Run("product payload structure", func(t *testing.T) {
@@ -23,13 +23,11 @@ func TestBroadcastStockUpdate(t *testing.T) {
 			ID:       1,
 			SKU:      "TEST-001",
 			Stock:    10,
-			StockMin: 5,
 			StoreID:  &storeID,
 		}
 
 		// Verify the payload structure matches expected format
-		expectedLowStock := product.Stock <= product.StockMin
-		assert.False(t, expectedLowStock, "Stock 10 with min 5 should not be low")
+		assert.False(t, product.Stock <= 5, "Stock 10 with threshold 5 should not be low")
 	})
 }
 
