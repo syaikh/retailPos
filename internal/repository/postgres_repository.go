@@ -849,55 +849,67 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	var sales []domain.Sale
 	var total int
 
-	query := `SELECT COUNT(*) FROM sales WHERE 1=1`
-	args := []interface{}{}
+	// ---- COUNT QUERY ----
+	// When searching by product name we need to check sale_items + products,
+	// so use a sub-select to avoid a messy multi-join count.
+	countQuery := `SELECT COUNT(*) FROM sales s WHERE 1=1`
+	countArgs := []interface{}{}
+	argIdx := 1
+
 	if search != "" {
-		query += " AND invoice_number ILIKE $" + fmt.Sprintf("%d", len(args)+1)
-		args = append(args, "%"+search+"%")
+		countQuery += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d))", argIdx, argIdx)
+		countArgs = append(countArgs, "%"+search+"%")
+		argIdx++
 	}
 	if startDate != "" {
-		// Parse dates as UTC to avoid server-timezone shifts.
-		// DATE() evaluates in the connected server's time zone; passing time.Time
-		// values from a location-aware parser keeps comparisons aligned to Jakarta.
 		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
-		query += " AND created_at >= $" + fmt.Sprintf("%d", len(args)+1)
-		args = append(args, start)
+		countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
+		countArgs = append(countArgs, start)
+		argIdx++
 	}
 	if endDate != "" {
 		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
-		// End of day inclusive: add 1 day minus 1ns so `< $end` captures all of endDate
-		query += " AND created_at < $" + fmt.Sprintf("%d", len(args)+1)
-		args = append(args, end.Add(24*time.Hour-time.Nanosecond))
+		countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
+		countArgs = append(countArgs, end.Add(24*time.Hour-time.Nanosecond))
+		argIdx++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
-		args = append(args, *storeID)
+		countQuery += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
+		countArgs = append(countArgs, *storeID)
+		argIdx++
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
+	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	query = `SELECT id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at FROM sales WHERE 1=1`
+	// ---- DATA QUERY ----
+	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at FROM sales s WHERE 1=1`
 	args2 := []interface{}{}
+	argIdx2 := 1
+
 	if search != "" {
-		query += " AND invoice_number ILIKE $" + fmt.Sprintf("%d", len(args2)+1)
+		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d))", argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")
+		argIdx2++
 	}
 	if startDate != "" {
 		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
-		query += " AND created_at >= $" + fmt.Sprintf("%d", len(args2)+1)
+		query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
 		args2 = append(args2, start)
+		argIdx2++
 	}
 	if endDate != "" {
 		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
-		query += " AND created_at < $" + fmt.Sprintf("%d", len(args2)+1)
+		query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
 		args2 = append(args2, end.Add(24*time.Hour-time.Nanosecond))
+		argIdx2++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", len(args2)+1)
+		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx2)
 		args2 = append(args2, *storeID)
+		argIdx2++
 	}
 	if sortBy != "" {
 		query += fmt.Sprintf(" ORDER BY %s", sortBy)
@@ -905,9 +917,9 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 			query += " " + sortDir
 		}
 	} else {
-		query += " ORDER BY created_at DESC"
+		query += " ORDER BY s.created_at DESC"
 	}
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args2...)

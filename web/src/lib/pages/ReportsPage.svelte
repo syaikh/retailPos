@@ -11,7 +11,7 @@
   import {
     Receipt, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye,
+    ChevronDown, Eye, Search,
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -47,6 +47,18 @@
 
   // Tab state for granularity switching
   let activeTab = $state('daily'); // 'daily', 'weekly', 'monthly'
+
+  // Global transaction search (invoice number OR product name)
+  let searchQuery = $state('');
+
+  // Debounce helper — waits 300 ms after last keystroke before resolving
+  function debounce(fn, delay = 300) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
 
   // Transaction details modal
   let showTransactionModal = $state(false);
@@ -152,19 +164,26 @@
             grid: { display: false },
             ticks: { color: '#9ca3af', font: { family: 'inherit' } }
           },
-          y: {
-            border: { display: false },
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: {
-              color: '#9ca3af',
-              font: { family: 'inherit' },
-              callback: function(value) {
-                if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + 'M';
-                if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'k';
-                return 'Rp ' + value;
-              }
-            }
-          }
+           y: {
+             border: { display: false },
+             grid: { color: 'rgba(255, 255, 255, 0.05)' },
+             ticks: {
+               color: '#9ca3af',
+               font: { family: 'inherit' },
+               callback: function(value) {
+                 if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+                 if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
+                 return 'Rp ' + value;
+               }
+             },
+             // Dynamic max scaling: max(data) + 10% headroom
+             suggestedMax: function(context) {
+               const values = context.chart.data.datasets[0].data;
+               if (values.length === 0) return 1000;
+               const maxValue = Math.max(...values);
+               return maxValue + maxValue * 0.1;
+             }
+           }
         }
       }
     };
@@ -179,7 +198,8 @@
         startDate,
         endDate,
         limit: limit.toString(),
-        offset: offset.toString()
+        offset: offset.toString(),
+        search: searchQuery.trim(),
       });
 
       // Choose chart endpoint based on active tab
@@ -197,6 +217,8 @@
         const data = await salesRes.json();
         salesData = data.data || [];
         total = data.total || 0;
+        // Sort chronologically descending: newest transaction first
+        salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       }
 
       if (chartRes.ok) {
@@ -256,7 +278,8 @@
 
   function handleTabChange(newTab) {
     activeTab = newTab;
-    offset = 0; // Reset pagination
+    offset = 0;
+    searchQuery = ''; // reset search when switching tabs
 
     // Set default date ranges based on tab
     const now = new Date();
@@ -387,10 +410,24 @@
   const statusVariant = (s) =>
     s === 'completed' ? 'success' : s === 'refunded' ? 'danger' : 'warning';
 
+  function getPaymentMethodVariant(method = '') {
+    const m = method.toLowerCase();
+    if (m === 'cash') return 'success';       // Emerald green
+    if (m === 'qris' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default'; // Blue
+    if (m.includes('credit') || m.includes('debit') || m === 'card') return 'primary'; // Purple
+    return 'muted';
+  }
+
   function openTransactionDetails(transaction) {
     selectedTransaction = transaction;
     showTransactionModal = true;
   }
+
+  // Debounced version of fetchSales used by the search input
+  const doSearch = debounce(() => {
+    offset = 0; // reset to page 1 on every new search
+    fetchSales();
+  }, 300);
 
   onMount(fetchSales);
 </script>
@@ -413,7 +450,7 @@
       <span class="text-text-muted text-sm px-1">-</span>
       <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} title={endDateTooltip} />
     </div>
-    <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; fetchSales(); }}>Apply</button>
+    <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; searchQuery = ''; fetchSales(); }}>Apply</button>
     <div class="ml-auto relative">
       <button
         class="btn btn-primary flex items-center gap-2 transition-all duration-300"
@@ -598,11 +635,28 @@
 
   <!-- Sales table -->
   <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+    <div class="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3">
       <p class="text-sm font-semibold text-text-primary">Transaction History</p>
-      {#if !loading}
-        <span class="badge badge-muted">{total} records</span>
-      {/if}
+      <div class="flex items-center gap-3">
+        {#if !loading}
+          <span class="badge badge-muted">{total} records</span>
+        {/if}
+        <div class="relative">
+          <Search
+            size={15}
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+          />
+          <input
+            type="text"
+            placeholder="Cari invoice atau produk..."
+            bind:value={searchQuery}
+            oninput={doSearch}
+            class="pl-9 pr-4 py-1.5 text-sm bg-slate-900/50 border border-slate-800
+                   text-white rounded-full outline-none transition-colors
+                   focus:border-purple-500 placeholder:text-text-muted"
+          />
+        </div>
+      </div>
     </div>
 
     {#if loading}
@@ -655,9 +709,9 @@
                   {sale.items?.length || 0} items
                 </td>
                 <td>
-                  <span class="text-sm text-text-secondary capitalize">
+                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-sm px-3 py-1">
                     {sale.payment_method || '—'}
-                  </span>
+                  </Badge>
                 </td>
                 <td class="text-right text-sm font-semibold text-text-primary">
                   {(sale.total_amount || 0).toLocaleString('id-ID')}
@@ -693,7 +747,9 @@
         </div>
         <div>
           <p class="text-sm font-medium text-text-secondary">Payment Method</p>
-          <p class="text-text-primary capitalize">{selectedTransaction.payment_method || '—'}</p>
+          <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-1 text-sm px-3 py-1">
+            {selectedTransaction.payment_method || '—'}
+          </Badge>
         </div>
         <div>
           <p class="text-sm font-medium text-text-secondary">Status</p>
