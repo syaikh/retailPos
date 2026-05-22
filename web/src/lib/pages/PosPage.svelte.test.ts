@@ -111,8 +111,16 @@ describe('PosPage source-structure guards', () => {
       expect(source).toContain('text-purple-400');
     });
 
-    it('cash input field has autofocus attribute', () => {
-      expect(source).toContain('autofocus');
+    it('cash input field has id for programmatic focus', () => {
+      expect(source).toContain('id="cash-received-input"');
+      expect(source).not.toContain('autofocus');
+    });
+
+    it('programmatic focus effect on modal open', () => {
+      expect(source).toContain('$effect(() =>');
+      expect(source).toContain("showCheckoutModal");
+      expect(source).toContain("el.focus()");
+      expect(source).toContain("getElementById('cash-received-input')");
     });
 
     it('F5 inside modal fills cashReceived with totalAmount', () => {
@@ -192,8 +200,8 @@ describe('PosPage source-structure guards', () => {
 
     it('print media query structure present in style block', () => {
       expect(source).toContain('@media print');
-      expect(source).toContain('body * {\n    visibility: hidden;');
-      expect(source).toContain('.thermal-receipt,\n  .thermal-receipt * {\n    visibility: visible;');
+      expect(source).toContain('display: none !important;');
+      expect(source).toContain('display: block !important;');
     });
 
     it('thermal-receipt positioned absolute at top-left in print', () => {

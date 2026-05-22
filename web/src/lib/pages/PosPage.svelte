@@ -199,6 +199,16 @@
     });
   }
 
+  // ─── Reactive focus: auto-focus cash input when modal opens ────────────────
+  $effect(() => {
+    if (showCheckoutModal) {
+      setTimeout(() => {
+        const el = document.getElementById('cash-received-input');
+        if (el) el.focus();
+      }, 0);
+    }
+  });
+
   // ─── Global Keyboard Shortcuts ──────────────────────────────────────────────
   function handleGlobalKeydown(event) {
     // Alt + Delete → Clear cart with confirmation
@@ -554,7 +564,7 @@
 {#if showCheckoutModal}
   <!-- Overlay -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center"
+    class="fixed inset-0 z-50 flex items-center justify-center print-modal-overlay"
     transition:fly={{ y: 40, duration: 300 }}
   >
     <!-- Backdrop -->
@@ -616,7 +626,6 @@
             type="number"
             min="0"
             bind:value={cashReceived}
-            autofocus
             class="input text-lg font-bold text-text-primary"
             placeholder="0"
           />
@@ -768,26 +777,27 @@
 @media print {
   /* ── Hide all UI elements ── */
   body * {
-    visibility: hidden;
+    display: none !important;
   }
 
-  /* ── Show only the thermal receipt ── */
-  .thermal-receipt,
-  .thermal-receipt * {
-    visibility: visible;
-  }
-
+  /* ── Make thermal receipt the only visible surface in print context ── */
   .thermal-receipt {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
+    display: block !important;
     background: white;
     color: #000;
     font-family: 'Courier New', monospace;
     padding: 10mm;
     font-size: 11pt;
     line-height: 1.4;
+  }
+
+  .thermal-receipt * {
+    display: revert !important;
+    visibility: visible !important;
   }
 
   /* ── Receipt structure ── */
