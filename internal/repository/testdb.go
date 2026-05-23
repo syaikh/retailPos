@@ -199,7 +199,7 @@ func createTestPool(dbName string) (*pgxpool.Pool, error) {
 		password = "devuser123"
 	}
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=Asia/Jakarta",
 		user, password, host, port, dbName)
 
 	config, err := pgxpool.ParseConfig(dsn)

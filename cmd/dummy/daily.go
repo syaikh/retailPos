@@ -13,6 +13,23 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// loadJakartaLocation loads the Asia/Jakarta timezone location.
+// Falls back to UTC if the tzdata bundle is missing.
+var jakartaLoc *time.Location
+
+func loadJakartaLocation() *time.Location {
+	if jakartaLoc != nil {
+		return jakartaLoc
+	}
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		jakartaLoc = time.UTC
+	} else {
+		jakartaLoc = loc
+	}
+	return jakartaLoc
+}
+
 // ---------- types ----------
 
 type dailySaleProduct struct {
@@ -27,7 +44,7 @@ type dailySaleProduct struct {
 // DB session timezone is set to Asia/Jakarta via DSN; all created_at
 // values are produced in this zone so that the DB receives the WIB
 // wall-clock time the user expects without any accidental UTC shifts.
-var jakartaTZ = time.FixedZone("Asia/Jakarta", 7*3600) // UTC+7
+var jakartaTZ = loadJakartaLocation()
 
 type dailySaleItem struct {
 	ProductID  int

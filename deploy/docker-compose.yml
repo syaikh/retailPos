@@ -11,6 +11,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
       POSTGRES_DB: ${DB_NAME:-retail_pos}
       PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: Asia/Jakarta
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -40,6 +41,7 @@ services:
       DB_USER: ${DB_USER:-pos}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_NAME: ${DB_NAME:-retail_pos}
+      TZ: Asia/Jakarta
       GIN_MODE: release
     networks:
       - retail-pos-network

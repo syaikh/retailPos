@@ -51,7 +51,7 @@ func createPool(ctx context.Context) (*pgxpool.Pool, error) {
 		dbname = "retailpos"
 	}
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=Asia/Jakarta",
 		user, password, host, port, dbname)
 
 	config, err := pgxpool.ParseConfig(dsn)

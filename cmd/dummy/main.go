@@ -604,7 +604,7 @@ type workerJob struct {
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, startDate, endDate time.Time) error {
 	numWorkers := 4 // Concurrent workers for performance
 
-	now := time.Now()
+	now := time.Now().In(jakartaTZ)
 	productMap := make(map[int]ProductInfo)
 	for _, p := range products {
 		productMap[p.ID] = p
@@ -754,7 +754,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			if isToday {
 				// Today: generate time from 6 hours ago until 5 minutes ago to ensure it's in the past
-				currentNow := time.Now()
+				currentNow := time.Now().In(jakartaTZ)
 				sixHoursAgo := currentNow.Add(-6 * time.Hour)
 				fiveMinutesAgo := currentNow.Add(-5 * time.Minute)
 

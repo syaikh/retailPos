@@ -4,6 +4,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { chart } from '$lib/actions/chart';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta, getMaxDateInJakarta } from '$lib/utils/jakartaTime';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -37,10 +38,9 @@
     periodInfo: null
   });
 
-  // Date range - default to last 7 days inclusive of today
-  const now = new Date();
-  let startDate = $state(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
-  let endDate = $state(now.toISOString().slice(0, 10));
+  // Date range - default to last 7 days inclusive of today, in Asia/Jakarta
+  let startDate = $state(getDateNDaysAgoInJakarta(7));
+  let endDate = $state(getTodayInJakarta());
 
   // Export dropdown
   let showExportDropdown = $state(false);
@@ -281,17 +281,16 @@
     offset = 0;
     searchQuery = ''; // reset search when switching tabs
 
-    // Set default date ranges based on tab
-    const now = new Date();
+    // Set default date ranges based on tab (all in Asia/Jakarta)
     if (newTab === 'daily') {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days ago
-      endDate = now.toISOString().slice(0, 10);
+      startDate = getDateNDaysAgoInJakarta(7);  // last 7 days
+      endDate = getTodayInJakarta();
     } else if (newTab === 'weekly') {
-      startDate = new Date(now.getTime() - 84 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 12 weeks ago
-      endDate = now.toISOString().slice(0, 10);
+      startDate = getDateNDaysAgoInJakarta(84); // 12 weeks back
+      endDate = getTodayInJakarta();
     } else if (newTab === 'monthly') {
-      startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10); // 12 months ago
-      endDate = now.toISOString().slice(0, 10);
+      startDate = getFirstOfMonthNAgoInJakarta(11); // 12 months back
+      endDate = getTodayInJakarta();
     }
 
     fetchSales();
@@ -448,7 +447,7 @@
     <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner ring-1 ring-black/20">
       <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={startDate} max={endDate} title={startDateTooltip} />
       <span class="text-text-muted text-sm px-1">-</span>
-      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={endDate} min={startDate} max={new Date().toISOString().slice(0,10)} title={endDateTooltip} />
+       <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={endDate} min={startDate} max={getMaxDateInJakarta()} title={endDateTooltip} />
     </div>
     <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; searchQuery = ''; fetchSales(); }}>Apply</button>
     <div class="ml-auto relative">

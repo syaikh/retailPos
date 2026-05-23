@@ -1060,7 +1060,7 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 		NewValues:  newValues,
 		IPAddress:  ip,
 		UserAgent:  ua,
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		CreatedAt:  time.Now().In(config.Load().Timezone).Format(time.RFC3339),
 	}
 	log.Description = h.generateAuditDescription(log)
 
