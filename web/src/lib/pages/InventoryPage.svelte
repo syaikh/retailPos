@@ -97,7 +97,7 @@ let showDeleteModal = $state(false);
     let isDeleting = $state(false);
     let isSearching = $state(false);
     let showDetailDrawer = $state(false);
-    let showCopySuccess = $state('');
+    let showCopySuccess = $state(new Set<string>());
     let ws = useWebSocket();
     // Phase 1 Extension States
     let brands = $state([]);
@@ -533,8 +533,14 @@ function resetForm() {
    */
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
-      showCopySuccess = field;
-      setTimeout(() => (showCopySuccess = ''), ms);
+      const next = new Set(showCopySuccess);
+      next.add(field);
+      showCopySuccess = next;
+      setTimeout(() => {
+        const removed = new Set(showCopySuccess);
+        removed.delete(field);
+        showCopySuccess = removed;
+      }, ms);
     });
   }
 
@@ -816,38 +822,38 @@ function resetForm() {
                 <!-- SKU and Barcode details (smaller font) -->
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <!-- SKU with copy button -->
-                  <span class="flex items-center gap-1">
-                    {product.sku}
-                    <button
-                      class="p-0.5 hover:text-primary transition-colors"
-                      title="Salin SKU"
-                      onclick={() => {
-                        navigator.clipboard.writeText(product.sku).then(() => {
-                          toast.info(`SKU copied: ${product.sku}`, 2000);
-                        });
-                      }}
-                    >
-                      <Copy size={14} class="text-text-muted hover:text-primary" />
-                    </button>
-                  </span>
+                   <span class="flex items-center gap-1">
+                     {product.sku}
+                     <button
+                       class="p-0.5 hover:text-primary transition-colors"
+                       title="Salin SKU"
+                       onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}
+                     >
+                       {#if showCopySuccess.has(`sku_${product.id}`)}
+                         <span class="text-sm text-primary font-semibold">✓</span>
+                       {:else}
+                         <Copy size={14} class="text-text-muted hover:text-primary" />
+                       {/if}
+                     </button>
+                   </span>
 
                   <!-- Barcode with copy button (only if barcode exists) -->
-                  {#if product.barcode}
-                    <span class="flex items-center gap-1 ml-4">
-                      {product.barcode}
-                      <button
-                        class="p-0.5 hover:text-primary transition-colors"
-                        title="Salin barcode"
-                        onclick={() => {
-                          navigator.clipboard.writeText(product.barcode).then(() => {
-                            toast.info(`Barcode copied: ${product.barcode}`, 2000);
-                          });
-                        }}
-                      >
-                        <Copy size={14} class="text-text-muted hover:text-primary" />
-                      </button>
-                    </span>
-                  {/if}
+                   {#if product.barcode}
+                     <span class="flex items-center gap-1 ml-4">
+                       {product.barcode}
+                       <button
+                         class="p-0.5 hover:text-primary transition-colors"
+                         title="Salin barcode"
+                         onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
+                       >
+                         {#if showCopySuccess.has(`barcode_${product.id}`)}
+                           <span class="text-sm text-primary font-semibold">✓</span>
+                         {:else}
+                           <Copy size={14} class="text-text-muted hover:text-primary" />
+                         {/if}
+                       </button>
+                     </span>
+                   {/if}
                 </div>
               </td>
                <td class="p-4 w-60">{product.category_name || '-'}</td>
@@ -1166,7 +1172,7 @@ function resetForm() {
             title="Salin SKU"
             onclick={() => copyToClipboard(selectedProduct.sku, 'sku')}
           >
-            {#if showCopySuccess === 'sku'}
+            {#if showCopySuccess.has('sku')}
               <span class="text-sm text-primary font-semibold">✓</span>
             {:else}
               <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>
@@ -1183,7 +1189,7 @@ function resetForm() {
               title="Salin barcode"
               onclick={() => copyToClipboard(selectedProduct.barcode!, 'barcode')}
             >
-            {#if showCopySuccess === 'barcode'}
+            {#if showCopySuccess.has('barcode')}
               <span class="text-sm text-primary font-semibold">✓</span>
               {:else}
                 <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>

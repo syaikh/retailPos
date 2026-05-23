@@ -7,7 +7,7 @@
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Receipt } from 'lucide-svelte';
+  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Wallet, Check, Receipt } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
@@ -535,8 +535,8 @@
               <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
               Processing…
             {:else}
-              <Receipt size={16} />
-              Bayar · {totalAmount.toLocaleString('id-ID')}
+              <Wallet size={16} />
+              Bayar · Rp {totalAmount.toLocaleString('id-ID')}
             {/if}
           </button>
 
@@ -623,10 +623,10 @@
           </label>
           <input
             id="cash-received-input"
-            type="number"
-            min="0"
+            type="text"
+            inputmode="numeric"
             bind:value={cashReceived}
-            class="input text-lg font-bold text-text-primary"
+            class="input text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
         </div>
@@ -690,7 +690,7 @@
           disabled={cart.length === 0 || changeDue < 0}
           onclick={finalizeSale}
         >
-          <Receipt size={16} />
+          <Check size={16} />
           Selesai &amp; Cetak [Enter]
         </button>
       </div>
