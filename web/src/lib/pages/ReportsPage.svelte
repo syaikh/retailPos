@@ -1,195 +1,222 @@
 <script>
-  import { onMount } from 'svelte';
-  import { fly } from 'svelte/transition';
-  import { apiFetch } from '$lib/api/client';
-  import { toast } from '$lib/stores/toast';
-  import { chart } from '$lib/actions/chart';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta, getMaxDateInJakarta } from '$lib/utils/jakartaTime';
-  import Badge from '$lib/components/ui/Badge.svelte';
-  import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import Pagination from '$lib/components/ui/Pagination.svelte';
-  import Modal from '$lib/components/ui/Modal.svelte';
-  import {
-    Receipt, BarChart3,
-    CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye, Search, X,
-  } from 'lucide-svelte';
+import { onMount } from 'svelte';
+import { fly } from 'svelte/transition';
+import { apiFetch } from '$lib/api/client';
+import { toast } from '$lib/stores/toast';
+import { chart } from '$lib/actions/chart';
+import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta, getMaxDateInJakarta } from '$lib/utils/jakartaTime';
+import Badge from '$lib/components/ui/Badge.svelte';
+import Skeleton from '$lib/components/ui/Skeleton.svelte';
+import Pagination from '$lib/components/ui/Pagination.svelte';
+import Modal from '$lib/components/ui/Modal.svelte';
+import {
+  Receipt, BarChart3,
+  CalendarDays, Download, FileSpreadsheet,
+  ChevronDown, Eye, Search, X,
+} from 'lucide-svelte';
 
-  let loading = $state(true);
-  let salesData = $state([]);
-  let chartData = $state([]);
-  let total = $state(0);
-  let limit = $state(20);
-  let offset = $state(0);
+let loading = $state(true);
+let salesData = $state([]);
+let chartData = $state([]);
+let total = $state(0);
+let limit = $state(20);
+let offset = $state(0);
 
-  // KPI data
-  let kpiData = $state({
-    totalRevenue: 0,
-    previousRevenue: 0,
-    totalOrders: 0,
-    previousOrders: 0,
-    avgOrderValue: 0,
-    previousAvgOrderValue: 0,
-    revenuePerDay: 0,
-    previousRevenuePerDay: 0,
-    percentChange: 0,
-    comparisonType: 'zero',
-    isPartial: false,
-    periodInfo: null
-  });
+// KPI data
+let kpiData = $state({
+  totalRevenue: 0,
+  previousRevenue: 0,
+  totalOrders: 0,
+  previousOrders: 0,
+  avgOrderValue: 0,
+  previousAvgOrderValue: 0,
+  revenuePerDay: 0,
+  previousRevenuePerDay: 0,
+  percentChange: 0,
+  comparisonType: 'zero',
+  isPartial: false,
+  periodInfo: null
+});
 
-  // Date range - default to last 7 days inclusive of today, in Asia/Jakarta
-  let startDate = $state(getDateNDaysAgoInJakarta(7));
-  let endDate = $state(getTodayInJakarta());
+// Date range filter - uses temp values for picker, applied on click
+let tempStartDate = $state(getDateNDaysAgoInJakarta(7));
+let tempEndDate = $state(getTodayInJakarta());
+let startDate = $state(getDateNDaysAgoInJakarta(7));
+let endDate = $state(getTodayInJakarta());
 
-  // Export dropdown
-  let showExportDropdown = $state(false);
+// Export dropdown
+let showExportDropdown = $state(false);
 
-  // Tab state for granularity switching
-  let activeTab = $state('daily'); // 'daily', 'weekly', 'monthly'
+// Tab state for granularity switching
+let activeTab = $state('daily'); // 'daily', 'weekly', 'monthly'
+// Track if user manually overridden the tab (to prevent auto-switch from overriding manual selection)
+let userOverriddenTab = $state(false);
 
-  // Global transaction search (invoice number OR product name)
-  let searchQuery = $state('');
+// Global transaction search (invoice number OR product name)
+let searchQuery = $state('');
 
-  // Debounce helper — waits 300 ms after last keystroke before resolving
-  function debounce(fn, delay = 300) {
-    let timer;
-    return (...args) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn(...args), delay);
-    };
+// Debounce helper — waits 300 ms after last keystroke before resolving
+function debounce(fn, delay = 300) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+// Calculate total days selected (inclusive)
+const totalDays = $derived.by(() => {
+  if (!startDate || !endDate) return 0;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = Math.abs(end - start);
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 for inclusive
+});
+
+// Auto-determine tab based on date range (when not manually overridden)
+const autoTab = $derived.by(() => {
+  // If user manually overridden, don't auto-switch
+  if (userOverriddenTab) return activeTab;
+  
+  const days = totalDays;
+  if (days <= 30) return 'daily';
+  if (days <= 180) return 'weekly';
+  return 'monthly';
+});
+
+// Auto-determine chart type based on autoTab
+const autoChartType = $derived.by(() => {
+  return autoTab === 'daily' ? 'line' : 'bar';
+});
+
+// Transaction details modal
+let showTransactionModal = $state(false);
+let selectedTransaction = $state(null);
+
+// Format date: dd mmm yyyy (English locale)
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
+// Format date and time: dd mmm yyyy hh:mm:ss (English locale)
+const formatDateTime = (date) => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+
+  return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+};
+
+// Reactive tooltips
+const startDateTooltip = $derived(formatDate(tempStartDate));
+const endDateTooltip = $derived(formatDate(tempEndDate));
+
+// Chart configuration
+const chartConfig = $derived.by(() => {
+  let labels = [];
+  let values = [];
+  let chartType = autoChartType; // Use auto-determined chart type
+
+  if (autoTab === 'daily') {
+    chartType = 'line';
+    labels = chartData.map(d => {
+      const date = new Date(d.date);
+      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    });
+    values = chartData.map(d => d.total);
+  } else if (autoTab === 'weekly') {
+    chartType = 'bar';
+    labels = chartData.map(d => {
+      const start = new Date(d.week_start);
+      const end = new Date(d.week_end);
+      const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+      const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+      return `${startStr} - ${endStr}`;
+    });
+    values = chartData.map(d => d.total);
+  } else if (autoTab === 'monthly') {
+    chartType = 'bar';
+    labels = chartData.map(d => {
+      const date = new Date(d.month_start);
+      return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    });
+    values = chartData.map(d => d.total);
   }
 
-  // Transaction details modal
-  let showTransactionModal = $state(false);
-  let selectedTransaction = $state(null);
-
-  // Format date: dd mmm yyyy (English locale)
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('en-US', { month: 'short' });
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-
-  // Format date and time: dd mmm yyyy hh:mm:ss (English locale)
-  const formatDateTime = (date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('en-US', { month: 'short' });
-    const year = date.getFullYear();
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-
-    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
-  };
-
-  // Reactive tooltips
-  const startDateTooltip = $derived(formatDate(startDate));
-  const endDateTooltip = $derived(formatDate(endDate));
-
-  // Chart configuration
-  const chartConfig = $derived.by(() => {
-    let labels = [];
-    let values = [];
-    let chartType = 'line';
-
-    if (activeTab === 'daily') {
-      chartType = 'line';
-      labels = chartData.map(d => {
-        const date = new Date(d.date);
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-      });
-      values = chartData.map(d => d.total);
-    } else if (activeTab === 'weekly') {
-      chartType = 'bar';
-      labels = chartData.map(d => {
-        const start = new Date(d.week_start);
-        const end = new Date(d.week_end);
-        const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-        const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-        return `${startStr} - ${endStr}`;
-      });
-      values = chartData.map(d => d.total);
-    } else if (activeTab === 'monthly') {
-      chartType = 'bar';
-      labels = chartData.map(d => {
-        const date = new Date(d.month_start);
-        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-      });
-      values = chartData.map(d => d.total);
-    }
-
-    return {
-      type: chartType,
-      data: {
-        labels,
-        datasets: [{
-          label: 'Revenue',
-          data: values,
-          borderColor: '#7c3aed', // Primary
-          backgroundColor: chartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
-          borderWidth: chartType === 'bar' ? 0 : 2,
-          pointBackgroundColor: '#fff',
-          pointBorderColor: '#7c3aed',
-          pointBorderWidth: 2,
-          pointRadius: chartType === 'bar' ? 0 : 4,
-          pointHoverRadius: chartType === 'bar' ? 0 : 6,
-          fill: chartType === 'bar' ? true : true,
-          tension: chartType === 'bar' ? 0 : 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                let label = context.dataset.label || '';
-                if (label) label += ': ';
-                if (context.parsed.y !== null) {
-                  label += 'Rp ' + context.parsed.y.toLocaleString('id-ID');
-                }
-                return label;
+  return {
+    type: chartType,
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue',
+        data: values,
+        borderColor: '#7c3aed', // Primary
+        backgroundColor: chartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
+        borderWidth: chartType === 'bar' ? 0 : 2,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#7c3aed',
+        pointBorderWidth: 2,
+        pointRadius: chartType === 'bar' ? 0 : 4,
+        pointHoverRadius: chartType === 'bar' ? 0 : 6,
+        fill: chartType === 'bar' ? true : true,
+        tension: chartType === 'bar' ? 0 : 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
+                label += 'Rp ' + context.parsed.y.toLocaleString('id-ID');
               }
+              return label;
             }
           }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#9ca3af', font: { family: 'inherit' } }
         },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#9ca3af', font: { family: 'inherit' } }
+        y: {
+          border: { display: false },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#9ca3af',
+            font: { family: 'inherit' },
+            callback: function(value) {
+              if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+              if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
+              return 'Rp ' + value;
+            }
           },
-           y: {
-             border: { display: false },
-             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-             ticks: {
-               color: '#9ca3af',
-               font: { family: 'inherit' },
-               callback: function(value) {
-                 if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
-                 if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
-                 return 'Rp ' + value;
-               }
-             },
-             // Dynamic max scaling: max(data) + 10% headroom
-             suggestedMax: function(context) {
-               const values = context.chart.data.datasets[0].data;
-               if (values.length === 0) return 1000;
-               const maxValue = Math.max(...values);
-               return maxValue + maxValue * 0.1;
-             }
-           }
+          // Dynamic max scaling: max(data) + 10% headroom
+          suggestedMax: function(context) {
+            const values = context.chart.data.datasets[0].data;
+            if (values.length === 0) return 1000;
+            const maxValue = Math.max(...values);
+            return maxValue + maxValue * 0.1;
+          }
         }
       }
-    };
-  });
-
-
+    }
+  };
+});
 
   async function fetchSales() {
     try {
@@ -202,15 +229,15 @@
         search: searchQuery.trim(),
       });
 
-      // Choose chart endpoint based on active tab
-      const chartEndpoint = activeTab === 'weekly' ? '/api/dashboard/chart/weekly' :
-                           activeTab === 'monthly' ? '/api/dashboard/chart/monthly' :
-                           '/api/dashboard/chart';
+      // Use autoTab for chart endpoint (respects manual override via userOverriddenTab flag)
+      const chartEndpoint = autoTab === 'weekly' ? '/api/dashboard/chart/weekly' :
+                       autoTab === 'monthly' ? '/api/dashboard/chart/monthly' :
+                       '/api/dashboard/chart';
 
       const [salesRes, chartRes, comparisonRes] = await Promise.all([
         apiFetch(`/api/sales?${params.toString()}`),
         apiFetch(`${chartEndpoint}?startDate=${startDate}&endDate=${endDate}`),
-        apiFetch(`/api/dashboard/comparison?period=${activeTab}&mode=todate&date=${endDate}`)
+        apiFetch(`/api/dashboard/comparison?period=${autoTab}&mode=todate&date=${endDate}`)
       ]);
 
       if (salesRes.ok) {
@@ -262,12 +289,21 @@
           periodInfo: meta
         };
       }
-
-    } catch {
+    } catch (error) {
       toast.error('Failed to load sales data');
     } finally {
       loading = false;
     }
+  }
+
+  function applyDateRange() {
+    startDate = tempStartDate;
+    endDate = tempEndDate;
+    offset = 0;
+    searchQuery = '';
+    userOverriddenTab = false;
+    activeTab = autoTab;
+    fetchSales();
   }
 
   function handlePageChange(newOffset, newLimit) {
@@ -278,19 +314,27 @@
 
   function handleTabChange(newTab) {
     activeTab = newTab;
+    userOverriddenTab = true; // Mark that user manually overridden the tab
     offset = 0;
     searchQuery = ''; // reset search when switching tabs
 
     // Set default date ranges based on tab (all in Asia/Jakarta)
+    // Requirements: 7 days, 3 months, or 1 year
     if (newTab === 'daily') {
-      startDate = getDateNDaysAgoInJakarta(7);  // last 7 days
+      startDate = getDateNDaysAgoInJakarta(7);  // last 7 days (≤30 days → daily)
       endDate = getTodayInJakarta();
+      tempStartDate = startDate;
+      tempEndDate = endDate;
     } else if (newTab === 'weekly') {
-      startDate = getDateNDaysAgoInJakarta(84); // 12 weeks back
+      startDate = getDateNDaysAgoInJakarta(89); // ~3 months back (31-180 days → weekly)
       endDate = getTodayInJakarta();
+      tempStartDate = startDate;
+      tempEndDate = endDate;
     } else if (newTab === 'monthly') {
-      startDate = getFirstOfMonthNAgoInJakarta(11); // 12 months back
+      startDate = getFirstOfMonthNAgoInJakarta(11); // 12 months back (>180 days → monthly)
       endDate = getTodayInJakarta();
+      tempStartDate = startDate;
+      tempEndDate = endDate;
     }
 
     fetchSales();
@@ -445,11 +489,11 @@
       Date Range
     </div>
     <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner ring-1 ring-black/20">
-      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={startDate} max={endDate} title={startDateTooltip} />
+      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={tempStartDate} title={startDateTooltip} />
       <span class="text-text-muted text-sm px-1">-</span>
-       <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={endDate} min={startDate} max={getMaxDateInJakarta()} title={endDateTooltip} />
+      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={tempEndDate} max={getMaxDateInJakarta()} title={endDateTooltip} />
     </div>
-    <button class="btn btn-primary btn-sm" onclick={() => { offset = 0; searchQuery = ''; fetchSales(); }}>Apply</button>
+    <button class="btn btn-primary btn-sm" onclick={applyDateRange}>Apply</button>
     <div class="ml-auto relative">
       <button
         class="btn btn-primary flex items-center gap-2 transition-all duration-300"
@@ -491,25 +535,25 @@
           </button>
         </div>
       {/if}
-    </div>
+</div>
   </div>
 
   <!-- Tab Navigation -->
   <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner overflow-x-auto">
     <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'daily' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'daily' && !userOverriddenTab || activeTab === 'daily' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
       onclick={() => handleTabChange('daily')}
     >
       Daily
     </button>
     <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'weekly' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'weekly' && !userOverriddenTab || activeTab === 'weekly' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
       onclick={() => handleTabChange('weekly')}
     >
       Weekly
     </button>
     <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {activeTab === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
+      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'monthly' && !userOverriddenTab || activeTab === 'monthly' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
       onclick={() => handleTabChange('monthly')}
     >
       Monthly
@@ -520,7 +564,7 @@
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-text-primary">
-        Revenue Overview - {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+        Revenue Overview - {autoTab.charAt(0).toUpperCase() + autoTab.slice(1)}
       </h3>
     </div>
 
@@ -534,90 +578,90 @@
           </div>
         {/each}
       {:else}
-        <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
-          <div class="text-lg font-bold text-text-primary mt-1">
-            Rp {kpiData.totalRevenue.toLocaleString('id-ID')}
-          </div>
-          {#if kpiData.previousRevenue > 0}
-            <div class="text-xs text-text-muted mt-1">
-              vs Rp {kpiData.previousRevenue.toLocaleString('id-ID')}
-            </div>
-          {/if}
-        </div>
+         <div class="bg-surface rounded-lg p-4 border border-border/50">
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
+           <div class="text-lg font-bold text-text-primary mt-1">
+             Rp {kpiData.totalRevenue.toLocaleString('id-ID')}
+           </div>
+           {#if kpiData.previousRevenue > 0}
+             <div class="text-xs text-text-muted mt-1">
+               vs Rp {kpiData.previousRevenue.toLocaleString('id-ID')}
+             </div>
+           {/if}
+         </div>
 
-        <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
-          <div class="text-lg font-bold text-text-primary mt-1">
-            {kpiData.totalOrders.toLocaleString()}
-          </div>
-          {#if kpiData.previousOrders > 0}
-            <div class="text-xs text-text-muted mt-1">
-              vs {kpiData.previousOrders.toLocaleString()}
-            </div>
-          {/if}
-        </div>
+         <div class="bg-surface rounded-lg p-4 border border-border/50">
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
+           <div class="text-lg font-bold text-text-primary mt-1">
+             {kpiData.totalOrders.toLocaleString()}
+           </div>
+           {#if kpiData.previousOrders > 0}
+             <div class="text-xs text-text-muted mt-1">
+               vs {kpiData.previousOrders.toLocaleString()}
+             </div>
+           {/if}
+         </div>
 
-        <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
-          <div class="text-lg font-bold text-text-primary mt-1">
-            Rp {kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-          </div>
-          {#if kpiData.previousAvgOrderValue > 0}
-            <div class="text-xs text-text-muted mt-1">
-              vs Rp {kpiData.previousAvgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-            </div>
-          {/if}
-        </div>
+         <div class="bg-surface rounded-lg p-4 border border-border/50">
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
+           <div class="text-lg font-bold text-text-primary mt-1">
+             Rp {kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+           </div>
+           {#if kpiData.previousAvgOrderValue > 0}
+             <div class="text-xs text-text-muted mt-1">
+               vs Rp {kpiData.previousAvgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+             </div>
+           {/if}
+         </div>
 
-        <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Revenue per Day</div>
-          <div class="text-lg font-bold text-text-primary mt-1">
-            Rp {kpiData.revenuePerDay.toLocaleString('id-ID')}
-          </div>
-          {#if kpiData.previousRevenuePerDay > 0}
-            <div class="text-xs text-text-muted mt-1">
-              vs Rp {kpiData.previousRevenuePerDay.toLocaleString('id-ID')}
-            </div>
-          {/if}
-        </div>
+         <div class="bg-surface rounded-lg p-4 border border-border/50">
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg. Revenue / Day</div>
+           <div class="text-lg font-bold text-text-primary mt-1">
+             Rp {kpiData.revenuePerDay.toLocaleString('id-ID')}
+           </div>
+           {#if kpiData.previousRevenuePerDay > 0}
+             <div class="text-xs text-text-muted mt-1">
+               vs Rp {kpiData.previousRevenuePerDay.toLocaleString('id-ID')}
+             </div>
+           {/if}
+         </div>
 
-        <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
-            vs Previous Period
-            {#if kpiData.isPartial}
-              <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
-                Partial
-              </span>
-            {/if}
-          </div>
-          <div class="flex items-center mt-1">
-            <span class={`text-lg font-bold ${
-              kpiData.comparisonType === 'new' ? 'text-success' :
-              kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
-              kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
-            }`}>
-              {kpiData.comparisonType === 'new' ? 'NEW' :
-               kpiData.comparisonType === 'zero' ? '±0%' :
-               kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
-               kpiData.percentChange.toFixed(1) + '%'}
-            </span>
-            <span class={`ml-2 ${
-              kpiData.comparisonType === 'new' ? 'text-success' :
-              kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
-              kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
-            }`}>
-              {kpiData.comparisonType === 'new' ? '🚀' :
-               kpiData.comparisonType === 'zero' ? '—' :
-               kpiData.percentChange > 0 ? '↗' : '↘'}
-            </span>
-          </div>
-          {#if kpiData.periodInfo}
-            <div class="text-xs text-text-muted mt-1">
-              {kpiData.periodInfo.current_period.start} to {kpiData.periodInfo.current_period.end}
-            </div>
-          {/if}
-        </div>
+         <div class="bg-surface rounded-lg p-4 border border-border/50">
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+             vs Previous Period
+             {#if kpiData.isPartial}
+               <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
+                 Partial
+               </span>
+             {/if}
+           </div>
+           <div class="flex items-center mt-1">
+             <span class={`text-lg font-bold ${
+               kpiData.comparisonType === 'new' ? 'text-success' :
+               kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
+               kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
+             }`}>
+               {kpiData.comparisonType === 'new' ? 'NEW' :
+                kpiData.comparisonType === 'zero' ? '±0%' :
+                kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
+                kpiData.percentChange.toFixed(1) + '%'}
+             </span>
+             <span class={`ml-2 ${
+               kpiData.comparisonType === 'new' ? 'text-success' :
+               kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
+               kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
+             }`}>
+               {kpiData.comparisonType === 'new' ? '🚀' :
+                kpiData.comparisonType === 'zero' ? '—' :
+                kpiData.percentChange > 0 ? '↗' : '↘'}
+             </span>
+           </div>
+           {#if kpiData.periodInfo}
+             <div class="text-xs text-text-muted mt-1">
+               {kpiData.periodInfo.current_period.start} to {kpiData.periodInfo.current_period.end}
+             </div>
+           {/if}
+         </div>
       {/if}
     </div>
 
