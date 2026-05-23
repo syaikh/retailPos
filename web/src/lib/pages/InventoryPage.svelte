@@ -830,7 +830,7 @@ function resetForm() {
                        title="Salin SKU"
                        onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}
                      >
-                       {#if showCopySuccess.has(`sku_${product.id}`)}
+                       {#if showCopySuccess?.has(`sku_${product.id}`)}
                          <span class="text-sm text-primary font-semibold">✓</span>
                        {:else}
                          <Copy size={14} class="text-text-muted hover:text-primary" />
@@ -847,7 +847,7 @@ function resetForm() {
                          title="Salin barcode"
                          onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
                        >
-                         {#if showCopySuccess.has(`barcode_${product.id}`)}
+                         {#if showCopySuccess?.has(`barcode_${product.id}`)}
                            <span class="text-sm text-primary font-semibold">✓</span>
                          {:else}
                            <Copy size={14} class="text-text-muted hover:text-primary" />
