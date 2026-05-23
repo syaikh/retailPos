@@ -766,11 +766,11 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				randomOffset := time.Duration(rand.Int63n(int64(timeRange)))
 				createdAt = sixHoursAgo.Add(randomOffset)
 			} else {
-				// Other days: random hour between 8 AM and 8 PM
-				randomHour := 8 + rand.Intn(12)
+				// Other days: random hour in Jakarta business hours 08:00 – 20:00
+				randomHour := 8 + rand.Intn(13)
 				randomMinute := rand.Intn(60)
 				createdAt = time.Date(dayDate.Year(), dayDate.Month(), dayDate.Day(),
-					randomHour, randomMinute, rand.Intn(60), 0, time.UTC)
+					randomHour, randomMinute, rand.Intn(60), 0, jakartaTZ)
 			}
 
 			// Process sale with individual transaction for reliability

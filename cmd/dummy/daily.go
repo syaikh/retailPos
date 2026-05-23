@@ -23,6 +23,12 @@ type dailySaleProduct struct {
 	Cost     int
 }
 
+// jakartaTZ is the single timezone used throughout the daily seeder.
+// DB session timezone is set to Asia/Jakarta via DSN; all created_at
+// values are produced in this zone so that the DB receives the WIB
+// wall-clock time the user expects without any accidental UTC shifts.
+var jakartaTZ = time.FixedZone("Asia/Jakarta", 7*3600) // UTC+7
+
 type dailySaleItem struct {
 	ProductID  int
 	Quantity   int
@@ -75,13 +81,13 @@ func registerDailyFlags() {
 func RunDaily(db *sql.DB) error {
 	ctx := context.Background()
 
-	targetDate, err := time.Parse("2006-01-02", dailyDateStr)
+	targetDate, err := time.ParseInLocation("2006-01-02", dailyDateStr, jakartaTZ)
 	if err != nil {
 		return fmt.Errorf("invalid date %q (expected YYYY-MM-DD): %w", dailyDateStr, err)
 	}
 
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	now := time.Now().In(jakartaTZ)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jakartaTZ)
 	dateConsidered := targetDate
 	if targetDate.After(today) {
 		fmt.Printf("⚠️  %s is beyond today (%s); using today instead\n",
@@ -276,8 +282,8 @@ func buildRecords(
 	return records
 }
 
-func randomTimeInDate(d, now time.Time) time.Time {
-	dStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
+func randomTimeInDate(d time.Time, now time.Time) time.Time {
+	dStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, jakartaTZ)
 
 	isToday := d.Year() == now.Year() && d.Month() == now.Month() && d.Day() == now.Day()
 	if isToday {
@@ -294,13 +300,13 @@ func randomTimeInDate(d, now time.Time) time.Time {
 		return dStart.Add(time.Duration(offsetSec) * time.Second)
 	}
 
-	// Past day: random within business hours 07:00 - 21:00
+	// Past day: random within business hours 07:00 - 21:00 (WIB)
 	bizStart := 7
 	bizEnd := 21
 	hour := bizStart + rand.Intn(bizEnd-bizStart)
 	minute := rand.Intn(60)
 	second := rand.Intn(60)
-	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, second, 0, d.Location())
+	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, second, 0, jakartaTZ)
 }
 
 func selectItems(products []dailySaleProduct, count int) []dailySaleItem {
