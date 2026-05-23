@@ -2,6 +2,8 @@ package handler
 
 import (
 	"time"
+
+	"retail-pos-system/internal/config"
 )
 
 // PeriodType defines the comparison granularity
@@ -36,9 +38,10 @@ func GetComparisonRanges(
 	completedMode bool,
 ) PeriodRange {
 
-	// Normalize to start of day
+	cfg := config.Load()
+	// Normalize referenceDate to the configured timezone (default Asia/Jakarta)
 	refDate := time.Date(referenceDate.Year(), referenceDate.Month(),
-		referenceDate.Day(), 0, 0, 0, 0, referenceDate.Location())
+		referenceDate.Day(), 0, 0, 0, 0, cfg.Timezone)
 
 	var pr PeriodRange
 

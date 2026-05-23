@@ -16,6 +16,25 @@ import (
 
 var jakartaLoc *time.Location
 
+func init() {
+	var err error
+	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		jakartaLoc = time.UTC
+	}
+}
+
+func mustLoadJakarta() *time.Location {
+	if jakartaLoc == nil {
+		var err error
+		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+		if err != nil {
+			jakartaLoc = time.UTC
+		}
+	}
+	return jakartaLoc
+}
+
 type postgresRepository struct {
 	db *pgxpool.Pool
 }
@@ -862,15 +881,17 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		argIdx++
 	}
 	if startDate != "" {
-		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
+		// Use Asia/Jakarta timezone for date filtering
+		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
 		countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
 		countArgs = append(countArgs, start)
 		argIdx++
 	}
 	if endDate != "" {
-		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
+		// Use Asia/Jakarta timezone for date filtering
+		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
 		countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
-		countArgs = append(countArgs, end.Add(24*time.Hour-time.Nanosecond))
+		countArgs = append(countArgs, end.Add(24*time.Hour))
 		argIdx++
 	}
 	if storeID != nil {
@@ -895,15 +916,17 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		argIdx2++
 	}
 	if startDate != "" {
-		start, _ := time.ParseInLocation("2006-01-02", startDate, time.UTC)
+		// Use Asia/Jakarta timezone for date filtering
+		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
 		query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
 		args2 = append(args2, start)
 		argIdx2++
 	}
 	if endDate != "" {
-		end, _ := time.ParseInLocation("2006-01-02", endDate, time.UTC)
+		// Use Asia/Jakarta timezone for date filtering
+		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
 		query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
-		args2 = append(args2, end.Add(24*time.Hour-time.Nanosecond))
+		args2 = append(args2, end.Add(24*time.Hour))
 		argIdx2++
 	}
 	if storeID != nil {

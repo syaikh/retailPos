@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -12,6 +13,17 @@ type Config struct {
 	JWTSecret              string
 	StockWarningThreshold  int
 	StockCriticalThreshold int
+	Timezone               *time.Location
+}
+
+var defaultLocation *time.Location
+
+func init() {
+	var err error
+	defaultLocation, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		defaultLocation = time.UTC
+	}
 }
 
 func getEnvInt(key string, defaultVal int) int {
@@ -52,5 +64,6 @@ func Load() *Config {
 		JWTSecret:              jwtSecret,
 		StockWarningThreshold:  warningThreshold,
 		StockCriticalThreshold: criticalThreshold,
+		Timezone:               defaultLocation,
 	}
 }

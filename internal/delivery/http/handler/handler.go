@@ -515,8 +515,12 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 
 func (h *Handler) GetDashboardStats(c *gin.Context) {
 	ctx := getCtx(c)
-	today := time.Now().Format("2006-01-02")
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	cfg := config.Load()
+
+	// Use configured timezone (default Asia/Jakarta) for consistent date calculations
+	now := time.Now().In(cfg.Timezone)
+	today := now.Format("2006-01-02")
+	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 
 	// Get total revenue & sales (simplified)
 	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
@@ -544,7 +548,6 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 		return
 	}
 
-	cfg := config.Load()
 	lowStock := cfg.StockCriticalThreshold
 	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", &lowStock, nil)
 	if err != nil {
@@ -563,11 +566,14 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 
 func (h *Handler) GetSalesChartData(c *gin.Context) {
 	ctx := getCtx(c)
+	cfg := config.Load()
+
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
 	if startDate == "" || endDate == "" {
-		now := time.Now()
+		// Use configured timezone (default Asia/Jakarta) for consistent date calculations
+		now := time.Now().In(cfg.Timezone)
 		endDate = now.Format("2006-01-02")
 		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
 	}
@@ -609,11 +615,13 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 	ctx := getCtx(c)
+	cfg := config.Load()
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
 	if startDate == "" || endDate == "" {
-		now := time.Now()
+		// Use configured timezone (default Asia/Jakarta) for consistent date calculations
+		now := time.Now().In(cfg.Timezone)
 		endDate = now.Format("2006-01-02")
 		startDate = now.AddDate(0, 0, -84).Format("2006-01-02") // 12 weeks back
 	}
@@ -670,11 +678,13 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 
 func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	ctx := getCtx(c)
+	cfg := config.Load()
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
 	if startDate == "" || endDate == "" {
-		now := time.Now()
+		// Use configured timezone (default Asia/Jakarta) for consistent date calculations
+		now := time.Now().In(cfg.Timezone)
 		endDate = now.Format("2006-01-02")
 		startDate = now.AddDate(-1, 1, 0).Format("2006-01-02") // 12 months back
 	}
@@ -730,6 +740,7 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 
 func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := getCtx(c)
+	cfg := config.Load()
 
 	periodType := PeriodType(c.Query("period")) // daily, weekly, monthly
 	if periodType == "" {
@@ -738,9 +749,10 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 
 	completedMode := c.Query("mode") == "completed"
 
-	refDate := time.Now()
+	// Use configured timezone (default Asia/Jakarta) for consistent date calculations
+	refDate := time.Now().In(cfg.Timezone)
 	if dateStr := c.Query("date"); dateStr != "" {
-		if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+		if parsed, err := time.ParseInLocation("2006-01-02", dateStr, cfg.Timezone); err == nil {
 			refDate = parsed
 		}
 	}
