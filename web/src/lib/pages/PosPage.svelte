@@ -29,8 +29,11 @@
   let unsubscribeStock = null;
   let unsubscribeSale = null;
 
-  // Track previous search to avoid duplicate fetches
-  let previousSearchQuery = '';
+   // Track previous search to avoid duplicate fetches
+   let previousSearchQuery = '';
+
+   // Copy-to-clipboard feedback (per-product checkmark, no toast)
+   let showCopySuccess = $state(new Set<string>());
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -109,14 +112,31 @@
     cart = cart.filter((item) => item.id !== id);
   }
 
-  function updateQty(id, delta) {
-    const item = cart.find((i) => i.id === id);
-    if (item) {
-      item.quantity += delta;
-      if (item.quantity <= 0) removeFromCart(id);
-      cart = [...cart];
-    }
-  }
+   function updateQty(id, delta) {
+     const item = cart.find((i) => i.id === id);
+     if (item) {
+       item.quantity += delta;
+       if (item.quantity <= 0) removeFromCart(id);
+       cart = [...cart];
+     }
+   }
+
+   /**
+    * Copy a value to the clipboard, show a temporary checkmark on the icon,
+    * then revert to the Copy icon after `ms` milliseconds.
+    */
+   function copyToClipboard(value: string, field: string, ms = 2000): void {
+     navigator.clipboard.writeText(value).then(() => {
+       const next = new Set(showCopySuccess);
+       next.add(field);
+       showCopySuccess = next;
+       setTimeout(() => {
+         const removed = new Set(showCopySuccess);
+         removed.delete(field);
+         showCopySuccess = removed;
+       }, ms);
+     });
+   }
 
   async function processCheckout() {
     if (cart.length === 0) {
@@ -369,13 +389,13 @@
                           <button
                             class="p-0.5 hover:text-primary transition-colors"
                             title="Salin SKU"
-                            onclick={() => {
-                              navigator.clipboard.writeText(product.sku).then(() => {
-                                toast.info(`SKU copied: ${product.sku}`, 2000);
-                              });
-                            }}
+                            onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}
                           >
-                            <Copy size={14} class="text-text-muted hover:text-primary" />
+                            {#if showCopySuccess.has(`sku_${product.id}`)}
+                              <span class="text-sm text-primary font-semibold">✓</span>
+                            {:else}
+                              <Copy size={14} class="text-text-muted hover:text-primary" />
+                            {/if}
                           </button>
                         </span>
 
@@ -386,13 +406,13 @@
                             <button
                               class="p-0.5 hover:text-primary transition-colors"
                               title="Salin barcode"
-                              onclick={() => {
-                                navigator.clipboard.writeText(product.barcode).then(() => {
-                                  toast.info(`Barcode copied: ${product.barcode}`, 2000);
-                                });
-                              }}
+                              onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
                             >
-                              <Copy size={14} class="text-text-muted hover:text-primary" />
+                              {#if showCopySuccess.has(`barcode_${product.id}`)}
+                                <span class="text-sm text-primary font-semibold">✓</span>
+                              {:else}
+                                <Copy size={14} class="text-text-muted hover:text-primary" />
+                              {/if}
                             </button>
                           </span>
                         {/if}
