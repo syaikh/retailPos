@@ -167,7 +167,41 @@ var (
 )
 
 func main() {
-	// Parse command line flags (values are randomized if not specified)
+	// Detect whether this is a daily-seeder invocation by inspecting
+	// os.Args *before* any flag.Parse() call, so that -daily.* flags
+	// never collide with the bulk seeder's known flags.
+	runModeDaily := func() bool {
+		for _, a := range os.Args[1:] {
+			if a == "-daily" || strings.HasPrefix(a, "-daily.") {
+				return true
+			}
+		}
+		return false
+	}()
+
+	if runModeDaily {
+		// Register daily-seed flags in the default FlagSet, then parse
+		// the full argument list once.  Any unknown main-seeder flags
+		// (e.g. -truncate, -products) are simply ignored.
+		registerDailyFlags()
+		flag.Parse()
+
+		db, err := sql.Open("postgres", getDSN())
+		if err != nil {
+			log.Fatalf("Daily seeder — db open failed: %v", err)
+		}
+		defer db.Close()
+		if err := db.Ping(); err != nil {
+			log.Fatalf("Daily seeder — db ping failed: %v", err)
+		}
+
+		if err := RunDaily(db); err != nil {
+			log.Fatalf("Daily seeder failed: %v", err)
+		}
+		return
+	}
+
+	// --- Full bulk seeder -----------------------------------------------
 	truncateFlag := flag.Bool("truncate", true, "Truncate existing data before injection")
 	productsFlag := flag.Int("products", 0, "Number of products to generate (random if 0)")
 	daysFlag := flag.Int("days", 0, "Number of days to generate data for (150-180, random if 0)")
