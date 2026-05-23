@@ -97,7 +97,7 @@ let showDeleteModal = $state(false);
     let isDeleting = $state(false);
     let isSearching = $state(false);
     let showDetailDrawer = $state(false);
-    let showCopySuccess = $state(new Set<string>());
+    let showCopySuccess = $state(null as Set<string> | null);
     let ws = useWebSocket();
     // Phase 1 Extension States
     let brands = $state([]);
@@ -533,11 +533,12 @@ function resetForm() {
    */
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
-      const next = new Set(showCopySuccess);
+      const base = showCopySuccess || new Set();
+      const next = new Set(base);
       next.add(field);
       showCopySuccess = next;
       setTimeout(() => {
-        const removed = new Set(showCopySuccess);
+        const removed = new Set(next);
         removed.delete(field);
         showCopySuccess = removed;
       }, ms);
@@ -1172,11 +1173,11 @@ function resetForm() {
             title="Salin SKU"
             onclick={() => copyToClipboard(selectedProduct.sku, 'sku')}
           >
-            {#if showCopySuccess.has('sku')}
+            {#if showCopySuccess?.has('sku')}
               <span class="text-sm text-primary font-semibold">✓</span>
-            {:else}
+{:else}
               <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>
-            {/if}
+{/if}
           </button>
         </span>
         <!-- Barcode -->
@@ -1189,7 +1190,7 @@ function resetForm() {
               title="Salin barcode"
               onclick={() => copyToClipboard(selectedProduct.barcode!, 'barcode')}
             >
-            {#if showCopySuccess.has('barcode')}
+            {#if showCopySuccess?.has('barcode')}
               <span class="text-sm text-primary font-semibold">✓</span>
               {:else}
                 <Copy size={11} class="text-text-muted/70 hover:text-primary transition-colors"/>

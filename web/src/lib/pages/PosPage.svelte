@@ -33,7 +33,7 @@
    let previousSearchQuery = '';
 
    // Copy-to-clipboard feedback (per-product checkmark, no toast)
-   let showCopySuccess = $state(new Set<string>());
+    let showCopySuccess = $state(null as Set<string> | null);
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -125,18 +125,19 @@
     * Copy a value to the clipboard, show a temporary checkmark on the icon,
     * then revert to the Copy icon after `ms` milliseconds.
     */
-   function copyToClipboard(value: string, field: string, ms = 2000): void {
-     navigator.clipboard.writeText(value).then(() => {
-       const next = new Set(showCopySuccess);
-       next.add(field);
-       showCopySuccess = next;
-       setTimeout(() => {
-         const removed = new Set(showCopySuccess);
-         removed.delete(field);
-         showCopySuccess = removed;
-       }, ms);
-     });
-   }
+  function copyToClipboard(value: string, field: string, ms = 2000): void {
+    navigator.clipboard.writeText(value).then(() => {
+      const base = showCopySuccess || new Set();
+      const next = new Set(base);
+      next.add(field);
+      showCopySuccess = next;
+      setTimeout(() => {
+        const removed = new Set(next);
+        removed.delete(field);
+        showCopySuccess = removed;
+      }, ms);
+    });
+  }
 
   async function processCheckout() {
     if (cart.length === 0) {
@@ -391,7 +392,7 @@
                             title="Salin SKU"
                             onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}
                           >
-                            {#if showCopySuccess.has(`sku_${product.id}`)}
+                            {#if showCopySuccess?.has(`sku_${product.id}`)}
                               <span class="text-sm text-primary font-semibold">✓</span>
                             {:else}
                               <Copy size={14} class="text-text-muted hover:text-primary" />
@@ -408,7 +409,7 @@
                               title="Salin barcode"
                               onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
                             >
-                              {#if showCopySuccess.has(`barcode_${product.id}`)}
+                              {#if showCopySuccess?.has(`barcode_${product.id}`)}
                                 <span class="text-sm text-primary font-semibold">✓</span>
                               {:else}
                                 <Copy size={14} class="text-text-muted hover:text-primary" />
