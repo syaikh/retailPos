@@ -97,7 +97,7 @@ let showDeleteModal = $state(false);
     let isDeleting = $state(false);
     let isSearching = $state(false);
     let showDetailDrawer = $state(false);
-    let showCopySuccess = $state(null as Set<string> | null);
+    let showCopySuccess = $state(null);
     let ws = useWebSocket();
     // Phase 1 Extension States
     let brands = $state([]);

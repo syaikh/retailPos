@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
@@ -33,7 +33,7 @@
    let previousSearchQuery = '';
 
    // Copy-to-clipboard feedback (per-product checkmark, no toast)
-    let showCopySuccess = $state(null as Set<string> | null);
+    let showCopySuccess = $state(null);
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
