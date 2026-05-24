@@ -33,7 +33,7 @@ Opsi:
   --store-id  ID          Paksa ID toko tertentu (0 = acak, default: 0)
   --no-stock              Jangan tulis ke inventory_movements (default)
   --with-stock            Tulis inventory_movements juga
-  --help                  Tampilkan bantuan ini
+  -h, --help              Tampilkan bantuan ini
 
 Contoh:
   ./seed-daily-dev.sh
