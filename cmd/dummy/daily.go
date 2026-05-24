@@ -301,29 +301,27 @@ func buildRecords(
 
 func randomTimeInDate(d time.Time, now time.Time) time.Time {
 	dStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, jakartaTZ)
+	dEnd := dStart.Add(24 * time.Hour).Add(-1 * time.Second)
 
 	isToday := d.Year() == now.Year() && d.Month() == now.Month() && d.Day() == now.Day()
 	if isToday {
-		// Only generate times that are already in the past (up to 1 hour ago)
-		oneHourAgo := now.Add(-1 * time.Hour)
-		if !oneHourAgo.After(dStart) {
-			oneHourAgo = dStart.Add(8 * time.Hour)
+		// Spread across the day from midnight to now (or at least past few hours)
+		currentTime := now
+		if currentTime.Before(dStart) {
+			currentTime = dStart.Add(8 * time.Hour) // Default to 08:00 if before midnight
 		}
-		rangeSec := int64(oneHourAgo.Sub(dStart).Seconds())
+		rangeSec := int64(currentTime.Sub(dStart).Seconds())
 		if rangeSec <= 0 {
-			rangeSec = 60
+			rangeSec = int64(8 * time.Hour.Seconds()) // Default 8 hours
 		}
 		offsetSec := rand.Int63n(rangeSec)
 		return dStart.Add(time.Duration(offsetSec) * time.Second)
 	}
 
-	// Past day: random within business hours 07:00 - 21:00 (WIB)
-	bizStart := 7
-	bizEnd := 21
-	hour := bizStart + rand.Intn(bizEnd-bizStart)
-	minute := rand.Intn(60)
-	second := rand.Intn(60)
-	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, second, 0, jakartaTZ)
+	// Past day: spread across entire day 00:00 - 23:59 (WIB)
+	rangeSec := int64(dEnd.Sub(dStart).Seconds())
+	offsetSec := rand.Int63n(rangeSec)
+	return dStart.Add(time.Duration(offsetSec) * time.Second)
 }
 
 func selectItems(products []dailySaleProduct, count int) []dailySaleItem {
