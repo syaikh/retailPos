@@ -4,15 +4,18 @@ import { fly } from 'svelte/transition';
 import { apiFetch } from '$lib/api/client';
 import { toast } from '$lib/stores/toast';
 import { chart } from '$lib/actions/chart';
-import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta, getMaxDateInJakarta } from '$lib/utils/jakartaTime';
+import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
 import Badge from '$lib/components/ui/Badge.svelte';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import Pagination from '$lib/components/ui/Pagination.svelte';
 import Modal from '$lib/components/ui/Modal.svelte';
+import { SelectableCalendar, MonthlyCalendar, YearCalendar } from 'syai-calendar';
+import { CalendarDate } from '@internationalized/date';
 import {
   Receipt, BarChart3,
   CalendarDays, Download, FileSpreadsheet,
   ChevronDown, Eye, Search, X,
+  Clock,
 } from 'lucide-svelte';
 
 let loading = $state(true);
@@ -38,22 +41,41 @@ let kpiData = $state({
   periodInfo: null
 });
 
-// Date range filter - uses temp values for picker, applied on click
-let tempStartDate = $state(getDateNDaysAgoInJakarta(7));
-let tempEndDate = $state(getTodayInJakarta());
-let startDate = $state(getDateNDaysAgoInJakarta(7));
-let endDate = $state(getTodayInJakarta());
+// PRD Section 5: Unified period state
+let selectedPeriodType = $state('realtime'); // realtime, yesterday, 7days, 30days, daily, weekly, monthly, yearly
+let dropdownOpen = $state(false);
+let hoveredOption = $state(null);
+let timezoneString = $state('GMT+07');
+
+// Daily selector state
+let selectedDailyDate = $state(new CalendarDate(
+  new Date().getFullYear(),
+  new Date().getMonth() + 1,
+  new Date().getDate()
+));
+
+// Weekly selector state
+let selectedWeeklyRange = $state(null);
+
+// Monthly selector state
+let selectedMonthlyRange = $state(null);
+let selectedYear = $state(new Date().getFullYear());
+
+// Yearly selector state
+let selectedYearlyRange = $state(null);
 
 // Export dropdown
 let showExportDropdown = $state(false);
 
-// Tab state for granularity switching
-let activeTab = $state('daily'); // 'daily', 'weekly', 'monthly'
-// Track if user manually overridden the tab (to prevent auto-switch from overriding manual selection)
-let userOverriddenTab = $state(false);
-
 // Global transaction search (invoice number OR product name)
 let searchQuery = $state('');
+
+// Live time state for realtime updates
+let currentTimeHour = $state(`${String(new Date().getHours()).padStart(2, '0')}:00`);
+
+// Transaction details modal
+let showTransactionModal = $state(false);
+let selectedTransaction = $state(null);
 
 // Debounce helper — waits 300 ms after last keystroke before resolving
 function debounce(fn, delay = 300) {
@@ -64,49 +86,65 @@ function debounce(fn, delay = 300) {
   };
 }
 
-// Calculate total days selected (inclusive)
-const totalDays = $derived.by(() => {
-  if (!startDate || !endDate) return 0;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffTime = Math.abs(end - start);
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 for inclusive
+// Period options for dropdown
+const periodOptions = [
+  { value: 'realtime', label: 'Real-time', icon: Clock, description: 'Hourly revenue from 00:00 until now' },
+  { value: 'yesterday', label: 'Yesterday', icon: CalendarDays, description: 'Hourly revenue for the full previous day' },
+  { value: '7days', label: '7 Days', icon: CalendarDays, description: 'Daily revenue for the last 7 days' },
+  { value: '30days', label: '30 Days', icon: CalendarDays, description: 'Daily revenue for the last 30 days' },
+  { type: 'separator', label: 'Daily' },
+  { value: 'daily', label: 'Daily', icon: CalendarDays, description: 'Select a specific date for hourly revenue' },
+  { type: 'separator', label: 'Extended' },
+  { value: 'weekly', label: 'Weekly', icon: CalendarDays, description: 'Weekly revenue - select a week' },
+  { value: 'monthly', label: 'Monthly', icon: CalendarDays, description: 'Monthly revenue - select a month' },
+  { value: 'yearly', label: 'Yearly', icon: CalendarDays, description: 'Yearly revenue - select a year' },
+];
+
+// Derived: Chart type based on period selection (per PRD section 5)
+let chartType = $derived(
+  ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
+  ['7days', '30days'].includes(selectedPeriodType) ? 'daily' : 'high-unit'
+);
+
+// Derived: Stat card labels based on period selection (per PRD section 5)
+let statCardLabels = $derived({
+  card4: 
+    chartType === 'hourly' ? 'Peak Revenue Hour' :
+    selectedPeriodType === 'yearly' ? 'Avg. Revenue / Month' :
+    selectedPeriodType === 'monthly' ? 'Avg. Revenue / Week' : 'Avg. Revenue / Day',
+  card5: 
+    selectedPeriodType === 'realtime' ? 'vs Same Hours Yesterday' :
+    selectedPeriodType === 'yesterday' ? 'vs Same Day Last Week' : 'vs Previous Period'
 });
 
-// Auto-determine tab based on date range (when not manually overridden)
-const autoTab = $derived.by(() => {
-  // If user manually overridden, don't auto-switch
-  if (userOverriddenTab) return activeTab;
-  
-  const days = totalDays;
-  if (days <= 30) return 'daily';
-  if (days <= 180) return 'weekly';
-  return 'monthly';
+// Effect to update time every minute when in realtime mode
+$effect(() => {
+  if (selectedPeriodType !== 'realtime') return;
+
+  function updateTime() {
+    const now = new Date();
+    currentTimeHour = `${String(now.getHours()).padStart(2, '0')}:00`;
+  }
+
+  updateTime();
+  const interval = setInterval(updateTime, 60000);
+  return () => clearInterval(interval);
 });
 
-// Auto-determine chart type based on autoTab
-const autoChartType = $derived.by(() => {
-  return autoTab === 'daily' ? 'line' : 'bar';
-});
-
-// Transaction details modal
-let showTransactionModal = $state(false);
-let selectedTransaction = $state(null);
-
-// Format date: dd mmm yyyy (English locale)
+// Format date: dd mmm yyyy (id-ID format per PRD)
 const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   const day = date.getDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('en-US', { month: 'short' });
+  const month = date.toLocaleString('id-ID', { month: 'short' });
   const year = date.getFullYear();
   return `${day} ${month} ${year}`;
 };
 
-// Format date and time: dd mmm yyyy hh:mm:ss (English locale)
+// Format date and time: dd mmm yyyy hh:mm:ss
 const formatDateTime = (date) => {
   const day = date.getDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('en-US', { month: 'short' });
+  const month = date.toLocaleString('id-ID', { month: 'short' });
   const year = date.getFullYear();
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -115,59 +153,152 @@ const formatDateTime = (date) => {
   return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
 };
 
-// Reactive tooltips
-const startDateTooltip = $derived(formatDate(tempStartDate));
-const endDateTooltip = $derived(formatDate(tempEndDate));
+// Get date range based on period type
+function getPeriodDateRange(periodType) {
+  const today = getTodayInJakarta();
+  const daysAgo = getDateNDaysAgoInJakarta;
+
+  switch (periodType) {
+    case 'realtime':
+      return { start: today, end: today };
+    case 'yesterday':
+      return { start: daysAgo(1), end: daysAgo(1) };
+    case '7days':
+      return { start: daysAgo(8), end: daysAgo(1) };
+    case '30days':
+      return { start: daysAgo(31), end: daysAgo(1) };
+    case 'daily':
+      {
+        const d = selectedDailyDate;
+        const y = d.year;
+        const m = String(d.month).padStart(2, '0');
+        const day = String(d.day).padStart(2, '0');
+        const dateStr = `${y}-${m}-${day}`;
+        return { start: dateStr, end: dateStr };
+      }
+    case 'weekly':
+      if (selectedWeeklyRange) {
+        const start = selectedWeeklyRange.start;
+        const end = selectedWeeklyRange.end;
+        return {
+          start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+        };
+      }
+      return { start: today, end: today };
+    case 'monthly':
+      if (selectedMonthlyRange) {
+        const start = selectedMonthlyRange.start;
+        const end = selectedMonthlyRange.end;
+        return {
+          start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+        };
+      }
+      return { start: today, end: today };
+    case 'yearly':
+      if (selectedYearlyRange) {
+        const start = selectedYearlyRange.start;
+        const end = selectedYearlyRange.end;
+        return {
+          start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+        };
+      }
+      return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31` };
+    default:
+      return { start: daysAgo(8), end: daysAgo(1) };
+  }
+}
+
+// Set period and fetch data
+function setPeriod(periodType) {
+  selectedPeriodType = periodType;
+  const range = getPeriodDateRange(periodType);
+  dropdownOpen = false;
+  fetchSalesWithRange(range.start, range.end);
+}
+
+// Get period description for display
+function getPeriodDescription() {
+  const range = getPeriodDateRange(selectedPeriodType);
+  const start = formatDate(range.start);
+  const end = formatDate(range.end);
+
+  switch (selectedPeriodType) {
+    case 'realtime':
+      return `Real-time (00:00 - ${currentTimeHour})`;
+    case 'yesterday':
+      return `Yesterday · ${start}`;
+    case '7days':
+      return `7 Days · ${start} - ${end}`;
+    case '30days':
+      return `30 Days · ${start} - ${end}`;
+    case 'daily':
+      return `Daily · ${start}`;
+    case 'weekly':
+      return `Weekly · ${start} - ${end}`;
+    case 'monthly':
+      return `Monthly · ${start} - ${end}`;
+    case 'yearly':
+      return `Yearly · ${start} - ${end}`;
+    default:
+      return `${start} - ${end}`;
+  }
+}
 
 // Chart configuration
 const chartConfig = $derived.by(() => {
   let labels = [];
   let values = [];
-  let chartType = autoChartType; // Use auto-determined chart type
+  let currentChartType = chartType;
 
-  if (autoTab === 'daily') {
-    chartType = 'line';
+  if (chartType === 'hourly') {
+    currentChartType = 'line';
+    labels = chartData.map((d, i) => `${String(i).padStart(2, '0')}:00`);
+    values = chartData.map(d => d.total);
+  } else if (chartType === 'daily') {
+    currentChartType = 'line';
     labels = chartData.map(d => {
       const date = new Date(d.date);
-      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+      return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
     });
     values = chartData.map(d => d.total);
-  } else if (autoTab === 'weekly') {
-    chartType = 'bar';
+  } else {
+    currentChartType = 'bar';
     labels = chartData.map(d => {
-      const start = new Date(d.week_start);
-      const end = new Date(d.week_end);
-      const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-      const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-      return `${startStr} - ${endStr}`;
-    });
-    values = chartData.map(d => d.total);
-  } else if (autoTab === 'monthly') {
-    chartType = 'bar';
-    labels = chartData.map(d => {
-      const date = new Date(d.month_start);
-      return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      if (d.week_start && d.week_end) {
+        const start = new Date(d.week_start);
+        const end = new Date(d.week_end);
+        const startStr = start.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        const endStr = end.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+        return `${startStr} - ${endStr}`;
+      } else if (d.month_start) {
+        const date = new Date(d.month_start);
+        return date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
+      }
+      return d.label || '';
     });
     values = chartData.map(d => d.total);
   }
 
   return {
-    type: chartType,
+    type: currentChartType,
     data: {
       labels,
       datasets: [{
         label: 'Revenue',
         data: values,
-        borderColor: '#7c3aed', // Primary
-        backgroundColor: chartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
-        borderWidth: chartType === 'bar' ? 0 : 2,
+        borderColor: '#7c3aed',
+        backgroundColor: currentChartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
+        borderWidth: currentChartType === 'bar' ? 0 : 2,
         pointBackgroundColor: '#fff',
         pointBorderColor: '#7c3aed',
         pointBorderWidth: 2,
-        pointRadius: chartType === 'bar' ? 0 : 4,
-        pointHoverRadius: chartType === 'bar' ? 0 : 6,
-        fill: chartType === 'bar' ? true : true,
-        tension: chartType === 'bar' ? 0 : 0.4
+        pointRadius: currentChartType === 'bar' ? 0 : 4,
+        pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
+        fill: currentChartType === 'bar' ? true : true,
+        tension: currentChartType === 'bar' ? 0 : 0.4
       }]
     },
     options: {
@@ -205,7 +336,6 @@ const chartConfig = $derived.by(() => {
               return 'Rp ' + value;
             }
           },
-          // Dynamic max scaling: max(data) + 10% headroom
           suggestedMax: function(context) {
             const values = context.chart.data.datasets[0].data;
             if (values.length === 0) return 1000;
@@ -218,137 +348,104 @@ const chartConfig = $derived.by(() => {
   };
 });
 
-  async function fetchSales() {
-    try {
-      loading = true;
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        limit: limit.toString(),
-        offset: offset.toString(),
-        search: searchQuery.trim(),
-      });
+let startDate = $state('');
+let endDate = $state('');
 
-      // Use autoTab for chart endpoint (respects manual override via userOverriddenTab flag)
-      const chartEndpoint = autoTab === 'weekly' ? '/api/dashboard/chart/weekly' :
-                       autoTab === 'monthly' ? '/api/dashboard/chart/monthly' :
-                       '/api/dashboard/chart';
+async function fetchSalesWithRange(start, end) {
+  try {
+    loading = true;
+    startDate = start;
+    endDate = end;
 
-      const [salesRes, chartRes, comparisonRes] = await Promise.all([
-        apiFetch(`/api/sales?${params.toString()}`),
-        apiFetch(`${chartEndpoint}?startDate=${startDate}&endDate=${endDate}`),
-        apiFetch(`/api/dashboard/comparison?period=${autoTab}&mode=todate&date=${endDate}`)
-      ]);
+    const params = new URLSearchParams({
+      startDate: start,
+      endDate: end,
+      limit: limit.toString(),
+      offset: offset.toString(),
+      search: searchQuery.trim(),
+    });
 
-      if (salesRes.ok) {
-        const data = await salesRes.json();
-        salesData = data.data || [];
-        total = data.total || 0;
-        // Sort chronologically descending: newest transaction first
-        salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      }
+    // Select chart endpoint based on chartType
+    const chartEndpoint = chartType === 'high-unit' && selectedPeriodType === 'weekly' 
+      ? '/api/dashboard/chart/weekly' 
+      : chartType === 'high-unit' && selectedPeriodType === 'monthly'
+      ? '/api/dashboard/chart/monthly'
+      : chartType === 'high-unit' && selectedPeriodType === 'yearly'
+      ? '/api/dashboard/chart/yearly'
+      : '/api/dashboard/chart';
 
-      if (chartRes.ok) {
-        const cData = await chartRes.json();
-        chartData = cData.data || [];
-      }
+    const [salesRes, chartRes, comparisonRes] = await Promise.all([
+      apiFetch(`/api/sales?${params.toString()}`),
+      apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${end}`),
+      apiFetch(`/api/dashboard/comparison?period=${selectedPeriodType}&mode=todate&date=${end}`)
+    ]);
 
-      // Enhanced KPI calculation with comparison data
-      if (comparisonRes.ok) {
-        const compData = await comparisonRes.json();
-        const comparison = compData.data;
-        const meta = compData.meta;
-
-        // Calculate percent change with type detection
-        let percentChange = 0;
-        let comparisonType = 'zero';
-
-        if (comparison.previous_revenue === 0 && comparison.current_revenue > 0) {
-          comparisonType = 'new';
-          percentChange = Infinity;
-        } else if (comparison.previous_revenue === 0 && comparison.current_revenue === 0) {
-          comparisonType = 'zero';
-          percentChange = 0;
-        } else if (comparison.previous_revenue > 0) {
-          comparisonType = 'normal';
-          percentChange = ((comparison.current_revenue - comparison.previous_revenue) / comparison.previous_revenue) * 100;
-        }
-
-        kpiData = {
-          totalRevenue: comparison.current_revenue,
-          previousRevenue: comparison.previous_revenue,
-          totalOrders: comparison.current_orders,
-          previousOrders: comparison.previous_orders,
-          avgOrderValue: comparison.current_aov,
-          previousAvgOrderValue: comparison.previous_aov,
-          revenuePerDay: comparison.revenue_per_day,
-          previousRevenuePerDay: comparison.previous_revenue_per_day,
-          percentChange,
-          comparisonType,
-          isPartial: meta.is_partial,
-          periodInfo: meta
-        };
-      }
-    } catch (error) {
-      toast.error('Failed to load sales data');
-    } finally {
-      loading = false;
-    }
-  }
-
-  function applyDateRange() {
-    startDate = tempStartDate;
-    endDate = tempEndDate;
-    offset = 0;
-    searchQuery = '';
-    userOverriddenTab = false;
-    activeTab = autoTab;
-    fetchSales();
-  }
-
-  function handlePageChange(newOffset, newLimit) {
-    offset = newOffset;
-    limit = newLimit;
-    fetchSales();
-  }
-
-  function handleTabChange(newTab) {
-    activeTab = newTab;
-    userOverriddenTab = true; // Mark that user manually overridden the tab
-    offset = 0;
-    searchQuery = ''; // reset search when switching tabs
-
-    // Set default date ranges based on tab (all in Asia/Jakarta)
-    // Requirements: 7 days, 3 months, or 1 year
-    if (newTab === 'daily') {
-      startDate = getDateNDaysAgoInJakarta(7);  // last 7 days (≤30 days → daily)
-      endDate = getTodayInJakarta();
-      tempStartDate = startDate;
-      tempEndDate = endDate;
-    } else if (newTab === 'weekly') {
-      startDate = getDateNDaysAgoInJakarta(89); // ~3 months back (31-180 days → weekly)
-      endDate = getTodayInJakarta();
-      tempStartDate = startDate;
-      tempEndDate = endDate;
-    } else if (newTab === 'monthly') {
-      startDate = getFirstOfMonthNAgoInJakarta(11); // 12 months back (>180 days → monthly)
-      endDate = getTodayInJakarta();
-      tempStartDate = startDate;
-      tempEndDate = endDate;
+    if (salesRes.ok) {
+      const data = await salesRes.json();
+      salesData = data.data || [];
+      total = data.total || 0;
+      salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
-    fetchSales();
-  }
+    if (chartRes.ok) {
+      const cData = await chartRes.json();
+      chartData = cData.data || [];
+    }
 
-  async function exportToExcel() {
+    if (comparisonRes.ok) {
+      const compData = await comparisonRes.json();
+      const comparison = compData.data;
+      const meta = compData.meta;
+
+      let percentChange = 0;
+      let comparisonType = 'zero';
+
+      if (comparison.previous_revenue === 0 && comparison.current_revenue > 0) {
+        comparisonType = 'new';
+        percentChange = Infinity;
+      } else if (comparison.previous_revenue === 0 && comparison.current_revenue === 0) {
+        comparisonType = 'zero';
+        percentChange = 0;
+      } else if (comparison.previous_revenue > 0) {
+        comparisonType = 'normal';
+        percentChange = ((comparison.current_revenue - comparison.previous_revenue) / comparison.previous_revenue) * 100;
+      }
+
+      kpiData = {
+        totalRevenue: comparison.current_revenue,
+        previousRevenue: comparison.previous_revenue,
+        totalOrders: comparison.current_orders,
+        previousOrders: comparison.previous_orders,
+        avgOrderValue: comparison.current_aov,
+        previousAvgOrderValue: comparison.previous_aov,
+        revenuePerDay: comparison.revenue_per_day,
+        previousRevenuePerDay: comparison.previous_revenue_per_day,
+        percentChange,
+        comparisonType,
+        isPartial: meta.is_partial,
+        periodInfo: meta
+      };
+    }
+  } catch (error) {
+    toast.error('Failed to load sales data');
+  } finally {
+    loading = false;
+  }
+}
+
+async function fetchSales() {
+  const range = getPeriodDateRange(selectedPeriodType);
+  await fetchSalesWithRange(range.start, range.end);
+}
+
+async function exportToExcel() {
     try {
       const { utils, writeFile } = await import('xlsx');
 
-      // Create summary sheet
       const summaryData = [
         ['Revenue Report Summary', ''],
         ['Period', `${startDate} to ${endDate}`],
-        ['Granularity', activeTab],
+        ['Granularity', chartType],
         ['', ''],
         ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
         ['Total Orders', kpiData.totalOrders],
@@ -356,15 +453,14 @@ const chartConfig = $derived.by(() => {
         ['Change vs Previous Period', `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`]
       ];
 
-      // Create data sheet
-      const headers = activeTab === 'daily' ? ['Date', 'Revenue'] :
-                     activeTab === 'weekly' ? ['Week Start', 'Week End', 'Revenue', 'Orders'] :
-                     ['Month', 'Revenue', 'Orders'];
+      const headers = chartType === 'hourly' ? ['Hour', 'Revenue'] :
+                     chartType === 'daily' ? ['Date', 'Revenue'] :
+                     ['Period', 'Revenue', 'Orders'];
 
       const dataRows = chartData.map(item => {
-        if (activeTab === 'daily') return [item.date, item.total];
-        if (activeTab === 'weekly') return [item.week_start, item.week_end, item.total, item.order_count];
-        return [item.month, item.total, item.order_count];
+        if (chartType === 'hourly') return [item.hour || item.label, item.total];
+        if (chartType === 'daily') return [item.date, item.total];
+        return [item.label, item.total, item.order_count];
       });
 
       const dataData = [headers, ...dataRows];
@@ -373,7 +469,7 @@ const chartConfig = $derived.by(() => {
       utils.book_append_sheet(workbook, utils.aoa_to_sheet(summaryData), 'Summary');
       utils.book_append_sheet(workbook, utils.aoa_to_sheet(dataData), 'Data');
 
-      const fileName = `revenue-report-${activeTab}-${startDate}-to-${endDate}.xlsx`;
+      const fileName = `revenue-report-${selectedPeriodType}-${startDate}-to-${endDate}.xlsx`;
       writeFile(workbook, fileName);
 
       toast.success('Excel export completed');
@@ -389,15 +485,12 @@ const chartConfig = $derived.by(() => {
 
       const doc = new jsPDF();
 
-      // Title
       doc.setFontSize(16);
-      doc.text(`Revenue Report - ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`, 20, 20);
+      doc.text(`Revenue Report - ${selectedPeriodType}`, 20, 20);
 
-      // Period
       doc.setFontSize(12);
       doc.text(`Period: ${startDate} to ${endDate}`, 20, 30);
 
-      // Summary table
       const summaryBody = [
         ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
         ['Total Orders', kpiData.totalOrders.toString()],
@@ -412,23 +505,17 @@ const chartConfig = $derived.by(() => {
         theme: 'grid'
       });
 
-      // Data table
       let dataHeaders, dataBody;
-      if (activeTab === 'daily') {
+      if (chartType === 'hourly') {
+        dataHeaders = ['Hour', 'Revenue'];
+        dataBody = chartData.map(item => [item.hour || item.label, `Rp ${item.total.toLocaleString('id-ID')}`]);
+      } else if (chartType === 'daily') {
         dataHeaders = ['Date', 'Revenue'];
         dataBody = chartData.map(item => [item.date, `Rp ${item.total.toLocaleString('id-ID')}`]);
-      } else if (activeTab === 'weekly') {
-        dataHeaders = ['Week Start', 'Week End', 'Revenue', 'Orders'];
-        dataBody = chartData.map(item => [
-          item.week_start,
-          item.week_end,
-          `Rp ${item.total.toLocaleString('id-ID')}`,
-          item.order_count
-        ]);
       } else {
-        dataHeaders = ['Month', 'Revenue', 'Orders'];
+        dataHeaders = ['Period', 'Revenue', 'Orders'];
         dataBody = chartData.map(item => [
-          item.month,
+          item.label,
           `Rp ${item.total.toLocaleString('id-ID')}`,
           item.order_count
         ]);
@@ -441,7 +528,7 @@ const chartConfig = $derived.by(() => {
         theme: 'grid'
       });
 
-      const fileName = `revenue-report-${activeTab}-${startDate}-to-${endDate}.pdf`;
+      const fileName = `revenue-report-${selectedPeriodType}-${startDate}-to-${endDate}.pdf`;
       doc.save(fileName);
 
       toast.success('PDF export completed');
@@ -455,9 +542,9 @@ const chartConfig = $derived.by(() => {
 
   function getPaymentMethodVariant(method = '') {
     const m = method.toLowerCase();
-    if (m === 'cash') return 'success';       // Emerald green
-    if (m === 'qris' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default'; // Blue
-    if (m.includes('credit') || m.includes('debit') || m === 'card') return 'primary'; // Purple
+    if (m === 'cash') return 'success';
+    if (m === 'qris' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default';
+    if (m.includes('credit') || m.includes('debit') || m === 'card') return 'primary';
     return 'muted';
   }
 
@@ -466,34 +553,237 @@ const chartConfig = $derived.by(() => {
     showTransactionModal = true;
   }
 
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
+    const range = getPeriodDateRange(selectedPeriodType);
+    fetchSalesWithRange(range.start, range.end);
+  }
+
   // Debounced version of fetchSales used by the search input
   const doSearch = debounce(() => {
-    offset = 0; // reset to page 1 on every new search
-    fetchSales();
+    offset = 0;
+    const range = getPeriodDateRange(selectedPeriodType);
+    fetchSalesWithRange(range.start, range.end);
   }, 300);
 
   onMount(fetchSales);
 </script>
 
 <svelte:window 
-  onclick={() => { if(showExportDropdown) showExportDropdown = false; }} 
-  onkeydown={(e) => { if(e.key === 'Escape' && showExportDropdown) showExportDropdown = false; }} 
+  onclick={() => { 
+    if(showExportDropdown) showExportDropdown = false; 
+    if(dropdownOpen) dropdownOpen = false;
+  }} 
+  onkeydown={(e) => { 
+    if(e.key === 'Escape' && showExportDropdown) showExportDropdown = false; 
+    if(e.key === 'Escape' && dropdownOpen) dropdownOpen = false;
+  }} 
 />
 
 <div class="space-y-5">
 
-  <!-- Date range filter -->
+  <!-- Period Selector (Unified Dropdown) -->
   <div class="card p-4 flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
-      <CalendarDays size={16} class="text-white" />
-      Date Range
+      <BarChart3 size={16} class="text-white" />
+      Period
     </div>
-    <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner ring-1 ring-black/20">
-      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={tempStartDate} title={startDateTooltip} />
-      <span class="text-text-muted text-sm px-1">-</span>
-      <input type="date" class="bg-transparent text-sm text-text-primary outline-none px-3 py-1 cursor-pointer w-36 focus:text-primary-light transition-colors" bind:value={tempEndDate} max={getMaxDateInJakarta()} title={endDateTooltip} />
+    
+    <!-- Unified Period Dropdown Trigger -->
+    <div class="relative">
+      <button
+        class="btn btn-secondary flex items-center gap-2"
+        onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
+        aria-haspopup="menu"
+        aria-expanded={dropdownOpen}
+      >
+        <CalendarDays size={15} />
+        {getPeriodDescription()}
+        <ChevronDown
+          size={14}
+          class="transition-transform duration-300 {dropdownOpen ? 'rotate-180' : ''}"
+        />
+      </button>
+
+      {#if dropdownOpen}
+        <div
+          class="absolute left-0 top-full mt-2 card-glass p-2 z-50 min-w-[28rem] flex gap-2"
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          role="menu"
+          tabindex="-1"
+          transition:fly={{ y: -8, duration: 200 }}
+        >
+          <!-- Left Column: Period Options -->
+          <div class="flex flex-col gap-1 min-w-32">
+            {#each periodOptions as option}
+              {#if option.type === 'separator'}
+                <div class="px-3 py-1 text-xs font-semibold text-text-muted uppercase tracking-wide">
+                  {option.label}
+                </div>
+              {:else}
+<button
+                   type="button"
+                   class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
+                   onclick={() => setPeriod(option.value)}
+                   onmouseenter={() => hoveredOption = option}
+                 >
+                   <option.icon size={14} />
+                   {option.label}
+                 </button>
+              {/if}
+            {/each}
+          </div>
+
+<!-- Right Column: Adaptive Details & Selectors -->
+           <div class="flex-1 min-w-80 border-l border-border/50 pl-2">
+             <div class="text-xs text-text-secondary mb-2">Details</div>
+             
+             {#if hoveredOption?.value === 'daily'}
+               <div class="text-sm text-text-primary mb-2">
+                 <span class="block text-xs text-text-muted mb-2">Select Date</span>
+                 <SelectableCalendar
+                   mode="day"
+                   bind:value={selectedDailyDate}
+                   minValue={new CalendarDate(2025, 12, 16)}
+                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())}
+                   theme={{
+                     bg: '#0f172a',
+                     text: '#e2e8f0',
+                     muted: '#64748b',
+                     border: '#334155',
+                     hover: '#334155',
+                     selected: '#7c3aed',
+                     selectedText: '#ffffff',
+                     todayBorder: '#0ea5e9',
+                     radius: '8px'
+                   }}
+                   onValueChange={(val) => {
+                     if (val) {
+                       setPeriod('daily');
+                       const d = val.start || val;
+                       const y = d.year;
+                       const m = String(d.month).padStart(2, '0');
+                       const day = String(d.day).padStart(2, '0');
+                       const dateStr = `${y}-${m}-${day}`;
+                       fetchSalesWithRange(dateStr, dateStr);
+                     }
+                   }}
+                 />
+               </div>
+               <div class="text-xs text-text-muted">
+                 Shows hourly revenue for the selected date
+               </div>
+             {:else if hoveredOption?.value === 'weekly'}
+               <div class="text-sm text-text-primary mb-2">
+                 <span class="block text-xs text-text-muted mb-2">Select Week</span>
+                 <SelectableCalendar
+                   mode="week"
+                   bind:value={selectedWeeklyRange}
+                   minValue={new CalendarDate(2025, 12, 16)}
+                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())}
+                   theme={{
+                     bg: '#0f172a',
+                     text: '#e2e8f0',
+                     muted: '#64748b',
+                     border: '#334155',
+                     hover: '#334155',
+                     selected: '#7c3aed',
+                     selectedText: '#ffffff',
+                     todayBorder: '#0ea5e9',
+                     radius: '8px'
+                   }}
+                   onValueChange={(val) => {
+                     if (val) {
+                       setPeriod('weekly');
+                       const start = val.start;
+                       const end = val.end;
+                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                       fetchSalesWithRange(startStr, endStr);
+                     }
+                   }}
+                 />
+               </div>
+               <div class="text-xs text-text-muted">
+                 Select a week to view weekly revenue
+               </div>
+             {:else if hoveredOption?.value === 'monthly'}
+               <div class="text-sm text-text-primary mb-2">
+                 <span class="block text-xs text-text-muted mb-2">Select Month</span>
+                 <MonthlyCalendar
+                   bind:value={selectedMonthlyRange}
+                   minValue={new CalendarDate(2025, 12, 1)}
+                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, 1)}
+                   theme={{
+                     bg: '#0f172a',
+                     text: '#e2e8f0',
+                     muted: '#64748b',
+                     border: '#334155',
+                     hover: '#334155',
+                     selected: '#7c3aed',
+                     selectedText: '#ffffff',
+                     radius: '8px'
+                   }}
+                   onValueChange={(val) => {
+                     if (val) {
+                       setPeriod('monthly');
+                       const start = val.start;
+                       const end = val.end;
+                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                       fetchSalesWithRange(startStr, endStr);
+                     }
+                   }}
+                 />
+               </div>
+               <div class="text-xs text-text-muted">
+                 Select a month to view monthly revenue
+               </div>
+             {:else if hoveredOption?.value === 'yearly'}
+               <div class="text-sm text-text-primary mb-2">
+                 <span class="block text-xs text-text-muted mb-2">Select Year</span>
+                 <YearCalendar
+                   bind:value={selectedYearlyRange}
+                   minValue={new CalendarDate(2025, 1, 1)}
+                   maxValue={new CalendarDate(new Date().getFullYear(), 1, 1)}
+                   theme={{
+                     bg: '#0f172a',
+                     text: '#e2e8f0',
+                     muted: '#64748b',
+                     border: '#334155',
+                     hover: '#334155',
+                     selected: '#7c3aed',
+                     selectedText: '#ffffff',
+                     radius: '8px'
+                   }}
+                   onValueChange={(val) => {
+                     if (val) {
+                       setPeriod('yearly');
+                       const start = val.start;
+                       const end = val.end;
+                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                       fetchSalesWithRange(startStr, endStr);
+                     }
+                   }}
+                 />
+               </div>
+               <div class="text-xs text-text-muted">
+                 Select a year to view yearly revenue
+               </div>
+             {/if}
+             
+             <div class="text-xs text-text-muted mt-2">
+               Timezone: {timezoneString}
+             </div>
+           </div>
+        </div>
+      {/if}
     </div>
-    <button class="btn btn-primary btn-sm" onclick={applyDateRange}>Apply</button>
+    
+    <!-- Export Dropdown -->
     <div class="ml-auto relative">
       <button
         class="btn btn-primary flex items-center gap-2 transition-all duration-300"
@@ -535,36 +825,14 @@ const chartConfig = $derived.by(() => {
           </button>
         </div>
       {/if}
-</div>
-  </div>
-
-  <!-- Tab Navigation -->
-  <div class="flex items-center gap-1 bg-surface-subtle border border-border/50 rounded-full p-1 shadow-inner overflow-x-auto">
-    <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'daily' && !userOverriddenTab || activeTab === 'daily' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
-      onclick={() => handleTabChange('daily')}
-    >
-      Daily
-    </button>
-    <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'weekly' && !userOverriddenTab || activeTab === 'weekly' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
-      onclick={() => handleTabChange('weekly')}
-    >
-      Weekly
-    </button>
-    <button
-      class="px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 {autoTab === 'monthly' && !userOverriddenTab || activeTab === 'monthly' && userOverriddenTab ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}"
-      onclick={() => handleTabChange('monthly')}
-    >
-      Monthly
-    </button>
+    </div>
   </div>
 
   <!-- Chart -->
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-text-primary">
-        Revenue Overview - {autoTab.charAt(0).toUpperCase() + autoTab.slice(1)}
+        Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
       </h3>
     </div>
 
@@ -615,7 +883,7 @@ const chartConfig = $derived.by(() => {
          </div>
 
          <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg. Revenue / Day</div>
+           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">{statCardLabels.card4}</div>
            <div class="text-lg font-bold text-text-primary mt-1">
              Rp {kpiData.revenuePerDay.toLocaleString('id-ID')}
            </div>
@@ -628,7 +896,7 @@ const chartConfig = $derived.by(() => {
 
          <div class="bg-surface rounded-lg p-4 border border-border/50">
            <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
-             vs Previous Period
+             {statCardLabels.card5}
              {#if kpiData.isPartial}
                <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
                  Partial
@@ -838,17 +1106,3 @@ const chartConfig = $derived.by(() => {
     {/if}
   </Modal>
 </div>
-
-<style>
-  /* Style the calendar picker indicator (WebKit browsers) */
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) brightness(2); /* Make it white */
-    cursor: pointer;
-  }
-
-  /* Firefox fallback */
-  input[type="date"]::-moz-calendar-picker-indicator {
-    filter: invert(1) brightness(2);
-    cursor: pointer;
-  }
-</style>

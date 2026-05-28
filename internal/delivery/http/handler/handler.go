@@ -578,17 +578,58 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
 	}
 
+	// Determine if hourly aggregation is needed (single day = realtime/yesterday)
+	isHourly := startDate == endDate
+
 	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return
 	}
 
+	if isHourly {
+		// Hourly aggregation for realtime/yesterday
+		hourlyTotals := make(map[int]int)
+		for _, s := range sales {
+			// Bug fix: use time.RFC3339 (the actual format produced by the repo) and
+			// convert to Jakarta local time before extracting the hour.
+			createdTime, err := time.Parse(time.RFC3339, s.CreatedAt)
+			if err != nil {
+				continue
+			}
+			hour := createdTime.In(cfg.Timezone).Hour()
+			hourlyTotals[hour] += s.TotalAmount
+		}
+
+		type HourlyDataPoint struct {
+			Hour  int `json:"hour"`
+			Total int `json:"total"`
+		}
+
+		// Generate all 24 hours (0-23)
+		var data []HourlyDataPoint
+		for hour := 0; hour < 24; hour++ {
+			data = append(data, HourlyDataPoint{
+				Hour:  hour,
+				Total: hourlyTotals[hour],
+			})
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": data})
+		return
+	}
+
+	// Daily aggregation
 	dailyTotals := make(map[string]int)
 	for _, s := range sales {
-		dateStr := s.CreatedAt
-		if len(dateStr) >= 10 {
-			dateStr = dateStr[:10]
+		// Bug fix: parse with RFC3339 and convert to Jakarta local time before
+		// slicing the date, so midnight-straddling sales land in the correct day.
+		createdTime, err := time.Parse(time.RFC3339, s.CreatedAt)
+		var dateStr string
+		if err == nil {
+			dateStr = createdTime.In(cfg.Timezone).Format("2006-01-02")
+		} else if len(s.CreatedAt) >= 10 {
+			dateStr = s.CreatedAt[:10] // fallback
 		}
 		dailyTotals[dateStr] += s.TotalAmount
 	}
@@ -634,7 +675,9 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 
 	weeklyTotals := make(map[string]map[string]interface{})
 	for _, s := range sales {
-		createdTime, _ := time.Parse("2006-01-02T15:04:05Z07:00", s.CreatedAt)
+		// Bug fix: use time.RFC3339 and convert to Jakarta local time
+		createdTime, _ := time.Parse(time.RFC3339, s.CreatedAt)
+		createdTime = createdTime.In(cfg.Timezone)
 		weekStart := createdTime.AddDate(0, 0, -int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
 		weekEnd := createdTime.AddDate(0, 0, 6-int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
 
@@ -697,7 +740,9 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 
 	monthlyTotals := make(map[string]map[string]interface{})
 	for _, s := range sales {
-		createdTime, _ := time.Parse("2006-01-02T15:04:05Z07:00", s.CreatedAt)
+		// Bug fix: use time.RFC3339 and convert to Jakarta local time
+		createdTime, _ := time.Parse(time.RFC3339, s.CreatedAt)
+		createdTime = createdTime.In(cfg.Timezone)
 		monthKey := createdTime.Format("2006-01")
 		monthStart := createdTime.Format("2006-01-01")
 

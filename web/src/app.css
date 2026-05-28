@@ -1,4 +1,7 @@
+
 @import "tailwindcss";
+
+@source "./**/*.svelte";
 
 @theme {
   /* Fonts */
@@ -13,6 +16,7 @@
   --color-surface-default: #111827;
   --color-surface-hover: #1a2540;
   --color-surface-active: #1e2d4a;
+  --color-surface-subtle: #0f172a;
 
   --color-sidebar-default: #090d1a;
   --color-sidebar-hover: #111827;
@@ -22,6 +26,13 @@
   --color-border-default: #1e293b;
   --color-border-subtle: #0f172a;
   --color-border-strong: #334155;
+
+  /* Semantic Colors - Shortcuts for convenience */
+  --color-bg: var(--color-bg-default);
+
+  --color-surface: var(--color-surface-default);
+
+  --color-border: var(--color-border-default);
 
   /* Accent Palette (Violet-Indigo) */
   --color-primary: #7c3aed;
@@ -55,6 +66,9 @@
   --color-text-secondary: #94a3b8;
   --color-text-muted: #64748b;
   --color-text-inverted: #080c14;
+
+  /* Semantic Colors - Shortcuts for convenience */
+  --color-text: var(--color-text-primary);
 
   /* Shadows */
   --shadow-glow-primary: 0 0 20px rgba(124, 58, 237, 0.35);
@@ -287,6 +301,10 @@
 
 @utility gradient-text {
   @apply bg-linear-to-r from-primary-light to-accent-light bg-clip-text text-transparent;
+}
+
+@utility gradient-bg-primary {
+  @apply bg-linear-to-br from-primary to-primary-hover;
 }
 
 /* Global Table Styles */

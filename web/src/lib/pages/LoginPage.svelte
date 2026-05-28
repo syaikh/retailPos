@@ -30,10 +30,10 @@
   }
 </script>
 
-<div class="min-h-screen flex bg-bg overflow-hidden" in:fade={{ duration: 400 }}>
+<div class="h-dvh w-full flex bg-bg overflow-hidden" in:fade={{ duration: 400 }}>
 
   <!-- Left panel — animated brand -->
-  <div class="hidden lg:flex flex-col flex-1 relative bg-bg-secondary overflow-hidden">
+  <div class="hidden md:flex flex-col flex-1 relative bg-bg-secondary overflow-hidden">
     <!-- Mesh gradient blobs -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
       <div class="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-primary/20 blur-[120px]"></div>
@@ -82,7 +82,7 @@
   </div>
 
   <!-- Right panel — login form -->
-  <div class="flex flex-col justify-center w-full lg:w-[480px] px-8 md:px-16 bg-surface/30 backdrop-blur-2xl border-l border-border/30 relative z-20" in:fly={{ x: 20, duration: 500, delay: 200 }}>
+  <div class="flex flex-col justify-center w-full md:w-[480px] px-8 md:px-16 bg-surface/30 backdrop-blur-2xl border-l border-border/30 relative z-20" in:fly={{ x: 20, duration: 500, delay: 200 }}>
     <div class="max-w-sm w-full mx-auto">
 
       <!-- Mobile logo -->

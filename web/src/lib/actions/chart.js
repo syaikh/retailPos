@@ -5,9 +5,14 @@ export function chart(node, options) {
 
   return {
     update(newOptions) {
-      chartInstance.data = newOptions.data;
+      // Ensure proper reactivity - Chart.js needs explicit data updates
+      chartInstance.data.labels = newOptions.data.labels;
+      
+      // Replace datasets entirely to ensure reactivity
+      chartInstance.data.datasets = newOptions.data.datasets.map(ds => ({...ds}));
+      
       chartInstance.options = newOptions.options;
-      chartInstance.update();
+      chartInstance.update('active'); // Use 'active' for smooth animation
     },
     destroy() {
       chartInstance.destroy();
