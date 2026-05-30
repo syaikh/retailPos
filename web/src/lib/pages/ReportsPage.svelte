@@ -351,18 +351,19 @@ const chartConfig = $derived.by(() => {
             color: '#9ca3af',
             font: { family: 'inherit' },
             callback: function(value) {
-              if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
-              if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
-              if (value <= 0) return '';
+              if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+              if (value > 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
+              if (value === 0) return 'Rp 0';
               return 'Rp ' + value;
             }
           },
           min: 0,
           suggestedMax: function(context) {
             const values = context.chart.data.datasets[0].data;
-            const filteredValues = values.filter(v => v > 0);
-            if (filteredValues.length === 0) return 1000;
-            const maxValue = Math.max(...filteredValues);
+            const positiveValues = values.filter(v => v > 0);
+            if (positiveValues.length === 0 && values.length > 0) return 1000;
+            if (values.length === 0) return 1000;
+            const maxValue = Math.max(...values);
             return maxValue + maxValue * 0.1;
           }
         }
@@ -954,15 +955,19 @@ onValueChange={(val) => {
       {/if}
     </div>
 
-    <div class="h-64 relative">
-      {#if loading}
-        <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
-          <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
-        </div>
-      {:else}
-        <canvas use:chart={chartConfig}></canvas>
-      {/if}
-    </div>
+<div class="h-64 relative">
+        {#if loading}
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
+            <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
+          </div>
+        {:else if chartData.length === 0}
+          <div class="absolute inset-0 flex items-center justify-center text-text-muted">
+            No data available for this period
+          </div>
+        {:else}
+          <canvas use:chart={chartConfig}></canvas>
+        {/if}
+      </div>
   </div>
 
   <!-- Sales table -->
