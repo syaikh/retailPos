@@ -353,13 +353,16 @@ const chartConfig = $derived.by(() => {
             callback: function(value) {
               if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
               if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
+              if (value <= 0) return '';
               return 'Rp ' + value;
             }
           },
+          min: 0,
           suggestedMax: function(context) {
             const values = context.chart.data.datasets[0].data;
-            if (values.length === 0) return 1000;
-            const maxValue = Math.max(...values);
+            const filteredValues = values.filter(v => v > 0);
+            if (filteredValues.length === 0) return 1000;
+            const maxValue = Math.max(...filteredValues);
             return maxValue + maxValue * 0.1;
           }
         }
