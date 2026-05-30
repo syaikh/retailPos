@@ -62,10 +62,20 @@
 
   const getHoverRange = (): { start: DateValue | null; end: DateValue | null } => {
     if (!hoverDate) return { start: null, end: null };
+    let range: { start: DateValue; end: DateValue };
     if (mode === "week") {
-      return getWeekRange(hoverDate);
+      range = getWeekRange(hoverDate);
+    } else {
+      range = { start: hoverDate, end: hoverDate };
     }
-    return { start: hoverDate, end: hoverDate };
+    // Constrain to minValue/maxValue for partial week highlighting
+    if (minValue && range.start.compare(minValue) < 0) {
+      range.start = minValue;
+    }
+    if (maxValue && range.end.compare(maxValue) > 0) {
+      range.end = maxValue;
+    }
+    return range;
   };
 
   const getDayClass = (date: DateValue, currentMonth: { year: number; month: number }) => {
@@ -83,13 +93,14 @@
       selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)] rounded-none",
       selected && isSelectedStartDate(date) && "rounded-l-md",
       selected && isSelectedEndDate(date) && "rounded-r-md",
-      hover && !selected && "bg-[var(--calendar-hover)] text-[var(--calendar-text)] rounded-none",
-      isHoverStart && !selected && "rounded-l-md",
-      isHoverEnd && !selected && "rounded-r-md",
-      disabled && !selected && !hover && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed",
-      !disabled && !selected && !hover && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
-      !disabled && !selected && !hover && inCurrentMonth && "text-[var(--calendar-text)]",
-      todayFlag && !selected && !disabled && !hover && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1"
+      hover && !selected && !disabled && "bg-[var(--calendar-hover)] text-[var(--calendar-text)] rounded-none",
+      isHoverStart && !selected && !disabled && "rounded-l-md",
+      isHoverEnd && !selected && !disabled && "rounded-r-md",
+      disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
+      todayFlag && mode === "week" && !selected && "text-[var(--calendar-muted)] opacity-40 rounded-md bg-[var(--calendar-disabled-bg)]",
+      !disabled && !selected && !hover && !todayFlag && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
+      !disabled && !selected && !hover && !todayFlag && inCurrentMonth && "text-[var(--calendar-text)]",
+      todayFlag && !selected && !disabled && !hover && mode !== "week" && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1"
     );
   };
 
@@ -100,8 +111,15 @@
   const isDateInSelectedRange = (date: DateValue): boolean => {
     if (!value) return false;
     // Handle both range object and single CalendarDate
-    const rangeStart = value.start ?? value;
-    const rangeEnd = value.end ?? value;
+    let rangeStart = value.start ?? value;
+    let rangeEnd = value.end ?? value;
+    // Constrain to minValue/maxValue for partial week support
+    if (mode === "week" && minValue && rangeStart.compare(minValue) < 0) {
+      rangeStart = minValue;
+    }
+    if (mode === "week" && maxValue && rangeEnd.compare(maxValue) > 0) {
+      rangeEnd = maxValue;
+    }
     if (mode === "day") {
       return date.compare(rangeStart) === 0 && date.compare(rangeEnd) === 0;
     }
@@ -110,35 +128,42 @@
 
   const isDateInHoverRange = (date: DateValue): boolean => {
     if (!hoverDate) return false;
-    const range = mode === "week" ? getWeekRange(hoverDate) : { start: hoverDate, end: hoverDate };
-    return date.compare(range.start) >= 0 && date.compare(range.end) <= 0 && !isDateDisabled(date);
+    let range = mode === "week" ? getWeekRange(hoverDate) : { start: hoverDate, end: hoverDate };
+    // Constrain hover range to minValue/maxValue for partial week support
+    if (mode === "week" && minValue && range.start.compare(minValue) < 0) {
+      range = { start: minValue, end: range.end };
+    }
+    if (mode === "week" && maxValue && range.end.compare(maxValue) > 0) {
+      range = { start: range.start, end: maxValue };
+    }
+    return date.compare(range.start) >= 0 && date.compare(range.end) <= 0;
   };
 
   const isDateDisabled = (date: DateValue): boolean => {
     if (minValue && date.compare(minValue) < 0) return true;
-    if (maxValue) {
-      // For week mode, disable if the week would end after maxValue
-      if (mode === "week") {
-        const weekEnd = getWeekRange(date).end;
-        if (weekEnd.compare(maxValue) > 0) return true;
-      } else {
-        // For day mode, disable if date is after maxValue
-        if (date.compare(maxValue) > 0) return true;
-      }
+    if (maxValue && mode === "week") {
+      // For week mode, disable if the week is completely after maxValue
+      const weekStart = getWeekRange(date).start;
+      if (weekStart.compare(maxValue) > 0) return true;
+    } else if (maxValue && mode !== "week") {
+      // For day mode, disable if date is after maxValue
+      if (date.compare(maxValue) > 0) return true;
     }
     return false;
   };
 
   const handleDayClick = (date: DateValue) => {
     if (isDateDisabled(date)) return;
-    const range = mode === "week" ? getWeekRange(date) : { start: date, end: date };
+    let range = mode === "week" ? getWeekRange(date) : { start: date, end: date };
+    // Constrain to maxValue for partial week support
+    if (mode === "week" && maxValue && range.end.compare(maxValue) > 0) {
+      range = { start: range.start, end: maxValue };
+    }
     onValueChange?.(range);
   };
 
   const handleMouseEnter = (date: DateValue) => {
-    if (!isDateDisabled(date)) {
-      hoverDate = date;
-    }
+    hoverDate = date;
   };
 
   const handleMouseLeave = () => {

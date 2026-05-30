@@ -120,6 +120,7 @@ const periodOptions = [
 // Derived: Chart type based on period selection (per PRD section 5)
 let chartType = $derived(
   ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
+  ['weekly'].includes(selectedPeriodType) ? 'daily' :
   ['7days', '30days'].includes(selectedPeriodType) ? 'daily' : 'high-unit'
 );
 
@@ -253,7 +254,10 @@ function getPeriodDescription() {
     case 'daily':
       return `Daily · ${start}`;
     case 'weekly':
-      return `Weekly · ${start} - ${end}`;
+      if (selectedWeeklyRange) {
+        return `Weekly · ${start} - ${end}`;
+      }
+      return 'Weekly · Select a week';
     case 'monthly':
       return `Monthly · ${start} - ${end}`;
     case 'yearly':
@@ -382,9 +386,7 @@ async function fetchSalesWithRange(start, end) {
     });
 
     // Select chart endpoint based on chartType
-    const chartEndpoint = chartType === 'high-unit' && selectedPeriodType === 'weekly' 
-      ? '/api/dashboard/chart/weekly' 
-      : chartType === 'high-unit' && selectedPeriodType === 'monthly'
+    const chartEndpoint = chartType === 'high-unit' && selectedPeriodType === 'monthly'
       ? '/api/dashboard/chart/monthly'
       : chartType === 'high-unit' && selectedPeriodType === 'yearly'
       ? '/api/dashboard/chart/yearly'
@@ -691,40 +693,40 @@ async function exportToExcel() {
                <div class="text-xs text-text-muted">
                  Shows hourly revenue for the selected date
                </div>
-             {:else if hoveredOption?.value === 'weekly'}
-               <div class="text-sm text-text-primary mb-2">
-                 <span class="block text-xs text-text-muted mb-2">Select Week</span>
-                 <SelectableCalendar
-                   mode="week"
-                   bind:value={selectedWeeklyRange}
-                   minValue={new CalendarDate(2025, 12, 16)}
-                   maxValue={yesterdayDate}
-                   theme={{
-                     bg: 'transparent',
-                     text: '#e2e8f0',
-                     muted: '#64748b',
-                     border: '#334155',
-                     hover: '#334155',
-                     selected: '#7c3aed',
-                     selectedText: '#ffffff',
-                     todayBorder: '#0ea5e9',
-                     radius: '8px'
-                   }}
-                   onValueChange={(val) => {
-                     if (val) {
-                       setPeriod('weekly');
-                       const start = val.start;
-                       const end = val.end;
-                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                       fetchSalesWithRange(startStr, endStr);
-                     }
-                   }}
+{:else if hoveredOption?.value === 'weekly'}
+                <div class="text-sm text-text-primary mb-2">
+                  <span class="block text-xs text-text-muted mb-2">Select Week</span>
+                  <SelectableCalendar
+                    mode="week"
+                    bind:value={selectedWeeklyRange}
+                    minValue={new CalendarDate(2025, 12, 16)}
+                    maxValue={yesterdayDate}
+                    theme={{
+                      bg: 'transparent',
+                      text: '#e2e8f0',
+                      muted: '#64748b',
+                      border: '#334155',
+                      hover: '#334155',
+                      selected: '#7c3aed',
+                      selectedText: '#ffffff',
+                      radius: '8px'
+                    }}
+onValueChange={(val) => {
+                      if (val) {
+                        selectedWeeklyRange = val;
+                        setPeriod('weekly');
+                        const start = val.start;
+                        const end = val.end;
+                        const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                        const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                        fetchSalesWithRange(startStr, endStr);
+                      }
+                    }}
                  />
                </div>
-               <div class="text-xs text-text-muted">
-                 Select a week to view weekly revenue
-               </div>
+<div class="text-xs text-text-muted">
+                  Shows daily revenue for the selected week
+                </div>
              {:else if hoveredOption?.value === 'monthly'}
                <div class="text-sm text-text-primary mb-2">
                  <span class="block text-xs text-text-muted mb-2">Select Month</span>

@@ -36,7 +36,7 @@ export const getThemeStyle = (theme: Theme = {}) => {
   const todayBorder = theme.todayBorder || defaultTheme.todayBorder;
   const bg = theme.bg || defaultTheme.bg;
   const radius = theme.radius || defaultTheme.radius;
-  
+
   return `
     --calendar-text: ${text};
     --calendar-muted: ${muted};
@@ -47,6 +47,7 @@ export const getThemeStyle = (theme: Theme = {}) => {
     --calendar-today-border: ${todayBorder};
     --calendar-bg: ${bg};
     --calendar-radius: ${radius};
+    --calendar-disabled-bg: color-mix(in srgb, ${muted} 10%, transparent);
     background: ${bg};
     border-radius: ${radius};
   `;
