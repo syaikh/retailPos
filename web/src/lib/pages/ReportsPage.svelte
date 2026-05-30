@@ -120,7 +120,7 @@ const periodOptions = [
 // Derived: Chart type based on period selection (per PRD section 5)
 let chartType = $derived(
   ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
-  ['weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'high-unit'
+  ['weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'monthly'
 );
 
 // Derived: Stat card labels based on period selection (per PRD section 5)
@@ -229,10 +229,19 @@ case 'daily': {
     case 'yearly':
       if (selectedYearlyRange) {
         const start = selectedYearlyRange.start;
-        const end = selectedYearlyRange.end;
+        let endMonth = 12;
+        let endDay = 31;
+        // If current year selected, constrain to last month (not including current month)
+        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+        if (start.year === todayJakarta[0]) {
+          // End at last day of previous month
+          const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+          endMonth = yesterday[1];
+          endDay = yesterday[2];
+        }
         return {
-          start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
-          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+          start: `${start.year}-01-01`,
+          end: `${start.year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
         };
       }
       return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31` };
@@ -297,6 +306,16 @@ const chartConfig = $derived.by(() => {
       return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
     });
     values = chartData.map(d => d.total);
+  } else if (chartType === 'monthly') {
+    currentChartType = 'bar';
+    labels = chartData.map(d => {
+      if (d.month_start) {
+        const date = new Date(d.month_start);
+        return date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
+      }
+      return d.label || '';
+    });
+    values = chartData.map(d => d.total);
   } else {
     currentChartType = 'bar';
     labels = chartData.map(d => {
@@ -306,9 +325,6 @@ const chartConfig = $derived.by(() => {
         const startStr = start.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
         const endStr = end.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
         return `${startStr} - ${endStr}`;
-      } else if (d.month_start) {
-        const date = new Date(d.month_start);
-        return date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
       }
       return d.label || '';
     });
@@ -403,9 +419,9 @@ async function fetchSalesWithRange(start, end) {
     });
 
     // Select chart endpoint based on chartType
-    const chartEndpoint = chartType === 'high-unit' && selectedPeriodType === 'monthly'
+    const chartEndpoint = chartType === 'monthly'
       ? '/api/dashboard/chart/monthly'
-      : chartType === 'high-unit' && selectedPeriodType === 'yearly'
+      : chartType === 'high-unit'
       ? '/api/dashboard/chart/yearly'
       : '/api/dashboard/chart';
 
@@ -801,9 +817,9 @@ onValueChange={(val) => {
                    }}
                  />
                </div>
-               <div class="text-xs text-text-muted">
-                 Select a year to view yearly revenue
-               </div>
+<div class="text-xs text-text-muted">
+                  Shows monthly revenue for the selected year
+                </div>
              {/if}
              
              <div class="text-xs text-text-muted mt-2">
