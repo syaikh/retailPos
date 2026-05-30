@@ -120,8 +120,7 @@ const periodOptions = [
 // Derived: Chart type based on period selection (per PRD section 5)
 let chartType = $derived(
   ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
-  ['weekly'].includes(selectedPeriodType) ? 'daily' :
-  ['7days', '30days'].includes(selectedPeriodType) ? 'daily' : 'high-unit'
+  ['weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'high-unit'
 );
 
 // Derived: Stat card labels based on period selection (per PRD section 5)
@@ -197,9 +196,16 @@ case 'daily': {
       if (selectedWeeklyRange) {
         const start = selectedWeeklyRange.start;
         const end = selectedWeeklyRange.end;
+        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+        // Constrain end to yesterday if week includes future dates
+        const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+        const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
+        if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
+          endStr = `${yesterday[0]}-${String(yesterday[1]).padStart(2, '0')}-${String(yesterday[2]).padStart(2, '0')}`;
+        }
         return {
           start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
-          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+          end: endStr
         };
       }
       return { start: today, end: today };
@@ -207,9 +213,16 @@ case 'daily': {
       if (selectedMonthlyRange) {
         const start = selectedMonthlyRange.start;
         const end = selectedMonthlyRange.end;
+        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+        // If current month selected, constrain end to yesterday
+        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+        if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+        }
         return {
           start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
-          end: `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`
+          end: endStr
         };
       }
       return { start: today, end: today };
@@ -717,13 +730,10 @@ async function exportToExcel() {
                     }}
 onValueChange={(val) => {
                       if (val) {
-                        selectedWeeklyRange = val;
                         setPeriod('weekly');
-                        const start = val.start;
-                        const end = val.end;
-                        const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                        const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                        fetchSalesWithRange(startStr, endStr);
+                        selectedWeeklyRange = val;
+                        const range = getPeriodDateRange('weekly');
+                        fetchSalesWithRange(range.start, range.end);
                       }
                     }}
                  />
@@ -748,21 +758,20 @@ onValueChange={(val) => {
                      selectedText: '#ffffff',
                      radius: '8px'
                    }}
-                   onValueChange={(val) => {
-                     if (val) {
-                       setPeriod('monthly');
-                       const start = val.start;
-                       const end = val.end;
-                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                       fetchSalesWithRange(startStr, endStr);
-                     }
-                   }}
+onValueChange={(val) => {
+                      if (val) {
+                        setPeriod('monthly');
+                        selectedMonthlyRange = val;
+                        // fetchSalesWithRange will use getPeriodDateRange which handles current month constraint
+                        const range = getPeriodDateRange('monthly');
+                        fetchSalesWithRange(range.start, range.end);
+                      }
+                    }}
                  />
                </div>
-               <div class="text-xs text-text-muted">
-                 Select a month to view monthly revenue
-               </div>
+<div class="text-xs text-text-muted">
+                  Shows daily revenue for the selected month
+                </div>
              {:else if hoveredOption?.value === 'yearly'}
                <div class="text-sm text-text-primary mb-2">
                  <span class="block text-xs text-text-muted mb-2">Select Year</span>

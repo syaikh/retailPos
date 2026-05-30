@@ -93,12 +93,12 @@
       "w-14 h-11 flex items-center justify-center text-sm rounded transition-colors",
       // Selected takes priority - always show with selected text regardless of disabled
       selected && "bg-[var(--calendar-selected)] text-[var(--calendar-selected-text)]",
-      // Then disabled (not selected)
-      disabled && !selected && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed",
+      // Then disabled (not selected) - grey out with rounded corners
+      disabled && !selected && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
       !disabled && !selected && "text-[var(--calendar-text)]",
       // Then hover (not selected or disabled)
       hover && !selected && !disabled && "bg-[var(--calendar-hover)]",
-      current && !selected && !disabled && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1"
+      // No outline for current month
     );
   };
 
@@ -149,20 +149,21 @@
       </button>
     </div>
 
-    <div class="grid grid-cols-4 gap-2">
-      {#each months as monthName, i}
-        {@const month = i + 1}
-        {@const disabled = isMonthDisabled(month)}
-        <button
-          class={getMonthClass(year, month)}
-          disabled={disabled}
-          onmouseenter={() => !disabled && handleMouseEnter(month)}
-          onmouseleave={() => handleMouseLeave()}
-          onclick={() => handleMonthClick(month)}
-        >
-          {monthName}
-        </button>
-      {/each}
-    </div>
+<div class="grid grid-cols-4 gap-2 flex-1">
+       {#each months as monthName, i}
+         {@const month = i + 1}
+         {@const disabled = isMonthDisabled(month)}
+         {@const current = isCurrentMonth(month)}
+         <button
+           class={getMonthClass(year, month)}
+           disabled={disabled}
+           onmouseenter={() => !disabled && handleMouseEnter(month)}
+           onmouseleave={() => handleMouseLeave()}
+           onclick={() => handleMonthClick(month)}
+         >
+           {monthName}
+         </button>
+       {/each}
+     </div>
   </div>
 </div>
