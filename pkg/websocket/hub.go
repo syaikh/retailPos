@@ -175,7 +175,12 @@ func (h *Hub) Run() {
 			if count >= maxConnectionsPerUser {
 				h.userConnMu.Unlock()
 				h.mutex.Unlock()
-				client.send <- []byte(`{"type":"error","payload":"Too many connections"}`)
+				// Non-blocking send to avoid deadlock if writePump hasn't started yet
+				select {
+				case client.send <- []byte(`{"type":"error","payload":"Too many connections"}`):
+				default:
+					// Channel full or no receiver, just close the connection
+				}
 				client.conn.Close()
 				continue
 			}
@@ -230,8 +235,14 @@ func (h *Hub) Run() {
 				select {
 				case client.send <- data:
 				default:
-					close(client.send)
-					h.unregister <- client
+					// Channel full - schedule client for removal non-blocking
+					select {
+					case h.unregister <- client:
+						// Will be cleaned up in unregister handler
+					default:
+						// Unregister channel also full, just log
+						log.Printf("Warning: unregister channel full, dropping client")
+					}
 				}
 			}
 		}
@@ -357,8 +368,14 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
-		c.conn.Close()
+		// Non-blocking unregister to prevent deadlock if hub is busy
+		select {
+		case c.hub.unregister <- c:
+			// Successfully queued for unregistration
+		default:
+			// Unregister channel full, just close connection
+			c.conn.Close()
+		}
 	}()
 	
 	for {

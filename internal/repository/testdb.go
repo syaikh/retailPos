@@ -182,7 +182,7 @@ func createTestPool(dbName string) (*pgxpool.Pool, error) {
 		port = os.Getenv("DB_PORT")
 	}
 	if port == "" {
-		port = "5432"
+		port = "5433"
 	}
 	user := os.Getenv("TEST_DB_USER")
 	if user == "" {
@@ -196,7 +196,7 @@ func createTestPool(dbName string) (*pgxpool.Pool, error) {
 		password = os.Getenv("DB_PASSWORD")
 	}
 	if password == "" {
-		password = "devuser123"
+		password = "admin123"
 	}
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=Asia/Jakarta",

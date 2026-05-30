@@ -1,21 +1,37 @@
 import Chart from 'chart.js/auto';
 
-export function chart(node, options) {
-  let chartInstance = new Chart(node, options);
+export function chart(node, config) {
+  let chartInstance = null;
+
+  // Create chart immediately
+  try {
+    chartInstance = new Chart(node, config);
+  } catch (e) {
+    console.error('Failed to create chart:', e);
+  }
 
   return {
-    update(newOptions) {
-      // Ensure proper reactivity - Chart.js needs explicit data updates
-      chartInstance.data.labels = newOptions.data.labels;
-      
-      // Replace datasets entirely to ensure reactivity
-      chartInstance.data.datasets = newOptions.data.datasets.map(ds => ({...ds}));
-      
-      chartInstance.options = newOptions.options;
-      chartInstance.update('active'); // Use 'active' for smooth animation
+    update(newConfig) {
+      if (chartInstance && newConfig) {
+        if (newConfig.data?.labels) {
+          chartInstance.data.labels = [...newConfig.data.labels];
+        }
+        
+        if (newConfig.data?.datasets) {
+          chartInstance.data.datasets = newConfig.data.datasets.map(ds => ({...ds}));
+        }
+        
+        if (newConfig.options) {
+          chartInstance.options = {...newConfig.options};
+        }
+        
+        chartInstance.update('active');
+      }
     },
     destroy() {
-      chartInstance.destroy();
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
     }
   };
 }

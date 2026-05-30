@@ -9,7 +9,7 @@ import Badge from '$lib/components/ui/Badge.svelte';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import Pagination from '$lib/components/ui/Pagination.svelte';
 import Modal from '$lib/components/ui/Modal.svelte';
-import { SelectableCalendar, MonthlyCalendar, YearCalendar } from 'syai-calendar';
+import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
 import { CalendarDate } from '@internationalized/date';
 import {
   Receipt, BarChart3,
@@ -47,12 +47,29 @@ let dropdownOpen = $state(false);
 let hoveredOption = $state(null);
 let timezoneString = $state('GMT+07');
 
-// Daily selector state
-let selectedDailyDate = $state(new CalendarDate(
-  new Date().getFullYear(),
-  new Date().getMonth() + 1,
-  new Date().getDate()
-));
+// Derived values for max constraints (Jakarta timezone)
+let yesterdayDate = $derived(
+  new CalendarDate(
+    parseInt(getDateNDaysAgoInJakarta(1).split('-')[0]),
+    parseInt(getDateNDaysAgoInJakarta(1).split('-')[1]),
+    parseInt(getDateNDaysAgoInJakarta(1).split('-')[2])
+  )
+);
+
+// Daily selector state - default to yesterday (set via effect to ensure proper initialization)
+let defaultYesterdayDate = $state(getDateNDaysAgoInJakarta(1));
+let selectedDailyDate = $state({
+  start: new CalendarDate(
+    parseInt(defaultYesterdayDate.split('-')[0]),
+    parseInt(defaultYesterdayDate.split('-')[1]),
+    parseInt(defaultYesterdayDate.split('-')[2])
+  ),
+  end: new CalendarDate(
+    parseInt(defaultYesterdayDate.split('-')[0]),
+    parseInt(defaultYesterdayDate.split('-')[1]),
+    parseInt(defaultYesterdayDate.split('-')[2])
+  )
+});
 
 // Weekly selector state
 let selectedWeeklyRange = $state(null);
@@ -167,9 +184,8 @@ function getPeriodDateRange(periodType) {
       return { start: daysAgo(8), end: daysAgo(1) };
     case '30days':
       return { start: daysAgo(31), end: daysAgo(1) };
-    case 'daily':
-      {
-        const d = selectedDailyDate;
+case 'daily': {
+        const d = selectedDailyDate?.start ?? selectedDailyDate ?? yesterdayDate;
         const y = d.year;
         const m = String(d.month).padStart(2, '0');
         const day = String(d.day).padStart(2, '0');
@@ -647,9 +663,9 @@ async function exportToExcel() {
                    mode="day"
                    bind:value={selectedDailyDate}
                    minValue={new CalendarDate(2025, 12, 16)}
-                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())}
+                   maxValue={yesterdayDate}
                    theme={{
-                     bg: '#0f172a',
+                     bg: 'transparent',
                      text: '#e2e8f0',
                      muted: '#64748b',
                      border: '#334155',
@@ -682,9 +698,9 @@ async function exportToExcel() {
                    mode="week"
                    bind:value={selectedWeeklyRange}
                    minValue={new CalendarDate(2025, 12, 16)}
-                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())}
+                   maxValue={yesterdayDate}
                    theme={{
-                     bg: '#0f172a',
+                     bg: 'transparent',
                      text: '#e2e8f0',
                      muted: '#64748b',
                      border: '#334155',
@@ -715,9 +731,9 @@ async function exportToExcel() {
                  <MonthlyCalendar
                    bind:value={selectedMonthlyRange}
                    minValue={new CalendarDate(2025, 12, 1)}
-                   maxValue={new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, 1)}
+                   maxValue={yesterdayDate}
                    theme={{
-                     bg: '#0f172a',
+                     bg: 'transparent',
                      text: '#e2e8f0',
                      muted: '#64748b',
                      border: '#334155',
@@ -747,9 +763,9 @@ async function exportToExcel() {
                  <YearCalendar
                    bind:value={selectedYearlyRange}
                    minValue={new CalendarDate(2025, 1, 1)}
-                   maxValue={new CalendarDate(new Date().getFullYear(), 1, 1)}
+                   maxValue={yesterdayDate}
                    theme={{
-                     bg: '#0f172a',
+                     bg: 'transparent',
                      text: '#e2e8f0',
                      muted: '#64748b',
                      border: '#334155',

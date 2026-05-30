@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -29,7 +30,7 @@ func dbAvailable() bool {
 		port = os.Getenv("DB_PORT")
 	}
 	if port == "" {
-		port = "5432"
+		port = "5433"
 	}
 	conn, err := net.DialTimeout("tcp", "localhost:"+port, 2*time.Second)
 	if err != nil {
@@ -241,7 +242,7 @@ func TestRepository_GetAllProducts_LowStockFilter(t *testing.T) {
 	repo := repository.NewPostgresRepository(testDB.Pool())
 
 	t.Run("no filter returns all", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(nil, 100, 0, "", nil, "", "", nil, nil)
+		products, total, err := repo.GetAllProducts(context.Background(), 100, 0, "", nil, "", "", nil, nil)
 		require.NoError(t, err)
 		assert.Greater(t, total, 0)
 		assert.Greater(t, len(products), 0)
@@ -249,7 +250,7 @@ func TestRepository_GetAllProducts_LowStockFilter(t *testing.T) {
 
 	t.Run("filter stock<=5", func(t *testing.T) {
 		maxStock := 5
-		products, total, err := repo.GetAllProducts(nil, 100, 0, "", nil, "", "", &maxStock, nil)
+		products, total, err := repo.GetAllProducts(context.Background(), 100, 0, "", nil, "", "", &maxStock, nil)
 		require.NoError(t, err)
 		for _, p := range products {
 			assert.LessOrEqual(t, p.Stock, 5, "every result must be <= 5")
@@ -261,9 +262,8 @@ func TestRepository_GetAllProducts_LowStockFilter(t *testing.T) {
 
 	t.Run("filter stock<=0 none expected", func(t *testing.T) {
 		maxStock := 0
-		products, _, err := repo.GetAllProducts(nil, 100, 0, "", nil, "", "", &maxStock, nil)
+		products, _, err := repo.GetAllProducts(context.Background(), 100, 0, "", nil, "", "", &maxStock, nil)
 		require.NoError(t, err)
-		// seed data has stock >= 0; filter stock<=0 should only be items with 0 stock
 		for _, p := range products {
 			assert.Equal(t, 0, p.Stock)
 		}

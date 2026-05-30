@@ -951,6 +951,9 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	}
 	defer rows.Close()
 
+	// Collect sale IDs for batch loading sale items (avoid N+1 query)
+	// Note: PostgreSQL has a limit of ~32767 parameters, so we batch in groups of 1000
+	var saleIDs []int
 	for rows.Next() {
 		var s domain.Sale
 		var storeIDVal sql.NullInt64
@@ -967,26 +970,53 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		s.CreatedAt = createdAt.Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.Format(time.RFC3339)
 
-		// Load sale items
-		itemRows, err := r.db.Query(ctx, `
-			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
-			FROM sale_items si
-			JOIN products p ON si.product_id = p.id
-			WHERE si.sale_id = $1
-		`, s.ID)
-		if err == nil {
-			for itemRows.Next() {
-				var item domain.SaleItem
-				err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal)
-				if err == nil {
-					s.Items = append(s.Items, item)
-				}
-			}
-			itemRows.Close()
-		}
-
 		sales = append(sales, s)
+		saleIDs = append(saleIDs, s.ID)
 	}
+
+	// Batch load all sale items in chunks to avoid PostgreSQL parameter limit
+	if len(saleIDs) > 0 {
+		// Process in chunks of 1000 to stay under PostgreSQL's parameter limit
+		for i := 0; i < len(saleIDs); i += 1000 {
+			end := i + 1000
+			if end > len(saleIDs) {
+				end = len(saleIDs)
+			}
+			chunk := saleIDs[i:end]
+			
+			placeholders := make([]string, len(chunk))
+			args3 := make([]interface{}, len(chunk))
+			for j, id := range chunk {
+				placeholders[j] = fmt.Sprintf("$%d", j+1)
+				args3[j] = id
+			}
+			itemQuery := fmt.Sprintf(`
+				SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+				FROM sale_items si
+				JOIN products p ON si.product_id = p.id
+				WHERE si.sale_id IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			itemRows, err := r.db.Query(ctx, itemQuery, args3...)
+			if err == nil {
+				for itemRows.Next() {
+					var item domain.SaleItem
+					err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal)
+					if err == nil {
+						// Find the sale and append the item
+						for j := range sales {
+							if sales[j].ID == item.SaleID {
+								sales[j].Items = append(sales[j].Items, item)
+								break
+							}
+						}
+					}
+				}
+				itemRows.Close()
+			}
+		}
+	}
+
 	return sales, total, nil
 }
 

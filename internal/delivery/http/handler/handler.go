@@ -678,14 +678,20 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 		// Bug fix: use time.RFC3339 and convert to Jakarta local time
 		createdTime, _ := time.Parse(time.RFC3339, s.CreatedAt)
 		createdTime = createdTime.In(cfg.Timezone)
-		weekStart := createdTime.AddDate(0, 0, -int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
-		weekEnd := createdTime.AddDate(0, 0, 6-int(createdTime.Weekday()-time.Monday)).Format("2006-01-02")
+		// Get week start (Monday), handling Sunday case
+		weekStart := createdTime.AddDate(0, 0, -int(createdTime.Weekday()-time.Monday))
+		if createdTime.Weekday() == time.Sunday {
+			weekStart = createdTime.AddDate(0, 0, -6)
+		}
+		weekEnd := weekStart.AddDate(0, 0, 6)
+		weekStartStr := weekStart.Format("2006-01-02")
+		weekEndStr := weekEnd.Format("2006-01-02")
 
-		weekKey := weekStart + "|" + weekEnd
+		weekKey := weekStartStr + "|" + weekEndStr
 		if weeklyTotals[weekKey] == nil {
 			weeklyTotals[weekKey] = map[string]interface{}{
-				"week_start":  weekStart,
-				"week_end":    weekEnd,
+				"week_start":  weekStartStr,
+				"week_end":    weekEndStr,
 				"total":       0,
 				"order_count": 0,
 			}
