@@ -44,6 +44,7 @@ let kpiData = $state({
 
 // PRD Section 5: Unified period state
 let selectedPeriodType = $state('realtime'); // realtime, yesterday, 7days, 30days, daily, weekly, monthly, yearly
+let activePeriodType = $state('realtime'); // The period type that has active data (starts as realtime)
 let dropdownOpen = $state(false);
 let hoveredOption = $state(null);
 let timezoneString = $state('GMT+07');
@@ -57,30 +58,28 @@ let yesterdayDate = $derived(
   )
 );
 
-// Daily selector state - default to yesterday (set via effect to ensure proper initialization)
-let defaultYesterdayDate = $state(getDateNDaysAgoInJakarta(1));
-let selectedDailyDate = $state({
-  start: new CalendarDate(
-    parseInt(defaultYesterdayDate.split('-')[0]),
-    parseInt(defaultYesterdayDate.split('-')[1]),
-    parseInt(defaultYesterdayDate.split('-')[2])
-  ),
-  end: new CalendarDate(
-    parseInt(defaultYesterdayDate.split('-')[0]),
-    parseInt(defaultYesterdayDate.split('-')[1]),
-    parseInt(defaultYesterdayDate.split('-')[2])
-  )
-});
+// Daily selector state - default to yesterday
+let selectedDailyDate = $state(null);
+// Track if user has made a selection to distinguish initial load from user click
+let dailySelectionMade = $state(false);
 
 // Weekly selector state
 let selectedWeeklyRange = $state(null);
+// Track if user has made a selection
+let weeklySelectionMade = $state(false);
 
 // Monthly selector state
 let selectedMonthlyRange = $state(null);
-let selectedYear = $state(new Date().getFullYear());
+// Track if user has made a selection
+let monthlySelectionMade = $state(false);
 
 // Yearly selector state
 let selectedYearlyRange = $state(null);
+// Track if user has made a selection
+let yearlySelectionMade = $state(false);
+
+// Selected year for display fallback
+let selectedYear = $state(new Date().getFullYear());
 
 // Export dropdown
 let showExportDropdown = $state(false);
@@ -119,20 +118,21 @@ const periodOptions = [
 ];
 
 // Derived: Chart type based on period selection (per PRD section 5)
+// Uses activePeriodType so chart doesn't change until user selects a date
 let chartType = $derived(
-  ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
-  ['7days', '30days', 'weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'monthly'
+  ['realtime', 'yesterday', 'daily'].includes(activePeriodType) ? 'hourly' :
+  ['7days', '30days', 'weekly', 'monthly'].includes(activePeriodType) ? 'daily' : 'monthly'
 );
 
 // Derived: Stat card labels based on period selection (per PRD section 5)
 let statCardLabels = $derived({
   card4: 
     chartType === 'hourly' ? 'Peak Revenue Hour' :
-    selectedPeriodType === 'yearly' ? 'Avg. Revenue / Month' :
-    selectedPeriodType === 'monthly' ? 'Avg. Revenue / Week' : 'Avg. Revenue / Day',
+    activePeriodType === 'yearly' ? 'Avg. Revenue / Month' :
+    activePeriodType === 'monthly' ? 'Avg. Revenue / Week' : 'Avg. Revenue / Day',
   card5: 
-    selectedPeriodType === 'realtime' ? 'vs Same Hours Yesterday' :
-    selectedPeriodType === 'yesterday' ? 'vs Same Day Last Week' : 'vs Previous Period'
+    activePeriodType === 'realtime' ? 'vs Same Hours Yesterday' :
+    activePeriodType === 'yesterday' ? 'vs Same Day Last Week' : 'vs Previous Period'
 });
 
 // Effect to update time every minute when in realtime mode
@@ -186,7 +186,11 @@ function getPeriodDateRange(periodType) {
     case '30days':
       return { start: daysAgo(31), end: daysAgo(1) };
 case 'daily': {
-        const d = selectedDailyDate?.start ?? selectedDailyDate ?? yesterdayDate;
+        // Only return a date if user has made a selection
+        if (!dailySelectionMade || !selectedDailyDate) {
+          return { start: today, end: today };
+        }
+        const d = selectedDailyDate.start ?? selectedDailyDate;
         const y = d.year;
         const m = String(d.month).padStart(2, '0');
         const day = String(d.day).padStart(2, '0');
@@ -194,7 +198,7 @@ case 'daily': {
         return { start: dateStr, end: dateStr };
       }
     case 'weekly':
-      if (selectedWeeklyRange) {
+      if (weeklySelectionMade && selectedWeeklyRange) {
         const start = selectedWeeklyRange.start;
         const end = selectedWeeklyRange.end;
         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
@@ -211,7 +215,7 @@ case 'daily': {
       }
       return { start: today, end: today };
     case 'monthly':
-      if (selectedMonthlyRange) {
+      if (monthlySelectionMade && selectedMonthlyRange) {
         const start = selectedMonthlyRange.start;
         const end = selectedMonthlyRange.end;
         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
@@ -228,7 +232,7 @@ case 'daily': {
       }
       return { start: today, end: today };
     case 'yearly':
-      if (selectedYearlyRange) {
+      if (yearlySelectionMade && selectedYearlyRange) {
         const start = selectedYearlyRange.start;
         let endMonth = 12;
         let endDay = 31;
@@ -262,15 +266,15 @@ function setPeriod(periodType) {
   selectedPeriodType = periodType;
   const range = getPeriodDateRange(periodType);
   
-  // For calendar-based periods, set the period and fetch with default range
-  // The calendar stays open so user can change the selection
+  // For calendar-based periods, keep dropdown open to allow date selection
+  // Don't fetch - user must select a date from the calendar
   if (periodType === 'daily' || periodType === 'weekly' || periodType === 'monthly' || periodType === 'yearly') {
-    // Fetch with the default range immediately, keep dropdown open for calendar adjustment
-    fetchSalesWithRange(range.start, range.end);
+    // Don't change activePeriodType - chart stays as-is
     return;
   }
   
   // For non-calendar periods (realtime, yesterday, 7days, 30days)
+  activePeriodType = periodType;
   dropdownOpen = false;
   fetchSalesWithRange(range.start, range.end);
 }
@@ -778,6 +782,8 @@ onValueChange={(val) => {
                          const m = String(d.month).padStart(2, '0');
                          const day = String(d.day).padStart(2, '0');
                          const dateStr = `${y}-${m}-${day}`;
+                         dailySelectionMade = true;
+                         activePeriodType = 'daily';
                          selectedPeriodType = 'daily';
                          dropdownOpen = false;
                          fetchSalesWithRange(dateStr, dateStr);
@@ -809,6 +815,7 @@ onValueChange={(val) => {
 onValueChange={(val) => {
                        if (val) {
                          selectedWeeklyRange = val;
+                         weeklySelectionMade = true;
                          const start = val.start;
                          const end = val.end;
                          let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
@@ -818,6 +825,7 @@ onValueChange={(val) => {
                          if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
                            endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
                          }
+                         activePeriodType = 'weekly';
                          selectedPeriodType = 'weekly';
                          dropdownOpen = false;
                          fetchSalesWithRange(
@@ -848,23 +856,26 @@ onValueChange={(val) => {
                       selectedText: '#ffffff',
                       radius: '8px'
                     }}
-                    onValueChange={(val) => {
-                      if (val) {
-                        const start = val.start;
-                        const end = val.end;
-                        const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                        // If current month selected, constrain to yesterday
-                        const todayJakarta = getTodayInJakarta().split('-').map(Number);
-                        if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
-                          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
-                          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
-                        }
-                        selectedPeriodType = 'monthly';
-                        dropdownOpen = false;
-                        fetchSalesWithRange(startStr, endStr);
-                      }
-                    }}
+onValueChange={(val) => {
+                       if (val) {
+                         selectedMonthlyRange = val;
+                         monthlySelectionMade = true;
+                         const start = val.start;
+                         const end = val.end;
+                         const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                         // If current month selected, constrain to yesterday
+                         const todayJakarta = getTodayInJakarta().split('-').map(Number);
+                         if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+                           const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+                           endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                         }
+                         activePeriodType = 'monthly';
+                         selectedPeriodType = 'monthly';
+                         dropdownOpen = false;
+                         fetchSalesWithRange(startStr, endStr);
+                       }
+                     }}
                   />
                 </div>
                 <div class="text-xs text-text-muted">
@@ -888,38 +899,42 @@ onValueChange={(val) => {
                       selectedText: '#ffffff',
                       radius: '8px'
                     }}
-                    onValueChange={(val) => {
-                      if (val) {
-                        const year = val.start.year;
-                        // For current year, constrain to last month (April for May)
-                        const todayJakarta = getTodayInJakarta();
-                        const todayParts = todayJakarta.split('-').map(Number);
-                        const currentYear = todayParts[0];
-                        const currentMonth = todayParts[1]; // 1-indexed month
-                        let endMonth = 12;
-                        let endDay = 31;
-                        if (year === currentYear) {
-                          // Current year: show only completed months
-                          if (currentMonth === 1) {
-                            // January - no previous month data in current year
-                            // Fetch will show "No data available"
-                            selectedPeriodType = 'yearly';
-                            dropdownOpen = false;
-                            fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
-                            return;
-                          }
-                          // End at last day of previous month
-                          // new Date(year, month, 0) returns last day of previous month
-                          // For May (month=5), gives April 30
-                          endMonth = currentMonth - 1;
-                          const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getUTCDate();
-                          endDay = lastDayOfPrevMonth;
-                        }
-                        selectedPeriodType = 'yearly';
-                        dropdownOpen = false;
-                        fetchSalesWithRange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
-                      }
-                    }}
+onValueChange={(val) => {
+                       if (val) {
+                         selectedYearlyRange = val;
+                         yearlySelectionMade = true;
+                         const year = val.start.year;
+                         // For current year, constrain to last month (April for May)
+                         const todayJakarta = getTodayInJakarta();
+                         const todayParts = todayJakarta.split('-').map(Number);
+                         const currentYear = todayParts[0];
+                         const currentMonth = todayParts[1]; // 1-indexed month
+                         let endMonth = 12;
+                         let endDay = 31;
+                         if (year === currentYear) {
+                           // Current year: show only completed months
+                           if (currentMonth === 1) {
+                             // January - no previous month data in current year
+                             // Fetch will show "No data available"
+                             activePeriodType = 'yearly';
+                             selectedPeriodType = 'yearly';
+                             dropdownOpen = false;
+                             fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
+                             return;
+                           }
+                           // End at last day of previous month
+                           // new Date(year, month, 0) returns last day of previous month
+                           // For May (month=5), gives April 30
+                           endMonth = currentMonth - 1;
+                           const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getUTCDate();
+                           endDay = lastDayOfPrevMonth;
+                         }
+                         activePeriodType = 'yearly';
+                         selectedPeriodType = 'yearly';
+                         dropdownOpen = false;
+                         fetchSalesWithRange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
+                       }
+                     }}
                   />
                 </div>
                 <div class="text-xs text-text-muted">
@@ -1086,18 +1101,18 @@ onValueChange={(val) => {
     </div>
 
 <div class="h-64 relative">
-        {#if loading}
-          <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
-            <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
-          </div>
-        {:else if chartData.length === 0}
-          <div class="absolute inset-0 flex items-center justify-center text-text-muted">
-            No data available for this period
-          </div>
-        {:else}
-          <canvas use:chart={chartConfig}></canvas>
-        {/if}
-      </div>
+          {#if loading}
+            <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
+              <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
+            </div>
+          {:else if chartData.length === 0}
+            <div class="absolute inset-0 flex items-center justify-center text-text-muted">
+              No data available for this period
+            </div>
+          {:else}
+            <canvas use:chart={chartConfig}></canvas>
+          {/if}
+        </div>
   </div>
 
   <!-- Sales table -->
