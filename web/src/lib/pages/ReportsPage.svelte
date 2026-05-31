@@ -1,29 +1,29 @@
 <script>
-import { onMount } from 'svelte';
-import { fly } from 'svelte/transition';
-import { apiFetch } from '$lib/api/client';
-import { toast } from '$lib/stores/toast';
-import { chart } from '$lib/actions/chart';
-import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
-import Badge from '$lib/components/ui/Badge.svelte';
-import Skeleton from '$lib/components/ui/Skeleton.svelte';
-import Pagination from '$lib/components/ui/Pagination.svelte';
-import Modal from '$lib/components/ui/Modal.svelte';
-import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
-import { CalendarDate } from '@internationalized/date';
-import {
-  Receipt, BarChart3,
-  CalendarDays, Download, FileSpreadsheet,
-  ChevronDown, Eye, Search, X,
-  Clock,
-} from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { apiFetch } from '$lib/api/client';
+  import { toast } from '$lib/stores/toast';
+  import { chart } from '$lib/actions/chart';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta } from '$lib/utils/jakartaTime';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Pagination from '$lib/components/ui/Pagination.svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
+  import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
+  import { CalendarDate } from '@internationalized/date';
+  import {
+    Receipt, BarChart3,
+    CalendarDays, Download, FileSpreadsheet,
+    ChevronDown, Eye, Search, X,
+    Clock,
+  } from 'lucide-svelte';
 
-let loading = $state(true);
-let salesData = $state([]);
-let chartData = $state([]);
-let total = $state(0);
-let limit = $state(20);
-let offset = $state(0);
+  let loading = $state(true);
+  let salesData = $state([]);
+  let chartData = $state([]);
+  let total = $state(0);
+  let limit = $state(20);
+  let offset = $state(0);
 
 // KPI data
 let kpiData = $state({
@@ -828,12 +828,25 @@ async function exportToExcel() {
                     onValueChange={(val) => {
                       if (val) {
                         const year = val.start.year;
-                        const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                        // For current year, constrain to last month (April for May)
+                        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+                        const currentMonthInJakarta = todayJakarta[1];
                         let endMonth = 12;
                         let endDay = 31;
-                        if (year === yesterday[0]) {
-                          endMonth = yesterday[1];
-                          endDay = yesterday[2];
+                        if (year === todayJakarta[0]) {
+                          // Go to previous month
+                          if (currentMonthInJakarta === 1) {
+                            // January - no previous month data in current year
+                            // Show "No data available"
+                            selectedPeriodType = 'yearly';
+                            dropdownOpen = false;
+                            return;
+                          }
+                          const firstOfCurrentMonth = getFirstOfMonthNAgoInJakarta(0);
+                          const parts = firstOfCurrentMonth.split('-').map(Number);
+                          const lastDayOfPrevMonth = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                          endMonth = lastDayOfPrevMonth[1];
+                          endDay = lastDayOfPrevMonth[2];
                         }
                         selectedPeriodType = 'yearly';
                         dropdownOpen = false;
