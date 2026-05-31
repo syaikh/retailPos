@@ -302,29 +302,33 @@ func buildRecords(
 func randomTimeInDate(d time.Time, now time.Time) time.Time {
 	isToday := d.Year() == now.Year() && d.Month() == now.Month() && d.Day() == now.Day()
 
-	// Weighted hour distribution: higher weight for business hours (07-21)
-	// Weights: 0.5 for off-hours (22-06), 1.5 for business hours (07-21)
+	// Weighted hour distribution for 24/7 store
+	// Higher weight for peak hours (09-21) but still allow all hours
 	hourWeights := make([]int, 24)
 	for h := 0; h < 24; h++ {
-		if h >= 7 && h < 21 {
-			hourWeights[h] = 15 // Business hours
-		} else {
-			hourWeights[h] = 5 // Off hours (night/early morning)
+		switch {
+		case h >= 9 && h < 21:
+			hourWeights[h] = 15 // Peak business hours
+		case h >= 7 && h < 23:
+			hourWeights[h] = 12 // Near peak
+		default:
+			hourWeights[h] = 8 // Off hours (still open 24/7)
 		}
 	}
 
-	// Pick an hour using weighted random
 	hour := weightedPickInt(hourWeights)
 
 	var minute int
 	if isToday {
-		// For today, only generate times up to current hour
 		currentHour := now.In(jakartaTZ).Hour()
-		if hour > currentHour {
+		currentMinute := now.Minute()
+		if hour > currentHour || (hour == currentHour && currentMinute < 5) {
 			hour = currentHour
 		}
-		// Also ensure we don't go beyond current minute within the hour
-		maxMinute := now.Minute()
+		maxMinute := 59
+		if hour == currentHour {
+			maxMinute = currentMinute
+		}
 		minute = rand.Intn(maxMinute + 1)
 	} else {
 		minute = rand.Intn(60)

@@ -72,8 +72,13 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 	protected.GET("/sales", h.GetSalesHistory)
 	protected.GET("/sales/:id", h.GetSaleByID)
 
-	// Stats
-	protected.GET("/stats", h.GetDashboardStats)
+// Stats
+ 	protected.GET("/stats", h.GetDashboardStats)
+ 	protected.GET("/dashboard/chart", h.GetSalesChartData)
+ 	protected.GET("/dashboard/chart/weekly", h.GetSalesWeeklyReport)
+ 	protected.GET("/dashboard/chart/monthly", h.GetSalesMonthlyReport)
+ 	protected.GET("/dashboard/comparison", h.GetPeriodComparison)
+ 	protected.GET("/dashboard/years", h.GetAvailableYears)
 
 	return r, testDB
 }

@@ -123,6 +123,7 @@ func main() {
 		protected.GET("/dashboard/chart/weekly", h.GetSalesWeeklyReport)
 		protected.GET("/dashboard/chart/monthly", h.GetSalesMonthlyReport)
 		protected.GET("/dashboard/comparison", h.GetPeriodComparison)
+		protected.GET("/dashboard/years", h.GetAvailableYears)
 
 		// Admin
 		protected.GET("/admin/users", h.ListUsers)

@@ -1293,6 +1293,24 @@ func (h *Handler) GetStockThresholds(c *gin.Context) {
 	})
 }
 
+// GetAvailableYears returns distinct years that have sales data
+func (h *Handler) GetAvailableYears(c *gin.Context) {
+	var storeID *int
+	if sid, exists := c.Get("storeID"); exists {
+		if v, ok := sid.(*int); ok && v != nil {
+			storeID = v
+		}
+	}
+
+	years, err := h.saleRepo.GetAvailableYears(getCtx(c), storeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch available years"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": years})
+}
+
 func (h *Handler) GetWarehouses(c *gin.Context) {
 	var storeID *int
 	if sid, exists := c.Get("storeID"); exists {

@@ -55,8 +55,9 @@ const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 
   };
 
   const isYearDisabled = (year: number): boolean => {
-    // Disable year if it has no data
-    if (availableYears && !availableYears.includes(year)) return true;
+    // Disable year if availableYears is explicitly set and year is not in the list
+    // If availableYears is empty/undefined, don't disable (allows all years)
+    if (availableYears && availableYears.length > 0 && !availableYears.includes(year)) return true;
 
     const yearStart = new CalendarDate(year, 1, 1);
     const yearEnd = new CalendarDate(year, 12, 31);

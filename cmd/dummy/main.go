@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"flag"
@@ -221,19 +222,23 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	if numProducts < 0 || numProducts > 5000 {
 		return fmt.Errorf("products count must be between 0-5000, got %d", numProducts)
 	}
-	if numDays < 0 || numDays > 180 {
-		return fmt.Errorf("days count must be between 0-180, got %d", numDays)
-	}
 	if numCategories < 0 || numCategories > 80 {
 		return fmt.Errorf("categories count must be between 0-80, got %d", numCategories)
+	}
+
+	// Interactive time range selection if not specified
+	if numDays == 0 {
+		numDays = promptTimeRange()
+	}
+
+	// Convert months to days (for validation, max 3 years = 36 months)
+	if numDays < 180 || numDays > 1095 {
+		return fmt.Errorf("days must be between 180-1095 (6 months - 3 years), got %d", numDays)
 	}
 
 	// Randomize counts if not specified (0 means random)
 	if numProducts == 0 {
 		numProducts = rand.Intn(501) + 4500 // 4500-5000
-	}
-	if numDays == 0 {
-		numDays = rand.Intn(31) + 150 // 150-180 days
 	}
 	if numCategories == 0 {
 		numCategories = rand.Intn(16) + 65 // 65-80
@@ -723,80 +728,163 @@ type SaleItemRecord struct {
 	Subtotal    int
 }
 
-// processWorkerJob handles a single worker's portion of the work with optimized individual transactions
+// processWorkerJob handles a single worker's portion of the work with optimized batch transactions
 func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, now time.Time, progress chan<- int) int {
-	salesCreated := 0
-	invoiceCounter := 0 // Local counter for this worker
+	invoiceCounter := 0
 
-	// Process each day
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0
+	}
+
+	saleStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
+		 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`)
+	if err != nil {
+		tx.Rollback()
+		return 0
+	}
+	defer saleStmt.Close()
+
+	itemStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
+	if err != nil {
+		tx.Rollback()
+		return 0
+	}
+	defer itemStmt.Close()
+
+	salesCreated := 0
+	batchSize := 0
+
 	for _, dayOffset := range job.days {
 		dayDate := startDate.AddDate(0, 0, dayOffset)
 
-		// 10-20 transactions per day
 		salesForDay := 10 + rand.Intn(11)
 
 		for s := 0; s < salesForDay; s++ {
-			// Generate sequential invoice number for this worker's range
 			invoiceNum := job.startInvoice + invoiceCounter
 			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), invoiceNum)
 			invoiceCounter++
 
-			// Random cashier
 			cashierID := randElemInt(userIDs)
-
-			// Random payment method (weighted)
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
+			createdAt := randomTime24Hour(dayDate, now)
 
-			var createdAt time.Time
+			numItems := generateItemCount()
+			saleProducts := selectProductsForSale(products, numItems)
 
-			// Check if this is today
-			isToday := dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day()
+			// Calculate total and build items
+			var totalAmount int
+			items := make([]SaleItemRecord, 0, numItems)
+			for _, productID := range saleProducts {
+				product := productMap[productID]
+				quantity := generateQuantity(product.Category)
+				unitPrice := product.Price
+				subtotal := unitPrice * quantity
+				totalAmount += subtotal
 
-			if isToday {
-				// Today: generate time from 6 hours ago until 5 minutes ago to ensure it's in the past
-				currentNow := time.Now().In(jakartaTZ)
-				sixHoursAgo := currentNow.Add(-6 * time.Hour)
-				fiveMinutesAgo := currentNow.Add(-5 * time.Minute)
-
-				// Generate random time between 6 hours ago and 5 minutes ago
-				timeRange := fiveMinutesAgo.Sub(sixHoursAgo)
-				if timeRange <= 0 {
-					timeRange = time.Hour // fallback to 1 hour range
-				}
-				randomOffset := time.Duration(rand.Int63n(int64(timeRange)))
-				createdAt = sixHoursAgo.Add(randomOffset)
-			} else {
-				// Other days: random hour in Jakarta business hours 08:00 – 20:00
-				randomHour := 8 + rand.Intn(13)
-				randomMinute := rand.Intn(60)
-				createdAt = time.Date(dayDate.Year(), dayDate.Month(), dayDate.Day(),
-					randomHour, randomMinute, rand.Intn(60), 0, jakartaTZ)
+				items = append(items, SaleItemRecord{
+					SaleID:    0, // Will be filled after sale insert
+					ProductID: productID,
+					Quantity:  quantity,
+					UnitPrice: unitPrice,
+					Subtotal:  subtotal,
+				})
 			}
 
-			// Process sale with individual transaction for reliability
-			if err := processIndividualSale(ctx, db, invoice, cashierID, paymentMethod, createdAt, products, productMap); err == nil {
-				salesCreated++
+			if totalAmount <= 0 {
+				continue
+			}
 
-				// Send progress update every 25 sales
-				if salesCreated%25 == 0 {
-					select {
-					case progress <- 25:
-					default:
-						// Channel full, skip progress update
-					}
+			// Insert sale
+			var saleID int
+			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, paymentMethod, totalAmount, createdAt).Scan(&saleID)
+			if err != nil {
+				continue
+			}
+
+			// Insert sale items
+			for _, item := range items {
+				itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal)
+			}
+
+			salesCreated++
+			batchSize++
+
+			if batchSize >= 50 {
+				saleStmt.Close()
+				itemStmt.Close()
+				tx.Commit()
+
+				tx, _ = db.BeginTx(ctx, nil)
+				saleStmt, _ = tx.PrepareContext(ctx,
+					`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
+					 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`)
+				itemStmt, _ = tx.PrepareContext(ctx,
+					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
+
+				batchSize = 0
+			}
+
+			if salesCreated%25 == 0 {
+				select {
+				case progress <- 25:
+				default:
 				}
 			}
 		}
 	}
 
-	// Send final count to progress channel
+	saleStmt.Close()
+	itemStmt.Close()
+	tx.Commit()
+
 	select {
-	case progress <- (salesCreated % 25): // Send remaining count
+	case progress <- (salesCreated % 25):
 	default:
-		// Channel full, skip progress update
 	}
 
 	return salesCreated
+}
+
+// randomTime24Hour generates random time spread across 24 hours for 24/7 open store
+func randomTime24Hour(dayDate, now time.Time) time.Time {
+	isToday := dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day()
+
+	// Weighted hour distribution for 24/7 store
+	// Higher weight for typical business hours (09-21), but still allow all hours
+	hourWeights := make([]int, 24)
+	for h := 0; h < 24; h++ {
+		switch {
+		case h >= 9 && h < 21:
+			hourWeights[h] = 15 // Peak business hours
+		case h >= 7 && h < 23:
+			hourWeights[h] = 12 // Near peak
+		default:
+			hourWeights[h] = 8 // Off hours (still open)
+		}
+	}
+
+	hour := weightedPickInt(hourWeights)
+	var minute int
+	if isToday {
+		currentHour := now.In(jakartaTZ).Hour()
+		currentMinute := now.Minute()
+		if hour > currentHour || (hour == currentHour && currentMinute < 5) {
+			hour = currentHour
+		}
+		maxMinute := 59
+		if hour == currentHour {
+			maxMinute = currentMinute
+		}
+		minute = rand.Intn(maxMinute + 1)
+	} else {
+		minute = rand.Intn(60)
+	}
+
+	return time.Date(dayDate.Year(), dayDate.Month(), dayDate.Day(),
+		hour, minute, rand.Intn(60), 0, jakartaTZ)
 }
 
 // processIndividualSale handles one sale with optimized transaction
@@ -1117,6 +1205,58 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// promptTimeRange interactively asks user for time range selection
+func promptTimeRange() int {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("\n📅 Transaction Time Range Selection")
+	fmt.Println("---------------------------------")
+	fmt.Println("How far back should the generated data span?")
+	fmt.Println("  1. 6 months (180 days)")
+	fmt.Println("  2. 1 year (365 days)")
+	fmt.Println("  3. 2 years (730 days)")
+	fmt.Println("  4. 3 years (1095 days)")
+	fmt.Println("  5. Custom (specify months)")
+
+	var choice int
+	for {
+		fmt.Print("\nEnter your choice (1-5): ")
+		_, err := fmt.Fscan(reader, &choice)
+		if err == nil && choice >= 1 && choice <= 5 {
+			break
+		}
+		if err != nil {
+			reader.ReadString('\n') // clear buffer
+		}
+		fmt.Println("Invalid choice. Please enter 1-5.")
+	}
+
+	switch choice {
+	case 1:
+		return 180
+	case 2:
+		return 365
+	case 3:
+		return 730
+	case 4:
+		return 1095
+	case 5:
+		var months int
+		for {
+			fmt.Print("Enter number of months (6-36): ")
+			_, err := fmt.Fscan(reader, &months)
+			if err == nil && months >= 6 && months <= 36 {
+				return months * 30 // approximate days
+			}
+			if err != nil {
+				reader.ReadString('\n')
+			}
+			fmt.Println("Invalid input. Please enter a number between 6 and 36.")
+		}
+	}
+	return 180 // fallback
 }
 
 func getDSN() string {

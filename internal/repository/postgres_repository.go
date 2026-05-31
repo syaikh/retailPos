@@ -1099,7 +1099,6 @@ func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, user
 	return r.GetAuditLogs(ctx, limit, offset, userID, search, action)
 }
 
-// GetPeriodComparison fetches and calculates period comparison data
 func (r *postgresRepository) GetPeriodComparison(
 	ctx context.Context,
 	currentStart, currentEnd time.Time,
@@ -1160,6 +1159,42 @@ func (r *postgresRepository) GetPeriodComparison(
 	result.PreviousRevenuePerDay = result.PreviousRevenue / days
 
 	return &result, nil
+}
+
+// GetAvailableYears returns distinct years that have sales data
+func (r *postgresRepository) GetAvailableYears(ctx context.Context, storeID *int) ([]int, error) {
+	query := `
+		SELECT DISTINCT EXTRACT(YEAR FROM created_at)::integer as year
+		FROM sales
+		WHERE status = 'completed'
+	`
+	args := []interface{}{}
+	argIdx := 1
+
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
+
+	query += " ORDER BY year DESC"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch available years: %w", err)
+	}
+	defer rows.Close()
+
+	var years []int
+	for rows.Next() {
+		var year int
+		if err := rows.Scan(&year); err != nil {
+			continue
+		}
+		years = append(years, year)
+	}
+
+	return years, nil
 }
 
 // ==================== PHASE 1 EXTENSIONS: Brands, Tax, UOM, Warehouses ====================

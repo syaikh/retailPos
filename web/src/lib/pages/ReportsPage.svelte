@@ -24,8 +24,9 @@
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
+  let availableYears = $state([]);
 
-// KPI data
+  // KPI data
 let kpiData = $state({
   totalRevenue: 0,
   previousRevenue: 0,
@@ -260,6 +261,16 @@ case 'daily': {
 function setPeriod(periodType) {
   selectedPeriodType = periodType;
   const range = getPeriodDateRange(periodType);
+  
+  // For calendar-based periods, set the period and fetch with default range
+  // The calendar stays open so user can change the selection
+  if (periodType === 'daily' || periodType === 'weekly' || periodType === 'monthly' || periodType === 'yearly') {
+    // Fetch with the default range immediately, keep dropdown open for calendar adjustment
+    fetchSalesWithRange(range.start, range.end);
+    return;
+  }
+  
+  // For non-calendar periods (realtime, yesterday, 7days, 30days)
   dropdownOpen = false;
   fetchSalesWithRange(range.start, range.end);
 }
@@ -624,7 +635,23 @@ async function exportToExcel() {
     fetchSalesWithRange(range.start, range.end);
   }, 300);
 
-  onMount(fetchSales);
+  // Fetch available years from backend
+  async function fetchAvailableYears() {
+    try {
+      const res = await apiFetch('/api/dashboard/years');
+      if (res.ok) {
+        const data = await res.json();
+        availableYears = data.data || [];
+      }
+    } catch (e) {
+      // Silently fail - will use defaults
+    }
+  }
+
+  onMount(() => {
+    fetchAvailableYears();
+    fetchSales();
+  });
 </script>
 
 <svelte:window 
@@ -675,70 +702,63 @@ async function exportToExcel() {
           <!-- Left Column: Period Options -->
           <div class="flex flex-col gap-1 min-w-32">
             {#each periodOptions as option}
-              {#if option.type === 'separator'}
+{#if option.type === 'separator'}
                 <div class="px-3 py-1 text-xs font-semibold text-text-muted uppercase tracking-wide">
                   {option.label}
                 </div>
               {:else}
-<button
-                   type="button"
-                   class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
-                   onclick={() => setPeriod(option.value)}
-                   onmouseenter={() => hoveredOption = option}
-                 >
-                   <option.icon size={14} />
-                   {option.label}
-                 </button>
+                <button
+                  type="button"
+                  class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => setPeriod(option.value)}
+                  onmouseenter={() => hoveredOption = option}
+                >
+                  <option.icon size={14} />
+                  {option.label}
+                </button>
               {/if}
             {/each}
           </div>
 
 <!-- Right Column: Adaptive Details & Selectors -->
-           <div class="flex-1 min-w-80 border-l border-border/50 pl-2">
-             <div class="text-xs text-text-secondary mb-2">Details</div>
-             
-             {#if hoveredOption?.value === 'daily'}
-               <div class="text-sm text-text-primary mb-2">
-                 <span class="block text-xs text-text-muted mb-2">Select Date</span>
-                 <SelectableCalendar
-                   mode="day"
-                   bind:value={selectedDailyDate}
-                   minValue={new CalendarDate(2025, 12, 16)}
-                   maxValue={yesterdayDate}
-                   theme={{
-                     bg: 'transparent',
-                     text: '#e2e8f0',
-                     muted: '#64748b',
-                     border: '#334155',
-                     hover: '#334155',
-                     selected: '#7c3aed',
-                     selectedText: '#ffffff',
-                     todayBorder: '#0ea5e9',
-                     radius: '8px'
-                   }}
-                   onValueChange={(val) => {
-                     if (val) {
-                       setPeriod('daily');
-                       const d = val.start || val;
-                       const y = d.year;
-                       const m = String(d.month).padStart(2, '0');
-                       const day = String(d.day).padStart(2, '0');
-                       const dateStr = `${y}-${m}-${day}`;
-                       fetchSalesWithRange(dateStr, dateStr);
-                     }
-                   }}
-                 />
-               </div>
-               <div class="text-xs text-text-muted">
-                 Shows hourly revenue for the selected date
-               </div>
-{:else if hoveredOption?.value === 'weekly'}
+            <div class="flex-1 min-w-80 border-l border-border/50 pl-2">
+              <div class="text-xs text-text-secondary mb-2">Details</div>
+              
+              {#if hoveredOption?.value === 'realtime'}
                 <div class="text-sm text-text-primary mb-2">
-                  <span class="block text-xs text-text-muted mb-2">Select Week</span>
+                  Real-time Revenue
+                </div>
+                <div class="text-xs text-text-muted">
+                  Shows hourly revenue from 00:00 until now
+                </div>
+              {:else if hoveredOption?.value === 'yesterday'}
+                <div class="text-sm text-text-primary mb-2">
+                  Yesterday Revenue
+                </div>
+                <div class="text-xs text-text-muted">
+                  Shows hourly revenue for the full previous day
+                </div>
+              {:else if hoveredOption?.value === '7days'}
+                <div class="text-sm text-text-primary mb-2">
+                  7 Days Revenue
+                </div>
+                <div class="text-xs text-text-muted">
+                  Shows daily revenue for the last 7 days until yesterday
+                </div>
+              {:else if hoveredOption?.value === '30days'}
+                <div class="text-sm text-text-primary mb-2">
+                  30 Days Revenue
+                </div>
+                <div class="text-xs text-text-muted">
+                  Shows daily revenue for the last 30 days until yesterday
+                </div>
+              {:else if hoveredOption?.value === 'daily'}
+                <div class="text-sm text-text-primary mb-2">
+                  <span class="block text-xs text-text-muted mb-2">Select Date</span>
                   <SelectableCalendar
-                    mode="week"
-                    bind:value={selectedWeeklyRange}
-                    minValue={new CalendarDate(2025, 12, 16)}
+                    mode="day"
+                    bind:value={selectedDailyDate}
+                    minValue={new CalendarDate(2023, 6, 16)}
                     maxValue={yesterdayDate}
                     theme={{
                       bg: 'transparent',
@@ -748,40 +768,33 @@ async function exportToExcel() {
                       hover: '#334155',
                       selected: '#7c3aed',
                       selectedText: '#ffffff',
+                      todayBorder: '#0ea5e9',
                       radius: '8px'
                     }}
-                    onValueChange={(val) => {
-                      if (val) {
-                        // Set selectedWeeklyRange first so getPeriodDateRange can read it
-                        selectedWeeklyRange = val;
-                        const start = val.start;
-                        const end = val.end;
-                        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                        // If week overlaps with today, constrain to yesterday
-                        const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
-                        const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
-                        if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
-                          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
-                        }
-                        dropdownOpen = false;
-                        selectedPeriodType = 'weekly';
-                        fetchSalesWithRange(
-                          `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
-                          endStr
-                        );
-                      }
-                    }}
+onValueChange={(val) => {
+                       if (val) {
+                         const d = val.start || val;
+                         const y = d.year;
+                         const m = String(d.month).padStart(2, '0');
+                         const day = String(d.day).padStart(2, '0');
+                         const dateStr = `${y}-${m}-${day}`;
+                         selectedPeriodType = 'daily';
+                         dropdownOpen = false;
+                         fetchSalesWithRange(dateStr, dateStr);
+                       }
+                     }}
                   />
                 </div>
                 <div class="text-xs text-text-muted">
-                  Shows daily revenue for the selected week
+                  Shows hourly revenue for the selected date
                 </div>
-             {:else if hoveredOption?.value === 'monthly'}
-               <div class="text-sm text-text-primary mb-2">
-                 <span class="block text-xs text-text-muted mb-2">Select Month</span>
-<MonthlyCalendar
-                    bind:value={selectedMonthlyRange}
-                    minValue={new CalendarDate(2025, 12, 1)}
+              {:else if hoveredOption?.value === 'weekly'}
+                <div class="text-sm text-text-primary mb-2">
+                  <span class="block text-xs text-text-muted mb-2">Select Week</span>
+                  <SelectableCalendar
+                    mode="week"
+                    bind:value={selectedWeeklyRange}
+                    minValue={new CalendarDate(2023, 6, 16)}
                     maxValue={yesterdayDate}
                     theme={{
                       bg: 'transparent',
@@ -794,6 +807,48 @@ async function exportToExcel() {
                       radius: '8px'
                     }}
 onValueChange={(val) => {
+                       if (val) {
+                         selectedWeeklyRange = val;
+                         const start = val.start;
+                         const end = val.end;
+                         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                         // If week overlaps with today, constrain to yesterday
+                         const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                         const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
+                         if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
+                           endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                         }
+                         selectedPeriodType = 'weekly';
+                         dropdownOpen = false;
+                         fetchSalesWithRange(
+                           `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+                           endStr
+                         );
+                       }
+                     }}
+                  />
+                </div>
+                <div class="text-xs text-text-muted">
+                  Shows daily revenue for the selected week
+                </div>
+              {:else if hoveredOption?.value === 'monthly'}
+                <div class="text-sm text-text-primary mb-2">
+                  <span class="block text-xs text-text-muted mb-2">Select Month</span>
+                  <MonthlyCalendar
+                    bind:value={selectedMonthlyRange}
+                    minValue={new CalendarDate(2023, 6, 1)}
+                    maxValue={yesterdayDate}
+                    theme={{
+                      bg: 'transparent',
+                      text: '#e2e8f0',
+                      muted: '#64748b',
+                      border: '#334155',
+                      hover: '#334155',
+                      selected: '#7c3aed',
+                      selectedText: '#ffffff',
+                      radius: '8px'
+                    }}
+                    onValueChange={(val) => {
                       if (val) {
                         const start = val.start;
                         const end = val.end;
@@ -811,18 +866,18 @@ onValueChange={(val) => {
                       }
                     }}
                   />
-               </div>
-<div class="text-xs text-text-muted">
+                </div>
+                <div class="text-xs text-text-muted">
                   Shows daily revenue for the selected month
                 </div>
-{:else if hoveredOption?.value === 'yearly'}
+              {:else if hoveredOption?.value === 'yearly'}
                 <div class="text-sm text-text-primary mb-2">
                   <span class="block text-xs text-text-muted mb-2">Select Year</span>
                   <YearCalendar
                     bind:value={selectedYearlyRange}
-                    minValue={new CalendarDate(2025, 1, 1)}
+                    minValue={availableYears.length > 0 ? new CalendarDate(Math.min(...availableYears), 1, 1) : new CalendarDate(2023, 6, 16)}
                     maxValue={yesterdayDate}
-                    availableYears={[2025, 2026]}
+                    {availableYears}
                     theme={{
                       bg: 'transparent',
                       text: '#e2e8f0',
