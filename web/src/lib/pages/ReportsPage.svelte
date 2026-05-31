@@ -830,23 +830,25 @@ async function exportToExcel() {
                         const year = val.start.year;
                         // For current year, constrain to last month (April for May)
                         const todayJakarta = getTodayInJakarta().split('-').map(Number);
-                        const currentMonthInJakarta = todayJakarta[1];
+                        const currentMonth1Indexed = todayJakarta[1]; // 1-indexed month (05 for May)
                         let endMonth = 12;
                         let endDay = 31;
                         if (year === todayJakarta[0]) {
-                          // Go to previous month
-                          if (currentMonthInJakarta === 1) {
+                          // Current year: show only completed months
+                          if (currentMonth1Indexed === 1) {
                             // January - no previous month data in current year
                             // Show "No data available"
                             selectedPeriodType = 'yearly';
                             dropdownOpen = false;
+                            // Still fetch to trigger "No data available"
+                            fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
                             return;
                           }
-                          const firstOfCurrentMonth = getFirstOfMonthNAgoInJakarta(0);
-                          const parts = firstOfCurrentMonth.split('-').map(Number);
-                          const lastDayOfPrevMonth = getDateNDaysAgoInJakarta(1).split('-').map(Number);
-                          endMonth = lastDayOfPrevMonth[1];
-                          endDay = lastDayOfPrevMonth[2];
+                          // End at last day of previous month
+                          endMonth = currentMonth1Indexed - 1;
+                          // Get last day of previous month (JS Date uses 0-indexed months)
+                          const lastDayOfPrevMonth = new Date(year, currentMonth1Indexed - 1, 0).getDate();
+                          endDay = lastDayOfPrevMonth;
                         }
                         selectedPeriodType = 'yearly';
                         dropdownOpen = false;
