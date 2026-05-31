@@ -829,25 +829,27 @@ async function exportToExcel() {
                       if (val) {
                         const year = val.start.year;
                         // For current year, constrain to last month (April for May)
-                        const todayJakarta = getTodayInJakarta().split('-').map(Number);
-                        const currentMonth1Indexed = todayJakarta[1]; // 1-indexed month (05 for May)
+                        const todayJakarta = getTodayInJakarta();
+                        const todayParts = todayJakarta.split('-').map(Number);
+                        const currentYear = todayParts[0];
+                        const currentMonth = todayParts[1]; // 1-indexed month
                         let endMonth = 12;
                         let endDay = 31;
-                        if (year === todayJakarta[0]) {
+                        if (year === currentYear) {
                           // Current year: show only completed months
-                          if (currentMonth1Indexed === 1) {
+                          if (currentMonth === 1) {
                             // January - no previous month data in current year
-                            // Show "No data available"
+                            // Fetch will show "No data available"
                             selectedPeriodType = 'yearly';
                             dropdownOpen = false;
-                            // Still fetch to trigger "No data available"
                             fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
                             return;
                           }
                           // End at last day of previous month
-                          endMonth = currentMonth1Indexed - 1;
-                          // Get last day of previous month (JS Date uses 0-indexed months)
-                          const lastDayOfPrevMonth = new Date(year, currentMonth1Indexed - 1, 0).getDate();
+                          // new Date(year, month, 0) returns last day of previous month
+                          // For May (month=5), gives April 30
+                          endMonth = currentMonth - 1;
+                          const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getDate();
                           endDay = lastDayOfPrevMonth;
                         }
                         selectedPeriodType = 'yearly';
