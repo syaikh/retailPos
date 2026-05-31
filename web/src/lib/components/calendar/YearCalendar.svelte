@@ -32,10 +32,9 @@
 
 const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 31));
   // Calendar shows 16 years in 4x4 grid, ending at maxValue.year (or 2030)
-  // Current year will be in last row
+  // Years without data are disabled but still shown
   const maxYear = $derived(Math.min(effectiveMaxValue.year, 2030));
-  const yearStart = $derived(Math.max(minValue?.year ?? 1900, maxYear - 15));
-  // Generate exactly 16 years for 4x4 grid
+  const yearStart = $derived(Math.max(1900, maxYear - 15));
   const years = $derived(
     Array.from({ length: 16 }, (_, i) => yearStart + i)
   );
