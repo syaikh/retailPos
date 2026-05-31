@@ -808,9 +808,9 @@ onValueChange={(val) => {
                     }}
                     onValueChange={(val) => {
                       if (val) {
-                        setPeriod('yearly');
                         selectedYearlyRange = val;
                         const range = getPeriodDateRange('yearly');
+                        setPeriod('yearly');
                         fetchSalesWithRange(range.start, range.end);
                       }
                     }}
