@@ -746,10 +746,11 @@ async function exportToExcel() {
                     }}
 onValueChange={(val) => {
                       if (val) {
-                        setPeriod('weekly');
                         selectedWeeklyRange = val;
+                        selectedPeriodType = 'weekly';
                         const range = getPeriodDateRange('weekly');
                         fetchSalesWithRange(range.start, range.end);
+                        dropdownOpen = false;
                       }
                     }}
                  />
@@ -776,11 +777,11 @@ onValueChange={(val) => {
                    }}
 onValueChange={(val) => {
                       if (val) {
-                        setPeriod('monthly');
                         selectedMonthlyRange = val;
-                        // fetchSalesWithRange will use getPeriodDateRange which handles current month constraint
+                        selectedPeriodType = 'monthly';
                         const range = getPeriodDateRange('monthly');
                         fetchSalesWithRange(range.start, range.end);
+                        dropdownOpen = false;
                       }
                     }}
                  />
@@ -809,9 +810,10 @@ onValueChange={(val) => {
                     onValueChange={(val) => {
                       if (val) {
                         selectedYearlyRange = val;
+                        selectedPeriodType = 'yearly';
                         const range = getPeriodDateRange('yearly');
-                        setPeriod('yearly');
                         fetchSalesWithRange(range.start, range.end);
+                        dropdownOpen = false;
                       }
                     }}
                   />
