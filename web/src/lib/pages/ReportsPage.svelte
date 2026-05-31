@@ -263,8 +263,6 @@ case 'daily': {
 
 // Set period and fetch data
 function setPeriod(periodType) {
-  clickInsideDropdown = true;
-  
   // For calendar-based periods, keep dropdown open to allow date selection
   // Don't fetch - user must select a date from the calendar
   if (periodType === 'daily' || periodType === 'weekly' || periodType === 'monthly' || periodType === 'yearly') {
@@ -662,12 +660,14 @@ async function exportToExcel() {
 
 <svelte:window 
   onclick={(e) => { 
-    // Check if click was inside the dropdown by checking if it bubbles through
-    const target = e.target;
-    const path = e.composedPath ? e.composedPath() : [];
-    const insideDropdown = path.some(el => el?.classList?.contains?.('card-glass'));
-    
-    if(!insideDropdown) {
+    // Check if click was inside the dropdown menu using composedPath
+    const path = e.composedPath?.() || [];
+    const inDropdown = path.some(el => {
+      const classList = el?.classList;
+      return classList && (classList.contains('card-glass') || 
+                          el.closest?.('.card-glass') !== null);
+    });
+    if(!inDropdown) {
       if(showExportDropdown) showExportDropdown = false; 
       if(dropdownOpen) dropdownOpen = false;
     }
