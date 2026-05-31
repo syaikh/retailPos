@@ -9,6 +9,7 @@
     maxValue?: DateValue;
     theme?: Theme;
     class?: string;
+    availableYears?: number[];
   }
 
   let {
@@ -18,6 +19,7 @@
     maxValue,
     theme = {},
     class: className,
+    availableYears,
   }: Props = $props();
 
   let hoverYear: number | null = $state(null);
@@ -29,16 +31,13 @@
   );
 
 const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 31));
-  // Calendar shows years from (current-15) to 2030, placing current year in last row
-  const currentYearBasedStart = $derived(Math.max(minValue?.year ?? 1900, today.year - 15));
+  // Calendar shows 16 years in 4x4 grid, ending at maxValue.year (or 2030)
+  // Current year will be in last row
   const maxYear = $derived(Math.min(effectiveMaxValue.year, 2030));
-  let centerYear = $state(0);
-  $effect(() => {
-    if (centerYear === 0) centerYear = today.year;
-  });
-  // Generate years array ensuring current year is in last row
+  const yearStart = $derived(Math.max(minValue?.year ?? 1900, maxYear - 15));
+  // Generate exactly 16 years for 4x4 grid
   const years = $derived(
-    Array.from({ length: maxYear - currentYearBasedStart + 1 }, (_, i) => currentYearBasedStart + i)
+    Array.from({ length: 16 }, (_, i) => yearStart + i)
   );
 
   const getYearRange = (year: number): { start: DateValue; end: DateValue } => {
@@ -57,6 +56,9 @@ const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 
   };
 
   const isYearDisabled = (year: number): boolean => {
+    // Disable year if it has no data
+    if (availableYears && !availableYears.includes(year)) return true;
+
     const yearStart = new CalendarDate(year, 1, 1);
     const yearEnd = new CalendarDate(year, 12, 31);
 
@@ -109,26 +111,10 @@ const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 
     style={getThemeStyle(theme)}
   >
     <div class="flex items-center justify-between mb-3">
-      <button
-        class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Previous decade"
-        onclick={() => centerYear = Math.max(currentYearBasedStart, centerYear - 10)}
-        disabled={centerYear - 10 <= currentYearBasedStart}
-      >
-        <span class="text-xs">‹</span>
-      </button>
-      <span class="text-sm font-medium text-[var(--calendar-text)]">{currentYearBasedStart} - {maxYear}</span>
-      <button
-        class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Next decade"
-        onclick={() => centerYear = Math.min(maxYear, centerYear + 10)}
-        disabled={centerYear + 10 > maxYear}
-      >
-        <span class="text-xs">›</span>
-      </button>
+      <span class="text-sm font-medium text-[var(--calendar-text)]">{yearStart} - {maxYear}</span>
     </div>
 
-    <div class="grid grid-cols-5 gap-2 flex-1">
+    <div class="grid grid-cols-4 gap-2 flex-1">
       {#each years as year}
         {@const disabled = isYearDisabled(year)}
         <button

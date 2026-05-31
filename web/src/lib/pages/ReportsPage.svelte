@@ -788,33 +788,33 @@ onValueChange={(val) => {
 <div class="text-xs text-text-muted">
                   Shows daily revenue for the selected month
                 </div>
-             {:else if hoveredOption?.value === 'yearly'}
-               <div class="text-sm text-text-primary mb-2">
-                 <span class="block text-xs text-text-muted mb-2">Select Year</span>
-                 <YearCalendar
-                   bind:value={selectedYearlyRange}
-                   minValue={new CalendarDate(2025, 1, 1)}
-                   maxValue={yesterdayDate}
-                   theme={{
-                     bg: 'transparent',
-                     text: '#e2e8f0',
-                     muted: '#64748b',
-                     border: '#334155',
-                     hover: '#334155',
-                     selected: '#7c3aed',
-                     selectedText: '#ffffff',
-                     radius: '8px'
-                   }}
-                   onValueChange={(val) => {
-                     if (val) {
-                       setPeriod('yearly');
-                       const start = val.start;
-                       const end = val.end;
-                       const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                       const endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                       fetchSalesWithRange(startStr, endStr);
-                     }
-                   }}
+{:else if hoveredOption?.value === 'yearly'}
+                <div class="text-sm text-text-primary mb-2">
+                  <span class="block text-xs text-text-muted mb-2">Select Year</span>
+                  <YearCalendar
+                    bind:value={selectedYearlyRange}
+                    minValue={new CalendarDate(2025, 1, 1)}
+                    maxValue={yesterdayDate}
+                    availableYears={[2025, 2026]}
+                    theme={{
+                      bg: 'transparent',
+                      text: '#e2e8f0',
+                      muted: '#64748b',
+                      border: '#334155',
+                      hover: '#334155',
+                      selected: '#7c3aed',
+                      selectedText: '#ffffff',
+                      radius: '8px'
+                    }}
+                    onValueChange={(val) => {
+                      if (val) {
+                        setPeriod('yearly');
+                        selectedYearlyRange = val;
+                        const range = getPeriodDateRange('yearly');
+                        fetchSalesWithRange(range.start, range.end);
+                      }
+                    }}
+                  />
                  />
                </div>
 <div class="text-xs text-text-muted">
