@@ -231,13 +231,19 @@ case 'daily': {
         const start = selectedYearlyRange.start;
         let endMonth = 12;
         let endDay = 31;
-        // If current year selected, constrain to last month (not including current month)
+        // If current year selected, constrain to last month
         const todayJakarta = getTodayInJakarta().split('-').map(Number);
-        if (start.year === todayJakarta[0]) {
+        const currentYear = todayJakarta[0];
+        const currentMonth = todayJakarta[1]; // 1-indexed month
+        if (start.year === currentYear) {
+          if (currentMonth === 1) {
+            // January - no previous month in current year
+            return { start: `${start.year}-01-01`, end: `${start.year}-01-01` };
+          }
           // End at last day of previous month
-          const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
-          endMonth = yesterday[1];
-          endDay = yesterday[2];
+          endMonth = currentMonth - 1;
+          const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+          endDay = lastDayOfPrevMonth;
         }
         return {
           start: `${start.year}-01-01`,
@@ -785,7 +791,7 @@ async function exportToExcel() {
                       selectedText: '#ffffff',
                       radius: '8px'
                     }}
-                    onValueChange={(val) => {
+onValueChange={(val) => {
                       if (val) {
                         const start = val.start;
                         const end = val.end;
