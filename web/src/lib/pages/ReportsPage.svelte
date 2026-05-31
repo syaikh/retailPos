@@ -418,11 +418,12 @@ async function fetchSalesWithRange(start, end) {
       search: searchQuery.trim(),
     });
 
-    // Select chart endpoint based on chartType
-    const chartEndpoint = chartType === 'monthly'
+    // Select chart endpoint based on selectedPeriodType
+    // yearly -> monthly, monthly/weekly -> daily, daily/yesterday/realtime -> hourly
+    const chartEndpoint = selectedPeriodType === 'yearly'
       ? '/api/dashboard/chart/monthly'
-      : chartType === 'high-unit'
-      ? '/api/dashboard/chart/yearly'
+      : selectedPeriodType === 'monthly' || selectedPeriodType === 'weekly'
+      ? '/api/dashboard/chart'
       : '/api/dashboard/chart';
 
     const [salesRes, chartRes, comparisonRes] = await Promise.all([
@@ -828,6 +829,8 @@ async function exportToExcel() {
                     onValueChange={(val) => {
                       if (val) {
                         const year = val.start.year;
+                        // Set period type first to ensure correct chart endpoint
+                        selectedPeriodType = 'yearly';
                         // For current year, constrain to last month (April for May)
                         const todayJakarta = getTodayInJakarta();
                         const todayParts = todayJakarta.split('-').map(Number);
@@ -840,7 +843,6 @@ async function exportToExcel() {
                           if (currentMonth === 1) {
                             // January - no previous month data in current year
                             // Fetch will show "No data available"
-                            selectedPeriodType = 'yearly';
                             dropdownOpen = false;
                             fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
                             return;
@@ -852,7 +854,6 @@ async function exportToExcel() {
                           const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getDate();
                           endDay = lastDayOfPrevMonth;
                         }
-                        selectedPeriodType = 'yearly';
                         dropdownOpen = false;
                         fetchSalesWithRange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
                       }
