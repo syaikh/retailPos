@@ -122,6 +122,11 @@
     }
     return false;
   };
+
+  // Check if any month is selectable
+  const hasSelectableMonths = $derived(
+    months.some((_, i) => !isMonthDisabled(i + 1))
+  );
 </script>
 
 <div class={cn("inline-block w-72", className)}>
@@ -149,21 +154,26 @@
       </button>
     </div>
 
-<div class="grid grid-cols-4 gap-2 flex-1">
-       {#each months as monthName, i}
-         {@const month = i + 1}
-         {@const disabled = isMonthDisabled(month)}
-         {@const current = isCurrentMonth(month)}
-         <button
-           class={getMonthClass(year, month)}
-           disabled={disabled}
-           onmouseenter={() => !disabled && handleMouseEnter(month)}
-           onmouseleave={() => handleMouseLeave()}
-           onclick={(e) => { e.stopPropagation(); handleMonthClick(month); }}
-         >
-           {monthName}
-         </button>
-       {/each}
-     </div>
+    <div class="grid grid-cols-4 gap-2 flex-1">
+      {#if hasSelectableMonths}
+        {#each months as monthName, i}
+          {@const month = i + 1}
+          {@const disabled = isMonthDisabled(month)}
+          <button
+            class={getMonthClass(year, month)}
+            disabled={disabled}
+            onmouseenter={() => !disabled && handleMouseEnter(month)}
+            onmouseleave={() => handleMouseLeave()}
+            onclick={(e) => { e.stopPropagation(); handleMonthClick(month); }}
+          >
+            {monthName}
+          </button>
+        {/each}
+      {:else}
+        <div class="col-span-4 flex items-center justify-center text-xs text-center text-[var(--calendar-muted)]">
+          No selectable months in this year.<br/>Click ‹ to view previous years.
+        </div>
+      {/if}
+    </div>
   </div>
 </div>

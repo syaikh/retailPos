@@ -170,34 +170,41 @@
     hoverDate = null;
   };
 
-  // Get current month dates with padding
+  // Get current month dates with padding (max 5 rows = 35 days)
   function getMonthDates(year: number, month: number) {
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
     const days: DateValue[] = [];
+    const maxDays = 35;
 
     // Add previous month days
     const firstDayOfWeek = firstDay.getDay() || 7;
     const prevMonthEnd = new Date(year, month - 1, 0).getDate();
-    for (let i = firstDayOfWeek - 1; i > 0; i--) {
+    for (let i = firstDayOfWeek - 1; i > 0 && days.length < maxDays; i--) {
       days.push(new CalendarDate(year, month - 1, prevMonthEnd - i + 1));
     }
 
     // Add current month days
-    for (let i = 1; i <= lastDay.getDate(); i++) {
+    for (let i = 1; i <= lastDay.getDate() && days.length < maxDays; i++) {
       days.push(new CalendarDate(year, month, i));
     }
 
-    // Add next month days
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      days.push(new CalendarDate(year, month + 1, i));
+    // Add next month days to fill 35 days max
+    const daysAdded = days.length;
+    const nextMonth = month + 1;
+    for (let i = 1; i <= maxDays - daysAdded; i++) {
+      days.push(new CalendarDate(year, nextMonth, i));
     }
 
     return days;
   }
 
   const monthDates = $derived(getMonthDates(displayMonth.year, displayMonth.month));
+
+  // Check if there are any selectable dates in the current month view
+  const hasSelectableDates = $derived(
+    monthDates.some(date => !isDateDisabled(date))
+  );
 </script>
 
 <div class={cn("inline-block w-72", className)}>
@@ -235,18 +242,24 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
       {/each}
     </div>
 
-    <div class="grid grid-cols-7 gap-0.5" onmouseleave={handleMouseLeave}>
-      {#each monthDates as date}
-        {@const todayFlag = isToday(date)}
-        <button
-          class={getDayClass(date, { year: displayMonth.year, month: displayMonth.month })}
-          disabled={isDateDisabled(date)}
-          onmouseenter={() => handleMouseEnter(date)}
-          onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
-        >
-          <span class={cn(todayFlag && "font-bold")}>{date.day}</span>
-        </button>
-      {/each}
-    </div>
+    {#if !hasSelectableDates}
+      <div class="text-xs text-center py-4 text-[var(--calendar-muted)]">
+        No selectable dates in this month.<br/>Click ‹ to view previous months.
+      </div>
+    {:else}
+      <div class="grid grid-cols-7 gap-0.5" onmouseleave={handleMouseLeave}>
+        {#each monthDates as date}
+          {@const todayFlag = isToday(date)}
+          <button
+            class={getDayClass(date, { year: displayMonth.year, month: displayMonth.month })}
+            disabled={isDateDisabled(date)}
+            onmouseenter={() => handleMouseEnter(date)}
+            onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
+          >
+            <span class={cn(todayFlag && "font-bold")}>{date.day}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
 </div>
