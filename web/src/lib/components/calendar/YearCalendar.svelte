@@ -122,7 +122,7 @@ const effectiveMaxValue = $derived(maxValue ?? new CalendarDate(today.year, 12, 
           {disabled}
           onmouseenter={() => !disabled && (hoverYear = year)}
           onmouseleave={() => (hoverYear = null)}
-          onclick={() => handleYearClick(year)}
+          onclick={(e) => { e.stopPropagation(); handleYearClick(year); }}
         >
           {year}
         </button>

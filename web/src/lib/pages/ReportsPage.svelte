@@ -263,19 +263,21 @@ case 'daily': {
 
 // Set period and fetch data
 function setPeriod(periodType) {
-  selectedPeriodType = periodType;
-  const range = getPeriodDateRange(periodType);
+  clickInsideDropdown = true;
   
   // For calendar-based periods, keep dropdown open to allow date selection
   // Don't fetch - user must select a date from the calendar
   if (periodType === 'daily' || periodType === 'weekly' || periodType === 'monthly' || periodType === 'yearly') {
+    // Don't change selectedPeriodType - button text stays as-is
     // Don't change activePeriodType - chart stays as-is
     return;
   }
   
   // For non-calendar periods (realtime, yesterday, 7days, 30days)
+  selectedPeriodType = periodType;
   activePeriodType = periodType;
   dropdownOpen = false;
+  const range = getPeriodDateRange(periodType);
   fetchSalesWithRange(range.start, range.end);
 }
 
@@ -659,9 +661,16 @@ async function exportToExcel() {
 </script>
 
 <svelte:window 
-  onclick={() => { 
-    if(showExportDropdown) showExportDropdown = false; 
-    if(dropdownOpen) dropdownOpen = false;
+  onclick={(e) => { 
+    // Check if click was inside the dropdown by checking if it bubbles through
+    const target = e.target;
+    const path = e.composedPath ? e.composedPath() : [];
+    const insideDropdown = path.some(el => el?.classList?.contains?.('card-glass'));
+    
+    if(!insideDropdown) {
+      if(showExportDropdown) showExportDropdown = false; 
+      if(dropdownOpen) dropdownOpen = false;
+    }
   }} 
   onkeydown={(e) => { 
     if(e.key === 'Escape' && showExportDropdown) showExportDropdown = false; 
@@ -697,8 +706,6 @@ async function exportToExcel() {
       {#if dropdownOpen}
         <div
           class="absolute left-0 top-full mt-2 card-glass p-2 z-50 min-w-[28rem] flex gap-2"
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
           role="menu"
           tabindex="-1"
           transition:fly={{ y: -8, duration: 200 }}
@@ -711,10 +718,11 @@ async function exportToExcel() {
                   {option.label}
                 </div>
               {:else}
+                {@const isCalendarOption = ['daily', 'weekly', 'monthly', 'yearly'].includes(option.value)}
                 <button
                   type="button"
                   class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
-                  onclick={() => setPeriod(option.value)}
+                  onclick={() => { if (!isCalendarOption) setPeriod(option.value); }}
                   onmouseenter={() => hoveredOption = option}
                 >
                   <option.icon size={14} />

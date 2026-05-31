@@ -209,10 +209,7 @@
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Previous month"
-        onclick={() => {
-          const prev = displayMonth.subtract({ months: 1 });
-          displayMonth = new CalendarDate(prev.year, prev.month, 1);
-        }}
+onclick={(e) => { e.stopPropagation(); const prev = displayMonth.subtract({ months: 1 }); displayMonth = new CalendarDate(prev.year, prev.month, 1); }}
         disabled={displayMonth.year <= (minValue?.year ?? 1900) && displayMonth.month <= (minValue?.month ?? 1)}
       >
         <span class="text-xs">‹</span>
@@ -223,10 +220,7 @@
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Next month"
-        onclick={() => {
-          const next = displayMonth.add({ months: 1 });
-          displayMonth = new CalendarDate(next.year, next.month, 1);
-        }}
+onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1 }); displayMonth = new CalendarDate(next.year, next.month, 1); }}
         disabled={maxValue !== undefined && displayMonth.compare(maxValue) >= 0}
       >
         <span class="text-xs">›</span>
@@ -248,7 +242,7 @@
           class={getDayClass(date, { year: displayMonth.year, month: displayMonth.month })}
           disabled={isDateDisabled(date)}
           onmouseenter={() => handleMouseEnter(date)}
-          onclick={() => handleDayClick(date)}
+          onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
         >
           <span class={cn(todayFlag && "font-bold")}>{date.day}</span>
         </button>

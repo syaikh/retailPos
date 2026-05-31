@@ -133,7 +133,7 @@
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Previous year"
-        onclick={() => year = Math.max(minValue?.year ?? 1900, year - 1)}
+        onclick={(e) => { e.stopPropagation(); year = Math.max(minValue?.year ?? 1900, year - 1); }}
         disabled={year <= (minValue?.year ?? 1900)}
       >
         <span class="text-xs">‹</span>
@@ -142,7 +142,7 @@
       <button
         class="inline-flex items-center justify-center rounded-md p-1 text-[var(--calendar-text)] hover:bg-[var(--calendar-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Next year"
-        onclick={() => year = Math.min(maxValue?.year ?? 2100, year + 1)}
+        onclick={(e) => { e.stopPropagation(); year = Math.min(maxValue?.year ?? 2100, year + 1); }}
         disabled={year >= (maxValue?.year ?? 2100)}
       >
         <span class="text-xs">›</span>
@@ -159,7 +159,7 @@
            disabled={disabled}
            onmouseenter={() => !disabled && handleMouseEnter(month)}
            onmouseleave={() => handleMouseLeave()}
-           onclick={() => handleMonthClick(month)}
+           onclick={(e) => { e.stopPropagation(); handleMonthClick(month); }}
          >
            {monthName}
          </button>
