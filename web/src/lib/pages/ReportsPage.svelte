@@ -81,11 +81,6 @@ let selectedYear = $state(new Date().getFullYear());
 // Yearly selector state
 let selectedYearlyRange = $state(null);
 
-// Track previous values to detect changes
-let prevYearlyRange = $state(null);
-let prevMonthlyRange = $state(null);
-let prevWeeklyRange = $state(null);
-
 // Export dropdown
 let showExportDropdown = $state(false);
 
