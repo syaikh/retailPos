@@ -4,7 +4,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { chart } from '$lib/actions/chart';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
