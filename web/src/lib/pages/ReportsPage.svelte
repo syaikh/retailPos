@@ -242,7 +242,7 @@ case 'daily': {
           }
           // End at last day of previous month
           endMonth = currentMonth - 1;
-          const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+          const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0).getUTCDate();
           endDay = lastDayOfPrevMonth;
         }
         return {
@@ -752,6 +752,8 @@ async function exportToExcel() {
                     }}
                     onValueChange={(val) => {
                       if (val) {
+                        // Set selectedWeeklyRange first so getPeriodDateRange can read it
+                        selectedWeeklyRange = val;
                         const start = val.start;
                         const end = val.end;
                         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
@@ -761,8 +763,8 @@ async function exportToExcel() {
                         if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
                           endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
                         }
-                        selectedPeriodType = 'weekly';
                         dropdownOpen = false;
+                        selectedPeriodType = 'weekly';
                         fetchSalesWithRange(
                           `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
                           endStr
@@ -855,7 +857,7 @@ onValueChange={(val) => {
                           // new Date(year, month, 0) returns last day of previous month
                           // For May (month=5), gives April 30
                           endMonth = currentMonth - 1;
-                          const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getDate();
+                          const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getUTCDate();
                           endDay = lastDayOfPrevMonth;
                         }
                         selectedPeriodType = 'yearly';
