@@ -120,7 +120,7 @@ const periodOptions = [
 // Derived: Chart type based on period selection (per PRD section 5)
 let chartType = $derived(
   ['realtime', 'yesterday', 'daily'].includes(selectedPeriodType) ? 'hourly' :
-  ['weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'monthly'
+  ['7days', '30days', 'weekly', 'monthly'].includes(selectedPeriodType) ? 'daily' : 'monthly'
 );
 
 // Derived: Stat card labels based on period selection (per PRD section 5)
@@ -418,12 +418,11 @@ async function fetchSalesWithRange(start, end) {
       search: searchQuery.trim(),
     });
 
-    // Select chart endpoint based on selectedPeriodType
-    // yearly -> monthly, monthly/weekly -> daily, daily/yesterday/realtime -> hourly
-    const chartEndpoint = selectedPeriodType === 'yearly'
+    // Select chart endpoint based on chartType
+    const chartEndpoint = chartType === 'monthly'
       ? '/api/dashboard/chart/monthly'
-      : selectedPeriodType === 'monthly' || selectedPeriodType === 'weekly'
-      ? '/api/dashboard/chart'
+      : chartType === 'high-unit'
+      ? '/api/dashboard/chart/yearly'
       : '/api/dashboard/chart';
 
     const [salesRes, chartRes, comparisonRes] = await Promise.all([
@@ -829,8 +828,6 @@ async function exportToExcel() {
                     onValueChange={(val) => {
                       if (val) {
                         const year = val.start.year;
-                        // Set period type first to ensure correct chart endpoint
-                        selectedPeriodType = 'yearly';
                         // For current year, constrain to last month (April for May)
                         const todayJakarta = getTodayInJakarta();
                         const todayParts = todayJakarta.split('-').map(Number);
@@ -843,6 +840,7 @@ async function exportToExcel() {
                           if (currentMonth === 1) {
                             // January - no previous month data in current year
                             // Fetch will show "No data available"
+                            selectedPeriodType = 'yearly';
                             dropdownOpen = false;
                             fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
                             return;
@@ -854,6 +852,7 @@ async function exportToExcel() {
                           const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getDate();
                           endDay = lastDayOfPrevMonth;
                         }
+                        selectedPeriodType = 'yearly';
                         dropdownOpen = false;
                         fetchSalesWithRange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
                       }
