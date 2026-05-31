@@ -81,6 +81,11 @@ let selectedYear = $state(new Date().getFullYear());
 // Yearly selector state
 let selectedYearlyRange = $state(null);
 
+// Track previous values to detect changes
+let prevYearlyRange = $state(null);
+let prevMonthlyRange = $state(null);
+let prevWeeklyRange = $state(null);
+
 // Export dropdown
 let showExportDropdown = $state(false);
 
@@ -744,47 +749,65 @@ async function exportToExcel() {
                       selectedText: '#ffffff',
                       radius: '8px'
                     }}
-onValueChange={(val) => {
+                    onValueChange={(val) => {
                       if (val) {
-                        selectedWeeklyRange = val;
+                        const start = val.start;
+                        const end = val.end;
+                        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                        // If week overlaps with today, constrain to yesterday
+                        const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                        const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
+                        if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
+                          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                        }
                         selectedPeriodType = 'weekly';
-                        const range = getPeriodDateRange('weekly');
-                        fetchSalesWithRange(range.start, range.end);
                         dropdownOpen = false;
+                        fetchSalesWithRange(
+                          `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+                          endStr
+                        );
                       }
                     }}
-                 />
-               </div>
-<div class="text-xs text-text-muted">
+                  />
+                </div>
+                <div class="text-xs text-text-muted">
                   Shows daily revenue for the selected week
                 </div>
              {:else if hoveredOption?.value === 'monthly'}
                <div class="text-sm text-text-primary mb-2">
                  <span class="block text-xs text-text-muted mb-2">Select Month</span>
-                 <MonthlyCalendar
-                   bind:value={selectedMonthlyRange}
-                   minValue={new CalendarDate(2025, 12, 1)}
-                   maxValue={yesterdayDate}
-                   theme={{
-                     bg: 'transparent',
-                     text: '#e2e8f0',
-                     muted: '#64748b',
-                     border: '#334155',
-                     hover: '#334155',
-                     selected: '#7c3aed',
-                     selectedText: '#ffffff',
-                     radius: '8px'
-                   }}
-onValueChange={(val) => {
+<MonthlyCalendar
+                    bind:value={selectedMonthlyRange}
+                    minValue={new CalendarDate(2025, 12, 1)}
+                    maxValue={yesterdayDate}
+                    theme={{
+                      bg: 'transparent',
+                      text: '#e2e8f0',
+                      muted: '#64748b',
+                      border: '#334155',
+                      hover: '#334155',
+                      selected: '#7c3aed',
+                      selectedText: '#ffffff',
+                      radius: '8px'
+                    }}
+                    onValueChange={(val) => {
                       if (val) {
-                        selectedMonthlyRange = val;
+                        const start = val.start;
+                        const end = val.end;
+                        const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                        // If current month selected, constrain to yesterday
+                        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+                        if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+                          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+                          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                        }
                         selectedPeriodType = 'monthly';
-                        const range = getPeriodDateRange('monthly');
-                        fetchSalesWithRange(range.start, range.end);
                         dropdownOpen = false;
+                        fetchSalesWithRange(startStr, endStr);
                       }
                     }}
-                 />
+                  />
                </div>
 <div class="text-xs text-text-muted">
                   Shows daily revenue for the selected month
@@ -809,20 +832,25 @@ onValueChange={(val) => {
                     }}
                     onValueChange={(val) => {
                       if (val) {
-                        selectedYearlyRange = val;
+                        const year = val.start.year;
+                        const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                        let endMonth = 12;
+                        let endDay = 31;
+                        if (year === yesterday[0]) {
+                          endMonth = yesterday[1];
+                          endDay = yesterday[2];
+                        }
                         selectedPeriodType = 'yearly';
-                        const range = getPeriodDateRange('yearly');
-                        fetchSalesWithRange(range.start, range.end);
                         dropdownOpen = false;
+                        fetchSalesWithRange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
                       }
                     }}
                   />
-                 />
-               </div>
-<div class="text-xs text-text-muted">
+                </div>
+                <div class="text-xs text-text-muted">
                   Shows monthly revenue for the selected year
                 </div>
-             {/if}
+              {/if}
              
              <div class="text-xs text-text-muted mt-2">
                Timezone: {timezoneString}
