@@ -132,6 +132,59 @@ export function getCurrentJakartaHour(): number {
   return (now.getUTCHours() + 7) % 24;
 }
 
+/**
+ * Returns today's date in Jakarta timezone as an object for CalendarDate construction.
+ * This should be used by calendar components to get the correct "today" reference.
+ */
+export function getTodayJakartaDate(): { year: number; month: number; day: number } {
+  const { year, month, day } = getJakartaDateParts();
+  return { year, month: month + 1, day }; // month is 0-indexed, CalendarDate uses 1-indexed
+}
+
+/**
+ * Returns the Jakarta day of week (0=Sunday, 1=Monday, ..., 6=Saturday).
+ * Used for the 3-day rule threshold calculation.
+ * 
+ * Per the requirement: Monday=1, Tuesday=2, Wednesday=3, Thursday=4 (threshold day)
+ * Weeks starting on Mon-Wed should be disabled (only 1-2 days completed by Thursday)
+ * Weeks starting on Thu or later are selectable (3+ days completed)
+ */
+export function getJakartaDayOfWeek(): number {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return shifted.getUTCDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+}
+
+/**
+ * Returns the number of completed days in the current week (Jakarta).
+ * Counts from Monday to yesterday.
+ * 
+ * For example:
+ * - Sunday (start of week): 0 days completed
+ * - Monday: 0 days completed  
+ * - Tuesday: 1 day completed (Monday)
+ * - Wednesday: 2 days completed (Mon, Tue)
+ * - Thursday: 3 days completed (Mon, Tue, Wed) - threshold met
+ * - Friday: 4 days completed
+ * - Saturday: 5 days completed (full week minus today)
+ */
+export function getCompletedDaysInCurrentWeek(): number {
+  const dayOfWeek = getJakartaDayOfWeek();
+  // If today is Monday (1), no completed days yet (Mon to yesterday = none)
+  // If today is Sunday (0), 6 completed days (Mon-Sat)
+  // Formula: completed days = (dayOfWeek - 1 + 7) % 7, but at least 0
+  // Actually: completed days = days from Monday to yesterday
+  // Monday=1 -> yesterday was Sunday(0) of prev week -> need to handle edge case
+  
+  // Simpler: completed days in current week = days from Monday to yesterday
+  // If dayOfWeek === 1 (Monday), yesterday was Sunday of previous week -> 0 days
+  // If dayOfWeek === 2 (Tuesday), yesterday was Monday -> 1 day
+  // If dayOfWeek === 4 (Thursday), yesterday was Wednesday -> 3 days (threshold met!)
+  // If dayOfWeek === 0 (Sunday), yesterday was Saturday -> 6 days
+  
+  if (dayOfWeek === 1) return 0; // Monday - no completed days in current week
+  return dayOfWeek - 1; // Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+}
+
 // ---------------------------------------------------------------------------
 // Formatting helper
 // ---------------------------------------------------------------------------

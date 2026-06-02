@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
+  import { getTodayJakartaDate, getCompletedDaysInCurrentWeek, getJakartaDayOfWeek } from '$lib/utils/jakartaTime';
 
   type SelectionMode = "day" | "week";
 
@@ -31,11 +32,15 @@
     1
   ));
 
+  // Use Jakarta timezone for today to match backend calculations
   const today = new CalendarDate(
-    new Date().getFullYear(),
-    new Date().getMonth() + 1,
-    new Date().getDate()
+    getTodayJakartaDate().year,
+    getTodayJakartaDate().month,
+    getTodayJakartaDate().day
   );
+
+  // Get day of week for threshold calculation (0=Sunday, 1=Monday, ..., 6=Saturday)
+  const jakartaDayOfWeek = getJakartaDayOfWeek();
 
   const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -98,9 +103,10 @@
       isHoverEnd && !selected && !disabled && "rounded-r-md",
       disabled && "text-[var(--calendar-muted)] opacity-40 cursor-not-allowed rounded-md bg-[var(--calendar-disabled-bg)]",
       todayFlag && mode === "week" && !selected && "text-[var(--calendar-muted)] opacity-40 rounded-md bg-[var(--calendar-disabled-bg)]",
+      // Today flag styling: only apply if NOT disabled (to avoid overriding disabled styling)
+      todayFlag && !disabled && !selected && !hover && mode !== "week" && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1",
       !disabled && !selected && !hover && !todayFlag && !inCurrentMonth && "text-[var(--calendar-muted)] opacity-60",
-      !disabled && !selected && !hover && !todayFlag && inCurrentMonth && "text-[var(--calendar-text)]",
-      todayFlag && !selected && !disabled && !hover && mode !== "week" && "ring-2 ring-[var(--calendar-today-border)] ring-offset-1"
+      !disabled && !selected && !hover && !todayFlag && inCurrentMonth && "text-[var(--calendar-text)]"
     );
   };
 
@@ -129,6 +135,13 @@
   const isDateInHoverRange = (date: DateValue): boolean => {
     if (!hoverDate) return false;
     let range = mode === "week" ? getWeekRange(hoverDate) : { start: hoverDate, end: hoverDate };
+    // For week mode, check if hovering over a disabled (current partial) week
+    const isCurrentWeekHover = mode === "week" && 
+      range.start.compare(today) <= 0 && range.end.compare(today) >= 0 &&
+      jakartaDayOfWeek >= 1 && jakartaDayOfWeek <= 3; // Mon, Tue, Wed - before threshold
+    
+    // Don't apply hover effect on disabled dates
+    if (isCurrentWeekHover) return false;
     // Constrain hover range to minValue/maxValue for partial week support
     if (mode === "week" && minValue && range.start.compare(minValue) < 0) {
       range = { start: minValue, end: range.end };
@@ -141,10 +154,27 @@
 
   const isDateDisabled = (date: DateValue): boolean => {
     if (minValue && date.compare(minValue) < 0) return true;
+    
+    // For week mode, check 3-day threshold rule
     if (maxValue && mode === "week") {
-      // For week mode, disable if the week is completely after maxValue
       const weekStart = getWeekRange(date).start;
-      if (weekStart.compare(maxValue) > 0) return true;
+      const weekEnd = getWeekRange(date).end;
+      
+      // Check if this week is the current week (contains today or overlaps with today)
+      const isCurrentWeek = weekStart.compare(today) <= 0 && weekEnd.compare(today) >= 0;
+      
+      // If this is the current week, check if 3+ days have passed (threshold rule)
+      // Monday(1), Tuesday(2), Wednesday(3) -> 0, 1, 2 completed days -> DISABLED
+      // Thursday(4), Friday(5), Saturday(6), Sunday(0) -> 3+ days completed -> SELECTABLE
+      if (isCurrentWeek) {
+        // Disable if dayOfWeek is Mon(1), Tue(2), or Wed(3) - less than 3 full days completed
+        if (jakartaDayOfWeek >= 1 && jakartaDayOfWeek <= 3) {
+          return true;
+        }
+      }
+      
+      // For non-current weeks, check if week extends beyond maxValue
+      if (weekEnd.compare(maxValue) > 0) return true;
     } else if (maxValue && mode !== "week") {
       // For day mode, disable if date is after maxValue
       if (date.compare(maxValue) > 0) return true;
@@ -250,13 +280,14 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
       <div class="grid grid-cols-7 gap-0.5" onmouseleave={handleMouseLeave}>
         {#each monthDates as date}
           {@const todayFlag = isToday(date)}
+          {@const disabledFlag = isDateDisabled(date)}
           <button
             class={getDayClass(date, { year: displayMonth.year, month: displayMonth.month })}
-            disabled={isDateDisabled(date)}
+            disabled={disabledFlag}
             onmouseenter={() => handleMouseEnter(date)}
             onclick={(e) => { e.stopPropagation(); handleDayClick(date); }}
           >
-            <span class={cn(todayFlag && "font-bold")}>{date.day}</span>
+            <span class={cn(todayFlag && !disabledFlag && "font-bold")}>{date.day}</span>
           </button>
         {/each}
       </div>

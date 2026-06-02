@@ -16,6 +16,7 @@ import { chart } from '$lib/actions/chart';
     CalendarDays, Download, FileSpreadsheet,
     ChevronDown, Eye, Search, X,
     Clock, TrendingUp, TrendingDown, Info,
+    CircleDollarSign
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -128,29 +129,77 @@ let chartType = $derived(
 );
 
 // Derived: Stat card labels based on period selection
-let statCardLabels = $derived({
-  card4: 
-    chartType === 'hourly' ? 'Peak Revenue Hour' :
-    activePeriodType === 'yearly' ? 'Peak Revenue Month' :
-    activePeriodType === 'monthly' ? 'Avg. Revenue / Week' : 'Avg. Revenue / Day',
-  card5:
-    activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(new Date().getHours()).padStart(2, '0') + ':00)' :
-    activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
-    activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
-    activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
-    activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
-    activePeriodType === 'weekly' ? 'vs SAME WEEK LAST YEAR' :
-    activePeriodType === 'monthly' ? 'vs SAME MONTH LAST YEAR' :
-    activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
-  comparisonLabel:
-    activePeriodType === 'realtime' ? 'vs Yesterday (' + String(new Date().getHours()).padStart(2, '0') + 'hrs)' :
-    activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
-    activePeriodType === 'daily' ? 'vs Same Day Last Week' :
-    activePeriodType === '7days' ? 'vs Previous 7 Days' :
-    activePeriodType === '30days' ? 'vs Previous 30 Days' :
-    activePeriodType === 'weekly' ? 'vs Same Week Last Year' :
-    activePeriodType === 'monthly' ? 'vs Same Month Last Year' :
-    activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
+let statCardLabels = $derived.by(() => {
+  // Helper to get day range label for weekly partial periods
+  const getWeeklyDayRangeLabel = () => {
+    const currentStart = kpiData.periodInfo?.current_period?.start;
+    const currentEnd = kpiData.periodInfo?.current_period?.end;
+    
+    if (!currentStart || !currentEnd) return 'vs SAME WEEK LAST YEAR';
+    
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const currentStartDate = new Date(currentStart);
+    const currentEndDate = new Date(currentEnd);
+    const startDayName = dayNames[currentStartDate.getUTCDay()];
+    const endDayName = dayNames[currentEndDate.getUTCDay()];
+    
+    return `vs Same Days Last Week (${startDayName}-${endDayName})`;
+  };
+  
+  // Helper to get monthly date range label
+  const getMonthlyDateRangeLabel = () => {
+    const prevStart = kpiData.periodInfo?.previous_period?.start;
+    const prevEnd = kpiData.periodInfo?.previous_period?.end;
+    
+    if (!prevStart || !prevEnd) return 'vs Previous Month';
+    
+    // For MTD comparison, show: "vs dd Mon - dd Mon" (previous month's date range)
+    // e.g., "vs 1 Mei - 2 Mei" for June 1-2 MTD comparison vs May 1-2
+    const prevStartDate = new Date(prevStart);
+    const prevEndDate = new Date(prevEnd);
+    
+    // Check if this is a single date or a range
+    const startDay = prevStartDate.getUTCDate();
+    const endDay = prevEndDate.getUTCDate();
+    
+    if (startDay === endDay) {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `vs ${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
+    }
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const startStr = `${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
+    const endStr = `${endDay} ${monthNames[prevEndDate.getUTCMonth()]}`;
+    
+    return `vs ${startStr} - ${endStr}`;
+  };
+  
+  return {
+    card4: 
+      chartType === 'hourly' ? 'Peak Revenue Hour' :
+      activePeriodType === 'yearly' ? 'Peak Revenue Month' :
+      activePeriodType === 'monthly' ? 'Avg. Revenue / Day' : 'Avg. Revenue / Day',
+    card5:
+      activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(new Date().getHours()).padStart(2, '0') + ':00)' :
+      activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
+      activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
+      activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
+      activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
+      activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
+        getWeeklyDayRangeLabel() : 'vs SAME WEEK LAST YEAR') :
+      activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
+      activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
+    comparisonLabel:
+      activePeriodType === 'realtime' ? 'vs Yesterday (' + String(new Date().getHours()).padStart(2, '0') + 'hrs)' :
+      activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
+      activePeriodType === 'daily' ? 'vs Same Day Last Week' :
+      activePeriodType === '7days' ? 'vs Previous 7 Days' :
+      activePeriodType === '30days' ? 'vs Previous 30 Days' :
+      activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
+        getWeeklyDayRangeLabel() : 'vs Same Week Last Year') :
+      activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs Previous Month') :
+      activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
+  };
 });
 
 // Format currency with abbreviations for large values (Rp 120.5jt, Rp 2.3M)
@@ -202,7 +251,33 @@ let comparisonDateRange = $derived.by(() => {
     return '';
   }
 
-  // For weekly/monthly, show the range
+  // For weekly: show partial week range if applicable
+  if (activePeriodType === 'weekly') {
+    if (prev.start && prev.end) {
+      // For partial week, show the same day range
+      if (kpiData.isPartial && kpiData.periodInfo?.current_period) {
+        const curr = kpiData.periodInfo.current_period;
+        const currStart = curr.start;
+        const currEnd = curr.end;
+        // Show previous period range matching current period length
+        return `${formatDate(prev.start)} - ${formatDate(prev.end)} (${formatDate(currStart)} - ${formatDate(currEnd)})`;
+      }
+      return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+    }
+    return '';
+  }
+
+  // For monthly: show like-for-like date range if partial
+  if (activePeriodType === 'monthly' && prev.start && prev.end) {
+    if (kpiData.isPartial && kpiData.periodInfo?.current_period) {
+      // For MTD comparison, show the previous period date range
+      // e.g., "vs 1-2 Mei 2026" for June 1-2 MTD comparison
+      return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+    }
+    return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+  }
+  
+  // For other periods, show the range
   return prev.start && prev.end ? `${formatDate(prev.start)} - ${formatDate(prev.end)}` : '';
 });
 
@@ -277,13 +352,14 @@ $effect(() => {
   return () => clearInterval(interval);
 });
 
-// Format date: dd mmm yyyy (id-ID format per PRD)
+// Format date: dd mmm yyyy (id-ID format per PRD) - timezone aware
 const formatDate = (dateString) => {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('id-ID', { month: 'short' });
-  const year = date.getFullYear();
+  // Parse as UTC to avoid timezone shifts
+  const date = new Date(dateString + 'T00:00:00Z');
+  const day = date.getUTCDate().toString().padStart(2, '0');
+  const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
+  const year = date.getUTCFullYear();
   return `${day} ${month} ${year}`;
 };
 
@@ -346,13 +422,9 @@ case 'daily': {
       if (monthlySelectionMade && selectedMonthlyRange) {
         const start = selectedMonthlyRange.start;
         const end = selectedMonthlyRange.end;
+        // For chart data: query full month range to get daily aggregation
+        // Frontend will filter out dates after yesterday
         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-        // If current month selected, constrain end to yesterday
-        const todayJakarta = getTodayInJakarta().split('-').map(Number);
-        if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
-          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
-          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
-        }
         return {
           start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
           end: endStr
@@ -450,15 +522,68 @@ const chartConfig = $derived.by(() => {
 
   if (chartType === 'hourly') {
     currentChartType = 'line';
+    // For realtime: show all hours up to and including the last full hour
+    // Example: if current time is 05:39, show hours 0-5 (last full hour is 05:00)
     labels = chartData.map(d => `${String(d.hour).padStart(2, '0')}:00`);
     values = chartData.map(d => d.total);
   } else if (chartType === 'daily') {
     currentChartType = 'line';
-    labels = chartData.map(d => {
-      const date = new Date(d.date);
-      return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
-    });
-    values = chartData.map(d => d.total);
+    
+    // For monthly view, generate labels for all days in the month
+    // Show data only up to yesterday, null for future dates
+    if (activePeriodType === 'monthly') {
+      // Use selectedMonthlyRange end for full month range, fallback to endDate state
+      // This ensures we show the full month on X-axis (e.g., June shows 1-30)
+      let periodEnd = endDate;
+      if (selectedMonthlyRange) {
+        const end = selectedMonthlyRange.end;
+        periodEnd = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+      }
+      if (periodEnd) {
+        const endDateParts = periodEnd.split('-');
+        const year = parseInt(endDateParts[0]);
+        const month = parseInt(endDateParts[1]);
+        const daysInMonth = new Date(year, month, 0).getUTCDate();
+        
+        // Yesterday in Jakarta timezone - max date to show actual data for
+        const yesterday = getDateNDaysAgoInJakarta(1);
+        
+        // Create a map of actual data, only including dates up to yesterday
+        const dataMap = {};
+        chartData.forEach(d => {
+          if (d.date && d.date <= yesterday) {
+            dataMap[d.date] = d.total;
+          }
+        });
+        
+        // Month names for X-axis labels
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Generate labels for all days in month with full date format
+        labels = [];
+        values = [];
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          // Format: "1 May", "2 May", etc.
+          labels.push(`${day} ${monthNames[month - 1]}`);
+          // Show data for dates up to yesterday, null for future dates
+          // Chart.js will skip null values
+          if (dateStr <= yesterday) {
+            values.push(dataMap[dateStr] || 0);
+          } else {
+            values.push(null);
+          }
+        }
+      }
+    } else {
+      // For weekly/daily view, show data as-is with month + day
+      labels = chartData.map((d, i) => {
+        if (!d.date) return String(i + 1);
+        const date = new Date(d.date);
+        return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+      });
+      values = chartData.map(d => d.total);
+    }
   } else if (chartType === 'monthly' || chartType === 'yearly') {
     currentChartType = 'bar';
     labels = chartData.map(d => {
@@ -529,12 +654,20 @@ options: {
            }
          }
        },
-       scales: {
-         x: {
-           grid: { display: false },
-           ticks: { color: '#9ca3af', font: { family: 'inherit' } }
-         },
-         y: {
+scales: {
+          x: {
+            grid: { display: false },
+            ticks: { 
+              color: '#9ca3af', 
+              font: { family: 'inherit' },
+              // For monthly view with many labels, rotate and limit ticks
+              maxRotation: activePeriodType === 'monthly' ? 45 : 0,
+              minRotation: activePeriodType === 'monthly' ? 45 : 0,
+              autoSkip: true,
+              maxTicksLimit: activePeriodType === 'monthly' ? 15 : 20
+            }
+          },
+          y: {
            border: { display: false },
            grid: { color: 'rgba(255, 255, 255, 0.05)' },
            ticks: {
@@ -583,9 +716,7 @@ async function fetchSalesWithRange(start, end) {
 // Select chart endpoint based on chartType
   const chartEndpoint = chartType === 'yearly'
     ? '/api/dashboard/chart/monthly' // yearly view uses monthly aggregation for whole year
-    : chartType === 'monthly'
-    ? '/api/dashboard/chart/monthly'
-    : '/api/dashboard/chart';
+    : '/api/dashboard/chart'; // daily view (for monthly/weekly/daily periods) uses daily aggregation
 
   // Map frontend period types to backend period types for comparison
   const backendPeriodType = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily'
@@ -604,23 +735,40 @@ async function fetchSalesWithRange(start, end) {
     activePeriodType === 'yearly' ? 'completed' :
     activePeriodType === '30days' ? '30days' : 'todate';
 
+  // Use yesterday as comparison date for current month (MTD comparison)
+  // Otherwise use the end date parameter
+  let comparisonDate = end;
+  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    const todayJakarta = getTodayInJakarta().split('-').map(Number);
+    const start = selectedMonthlyRange.start;
+    if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+      comparisonDate = getDateNDaysAgoInJakarta(1);
+    }
+  }
+
+  // Chart endpoint uses full month range for monthly view to get daily aggregation
+  // End date from getPeriodDateRange is already constrained to yesterday for current month
+  // We need to use the original end date from the calendar for chart data
+  let chartEndDate = end;
+  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    // For monthly view, use the full month end from calendar selection
+    const calendarEnd = selectedMonthlyRange.end;
+    chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
+  }
+
   const [salesRes, chartRes, comparisonRes] = await Promise.all([
       apiFetch(`/api/sales?${params.toString()}`),
-      apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${end}`),
-      apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${end}`)
+      apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${chartEndDate}`),
+      apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${comparisonDate}`)
     ]);
 
     if (salesRes.ok) {
       const data = await salesRes.json();
-      // For real-time, filter sales data to only show completed hours
+      // For real-time, show all transactions from today (no hour filtering)
+      // The realtime view shows live data as it happens
       if (activePeriodType === 'realtime') {
-        const lastFullHour = getCurrentJakartaHour();
-        salesData = (data.data || []).filter(sale => {
-          const hour = getJakartaHourFromUTC(sale.created_at);
-          return hour < lastFullHour;
-        });
-        // Update total to reflect filtered data
-        total = salesData.length;
+        salesData = data.data || [];
+        total = data.total || 0;
       } else {
         salesData = data.data || [];
         total = data.total || 0;
@@ -633,12 +781,17 @@ async function fetchSalesWithRange(start, end) {
       const rawData = cData.data || [];
       
       // For real-time, filter to only show full hours (include last full hour, exclude current partial hour)
+      // If current time is 05:39, lastFullHour is 05, show hours 0-5 (inclusive)
       if (activePeriodType === 'realtime') {
         const lastFullHour = getCurrentJakartaHour();
         chartData = rawData.filter(item => {
           const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
-          return hour < lastFullHour; // Exclude current partial hour (0-12 when current is 13:xx)
+          return hour <= lastFullHour; // Include last full hour (0-5 when current is 05:xx)
         });
+      } else if (chartType === 'daily' && activePeriodType === 'monthly') {
+        // For monthly view: keep all dates for chart generation
+        // The chart config will handle the full month label generation
+        chartData = rawData;
       } else {
         chartData = rawData;
       }
@@ -652,13 +805,19 @@ async function fetchSalesWithRange(start, end) {
       let percentChange = 0;
       let comparisonType = 'zero';
 
-// For real-time, totalRevenue should come from comparison (same as backend calculation)
-  // to ensure consistency with the comparison percentage
-  const totalRevenue = activePeriodType === 'realtime'
-    ? comparison.current_revenue  // Use comparison data for consistency
-    : chartType === 'hourly' && chartData.length > 0
-      ? chartData.reduce((sum, item) => sum + (item.total || 0), 0)
-      : comparison.current_revenue;
+      // Calculate chart total for use in multiple places (sum of actual data points, excluding nulls)
+      const chartTotal = chartData.reduce((sum, item) => {
+        const val = item.total || 0;
+        return sum + (val > 0 ? val : 0);
+      }, 0);
+
+      // For real-time, totalRevenue uses comparison.current_revenue for consistency
+      // For monthly/weekly/daily views, use chart total (sum of daily points)
+      const totalRevenue = activePeriodType === 'realtime'
+        ? comparison.current_revenue
+        : (chartType === 'daily' && activePeriodType !== '7days' && activePeriodType !== '30days')
+          ? chartTotal  // Use chart total for consistency with displayed chart data
+          : comparison.current_revenue;
 
       const previousRevenue = comparison.previous_revenue;
 
@@ -674,9 +833,9 @@ async function fetchSalesWithRange(start, end) {
       }
 
       kpiData = {
-        // For hourly charts, use chart total; otherwise use comparison value
-        totalRevenue: (chartType === 'hourly' && chartData.length > 0)
-          ? chartData.reduce((sum, item) => sum + (item.total || 0), 0)
+        // For hourly/monthly charts, use chart total; otherwise use comparison value
+        totalRevenue: (chartType === 'hourly' || (chartType === 'daily' && (activePeriodType === 'monthly' || activePeriodType === 'weekly' || activePeriodType === 'daily')) && chartData.length > 0)
+          ? chartTotal
           : comparison.current_revenue,
         previousRevenue,
         totalOrders: comparison.current_orders,
@@ -823,16 +982,40 @@ async function exportToExcel() {
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
     limit = newLimit;
-    const range = getPeriodDateRange(selectedPeriodType);
-    fetchSalesWithRange(range.start, range.end);
+    // Only fetch sales data for pagination, not chart/stats
+    fetchSalesTableOnly();
   }
 
   // Debounced version of fetchSales used by the search input
+  // Only updates the sales table, NOT the chart or stats cards
   const doSearch = debounce(() => {
     offset = 0;
-    const range = getPeriodDateRange(selectedPeriodType);
-    fetchSalesWithRange(range.start, range.end);
+    // Only fetch sales data - don't re-fetch chart/comparison
+    fetchSalesTableOnly();
   }, 300);
+
+  // Fetch ONLY sales table data (for search/pagination) without re-rendering chart or stats
+  async function fetchSalesTableOnly() {
+    try {
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+        limit: limit.toString(),
+        offset: offset.toString(),
+        search: searchQuery.trim(),
+      });
+
+      const salesRes = await apiFetch(`/api/sales?${params.toString()}`);
+      if (salesRes.ok) {
+        const data = await salesRes.json();
+        salesData = data.data || [];
+        total = data.total || 0;
+        salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+    } catch (error) {
+      toast.error('Failed to load sales data');
+    }
+  }
 
   // Fetch available years from backend
   async function fetchAvailableYears() {
@@ -979,19 +1162,20 @@ async function exportToExcel() {
                       radius: '8px'
                     }}
 onValueChange={(val) => {
-                       if (val) {
-                         const d = val.start || val;
-                         const y = d.year;
-                         const m = String(d.month).padStart(2, '0');
-                         const day = String(d.day).padStart(2, '0');
-                         const dateStr = `${y}-${m}-${day}`;
-                         dailySelectionMade = true;
-                         activePeriodType = 'daily';
-                         selectedPeriodType = 'daily';
-                         dropdownOpen = false;
-                         fetchSalesWithRange(dateStr, dateStr);
-                       }
-                     }}
+                        if (val) {
+                          selectedDailyDate = val;
+                          const d = val.start || val;
+                          const y = d.year;
+                          const m = String(d.month).padStart(2, '0');
+                          const day = String(d.day).padStart(2, '0');
+                          const dateStr = `${y}-${m}-${day}`;
+                          dailySelectionMade = true;
+                          activePeriodType = 'daily';
+                          selectedPeriodType = 'daily';
+                          dropdownOpen = false;
+                          fetchSalesWithRange(dateStr, dateStr);
+                        }
+                      }}
                   />
                 </div>
                 <div class="text-xs text-text-muted">
@@ -1042,7 +1226,7 @@ onValueChange={(val) => {
                 <div class="text-xs text-text-muted">
                   Shows daily revenue for the selected week
                 </div>
-              {:else if hoveredOption?.value === 'monthly'}
+{:else if hoveredOption?.value === 'monthly'}
                 <div class="text-sm text-text-primary mb-2">
                   <span class="block text-xs text-text-muted mb-2">Select Month</span>
                   <MonthlyCalendar
@@ -1060,25 +1244,28 @@ onValueChange={(val) => {
                       radius: '8px'
                     }}
 onValueChange={(val) => {
-                       if (val) {
-                         selectedMonthlyRange = val;
-                         monthlySelectionMade = true;
-                         const start = val.start;
-                         const end = val.end;
-                         const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
-                         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
-                         // If current month selected, constrain to yesterday
-                         const todayJakarta = getTodayInJakarta().split('-').map(Number);
-                         if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
-                           const yesterday = getDateNDaysAgoInJakarta(1).split('-');
-                           endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
-                         }
-                         activePeriodType = 'monthly';
-                         selectedPeriodType = 'monthly';
-                         dropdownOpen = false;
-                         fetchSalesWithRange(startStr, endStr);
-                       }
-                     }}
+                      if (val) {
+                        selectedMonthlyRange = val;
+                        monthlySelectionMade = true;
+                        const start = val.start;
+                        const end = val.end;
+                        const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                        // Keep the full month end for chart (daily aggregation)
+                        // The frontend will filter out future dates in chartData
+                        let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                        // For current month, use yesterday for sales table display
+                        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+                        const isCurrentMonth = start.year === todayJakarta[0] && start.month === todayJakarta[1];
+                        if (isCurrentMonth) {
+                          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+                          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                        }
+                        activePeriodType = 'monthly';
+                        selectedPeriodType = 'monthly';
+                        dropdownOpen = false;
+                        fetchSalesWithRange(startStr, endStr);
+                      }
+                    }}
                   />
                 </div>
                 <div class="text-xs text-text-muted">
@@ -1199,15 +1386,23 @@ onValueChange={(val) => {
   </div>
 
 <!-- Chart -->
-  <div class="card p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-sm font-semibold text-text-primary">
-        Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
-        {#if activePeriodType === 'realtime'}
-          <span class="text-xs text-text-muted font-normal ml-2">(Data as of {String(new Date().getHours()).padStart(2, '0')}:00)</span>
-        {/if}
-      </h3>
-    </div>
+   <div class="card p-5">
+     <div class="flex items-center justify-between mb-4">
+       <h3 class="text-sm font-semibold text-text-primary">
+         Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
+         {#if kpiData.isPartial && activePeriodType === 'weekly'}
+           <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
+             Partial Data - In Progress
+           </span>
+         {:else if kpiData.isPartial && activePeriodType === 'monthly'}
+           <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
+             Ongoing Month
+           </span>
+         {:else if activePeriodType === 'realtime'}
+           <span class="text-xs text-text-muted font-normal ml-2">(Data as of {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+         {/if}
+       </h3>
+     </div>
 
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -1315,11 +1510,6 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide flex items-center gap-1">
             {statCardLabels.comparisonLabel}
-            {#if kpiData.isPartial}
-              <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
-                Partial
-              </span>
-            {/if}
             {#if activePeriodType === 'realtime'}
               <Info 
                 size={12} 
@@ -1422,15 +1612,15 @@ onValueChange={(val) => {
           </div>
         {/each}
       </div>
-    {:else if salesData.length === 0}
-      <div class="px-4 py-12 text-center">
-        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
-          <Receipt size={32} class="text-text-muted" />
-        </div>
-        <p class="text-text-primary font-semibold mt-4">No transactions found</p>
-        <p class="text-text-muted text-sm mt-1">Try adjusting the date range</p>
-      </div>
-    {:else}
+{:else if salesData.length === 0}
+       <div class="px-4 py-12 text-center">
+         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+           <Banknote size={32} class="text-text-muted" />
+         </div>
+         <p class="text-text-primary font-semibold mt-4">No transactions found</p>
+         <p class="text-text-muted text-sm mt-1">Try adjusting the date range</p>
+       </div>
+     {:else}
       <div class="overflow-x-auto">
         <table>
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
