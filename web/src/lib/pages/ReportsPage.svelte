@@ -173,7 +173,7 @@ function formatLargeNumber(value) {
 let comparisonDateRange = $derived.by(() => {
   if (!kpiData.periodInfo?.previous_period) return '';
   const prev = kpiData.periodInfo.previous_period;
-  
+
   // Yearly: Show full previous year range (Jan 1 - Dec 31)
   if (activePeriodType === 'yearly' && kpiData.periodInfo?.current_period) {
     const currentYear = kpiData.periodInfo.current_period.start?.split('-')[0];
@@ -182,20 +182,26 @@ let comparisonDateRange = $derived.by(() => {
       return `1 Jan ${prevYear} - 31 Dec ${prevYear}`;
     }
   }
-  
+
   // Real-time: Show hour range "vs Kemarin pada 00:00 - HH:00"
   if (activePeriodType === 'realtime') {
     const now = new Date();
     const lastFullHour = now.getHours();
     return `00:00 - ${String(lastFullHour).padStart(2, '0')}:00`;
   }
-  
-  // For real-time and yesterday, show just the single date
-  if (activePeriodType === 'realtime' || activePeriodType === 'yesterday') {
+
+  // Yesterday: Show just the single date (same day last week)
+  if (activePeriodType === 'yesterday') {
     if (prev.start) return formatDate(prev.start);
     return '';
   }
-  
+
+  // Daily: Show just the single date (same day last week - H-7)
+  if (activePeriodType === 'daily') {
+    if (prev.start) return formatDate(prev.start);
+    return '';
+  }
+
   // For weekly/monthly, show the range
   return prev.start && prev.end ? `${formatDate(prev.start)} - ${formatDate(prev.end)}` : '';
 });
@@ -590,8 +596,10 @@ async function fetchSalesWithRange(start, end) {
     : 'daily';
 
   // Real-time uses "realtime" mode for today-vs-yesterday comparison
-  // 30days needs special handling for 30-day comparison
+  // 30days uses "30days" mode for 30-day comparison
+  // daily, yesterday, yearly use "completed" mode for same day/week/year comparison
   const comparisonMode = activePeriodType === 'realtime' ? 'realtime' :
+    activePeriodType === 'daily' ? 'completed' :
     activePeriodType === 'yesterday' ? 'completed' :
     activePeriodType === 'yearly' ? 'completed' :
     activePeriodType === '30days' ? '30days' : 'todate';
