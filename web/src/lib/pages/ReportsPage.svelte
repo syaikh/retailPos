@@ -153,18 +153,18 @@ let statCardLabels = $derived({
     activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
 });
 
-// Format currency with abbreviations for large values (Rp 120.5M, Rp 2.3M)
+// Format currency with abbreviations for large values (Rp 120.5jt, Rp 2.3M)
 function formatCurrencyShort(value) {
   if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
   if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'k';
   return 'Rp ' + value.toLocaleString('id-ID');
 }
 
-// Format large numbers for display (using M for millions consistently with cards)
+// Format large numbers for display (using jt for juta/millions, M for milyar/billions)
 function formatLargeNumber(value) {
   if (value >= 1000000000) return (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
   if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
   return value.toLocaleString('id-ID');
 }
@@ -514,7 +514,7 @@ options: {
                 if (context.parsed.y !== null) {
                   const val = context.parsed.y;
                   if (val >= 1000000000) label += 'Rp ' + (val / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
-                  else if (val > 1000000) label += 'Rp ' + (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                  else if (val > 1000000) label += 'Rp ' + (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
                   else if (val > 1000) label += 'Rp ' + (val / 1000).toFixed(0) + ' Rb';
                   else label += 'Rp ' + val.toLocaleString('id-ID');
                 }
@@ -536,7 +536,7 @@ options: {
              font: { family: 'inherit' },
    callback: function(value) {
                 if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
-                if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
                 if (value > 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' Rb';
                 if (value === 0) return 'Rp 0';
                 return 'Rp ' + value;
