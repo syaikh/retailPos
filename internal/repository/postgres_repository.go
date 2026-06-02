@@ -1121,11 +1121,32 @@ func (r *postgresRepository) GetPeriodComparison(
 			FROM sales
 			WHERE created_at >= $3 AND created_at < $4
 				AND status = 'completed'
+		),
+		current_peak AS (
+			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
+			FROM (
+				SELECT SUM(total_amount) as hourly_total
+				FROM sales
+				WHERE created_at >= $1 AND created_at < $2
+					AND status = 'completed'
+				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+			) hourly
+		),
+		previous_peak AS (
+			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
+			FROM (
+				SELECT SUM(total_amount) as hourly_total
+				FROM sales
+				WHERE created_at >= $3 AND created_at < $4
+					AND status = 'completed'
+				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+			) hourly
 		)
 		SELECT
 			cp.revenue, cp.orders,
-			pp.revenue, pp.orders
-		FROM current_period cp, previous_period pp`
+			pp.revenue, pp.orders,
+			cpeak.peak_revenue, ppeak.peak_revenue
+		FROM current_period cp, previous_period pp, current_peak cpeak, previous_peak ppeak`
 
 	var result domain.PeriodComparison
 	err := r.db.QueryRow(ctx, query,
@@ -1136,6 +1157,8 @@ func (r *postgresRepository) GetPeriodComparison(
 		&result.CurrentOrders,
 		&result.PreviousRevenue,
 		&result.PreviousOrders,
+		&result.PeakRevenueHour,
+		&result.PreviousPeakRevenue,
 	)
 
 	if err != nil {

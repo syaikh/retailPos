@@ -113,6 +113,25 @@ export function getMaxDateInJakarta(): string {
   return getTodayInJakarta();
 }
 
+/**
+ * Gets the Jakarta hour from a UTC date string.
+ * Jakarta is UTC+7, so we add 7 hours to get the Jakarta time.
+ */
+export function getJakartaHourFromUTC(dateString: string): number {
+  const date = new Date(dateString);
+  // Add 7 hours to convert UTC to Jakarta time
+  const jakartaHour = (date.getUTCHours() + 7) % 24;
+  return jakartaHour;
+}
+
+/**
+ * Gets the current Jakarta hour.
+ */
+export function getCurrentJakartaHour(): number {
+  const now = new Date();
+  return (now.getUTCHours() + 7) % 24;
+}
+
 // ---------------------------------------------------------------------------
 // Formatting helper
 // ---------------------------------------------------------------------------

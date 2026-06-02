@@ -3,8 +3,8 @@
   import { fly } from 'svelte/transition';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
-  import { chart } from '$lib/actions/chart';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
+import { chart } from '$lib/actions/chart';
+   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaHourFromUTC } from '$lib/utils/jakartaTime';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -36,11 +36,12 @@ let kpiData = $state({
   previousAvgOrderValue: 0,
   revenuePerDay: 0,
   previousRevenuePerDay: 0,
+  peakRevenueHour: null,
+  previousPeakRevenue: null,
   percentChange: 0,
   comparisonType: 'zero',
   isPartial: false,
-  periodInfo: null,
-  peakRevenueHour: null
+  periodInfo: null
 });
 
 // PRD Section 5: Unified period state
@@ -443,7 +444,7 @@ const chartConfig = $derived.by(() => {
 
   if (chartType === 'hourly') {
     currentChartType = 'line';
-    labels = chartData.map((d, i) => `${String(i).padStart(2, '0')}:00`);
+    labels = chartData.map(d => `${String(d.hour).padStart(2, '0')}:00`);
     values = chartData.map(d => d.total);
   } else if (chartType === 'daily') {
     currentChartType = 'line';
@@ -605,16 +606,17 @@ async function fetchSalesWithRange(start, end) {
       const data = await salesRes.json();
       // For real-time, filter sales data to only show completed hours
       if (activePeriodType === 'realtime') {
-        const now = new Date();
-        const lastFullHour = now.getHours();
+        const lastFullHour = getCurrentJakartaHour();
         salesData = (data.data || []).filter(sale => {
-          const hour = new Date(sale.created_at).getHours();
+          const hour = getJakartaHourFromUTC(sale.created_at);
           return hour < lastFullHour;
         });
+        // Update total to reflect filtered data
+        total = salesData.length;
       } else {
         salesData = data.data || [];
+        total = data.total || 0;
       }
-      total = data.total || 0;
       salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
@@ -624,11 +626,10 @@ async function fetchSalesWithRange(start, end) {
       
       // For real-time, filter to only show full hours (include last full hour, exclude current partial hour)
       if (activePeriodType === 'realtime') {
-        const now = new Date();
-        const lastFullHour = now.getHours();
+        const lastFullHour = getCurrentJakartaHour();
         chartData = rawData.filter(item => {
-          const hour = parseInt(item.label?.split(':')[0] || '-1');
-          return hour <= lastFullHour; // Include last full hour (0-7 when current is 07:xx)
+          const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
+          return hour < lastFullHour; // Exclude current partial hour (0-12 when current is 13:xx)
         });
       } else {
         chartData = rawData;
@@ -676,7 +677,8 @@ async function fetchSalesWithRange(start, end) {
         previousAvgOrderValue: comparison.previous_aov,
         revenuePerDay: comparison.revenue_per_day,
         previousRevenuePerDay: comparison.previous_revenue_per_day,
-        peakRevenueHour: null,
+        peakRevenueHour: comparison.peak_revenue_hour || peakChartValue,
+        previousPeakRevenue: comparison.previous_peak_revenue,
         percentChange,
         comparisonType,
         isPartial: meta.is_partial,
@@ -1269,7 +1271,7 @@ onValueChange={(val) => {
             {#if aovTrend === 'up'}
               <TrendingUp size={14} class="text-success" />
             {:else if aovTrend === 'down'}
-              <TrendingDown size={14} class="text-danger" />
+              <TrendingDown size={14} class="text-danger-light" />
             {/if}
           </div>
           {#if kpiData.previousAvgOrderValue > 0}
@@ -1288,17 +1290,14 @@ onValueChange={(val) => {
           </div>
           <div class="flex items-baseline gap-1 mt-1">
             <span class="text-lg font-bold text-text-primary">
-              {formatCurrencyShort(peakChartValue !== null ? peakChartValue : kpiData.revenuePerDay)}
+              {formatCurrencyShort(kpiData.peakRevenueHour !== null ? kpiData.peakRevenueHour : kpiData.revenuePerDay)}
             </span>
-            {#if kpiData.percentChange !== 0 && kpiData.percentChange !== null}
-              {#if kpiData.percentChange > 0}
-                <TrendingUp size={14} class="text-success" />
-              {:else}
-                <TrendingDown size={14} class="text-danger" />
-              {/if}
-            {/if}
           </div>
-          {#if kpiData.previousRevenuePerDay > 0}
+          {#if kpiData.previousPeakRevenue !== null && kpiData.previousPeakRevenue > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatCurrencyShort(kpiData.previousPeakRevenue)}
+            </div>
+          {:else if kpiData.previousRevenuePerDay > 0 && chartType !== 'hourly'}
             <div class="text-xs text-text-secondary mt-1 font-medium">
               vs {formatCurrencyShort(kpiData.previousRevenuePerDay)}
             </div>
@@ -1337,7 +1336,7 @@ onValueChange={(val) => {
                 {#if kpiData.percentChange > 0}
                   <TrendingUp size={14} class="text-success" />
                 {:else}
-                  <TrendingDown size={14} class="text-danger" />
+                  <TrendingDown size={14} class="text-danger-light" />
                 {/if}
               {/if}
             {/if}
