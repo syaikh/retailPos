@@ -69,7 +69,10 @@ func TestParseDateInJakarta(t *testing.T) {
 // as used in postgres_repository GetAllSales and verifies they form a
 // proper closed-open interval [start, nextDay).
 func TestGetAllSalesDateBoundaries(t *testing.T) {
-	jkt := mustLoadJakarta() // same helper from the codebase
+	jkt, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
 
 	const rawStart = "2025-11-30"
 	const rawEnd = "2025-12-01"
@@ -104,15 +107,19 @@ func TestGetAllSalesDateBoundaries(t *testing.T) {
 // YYYY-MM-DD in Asia/Jakarta matches the date returned by time.Now().In(jkt).
 // This is the behaviour relied upon in GetDashboardStats.
 func TestGetDashboardStatsTodayString(t *testing.T) {
-	cfgTimez := mustLoadJakarta()
-	now := time.Now().In(cfgTimez)
+	jkt, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+
+	now := time.Now().In(jkt)
 	today := now.Format("2006-01-02")
 
 	// Today should not be an empty string
 	assert.NotEmpty(t, today)
 
 	// Parse it back as a Jakarta date — we should get today's date
-	parsedToday, err := time.ParseInLocation("2006-01-02", today, cfgTimez)
+	parsedToday, err := time.ParseInLocation("2006-01-02", today, jkt)
 	if err != nil {
 		t.Fatalf("parse today: %v", err)
 	}
@@ -140,7 +147,7 @@ func TestPeriodComparisonRanges(t *testing.T) {
 	assert.Equal(t, jkt, currentEnd.Location())
 	assert.Equal(t, jkt, previousStart.Location())
 	assert.Equal(t, jkt, previousEnd.Location())
-assert.True(t, currentStart.Before(currentEnd))
- 	assert.True(t, previousStart.Before(previousEnd))
- 	assert.Equal(t, 6, int(currentEnd.Sub(currentStart).Hours()/24), "7-day inclusive period should span 6 full 24h plus remainder")
- }
+	assert.True(t, currentStart.Before(currentEnd))
+	assert.True(t, previousStart.Before(previousEnd))
+	assert.Equal(t, 6, int(currentEnd.Sub(currentStart).Hours()/24), "7-day inclusive period should span 6 full 24h plus remainder")
+}

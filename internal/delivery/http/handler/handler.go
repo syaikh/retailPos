@@ -793,12 +793,10 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := getCtx(c)
 	cfg := config.Load()
 
-	periodType := PeriodType(c.Query("period")) // daily, weekly, monthly
+	periodType := PeriodType(c.Query("period")) // daily, weekly, monthly, yearly
 	if periodType == "" {
 		periodType = PeriodDaily
 	}
-
-	completedMode := c.Query("mode") == "completed"
 
 	// Use configured timezone (default Asia/Jakarta) for consistent date calculations
 	refDate := time.Now().In(cfg.Timezone)
@@ -808,33 +806,44 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 		}
 	}
 
-	ranges := GetComparisonRanges(periodType, refDate, completedMode)
-
-	comparison, err := h.saleRepo.GetPeriodComparison(ctx,
-		ranges.CurrentStart, ranges.CurrentEnd,
-		ranges.PreviousStart, ranges.PreviousEnd,
-	)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comparison"})
-		return
+	// Calculate ranges based on mode
+	var ranges PeriodRange
+	switch c.Query("mode") {
+	case "realtime":
+		ranges = getRealtimeRanges(refDate)
+	case "completed":
+		ranges = GetComparisonRanges(periodType, refDate, true)
+	case "30days":
+		ranges = get30DaysRanges(refDate)
+	default:
+		ranges = GetComparisonRanges(periodType, refDate, false)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": comparison,
-		"meta": map[string]interface{}{
-			"current_period": map[string]string{
-				"start": ranges.CurrentStart.Format("2006-01-02"),
-				"end":   ranges.CurrentEnd.AddDate(0, 0, -1).Format("2006-01-02"),
-			},
-			"previous_period": map[string]string{
-				"start": ranges.PreviousStart.Format("2006-01-02"),
-				"end":   ranges.PreviousEnd.AddDate(0, 0, -1).Format("2006-01-02"),
-			},
-			"is_partial":     ranges.IsPartial,
-			"days_in_period": ranges.DaysInPeriod,
-		},
-	})
+  comparison, err := h.saleRepo.GetPeriodComparison(ctx,
+    ranges.CurrentStart, ranges.CurrentEnd,
+    ranges.PreviousStart, ranges.PreviousEnd,
+  )
+
+  if err != nil {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comparison"})
+    return
+  }
+
+  c.JSON(http.StatusOK, gin.H{
+    "data": comparison,
+    "meta": map[string]interface{}{
+      "current_period": map[string]string{
+        "start": ranges.CurrentStart.Format("2006-01-02"),
+        "end":   ranges.CurrentEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+      },
+      "previous_period": map[string]string{
+        "start": ranges.PreviousStart.Format("2006-01-02"),
+        "end":   ranges.PreviousEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+      },
+      "is_partial":     ranges.IsPartial,
+      "days_in_period": ranges.DaysInPeriod,
+    },
+  })
 }
 
 // Admin Handlers

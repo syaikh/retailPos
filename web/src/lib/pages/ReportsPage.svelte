@@ -15,7 +15,7 @@
     Receipt, BarChart3,
     CalendarDays, Download, FileSpreadsheet,
     ChevronDown, Eye, Search, X,
-    Clock,
+    Clock, TrendingUp, TrendingDown, Info,
   } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -39,7 +39,8 @@ let kpiData = $state({
   percentChange: 0,
   comparisonType: 'zero',
   isPartial: false,
-  periodInfo: null
+  periodInfo: null,
+  peakRevenueHour: null
 });
 
 // PRD Section 5: Unified period state
@@ -121,18 +122,138 @@ const periodOptions = [
 // Uses activePeriodType so chart doesn't change until user selects a date
 let chartType = $derived(
   ['realtime', 'yesterday', 'daily'].includes(activePeriodType) ? 'hourly' :
-  ['7days', '30days', 'weekly', 'monthly'].includes(activePeriodType) ? 'daily' : 'monthly'
+  ['7days', '30days', 'weekly', 'monthly'].includes(activePeriodType) ? 'daily' :
+  ['yearly'].includes(activePeriodType) ? 'yearly' : 'monthly'
 );
 
-// Derived: Stat card labels based on period selection (per PRD section 5)
+// Derived: Stat card labels based on period selection
 let statCardLabels = $derived({
   card4: 
     chartType === 'hourly' ? 'Peak Revenue Hour' :
-    activePeriodType === 'yearly' ? 'Avg. Revenue / Month' :
+    activePeriodType === 'yearly' ? 'Peak Revenue Month' :
     activePeriodType === 'monthly' ? 'Avg. Revenue / Week' : 'Avg. Revenue / Day',
-  card5: 
-    activePeriodType === 'realtime' ? 'vs Same Hours Yesterday' :
-    activePeriodType === 'yesterday' ? 'vs Same Day Last Week' : 'vs Previous Period'
+  card5:
+    activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(new Date().getHours()).padStart(2, '0') + ':00)' :
+    activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
+    activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
+    activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
+    activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
+    activePeriodType === 'weekly' ? 'vs SAME WEEK LAST YEAR' :
+    activePeriodType === 'monthly' ? 'vs SAME MONTH LAST YEAR' :
+    activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
+  comparisonLabel:
+    activePeriodType === 'realtime' ? 'vs Yesterday (' + String(new Date().getHours()).padStart(2, '0') + 'hrs)' :
+    activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
+    activePeriodType === 'daily' ? 'vs Same Day Last Week' :
+    activePeriodType === '7days' ? 'vs Previous 7 Days' :
+    activePeriodType === '30days' ? 'vs Previous 30 Days' :
+    activePeriodType === 'weekly' ? 'vs Same Week Last Year' :
+    activePeriodType === 'monthly' ? 'vs Same Month Last Year' :
+    activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
+});
+
+// Format currency with abbreviations for large values (Rp 120.5M, Rp 2.3M)
+function formatCurrencyShort(value) {
+  if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'k';
+  return 'Rp ' + value.toLocaleString('id-ID');
+}
+
+// Format large numbers for display (using M for millions consistently with cards)
+function formatLargeNumber(value) {
+  if (value >= 1000000000) return (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
+  return value.toLocaleString('id-ID');
+}
+
+// Get comparison date range label for card5
+let comparisonDateRange = $derived.by(() => {
+  if (!kpiData.periodInfo?.previous_period) return '';
+  const prev = kpiData.periodInfo.previous_period;
+  
+  // Yearly: Show full previous year range (Jan 1 - Dec 31)
+  if (activePeriodType === 'yearly' && kpiData.periodInfo?.current_period) {
+    const currentYear = kpiData.periodInfo.current_period.start?.split('-')[0];
+    if (currentYear) {
+      const prevYear = parseInt(currentYear) - 1;
+      return `1 Jan ${prevYear} - 31 Dec ${prevYear}`;
+    }
+  }
+  
+  // Real-time: Show hour range "vs Kemarin pada 00:00 - HH:00"
+  if (activePeriodType === 'realtime') {
+    const now = new Date();
+    const lastFullHour = now.getHours();
+    return `00:00 - ${String(lastFullHour).padStart(2, '0')}:00`;
+  }
+  
+  // For real-time and yesterday, show just the single date
+  if (activePeriodType === 'realtime' || activePeriodType === 'yesterday') {
+    if (prev.start) return formatDate(prev.start);
+    return '';
+  }
+  
+  // For weekly/monthly, show the range
+  return prev.start && prev.end ? `${formatDate(prev.start)} - ${formatDate(prev.end)}` : '';
+});
+
+// Calculate cancellation/return rate from sales data
+let cancellationRate = $derived.by(() => {
+  if (!salesData || salesData.length === 0) return 0;
+  const returned = salesData.filter(s => s.status === 'refunded').length;
+  return (returned / salesData.length) * 100;
+});
+
+// Get peak value from chart data for card4
+let peakChartValue = $derived.by(() => {
+  if (chartData.length === 0) return null;
+  return chartData.reduce((max, item) => item.total > max.total ? item : max, chartData[0]).total;
+});
+
+// Calculate chart total (sum of all values) for chart-based periods
+let chartTotalRevenue = $derived.by(() => {
+  if (chartData.length === 0) return null;
+  
+  // For real-time, we use the comparison data which already filters to full hours
+  // The chart shows full day but we only want to show full hours for consistency
+  if (activePeriodType === 'realtime') {
+    return kpiData.totalRevenue; // Use the filtered total from comparison
+  }
+  
+  return chartData.reduce((sum, item) => sum + (item.total || 0), 0);
+});
+
+// Get year from selected yearly range or selectedMonthlyRange for X-axis labeling
+let chartYear = $derived.by(() => {
+  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    return selectedYearlyRange.start.year;
+  }
+  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    return selectedMonthlyRange.start.year;
+  }
+  // For realtime/7days/30days, get year from endDate
+  if (endDate) {
+    return parseInt(endDate.split('-')[0]);
+  }
+  return new Date().getFullYear();
+});
+let daysInMonth = $derived.by(() => {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+});
+
+// Projected revenue for partial monthly views
+let projectedRevenue = $derived.by(() => {
+  if (activePeriodType === 'monthly' && kpiData.isPartial) {
+    return (kpiData.totalRevenue / new Date().getDate()) * daysInMonth;
+  }
+  return null;
+});
+let aovTrend = $derived.by(() => {
+  if (!kpiData.previousAvgOrderValue || kpiData.previousAvgOrderValue === 0) return null;
+  return kpiData.avgOrderValue > kpiData.previousAvgOrderValue ? 'up' : 'down';
 });
 
 // Effect to update time every minute when in realtime mode
@@ -182,7 +303,7 @@ function getPeriodDateRange(periodType) {
     case 'yesterday':
       return { start: daysAgo(1), end: daysAgo(1) };
     case '7days':
-      return { start: daysAgo(8), end: daysAgo(1) };
+      return { start: daysAgo(7), end: daysAgo(1) };
     case '30days':
       return { start: daysAgo(31), end: daysAgo(1) };
 case 'daily': {
@@ -230,7 +351,11 @@ case 'daily': {
           end: endStr
         };
       }
-      return { start: today, end: today };
+      // Default to last completed month (May 2026 when current is June 2026)
+      const todayForMonthly = getTodayInJakarta().split('-').map(Number);
+      const lastMonthStart = getFirstOfMonthNAgoInJakarta(1);
+      const lastMonthEnd = getDateNDaysAgoInJakarta(1);
+      return { start: lastMonthStart, end: lastMonthEnd };
     case 'yearly':
       if (yearlySelectionMade && selectedYearlyRange) {
         const start = selectedYearlyRange.start;
@@ -327,11 +452,15 @@ const chartConfig = $derived.by(() => {
       return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
     });
     values = chartData.map(d => d.total);
-  } else if (chartType === 'monthly') {
+  } else if (chartType === 'monthly' || chartType === 'yearly') {
     currentChartType = 'bar';
     labels = chartData.map(d => {
       if (d.month_start) {
         const date = new Date(d.month_start);
+        // Append year for yearly view, otherwise just month name
+        if (activePeriodType === 'yearly') {
+          return date.toLocaleString('id-ID', { month: 'short' }) + ' ' + chartYear;
+        }
         return date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
       }
       return d.label || '';
@@ -371,54 +500,59 @@ const chartConfig = $derived.by(() => {
         tension: currentChartType === 'bar' ? 0 : 0.4
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              let label = context.dataset.label || '';
-              if (label) label += ': ';
-              if (context.parsed.y !== null) {
-                label += 'Rp ' + context.parsed.y.toLocaleString('id-ID');
+options: {
+       responsive: true,
+       maintainAspectRatio: false,
+       plugins: {
+         legend: { display: false },
+         tooltip: {
+           callbacks: {
+ label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) label += ': ';
+                if (context.parsed.y !== null) {
+                  const val = context.parsed.y;
+                  if (val >= 1000000000) label += 'Rp ' + (val / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                  else if (val > 1000000) label += 'Rp ' + (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                  else if (val > 1000) label += 'Rp ' + (val / 1000).toFixed(0) + ' Rb';
+                  else label += 'Rp ' + val.toLocaleString('id-ID');
+                }
+                return label;
               }
-              return label;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: '#9ca3af', font: { family: 'inherit' } }
-        },
-        y: {
-          border: { display: false },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: {
-            color: '#9ca3af',
-            font: { family: 'inherit' },
-            callback: function(value) {
-              if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
-              if (value > 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' ribu';
-              if (value === 0) return 'Rp 0';
-              return 'Rp ' + value;
-            }
-          },
-          min: 0,
-          suggestedMax: function(context) {
-            const values = context.chart.data.datasets[0].data;
-            const positiveValues = values.filter(v => v > 0);
-            if (positiveValues.length === 0 && values.length > 0) return 1000;
-            if (values.length === 0) return 1000;
-            const maxValue = Math.max(...values);
-            return maxValue + maxValue * 0.1;
-          }
-        }
-      }
-    }
+           }
+         }
+       },
+       scales: {
+         x: {
+           grid: { display: false },
+           ticks: { color: '#9ca3af', font: { family: 'inherit' } }
+         },
+         y: {
+           border: { display: false },
+           grid: { color: 'rgba(255, 255, 255, 0.05)' },
+           ticks: {
+             color: '#cbd5e1',
+             font: { family: 'inherit' },
+   callback: function(value) {
+                if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                if (value > 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' Rb';
+                if (value === 0) return 'Rp 0';
+                return 'Rp ' + value;
+              }
+           },
+           min: 0,
+           suggestedMax: function(context) {
+             const values = context.chart.data.datasets[0].data;
+             const positiveValues = values.filter(v => v > 0);
+             if (positiveValues.length === 0 && values.length > 0) return 1000;
+             if (values.length === 0) return 1000;
+             const maxValue = Math.max(...values);
+             return maxValue + maxValue * 0.1;
+           }
+         }
+       }
+     }
   };
 });
 
@@ -439,29 +573,66 @@ async function fetchSalesWithRange(start, end) {
       search: searchQuery.trim(),
     });
 
-    // Select chart endpoint based on chartType
-    const chartEndpoint = chartType === 'monthly'
-      ? '/api/dashboard/chart/monthly'
-      : chartType === 'high-unit'
-      ? '/api/dashboard/chart/yearly'
-      : '/api/dashboard/chart';
+// Select chart endpoint based on chartType
+  const chartEndpoint = chartType === 'yearly'
+    ? '/api/dashboard/chart/monthly' // yearly view uses monthly aggregation for whole year
+    : chartType === 'monthly'
+    ? '/api/dashboard/chart/monthly'
+    : '/api/dashboard/chart';
 
-    const [salesRes, chartRes, comparisonRes] = await Promise.all([
+  // Map frontend period types to backend period types for comparison
+  const backendPeriodType = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily'
+    ? 'daily'
+    : activePeriodType === 'weekly' ? 'weekly'
+    : activePeriodType === 'monthly' ? 'monthly'
+    : activePeriodType === 'yearly' ? 'yearly'
+    : 'daily';
+
+  // Real-time uses "realtime" mode for today-vs-yesterday comparison
+  // 30days needs special handling for 30-day comparison
+  const comparisonMode = activePeriodType === 'realtime' ? 'realtime' :
+    activePeriodType === 'yesterday' ? 'completed' :
+    activePeriodType === 'yearly' ? 'completed' :
+    activePeriodType === '30days' ? '30days' : 'todate';
+
+  const [salesRes, chartRes, comparisonRes] = await Promise.all([
       apiFetch(`/api/sales?${params.toString()}`),
       apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${end}`),
-      apiFetch(`/api/dashboard/comparison?period=${selectedPeriodType}&mode=todate&date=${end}`)
+      apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${end}`)
     ]);
 
     if (salesRes.ok) {
       const data = await salesRes.json();
-      salesData = data.data || [];
+      // For real-time, filter sales data to only show completed hours
+      if (activePeriodType === 'realtime') {
+        const now = new Date();
+        const lastFullHour = now.getHours();
+        salesData = (data.data || []).filter(sale => {
+          const hour = new Date(sale.created_at).getHours();
+          return hour < lastFullHour;
+        });
+      } else {
+        salesData = data.data || [];
+      }
       total = data.total || 0;
       salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
     if (chartRes.ok) {
       const cData = await chartRes.json();
-      chartData = cData.data || [];
+      const rawData = cData.data || [];
+      
+      // For real-time, filter to only show full hours (include last full hour, exclude current partial hour)
+      if (activePeriodType === 'realtime') {
+        const now = new Date();
+        const lastFullHour = now.getHours();
+        chartData = rawData.filter(item => {
+          const hour = parseInt(item.label?.split(':')[0] || '-1');
+          return hour <= lastFullHour; // Include last full hour (0-7 when current is 07:xx)
+        });
+      } else {
+        chartData = rawData;
+      }
     }
 
     if (comparisonRes.ok) {
@@ -472,26 +643,40 @@ async function fetchSalesWithRange(start, end) {
       let percentChange = 0;
       let comparisonType = 'zero';
 
-      if (comparison.previous_revenue === 0 && comparison.current_revenue > 0) {
+// For real-time, totalRevenue should come from comparison (same as backend calculation)
+  // to ensure consistency with the comparison percentage
+  const totalRevenue = activePeriodType === 'realtime'
+    ? comparison.current_revenue  // Use comparison data for consistency
+    : chartType === 'hourly' && chartData.length > 0
+      ? chartData.reduce((sum, item) => sum + (item.total || 0), 0)
+      : comparison.current_revenue;
+
+      const previousRevenue = comparison.previous_revenue;
+
+      if (previousRevenue === 0 && totalRevenue > 0) {
         comparisonType = 'new';
         percentChange = Infinity;
-      } else if (comparison.previous_revenue === 0 && comparison.current_revenue === 0) {
+      } else if (previousRevenue === 0 && totalRevenue === 0) {
         comparisonType = 'zero';
         percentChange = 0;
-      } else if (comparison.previous_revenue > 0) {
+      } else if (previousRevenue > 0) {
         comparisonType = 'normal';
-        percentChange = ((comparison.current_revenue - comparison.previous_revenue) / comparison.previous_revenue) * 100;
+        percentChange = ((totalRevenue - previousRevenue) / previousRevenue) * 100;
       }
 
       kpiData = {
-        totalRevenue: comparison.current_revenue,
-        previousRevenue: comparison.previous_revenue,
+        // For hourly charts, use chart total; otherwise use comparison value
+        totalRevenue: (chartType === 'hourly' && chartData.length > 0)
+          ? chartData.reduce((sum, item) => sum + (item.total || 0), 0)
+          : comparison.current_revenue,
+        previousRevenue,
         totalOrders: comparison.current_orders,
         previousOrders: comparison.previous_orders,
         avgOrderValue: comparison.current_aov,
         previousAvgOrderValue: comparison.previous_aov,
         revenuePerDay: comparison.revenue_per_day,
         previousRevenuePerDay: comparison.previous_revenue_per_day,
+        peakRevenueHour: null,
         percentChange,
         comparisonType,
         isPartial: meta.is_partial,
@@ -1003,124 +1188,182 @@ onValueChange={(val) => {
     </div>
   </div>
 
-  <!-- Chart -->
+<!-- Chart -->
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-text-primary">
         Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
+        {#if activePeriodType === 'realtime'}
+          <span class="text-xs text-text-muted font-normal ml-2">(Data as of {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+        {/if}
       </h3>
     </div>
 
     <!-- KPI Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
       {#if loading}
         {#each { length: 5 } as _}
-          <div class="bg-surface rounded-lg p-4 border border-border/50">
-            <Skeleton width="w-20" height="h-3" class="mb-2" />
-            <Skeleton width="w-16" height="h-6" />
+          <div class="bg-surface rounded-lg p-3 border border-border/50 min-w-0">
+            <Skeleton width="w-16" height="h-2.5" class="mb-1.5" />
+            <Skeleton width="w-12" height="h-5" />
           </div>
         {/each}
       {:else}
-         <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
-           <div class="text-lg font-bold text-text-primary mt-1">
-             Rp {kpiData.totalRevenue.toLocaleString('id-ID')}
-           </div>
-           {#if kpiData.previousRevenue > 0}
-             <div class="text-xs text-text-muted mt-1">
-               vs Rp {kpiData.previousRevenue.toLocaleString('id-ID')}
-             </div>
-           {/if}
-         </div>
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue
+            {#if activePeriodType === 'realtime'}
+              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+            {/if}
+          </div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            {formatCurrencyShort(kpiData.totalRevenue)}
+          </div>
+          {#if chartType === 'hourly' && peakChartValue !== null}
+            <div class="text-xs text-text-muted mt-1">
+              Peak: {formatCurrencyShort(peakChartValue)}
+            </div>
+          {/if}
+          {#if projectedRevenue !== null}
+            <div class="text-xs text-success mt-1 font-medium">
+              Projected: {formatCurrencyShort(projectedRevenue)}
+            </div>
+          {/if}
+          {#if kpiData.previousRevenue > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatCurrencyShort(kpiData.previousRevenue)}
+            </div>
+          {/if}
+        </div>
 
-         <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
-           <div class="text-lg font-bold text-text-primary mt-1">
-             {kpiData.totalOrders.toLocaleString()}
-           </div>
-           {#if kpiData.previousOrders > 0}
-             <div class="text-xs text-text-muted mt-1">
-               vs {kpiData.previousOrders.toLocaleString()}
-             </div>
-           {/if}
-         </div>
+        <div class="bg-surface rounded-lg p-4 border border-border/50 relative">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders
+            {#if activePeriodType === 'realtime'}
+              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+            {/if}
+          </div>
+          <div class="text-lg font-bold text-text-primary mt-1">
+            {formatLargeNumber(kpiData.totalOrders)}
+          </div>
+          {#if cancellationRate > 0}
+            <div class="text-xs text-danger mt-1 cursor-help" title="Cancellation/Return Rate">
+              {cancellationRate.toFixed(1)}% returned
+            </div>
+          {/if}
+          {#if kpiData.previousOrders > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatLargeNumber(kpiData.previousOrders)}
+            </div>
+          {/if}
+        </div>
 
-         <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
-           <div class="text-lg font-bold text-text-primary mt-1">
-             Rp {kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-           </div>
-           {#if kpiData.previousAvgOrderValue > 0}
-             <div class="text-xs text-text-muted mt-1">
-               vs Rp {kpiData.previousAvgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-             </div>
-           {/if}
-         </div>
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value
+            {#if activePeriodType === 'realtime'}
+              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+            {/if}
+          </div>
+          <div class="flex items-center gap-1 mt-1">
+            <span class="text-lg font-bold text-text-primary">
+              {formatCurrencyShort(kpiData.avgOrderValue)}
+            </span>
+            {#if aovTrend === 'up'}
+              <TrendingUp size={14} class="text-success" />
+            {:else if aovTrend === 'down'}
+              <TrendingDown size={14} class="text-danger" />
+            {/if}
+          </div>
+          {#if kpiData.previousAvgOrderValue > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatCurrencyShort(kpiData.previousAvgOrderValue)}
+            </div>
+          {/if}
+        </div>
 
-         <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">{statCardLabels.card4}</div>
-           <div class="text-lg font-bold text-text-primary mt-1">
-             Rp {kpiData.revenuePerDay.toLocaleString('id-ID')}
-           </div>
-           {#if kpiData.previousRevenuePerDay > 0}
-             <div class="text-xs text-text-muted mt-1">
-               vs Rp {kpiData.previousRevenuePerDay.toLocaleString('id-ID')}
-             </div>
-           {/if}
-         </div>
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+            {statCardLabels.card4}
+            {#if activePeriodType === 'realtime'}
+              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+            {/if}
+          </div>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span class="text-lg font-bold text-text-primary">
+              {formatCurrencyShort(peakChartValue !== null ? peakChartValue : kpiData.revenuePerDay)}
+            </span>
+            {#if kpiData.percentChange !== 0 && kpiData.percentChange !== null}
+              {#if kpiData.percentChange > 0}
+                <TrendingUp size={14} class="text-success" />
+              {:else}
+                <TrendingDown size={14} class="text-danger" />
+              {/if}
+            {/if}
+          </div>
+          {#if kpiData.previousRevenuePerDay > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatCurrencyShort(kpiData.previousRevenuePerDay)}
+            </div>
+          {/if}
+        </div>
 
-         <div class="bg-surface rounded-lg p-4 border border-border/50">
-           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
-             {statCardLabels.card5}
-             {#if kpiData.isPartial}
-               <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
-                 Partial
-               </span>
-             {/if}
-           </div>
-           <div class="flex items-center mt-1">
-             <span class={`text-lg font-bold ${
-               kpiData.comparisonType === 'new' ? 'text-success' :
-               kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
-               kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
-             }`}>
-               {kpiData.comparisonType === 'new' ? 'NEW' :
-                kpiData.comparisonType === 'zero' ? '±0%' :
-                kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
-                kpiData.percentChange.toFixed(1) + '%'}
-             </span>
-             <span class={`ml-2 ${
-               kpiData.comparisonType === 'new' ? 'text-success' :
-               kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
-               kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
-             }`}>
-               {kpiData.comparisonType === 'new' ? '🚀' :
-                kpiData.comparisonType === 'zero' ? '—' :
-                kpiData.percentChange > 0 ? '↗' : '↘'}
-             </span>
-           </div>
-           {#if kpiData.periodInfo}
-             <div class="text-xs text-text-muted mt-1">
-               {kpiData.periodInfo.current_period.start} to {kpiData.periodInfo.current_period.end}
-             </div>
-           {/if}
-         </div>
+        <div class="bg-surface rounded-lg p-4 border border-border/50">
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide flex items-center gap-1">
+            {statCardLabels.comparisonLabel}
+            {#if kpiData.isPartial}
+              <span class="ml-1 text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
+                Partial
+              </span>
+            {/if}
+            {#if activePeriodType === 'realtime'}
+              <Info 
+                size={12} 
+                class="text-text-muted cursor-help" 
+                title="Data reflects performance up to the last completed hour"
+              />
+            {/if}
+          </div>
+          <div class="flex items-baseline gap-1 mt-1">
+            {#if kpiData.percentChange !== null}
+              <span class={`text-lg font-bold ${
+                kpiData.comparisonType === 'new' ? 'text-success' :
+                kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
+                kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
+              }`}>
+                {kpiData.comparisonType === 'new' ? 'NEW' :
+                 kpiData.comparisonType === 'zero' ? '±0%' :
+                 kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
+                 kpiData.percentChange.toFixed(1) + '%'}
+              </span>
+              {#if kpiData.comparisonType !== 'new' && kpiData.comparisonType !== 'zero'}
+                {#if kpiData.percentChange > 0}
+                  <TrendingUp size={14} class="text-success" />
+                {:else}
+                  <TrendingDown size={14} class="text-danger" />
+                {/if}
+              {/if}
+            {/if}
+          </div>
+          {#if comparisonDateRange}
+            <div class="text-xs text-text-muted mt-1">
+              vs {comparisonDateRange}
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
 
-<div class="h-64 relative">
-          {#if loading}
-            <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
-              <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
-            </div>
-          {:else if chartData.length === 0}
-            <div class="absolute inset-0 flex items-center justify-center text-text-muted">
-              No data available for this period
-            </div>
-          {:else}
-            <canvas use:chart={chartConfig}></canvas>
-          {/if}
+    <div class="h-64 relative">
+      {#if loading}
+        <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
+          <div class="absolute inset-0 bg-linear-to-r from-transparent via-primary-subtle/20 to-transparent animate-shimmer" style="background-size: 200% 100%;"></div>
         </div>
+      {:else if chartData.length === 0}
+        <div class="absolute inset-0 flex items-center justify-center text-text-muted">
+          No data available for this period
+        </div>
+      {:else}
+        <canvas use:chart={chartConfig}></canvas>
+      {/if}
+    </div>
   </div>
 
   <!-- Sales table -->
