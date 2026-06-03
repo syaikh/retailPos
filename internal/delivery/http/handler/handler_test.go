@@ -29,6 +29,7 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 	productRepo := repository.NewPostgresRepository(testDB.Pool())
 	saleRepo := repository.NewPostgresRepository(testDB.Pool())
 	auditRepo := repository.NewPostgresRepository(testDB.Pool())
+	categoryRepo := repository.NewPostgresRepository(testDB.Pool())
 
 	// Create services
 	authService := auth.NewAuthService(userRepo, testDB.Pool())
@@ -42,6 +43,7 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 		authService,
 		nil, // wsHub not needed for API tests
 		auditRepo,
+		categoryRepo,
 	)
 
 	// Set up Gin router

@@ -657,7 +657,7 @@ func (r *postgresRepository) DeleteProduct(ctx context.Context, id int, storeID 
 
 func (r *postgresRepository) ListCategories(ctx context.Context) ([]domain.Category, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, name, description, is_active, created_at
+		SELECT id, name, COALESCE(slug,''), COALESCE(description,''), is_active, created_at
 		FROM categories
 		WHERE is_active = true
 		ORDER BY name
@@ -671,12 +671,12 @@ func (r *postgresRepository) ListCategories(ctx context.Context) ([]domain.Categ
 	for rows.Next() {
 		var c domain.Category
 		var createdAt time.Time
-		err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.IsActive, &createdAt)
+		err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &createdAt)
 		if err != nil {
 			return nil, err
 		}
-		c.CreatedAt = createdAt.Format(time.RFC3339)
-		c.UpdatedAt = "" // Not stored in database
+		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.UpdatedAt = ""
 		categories = append(categories, c)
 	}
 	return categories, nil
@@ -687,6 +687,206 @@ func (r *postgresRepository) GetCategoryIDByName(ctx context.Context, name strin
 	query := "SELECT id FROM categories WHERE name = $1 AND is_active = true"
 	err := r.db.QueryRow(ctx, query, name).Scan(&id)
 	return id, err
+}
+
+// GetAllCategories returns paginated categories with product count (for management page)
+func (r *postgresRepository) GetAllCategories(ctx context.Context, limit, offset int, search string) ([]domain.Category, int, error) {
+	// COUNT query
+	countQuery := `SELECT COUNT(*) FROM categories WHERE 1=1`
+	args := []interface{}{}
+	argIdx := 1
+	if search != "" {
+		countQuery += fmt.Sprintf(" AND (name ILIKE $%d OR slug ILIKE $%d)", argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count categories: %w", err)
+	}
+
+	// DATA query — LEFT JOIN + GROUP BY (optimized)
+	query := `SELECT c.id, c.name, COALESCE(c.slug, ''), COALESCE(c.description, ''), c.is_active,
+			  COUNT(p.id) AS product_count,
+			  c.created_at, COALESCE(c.updated_at, c.created_at)
+			  FROM categories c
+			  LEFT JOIN products p ON p.category_id = c.id AND p.deleted_at IS NULL
+			  WHERE 1=1`
+	args2 := []interface{}{}
+	argIdx2 := 1
+	if search != "" {
+		query += fmt.Sprintf(" AND (c.name ILIKE $%d OR c.slug ILIKE $%d)", argIdx2, argIdx2)
+		args2 = append(args2, "%"+search+"%")
+		argIdx2++
+	}
+	query += " GROUP BY c.id"
+	query += fmt.Sprintf(" ORDER BY c.name ASC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
+	args2 = append(args2, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args2...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []domain.Category
+	for rows.Next() {
+		var c domain.Category
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &c.ProductCount, &createdAt, &updatedAt); err != nil {
+			continue
+		}
+		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		categories = append(categories, c)
+	}
+	return categories, total, nil
+}
+
+// GetCategoryByID returns a category by ID
+func (r *postgresRepository) GetCategoryByID(ctx context.Context, id int) (*domain.Category, error) {
+	var c domain.Category
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, COALESCE(slug, ''), COALESCE(description, ''), is_active,
+		       created_at, COALESCE(updated_at, created_at)
+		FROM categories WHERE id = $1
+	`, id).Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("category not found")
+		}
+		return nil, err
+	}
+	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	return &c, nil
+}
+
+// SlugExists checks if a slug exists, optionally excluding an ID for updates
+func (r *postgresRepository) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS (SELECT 1 FROM categories WHERE slug = $1 AND id != $2)`
+	err := r.db.QueryRow(ctx, query, slug, excludeID).Scan(&exists)
+	return exists, err
+}
+
+// CreateCategory creates a category with auto-generated slug
+func (r *postgresRepository) CreateCategory(ctx context.Context, category *domain.Category) error {
+	if category.Slug == "" {
+		category.Slug = generateSlug(category.Name)
+	}
+
+	// Resolve slug collision: append -2, -3, etc.
+	baseSlug := category.Slug
+	suffix := 1
+	for {
+		exists, err := r.SlugExists(ctx, category.Slug, 0)
+		if err != nil {
+			return fmt.Errorf("failed to check slug uniqueness: %w", err)
+		}
+		if !exists {
+			break
+		}
+		suffix++
+		category.Slug = fmt.Sprintf("%s-%d", baseSlug, suffix)
+		if len(category.Slug) > 120 {
+		 truncLen := 120 - len(fmt.Sprintf("-%d", suffix))
+			if truncLen > 0 && len(baseSlug) >= truncLen {
+				category.Slug = fmt.Sprintf("%s-%d", baseSlug[:truncLen], suffix)
+			} else {
+				break
+			}
+		}
+	}
+
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO categories (name, slug, description, is_active)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at, updated_at
+	`, category.Name, category.Slug, category.Description, category.IsActive).Scan(&category.ID, &createdAt, &updatedAt)
+	if err != nil {
+		return err
+	}
+	category.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	category.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	return nil
+}
+
+// UpdateCategory updates a category
+func (r *postgresRepository) UpdateCategory(ctx context.Context, category *domain.Category) error {
+	// Regenerate slug if name changed
+	newSlug := generateSlug(category.Name)
+	if newSlug != category.Slug {
+		// Check for collision (excluding current ID)
+		exists, err := r.SlugExists(ctx, newSlug, category.ID)
+		if err != nil {
+			return fmt.Errorf("failed to check slug uniqueness: %w", err)
+		}
+		if exists {
+			suffix := 2
+			for {
+				candidate := fmt.Sprintf("%s-%d", newSlug, suffix)
+				ex, err := r.SlugExists(ctx, candidate, category.ID)
+				if err != nil {
+					return err
+				}
+				if !ex {
+					newSlug = candidate
+					break
+				}
+				suffix++
+			}
+		}
+		category.Slug = newSlug
+	}
+
+	_, err := r.db.Exec(ctx, `
+		UPDATE categories SET name = $1, slug = $2, description = $3, is_active = $4, updated_at = NOW()
+		WHERE id = $5
+	`, category.Name, category.Slug, category.Description, category.IsActive, category.ID)
+	return err
+}
+
+// DeleteCategory deletes a category (FK RESTRICT handles race condition)
+func (r *postgresRepository) DeleteCategory(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM categories WHERE id = $1", id)
+	return err
+}
+
+// HasActiveProducts checks if category has products using EXISTS (early exit)
+func (r *postgresRepository) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM products
+			WHERE category_id = $1 AND deleted_at IS NULL
+			LIMIT 1
+		)
+	`, categoryID).Scan(&exists)
+	return exists, err
+}
+
+// generateSlug creates a URL-friendly slug from a name
+func generateSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	replacements := []struct{ from, to string }{
+		{" ", "-"}, {"'", ""}, {`"`, ""}, {"&", "and"}, {"/", "-"},
+		{"+", "plus"}, {"=", "equals"}, {"?", ""}, {"!", ""}, {"@", "at"},
+		{"#", "number"}, {"%", "percent"}, {"(", ""}, {")", ""},
+	}
+	for _, r := range replacements {
+		slug = strings.ReplaceAll(slug, r.from, r.to)
+	}
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 120 {
+		slug = slug[:120]
+	}
+	return slug
 }
 
 func (r *postgresRepository) GetDeletedProductByBarcode(ctx context.Context, barcode string, storeID *int) (*domain.Product, error) {

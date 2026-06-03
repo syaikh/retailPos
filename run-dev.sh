@@ -19,4 +19,3 @@ echo "Starting server in $ENV mode on port $PORT"
 echo "Connecting to database: $DATABASE_URL"
 
 go run ./cmd/server/main.go "$@"
-

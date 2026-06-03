@@ -8,6 +8,7 @@ import ReportsPage from '$lib/pages/ReportsPage.svelte';
 import AdminUsers from '$lib/pages/admin/Users.svelte';
 import AdminRoles from '$lib/pages/admin/Roles.svelte';
 import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
+import AdminCategories from '$lib/pages/admin/Categories.svelte';
 import Layout from '$lib/components/Layout.svelte';
 import Toast from '$lib/components/ui/Toast.svelte';
 import { auth } from '$lib/stores/auth';
@@ -33,10 +34,12 @@ function getComponent(path) {
       case '/pos':              return PosPage;
       case '/inventory':        return InventoryPage;
       case '/reports':          return ReportsPage;
+      case '/categories':       return AdminCategories;
       case '/admin':            return AdminUsers;
       case '/admin/users':      return AdminUsers;
       case '/admin/roles':      return AdminRoles;
       case '/admin/audit-logs': return AdminAuditLogs;
+      case '/admin/categories': return AdminCategories;
       default:                  return Home;
     }
   }

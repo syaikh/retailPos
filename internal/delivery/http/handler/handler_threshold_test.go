@@ -58,8 +58,9 @@ func setupThresholdTestServer(t *testing.T) (*gin.Engine, *repository.TestDB, *h
 	productRepo := repository.NewPostgresRepository(testDB.Pool())
 	saleRepo := repository.NewPostgresRepository(testDB.Pool())
 	auditRepo := repository.NewPostgresRepository(testDB.Pool())
+	categoryRepo := repository.NewPostgresRepository(testDB.Pool())
 	authSvc := auth.NewAuthService(userRepo, testDB.Pool())
-	h := handler.NewHandler(userRepo, roleRepo, productRepo, saleRepo, authSvc, nil, auditRepo)
+	h := handler.NewHandler(userRepo, roleRepo, productRepo, saleRepo, authSvc, nil, auditRepo, categoryRepo)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

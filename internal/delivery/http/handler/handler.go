@@ -24,13 +24,14 @@ func getCtx(c *gin.Context) context.Context {
 }
 
 type Handler struct {
-	authRepo    repository.UserRepository
-	roleRepo    repository.RoleRepository
-	productRepo repository.ProductRepository
-	saleRepo    repository.SaleRepository
-	authService *auth.AuthService
-	hub         *websocket.Hub
-	auditRepo   repository.AuditLogRepository
+	authRepo     repository.UserRepository
+	roleRepo     repository.RoleRepository
+	productRepo  repository.ProductRepository
+	saleRepo     repository.SaleRepository
+	authService  *auth.AuthService
+	hub          *websocket.Hub
+	auditRepo    repository.AuditLogRepository
+	categoryRepo repository.CategoryRepository
 }
 
 func NewHandler(
@@ -41,15 +42,17 @@ func NewHandler(
 	authService *auth.AuthService,
 	hub *websocket.Hub,
 	auditRepo repository.AuditLogRepository,
+	categoryRepo repository.CategoryRepository,
 ) *Handler {
 	return &Handler{
-		authRepo:    authRepo,
-		roleRepo:    roleRepo,
-		productRepo: productRepo,
-		saleRepo:    saleRepo,
-		authService: authService,
-		hub:         hub,
-		auditRepo:   auditRepo,
+		authRepo:     authRepo,
+		roleRepo:     roleRepo,
+		productRepo:  productRepo,
+		saleRepo:     saleRepo,
+		authService:  authService,
+		hub:          hub,
+		auditRepo:    auditRepo,
+		categoryRepo: categoryRepo,
 	}
 }
 
@@ -84,6 +87,14 @@ func (h *Handler) hasPermission(c *gin.Context, permission string) bool {
 func (h *Handler) canManageProduct(c *gin.Context, permission string) bool {
 	role := h.userRole(c)
 	if role == "superadmin" || role == "admin" || role == "inventory officer" {
+		return true
+	}
+	return h.hasPermission(c, permission)
+}
+
+func (h *Handler) canManageCategory(c *gin.Context, permission string) bool {
+	role := h.userRole(c)
+	if role == "superadmin" || role == "admin" {
 		return true
 	}
 	return h.hasPermission(c, permission)
@@ -1162,6 +1173,10 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 			return v.InvoiceNumber
 		case domain.Sale:
 			return v.InvoiceNumber
+		case *domain.Category:
+			return v.Name
+		case domain.Category:
+			return v.Name
 		}
 		return ""
 	}
@@ -1217,6 +1232,157 @@ func (h *Handler) ListCategories(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": categories})
+}
+
+// ==================== CATEGORY MANAGEMENT ====================
+
+func (h *Handler) ListCategoriesManagement(c *gin.Context) {
+	role := h.userRole(c)
+	if role == "cashier" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+	if !h.hasPermission(c, "category.view") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
+			offset = val
+		}
+	}
+	search := c.Query("search")
+
+	categories, total, err := h.categoryRepo.GetAllCategories(getCtx(c), limit, offset, search)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch categories"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": categories, "total": total})
+}
+
+func (h *Handler) CreateCategoryHandler(c *gin.Context) {
+	if !h.canManageCategory(c, "category.create") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	var req domain.CategoryCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+
+	category := &domain.Category{
+		Name:        strings.TrimSpace(req.Name),
+		Description: strings.TrimSpace(req.Description),
+		IsActive:    true,
+	}
+
+	if err := h.categoryRepo.CreateCategory(getCtx(c), category); err != nil {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "violate") {
+			c.JSON(http.StatusConflict, gin.H{"error": "category name or slug already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create category"})
+		return
+	}
+	h.logAudit(c, "create", "category", category.ID, nil, category)
+	c.JSON(http.StatusCreated, gin.H{"data": category})
+}
+
+func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
+	if !h.canManageCategory(c, "category.update") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+
+	old, err := h.categoryRepo.GetCategoryByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "category not found"})
+		return
+	}
+
+	var req domain.CategoryUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+
+	updated := *old
+	updated.Name = strings.TrimSpace(req.Name)
+	updated.Description = strings.TrimSpace(req.Description)
+	if req.IsActive != nil {
+		updated.IsActive = *req.IsActive
+	}
+
+	if err := h.categoryRepo.UpdateCategory(getCtx(c), &updated); err != nil {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "violate") {
+			c.JSON(http.StatusConflict, gin.H{"error": "category name or slug already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update category"})
+		return
+	}
+	h.logAudit(c, "update", "category", updated.ID, old, updated)
+	c.JSON(http.StatusOK, gin.H{"data": updated})
+}
+
+func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
+	if !h.canManageCategory(c, "category.delete") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+	old, err := h.categoryRepo.GetCategoryByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "category not found"})
+		return
+	}
+
+	hasProducts, err := h.categoryRepo.HasActiveProducts(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check product association"})
+		return
+	}
+	if hasProducts {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Gagal menghapus! Kategori masih digunakan oleh produk aktif.",
+		})
+		return
+	}
+
+	if err := h.categoryRepo.DeleteCategory(getCtx(c), id); err != nil {
+		if strings.Contains(err.Error(), "restrict") || strings.Contains(err.Error(), "violates foreign key") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Gagal menghapus! Kategori masih digunakan oleh produk aktif.",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete category"})
+		return
+	}
+	h.logAudit(c, "delete", "category", id, old, nil)
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
 // Phase 1 Extension Handlers - Brands, Tax, UOM, Warehouses

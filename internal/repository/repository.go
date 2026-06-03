@@ -29,6 +29,16 @@ type RoleRepository interface {
 	DeleteRole(ctx context.Context, id int) error
 }
 
+type CategoryRepository interface {
+	GetAllCategories(ctx context.Context, limit, offset int, search string) ([]domain.Category, int, error)
+	GetCategoryByID(ctx context.Context, id int) (*domain.Category, error)
+	CreateCategory(ctx context.Context, category *domain.Category) error
+	UpdateCategory(ctx context.Context, category *domain.Category) error
+	DeleteCategory(ctx context.Context, id int) error
+	HasActiveProducts(ctx context.Context, categoryID int) (bool, error)
+	SlugExists(ctx context.Context, slug string, excludeID int) (bool, error)
+}
+
 type ProductRepository interface {
 	GetProductByID(ctx context.Context, id int, storeID *int) (*domain.Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*domain.Product, error)

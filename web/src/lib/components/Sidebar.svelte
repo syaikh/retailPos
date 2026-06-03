@@ -12,6 +12,7 @@
     LogOut,
     Store,
     User,
+    Tag,
   } from 'lucide-svelte';
   import { goto, getPath } from '$lib/router';
   import { logout } from '$lib/api/auth';
@@ -39,6 +40,7 @@
     { label: 'Point of Sale', href: '/pos',     icon: ShoppingCart    },
     { label: 'Inventory',  href: '/inventory',  icon: Package         },
     { label: 'Reports',    href: '/reports',    icon: BarChart3       },
+    { label: 'Categories', href: '/categories',  icon: Tag             },
   ];
 
   const adminItems = [
