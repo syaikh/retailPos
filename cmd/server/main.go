@@ -64,21 +64,22 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Real Repositories
-	authRepo := repository.NewPostgresRepository(dbPool)
-	roleRepo := repository.NewPostgresRepository(dbPool)
-	productRepo := repository.NewPostgresRepository(dbPool)
-	saleRepo := repository.NewPostgresRepository(dbPool)
-	auditRepo := repository.NewPostgresRepository(dbPool)
+// Real Repositories
+ 	authRepo := repository.NewPostgresRepository(dbPool)
+ 	roleRepo := repository.NewPostgresRepository(dbPool)
+ 	productRepo := repository.NewPostgresRepository(dbPool)
+ 	saleRepo := repository.NewPostgresRepository(dbPool)
+ 	auditRepo := repository.NewPostgresRepository(dbPool)
+ 	categoryRepo := repository.NewPostgresRepository(dbPool)
 
-	// Auth service with real DB pool
-	authService := auth.NewAuthService(authRepo, dbPool)
+ 	// Auth service with real DB pool
+ 	authService := auth.NewAuthService(authRepo, dbPool)
 
-	// WebSocket hub
-	hub := websocket.NewHub(authService)
-	go hub.Run()
+ 	// WebSocket hub
+ 	hub := websocket.NewHub(authService)
+ 	go hub.Run()
 
-	h := handler.NewHandler(authRepo, roleRepo, productRepo, saleRepo, authService, hub, auditRepo)
+ 	h := handler.NewHandler(authRepo, roleRepo, productRepo, saleRepo, authService, hub, auditRepo, categoryRepo)
 
 	// Public routes
 	public := router.Group("/api")
