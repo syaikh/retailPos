@@ -25,15 +25,11 @@
   let lastSale = $state(null);
   let ws = useWebSocket();
 
-  // Listen for stock updates via WebSocket
   let unsubscribeStock = null;
   let unsubscribeSale = null;
 
-   // Track previous search to avoid duplicate fetches
-   let previousSearchQuery = '';
-
-   // Copy-to-clipboard feedback (per-product checkmark, no toast)
-    let showCopySuccess = $state(null);
+  let previousSearchQuery = '';
+  let showCopySuccess = $state(null);
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -43,18 +39,14 @@
   let paymentMethod = $state('Cash');
   let checkingOut = $state(false);
 
-  // ─── Checkout Modal State ────────────────────────────────────────────────────
   let showCheckoutModal = $state(false);
   let cashReceived = $state(0);
   let changeDue = $derived(cashReceived - totalAmount);
 
-  // ─── Derived totals ─────────────────────────────────────────────────────────
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
-  // const tax = $derived(Math.round(subtotal * 0.1)); // Temporarily removed
-  const totalAmount = $derived(subtotal); // No tax for now
+  const totalAmount = $derived(subtotal);
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
-  // ─── Quick Cash Presets ──────────────────────────────────────────────────────
   const quickCashPresets = [50000, 100000, 150000, 200000];
 
   async function fetchProducts(isSearch = false) {
@@ -71,24 +63,16 @@
     }
   }
 
-  // Debounced search
   const debouncedSearch = debounce(() => {
     offset = 0;
     fetchProducts(true);
   }, 400);
 
-  // Watch for search query changes and trigger debounced search
   $effect(() => {
-    // Skip the initial render to prevent double fetch
     if (isInitialMount) return;
-
-    // Only proceed if searchQuery actually changed
     if (previousSearchQuery === searchQuery) return;
-
     previousSearchQuery = searchQuery;
-
     if (searchQuery === '') {
-      // Immediate fetch when clearing search
       offset = 0;
       isSearching = false;
       fetchProducts(false);
@@ -101,6 +85,11 @@
   function addToCart(product) {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
+      const maxStock = existing.stock || 999;
+      if (existing.quantity >= maxStock) {
+        toast.info(`Max stock reached: ${existing.name} (${maxStock})`);
+        return;
+      }
       existing.quantity++;
       cart = [...cart];
     } else {
@@ -112,19 +101,23 @@
     cart = cart.filter((item) => item.id !== id);
   }
 
-   function updateQty(id, delta) {
-     const item = cart.find((i) => i.id === id);
-     if (item) {
-       item.quantity += delta;
-       if (item.quantity <= 0) removeFromCart(id);
-       cart = [...cart];
-     }
-   }
+  function updateQty(id, delta) {
+    const item = cart.find((i) => i.id === id);
+    if (item) {
+      const newQty = item.quantity + delta;
+      const maxStock = item.stock || 999;
+      if (newQty <= 0) {
+        removeFromCart(id);
+      } else if (newQty > maxStock) {
+        item.quantity = maxStock;
+        toast.info(`Max stock for ${item.name} is ${maxStock}`);
+      } else {
+        item.quantity = newQty;
+      }
+      cart = [...cart];
+    }
+  }
 
-   /**
-    * Copy a value to the clipboard, show a temporary checkmark on the icon,
-    * then revert to the Copy icon after `ms` milliseconds.
-    */
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
       const base = showCopySuccess || new Set();
@@ -144,7 +137,6 @@
       toast.error('Cart is empty');
       return;
     }
-
     checkingOut = true;
     try {
       const items = cart.map((item) => ({
@@ -153,20 +145,18 @@
         unit_price: item.price,
         subtotal: item.price * item.quantity,
       }));
-
       const response = await apiClient.post('/sales', {
         invoice_number: `INV-${Date.now()}`,
         cashier_id: $auth.user?.id || 1,
         store_id: $auth.user?.store_id || null,
         subtotal,
         discount: 0,
-        tax: 0, // No tax for now
+        tax: 0,
         total_amount: totalAmount,
         payment_method: paymentMethod,
         status: 'completed',
         items,
       });
-
       lastSale = response.data;
       toast.success('Sale completed');
       cart = [];
@@ -193,7 +183,6 @@
     fetchProducts(false);
   }
 
-  // ─── Modal helpers ──────────────────────────────────────────────────────────
   function openCheckoutModal() {
     if (cart.length === 0) {
       toast.error('Cart is empty');
@@ -210,17 +199,13 @@
   }
 
   function finalizeSale() {
-    // Skip if cart is empty or change < 0 (not enough cash)
     if (cart.length === 0 || changeDue < 0) return;
-
     closeCheckoutModal();
     processCheckout().then(() => {
-      // Fire-and-forget receipt print; function handles lastSale guard internally
       setTimeout(() => printReceipt(), 0);
     });
   }
 
-  // ─── Reactive focus: auto-focus cash input when modal opens ────────────────
   $effect(() => {
     if (showCheckoutModal) {
       setTimeout(() => {
@@ -230,9 +215,7 @@
     }
   });
 
-  // ─── Global Keyboard Shortcuts ──────────────────────────────────────────────
   function handleGlobalKeydown(event) {
-    // Alt + Delete → Clear cart with confirmation
     if (event.altKey && event.key === 'Delete') {
       event.preventDefault();
       if (cart.length > 0 && confirm('Kosongkan seluruh keranjang belanja?')) {
@@ -241,8 +224,6 @@
       }
       return;
     }
-
-    // F2 → Focus search input
     if (event.key === 'F2') {
       event.preventDefault();
       const input = document.getElementById('pos-search-input');
@@ -252,32 +233,30 @@
       }
       return;
     }
-
-    // F4 → Open checkout modal
+    // ESC clears search when not in modal
+    if (event.key === 'Escape' && !showCheckoutModal) {
+      if (searchQuery) {
+        searchQuery = '';
+        fetchProducts(false);
+      }
+      return;
+    }
     if (event.key === 'F4') {
       event.preventDefault();
       openCheckoutModal();
       return;
     }
-
-    // Shortcuts that only apply when checkout modal is visible
     if (!showCheckoutModal) return;
-
-    // F3 / Esc → Close modal
     if (event.key === 'Escape' || event.key === 'F3') {
       event.preventDefault();
       closeCheckoutModal();
       return;
     }
-
-    // F5 → Auto-fill exact amount
-    if (event.key === 'F5') {
+    if (event.key === 'F6') {
       event.preventDefault();
       cashReceived = totalAmount;
       return;
     }
-
-    // Enter → Submit if cash >= total
     if (event.key === 'Enter') {
       event.preventDefault();
       if (changeDue >= 0) {
@@ -287,12 +266,21 @@
     }
   }
 
+  function focusSearch() {
+    setTimeout(() => {
+      const input = document.getElementById('pos-search-input');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+  }
+
   onMount(async () => {
     isInitialMount = true;
     await fetchProducts(false);
     isInitialMount = false;
-
-    // WebSocket event handlers for real-time updates
+    focusSearch();
     unsubscribeStock = ws.on('stock_update', (data) => {
       const product = products.find(p => p.id === data.id);
       if (product) {
@@ -300,12 +288,9 @@
         toast.info(`Stock updated: ${product.name} now has ${data.stock} units`);
       }
     });
-
     unsubscribeSale = ws.on('sale_created', (data) => {
       toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
     });
-
-    // Cleanup on unmount
     return () => {
       if (unsubscribeStock) unsubscribeStock();
       if (unsubscribeSale) unsubscribeSale();
@@ -320,29 +305,33 @@
     <!-- Products -->
     <div class="flex-1 flex flex-col gap-4">
       <div class="card p-4">
-        <div class="relative">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            id="pos-search-input"
-            bind:value={searchQuery}
-            class="input pl-10 pr-10"
-          />
-          {#if searchQuery}
-            <button
-              onclick={() => searchQuery = ''}
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-              title="Clear search"
-            >
-              <X size={16} />
-            </button>
-          {/if}
+        <div class="flex items-center gap-2">
+          <kbd class="px-1.5 py-0.5 text-[10px] font-medium text-primary/60 bg-primary-subtle/30 rounded border border-primary/20 select-none">F2</kbd>
+          <div class="relative flex-1">
+            <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              id="pos-search-input"
+              bind:value={searchQuery}
+              class="input pl-10 pr-10 w-full"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            {#if searchQuery}
+              <button
+                onclick={() => searchQuery = ''}
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+                title="Clear search [ESC]"
+              >
+                <X size={16} />
+              </button>
+            {/if}
+          </div>
         </div>
       </div>
 
       <div class="card flex-1 overflow-hidden flex flex-col p-0">
-
         {#if loading}
           <div class="flex-1 overflow-y-auto">
             {#each { length: 8 } as _}
@@ -377,14 +366,10 @@
                 {#each products as product (product.id)}
                   <tr class="hover:bg-surface-hover/50 transition-colors">
                     <td class="p-4 w-64">
-                      <!-- Product name (normal size) -->
                       <div class="font-medium truncate w-full text-text-primary" title={product.name}>
                         {product.name}
                       </div>
-
-                      <!-- SKU and Barcode details (smaller font) -->
                       <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
-                        <!-- SKU with copy button -->
                         <span class="flex items-center gap-1">
                           {product.sku}
                           <button
@@ -399,8 +384,6 @@
                             {/if}
                           </button>
                         </span>
-
-                        <!-- Barcode with copy button (only if barcode exists) -->
                         {#if product.barcode}
                           <span class="flex items-center gap-1 ml-4">
                             {product.barcode}
@@ -445,7 +428,6 @@
               </tbody>
             </table>
           </div>
-
           <div class="p-3 border-t border-border bg-surface-subtle/20">
             <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
           </div>
@@ -456,7 +438,6 @@
     <!-- Cart -->
     <div class="w-[340px] shrink-0 flex flex-col relative">
       <div class="card flex flex-col overflow-hidden p-0 sticky top-0 h-[calc(100vh-120px)] max-h-[800px]">
-        <!-- Cart Header -->
         <div class="px-4 py-3.5 border-b border-border flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <ShoppingCart size={18} class="text-primary-light" />
@@ -466,13 +447,15 @@
             {/if}
           </div>
           {#if cart.length > 0}
-            <button onclick={clearCart} class="btn btn-ghost btn-icon btn-sm text-danger hover:bg-danger-subtle" title="Clear cart">
-              <X size={14} />
-            </button>
+            <div class="flex items-center gap-1">
+              <kbd class="px-1 py-0.5 text-[10px] font-medium text-danger/60 bg-danger-subtle/30 rounded border border-danger/20 select-none">ALT+DEL</kbd>
+              <button onclick={clearCart} class="btn btn-ghost btn-icon btn-sm text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]">
+                <X size={14} />
+              </button>
+            </div>
           {/if}
         </div>
 
-        <!-- Cart Items Area -->
         {#if cart.length === 0}
           <div class="flex-1 p-4 flex flex-col items-center justify-center text-center overflow-y-auto">
             <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl mb-4 border border-dashed border-border-strong flex items-center justify-center animate-pulse">
@@ -503,7 +486,36 @@
                   >
                     <Minus size={14} />
                   </button>
-                  <span class="w-7 text-center text-sm font-semibold text-text-primary">{item.quantity}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={item.stock || 999}
+                    bind:value={item.quantity}
+                    oninput={() => {
+                      const maxStock = item.stock || 999;
+                      if (item.quantity > maxStock) {
+                        item.quantity = maxStock;
+                        cart = [...cart];
+                      }
+                    }}
+                    onblur={() => {
+                      if (item.quantity <= 0) removeFromCart(item.id);
+                      else {
+                        const maxStock = item.stock || 999;
+                        if (item.quantity > maxStock) {
+                          item.quantity = maxStock;
+                        }
+                        cart = [...cart];
+                      }
+                    }}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.target.blur();
+                        focusSearch();
+                      }
+                    }}
+                    class="w-12 text-center text-sm font-semibold text-text-primary bg-surface border border-border rounded-lg px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
                   <button
                     class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
                     onclick={() => updateQty(item.id, 1)}
@@ -522,15 +534,12 @@
           </div>
         {/if}
 
-        <!-- Summary Section (Always Visible) -->
         <div class="border-t border-border p-4 space-y-3 bg-bg-secondary shrink-0">
-          <!-- Total -->
           <div class="flex justify-between font-bold text-text-primary">
             <span>Total</span>
             <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
           </div>
 
-          <!-- Payment Method -->
           <div>
             <p class="text-xs text-text-muted mb-2 font-medium">Payment method</p>
             <div class="grid grid-cols-3 gap-2">
@@ -546,7 +555,6 @@
             </div>
           </div>
 
-          <!-- Complete Purchase Button -->
           <button
             class="btn btn-success w-full py-3"
             onclick={openCheckoutModal}
@@ -557,7 +565,7 @@
               Processing…
             {:else}
               <Wallet size={16} />
-              Bayar · Rp {totalAmount.toLocaleString('id-ID')}
+              Bayar [F4] · Rp {totalAmount.toLocaleString('id-ID')}
             {/if}
           </button>
 
@@ -574,35 +582,25 @@
       </div>
     </div>
   </div>
-
-  <!-- ─── Shortcut Legend ─────────────────────────────────────────────────────── -->
-  <div class="text-center text-xs text-text-muted/40 select-none pb-2">
-    [F2] Cari Produk &nbsp;|&nbsp; [F4] Bayar &nbsp;|&nbsp; [ALT+DEL] Kosongkan Keranjang
-  </div>
 </div>
 
-<!-- ─── Checkout Modal ───────────────────────────────────────────────────────── -->
 {#if showCheckoutModal}
-  <!-- Overlay -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center print-modal-overlay"
     transition:fly={{ y: 40, duration: 300 }}
   >
-    <!-- Backdrop -->
     <div
       class="absolute inset-0 bg-black/70 backdrop-blur-sm"
       onclick={closeCheckoutModal}
       role="presentation"
     ></div>
 
-    <!-- Panel -->
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Pembayaran Selesai"
       class="relative z-[55] w-full max-w-xl rounded-2xl border border-border-default bg-bg-card shadow-modal p-6"
     >
-      <!-- ── Header ── -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-bold text-text-primary">Pembayaran Selesai</h2>
         <button
@@ -614,7 +612,6 @@
         </button>
       </div>
 
-      <!-- ── Grand Total ── -->
       <div class="mb-6 text-center">
         <p class="text-sm text-text-muted mb-1 font-medium">Total Tagihan</p>
         <p class="text-4xl font-extrabold text-purple-400">
@@ -622,7 +619,6 @@
         </p>
       </div>
 
-      <!-- ── Payment Method ── -->
       <p class="text-xs text-text-muted mb-2 font-medium">Metode Pembayaran</p>
       <div class="grid grid-cols-3 gap-2 mb-6">
         {#each paymentOptions as opt}
@@ -636,11 +632,10 @@
         {/each}
       </div>
 
-      <!-- ── Cash Received (only when Cash) ── -->
       {#if paymentMethod === 'Cash'}
         <div class="mb-4">
           <label for="cash-received-input" class="text-xs text-text-muted mb-1.5 font-medium block">
-            Cash Received
+            Cash Received [F6] = Total
           </label>
           <input
             id="cash-received-input"
@@ -652,7 +647,6 @@
           />
         </div>
 
-        <!-- Quick cash presets -->
         <div class="flex flex-wrap gap-2 mb-4">
           {#each quickCashPresets as preset}
             <button
@@ -664,7 +658,6 @@
           {/each}
         </div>
 
-        <!-- ── Change Due ── -->
         <div
           class="flex items-center justify-between p-4 rounded-xl
             {changeDue >= 0
@@ -683,7 +676,6 @@
           </span>
         </div>
       {:else}
-        <!-- Non-cash: show confirmation block -->
         <div
           class="flex items-center justify-between p-4 rounded-xl
             bg-info-subtle border border-info-default/20"
@@ -693,18 +685,12 @@
         </div>
       {/if}
 
-      <!-- ── F5 hint ── -->
-      {#if paymentMethod === 'Cash'}
-        <p class="text-[11px] text-text-muted/50 mt-2 text-center">Tekan [F5] untuk isi nominal pas</p>
-      {/if}
-
-      <!-- ── Actions ── -->
       <div class="flex gap-3 mt-6">
         <button
           class="btn btn-secondary flex-1"
           onclick={closeCheckoutModal}
         >
-          Batal
+          Batal [F3]
         </button>
         <button
           class="btn btn-success flex-1"
@@ -719,8 +705,6 @@
   </div>
 {/if}
 
-
-<!-- ─── Print Receipt (Previous) ─────────────────────────────────────────── -->
 {#if lastSale}
   <div class="receipt-print-area" id="receipt-print-area">
     <div class="receipt-header">
@@ -746,8 +730,6 @@
   </div>
 {/if}
 
-
-<!-- ─── Thermal Receipt (Hidden — CSS Print Media) ─────────────────────────── -->
 {#if lastSale}
 <div class="thermal-receipt hidden" id="thermal-receipt">
   <div class="thermal-shop-name">RETAIL POS</div>
@@ -793,15 +775,8 @@
 </div>
 {/if}
 
-
 <style>
 @media print {
-  /* ── Hide all UI elements ── */
-  body * {
-    display: none !important;
-  }
-
-  /* ── Make thermal receipt the only visible surface in print context ── */
   .thermal-receipt {
     position: absolute;
     left: 0;
@@ -821,7 +796,6 @@
     visibility: visible !important;
   }
 
-  /* ── Receipt structure ── */
   .thermal-shop-name {
     font-size: 16pt;
     font-weight: bold;
@@ -878,7 +852,6 @@
     line-height: 1.5;
   }
 
-  /* ── Fallback: also show old receipt-print-area ── */
   #receipt-print-area {
     display: block !important;
     position: absolute;
