@@ -404,22 +404,23 @@ const response = await apiClient.delete(`/products/${selectedProduct.id}`);
   }
 
 function resetForm() {
-      form = {
-        name: '',
-        sku: '',
-        barcode: '',
-        category: '',
-        price: 0,
-        cost: 0,
-        stock: 0,
-        brand_id: null,
-        description: '',
-        unit_of_measure_id: null,
-        tax_class_id: null,
-        weight_grams: null,
-        status: 'draft'
-      };
-    }
+    form = {
+      name: '',
+      sku: '',
+      barcode: '',
+      category: '',
+      price: 0,
+      cost: 0,
+      stock: 0,
+      brand_id: null,
+      description: '',
+      unit_of_measure_id: null,
+      tax_class_id: null,
+      weight_grams: null,
+      status: 'draft'
+    };
+    modalCategorySearch = '';
+  }
 
   function getUserRoleName() {
     const user = $auth.user;
@@ -959,16 +960,17 @@ function resetForm() {
         <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category <span class="text-destructive">*</span></label>
         <div class="relative">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            id="prod-category"
-            placeholder="Select a category"
-            bind:value={modalCategorySearch}
-            onfocus={handleModalCategoryFocus}
-            onblur={handleModalCategoryBlur}
-            class="input w-full pl-10 pr-10"
-            required
-          />
+<input
+             type="text"
+             id="prod-category"
+             placeholder="Select a category"
+             bind:value={modalCategorySearch}
+             on:input={() => form.category = modalCategorySearch}
+             onfocus={handleModalCategoryFocus}
+             onblur={handleModalCategoryBlur}
+             class="input w-full pl-10 pr-10"
+             required
+           />
           {#if modalCategorySearch}
             <button
               type="button"
