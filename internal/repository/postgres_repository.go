@@ -560,7 +560,7 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 
 	// Phase 1 extension fields
 	var brandID, taxClassID, unitOfMeasureID interface{}
-	var weightGrams, defaultDiscount interface{}
+	var weightGrams, defaultDiscount, description interface{}
 	
 	if product.BrandID != nil {
 		brandID = *product.BrandID
@@ -577,6 +577,9 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 	if product.DefaultDiscountPct != nil {
 		defaultDiscount = *product.DefaultDiscountPct
 	}
+	if product.Description != nil {
+		description = *product.Description
+	}
 
 	return r.db.QueryRow(ctx, `
 		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, store_id, status,
@@ -584,7 +587,7 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at
 	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
-		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
+		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
 		Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
 }
 
@@ -610,7 +613,7 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 
 	// Phase 1 extension fields
 	var brandID, taxClassID, unitOfMeasureID interface{}
-	var weightGrams, defaultDiscount interface{}
+	var weightGrams, defaultDiscount, description interface{}
 	
 	if product.BrandID != nil {
 		brandID = *product.BrandID
@@ -637,6 +640,11 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 	} else {
 		defaultDiscount = nil
 	}
+	if product.Description != nil {
+		description = *product.Description
+	} else {
+		description = nil
+	}
 
 	_, err := r.db.Exec(ctx, `
 		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
@@ -644,7 +652,7 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 			brand_id = $10, description = $11, tax_class_id = $12, weight_grams = $13, unit_of_measure_id = $14, default_discount_percent = $15
 		WHERE id = $16
 	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
-		brandID, product.Description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
+		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
 	return err
 }
 
