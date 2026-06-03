@@ -961,16 +961,16 @@ function resetForm() {
         <div class="relative">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
 <input
-             type="text"
-             id="prod-category"
-             placeholder="Select a category"
-             bind:value={modalCategorySearch}
-             on:input={() => form.category = modalCategorySearch}
-             onfocus={handleModalCategoryFocus}
-             onblur={handleModalCategoryBlur}
-             class="input w-full pl-10 pr-10"
-             required
-           />
+              type="text"
+              id="prod-category"
+              placeholder="Select a category"
+              bind:value={modalCategorySearch}
+              oninput={() => form.category = modalCategorySearch}
+              onfocus={handleModalCategoryFocus}
+              onblur={handleModalCategoryBlur}
+              class="input w-full pl-10 pr-10"
+              required
+            />
           {#if modalCategorySearch}
             <button
               type="button"
