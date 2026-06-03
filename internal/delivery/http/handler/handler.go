@@ -335,7 +335,7 @@ if product.Barcode != nil {
 	}
 
 	if err := h.productRepo.CreateProduct(getCtx(c), &product); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create product"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create product: " + err.Error()})
 		return
 	}
 	h.logAudit(c, "create", "product", product.ID, nil, product)

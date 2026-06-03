@@ -331,22 +331,24 @@ async function handleAdd() {
      if (!validateProductForm()) return;
 
      saving = true;
-     try {
-       const payload = {
-         ...form,
-         category_name: form.category,
-         barcode: form.barcode?.trim() || undefined,
-         description: form.description?.trim() || undefined,
-         cost: form.cost || undefined,
-         weight_grams: form.weight_grams || undefined
-       };
-await apiClient.post('/products', payload);
+try {
+        const payload = {
+          ...form,
+          category_name: form.category,
+          barcode: form.barcode?.trim() || undefined,
+          description: form.description?.trim() || undefined,
+          cost: form.cost >= 0 ? form.cost : undefined,
+          weight_grams: form.weight_grams ?? undefined
+        };
+        await apiClient.post('/products', payload);
         toast.success('Product added');
         showModal = false;
         resetForm();
         await fetchProducts(offset, limit);
       } catch (err) {
-        toast.error('Failed to add product');
+        const errorMsg = err.response?.data?.error || err.message || 'Failed to add product';
+        console.error('Add product error:', err, errorMsg);
+        toast.error(errorMsg);
       } finally {
         saving = false;
       }
@@ -360,22 +362,24 @@ await apiClient.post('/products', payload);
      if (!validateProductForm()) return;
 
      saving = true;
-     try {
-       const payload = {
-         ...form,
-         category_name: form.category,
-         barcode: form.barcode?.trim() || undefined,
-         description: form.description?.trim() || undefined,
-         cost: form.cost || undefined,
-         weight_grams: form.weight_grams || undefined
-       };
-await apiClient.put(`/products/${selectedProduct.id}`, payload);
+try {
+        const payload = {
+          ...form,
+          category_name: form.category,
+          barcode: form.barcode?.trim() || undefined,
+          description: form.description?.trim() || undefined,
+          cost: form.cost >= 0 ? form.cost : undefined,
+          weight_grams: form.weight_grams ?? undefined
+        };
+        await apiClient.put(`/products/${selectedProduct.id}`, payload);
         toast.success('Product updated');
         showModal = false;
         resetForm();
         await fetchProducts(offset, limit);
       } catch (err) {
-        toast.error('Failed to update product');
+        const errorMsg = err.response?.data?.error || err.message || 'Failed to update product';
+        console.error('Update product error:', err, errorMsg);
+        toast.error(errorMsg);
       } finally {
         saving = false;
       }
