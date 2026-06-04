@@ -1685,52 +1685,89 @@ onValueChange={(val) => {
     {/if}
   </div>
 
-  <!-- Transaction Details Modal -->
-  <Modal bind:open={showTransactionModal} title="Transaction Details" size="md">
+<!-- Transaction Details Modal -->
+  <Modal bind:open={showTransactionModal} title="Transaction Details" size="lg">
     {#if selectedTransaction}
       <div class="space-y-4">
-        <div>
-          <p class="text-sm font-medium text-text-secondary">Invoice Number</p>
-          <p class="text-text-primary">{selectedTransaction.invoice_number}</p>
-        </div>
-        <div>
-          <p class="text-sm font-medium text-text-secondary">Date & Time</p>
-          <p class="text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
-        </div>
-        <div>
-          <p class="text-sm font-medium text-text-secondary">Payment Method</p>
-          <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-1 text-sm px-3 py-1">
-            {selectedTransaction.payment_method || '—'}
-          </Badge>
-        </div>
-        <div>
-          <p class="text-sm font-medium text-text-secondary">Status</p>
-          <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1">
-            {selectedTransaction.status || 'completed'}
-          </Badge>
-        </div>
-        {#if selectedTransaction.items && selectedTransaction.items.length > 0}
-          <div>
-            <p class="text-sm font-medium text-text-secondary mb-2 block">Items</p>
-            <div class="space-y-2">
-              {#each selectedTransaction.items as item}
-                <div class="flex justify-between items-center py-2 px-3 bg-surface rounded-md border border-border">
-                  <div>
-                    <p class="text-sm font-medium text-text-primary">{item.name}</p>
-                    <p class="text-xs text-text-secondary">Qty: {item.quantity}</p>
-                  </div>
-                  <p class="text-sm text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</p>
-                </div>
-              {/each}
+        <!-- Summary Section - Two Column -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-3">
+            <div>
+              <p class="text-xs font-medium text-text-muted">Invoice Number</p>
+              <p class="text-sm font-semibold text-text-primary">{selectedTransaction.invoice_number}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-text-muted">Date & Time</p>
+              <p class="text-sm text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
           </div>
-        {/if}
-        <div class="border-t border-border pt-4">
-          <div class="flex justify-between items-center">
-            <span class="text-sm font-medium text-text-secondary">Total Amount</span>
-            <span class="text-lg font-semibold text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
+          <div class="space-y-3">
+            <div>
+              <p class="text-xs font-medium text-text-muted">Payment Method</p>
+              <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-1 text-xs px-2 py-0.5">
+                {selectedTransaction.payment_method || '—'}
+              </Badge>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-text-muted">Status</p>
+              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1 text-xs">
+                {selectedTransaction.status || 'completed'}
+              </Badge>
+            </div>
           </div>
         </div>
+
+        {#if selectedTransaction.items && selectedTransaction.items.length > 0}
+        <div class="border-t border-border pt-4">
+          <p class="text-sm font-medium text-text-secondary mb-2">Items</p>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-surface-subtle border-b border-border">
+                <th class="text-left py-2 px-3 font-medium text-text-primary">Description</th>
+                <th class="text-center py-2 px-3 font-medium text-text-primary w-16">Qty</th>
+                <th class="text-right py-2 px-3 font-medium text-text-primary w-24">Price</th>
+                <th class="text-right py-2 px-3 font-medium text-text-primary w-28">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#each selectedTransaction.items as item}
+                <tr>
+                  <td class="py-2.5 px-3 text-text-primary">{item.name}</td>
+                  <td class="py-2.5 px-3 text-center text-text-secondary">{item.quantity}</td>
+                  <td class="py-2.5 px-3 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-2.5 px-3 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+                </tr>
+              {/each}
+            </tbody>
+            <tfoot>
+              <tr class="border-t-2 border-border">
+                <td colspan="3" class="py-3 px-3 text-right font-bold text-text-primary">TOTAL</td>
+                <td class="py-3 px-3 text-right font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {/if}
+      </div>
+
+      <div class="flex items-center justify-end gap-2">
+        <button class="btn btn-secondary btn-sm" onclick={() => showTransactionModal = false}>
+          Close
+        </button>
+        <button class="btn btn-primary btn-sm flex items-center gap-1.5" onclick={() => {
+          // Placeholder: generate and download invoice
+          const data = {
+            invoice: selectedTransaction.invoice_number,
+            date: formatDateTime(new Date(selectedTransaction.created_at)),
+            items: selectedTransaction.items,
+            total: selectedTransaction.total_amount
+          };
+          console.log('Download invoice:', data);
+          toast.info('Invoice download feature coming soon');
+        }}>
+          <Download size={14} />
+          Download Invoice
+        </button>
       </div>
     {/if}
   </Modal>
