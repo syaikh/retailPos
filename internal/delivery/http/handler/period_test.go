@@ -143,3 +143,69 @@ func TestMonthlyRanges_CompletedMode(t *testing.T) {
 	assert.Equal(t, time.May, ranges.PreviousEnd.Month())
 	assert.Equal(t, 1, ranges.PreviousEnd.Day()) // May 1 exclusive
 }
+
+// TestYearlyRanges_WithDec31ComparisonDate verifies that yearly mode with Dec 31 date
+// compares full year vs full previous year (e.g., 2024 vs 2023, not 2024 vs 2022)
+func TestYearlyRanges_WithDec31ComparisonDate(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// Dec 31, 2024 as reference date (end of year)
+	dec31_2024 := time.Date(2024, 12, 31, 0, 0, 0, 0, jkt)
+	ranges := GetComparisonRanges(PeriodYearly, dec31_2024, false) // todate mode
+
+	// Current: Full 2024 (Jan 1 2024 - Jan 1 2025 exclusive)
+	assert.Equal(t, 2024, ranges.CurrentStart.Year())
+	assert.Equal(t, time.January, ranges.CurrentStart.Month())
+	assert.Equal(t, 1, ranges.CurrentStart.Day())
+	assert.Equal(t, 2025, ranges.CurrentEnd.Year())
+	assert.Equal(t, time.January, ranges.CurrentEnd.Month())
+	assert.Equal(t, 1, ranges.CurrentEnd.Day()) // Jan 1 2025 exclusive
+
+	// Previous: Full 2023 (Jan 1 2023 - Jan 1 2024 exclusive)
+	assert.Equal(t, 2023, ranges.PreviousStart.Year())
+	assert.Equal(t, time.January, ranges.PreviousStart.Month())
+	assert.Equal(t, 1, ranges.PreviousStart.Day())
+	assert.Equal(t, 2024, ranges.PreviousEnd.Year())
+	assert.Equal(t, time.January, ranges.PreviousEnd.Month())
+	assert.Equal(t, 1, ranges.PreviousEnd.Day()) // Jan 1 2024 exclusive
+}
+
+// TestYearlyRanges_CompletedMode verifies completed mode compares last full year
+func TestYearlyRanges_CompletedMode(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// Any date in 2026, completed mode should compare full 2025 vs full 2024
+	june4_2026 := time.Date(2026, 6, 4, 0, 0, 0, 0, jkt)
+	ranges := GetComparisonRanges(PeriodYearly, june4_2026, true) // completed mode
+
+	// Current: Full 2025
+	assert.Equal(t, 2025, ranges.CurrentStart.Year())
+	assert.Equal(t, time.January, ranges.CurrentStart.Month())
+	assert.Equal(t, 1, ranges.CurrentStart.Day())
+	assert.Equal(t, 2026, ranges.CurrentEnd.Year())
+	assert.Equal(t, time.January, ranges.CurrentEnd.Month())
+	assert.Equal(t, 1, ranges.CurrentEnd.Day()) // Jan 1 2026 exclusive
+
+	// Previous: Full 2024
+	assert.Equal(t, 2024, ranges.PreviousStart.Year())
+	assert.Equal(t, time.January, ranges.PreviousStart.Month())
+	assert.Equal(t, 1, ranges.PreviousStart.Day())
+	assert.Equal(t, 2025, ranges.PreviousEnd.Year())
+	assert.Equal(t, time.January, ranges.PreviousEnd.Month())
+	assert.Equal(t, 1, ranges.PreviousEnd.Day()) // Jan 1 2025 exclusive
+}
+
+// TestYearlyRanges_YearIncomplete verifies that current year is marked as incomplete
+func TestYearlyRanges_YearIncomplete(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// June 4 (not Dec 31) should be incomplete for yearly
+	june4_2024 := time.Date(2024, 6, 4, 0, 0, 0, 0, jkt)
+	incomplete := isPeriodIncomplete(PeriodYearly, june4_2024)
+	assert.True(t, incomplete, "Year should be incomplete before Dec 31")
+
+	// Dec 31 should be complete
+	dec31_2024 := time.Date(2024, 12, 31, 0, 0, 0, 0, jkt)
+	incomplete = isPeriodIncomplete(PeriodYearly, dec31_2024)
+	assert.False(t, incomplete, "Year should be complete on Dec 31")
+}

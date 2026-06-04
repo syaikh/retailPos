@@ -208,7 +208,7 @@ func getYearlyRanges(refDate time.Time, completedMode bool) PeriodRange {
 	startOfYear := time.Date(refDate.Year(), 1, 1, 0, 0, 0, 0, refDate.Location())
 
 	if completedMode {
-		// Last full year
+		// Last full year (december of previous year)
 		lastYearEnd := startOfYear
 		lastYearStart := lastYearEnd.AddDate(-1, 0, 0)
 
@@ -216,19 +216,20 @@ func getYearlyRanges(refDate time.Time, completedMode bool) PeriodRange {
 			CurrentStart:  lastYearStart,
 			CurrentEnd:    lastYearEnd,
 			PreviousStart: lastYearStart.AddDate(-1, 0, 0),
-			PreviousEnd:   lastYearStart,
+			PreviousEnd:   lastYearStart, // End at Jan 1 of lastYearStart (exclusive), so full year before that
 		}
 	}
 
-	// To-date: same number of days from start of year
-	daysElapsed := refDate.YearDay()
-	previousStart := startOfYear.AddDate(-1, 0, 0)
-
+	// To-date: full year Jan 1 - Dec 31 (exclusive)
+	// Compare selected year vs same period last year
+	// For refDate = Dec 31, 2024: compare 2024 vs 2023
+	// For refDate = Jun 4, 2026: compare Jan 1-Dec 31 2026 vs Jan 1-Dec 31 2025
+	// Note: we expect refDate near end of year for yearly view
 	return PeriodRange{
 		CurrentStart:  startOfYear,
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: previousStart,
-		PreviousEnd:   previousStart.AddDate(0, 0, daysElapsed),
+		CurrentEnd:    startOfYear.AddDate(1, 0, 0), // Jan 1 next year (exclusive)
+		PreviousStart: startOfYear.AddDate(-1, 0, 0),
+		PreviousEnd:   startOfYear, // Jan 1 current year (exclusive)
 	}
 }
 
@@ -246,6 +247,10 @@ func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 		// Month is incomplete if not last day
 		nextDay := refDate.AddDate(0, 0, 1)
 		return nextDay.Month() == refDate.Month()
+	case PeriodYearly:
+		// Year is incomplete if not December 31
+		nextDay := refDate.AddDate(0, 0, 1)
+		return nextDay.Year() == refDate.Year() || refDate.Month() != time.December
 	default:
 		return false
 	}

@@ -726,17 +726,19 @@ async function fetchSalesWithRange(start, end) {
     : activePeriodType === 'yearly' ? 'yearly'
     : 'daily';
 
-  // Real-time uses "realtime" mode for today-vs-yesterday comparison
+// Real-time uses "realtime" mode for today-vs-yesterday comparison
   // 30days uses "30days" mode for 30-day comparison
-  // daily, yesterday, yearly use "completed" mode for same day/week/year comparison
+  // daily, yesterday use "completed" mode for same day/week comparison
+  // yearly: use "completed" for current year (incomplete), "todate" for completed years
   const comparisonMode = activePeriodType === 'realtime' ? 'realtime' :
     activePeriodType === 'daily' ? 'completed' :
     activePeriodType === 'yesterday' ? 'completed' :
-    activePeriodType === 'yearly' ? 'completed' :
-    activePeriodType === '30days' ? '30days' : 'todate';
+    activePeriodType === 'yearly' && selectedYearlyRange
+      ? (selectedYearlyRange.start.year === parseInt(getTodayInJakarta().split('-')[0]) ? 'completed' : 'todate')
+      : activePeriodType === '30days' ? '30days' : 'todate';
 
   // Use yesterday as comparison date for current month (MTD comparison)
-  // Otherwise use the end date parameter
+  // Use Dec 31 of selected year for yearly comparison (so backend uses correct year)
   let comparisonDate = end;
   if (activePeriodType === 'monthly' && selectedMonthlyRange) {
     const todayJakarta = getTodayInJakarta().split('-').map(Number);
@@ -745,15 +747,23 @@ async function fetchSalesWithRange(start, end) {
       comparisonDate = getDateNDaysAgoInJakarta(1);
     }
   }
+  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    const year = selectedYearlyRange.start.year;
+    comparisonDate = `${year}-12-31`;
+  }
 
   // Chart endpoint uses full month range for monthly view to get daily aggregation
-  // End date from getPeriodDateRange is already constrained to yesterday for current month
   // We need to use the original end date from the calendar for chart data
   let chartEndDate = end;
   if (activePeriodType === 'monthly' && selectedMonthlyRange) {
     // For monthly view, use the full month end from calendar selection
     const calendarEnd = selectedMonthlyRange.end;
     chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
+  }
+  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    // For yearly view, use full year (Dec 31) for monthly aggregation
+    const year = selectedYearlyRange.start.year;
+    chartEndDate = `${year}-12-31`;
   }
 
   const [salesRes, chartRes, comparisonRes] = await Promise.all([
