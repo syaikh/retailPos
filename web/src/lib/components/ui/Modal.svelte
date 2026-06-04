@@ -48,7 +48,7 @@
   >
     <!-- Panel - stop propagation to prevent events bubbling to backdrop -->
     <div
-      class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal"
+      class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col"
       transition:fly={{ y: 20, duration: 300 }}
       role="dialog"
       aria-modal="true"
@@ -80,8 +80,10 @@
       {/if}
 
       <!-- Body -->
-      <div class="px-6 py-5 max-h-[60vh] overflow-y-auto">
-        {@render children()}
+      <div class="flex-1 overflow-y-auto">
+        <div class="px-6 py-5">
+          {@render children()}
+        </div>
       </div>
 
       <!-- Footer -->

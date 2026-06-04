@@ -1750,25 +1750,25 @@ onValueChange={(val) => {
           </div>
         </div>
         {/if}
-      </div>
 
-      <div class="flex items-center justify-end gap-2 pt-4 border-t border-border mt-4">
-        <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
-          Close
-        </button>
-        <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={() => {
-          const data = {
-            invoice: selectedTransaction.invoice_number,
-            date: formatDateTime(new Date(selectedTransaction.created_at)),
-            items: selectedTransaction.items,
-            total: selectedTransaction.total_amount
-          };
-          console.log('Download invoice:', data);
-          toast.info('Invoice download feature coming soon');
-        }}>
-          <Download size={14} />
-          Download Invoice
-        </button>
+        <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
+          <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
+            Close
+          </button>
+          <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={() => {
+            const data = {
+              invoice: selectedTransaction.invoice_number,
+              date: formatDateTime(new Date(selectedTransaction.created_at)),
+              items: selectedTransaction.items,
+              total: selectedTransaction.total_amount
+            };
+            console.log('Download invoice:', data);
+            toast.info('Invoice download feature coming soon');
+          }}>
+            <Download size={14} />
+            Download Invoice
+          </button>
+        </div>
       </div>
     {/if}
   </Modal>
