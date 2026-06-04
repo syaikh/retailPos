@@ -1686,31 +1686,31 @@ onValueChange={(val) => {
   </div>
 
 <!-- Transaction Details Modal -->
-  <Modal bind:open={showTransactionModal} title="Transaction Details" size="lg">
+  <Modal bind:open={showTransactionModal} title="Transaction Details" size="xl">
     {#if selectedTransaction}
-      <div class="space-y-4">
+      <div class="space-y-5">
         <!-- Summary Section - Two Column -->
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-x-8 gap-y-4 pb-4 border-b border-border">
           <div class="space-y-3">
             <div>
-              <p class="text-xs font-medium text-text-muted">Invoice Number</p>
-              <p class="text-sm font-semibold text-text-primary">{selectedTransaction.invoice_number}</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Invoice Number</p>
+              <p class="text-base font-semibold text-text-primary mt-0.5">{selectedTransaction.invoice_number}</p>
             </div>
             <div>
-              <p class="text-xs font-medium text-text-muted">Date & Time</p>
-              <p class="text-sm text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</p>
+              <p class="text-base text-text-primary mt-0.5">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
           </div>
           <div class="space-y-3">
             <div>
-              <p class="text-xs font-medium text-text-muted">Payment Method</p>
-              <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-1 text-xs px-2 py-0.5">
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Payment Method</p>
+              <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-0.5 text-sm px-3 py-1">
                 {selectedTransaction.payment_method || '—'}
               </Badge>
             </div>
             <div>
-              <p class="text-xs font-medium text-text-muted">Status</p>
-              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-1 text-xs">
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Status</p>
+              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-0.5 text-sm">
                 {selectedTransaction.status || 'completed'}
               </Badge>
             </div>
@@ -1718,44 +1718,45 @@ onValueChange={(val) => {
         </div>
 
         {#if selectedTransaction.items && selectedTransaction.items.length > 0}
-        <div class="border-t border-border pt-4">
-          <p class="text-sm font-medium text-text-secondary mb-2">Items</p>
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="bg-surface-subtle border-b border-border">
-                <th class="text-left py-2 px-3 font-medium text-text-primary">Description</th>
-                <th class="text-center py-2 px-3 font-medium text-text-primary w-16">Qty</th>
-                <th class="text-right py-2 px-3 font-medium text-text-primary w-24">Price</th>
-                <th class="text-right py-2 px-3 font-medium text-text-primary w-28">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-border">
-              {#each selectedTransaction.items as item}
-                <tr>
-                  <td class="py-2.5 px-3 text-text-primary">{item.name}</td>
-                  <td class="py-2.5 px-3 text-center text-text-secondary">{item.quantity}</td>
-                  <td class="py-2.5 px-3 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
-                  <td class="py-2.5 px-3 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+        <div>
+          <p class="text-sm font-semibold text-text-secondary mb-3">Items</p>
+          <div class="border border-border rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-subtle">
+                  <th class="text-left py-3 px-4 font-semibold text-text-primary">Description</th>
+                  <th class="text-center py-3 px-4 font-semibold text-text-primary w-20">Qty</th>
+                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">Price</th>
+                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">Subtotal</th>
                 </tr>
-              {/each}
-            </tbody>
-            <tfoot>
-              <tr class="border-t-2 border-border">
-                <td colspan="3" class="py-3 px-3 text-right font-bold text-text-primary">TOTAL</td>
-                <td class="py-3 px-3 text-right font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody class="divide-y divide-border">
+                {#each selectedTransaction.items as item}
+                  <tr class="hover:bg-surface/50">
+                    <td class="py-3 px-4 text-text-primary">{item.name}</td>
+                    <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
+                    <td class="py-3 px-4 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                    <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+                  </tr>
+                {/each}
+              </tbody>
+              <tfoot>
+                <tr class="bg-surface-subtle/50">
+                  <td colspan="3" class="py-3 px-4 text-right font-bold text-text-primary">TOTAL</td>
+                  <td class="py-3 px-4 text-right font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
         {/if}
       </div>
 
-      <div class="flex items-center justify-end gap-2">
-        <button class="btn btn-secondary btn-sm" onclick={() => showTransactionModal = false}>
+      <div class="flex items-center justify-end gap-2 pt-4 border-t border-border mt-4">
+        <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
           Close
         </button>
-        <button class="btn btn-primary btn-sm flex items-center gap-1.5" onclick={() => {
-          // Placeholder: generate and download invoice
+        <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={() => {
           const data = {
             invoice: selectedTransaction.invoice_number,
             date: formatDateTime(new Date(selectedTransaction.created_at)),
