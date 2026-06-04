@@ -11,10 +11,11 @@ import Badge from '$lib/components/ui/Badge.svelte';
    import CategoryFilterModal from '$lib/components/ui/CategoryFilterModal.svelte';
    import Skeleton from '$lib/components/ui/Skeleton.svelte';
    import Pagination from '$lib/components/ui/Pagination.svelte';
-  import {
-     Search, Plus, Pencil, Trash2, Package,
-     SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
-    } from 'lucide-svelte';
+   import ProductActionsDropdown from '$lib/components/ui/ProductActionsDropdown.svelte';
+   import {
+      Search, Plus, Pencil, Trash2,
+      SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
+     } from 'lucide-svelte';
 
   // Toast notifications
   const toast = {
@@ -644,7 +645,17 @@ function resetForm() {
       toast.error(`Low stock alert: ${data.name} (stock: ${data.stock})`);
     });
   });
+
+function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (showDetailDrawer) showDetailDrawer = false;
+      if (showDeleteModal) showDeleteModal = false;
+      document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 
 <!-- No global window handlers needed -->
@@ -818,8 +829,8 @@ function resetForm() {
         </thead>
         <tbody>
           {#each products as product}
-            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors group">
-              <td class="p-4 min-w-0">
+<tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+               <td class="p-4 min-w-0">
                 <!-- Product name (normal size) -->
                 <div class="font-medium truncate w-full" title={product.name}>
                   {product.name}
@@ -869,60 +880,42 @@ function resetForm() {
                   {product.stock}
                 </Badge>
                </td>
-               <td class="p-4 w-20" style="width: 80px;">
-                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button
-                     class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
-                     title="View product details"
-                     onclick={() => {
-                       selectedProduct = product;
-                       showDetailDrawer = true;
-                     }}
-                   >
-                     <Package size={14} />
-                   </button>
-                   <button
-                     onclick={() => {
-                       if (!canManageInventory) return;
-                       selectedProduct = product;
-                       form = {
-                         name: product.name || '',
-                         sku: product.sku || '',
-                         barcode: product.barcode || '',
-                         category: product.category_name || '',
-                         brand_id: product.brand_id || null,
-                         price: product.price || 0,
-                         cost: product.cost || 0,
-                         stock: product.stock || 0,
-                         unit_of_measure_id: product.unit_of_measure_id || null,
-                         tax_class_id: product.tax_class_id || null,
-                         weight_grams: product.weight_grams || null,
-                         description: product.description || '',
-                         status: product.status || 'draft'
-                       };
-                       modalCategorySearch = product.category_name || '';
-                       modalMode = 'edit';
-                       showModal = true;
-                     }}
-                     disabled={!canManageInventory}
-                     class="p-1.5 rounded-lg transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                     title={canManageInventory ? 'Edit' : 'Requires inventory role'}
-                   >
-                     <Pencil size={14} class="text-primary" />
-                   </button>
-                   <button
-                     onclick={() => {
-                       selectedProduct = product;
-                       showDeleteModal = true;
-                     }}
-                     disabled={!canManageInventory || product.stock > 0}
-                     class="p-1.5 rounded-lg transition-colors hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                     title={product.stock > 0 ? 'Cannot delete products with stock remaining' : canManageInventory ? 'Delete' : 'Requires inventory role'}
-                   >
-                     <Trash2 size={14} class="text-destructive" />
-                   </button>
-                 </div>
-                </td>
+<td class="p-4 w-20" style="width: 80px;">
+                  <ProductActionsDropdown
+                    product={product}
+                    canEdit={canManageInventory}
+                    canDelete={canManageInventory}
+                    onView={() => {
+                      selectedProduct = product;
+                      showDetailDrawer = true;
+                    }}
+                    onEdit={() => {
+                      selectedProduct = product;
+                      form = {
+                        name: product.name || '',
+                        sku: product.sku || '',
+                        barcode: product.barcode || '',
+                        category: product.category_name || '',
+                        brand_id: product.brand_id || null,
+                        price: product.price || 0,
+                        cost: product.cost || 0,
+                        stock: product.stock || 0,
+                        unit_of_measure_id: product.unit_of_measure_id || null,
+                        tax_class_id: product.tax_class_id || null,
+                        weight_grams: product.weight_grams || null,
+                        description: product.description || '',
+                        status: product.status || 'draft'
+                      };
+                      modalCategorySearch = product.category_name || '';
+                      modalMode = 'edit';
+                      showModal = true;
+                    }}
+                    onDelete={() => {
+                      selectedProduct = product;
+                      showDeleteModal = true;
+                    }}
+                  />
+                 </td>
 
             </tr>
           {/each}
@@ -1392,26 +1385,26 @@ function resetForm() {
              bg-gradient-to-t from-surface-drawer via-surface-drawer to-transparent
              border-t border-border/50"
     >
-      <div class="flex items-center gap-3">
-        <!-- Hapus Produk — superadmin only -->
-        {#if isSuperAdmin()}
-        <button
-          class="flex-1 btn btn-secondary
-                 rounded-xl px-4 h-11 text-sm font-semibold
-                 text-text-secondary border border-border
-                 hover:border-danger hover:text-danger
-                 hover:bg-danger-subtle transition-all duration-200"
-          onclick={() => {
-            showDetailDrawer = false;
-            showDeleteModal = true;
-          }}
-        >
-          <Trash2 size={15} class="mr-1.5" />
-          Hapus Produk
-        </button>
-        {/if}
+<div class="flex items-center gap-3">
+          <!-- Hapus Produk — privileged users only, only if stock is 0 -->
+          {#if canManageInventory && selectedProduct?.stock === 0}
+            <button
+              class="flex-1 btn btn-secondary
+                     rounded-xl px-4 h-11 text-sm font-semibold
+                     text-text-secondary border border-border
+                     hover:border-danger hover:text-danger
+                     hover:bg-danger-subtle transition-all duration-200"
+              onclick={() => {
+                showDetailDrawer = false;
+                showDeleteModal = true;
+              }}
+            >
+              <Trash2 size={15} class="mr-1.5" />
+              Hapus Produk
+            </button>
+          {/if}
 
-        <!-- Edit Produk — superadmin, admin, manager -->
+          <!-- Edit Produk — superadmin, admin, manager -->
         <button
           class="flex-1 btn btn-primary
                  rounded-xl px-4 h-11 text-sm font-semibold
