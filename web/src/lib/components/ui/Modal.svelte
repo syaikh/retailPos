@@ -24,14 +24,7 @@
     xl: 'max-w-4xl',
   };
 
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) open = false;
-  }
-
-  function handleBackdropKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') open = false;
-  }
-
+  // Only allow Escape key to close - remove backdrop click handler
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') open = false;
   }
@@ -48,17 +41,12 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop -->
+  <!-- Backdrop - no click handler to prevent closing when clicking outside -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
     transition:fade={{ duration: 200 }}
-    role="button"
-    tabindex="0"
-    aria-label="Close modal"
-    onclick={handleBackdropClick}
-    onkeydown={handleBackdropKey}
   >
-    <!-- Panel -->
+    <!-- Panel - stop propagation to prevent events bubbling to backdrop -->
     <div
       class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal"
       transition:fly={{ y: 20, duration: 300 }}
@@ -92,7 +80,7 @@
       {/if}
 
       <!-- Body -->
-      <div class="px-6 py-5">
+      <div class="px-6 py-5 max-h-[60vh] overflow-y-auto">
         {@render children()}
       </div>
 

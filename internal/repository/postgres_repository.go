@@ -325,15 +325,18 @@ func (r *postgresRepository) GetAllPermissions(ctx context.Context) ([]domain.Pe
 func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID *int) (*domain.Product, error) {
 	var p domain.Product
 	var barcode sql.NullString
-	var categoryIDVal, storeIDVal sql.NullInt64
-	var categoryName sql.NullString
+	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+	var categoryName, brandName, unitOfMeasure, description sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
 		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
-		       p.store_id, p.created_at, p.updated_at
+		       p.store_id, p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
+		       p.created_at, p.updated_at
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
+		LEFT JOIN brands b ON p.brand_id = b.id 
+		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
 		WHERE p.id = $1 AND p.deleted_at IS NULL`
 
 	args := []interface{}{id}
@@ -343,7 +346,8 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-		&storeIDVal, &createdAt, &updatedAt)
+		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
+		&createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("product not found")
@@ -361,12 +365,33 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	if categoryName.Valid {
 		p.CategoryName = &categoryName.String
 	}
+	if brandIDVal.Valid {
+		v := int(brandIDVal.Int64)
+		p.BrandID = &v
+	}
+	if brandName.Valid {
+		p.BrandName = &brandName.String
+	}
+	if unitOfMeasureIDVal.Valid {
+		v := int(unitOfMeasureIDVal.Int64)
+		p.UnitOfMeasureID = &v
+	}
+	if unitOfMeasure.Valid {
+		p.UnitOfMeasure = &unitOfMeasure.String
+	}
+	if weightGramsVal.Valid {
+		v := int(weightGramsVal.Int64)
+		p.WeightGrams = &v
+	}
+	if description.Valid {
+		p.Description = &description.String
+	}
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
 	}
-	p.CreatedAt = createdAt.Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -374,15 +399,18 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, storeID *int) (*domain.Product, error) {
 	var p domain.Product
 	var barcode sql.NullString
-	var categoryIDVal, storeIDVal sql.NullInt64
-	var categoryName sql.NullString
+	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+	var categoryName, brandName, unitOfMeasure, description sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
 		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
-		       p.store_id, p.created_at, p.updated_at
+		       p.store_id, p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
+		       p.created_at, p.updated_at
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
+		LEFT JOIN brands b ON p.brand_id = b.id 
+		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
 		WHERE p.sku = $1 AND p.deleted_at IS NULL`
 
 	args := []interface{}{sku}
@@ -392,7 +420,8 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-		&storeIDVal, &createdAt, &updatedAt)
+		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
+		&createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("product not found")
@@ -410,12 +439,33 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	if categoryName.Valid {
 		p.CategoryName = &categoryName.String
 	}
+	if brandIDVal.Valid {
+		v := int(brandIDVal.Int64)
+		p.BrandID = &v
+	}
+	if brandName.Valid {
+		p.BrandName = &brandName.String
+	}
+	if unitOfMeasureIDVal.Valid {
+		v := int(unitOfMeasureIDVal.Int64)
+		p.UnitOfMeasureID = &v
+	}
+	if unitOfMeasure.Valid {
+		p.UnitOfMeasure = &unitOfMeasure.String
+	}
+	if weightGramsVal.Valid {
+		v := int(weightGramsVal.Int64)
+		p.WeightGrams = &v
+	}
+	if description.Valid {
+		p.Description = &description.String
+	}
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
 	}
-	p.CreatedAt = createdAt.Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -459,9 +509,13 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status, p.store_id, p.created_at, p.updated_at 
+	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status, p.store_id, 
+		       p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
+		       p.created_at, p.updated_at 
 		FROM products p 
 		LEFT JOIN categories c ON p.category_id = c.id 
+		LEFT JOIN brands b ON p.brand_id = b.id 
+		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
 		WHERE p.deleted_at IS NULL`
 	args2 := []interface{}{}
 	argIdx2 := 1
@@ -509,14 +563,15 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	for rows.Next() {
 		var p domain.Product
 		var barcodeVal sql.NullString
-		var categoryIDVal, storeIDVal sql.NullInt64
-		var categoryName sql.NullString
+		var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+		var categoryName, brandName, unitOfMeasure, descriptionVal sql.NullString
 		var createdAt, updatedAt time.Time
 
 		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-			&storeIDVal, &createdAt, &updatedAt)
+			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
+			&createdAt, &updatedAt)
 		if err != nil {
-			continue
+			return nil, 0, fmt.Errorf("failed to scan product: %w", err)
 		}
 		if barcodeVal.Valid {
 			p.Barcode = &barcodeVal.String
@@ -528,12 +583,33 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		if categoryName.Valid {
 			p.CategoryName = &categoryName.String
 		}
+		if brandIDVal.Valid {
+			v := int(brandIDVal.Int64)
+			p.BrandID = &v
+		}
+		if brandName.Valid {
+			p.BrandName = &brandName.String
+		}
+		if unitOfMeasureIDVal.Valid {
+			v := int(unitOfMeasureIDVal.Int64)
+			p.UnitOfMeasureID = &v
+		}
+		if unitOfMeasure.Valid {
+			p.UnitOfMeasure = &unitOfMeasure.String
+		}
+		if weightGramsVal.Valid {
+			v := int(weightGramsVal.Int64)
+			p.WeightGrams = &v
+		}
+		if descriptionVal.Valid {
+			p.Description = &descriptionVal.String
+		}
 		if storeIDVal.Valid {
 			v := int(storeIDVal.Int64)
 			p.StoreID = &v
 		}
-		p.CreatedAt = createdAt.Format(time.RFC3339)
-		p.UpdatedAt = updatedAt.Format(time.RFC3339)
+		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		products = append(products, p)
 	}
 	return products, total, nil
@@ -1642,4 +1718,26 @@ func (r *postgresRepository) GetAllWarehouses(ctx context.Context, storeID *int)
 		warehouses = append(warehouses, w)
 	}
 	return warehouses, nil
+}
+
+// GetNextInvoiceNumber generates the next invoice number in format INV-YYYY-XXXXXX
+// XXXXXX is a sequential 6-digit number within the current year
+func (r *postgresRepository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
+	now := time.Now().In(mustLoadJakarta())
+	year := now.Year()
+	yearStr := fmt.Sprintf("%d", year)
+
+	var maxSeq int
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(MAX(
+			CAST(SUBSTRING(invoice_number FROM '\d+$') AS INTEGER)
+		 ), 0)
+		 FROM sales
+		 WHERE invoice_number LIKE $1
+	`, "INV-"+yearStr+"-%").Scan(&maxSeq)
+	if err != nil {
+		return "", fmt.Errorf("failed to get next invoice number: %w", err)
+	}
+
+	return fmt.Sprintf("INV-%d-%06d", year, maxSeq+1), nil
 }

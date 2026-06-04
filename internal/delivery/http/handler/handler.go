@@ -422,6 +422,17 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		userID = req.CashierID
 	}
 
+	// Generate invoice number if not provided or invalid format
+	invoiceNumber := req.InvoiceNumber
+	if invoiceNumber == "" {
+		var err error
+		invoiceNumber, err = h.saleRepo.GetNextInvoiceNumber(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate invoice number"})
+			return
+		}
+	}
+
 	// Get storeID from context (set by AuthMiddleware)
 	var storeID *int
 	if sid, exists := c.Get("storeID"); exists {
@@ -436,7 +447,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	sale := &domain.Sale{
-		InvoiceNumber: req.InvoiceNumber,
+		InvoiceNumber: invoiceNumber,
 		CashierID:     userID,
 		StoreID:       storeID,
 		Subtotal:      req.Subtotal,

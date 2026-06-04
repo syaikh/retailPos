@@ -1,29 +1,31 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import apiClient from '$lib/api/client';
-  import { toast } from '$lib/stores/toast';
-  import { debounce } from '$lib/utils/debounce';
-  import { useWebSocket } from '$lib/composables/useWebSocket';
+   import { onMount } from 'svelte';
+   import apiClient from '$lib/api/client';
+   import { toast } from '$lib/stores/toast';
+   import { debounce } from '$lib/utils/debounce';
+   import { useWebSocket } from '$lib/composables/useWebSocket';
+   import type { Sale, SaleItem } from '$lib/types';
 
-  import Badge from '$lib/components/ui/Badge.svelte';
-  import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Wallet, Check, Receipt } from 'lucide-svelte';
-  import { auth } from '$lib/stores/auth';
-  import { slide } from 'svelte/transition';
-  import { flip } from 'svelte/animate';
-  import { fly } from 'svelte/transition';
+   import Badge from '$lib/components/ui/Badge.svelte';
+   import Pagination from '$lib/components/ui/Pagination.svelte';
+   import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Wallet, Check, Receipt } from 'lucide-svelte';
+   import { auth } from '$lib/stores/auth';
+   import { slide } from 'svelte/transition';
+   import { flip } from 'svelte/animate';
+   import { fly } from 'svelte/transition';
 
-  let cart = $state([]);
-  let products = $state([]);
-  let total = $state(0);
-  let searchQuery = $state('');
-  let loading = $state(false);
-  let limit = $state(20);
-  let offset = $state(0);
-  let isInitialMount = $state(true);
-  let isSearching = $state(false);
-  let lastSale = $state(null);
-  let ws = useWebSocket();
+   let cart = $state([]);
+   let products = $state([]);
+   let total = $state(0);
+   let searchQuery = $state('');
+   let loading = $state(false);
+   let limit = $state(20);
+   let offset = $state(0);
+   let isInitialMount = $state(true);
+   let isSearching = $state(false);
+   let lastSale: Sale | null = $state(null);
+   let lastSalePrintData: { paymentMethod: string; cashReceived: number; changeDue: number } | null = $state(null);
+   let ws = useWebSocket();
 
   let unsubscribeStock = null;
   let unsubscribeSale = null;
@@ -146,7 +148,6 @@
         subtotal: item.price * item.quantity,
       }));
       const response = await apiClient.post('/sales', {
-        invoice_number: `INV-${Date.now()}`,
         cashier_id: $auth.user?.id || 1,
         store_id: $auth.user?.store_id || null,
         subtotal,
@@ -200,9 +201,16 @@
 
   function finalizeSale() {
     if (cart.length === 0 || changeDue < 0) return;
+    lastSalePrintData = {
+      paymentMethod: paymentMethod,
+      cashReceived: cashReceived,
+      changeDue: changeDue
+    };
     closeCheckoutModal();
     processCheckout().then(() => {
-      setTimeout(() => printReceipt(), 0);
+      setTimeout(() => {
+        window.print();
+      }, 100);
     });
   }
 
@@ -300,22 +308,22 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-<div class="space-y-6">
-  <div class="flex gap-6">
-    <!-- Products -->
-    <div class="flex-1 flex flex-col gap-4">
-      <div class="card p-4">
-        <div class="flex items-center gap-2">
-          <kbd class="px-1.5 py-0.5 text-[10px] font-medium text-primary/60 bg-primary-subtle/30 rounded border border-primary/20 select-none">F2</kbd>
-          <div class="relative flex-1">
-            <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search products..."
-              id="pos-search-input"
-              bind:value={searchQuery}
-              class="input pl-10 pr-10 w-full"
-              autocomplete="off"
+<div class="space-y-6 main-content">
+   <div class="flex gap-6">
+     <!-- Products -->
+     <div class="flex-1 flex flex-col gap-4">
+       <div class="card p-4">
+         <div class="flex items-center gap-2">
+           <kbd class="px-1.5 py-0.5 text-[10px] font-medium text-primary/60 bg-primary-subtle/30 rounded border border-primary/20 select-none">F2</kbd>
+           <div class="relative flex-1">
+             <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+             <input
+               type="text"
+               placeholder="Search products..."
+               id="pos-search-input"
+               bind:value={searchQuery}
+               class="input pl-10 pr-10 w-full"
+               autocomplete="off"
               spellcheck="false"
             />
             {#if searchQuery}
@@ -706,31 +714,6 @@
 {/if}
 
 {#if lastSale}
-  <div class="receipt-print-area" id="receipt-print-area">
-    <div class="receipt-header">
-      <h2>RETAIL POS</h2>
-      <p>Invoice: {lastSale.invoice_number}</p>
-      <p>{new Date(lastSale.created_at).toLocaleString('id-ID')}</p>
-    </div>
-    <div class="receipt-divider"></div>
-    {#each lastSale.items as item}
-      <div class="receipt-item">
-        <span>{item.name} x{item.quantity}</span>
-        <span>{(item.unit_price * item.quantity).toLocaleString('id-ID')}</span>
-      </div>
-    {/each}
-    <div class="receipt-divider"></div>
-    <div class="receipt-total receipt-item">
-      <span>TOTAL</span>
-      <span>{lastSale.total_amount.toLocaleString('id-ID')}</span>
-    </div>
-    <div class="receipt-header" style="margin-top: 5mm;">
-      <p>Thank you for your purchase!</p>
-    </div>
-  </div>
-{/if}
-
-{#if lastSale}
 <div class="thermal-receipt hidden" id="thermal-receipt">
   <div class="thermal-shop-name">RETAIL POS</div>
   <div class="thermal-row">
@@ -739,7 +722,7 @@
   </div>
   <div class="thermal-row">
     <span class="thermal-label">Waktu:</span>
-    <span class="thermal-value">{new Date(lastSale.created_at).toLocaleString('id-ID')}</span>
+    <span class="thermal-value">{new Date(lastSale.created_at || Date.now()).toLocaleString('id-ID')}</span>
   </div>
   <div class="thermal-divider"></div>
   {#each lastSale.items as item}
@@ -753,19 +736,17 @@
     <span>TOTAL</span>
     <span>{lastSale.total_amount.toLocaleString('id-ID')}</span>
   </div>
-  {#if lastSale.payment_method}
-    <div class="thermal-row">
-      <span class="thermal-label">Pembayaran:</span>
-      <span class="thermal-value">{lastSale.payment_method}</span>
-    </div>
-  {/if}
+  <div class="thermal-row">
+    <span class="thermal-label">Pembayaran:</span>
+    <span class="thermal-value">{lastSalePrintData?.paymentMethod ?? 'Cash'}</span>
+  </div>
   <div class="thermal-row">
     <span class="thermal-label">Uang Tunai:</span>
-    <span class="thermal-value">{cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
+    <span class="thermal-value">{lastSalePrintData?.cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
   </div>
   <div class="thermal-row">
     <span class="thermal-label">Kembali:</span>
-    <span class="thermal-value">{changeDue?.toLocaleString('id-ID') ?? '—'}</span>
+    <span class="thermal-value">{lastSalePrintData?.changeDue?.toLocaleString('id-ID') ?? '—'}</span>
   </div>
   <div class="thermal-divider"></div>
   <div class="thermal-footer">
@@ -777,95 +758,97 @@
 
 <style>
 @media print {
-  .thermal-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide all app UI elements */
+  .main-content,
+  .card,
+  table,
+  button.btn,
+  .print-modal-overlay,
+  .sidebar-shell,
+  .topbar,
+  header,
+  nav[aria-label="Breadcrumb"] {
+    display: none !important;
+  }
+
+  /* Show thermal receipt with proper thermal paper dimensions */
+  .thermal-receipt,
+  .thermal-receipt.hidden {
     display: block !important;
-    background: white;
-    color: #000;
-    font-family: 'Courier New', monospace;
-    padding: 10mm;
-    font-size: 11pt;
-    line-height: 1.4;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;
+    padding: 2mm !important;
+    background: white !important;
+    color: #000 !important;
+    font-family: 'Courier New', 'Courier', monospace !important;
+    font-size: 10pt !important;
+    line-height: 1.3 !important;
   }
 
   .thermal-receipt * {
-    display: revert !important;
     visibility: visible !important;
   }
 
   .thermal-shop-name {
-    font-size: 16pt;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 2mm;
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin-bottom: 2mm !important;
   }
 
   .thermal-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 1.5mm;
-  }
-
-  .thermal-label {
-    font-weight: normal;
-  }
-
-  .thermal-value {
-    font-weight: bold;
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 1.5mm !important;
   }
 
   .thermal-item {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 1.5mm;
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 1.5mm !important;
   }
 
   .thermal-item-name {
-    flex: 1;
-    word-break: break-all;
-    padding-right: 4mm;
+    flex: 1 !important;
+    word-break: break-word !important;
+    padding-right: 2mm !important;
   }
 
   .thermal-item-price {
-    white-space: nowrap;
-    font-weight: bold;
+    white-space: nowrap !important;
+    font-weight: bold !important;
   }
 
   .thermal-item-total {
-    font-size: 13pt;
-    font-weight: bold;
-    margin-top: 2mm;
+    font-size: 12pt !important;
+    font-weight: bold !important;
+    margin-top: 2mm !important;
+    padding-top: 1mm !important;
+    border-top: 1px dashed #000 !important;
   }
 
   .thermal-divider {
-    border-top: 1px dashed #000;
-    margin: 4mm 0;
+    border-top: 1px dashed #000 !important;
+    margin: 3mm 0 !important;
   }
 
   .thermal-footer {
-    text-align: center;
-    font-size: 9.5pt;
-    margin-top: 4mm;
-    line-height: 1.5;
+    text-align: center !important;
+    font-size: 9pt !important;
+    margin-top: 3mm !important;
+    line-height: 1.4 !important;
   }
 
-  #receipt-print-area {
-    display: block !important;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 58mm;
-    padding: 5mm;
-    font-family: 'Courier New', monospace;
-    font-size: 10pt;
+  @page {
+    margin: 0 !important;
+    size: auto;
   }
-
-  .receipt-header { text-align: center; margin-bottom: 3mm; }
-  .receipt-item { display: flex; justify-content: space-between; margin-bottom: 2mm; }
-  .receipt-divider { border-top: 1px dashed #000; margin: 3mm 0; }
-  .receipt-total { font-weight: bold; font-size: 12pt; }
-}
-</style>
+}</style>
