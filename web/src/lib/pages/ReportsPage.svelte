@@ -12,7 +12,7 @@ import { chart } from '$lib/actions/chart';
   import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
   import { CalendarDate } from '@internationalized/date';
   import {
-    Receipt, BarChart3,
+    Receipt, BarChart3, Banknote,
     CalendarDays, Download, FileSpreadsheet,
     ChevronDown, Eye, Search, X,
     Clock, TrendingUp, TrendingDown, Info,
@@ -1694,25 +1694,29 @@ onValueChange={(val) => {
           <div class="space-y-3">
             <div>
               <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Invoice Number</p>
-              <p class="text-base font-semibold text-text-primary mt-0.5">{selectedTransaction.invoice_number}</p>
+              <p class="text-base font-semibold text-text-primary font-mono">{selectedTransaction.invoice_number}</p>
             </div>
             <div>
               <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</p>
-              <p class="text-base text-text-primary mt-0.5">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
+              <p class="text-base text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
           </div>
           <div class="space-y-3">
             <div>
               <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Payment Method</p>
-              <Badge variant={getPaymentMethodVariant(selectedTransaction.payment_method)} class="mt-0.5 text-sm px-3 py-1">
-                {selectedTransaction.payment_method || '—'}
-              </Badge>
+              <div class="mt-1">
+                <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(selectedTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(selectedTransaction.payment_method) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'}">
+                  {selectedTransaction.payment_method || '—'}
+                </span>
+              </div>
             </div>
             <div>
               <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Status</p>
-              <Badge variant={statusVariant(selectedTransaction.status)} class="mt-0.5 text-sm">
-                {selectedTransaction.status || 'completed'}
-              </Badge>
+              <div class="mt-1">
+                <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {statusVariant(selectedTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(selectedTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
+                  {selectedTransaction.status || 'completed'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1720,33 +1724,35 @@ onValueChange={(val) => {
         {#if selectedTransaction.items && selectedTransaction.items.length > 0}
         <div>
           <p class="text-sm font-semibold text-text-secondary mb-3">Items</p>
-          <div class="border border-border rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-surface-subtle">
-                  <th class="text-left py-3 px-4 font-semibold text-text-primary">Description</th>
-                  <th class="text-center py-3 px-4 font-semibold text-text-primary w-20">Qty</th>
-                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">Price</th>
-                  <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-border">
-                {#each selectedTransaction.items as item}
-                  <tr class="hover:bg-surface/50">
-                    <td class="py-3 px-4 text-text-primary">{item.name}</td>
-                    <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
-                    <td class="py-3 px-4 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
-                    <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+          <div class="border border-border rounded-lg">
+            <div class="max-h-80 overflow-y-auto">
+              <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-surface-subtle z-10">
+                  <tr>
+                    <th class="text-left py-3 px-4 font-semibold text-text-primary">Description</th>
+                    <th class="text-center py-3 px-4 font-semibold text-text-primary w-20">Qty</th>
+                    <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">Price</th>
+                    <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">Subtotal</th>
                   </tr>
-                {/each}
-              </tbody>
-              <tfoot>
-                <tr class="bg-surface-subtle/50">
-                  <td colspan="3" class="py-3 px-4 text-right font-bold text-text-primary">TOTAL</td>
-                  <td class="py-3 px-4 text-right font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</td>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  {#each selectedTransaction.items as item}
+                    <tr class="hover:bg-surface/50">
+                      <td class="py-3 px-4 text-text-primary">{item.name}</td>
+                      <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
+                      <td class="py-3 px-4 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                      <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+            <div class="bg-surface-subtle/50 border-t border-border">
+              <div class="flex justify-between items-center py-3 px-4">
+                <span class="font-bold text-text-primary">TOTAL</span>
+                <span class="font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
+              </div>
+            </div>
           </div>
         </div>
         {/if}

@@ -31,10 +31,13 @@ const PRODUCTS = [
 // ─── source-structure guard tests ─────────────────────────────────────────────
 describe('PosPage source-structure guards', () => {
   let source: string;
+  let printSource: string;
 
   beforeAll(() => {
     // __filename = /abs/path/PosPage.svelte.test.ts → swap to the .svelte source
     source = readFileSync(__filename.replace('PosPage.svelte.test.ts', 'PosPage.svelte'), 'utf-8');
+    // Print styles are in global app.css
+    printSource = readFileSync(__filename.replace('PosPage.svelte.test.ts', '../../app.css'), 'utf-8');
   });
 
   // ── GLOBAL KEYBOARD SHORTCUTS ───────────────────────────────────────────────
@@ -182,8 +185,8 @@ describe('PosPage source-structure guards', () => {
       expect(source).toContain("total_amount: totalAmount");
     });
 
-    it('printReceipt guards with if (!lastSale)', () => {
-      expect(source).toContain('if (!lastSale) return');
+    it('printReceipt guards with if (!lastSale || !lastSale.items)', () => {
+      expect(source).toContain('if (!lastSale || !lastSale.items) return');
     });
 
     it('printReceipt calls window.print()', () => {
@@ -195,36 +198,39 @@ describe('PosPage source-structure guards', () => {
 
   describe('THERMAL RECEIPT PRINT CSS', () => {
     it('thermal-receipt uses conditional rendering', () => {
-      expect(source).toContain('{#if lastSale}');
-      expect(source).toContain('thermal-receipt');
+      // Receipt is rendered at App.svelte level via printReceipt store
+      expect(source).toContain('printReceiptStore');
+      expect(printSource).toContain('thermal-receipt');
     });
 
     it('print media query structure present in style block', () => {
-      expect(source).toContain('@media print');
-      expect(source).toContain('display: none !important;');
-      expect(source).toContain('display: block !important;');
+      expect(printSource).toContain('@media print');
+      expect(printSource).toContain('display: none !important;');
+      expect(printSource).toContain('display: block !important;');
     });
 
-    it('thermal-receipt positioned fixed at top-left in print', () => {
-      expect(source).toContain('.thermal-receipt');
-      expect(source).toContain('position: fixed');
+    it('thermal-receipt positioned at top-left in print', () => {
+      expect(printSource).toContain('.thermal-receipt');
+      expect(printSource).toContain('position: static');
     });
 
     it('thermal receipt uses white background and black text', () => {
-      expect(source).toContain('background: white');
-      expect(source).toContain("color: #000");
+      expect(printSource).toContain('background: white');
+      expect(printSource).toContain('color: #000');
     });
 
     it('thermal font-family is monospace / Courier', () => {
-      expect(source).toContain("'Courier New'");
+      expect(printSource).toContain("'Courier New'");
     });
 
     it('receipt contains shop name, invoice, time, items, total, footer', () => {
-      expect(source).toContain('thermal-shop-name');
-      expect(source).toContain('thermal-item');
-      expect(source).toContain('thermal-item-total');
-      expect(source).toContain('thermal-footer');
-      expect(source).toContain('thermal-divider');
+      // Receipt markup is in App.svelte, print styles are in app.css
+      expect(printSource).toContain('thermal-receipt');
+      expect(printSource).toContain('thermal-shop-name');
+      expect(printSource).toContain('thermal-item');
+      expect(printSource).toContain('thermal-item-total');
+      expect(printSource).toContain('thermal-footer');
+      expect(printSource).toContain('thermal-divider');
     });
   });
 });

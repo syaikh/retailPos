@@ -21,7 +21,6 @@
   let selectedCategory = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
-  let isInitialMount = $state(true);
 
   let form = $state({
     name: '',
@@ -38,7 +37,8 @@ let userRole = $derived(
 let canCreate = $derived(['superadmin', 'admin'].includes(userRole));
 let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
 let canDelete = $derived(['superadmin', 'admin'].includes(userRole));
-let canView = $derived(userRole !== 'cashier' && userRole !== '');
+// Show content if user loaded (API will enforce 403 for cashier)
+let canView = $derived($auth.user != null);
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';
@@ -48,7 +48,7 @@ let canView = $derived(userRole !== 'cashier' && userRole !== '');
   }
 
   async function fetchCategories(isSearch = false) {
-    if (!canView) return;
+    // Note: Authorization checked via API response (403), not frontend
     try {
       if (!isSearch) loading = true;
       const params = new URLSearchParams({
@@ -74,13 +74,8 @@ let canView = $derived(userRole !== 'cashier' && userRole !== '');
   }
 
   onMount(async () => {
-    if (!canView) {
-      loading = false;
-      return;
-    }
-    isInitialMount = true;
+    // Fetch immediately - API will handle 401/403 if not authenticated
     await fetchCategories(false);
-    isInitialMount = false;
   });
 
   // Search: event-driven, NOT $effect
@@ -184,163 +179,153 @@ let canView = $derived(userRole !== 'cashier' && userRole !== '');
   }
 </script>
 
-{#if !canView}
-  <div class="flex flex-col items-center justify-center py-20">
-    <div class="w-20 h-20 rounded-2xl bg-danger-subtle flex items-center justify-center mb-4">
-      <Tag size={32} class="text-danger" />
+<div class="space-y-5">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-text-primary">Manajemen Kategori</h2>
+      <p class="text-text-muted">Kelola kategori produk toko Anda</p>
     </div>
-    <h2 class="text-xl font-bold text-text-primary mb-2">Akses Ditolak</h2>
-    <p class="text-text-muted">Anda tidak memiliki izin untuk mengakses halaman ini.</p>
-  </div>
-{:else}
-  <div class="space-y-5">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="text-2xl font-bold text-text-primary">Manajemen Kategori</h2>
-        <p class="text-text-muted">Kelola kategori produk toko Anda</p>
-      </div>
-      <div class="flex items-center gap-2">
-        {#if canCreate}
-          <button class="btn btn-primary" onclick={openAdd}>
-            <Plus size={16} /> Tambah Kategori
-          </button>
-        {/if}
-      </div>
-    </div>
-
-    <!-- Search -->
-    <div class="card p-4">
-      <div class="relative max-w-sm">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Cari nama kategori…"
-          class="input pl-9 pr-10"
-          bind:value={searchQuery}
-          oninput={handleSearchInput}
-        />
-        {#if searchQuery}
-          <button
-            onclick={clearSearch}
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Hapus pencarian"
-          >
-            <X size={14} />
-          </button>
-        {/if}
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="card p-0 overflow-hidden">
-      <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-        <p class="text-sm font-semibold text-text-primary">Daftar Kategori</p>
-        {#if !loading}
-          <span class="badge badge-muted">{total} kategori</span>
-        {/if}
-      </div>
-
-      {#if loading}
-        <div class="divide-y divide-border">
-          {#each { length: 5 } as _}
-            <div class="flex items-center gap-4 px-4 py-3.5">
-              <Skeleton width="w-40" height="h-3.5" />
-              <Skeleton width="w-28" height="h-3.5" />
-              <Skeleton width="w-12" height="h-6" rounded="rounded-full" />
-              <Skeleton width="w-20" height="h-3" />
-            </div>
-          {/each}
-        </div>
-      {:else if categories.length === 0}
-        <div class="px-4 py-12 text-center">
-          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
-            <Tag size={32} class="text-text-muted" />
-          </div>
-          <p class="text-text-primary font-semibold mt-4">Tidak ada kategori</p>
-          <p class="text-text-muted text-sm mt-1">
-            {searchQuery ? `Tidak ditemukan untuk "${searchQuery}"` : 'Mulai dengan menambahkan kategori'}
-          </p>
-        </div>
-      {:else}
-        <div class="overflow-x-auto">
-          <table>
-            <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-              <tr>
-                <th>Nama Kategori</th>
-                <th>Slug</th>
-                <th class="text-center">Jumlah Produk</th>
-                <th>Tanggal Dibuat</th>
-                <th class="text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each categories as cat (cat.id)}
-                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                  <td>
-                    <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center shrink-0">
-                        <Tag size={14} class="text-primary-light" />
-                      </div>
-                      <div>
-                        <p class="font-medium text-text-primary">{cat.name}</p>
-                        {#if cat.description}
-                          <p class="text-xs text-text-muted truncate max-w-[200px]">{cat.description}</p>
-                        {/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <code class="text-xs bg-surface-default px-2 py-1 rounded text-text-muted">{cat.slug}</code>
-                  </td>
-                  <td class="text-center">
-                    <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
-                      {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
-                      {cat.product_count}
-                    </span>
-                  </td>
-                  <td class="text-text-secondary text-sm">
-                    {formatDate(cat.created_at)}
-                  </td>
-                  <td>
-                    <div class="flex items-center justify-center gap-2">
-                      {#if canEdit}
-                        <button
-                          class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
-                          title="Edit"
-                          onclick={() => openEdit(cat)}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      {/if}
-                      {#if canDelete}
-                        <button
-                          class="btn-icon btn-ghost {cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
-                          onclick={() => openDelete(cat)}
-                          disabled={cat.product_count > 0}
-                          title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      {/if}
-                      {#if !canEdit && !canDelete}
-                        <span class="text-xs text-text-muted">—</span>
-                      {/if}
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="p-4 bg-surface-subtle/30">
-          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
-        </div>
+    <div class="flex items-center gap-2">
+      {#if canCreate}
+        <button class="btn btn-primary" onclick={openAdd}>
+          <Plus size={16} /> Tambah Kategori
+        </button>
       {/if}
     </div>
   </div>
-{/if}
+
+  <!-- Search -->
+  <div class="card p-4">
+    <div class="relative max-w-sm">
+      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+      <input
+        type="text"
+        placeholder="Cari nama kategori…"
+        class="input pl-9 pr-10"
+        bind:value={searchQuery}
+        oninput={handleSearchInput}
+      />
+      {#if searchQuery}
+        <button
+          onclick={clearSearch}
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+          title="Hapus pencarian"
+        >
+          <X size={14} />
+        </button>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+      <p class="text-sm font-semibold text-text-primary">Daftar Kategori</p>
+      {#if !loading}
+        <span class="badge badge-muted">{total} kategori</span>
+      {/if}
+    </div>
+
+    {#if loading}
+      <div class="divide-y divide-border">
+        {#each { length: 5 } as _}
+          <div class="flex items-center gap-4 px-4 py-3.5">
+            <Skeleton width="w-40" height="h-3.5" />
+            <Skeleton width="w-28" height="h-3.5" />
+            <Skeleton width="w-12" height="h-6" rounded="rounded-full" />
+            <Skeleton width="w-20" height="h-3" />
+          </div>
+        {/each}
+      </div>
+    {:else if categories.length === 0}
+      <div class="px-4 py-12 text-center">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+          <Tag size={32} class="text-text-muted" />
+        </div>
+        <p class="text-text-primary font-semibold mt-4">Tidak ada kategori</p>
+        <p class="text-text-muted text-sm mt-1">
+          {searchQuery ? `Tidak ditemukan untuk "${searchQuery}"` : 'Mulai dengan menambahkan kategori'}
+        </p>
+      </div>
+    {:else}
+      <div class="overflow-x-auto">
+        <table>
+          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
+            <tr>
+              <th>Nama Kategori</th>
+              <th>Slug</th>
+              <th class="text-center">Jumlah Produk</th>
+              <th>Tanggal Dibuat</th>
+              <th class="text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each categories as cat (cat.id)}
+              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                <td>
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center shrink-0">
+                      <Tag size={14} class="text-primary-light" />
+                    </div>
+                    <div>
+                      <p class="font-medium text-text-primary">{cat.name}</p>
+                      {#if cat.description}
+                        <p class="text-xs text-text-muted truncate max-w-[200px]">{cat.description}</p>
+                      {/if}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <code class="text-xs bg-surface-default px-2 py-1 rounded text-text-muted">{cat.slug}</code>
+                </td>
+                <td class="text-center">
+                  <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
+                    {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
+                    {cat.product_count}
+                  </span>
+                </td>
+                <td class="text-text-secondary text-sm">
+                  {formatDate(cat.created_at)}
+                </td>
+                <td>
+                  <div class="flex items-center justify-center gap-2">
+                    {#if canEdit}
+                      <button
+                        class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
+                        title="Edit"
+                        onclick={() => openEdit(cat)}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    {/if}
+                    {#if canDelete}
+                      <button
+                        class="btn-icon btn-ghost {cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
+                        onclick={() => openDelete(cat)}
+                        disabled={cat.product_count > 0}
+                        title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    {/if}
+                    {#if !canEdit && !canDelete}
+                      <span class="text-xs text-text-muted">—</span>
+                    {/if}
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="p-4 bg-surface-subtle/30">
+        <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+      </div>
+    {/if}
+  </div>
+</div>
 
 <!-- Add/Edit Modal -->
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Kategori' : 'Edit Kategori'} size="md">

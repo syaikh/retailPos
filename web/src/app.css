@@ -3,6 +3,104 @@
 
 @source "./**/*.svelte";
 
+/* ===== GLOBAL PRINT STYLES ===== */
+@media print {
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide everything except the thermal receipt container */
+  #app > *:not(.thermal-receipt-container) {
+    display: none !important;
+  }
+
+  /* Reset the receipt container */
+  .thermal-receipt-container {
+    display: block !important;
+    position: static !important;
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* Thermal receipt styling */
+  .thermal-receipt {
+    display: block !important;
+    position: static !important;
+    width: 80mm !important;
+    padding: 2mm !important;
+    background: white !important;
+    color: #000 !important;
+    font-family: 'Courier New', 'Courier', monospace !important;
+    font-size: 10pt !important;
+    line-height: 1.3 !important;
+  }
+
+  .thermal-receipt * {
+    color: #000 !important;
+    background: white !important;
+    visibility: visible !important;
+  }
+
+  .thermal-shop-name {
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin-bottom: 2mm !important;
+  }
+
+  .thermal-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  .thermal-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  .thermal-item-name {
+    flex: 1 !important;
+    word-break: break-word !important;
+    padding-right: 2mm !important;
+  }
+
+  .thermal-item-price {
+    white-space: nowrap !important;
+    font-weight: bold !important;
+  }
+
+  .thermal-item-total {
+    font-size: 12pt !important;
+    font-weight: bold !important;
+    margin-top: 2mm !important;
+    padding-top: 1mm !important;
+    border-top: 1px dashed #000 !important;
+  }
+
+  .thermal-divider {
+    border-top: 1px dashed #000 !important;
+    margin: 3mm 0 !important;
+  }
+
+  .thermal-footer {
+    text-align: center !important;
+    font-size: 9pt !important;
+    margin-top: 3mm !important;
+    line-height: 1.4 !important;
+  }
+
+  @page {
+    margin: 0 !important;
+    size: auto;
+  }
+}
+
 @theme {
   /* Fonts */
   --font-sans: "Inter", "system-ui", "-apple-system", "sans-serif";
@@ -129,8 +227,7 @@
     }
   }
 
-  @keyframes pulse-dot {
-
+@keyframes pulse-dot {
     0%,
     100% {
       opacity: 1;

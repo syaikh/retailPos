@@ -90,6 +90,7 @@ export interface Product {
 export interface SaleItem {
   id: number;
   product_id: number;
+  name?: string;
   quantity: number;
   unit_price: number;
   subtotal: number;

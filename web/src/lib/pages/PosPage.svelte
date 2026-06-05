@@ -2,6 +2,7 @@
    import { onMount } from 'svelte';
    import apiClient from '$lib/api/client';
    import { toast } from '$lib/stores/toast';
+   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
    import { debounce } from '$lib/utils/debounce';
    import { useWebSocket } from '$lib/composables/useWebSocket';
    import type { Sale, SaleItem } from '$lib/types';
@@ -24,7 +25,6 @@
    let isInitialMount = $state(true);
    let isSearching = $state(false);
    let lastSale: Sale | null = $state(null);
-   let lastSalePrintData: { paymentMethod: string; cashReceived: number; changeDue: number } | null = $state(null);
    let ws = useWebSocket();
 
   let unsubscribeStock = null;
@@ -158,7 +158,7 @@
         status: 'completed',
         items,
       });
-      lastSale = response.data;
+      lastSale = response.data?.data || response.data;
       toast.success('Sale completed');
       cart = [];
       await fetchProducts(false);
@@ -175,8 +175,21 @@
   }
 
   function printReceipt() {
-    if (!lastSale) return;
-    window.print();
+    if (!lastSale || !lastSale.items) return;
+    printReceiptStore.set({
+      invoice_number: lastSale.invoice_number,
+      created_at: lastSale.created_at,
+      items: lastSale.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      })),
+      total_amount: lastSale.total_amount,
+      paymentMethod: paymentMethod,
+      cashReceived: cashReceived,
+      changeDue: changeDue,
+    });
+    setTimeout(() => window.print(), 300);
   }
 
   function handlePageChange(newOffset) {
@@ -200,16 +213,24 @@
 
   function finalizeSale() {
     if (cart.length === 0 || changeDue < 0) return;
-    lastSalePrintData = {
-      paymentMethod: paymentMethod,
-      cashReceived: cashReceived,
-      changeDue: changeDue
-    };
     closeCheckoutModal();
     processCheckout().then(() => {
-      setTimeout(() => {
-        window.print();
-      }, 100);
+      if (lastSale && lastSale.items) {
+        printReceiptStore.set({
+          invoice_number: lastSale.invoice_number,
+          created_at: lastSale.created_at,
+          items: lastSale.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+          })),
+          total_amount: lastSale.total_amount,
+          paymentMethod: paymentMethod,
+          cashReceived: cashReceived,
+          changeDue: changeDue,
+        });
+      }
+      setTimeout(() => window.print(), 300);
     });
   }
 
@@ -298,7 +319,9 @@
       }
     });
     unsubscribeSale = ws.on('sale_created', (data) => {
-      toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
+      if (data && data.invoice && data.total != null) {
+        toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
+      }
     });
     return () => {
       if (unsubscribeStock) unsubscribeStock();
@@ -309,7 +332,7 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-<div class="space-y-6 main-content">
+<div class="space-y-6">
    <div class="flex gap-6">
      <!-- Products -->
      <div class="flex-1 flex flex-col gap-4">
@@ -366,7 +389,7 @@
               <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
                 <tr>
                   <th class="p-4 w-64">PRODUCT NAME</th>
-                  <th class="p-4 text-center w-24">Stock</th>
+                  <th class="p-4 text-center w-32">Stock</th>
                   <th class="p-4 text-right w-28">Price</th>
                   <th class="p-4 w-20"></th>
                 </tr>
@@ -411,15 +434,15 @@
                         {/if}
                       </div>
                     </td>
-                    <td class="p-4 text-center w-24">
-                      {#if product.stock === 0}
-                        <Badge variant="destructive">Out of stock</Badge>
-                      {:else if product.stock <= 5}
-                        <Badge variant="warning">Low: {product.stock}</Badge>
-                      {:else}
-                        <Badge variant="success">{product.stock}</Badge>
-                      {/if}
-                    </td>
+                     <td class="p-4 text-center w-32">
+                       {#if product.stock === 0}
+                         <Badge variant="destructive" size="sm">Out of stock</Badge>
+                       {:else if product.stock <= 5}
+                         <Badge variant="warning" size="sm">Low: {product.stock}</Badge>
+                       {:else}
+                         <Badge variant="success" size="sm">{product.stock}</Badge>
+                       {/if}
+                     </td>
                     <td class="p-4 text-right font-semibold text-text-primary w-28">
                       {product.price?.toLocaleString('id-ID')}
                     </td>
@@ -737,142 +760,6 @@
   </div>
 {/if}
 
-{#if lastSale}
-<div class="thermal-receipt hidden" id="thermal-receipt">
-  <div class="thermal-shop-name">RETAIL POS</div>
-  <div class="thermal-row">
-    <span class="thermal-label">Invoice:</span>
-    <span class="thermal-value">{lastSale.invoice_number}</span>
-  </div>
-  <div class="thermal-row">
-    <span class="thermal-label">Waktu:</span>
-    <span class="thermal-value">{new Date(lastSale.created_at || Date.now()).toLocaleString('id-ID')}</span>
-  </div>
-  <div class="thermal-divider"></div>
-  {#each lastSale.items as item}
-    <div class="thermal-item">
-      <div class="thermal-item-name">{item.name} x{item.quantity}</div>
-      <div class="thermal-item-price">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</div>
-    </div>
-  {/each}
-  <div class="thermal-divider"></div>
-  <div class="thermal-item thermal-item-total">
-    <span>TOTAL</span>
-    <span>{lastSale.total_amount.toLocaleString('id-ID')}</span>
-  </div>
-  <div class="thermal-row">
-    <span class="thermal-label">Pembayaran:</span>
-    <span class="thermal-value">{lastSalePrintData?.paymentMethod ?? 'Cash'}</span>
-  </div>
-  <div class="thermal-row">
-    <span class="thermal-label">Uang Tunai:</span>
-    <span class="thermal-value">{lastSalePrintData?.cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
-  </div>
-  <div class="thermal-row">
-    <span class="thermal-label">Kembali:</span>
-    <span class="thermal-value">{lastSalePrintData?.changeDue?.toLocaleString('id-ID') ?? '—'}</span>
-  </div>
-  <div class="thermal-divider"></div>
-  <div class="thermal-footer">
-    <p>Terima kasih atas kunjungan Anda!</p>
-    <p>Barang yang sudah dibeli tidak dapat dikembalikan.</p>
-  </div>
-</div>
-{/if}
-
 <style>
-@media print {
-  body {
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Hide all app UI elements */
-  .main-content,
-  .card,
-  table,
-  button.btn,
-  .print-modal-overlay,
-  .sidebar-shell,
-  .topbar,
-  header,
-  nav[aria-label="Breadcrumb"] {
-    display: none !important;
-  }
-
-  /* Show thermal receipt with proper thermal paper dimensions */
-  .thermal-receipt,
-  .thermal-receipt.hidden {
-    display: block !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 80mm !important;
-    padding: 2mm !important;
-    background: white !important;
-    color: #000 !important;
-    font-family: 'Courier New', 'Courier', monospace !important;
-    font-size: 10pt !important;
-    line-height: 1.3 !important;
-  }
-
-  .thermal-receipt * {
-    visibility: visible !important;
-  }
-
-  .thermal-shop-name {
-    font-size: 14pt !important;
-    font-weight: bold !important;
-    text-align: center !important;
-    margin-bottom: 2mm !important;
-  }
-
-  .thermal-row {
-    display: flex !important;
-    justify-content: space-between !important;
-    margin-bottom: 1.5mm !important;
-  }
-
-  .thermal-item {
-    display: flex !important;
-    justify-content: space-between !important;
-    margin-bottom: 1.5mm !important;
-  }
-
-  .thermal-item-name {
-    flex: 1 !important;
-    word-break: break-word !important;
-    padding-right: 2mm !important;
-  }
-
-  .thermal-item-price {
-    white-space: nowrap !important;
-    font-weight: bold !important;
-  }
-
-  .thermal-item-total {
-    font-size: 12pt !important;
-    font-weight: bold !important;
-    margin-top: 2mm !important;
-    padding-top: 1mm !important;
-    border-top: 1px dashed #000 !important;
-  }
-
-  .thermal-divider {
-    border-top: 1px dashed #000 !important;
-    margin: 3mm 0 !important;
-  }
-
-  .thermal-footer {
-    text-align: center !important;
-    font-size: 9pt !important;
-    margin-top: 3mm !important;
-    line-height: 1.4 !important;
-  }
-
-  @page {
-    margin: 0 !important;
-    size: auto;
-  }
-}</style>
+/* Component-scoped styles for screen only */
+</style>

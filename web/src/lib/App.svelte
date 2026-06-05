@@ -12,6 +12,7 @@ import AdminCategories from '$lib/pages/admin/Categories.svelte';
 import Layout from '$lib/components/Layout.svelte';
 import Toast from '$lib/components/ui/Toast.svelte';
 import { auth } from '$lib/stores/auth';
+import { printReceipt } from '$lib/stores/printReceipt';
 import { checkAuth, restoreSession } from '$lib/api/auth';
 import { fade } from 'svelte/transition';
 import { useWebSocket } from '$lib/composables/useWebSocket';
@@ -146,3 +147,49 @@ function getComponent(path) {
 
 <!-- Global toast notifications -->
 <Toast />
+
+<!-- Thermal receipt rendered at App level (outside Layout) for clean print output -->
+{#if $printReceipt}
+<div class="thermal-receipt-container">
+  <div class="thermal-receipt" id="thermal-receipt">
+    <div class="thermal-shop-name">RETAIL POS</div>
+    <div class="thermal-row">
+      <span class="thermal-label">Invoice:</span>
+      <span class="thermal-value">{$printReceipt.invoice_number}</span>
+    </div>
+    <div class="thermal-row">
+      <span class="thermal-label">Waktu:</span>
+      <span class="thermal-value">{new Date($printReceipt.created_at || Date.now()).toLocaleString('id-ID')}</span>
+    </div>
+    <div class="thermal-divider"></div>
+    {#each $printReceipt.items as item}
+      <div class="thermal-item">
+        <div class="thermal-item-name">{item.name} x{item.quantity}</div>
+        <div class="thermal-item-price">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</div>
+      </div>
+    {/each}
+    <div class="thermal-divider"></div>
+    <div class="thermal-item thermal-item-total">
+      <span>TOTAL</span>
+      <span>{$printReceipt.total_amount.toLocaleString('id-ID')}</span>
+    </div>
+    <div class="thermal-row">
+      <span class="thermal-label">Pembayaran:</span>
+      <span class="thermal-value">{$printReceipt.paymentMethod}</span>
+    </div>
+    <div class="thermal-row">
+      <span class="thermal-label">Uang Tunai:</span>
+      <span class="thermal-value">{$printReceipt.cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
+    </div>
+    <div class="thermal-row">
+      <span class="thermal-label">Kembali:</span>
+      <span class="thermal-value">{$printReceipt.changeDue?.toLocaleString('id-ID') ?? '—'}</span>
+    </div>
+    <div class="thermal-divider"></div>
+    <div class="thermal-footer">
+      <p>Terima kasih atas kunjungan Anda!</p>
+      <p>Barang yang sudah dibeli tidak dapat dikembalikan.</p>
+    </div>
+  </div>
+</div>
+{/if}

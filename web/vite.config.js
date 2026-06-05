@@ -42,5 +42,20 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{js,ts}'],
     globals: true,
     setupFiles: ['./src/test-setup.ts']
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('chart.js')) return 'chart';
+          if (id.includes('xlsx')) return 'xlsx';
+          if (id.includes('jspdf-autotable')) return 'jspdf';
+          if (id.includes('jspdf') && !id.includes('jspdf-autotable')) return 'jspdf-core';
+          if (id.includes('html2canvas')) return 'html2canvas';
+          if (id.includes('dompurify')) return 'purify';
+        }
+      }
+    }
   }
 });
