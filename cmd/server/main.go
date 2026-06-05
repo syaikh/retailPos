@@ -138,6 +138,12 @@ func main() {
 		protected.DELETE("/admin/roles/:id", h.DeleteRole)
 		protected.GET("/admin/permissions", h.ListPermissions)
 
+		// Category Management
+		protected.GET("/categories/manage", h.ListCategoriesManagement)
+		protected.POST("/categories", h.CreateCategoryHandler)
+		protected.PUT("/categories/:id", h.UpdateCategoryHandler)
+		protected.DELETE("/categories/:id", h.DeleteCategoryHandler)
+
 		protected.GET("/audit-logs", h.ListAuditLogs)
 	}
 
