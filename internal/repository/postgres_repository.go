@@ -470,7 +470,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	return &p, nil
 }
 
-func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error) {
+func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string) ([]domain.Product, int, error) {
 	var products []domain.Product
 	var total int
 
@@ -501,6 +501,11 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	if storeID != nil {
 		query += fmt.Sprintf(" AND p.store_id = $%d", argIdx)
 		args = append(args, *storeID)
+		argIdx++
+	}
+	if status != "" {
+		query += fmt.Sprintf(" AND p.status = $%d", argIdx)
+		args = append(args, status)
 		argIdx++
 	}
 
@@ -541,6 +546,11 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	if storeID != nil {
 		query2 += fmt.Sprintf(" AND p.store_id = $%d", argIdx2)
 		args2 = append(args2, *storeID)
+		argIdx2++
+	}
+	if status != "" {
+		query2 += fmt.Sprintf(" AND p.status = $%d", argIdx2)
+		args2 = append(args2, status)
 		argIdx2++
 	}
 	if sortBy != "" {
@@ -733,7 +743,7 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 }
 
 func (r *postgresRepository) DeleteProduct(ctx context.Context, id int, storeID *int) error {
-	_, err := r.db.Exec(ctx, "UPDATE products SET deleted_at = NOW() WHERE id = $1", id)
+	_, err := r.db.Exec(ctx, "UPDATE products SET deleted_at = NOW(), status = 'archived' WHERE id = $1", id)
 	return err
 }
 

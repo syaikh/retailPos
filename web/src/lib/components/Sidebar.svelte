@@ -33,7 +33,7 @@
   });
 
   let username = $derived($auth.user?.username || 'User');
-  let role = $derived($auth.user?.role?.name || ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) || ($auth.user?.role_id === 1 ? 'superadmin' : $auth.user?.role_id === 2 ? 'admin' : $auth.user?.role_id === 3 ? 'cashier' : $auth.user?.role_id === 4 ? 'manager' : 'cashier'));
+  let role = $derived($auth.user?.role?.name || ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) || ($auth.user?.role_id === 1 ? 'superadmin' : $auth.user?.role_id === 2 ? 'admin' : $auth.user?.role_id === 3 ? 'cashier' : $auth.user?.role_id === 4 ? 'manager' : $auth.user?.role_id === 5 ? 'staff' : 'cashier'));
 
   const navItems = [
     { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
@@ -43,11 +43,19 @@
     { label: 'Categories', href: '/categories',  icon: Tag             },
   ];
 
+  const staffNavItems = [
+    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
+    { label: 'Inventory',  href: '/inventory',  icon: Package         },
+  ];
+
   const adminItems = [
     { label: 'Users',       href: '/admin/users',       icon: Users      },
     { label: 'Roles',       href: '/admin/roles',       icon: Shield     },
     { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText },
   ];
+
+  let visibleNavItems = $derived(role === 'staff' ? staffNavItems : navItems);
+  let showAdminSection = $derived(role !== 'staff' && role !== 'cashier');
 
   function isActive(href: string) {
     if (href === '/') return currentPath === '/';
@@ -106,7 +114,7 @@
 
   <!-- Nav -->
   <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar">
-    {#each navItems as item}
+    {#each visibleNavItems as item}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
@@ -120,6 +128,7 @@
     {/each}
 
     <!-- Admin section -->
+    {#if showAdminSection}
     <div class="pt-4 pb-1">
       {#if !collapsed}
         <p class="px-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1 animate-fade-in">
@@ -142,6 +151,7 @@
         {/if}
       </button>
     {/each}
+    {/if}
   </nav>
 
   <!-- Bottom: user + collapse toggle -->

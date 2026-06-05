@@ -54,7 +54,7 @@
   async function fetchProducts(isSearch = false) {
     try {
       if (!isSearch) loading = true;
-      const r = await apiClient.get(`/products?limit=${limit}&offset=${offset}&search=${searchQuery}`);
+      const r = await apiClient.get(`/products?limit=${limit}&offset=${offset}&search=${searchQuery}&status=active`);
       products = r.data.data || [];
       total = r.data.total || 0;
     } catch (err) {
@@ -191,7 +191,6 @@
     }
     showCheckoutModal = true;
     cashReceived = 0;
-    paymentMethod = 'Cash';
   }
 
   function closeCheckoutModal() {
@@ -217,8 +216,10 @@
   $effect(() => {
     if (showCheckoutModal) {
       setTimeout(() => {
-        const el = document.getElementById('cash-received-input');
-        if (el) el.focus();
+        const cashEl = document.getElementById('cash-received-input');
+        const nonCashEl = document.getElementById('card-ewallet-amount-input');
+        if (cashEl) cashEl.focus();
+        if (nonCashEl) nonCashEl.focus();
       }, 0);
     }
   });
@@ -684,12 +685,35 @@
           </span>
         </div>
       {:else}
+        <div class="mb-4">
+          <label for="card-ewallet-amount-input" class="text-xs text-text-muted mb-1.5 font-medium block">
+            Jumlah Bayar
+          </label>
+          <input
+            id="card-ewallet-amount-input"
+            type="text"
+            inputmode="numeric"
+            bind:value={cashReceived}
+            class="input text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            placeholder="0"
+          />
+        </div>
         <div
           class="flex items-center justify-between p-4 rounded-xl
-            bg-info-subtle border border-info-default/20"
+            {changeDue >= 0
+              ? 'bg-success-subtle border border-success-default/20'
+              : 'bg-danger-subtle border border-danger-default/20'}"
         >
-          <span class="text-sm font-medium text-text-secondary">Metode</span>
-          <span class="text-lg font-bold text-info-light">{paymentMethod}</span>
+          <span class="text-sm font-medium text-text-secondary">Kembali</span>
+          <span
+            class="text-2xl font-extrabold
+              {changeDue >= 0 ? 'text-emerald-400' : 'text-danger-light'}"
+          >
+            {Math.abs(changeDue).toLocaleString('id-ID')}
+            {#if changeDue < 0}
+              <span class="text-xs font-semibold text-danger-light ml-1">(kurang)</span>
+            {/if}
+          </span>
         </div>
       {/if}
 

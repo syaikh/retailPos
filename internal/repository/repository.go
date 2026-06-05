@@ -47,7 +47,7 @@ type ProductRepository interface {
 	UpdateProduct(ctx context.Context, product *domain.Product, storeID *int) error
 	RestoreProduct(ctx context.Context, product *domain.Product) error
 	DeleteProduct(ctx context.Context, id int, storeID *int) error
-	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int) ([]domain.Product, int, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string) ([]domain.Product, int, error)
 	GetNextSKU(ctx context.Context) (string, error)
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)

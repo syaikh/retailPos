@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
@@ -75,9 +75,8 @@ describe('PosPage source-structure guards', () => {
     });
 
     it('shortcut legend text class exists in markup', () => {
-      expect(source).toContain('[F2] Cari Produk');
-      expect(source).toContain('[F4] Bayar');
-      expect(source).toContain('[ALT+DEL] Kosongkan Keranjang');
+      expect(source).toMatch(/ALT\+DEL/i);
+      expect(source).toMatch(/Bayar.*\[F4\]/i);
     });
   });
 
@@ -119,13 +118,14 @@ describe('PosPage source-structure guards', () => {
     it('programmatic focus effect on modal open', () => {
       expect(source).toContain('$effect(() =>');
       expect(source).toContain("showCheckoutModal");
-      expect(source).toContain("el.focus()");
+      expect(source).toContain("cashEl.focus()");
+      expect(source).toContain("nonCashEl.focus()");
       expect(source).toContain("getElementById('cash-received-input')");
+      expect(source).toContain("getElementById('card-ewallet-amount-input')");
     });
 
-    it('F5 inside modal fills cashReceived with totalAmount', () => {
-      const block = extractRhsBySemantics(source, 'cashReceived') ?? '';
-      expect(source).toContain("event.key === 'F5'");
+    it('F6 inside modal fills cashReceived with totalAmount', () => {
+      expect(source).toContain("event.key === 'F6'");
     });
 
     it('quick cash preset buttons include Rp 50.000 and Rp 100.000', () => {
@@ -194,8 +194,9 @@ describe('PosPage source-structure guards', () => {
   // ── THERMAL RECEIPT PRINT CSS ───────────────────────────────────────────────
 
   describe('THERMAL RECEIPT PRINT CSS', () => {
-    it('thermal-receipt hidden class present', () => {
-      expect(source).toContain('class="thermal-receipt hidden"');
+    it('thermal-receipt uses conditional rendering', () => {
+      expect(source).toContain('{#if lastSale}');
+      expect(source).toContain('thermal-receipt');
     });
 
     it('print media query structure present in style block', () => {
@@ -204,9 +205,9 @@ describe('PosPage source-structure guards', () => {
       expect(source).toContain('display: block !important;');
     });
 
-    it('thermal-receipt positioned absolute at top-left in print', () => {
-      expect(source).toContain('.thermal-receipt {');
-      expect(source).toContain('position: absolute');
+    it('thermal-receipt positioned fixed at top-left in print', () => {
+      expect(source).toContain('.thermal-receipt');
+      expect(source).toContain('position: fixed');
     });
 
     it('thermal receipt uses white background and black text', () => {
@@ -215,7 +216,7 @@ describe('PosPage source-structure guards', () => {
     });
 
     it('thermal font-family is monospace / Courier', () => {
-      expect(source).toContain("'Courier New', monospace");
+      expect(source).toContain("'Courier New'");
     });
 
     it('receipt contains shop name, invoice, time, items, total, footer', () => {

@@ -107,7 +107,7 @@ let showDeleteModal = $state(false);
     let canManageInventory = $state(false);
     let warningThreshold = $state(10);
     let criticalThreshold = $state(5);
-   const allowedInventoryRoles = ['superadmin', 'admin', 'inventory officer'];
+   const allowedInventoryRoles = ['superadmin', 'admin', 'staff'];
   
 // Track previous values to avoid duplicate fetches
     let previousSearchQuery = '';
@@ -461,6 +461,11 @@ function resetForm() {
   let isSuperAdmin = $derived(() => {
     const role = getUserRoleName();
     return role === 'superadmin';
+  });
+
+  let isAdmin = $derived(() => {
+    const role = getUserRoleName();
+    return role === 'admin';
   });
 
   /** Whether the logged-in user may view cost/margin data (superadmin | admin | manager) */
@@ -881,10 +886,10 @@ function handleWindowKeydown(e: KeyboardEvent) {
                 </Badge>
                </td>
 <td class="p-4 w-20" style="width: 80px;">
-                  <ProductActionsDropdown
-                    product={product}
-                    canEdit={canManageInventory}
-                    canDelete={canManageInventory}
+                    <ProductActionsDropdown
+                      product={product}
+                      canEdit={canManageInventory}
+                      canDelete={isSuperAdmin() || isAdmin()}
                     onView={() => {
                       selectedProduct = product;
                       showDetailDrawer = true;
@@ -1059,7 +1064,9 @@ function handleWindowKeydown(e: KeyboardEvent) {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="discontinued">Discontinued</option>
+          {#if isSuperAdmin() || isAdmin()}
           <option value="archived">Archived</option>
+          {/if}
         </select>
       </div>
 
@@ -1386,8 +1393,8 @@ function handleWindowKeydown(e: KeyboardEvent) {
              border-t border-border/50"
     >
 <div class="flex items-center gap-3">
-          <!-- Hapus Produk — privileged users only, only if stock is 0 -->
-          {#if canManageInventory && selectedProduct?.stock === 0}
+          <!-- Hapus Produk — superadmin/admin only, only if stock is 0 -->
+          {#if (isSuperAdmin() || isAdmin()) && selectedProduct?.stock === 0}
             <button
               class="flex-1 btn btn-secondary
                      rounded-xl px-4 h-11 text-sm font-semibold

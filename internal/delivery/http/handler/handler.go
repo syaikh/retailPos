@@ -86,7 +86,7 @@ func (h *Handler) hasPermission(c *gin.Context, permission string) bool {
 
 func (h *Handler) canManageProduct(c *gin.Context, permission string) bool {
 	role := h.userRole(c)
-	if role == "superadmin" || role == "admin" || role == "inventory officer" {
+	if role == "superadmin" || role == "admin" || role == "staff" {
 		return true
 	}
 	return h.hasPermission(c, permission)
@@ -270,7 +270,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), categoryIDs, "created_at", "DESC", maxStock, nil)
+	products, total, err := h.productRepo.GetAllProducts(getCtx(c), limit, offset, c.Query("search"), categoryIDs, "created_at", "DESC", maxStock, nil, c.Query("status"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return
@@ -392,7 +392,8 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	if !h.canManageProduct(c, "product:delete") {
+	role := h.userRole(c)
+	if role != "superadmin" && role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
 		return
 	}
@@ -564,14 +565,14 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 		}
 	}
 
-	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", nil, nil)
+	_, totalProducts, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", nil, nil, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products data"})
 		return
 	}
 
 	lowStock := cfg.StockCriticalThreshold
-	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", &lowStock, nil)
+	_, lowStockCount, err := h.productRepo.GetAllProducts(ctx, 1, 0, "", []int{}, "", "", &lowStock, nil, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch low stock data"})
 		return
@@ -1103,7 +1104,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 }
 
 func (h *Handler) ExportInventory(c *gin.Context) {
-	products, _, _ := h.productRepo.GetAllProducts(getCtx(c), 10000, 0, "", []int{}, "name", "ASC", nil, nil)
+	products, _, _ := h.productRepo.GetAllProducts(getCtx(c), 10000, 0, "", []int{}, "name", "ASC", nil, nil, "")
 	c.JSON(http.StatusOK, gin.H{"data": products})
 }
 

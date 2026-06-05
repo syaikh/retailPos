@@ -80,7 +80,14 @@ function handleAction(action: 'view' | 'edit' | 'delete') {
       class="absolute right-0 top-full mt-1 w-48 card-glass border border-border rounded-lg shadow-lg z-50 py-1"
       role="menu"
       aria-orientation="vertical"
+      tabindex="-1"
       onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          closeDropdown();
+        }
+      }}
     >
       <button
         onclick={() => handleAction('view')}

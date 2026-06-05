@@ -196,7 +196,7 @@ func TestPostgresRepository_GetAllProducts(t *testing.T) {
 	repo := NewPostgresRepository(testDB.Pool())
 
 	// Test getting all products
-	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", []int{}, "name", "asc", nil, nil)
+	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", []int{}, "name", "asc", nil, nil, "")
 	require.NoError(t, err)
 	assert.Greater(t, total, 0)
 	assert.Len(t, products, total)
@@ -262,7 +262,7 @@ func TestPostgresRepository_GetAllProducts_WithMultipleCategoryFilter(t *testing
 	// Test getting products with multiple category filter
 	products, total, err := repo.GetAllProducts(
 		context.Background(),
-		10, 0, "", []int{foodCategoryID, beverageCategoryID}, "name", "asc", nil, nil,
+		10, 0, "", []int{foodCategoryID, beverageCategoryID}, "name", "asc", nil, nil, "",
 	)
 	require.NoError(t, err)
 	if total > 0 {

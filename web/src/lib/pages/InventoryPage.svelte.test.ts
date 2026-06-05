@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
 // ─── helpers extracted from InventoryPage.svelte ───────────────────────────────
 
@@ -284,7 +284,6 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { vi } from 'vitest';
-import type { Product } from '$lib/types';
 
 // ── Re-declared pure helpers (mirrors component script body) ──────────────────
 
@@ -716,8 +715,8 @@ describe('InventoryPage.svelte — drawer structural guards', () => {
     expect(src).toContain('Edit Produk');
   });
 
-  it('Hapus Produk button is gated to superadmin only', () => {
-    expect(src).toContain('{#if isSuperAdmin()}');
+  it('Hapus Produk button is gated by isSuperAdmin() || isAdmin() inside footer', () => {
+    expect(src).toContain('{#if (isSuperAdmin() || isAdmin()) && selectedProduct?.stock === 0}');
     // Context: Hapus within the sticky footer
     const footerIdx = src.lastIndexOf('<!-- ── Sticky action footer');
     const afterFooter = src.slice(footerIdx);
@@ -837,11 +836,11 @@ describe('InventoryPage.svelte — drawer structural guards', () => {
     expect(fromGate).toContain('Edit Produk');
   });
 
-  it('Hapus Produk button gated to superadmin only inside footer', () => {
+  it('Hapus Produk button gated by isSuperAdmin() || isAdmin() inside footer', () => {
     const footerIdx = src.lastIndexOf('<!-- ── Sticky action footer');
     const context = src.slice(footerIdx);
-    expect(context).toContain('{#if isSuperAdmin()}');
-    // Hapus Produk text must appear AFTER the canEdit gate but BEFORE next {/if}
+    expect(context).toContain('{#if (isSuperAdmin() || isAdmin()) && selectedProduct?.stock === 0}');
+    // Hapus Produk text must appear AFTER the admin gate but BEFORE next {/if}
     const hapusIdx = context.indexOf('Hapus Produk');
     const closeIdx = context.indexOf('{/if}', hapusIdx);
     expect(hapusIdx).toBeGreaterThan(-1);
@@ -865,6 +864,61 @@ describe('InventoryPage.svelte — drawer structural guards', () => {
     // drawer patch (the edit of the ACTIONS cell only expanded it slightly).
     expect(src).toContain('w-20');   // ACTIONS column
     expect(src).toContain('w-28');   // STOCK column
+  });
+
+  // ── New: isAdmin helper ──────────────────────────────────────────────────────
+  it('isAdmin helper exists in source', () => {
+    expect(src).toContain('let isAdmin = $derived');
+    expect(src).toContain("role === 'admin'");
+  });
+
+  // ── New: archived option hidden for non-admin ────────────────────────────────
+  it('archived option is hidden for non-admin users', () => {
+    expect(src).toContain('{#if isSuperAdmin() || isAdmin()}');
+    expect(src).toContain('value="archived"');
+    const gateIdx = src.indexOf('{#if isSuperAdmin() || isAdmin()}');
+    const archivedIdx = src.indexOf('value="archived"');
+    expect(archivedIdx).toBeGreaterThan(gateIdx);
+  });
+
+  // ── New: staff role permissions in seed data ─────────────────────────────────
+  it('staff role has product.view and product.update permissions', () => {
+    const seedDir = path.dirname(fileURLToPath(import.meta.url));
+    const seedPath = path.join(seedDir, '../../../../database/migrations/003_seed_data.sql');
+    const seedSrc = fs.readFileSync(seedPath, 'utf-8');
+    expect(seedSrc).toContain("'staff'");
+    expect(seedSrc).toContain("'product.view'");
+    expect(seedSrc).toContain("'product.update'");
+    const staffBlockStart = seedSrc.indexOf("-- Staff permissions");
+    const staffBlockEnd = seedSrc.indexOf("ON CONFLICT DO NOTHING", staffBlockStart);
+    const staffBlock = seedSrc.slice(staffBlockStart, staffBlockEnd);
+    expect(staffBlock).toContain("'product.view'");
+    expect(staffBlock).toContain("'product.update'");
+    expect(staffBlock).not.toMatch(/'product\.create'/);
+    expect(staffBlock).not.toMatch(/'product\.delete'/);
+  });
+
+  // ── New: staff navigation restricted ─────────────────────────────────────────
+  it('staff navigation shows only Dashboard and Inventory', () => {
+    const testDir = path.dirname(fileURLToPath(import.meta.url));
+    const sidebarPath = path.join(testDir, '../components/Sidebar.svelte');
+    const sidebarSrc = fs.readFileSync(sidebarPath, 'utf-8');
+    expect(sidebarSrc).toContain("role_id === 5 ? 'staff'");
+    expect(sidebarSrc).toContain('staffNavItems');
+    expect(sidebarSrc).toContain('visibleNavItems');
+  });
+
+  // ── New: POS filters by status=active ────────────────────────────────────────
+  it('POS page filters products by status=active', () => {
+    const testDir = path.dirname(fileURLToPath(import.meta.url));
+    const posPath = path.join(testDir, 'PosPage.svelte');
+    const posSrc = fs.readFileSync(posPath, 'utf-8');
+    expect(posSrc).toContain('status=active');
+  });
+
+  // ── New: table dropdown delete restricted to admin ───────────────────────────
+  it('table dropdown canDelete is restricted to superadmin/admin', () => {
+    expect(src).toContain('canDelete={isSuperAdmin() || isAdmin()}');
   });
 });
 

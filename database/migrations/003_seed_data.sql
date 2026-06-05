@@ -74,13 +74,23 @@ ON CONFLICT DO NOTHING;
 
 -- Cashier permissions
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id 
+SELECT r.id, p.id
 FROM roles r
 JOIN permissions p ON p.code IN (
   'dashboard.view','product.view',
   'sale.view','sale.create','sale.print'
 )
 WHERE r.name = 'cashier'
+ON CONFLICT DO NOTHING;
+
+-- Staff permissions (inventory officer replacement)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.code IN (
+  'dashboard.view','product.view','product.update'
+)
+WHERE r.name = 'staff'
 ON CONFLICT DO NOTHING;
 
 -- Users (Password default: admin123)
