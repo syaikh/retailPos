@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+  import { auth } from '$lib/stores/auth';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -16,6 +17,16 @@
   let selectedRole = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+
+  let userRole = $derived(
+    $auth.user?.role?.name ||
+    ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
+    ''
+  );
+  let userPermissions = $derived($auth.user?.permissions || []);
+  let canView = $derived(userRole !== 'cashier' && userRole !== '');
+  let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
+  let canDelete = $derived(userRole === 'superadmin');
 
   // Form State
   let form = $state({
@@ -154,115 +165,131 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Header Section -->
-  <div class="flex items-center justify-between mb-8">
-    <div>
-      <h2 class="text-3xl font-extrabold text-text-primary tracking-tight">Roles Management</h2>
-      <p class="text-text-muted mt-1">Define and orchestrate system-wide access control and permission sets</p>
-    </div>
-    <div class="flex items-center gap-3">
-      <button class="btn btn-primary px-6 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95" onclick={openAdd}>
-        <Plus size={18} class="mr-1.5" /> Create Role
-      </button>
-    </div>
-  </div>
-
-  {#if loading}
-    <div class="grid gap-4">
-      {#each { length: 3 } as _}
-        <div class="card p-5 space-y-3">
-          <Skeleton width="w-32" height="h-5" />
-          <Skeleton width="w-full" height="h-3" />
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-            {#each { length: 6 } as _}
-              <Skeleton height="h-8" rounded="rounded-lg" />
-            {/each}
-          </div>
-        </div>
-      {/each}
-    </div>
-  {:else if roles.length === 0}
+  {#if !canView}
     <div class="card px-4 py-12 text-center">
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
         <Shield size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold mt-4">No roles defined</p>
-      <p class="text-text-muted text-sm mt-1">Create your first role to get started</p>
-      <button class="btn btn-primary mt-4" onclick={openAdd}>
-        <Plus size={14} /> Add First Role
-      </button>
+      <p class="text-text-primary font-semibold mt-4">Access Denied</p>
+      <p class="text-text-muted text-sm mt-1">You do not have permission to view roles</p>
     </div>
   {:else}
-    <div class="grid gap-6">
-      {#each roles as role (role.id)}
-        <div class="card p-6 bg-surface/40 backdrop-blur-xl border-border/40 hover:border-primary/30 hover:shadow-glow-primary-sm transition-all duration-300 group relative overflow-hidden">
-          <!-- Subtle decorative background element -->
-          <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors"></div>
-          
-          <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-2xl bg-linear-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 shadow-inner">
-                <Shield size={22} class="text-primary-light" />
-              </div>
-              <div>
-                <div class="flex items-center gap-3">
-                  <h3 class="text-lg font-bold text-text-primary capitalize tracking-tight">{role.name}</h3>
-                  {#if role.is_system}
-                    <span class="px-2 py-0.5 rounded-md bg-info-subtle/30 text-info-light text-[10px] font-bold uppercase tracking-widest border border-info/20 shadow-sm">System</span>
-                  {/if}
-                  <span class="px-2 py-0.5 rounded-md bg-surface-hover/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border border-border/50">
-                    {Array.isArray(role.permissions) ? role.permissions.length : 0} Perms
-                  </span>
+    <!-- Header Section -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h2 class="text-3xl font-extrabold text-text-primary tracking-tight">Roles Management</h2>
+        <p class="text-text-muted mt-1">Define and orchestrate system-wide access control and permission sets</p>
+      </div>
+      <div class="flex items-center gap-3">
+        {#if canEdit}
+        <button class="btn btn-primary px-6 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95" onclick={openAdd}>
+          <Plus size={18} class="mr-1.5" /> Create Role
+        </button>
+        {/if}
+      </div>
+    </div>
+
+    {#if loading}
+      <div class="grid gap-4">
+        {#each { length: 3 } as _}
+          <div class="card p-5 space-y-3">
+            <Skeleton width="w-32" height="h-5" />
+            <Skeleton width="w-full" height="h-3" />
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+              {#each { length: 6 } as _}
+                <Skeleton height="h-8" rounded="rounded-lg" />
+              {/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {:else if roles.length === 0}
+      <div class="card px-4 py-12 text-center">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+          <Shield size={32} class="text-text-muted" />
+        </div>
+        <p class="text-text-primary font-semibold mt-4">No roles defined</p>
+        <p class="text-text-muted text-sm mt-1">Create your first role to get started</p>
+        {#if canEdit}
+        <button class="btn btn-primary mt-4" onclick={openAdd}>
+          <Plus size={14} /> Add First Role
+        </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="grid gap-6">
+        {#each roles as role (role.id)}
+          <div class="card p-6 bg-surface/40 backdrop-blur-xl border-border/40 hover:border-primary/30 hover:shadow-glow-primary-sm transition-all duration-300 group relative overflow-hidden">
+            <!-- Subtle decorative background element -->
+            <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors"></div>
+            
+            <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-linear-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 shadow-inner">
+                  <Shield size={22} class="text-primary-light" />
                 </div>
-                {#if role.description}
-                  <p class="text-sm text-text-muted mt-1 leading-relaxed max-w-xl">{role.description}</p>
+                <div>
+                  <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-text-primary capitalize tracking-tight">{role.name}</h3>
+                    {#if role.is_system}
+                      <span class="px-2 py-0.5 rounded-md bg-info-subtle/30 text-info-light text-[10px] font-bold uppercase tracking-widest border border-info/20 shadow-sm">System</span>
+                    {/if}
+                    <span class="px-2 py-0.5 rounded-md bg-surface-hover/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border border-border/50">
+                      {Array.isArray(role.permissions) ? role.permissions.length : 0} Perms
+                    </span>
+                  </div>
+                  {#if role.description}
+                    <p class="text-sm text-text-muted mt-1 leading-relaxed max-w-xl">{role.description}</p>
+                  {/if}
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-2 self-end md:self-start bg-surface-subtle/30 p-1.5 rounded-xl border border-border/30 backdrop-blur-sm">
+                {#if canEdit}
+                <button 
+                  class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-primary-light hover:bg-primary-subtle/50 transition-all active:scale-90" 
+                  title="Edit Permissions"
+                  onclick={() => openEdit(role)}
+                >
+                  <Pencil size={15} />
+                </button>
+                {/if}
+                {#if canDelete && !role.is_system}
+                  <button
+                    class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-danger-light hover:bg-danger-subtle/50 transition-all active:scale-90"
+                    onclick={() => { selectedRole = role; showDeleteModal = true; }}
+                    title="Delete Role"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 {/if}
               </div>
             </div>
-            
-            <div class="flex items-center gap-2 self-end md:self-start bg-surface-subtle/30 p-1.5 rounded-xl border border-border/30 backdrop-blur-sm">
-              <button 
-                class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-primary-light hover:bg-primary-subtle/50 transition-all active:scale-90" 
-                title="Edit Permissions"
-                onclick={() => openEdit(role)}
-              >
-                <Pencil size={15} />
-              </button>
-              {#if !role.is_system}
-                <button
-                  class="btn-icon w-9 h-9 rounded-lg text-text-muted hover:text-danger-light hover:bg-danger-subtle/50 transition-all active:scale-90"
-                  onclick={() => { selectedRole = role; showDeleteModal = true; }}
-                  title="Delete Role"
-                >
-                  <Trash2 size={15} />
-                </button>
-              {/if}
-            </div>
-          </div>
 
-          <!-- Permission grid -->
-          <div class="bg-surface-subtle/20 rounded-2xl p-4 border border-border/20">
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {#if Array.isArray(role.permissions) && role.permissions.length > 0}
-                {#each role.permissions as permCode}
-                  {@const permObj = permissions.find(p => p.code === permCode)}
-                  <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/10 bg-surface/40 text-xs font-semibold text-text-secondary hover:border-primary/30 hover:bg-surface-hover/30 transition-all cursor-default shadow-sm group/tag">
-                    <div class="w-2 h-2 rounded-full shrink-0 bg-primary/40 group-hover/tag:bg-primary-light transition-colors shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]"></div>
-                    <span class="truncate">{permObj?.name || permCode}</span>
+            <!-- Permission grid -->
+            <div class="bg-surface-subtle/20 rounded-2xl p-4 border border-border/20">
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {#if Array.isArray(role.permissions) && role.permissions.length > 0}
+                  {#each role.permissions as permCode}
+                    {@const permObj = permissions.find(p => p.code === permCode)}
+                    <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/10 bg-surface/40 text-xs font-semibold text-text-secondary hover:border-primary/30 hover:bg-surface-hover/30 transition-all cursor-default shadow-sm group/tag">
+                      <div class="w-2 h-2 rounded-full shrink-0 bg-primary/40 group-hover/tag:bg-primary-light transition-colors shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]"></div>
+                      <span class="truncate">{permObj?.name || permCode}</span>
+                    </div>
+                  {/each}
+                {:else}
+                  <div class="col-span-full py-4 text-center">
+                    <p class="text-sm text-text-muted italic opacity-60 flex items-center justify-center gap-2">
+                      <Loader2 size={14} class="opacity-50" /> No permissions assigned to this role
+                    </p>
                   </div>
-                {/each}
-              {:else}
-                <div class="col-span-full py-4 text-center">
-                  <p class="text-sm text-text-muted italic opacity-60 flex items-center justify-center gap-2">
-                    <Loader2 size={14} class="opacity-50" /> No permissions assigned to this role
-                  </p>
-                </div>
-              {/if}
+                {/if}
+              </div>
             </div>
           </div>
-        </div>
-      {/each}
-    </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -288,9 +315,9 @@
       </div>
     {/if}
     
-<div>
-  <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div>
+      <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {#each permissions as perm}
           <label 
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors

@@ -1,18 +1,16 @@
--- Seed: Permissions
+-- Seed: Permissions (clean, consolidated version)
+-- Format: colon-notation only (user:read, user:create, etc.)
 INSERT INTO permissions (code, name, description) VALUES
 -- Users & Roles
 ('user:read', 'Baca user', 'Lihat daftar user'),
 ('user:create', 'Tambah user', 'Tambah user baru'),
 ('user:update', 'Edit user', 'Edit data user'),
 ('user:delete', 'Hapus user', 'Hapus user (soft delete)'),
-('users:read', 'Baca user', 'Lihat daftar user (alias)'),
-('users:manage', 'Kelola user', 'CRUD user & role (alias)'),
-('user:manage', 'Kelola user', 'CRUD user & role (alias)'),
+('user:view', 'Lihat detail user', 'Lihat detail satu user'),
 ('role:read', 'Baca role', 'Lihat daftar role'),
 ('role:create', 'Tambah role', 'Tambah role baru'),
 ('role:update', 'Edit role', 'Edit role & permissions'),
 ('role:delete', 'Hapus role', 'Hapus role'),
-('users:roles:manage', 'Kelola role user', 'Kelola role & permission user (alias)'),
 
 -- Products
 ('product:read', 'Baca produk', 'Lihat daftar produk'),
@@ -20,9 +18,16 @@ INSERT INTO permissions (code, name, description) VALUES
 ('product:update', 'Edit produk', 'Edit data produk'),
 ('product:delete', 'Hapus produk', 'Hapus produk (soft delete)'),
 
+-- Categories
+('category:read', 'Baca kategori', 'Lihat daftar kategori'),
+('category:create', 'Tambah kategori', 'Tambah kategori baru'),
+('category:update', 'Edit kategori', 'Edit data kategori'),
+('category:delete', 'Hapus kategori', 'Hapus kategori'),
+
 -- Sales
-('sale:create', 'Buat penjualan', 'Proses transaksi penjualan'),
 ('sale:read', 'Baca penjualan', 'Lihat riwayat penjualan'),
+('sale:create', 'Buat penjualan', 'Proses transaksi penjualan'),
+('sale:void', 'Void penjualan', 'Void/refund transaksi penjualan'),
 
 -- Inventory
 ('inventory:read', 'Baca inventory', 'Lihat daftar inventory'),
@@ -30,8 +35,7 @@ INSERT INTO permissions (code, name, description) VALUES
 ('inventory:export', 'Export inventory', 'Export data inventory'),
 
 -- Reports
-('report:view', 'Lihat laporan', 'Akses dashboard & laporan'),
-('reports:read', 'Lihat laporan', 'Akses dashboard & laporan (alias)'),
+('report:read', 'Lihat laporan', 'Akses dashboard & laporan'),
 
 -- Dashboard
 ('dashboard:read', 'Lihat dashboard', 'Akses dashboard utama'),

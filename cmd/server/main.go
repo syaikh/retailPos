@@ -108,43 +108,52 @@ func main() {
 	{
 		protected.POST("/validate", h.ValidateSession)
 		protected.POST("/logout", h.Logout)
-		protected.GET("/products/:id", h.GetProductByID)
-		protected.POST("/products", h.CreateProduct)
-		protected.PUT("/products/:id", h.UpdateProduct)
-		protected.DELETE("/products/:id", h.DeleteProduct)
 
+		// Products
+		protected.GET("/products/:id", h.GetProductByID)
+		protected.POST("/products", middleware.RequirePermission("product:create"), h.CreateProduct)
+		protected.PUT("/products/:id", middleware.RequirePermission("product:update"), h.UpdateProduct)
+		protected.DELETE("/products/:id", middleware.RequirePermission("product:delete"), h.DeleteProduct)
+
+		// Brands
 		protected.POST("/brands", h.CreateBrand)
 		protected.PUT("/brands/:id", h.UpdateBrand)
 		protected.DELETE("/brands/:id", h.DeleteBrand)
 
-		protected.POST("/sales", h.CreateSale)
-		protected.GET("/sales", h.GetSalesHistory)
-		protected.GET("/sales/:id", h.GetSaleByID)
-		protected.GET("/dashboard/stats", h.GetDashboardStats)
-		protected.GET("/dashboard/chart", h.GetSalesChartData)
-		protected.GET("/dashboard/chart/weekly", h.GetSalesWeeklyReport)
-		protected.GET("/dashboard/chart/monthly", h.GetSalesMonthlyReport)
-		protected.GET("/dashboard/comparison", h.GetPeriodComparison)
+		// Sales
+		protected.POST("/sales", middleware.RequirePermission("sale:create"), h.CreateSale)
+		protected.GET("/sales", middleware.RequirePermission("sale:read"), h.GetSalesHistory)
+		protected.GET("/sales/:id", middleware.RequirePermission("sale:read"), h.GetSaleByID)
 
-		// Admin
-		protected.GET("/admin/users", h.ListUsers)
-		protected.POST("/admin/users", h.CreateUser)
-		protected.PUT("/admin/users/:id", h.UpdateUser)
-		protected.DELETE("/admin/users/:id", h.DeleteUser)
+		// Dashboard
+		protected.GET("/dashboard/stats", middleware.RequirePermission("dashboard:read"), h.GetDashboardStats)
+		protected.GET("/dashboard/live", middleware.RequirePermission("dashboard:read"), h.GetLiveDashboardStats)
+		protected.GET("/dashboard/chart", middleware.RequirePermission("report:read"), h.GetSalesChartData)
+		protected.GET("/dashboard/chart/weekly", middleware.RequirePermission("report:read"), h.GetSalesWeeklyReport)
+		protected.GET("/dashboard/chart/monthly", middleware.RequirePermission("report:read"), h.GetSalesMonthlyReport)
+		protected.GET("/dashboard/comparison", middleware.RequirePermission("report:read"), h.GetPeriodComparison)
 
-		protected.GET("/admin/roles", h.ListRoles)
-		protected.POST("/admin/roles", h.CreateRole)
-		protected.PUT("/admin/roles/:id/permissions", h.UpdateRolePermissions)
-		protected.DELETE("/admin/roles/:id", h.DeleteRole)
-		protected.GET("/admin/permissions", h.ListPermissions)
+		// Admin Users - require user permissions
+		protected.GET("/admin/users", middleware.RequirePermission("user:read"), h.ListUsers)
+		protected.POST("/admin/users", middleware.RequirePermission("user:create"), h.CreateUser)
+		protected.PUT("/admin/users/:id", middleware.RequirePermission("user:update"), h.UpdateUser)
+		protected.DELETE("/admin/users/:id", middleware.RequirePermission("user:delete"), h.DeleteUser)
+
+		// Admin Roles - require role permissions
+		protected.GET("/admin/roles", middleware.RequirePermission("role:read"), h.ListRoles)
+		protected.POST("/admin/roles", middleware.RequirePermission("role:create"), h.CreateRole)
+		protected.PUT("/admin/roles/:id/permissions", middleware.RequirePermission("role:update"), h.UpdateRolePermissions)
+		protected.DELETE("/admin/roles/:id", middleware.RequirePermission("role:delete"), h.DeleteRole)
+		protected.GET("/admin/permissions", middleware.RequirePermission("role:read"), h.ListPermissions)
 
 		// Category Management
-		protected.GET("/categories/manage", h.ListCategoriesManagement)
-		protected.POST("/categories", h.CreateCategoryHandler)
-		protected.PUT("/categories/:id", h.UpdateCategoryHandler)
-		protected.DELETE("/categories/:id", h.DeleteCategoryHandler)
+		protected.GET("/categories/manage", middleware.RequirePermission("category:read"), h.ListCategoriesManagement)
+		protected.POST("/categories", middleware.RequirePermission("category:create"), h.CreateCategoryHandler)
+		protected.PUT("/categories/:id", middleware.RequirePermission("category:update"), h.UpdateCategoryHandler)
+		protected.DELETE("/categories/:id", middleware.RequirePermission("category:delete"), h.DeleteCategoryHandler)
 
-		protected.GET("/audit-logs", h.ListAuditLogs)
+		// Audit Logs - superadmin only
+		protected.GET("/audit-logs", middleware.RequirePermission("audit:read"), h.ListAuditLogs)
 	}
 
 	// Health check

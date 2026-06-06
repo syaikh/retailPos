@@ -9,8 +9,14 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 - **Category Filter Modal** — Side-drawer multi-select with search, popular chips, and responsive grid
 - **User Management** — RBAC (Role-Based Access Control) dengan permissions
 - **Audit Logging** — Full audit trail untuk semua aksi
-- **Real-time Dashboard** — Statistik penjualan, revenue, analytics
+- **Real-time Dashboard** — Statistik penjualan, revenue, analytics + live updates via WebSocket
 - **WebSocket Support** — Notifikasi real-time
+
+### Live Dashboard Behavior
+
+- Dashboard stats auto-refresh via WebSocket `sale_created` events.
+- Fallback polling hits `/api/dashboard/live` every 30 seconds.
+- Four live cards: Today's Revenue, Transactions, Total Products, Low Stock Alerts.
 - **Multi-store Ready** — Architecture mendukung multiple stores
 
 ## 🏗️ Architecture
@@ -661,6 +667,47 @@ retail-pos-system/
 | Cashier | `cashier` | `admin123` | POS only |
 
 ⚠️ **Change these in production!** Edit `database/seeds/004_users.sql` before first deployment.
+
+## 🔐 Permission Matrix
+
+| Permission | Name | Description | Roles |
+|------------|------|-------------|-------|
+| **User Management** |||
+| `user:read` | Baca user | Lihat daftar user (paginated) | admin, superadmin |
+| `user:view` | Lihat detail user | Lihat detail satu user | admin, superadmin |
+| `user:create` | Tambah user | Create new user account | admin, superadmin |
+| `user:update` | Edit user | Modify user data/role | admin, superadmin |
+| `user:delete` | Hapus user | Delete user account | admin, superadmin |
+| **Role Management** |||
+| `role:read` | Baca role | View list of roles | admin, superadmin |
+| `role:create` | Tambah role | Create new role | admin, superadmin |
+| `role:update` | Edit role | Modify role & permissions | admin, superadmin |
+| `role:delete` | Hapus role | Delete role | admin, superadmin |
+| **Product Management** |||
+| `product:read` | Baca produk | View product catalog | admin, manager, staff, cashier, superadmin |
+| `product:create` | Tambah produk | Add new product | admin, superadmin |
+| `product:update` | Edit produk | Edit product details | admin, manager, superadmin, staff |
+| `product:delete` | Hapus produk | Delete product (soft delete) | admin, superadmin |
+| **Category Management** |||
+| `category:read` | Baca kategori | View categories list | admin, manager, staff, superadmin |
+| `category:create` | Tambah kategori | Add new category | admin, superadmin |
+| `category:update` | Edit kategori | Edit category details | admin, superadmin |
+| `category:delete` | Hapus kategori | Delete category | admin, superadmin |
+| **Sales** |||
+| `sale:read` | Baca penjualan | View sales history | admin, manager, cashier, superadmin |
+| `sale:create` | Buat penjualan | Process POS transaction | admin, manager, cashier, superadmin |
+| `sale:void` | Void penjualan | Void/refund transactions | admin, manager, superadmin |
+| **Inventory** |||
+| `inventory:read` | Baca inventory | View inventory list | admin, manager, staff, superadmin |
+| `inventory:adjust` | Adjust inventory | Manual stock adjustment | admin, manager, staff, superadmin |
+| `inventory:export` | Export inventory | Export inventory data | admin, superadmin |
+| **Reports & Dashboard** |||
+| `report:read` | Lihat laporan | Access reports & charts | admin, manager, superadmin |
+| `dashboard:read` | Lihat dashboard | View main dashboard | admin, manager, superadmin |
+| **POS** |||
+| `pos:access` | Akses POS | Access POS page | cashier, manager, superadmin |
+| **System (Superadmin Only)** |||
+| `audit:read` | Lihat audit log | View system audit logs | superadmin |
 
 ## 🆘 Troubleshooting
 

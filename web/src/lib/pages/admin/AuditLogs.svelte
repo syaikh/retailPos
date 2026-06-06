@@ -3,6 +3,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
+  import { auth } from '$lib/stores/auth';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -24,6 +25,13 @@
   let hasInitialized = $state(false);
   let showDetailsModal = $state(false);
   let selectedLog = $state(null);
+
+  let userRole = $derived(
+    $auth.user?.role?.name ||
+    ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
+    ''
+  );
+  let canView = $derived(userRole === 'superadmin');
 
   const actionFilters = [
     { id: 'all', label: 'All', icon: List, color: 'text-text-muted', activeBg: 'bg-surface-default', activeText: 'text-text-primary' },
@@ -176,161 +184,172 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Filters -->
-  <div class="card p-4">
-    <!-- Search Section -->
-    <div class="mb-4">
-      <div class="relative">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input type="text" placeholder="Search by actor, entity type..." class="input w-full pl-9 pr-10" bind:value={searchQuery} />
-        {#if searchQuery}
-          <button
-            onclick={() => searchQuery = ''}
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        {/if}
+  {#if !canView}
+    <div class="card px-4 py-12 text-center">
+      <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+        <ScrollText size={32} class="text-text-muted" />
+      </div>
+      <p class="text-text-primary font-semibold mt-4">Access Denied</p>
+      <p class="text-text-muted text-sm mt-1">Audit logs are restricted to superadmin only</p>
+    </div>
+  {:else}
+    <!-- Filters -->
+    <div class="card p-4">
+      <!-- Search Section -->
+      <div class="mb-4">
+        <div class="relative">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input type="text" placeholder="Search by actor, entity type..." class="input w-full pl-9 pr-10" bind:value={searchQuery} />
+          {#if searchQuery}
+            <button
+              onclick={() => searchQuery = ''}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Filter and Action Section -->
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap p-1 bg-surface-subtle/40 rounded-xl border border-border/40 backdrop-blur-md">
+          {#each actionFilters as action}
+            {@const Icon = action.icon}
+            <button
+              class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 group
+                {selectedAction === action.id
+                  ? `${action.activeBg} ${action.activeText} shadow-sm scale-105 z-10`
+                  : `text-text-muted hover:text-text-secondary hover:bg-surface-hover/30`}"
+              onclick={() => selectedAction = action.id}
+            >
+              <Icon size={16} class={selectedAction === action.id ? '' : 'opacity-60 group-hover:opacity-100 transition-opacity'} />
+              <span class="text-sm">{action.label}</span>
+            </button>
+          {/each}
+        </div>
+
+        <!-- Refresh Button -->
+        <button
+          onclick={fetchLogs}
+          disabled={loading}
+          class="ml-auto btn btn-outline btn-primary px-5 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95"
+        >
+          {#if loading}
+            <RefreshCw size={16} class="animate-spin mr-2" />
+            Refreshing...
+          {:else}
+            <RefreshCw size={16} class="mr-2" />
+            Refresh
+          {/if}
+        </button>
       </div>
     </div>
 
-    <!-- Filter and Action Section -->
-    <div class="flex flex-wrap items-center gap-3">
-      <div class="flex flex-wrap p-1 bg-surface-subtle/40 rounded-xl border border-border/40 backdrop-blur-md">
-        {#each actionFilters as action}
-          {@const Icon = action.icon}
-          <button
-            class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 group
-              {selectedAction === action.id
-                ? `${action.activeBg} ${action.activeText} shadow-sm scale-105 z-10`
-                : `text-text-muted hover:text-text-secondary hover:bg-surface-hover/30`}"
-            onclick={() => selectedAction = action.id}
-          >
-            <Icon size={16} class={selectedAction === action.id ? '' : 'opacity-60 group-hover:opacity-100 transition-opacity'} />
-            <span class="text-sm">{action.label}</span>
-          </button>
-        {/each}
+    <!-- Table -->
+    <div class="card p-0 overflow-hidden">
+      <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+        <p class="text-sm font-semibold text-text-primary">Activity Log</p>
+        {#if !loading}
+          <span class="badge badge-muted">{total} entries</span>
+        {/if}
       </div>
 
-      <!-- Refresh Button -->
-      <button
-        onclick={fetchLogs}
-        disabled={loading}
-        class="ml-auto btn btn-outline btn-primary px-5 py-2.5 rounded-xl shadow-glow-primary-sm hover:shadow-glow-primary transition-all active:scale-95"
-      >
-        {#if loading}
-          <RefreshCw size={16} class="animate-spin mr-2" />
-          Refreshing...
-        {:else}
-          <RefreshCw size={16} class="mr-2" />
-          Refresh
-        {/if}
-      </button>
-    </div>
-  </div>
+      {#if loading}
+        <div class="divide-y divide-border">
+          {#each { length: 8 } as _}
+            <div class="flex items-center gap-4 px-4 py-3.5">
+              <Skeleton width="w-20" height="h-3" />
+              <Skeleton width="w-16" height="h-6" rounded="rounded-full" />
+              <Skeleton width="w-24" height="h-3" />
+              <Skeleton width="w-32" height="h-3" />
+              <Skeleton width="w-24" height="h-3" class="ml-auto" />
+            </div>
+          {/each}
+        </div>
+      {:else if items.length === 0}
+        <div class="px-4 py-12 text-center">
+          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+            <ScrollText size={32} class="text-text-muted" />
+          </div>
+          <p class="text-text-primary font-semibold mt-4">No log entries found</p>
+          <p class="text-text-muted text-sm mt-1">
+            {searchQuery ? `No results for "${searchQuery}"` : 'System activity will appear here'}
+          </p>
+        </div>
+      {:else}
+        <div class="overflow-x-auto">
+          <table>
+            <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
+              <tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Resource</th>
+                <th>Description</th>
+                <th>IP Address</th>
+                <th class="w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each items as log (log.id)}
+                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                  <td class="text-text-muted text-xs whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                      <CalendarDays size={12} class="opacity-50 shrink-0" />
+                      {new Date(log.created_at || log.timestamp).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' })}
+                    </div>
+                  </td>
+                  <td>
+                    <span class="font-medium text-text-primary text-sm">{log.username || '—'}</span>
+                  </td>
+                  <td>
+                    <Badge variant={actionVariant(log.action)}>
+                      {log.action || '—'}
+                    </Badge>
+                  </td>
+                  <td>
+                    <span class="font-mono text-xs text-text-secondary bg-surface px-2 py-0.5 rounded-md">
+                      {log.entity_type || '—'}
+                    </span>
+                  </td>
+                  <td class="text-text-secondary text-sm max-w-xs truncate">
+                    {log.description || '—'}
+                  </td>
+                  <td class="font-mono text-xs text-text-muted">
+                    {log.ip_address || '—'}
+                  </td>
+                  <td class="text-right">
+                    <button 
+                      class="btn-icon w-8 h-8 rounded-lg hover:bg-primary-subtle/30 text-text-muted hover:text-primary-light transition-all"
+                      onclick={() => { selectedLog = log; showDetailsModal = true; }}
+                      title="View Details"
+                    >
+                      <Info size={15} />
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
 
-  <!-- Table -->
-  <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-      <p class="text-sm font-semibold text-text-primary">Activity Log</p>
-      {#if !loading}
-        <span class="badge badge-muted">{total} entries</span>
+        <div class="p-4 bg-surface-subtle/30">
+          <Pagination 
+            {total} 
+            {limit} 
+            {offset} 
+            onPageChange={handlePageChange} 
+          />
+        </div>
       {/if}
     </div>
-
-    {#if loading}
-      <div class="divide-y divide-border">
-        {#each { length: 8 } as _}
-          <div class="flex items-center gap-4 px-4 py-3.5">
-            <Skeleton width="w-20" height="h-3" />
-            <Skeleton width="w-16" height="h-6" rounded="rounded-full" />
-            <Skeleton width="w-24" height="h-3" />
-            <Skeleton width="w-32" height="h-3" />
-            <Skeleton width="w-24" height="h-3" class="ml-auto" />
-          </div>
-        {/each}
-      </div>
-    {:else if items.length === 0}
-      <div class="px-4 py-12 text-center">
-        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
-          <ScrollText size={32} class="text-text-muted" />
-        </div>
-        <p class="text-text-primary font-semibold mt-4">No log entries found</p>
-        <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'System activity will appear here'}
-        </p>
-      </div>
-    {:else}
-      <div class="overflow-x-auto">
-        <table>
-          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-            <tr>
-              <th>Timestamp</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Resource</th>
-              <th>Description</th>
-              <th>IP Address</th>
-              <th class="w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each items as log (log.id)}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                <td class="text-text-muted text-xs whitespace-nowrap">
-                  <div class="flex items-center gap-1.5">
-                    <CalendarDays size={12} class="opacity-50 shrink-0" />
-                    {new Date(log.created_at || log.timestamp).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' })}
-                  </div>
-                </td>
-                <td>
-                  <span class="font-medium text-text-primary text-sm">{log.username || '—'}</span>
-                </td>
-                <td>
-                  <Badge variant={actionVariant(log.action)}>
-                    {log.action || '—'}
-                  </Badge>
-                </td>
-                <td>
-                  <span class="font-mono text-xs text-text-secondary bg-surface px-2 py-0.5 rounded-md">
-                    {log.entity_type || '—'}
-                  </span>
-                </td>
-                <td class="text-text-secondary text-sm max-w-xs truncate">
-                  {log.description || '—'}
-                </td>
-                <td class="font-mono text-xs text-text-muted">
-                  {log.ip_address || '—'}
-                </td>
-                <td class="text-right">
-                  <button 
-                    class="btn-icon w-8 h-8 rounded-lg hover:bg-primary-subtle/30 text-text-muted hover:text-primary-light transition-all"
-                    onclick={() => { selectedLog = log; showDetailsModal = true; }}
-                    title="View Details"
-                  >
-                    <Info size={15} />
-                  </button>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="p-4 bg-surface-subtle/30">
-        <Pagination 
-          {total} 
-          {limit} 
-          {offset} 
-          onPageChange={handlePageChange} 
-        />
-      </div>
-    {/if}
-  </div>
+  {/if}
 </div>
 
-<!-- Log Details Modal -->
+<!-- Log Details Modal - only rendered when canView -->
+{#if canView}
 <Modal bind:open={showDetailsModal} title="Audit Log Details" size="lg">
   {#if selectedLog}
     <div class="space-y-6">
@@ -448,3 +467,4 @@
     <button class="btn btn-primary px-8" onclick={() => showDetailsModal = false}>Close Details</button>
   {/snippet}
 </Modal>
+{/if}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -64,6 +65,10 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*do
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
+	}
+
+	if err := s.repo.UpdateLastLogin(ctx, user.ID); err != nil {
+		log.Printf("warning: failed to update last_login for user %d: %v", user.ID, err)
 	}
 
 	var perms []string

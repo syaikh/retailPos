@@ -93,7 +93,7 @@ func TestPostgresRepository_GetRolePermissions(t *testing.T) {
 		codes[i] = p.Code
 	}
 	assert.Contains(t, codes, "product:create")
-	assert.Contains(t, codes, "user:manage")
+	assert.Contains(t, codes, "user:read")
 	assert.Contains(t, codes, "sale:create")
 }
 
@@ -177,15 +177,15 @@ func TestPostgresRepository_GetAllPermissions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, len(permissions), 0)
 
-	// Should have various permissions
+	// Should have various permissions (colon-notation only)
 	codes := make([]string, len(permissions))
 	for i, p := range permissions {
 		codes[i] = p.Code
 	}
 	assert.Contains(t, codes, "product:create")
-	assert.Contains(t, codes, "user:manage")
+	assert.Contains(t, codes, "user:read")
 	assert.Contains(t, codes, "sale:create")
-	assert.Contains(t, codes, "report:view")
+	assert.Contains(t, codes, "report:read")
 	assert.Contains(t, codes, "inventory:adjust")
 }
 

@@ -1,56 +1,63 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$lib/router';
-  import { auth } from '$lib/stores/auth';
   import { apiFetch } from '$lib/api/client';
-  import { toast } from '$lib/stores/toast';
   import StatCard from '$lib/components/ui/StatCard.svelte';
   import {
     ShoppingCart, Package, BarChart3, Users,
-    TrendingUp, AlertTriangle, Receipt,
+    AlertTriangle,
     ArrowRight,
   } from 'lucide-svelte';
   import RpIcon from '$lib/components/ui/RpIcon.svelte';
+  import { useWebSocket } from '$lib/composables/useWebSocket';
 
   let todaysRevenue = $state(0);
-  let yesterdayRevenue = $state(0);
   let todaysSales = $state(0);
   let totalProducts = $state(0);
   let lowStockCount = $state(0);
-  let trend = $state(null);
   let loading = $state(true);
+  let wsConnected = $state(false);
 
-  const displayTrend = $derived(trend !== null && todaysRevenue > 0);
-  const revSubText = $derived(trend === null ? 'No sales yet today' : 'Invoiced today');
+  const ws = useWebSocket();
+  const revSubText = $derived(todaysRevenue > 0 ? 'Invoiced today' : 'No sales yet today');
 
-  async function fetchStats() {
+  async function fetchLiveStats() {
     try {
-      loading = true;
-      const res = await apiFetch('/api/dashboard/stats');
+      const res = await apiFetch('/api/dashboard/live');
       if (res.ok) {
         const data = await res.json();
-        todaysRevenue = data.data.todays_revenue || 0;
-        yesterdayRevenue = data.data.yesterday_revenue || 0;
-        todaysSales = data.data.todays_sales || 0;
-        totalProducts = data.data.total_products || 0;
-        lowStockCount = data.data.low_stock_count || 0;
-
-        if (todaysRevenue > 0 && yesterdayRevenue > 0) {
-           trend = Math.round((todaysRevenue - yesterdayRevenue) / yesterdayRevenue * 100);
-        } else {
-           trend = null;
+        if (data.data) {
+          todaysRevenue = data.data.todays_revenue || 0;
+          todaysSales = data.data.todays_sales || 0;
+          totalProducts = data.data.total_products || 0;
+          lowStockCount = data.data.low_stock_count || 0;
         }
       }
     } catch (err) {
-      toast.error('Failed to load stats');
+      // ignore
     } finally {
       loading = false;
     }
   }
 
-  onMount(fetchStats);
+  onMount(() => {
+    fetchLiveStats();
+    const handlers = [
+      ws.status.subscribe((status) => { wsConnected = status === 'connected'; }),
+      ws.on('sale_created', (data) => {
+        if (data && data.total != null) {
+          todaysRevenue += data.total;
+          todaysSales += 1;
+        }
+      }),
+    ];
+    const intervalId = setInterval(fetchLiveStats, 30000);
+    return () => {
+      handlers.forEach((fn) => fn());
+      clearInterval(intervalId);
+    };
+  });
 
-  // Quick-access modules
   const modules = [
     {
       label: 'Point of Sale',
@@ -92,59 +99,65 @@
 </script>
 
 <div class="space-y-8">
-  <!-- KPI Stats -->
   <div class="card p-6 rounded-2xl border-border">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest">Live Dashboard</h2>
+      <span class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted">
+        <span class="relative inline-flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
+        </span>
+        {wsConnected ? 'Live' : 'Offline'}
+      </span>
+    </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-    <div class="animate-slide-up" style="animation-delay: 100ms;">
-      <StatCard
-        label="Today's Revenue"
-        value={loading ? '—' : (todaysRevenue?.toLocaleString('id-ID') || 0)}
-        {trend}
-        {displayTrend}
-        sub={revSubText}
-        icon={RpIcon}
-        iconBg="bg-primary-subtle"
-        iconColor="text-primary-light"
-        {loading}
-      />
-    </div>
-    <div class="animate-slide-up" style="animation-delay: 200ms;">
-      <StatCard
-        label="Transactions"
-        value={loading ? '—' : (todaysSales?.toLocaleString('id-ID') || 0)}
-        sub={todaysSales > 0 ? "Completed today" : "No transactions today"}
-        icon={ShoppingCart}
-        iconBg="bg-success-subtle"
-        iconColor="text-success-light"
-        {loading}
-      />
-    </div>
-    <div class="animate-slide-up" style="animation-delay: 300ms;">
-      <StatCard
-        label="Total Products"
-        value={loading ? '—' : (totalProducts?.toLocaleString('id-ID') || 0)}
-        sub="Units in catalog"
-        icon={Package}
-        iconBg="bg-info-subtle"
-        iconColor="text-info-light"
-        {loading}
-      />
-    </div>
-    <div class="animate-slide-up" style="animation-delay: 400ms;">
-      <StatCard
-        label="Low Stock Alerts"
-        value={loading ? '—' : (lowStockCount?.toLocaleString('id-ID') || 0)}
-        sub={lowStockCount > 0 ? "Action required" : "All stock healthy"}
-        icon={AlertTriangle}
-        iconBg="bg-warning-subtle"
-        iconColor="text-warning-light"
-        {loading}
-      />
-    </div>
+      <div class="animate-slide-up" style="animation-delay: 100ms;">
+        <StatCard
+          label="Today's Revenue"
+          value={loading ? '—' : (todaysRevenue?.toLocaleString('id-ID') || 0)}
+          sub={revSubText}
+          icon={RpIcon}
+          iconBg="bg-primary-subtle"
+          iconColor="text-primary-light"
+          {loading}
+        />
+      </div>
+      <div class="animate-slide-up" style="animation-delay: 200ms;">
+        <StatCard
+          label="Transactions"
+          value={loading ? '—' : (todaysSales?.toLocaleString('id-ID') || 0)}
+          sub={todaysSales > 0 ? "Completed today" : "No transactions today"}
+          icon={ShoppingCart}
+          iconBg="bg-success-subtle"
+          iconColor="text-success-light"
+          {loading}
+        />
+      </div>
+      <div class="animate-slide-up" style="animation-delay: 300ms;">
+        <StatCard
+          label="Total Products"
+          value={loading ? '—' : (totalProducts?.toLocaleString('id-ID') || 0)}
+          sub="Units in catalog"
+          icon={Package}
+          iconBg="bg-info-subtle"
+          iconColor="text-info-light"
+          {loading}
+        />
+      </div>
+      <div class="animate-slide-up" style="animation-delay: 400ms;">
+        <StatCard
+          label="Low Stock Alerts"
+          value={loading ? '—' : (lowStockCount?.toLocaleString('id-ID') || 0)}
+          sub={lowStockCount > 0 ? "Action required" : "All stock healthy"}
+          icon={AlertTriangle}
+          iconBg="bg-warning-subtle"
+          iconColor="text-warning-light"
+          {loading}
+        />
+      </div>
     </div>
   </div>
 
-  <!-- Module cards -->
   <div>
     <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

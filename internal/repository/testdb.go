@@ -119,15 +119,17 @@ func (tdb *TestDB) setupSchema(t *testing.T) {
  	_, err = tdb.pool.Exec(context.Background(), string(migrationSQL))
  	require.NoError(t, err, "Failed to run migration")
 
- 	// Run additional migrations for extended schema
+// Run additional migrations for extended schema
   	migrationFiles := []string{
-  		"database/migrations/002_upsert_tables.sql",
-  		"database/migrations/003_seed_data.sql",
-  		"database/migrations/004_add_aggregation_indexes.sql",
-  		"database/migrations/005_product_extensions.sql",
-  		"database/migrations/006_product_schema_update.sql",
-  		"database/migrations/007_drop_dead_product_columns.sql",
-  	}
+   		"database/migrations/002_upsert_tables.sql",
+   		"database/migrations/003_seed_data.sql",
+   		"database/migrations/004_add_aggregation_indexes.sql",
+   		"database/migrations/005_product_extensions.sql",
+   		"database/migrations/006_product_schema_update.sql",
+   		"database/migrations/007_drop_dead_product_columns.sql",
+   		"database/migrations/011_add_last_login.sql",
+   		"database/migrations/012_cleanup_permissions.sql",
+   	}
 
  	for _, migrationFile := range migrationFiles {
  		migrationPath := filepath.Join(projectRoot, migrationFile)

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/domain"
 
 	"github.com/jackc/pgx/v5"
@@ -59,11 +60,12 @@ func (r *postgresRepository) GetByUsername(ctx context.Context, username string)
 	var u domain.User
 	var storeID sql.NullInt64
 	var createdAt, updatedAt time.Time
+	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at
+		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login
 		FROM users WHERE username = $1 AND deleted_at IS NULL
-	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt)
+	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -73,6 +75,9 @@ func (r *postgresRepository) GetByUsername(ctx context.Context, username string)
 	}
 	u.CreatedAt = createdAt.Format(time.RFC3339)
 	u.UpdatedAt = updatedAt.Format(time.RFC3339)
+	if lastLogin.Valid {
+		u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+	}
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		u.StoreID = &v
@@ -92,11 +97,12 @@ func (r *postgresRepository) getUserByID(ctx context.Context, id int) (*domain.U
 	var u domain.User
 	var storeID sql.NullInt64
 	var createdAt, updatedAt time.Time
+	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at
+		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login
 		FROM users WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt)
+	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -106,6 +112,9 @@ func (r *postgresRepository) getUserByID(ctx context.Context, id int) (*domain.U
 	}
 	u.CreatedAt = createdAt.Format(time.RFC3339)
 	u.UpdatedAt = updatedAt.Format(time.RFC3339)
+	if lastLogin.Valid {
+		u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+	}
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		u.StoreID = &v
@@ -135,7 +144,7 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 		return nil, 0, fmt.Errorf("failed to count users: %w", err)
 	}
 
-	query = `SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at FROM users WHERE deleted_at IS NULL`
+	query = `SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login FROM users WHERE deleted_at IS NULL`
 	args2 := []interface{}{}
 	if search != "" {
 		query += " AND (username ILIKE $1 OR email ILIKE $1)"
@@ -154,13 +163,17 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 		var u domain.User
 		var storeID sql.NullInt64
 		var createdAt, updatedAt time.Time
+		var lastLogin sql.NullTime
 
-		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt)
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 		if err != nil {
 			continue
 		}
 		u.CreatedAt = createdAt.Format(time.RFC3339)
 		u.UpdatedAt = updatedAt.Format(time.RFC3339)
+		if lastLogin.Valid {
+			u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+		}
 		if storeID.Valid {
 			v := int(storeID.Int64)
 			u.StoreID = &v
@@ -200,6 +213,11 @@ func (r *postgresRepository) UpdateUser(ctx context.Context, user *domain.User) 
 
 func (r *postgresRepository) DeleteUser(ctx context.Context, id int) error {
 	_, err := r.db.Exec(ctx, "UPDATE users SET deleted_at = NOW() WHERE id = $1", id)
+	return err
+}
+
+func (r *postgresRepository) UpdateLastLogin(ctx context.Context, userID int) error {
+	_, err := r.db.Exec(ctx, "UPDATE users SET last_login = NOW() WHERE id = $1", userID)
 	return err
 }
 
@@ -1476,6 +1494,53 @@ func (r *postgresRepository) GetPeriodComparison(
 	result.PreviousRevenuePerDay = result.PreviousRevenue / days
 
 	return &result, nil
+}
+
+func (r *postgresRepository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
+	todayStart := time.Now().In(mustLoadJakarta()).Truncate(24 * time.Hour)
+	todayEnd := todayStart.Add(24 * time.Hour)
+
+	todayQuery := `
+		SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
+		FROM sales
+		WHERE created_at >= $1 AND created_at < $2
+		  AND status = 'completed'`
+
+	args := []interface{}{todayStart, todayEnd}
+	argIdx := 3
+	if storeID != nil {
+		todayQuery += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		args = append(args, *storeID)
+	}
+
+	if err := r.db.QueryRow(ctx, todayQuery, args...).Scan(&todaysRevenue, &todaysSales); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard sales: %w", err)
+	}
+
+	productsQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
+	args2 := []interface{}{}
+	argIdx2 := 1
+	if storeID != nil {
+		productsQuery += fmt.Sprintf(" AND store_id = $%d", argIdx2)
+		args2 = append(args2, *storeID)
+	}
+	if err := r.db.QueryRow(ctx, productsQuery, args2...).Scan(&totalProducts); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard products: %w", err)
+	}
+
+	cfg := config.Load()
+	stockQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND stock <= $1`
+	stockArgs := []interface{}{cfg.StockCriticalThreshold}
+	stockIdx := 2
+	if storeID != nil {
+		stockQuery += fmt.Sprintf(" AND store_id = $%d", stockIdx)
+		stockArgs = append(stockArgs, *storeID)
+	}
+	if err := r.db.QueryRow(ctx, stockQuery, stockArgs...).Scan(&lowStockCount); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard low stock: %w", err)
+	}
+
+	return
 }
 
 // GetAvailableYears returns distinct years that have sales data

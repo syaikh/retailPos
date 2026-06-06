@@ -9,6 +9,7 @@ type User struct {
 	Role        Role     `json:"role"`
 	StoreID     *int     `json:"store_id,omitempty"`
 	IsActive    bool     `json:"is_active"`
+	LastLogin   string   `json:"last_login,omitempty"`
 	CreatedAt   string   `json:"created_at,omitempty"`
 	UpdatedAt   string   `json:"updated_at,omitempty"`
 }

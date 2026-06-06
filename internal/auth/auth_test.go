@@ -76,7 +76,8 @@ func TestAuthService_Login_Success(t *testing.T) {
 	// Superadmin should have all permissions
 	assert.Greater(t, len(claims.Permissions), 20) // Should have many permissions
 	assert.Contains(t, claims.Permissions, "product:create")
-	assert.Contains(t, claims.Permissions, "user:manage")
+	assert.Contains(t, claims.Permissions, "user:read")
+	assert.Contains(t, claims.Permissions, "user:create")
 	assert.Contains(t, claims.Permissions, "sale:create")
 }
 

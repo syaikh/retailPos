@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { apiFetch } from '$lib/api/client';
+  import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
+  import { auth } from '$lib/stores/auth';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -24,8 +25,20 @@
   let saving = $state(false);
   let isSearching = $state(false);
   let isInitialMount = $state(true);
-  
-  // Track previous values to avoid duplicate fetches (regular variables, not $state)
+
+  let userRole = $derived(
+    $auth.user?.role?.name ||
+    ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
+    ''
+  );
+  let canCreate = $derived(['superadmin', 'admin'].includes(userRole));
+  let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
+  let canDelete = $derived(['superadmin', 'admin'].includes(userRole));
+  let canView = $derived(userRole !== 'cashier' && userRole !== '');
+
+  let currentUserID = $derived($auth.user?.id || 0);
+
+  // Track previous values
   let prevSearchQuery = '';
   let prevOffset = 0;
   let prevLimit = 20;
@@ -44,6 +57,7 @@
     if (roleName === 'superadmin') return 'primary';
     if (roleName === 'admin') return 'warning';
     if (roleName === 'manager') return 'info';
+    if (roleName === 'staff') return 'info';
     if (roleName === 'cashier') return 'success';
     return 'muted';
   };
@@ -51,17 +65,11 @@
   async function fetchUsers(isSearch = false) {
     try {
       if (!isSearch) loading = true;
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        offset: offset.toString(),
-        search: searchQuery
+      const uRes = await apiClient.get('/admin/users', {
+        params: { limit, offset, search: searchQuery }
       });
-      const uRes = await apiFetch(`/api/admin/users?${params.toString()}`);
-      if (uRes.ok) {
-        const data = await uRes.json();
-        users = data.data || [];
-        total = data.total || 0;
-      }
+      users = uRes.data?.data || [];
+      total = uRes.data?.total || 0;
     } catch {
       toast.error('Failed to load users');
     } finally {
@@ -72,13 +80,10 @@
 
   async function fetchRoles() {
     try {
-      const rRes = await apiFetch('/api/admin/roles');
-      if (rRes.ok) {
-        const data = await rRes.json();
-        roles = data.data || [];
-        if (roles.length > 0 && form.role_id === 0) {
-          form.role_id = roles[0].id;
-        }
+      const rRes = await apiClient.get('/admin/roles');
+      roles = rRes.data?.data || [];
+      if (roles.length > 0 && form.role_id === 0) {
+        form.role_id = roles[0].id;
       }
     } catch {
       toast.error('Failed to load roles');
@@ -169,20 +174,16 @@
     try {
       saving = true;
       const method = modalMode === 'add' ? 'POST' : 'PUT';
-      const url = modalMode === 'add' ? '/api/admin/users' : `/api/admin/users/${selectedUser.id}`;
-      
-      const r = await apiFetch(url, {
-        method,
-        body: JSON.stringify(form)
-      });
+      const url = modalMode === 'add' ? '/admin/users' : `/admin/users/${selectedUser.id}`;
 
-      if (r.ok) {
+      const r = await apiClient({ url, method, data: form });
+
+      if (r.status >= 200 && r.status < 300) {
         toast.success(modalMode === 'add' ? 'User created' : 'User updated');
         showModal = false;
         await fetchUsers();
       } else {
-        const err = await r.json();
-        toast.error(err.error || 'Failed to save user');
+        toast.error(r.data?.error || 'Failed to save user');
       }
     } catch {
       toast.error('Network error');
@@ -193,14 +194,14 @@
 
   async function confirmDelete() {
     if (!selectedUser) return;
+    if (selectedUser.id === currentUserID) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
     try {
-      const r = await apiFetch(`/api/admin/users/${selectedUser.id}`, { method: 'DELETE' });
-      if (r.ok) {
-        toast.success(`User "${selectedUser.username}" removed`);
-        await fetchUsers();
-      } else {
-        toast.error('Failed to delete user');
-      }
+      await apiClient.delete(`/admin/users/${selectedUser.id}`);
+      toast.success(`User "${selectedUser.username}" removed`);
+      await fetchUsers();
     } catch {
       toast.error('Failed to delete user');
     } finally {
@@ -218,9 +219,11 @@
       <p class="text-text-muted">Manage user accounts, roles, and access permissions</p>
     </div>
     <div class="flex items-center gap-2">
+      {#if canCreate}
       <button class="btn btn-primary" onclick={openAdd}>
         <Plus size={16} /> Add User
       </button>
+      {/if}
     </div>
   </div>
 
@@ -242,17 +245,26 @@
   </div>
 
   <!-- Table -->
-  <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-      <p class="text-sm font-semibold text-text-primary">User Accounts</p>
-      {#if !loading}
-        <span class="badge badge-muted">{total} users</span>
-      {/if}
+  {#if !canView}
+    <div class="card px-4 py-12 text-center">
+      <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+        <Users size={32} class="text-text-muted" />
+      </div>
+      <p class="text-text-primary font-semibold mt-4">Access Denied</p>
+      <p class="text-text-muted text-sm mt-1">You do not have permission to view users</p>
     </div>
+  {:else}
+    <div class="card p-0 overflow-hidden">
+      <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+        <p class="text-sm font-semibold text-text-primary">User Accounts</p>
+        {#if !loading}
+          <span class="badge badge-muted">{total} users</span>
+        {/if}
+      </div>
 
-    {#if loading}
-      <div class="divide-y divide-border">
-        {#each { length: 5 } as _}
+      {#if loading}
+        <div class="divide-y divide-border">
+          {#each { length: 5 } as _}
           <div class="flex items-center gap-4 px-4 py-3.5">
             <Skeleton width="w-9" height="h-9" rounded="rounded-full" />
             <div class="flex flex-col gap-1.5">
@@ -328,6 +340,7 @@
                       class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
                       onclick={() => { selectedUser = user; showDeleteModal = true; }}
                       title="Delete"
+                      disabled={user.id === currentUserID}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -348,7 +361,8 @@
         />
       </div>
     {/if}
-  </div>
+    </div>
+  {/if}
 </div>
 
 <!-- Add/Edit User Modal -->

@@ -587,6 +587,30 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	}})
 }
 
+func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
+	ctx := getCtx(c)
+	var storeID *int
+	if sid, exists := c.Get("storeID"); exists {
+		if v, ok := sid.(int); ok {
+			storeID = &v
+		}
+	}
+
+	todaysRevenue, todaysSales, totalProducts, lowStockCount, err :=
+		h.saleRepo.GetLiveDashboardStats(ctx, storeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch live dashboard stats"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": map[string]interface{}{
+		"todays_revenue":  todaysRevenue,
+		"todays_sales":    todaysSales,
+		"total_products":  totalProducts,
+		"low_stock_count": lowStockCount,
+	}})
+}
+
 func (h *Handler) GetSalesChartData(c *gin.Context) {
 	ctx := getCtx(c)
 	cfg := config.Load()
@@ -1254,7 +1278,7 @@ func (h *Handler) ListCategoriesManagement(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
 	}
-	if !h.hasPermission(c, "category.view") {
+	if !h.hasPermission(c, "category:read") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
 		return
 	}

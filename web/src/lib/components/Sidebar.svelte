@@ -43,6 +43,18 @@
     { label: 'Categories', href: '/categories',  icon: Tag             },
   ];
 
+  const managerNavItems = [
+    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
+    { label: 'Inventory',  href: '/inventory',  icon: Package         },
+    { label: 'Reports',    href: '/reports',    icon: BarChart3       },
+    { label: 'Categories', href: '/categories',  icon: Tag             },
+  ];
+
+  const cashierNavItems = [
+    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
+    { label: 'Point of Sale', href: '/pos',   icon: ShoppingCart    },
+  ];
+
   const staffNavItems = [
     { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
     { label: 'Inventory',  href: '/inventory',  icon: Package         },
@@ -51,11 +63,15 @@
   const adminItems = [
     { label: 'Users',       href: '/admin/users',       icon: Users      },
     { label: 'Roles',       href: '/admin/roles',       icon: Shield     },
-    { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText },
+    { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText, requiresSuperadmin: true },
   ];
 
-  let visibleNavItems = $derived(role === 'staff' ? staffNavItems : navItems);
-  let showAdminSection = $derived(role !== 'staff' && role !== 'cashier');
+  let visibleNavItems = $derived(
+    role === 'staff' ? staffNavItems :
+    role === 'cashier' ? cashierNavItems :
+    (role === 'manager' ? managerNavItems : navItems)
+  );
+  let showAdminSection = $derived(role === 'admin' || role === 'superadmin');
 
   function isActive(href: string) {
     if (href === '/') return currentPath === '/';
@@ -139,7 +155,7 @@
       {/if}
     </div>
 
-    {#each adminItems as item}
+    {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}

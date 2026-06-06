@@ -16,6 +16,7 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, user *domain.User) error
 	UpdateUser(ctx context.Context, user *domain.User) error
 	DeleteUser(ctx context.Context, id int) error
+	UpdateLastLogin(ctx context.Context, userID int) error
 }
 
 type RoleRepository interface {
@@ -83,6 +84,7 @@ type SaleRepository interface {
 	GetAvailableYears(ctx context.Context, storeID *int) ([]int, error)
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
+	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 }
 
 type PermissionRepository interface {

@@ -8,8 +8,10 @@ export interface User {
   } | string;
   store_id?: number;
   is_active?: boolean;
+  last_login?: string;
   created_at?: string;
   updated_at?: string;
+  permissions?: string[];
 }
 
 export interface Category {
