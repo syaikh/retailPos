@@ -709,6 +709,16 @@ retail-pos-system/
 | **System (Superadmin Only)** |||
 | `audit:read` | Lihat audit log | View system audit logs | superadmin |
 
+### Role Summary
+
+| Role | Permissions |
+|------|-------------|
+| **Superadmin** | Semua permission (termasuk audit:read) |
+| **Admin** | Semua permission kecuali audit:read |
+| **Manager** | product:read, product:update, sale:read, sale:void, report:read, dashboard:read, inventory:read, inventory:adjust, category:read |
+| **Cashier** | product:read, sale:create, sale:read, pos:access (hanya Dashboard + POS) |
+| **Staff** | product:read, inventory:read, inventory:adjust, category:read (Dashboard + Inventory) |
+
 ## 🆘 Troubleshooting
 
 ### Frontend build "503 Service Temporarily Unavailable" or blank page
