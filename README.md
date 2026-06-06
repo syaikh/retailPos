@@ -665,6 +665,7 @@ retail-pos-system/
 | Admin | `admin` | `admin123` | User management, reports |
 | Manager | `manager` | `admin123` | Inventory, sales view |
 | Cashier | `cashier` | `admin123` | POS only |
+| Staff | `staff` | `admin123` | Inventory + Dashboard |
 
 ⚠️ **Change these in production!** Edit `database/seeds/004_users.sql` before first deployment.
 
