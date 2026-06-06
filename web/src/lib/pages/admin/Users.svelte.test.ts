@@ -31,10 +31,10 @@ describe('Users.svelte source-structure guards', () => {
     expect(src).toContain('$auth.user?.role?.name');
   });
 
-  it('defines canCreate, canEdit, canDelete for superadmin/admin only', () => {
+  it('defines canCreate, canEdit for superadmin/admin, canDelete for superadmin only', () => {
     expect(src).toContain("let canCreate = $derived(['superadmin', 'admin'].includes(userRole))");
     expect(src).toContain("let canEdit = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canDelete = $derived(['superadmin', 'admin'].includes(userRole))");
+    expect(src).toContain("let canDelete = $derived(userRole === 'superadmin')");
   });
 
   it('defines canView excluding cashier', () => {
@@ -63,8 +63,8 @@ describe('Users.svelte source-structure guards', () => {
     expect(src).toContain('$auth.user?.id');
   });
 
-  it('delete button is disabled when editing self', () => {
-    expect(src).toContain('disabled={user.id === currentUserID}');
+  it('delete button is disabled for self and for superadmin users', () => {
+    expect(src).toContain('user.id === currentUserID || user.role_id === 1');
   });
 
   it('confirmDelete rejects self-deletion', () => {

@@ -955,6 +955,13 @@ func (h *Handler) CreateRole(c *gin.Context) {
 
 func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
+
+	// Only superadmin can modify roles
+	if h.userRole(c) != "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can modify roles"})
+		return
+	}
+
 	var req struct {
 		PermissionIDs []int `json:"permission_ids"`
 	}
@@ -971,6 +978,24 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 
 func (h *Handler) DeleteRole(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
+
+	// Only superadmin can delete roles
+	if h.userRole(c) != "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can delete roles"})
+		return
+	}
+
+	// Prevent deleting system roles
+	role, err := h.roleRepo.GetRoleByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
+		return
+	}
+	if role.IsSystem {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot delete system role"})
+		return
+	}
+
 	if err := h.roleRepo.DeleteRole(getCtx(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete role"})
 		return
@@ -1087,6 +1112,13 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
+
+	// Only superadmin can assign superadmin role
+	if input.RoleID == 1 && h.userRole(c) != "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can assign superadmin role"})
+		return
+	}
+
 	// Update fields
 	existing.Username = input.Username
 	existing.Email = input.Email
@@ -1113,12 +1145,20 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
+
 	// Check existence before delete
-	_, err := h.authRepo.GetByID(id)
+	existing, err := h.authRepo.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
+
+	// Only superadmin can delete superadmin users
+	if existing.RoleID == 1 && h.userRole(c) != "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can delete superadmin users"})
+		return
+	}
+
 	if err := h.authRepo.DeleteUser(getCtx(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return

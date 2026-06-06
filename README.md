@@ -677,12 +677,12 @@ retail-pos-system/
 | `user:view` | Lihat detail user | Lihat detail satu user | admin, superadmin |
 | `user:create` | Tambah user | Create new user account | admin, superadmin |
 | `user:update` | Edit user | Modify user data/role | admin, superadmin |
-| `user:delete` | Hapus user | Delete user account | admin, superadmin |
+| `user:delete` | Hapus user | Delete user account | superadmin |
 | **Role Management** |||
 | `role:read` | Baca role | View list of roles | admin, superadmin |
 | `role:create` | Tambah role | Create new role | admin, superadmin |
-| `role:update` | Edit role | Modify role & permissions | admin, superadmin |
-| `role:delete` | Hapus role | Delete role | admin, superadmin |
+| `role:update` | Edit role | Modify role & permissions | superadmin |
+| `role:delete` | Hapus role | Delete role | superadmin |
 | **Product Management** |||
 | `product:read` | Baca produk | View product catalog | admin, manager, staff, cashier, superadmin |
 | `product:create` | Tambah produk | Add new product | admin, superadmin |
@@ -713,8 +713,8 @@ retail-pos-system/
 
 | Role | Permissions |
 |------|-------------|
-| **Superadmin** | Semua permission (termasuk audit:read) |
-| **Admin** | Semua permission kecuali audit:read |
+| **Superadmin** | Semua permission (termasuk audit:read, role:update, role:delete, user:delete) |
+| **Admin** | Semua permission kecuali audit:read, role:update, role:delete, user:delete. Bisa manage user (create/read/update) tapi tidak bisa hapus user atau modifikasi role |
 | **Manager** | product:read, product:update, sale:read, sale:void, report:read, dashboard:read, inventory:read, inventory:adjust, category:read |
 | **Cashier** | product:read, sale:create, sale:read, pos:access (hanya Dashboard + POS) |
 | **Staff** | product:read, inventory:read, inventory:adjust, category:read (Dashboard + Inventory) |

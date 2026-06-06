@@ -25,7 +25,7 @@
   );
   let userPermissions = $derived($auth.user?.permissions || []);
   let canView = $derived(userRole !== 'cashier' && userRole !== '');
-  let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
+  let canEdit = $derived(userRole === 'superadmin');
   let canDelete = $derived(userRole === 'superadmin');
 
   // Form State

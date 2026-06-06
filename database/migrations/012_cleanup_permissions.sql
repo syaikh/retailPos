@@ -16,8 +16,11 @@ DELETE FROM permissions WHERE code IN (
   'reports:read'
 );
 
--- Add missing permissions
-INSERT INTO permissions (code, name, description) VALUES
+-- Add is_system column to roles table (if not exists)
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT FALSE;
+
+-- Mark superadmin as system role (immutable)
+UPDATE roles SET is_system = TRUE WHERE id = 1;
   ('category:update', 'Edit kategori', 'Edit data kategori'),
   ('category:delete', 'Hapus kategori', 'Hapus kategori'),
   ('sale:void', 'Void penjualan', 'Void/refund transaksi penjualan')

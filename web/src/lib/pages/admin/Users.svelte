@@ -33,8 +33,9 @@
   );
   let canCreate = $derived(['superadmin', 'admin'].includes(userRole));
   let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
-  let canDelete = $derived(['superadmin', 'admin'].includes(userRole));
+  let canDelete = $derived(userRole === 'superadmin');
   let canView = $derived(userRole !== 'cashier' && userRole !== '');
+  let canEditSuperadmin = $derived(userRole === 'superadmin');
 
   let currentUserID = $derived($auth.user?.id || 0);
 
@@ -327,25 +328,26 @@
                 <td class="text-text-muted text-sm">
                   {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
                 </td>
-                <td>
-                  <div class="flex items-center justify-center gap-2">
-                    <button 
-                      class="btn-icon btn-ghost text-text-muted hover:text-primary-light" 
-                      title="Edit"
-                      onclick={() => openEdit(user)}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
-                      onclick={() => { selectedUser = user; showDeleteModal = true; }}
-                      title="Delete"
-                      disabled={user.id === currentUserID}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
+                 <td>
+                   <div class="flex items-center justify-center gap-2">
+                     <button 
+                       class="btn-icon btn-ghost text-text-muted hover:text-primary-light" 
+                       title="Edit"
+                       onclick={() => openEdit(user)}
+                       disabled={user.role_id === 1 && !canEditSuperadmin}
+                     >
+                       <Pencil size={14} />
+                     </button>
+                     <button
+                       class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
+                       onclick={() => { selectedUser = user; showDeleteModal = true; }}
+                       title="Delete"
+                       disabled={user.id === currentUserID || user.role_id === 1}
+                     >
+                       <Trash2 size={14} />
+                     </button>
+                   </div>
+                 </td>
               </tr>
             {/each}
           </tbody>

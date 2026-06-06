@@ -6,10 +6,12 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT 1, id FROM permissions
 ON CONFLICT DO NOTHING;
 
--- Admin: ALL permissions EXCEPT audit:read (operational, not system-level)
+-- Admin: all permissions EXCEPT audit:read, role:update, role:delete, user:delete
+-- Admin can manage users (create/read/update) but cannot delete users or modify roles
+-- Only superadmin can manage roles and delete users
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 2, id FROM permissions
-WHERE code != 'audit:read'
+WHERE code NOT IN ('audit:read', 'role:update', 'role:delete', 'user:delete')
 ON CONFLICT DO NOTHING;
 
 -- Manager: read + adjust permissions + category management
