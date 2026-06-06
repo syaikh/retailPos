@@ -703,7 +703,7 @@ retail-pos-system/
 | `inventory:export` | Export inventory | Export inventory data | admin, superadmin |
 | **Reports & Dashboard** |||
 | `report:read` | Lihat laporan | Access reports & charts | admin, manager, superadmin |
-| `dashboard:read` | Lihat dashboard | View main dashboard | admin, manager, superadmin |
+| `dashboard:read` | Lihat dashboard | View main dashboard | admin, manager, cashier, staff, superadmin |
 | **POS** |||
 | `pos:access` | Akses POS | Access POS page | cashier, manager, superadmin |
 | **System (Superadmin Only)** |||
@@ -716,8 +716,8 @@ retail-pos-system/
 | **Superadmin** | Semua permission (termasuk audit:read, role:update, role:delete, user:delete) |
 | **Admin** | Semua permission kecuali audit:read, role:update, role:delete, user:delete. Bisa manage user (create/read/update) tapi tidak bisa hapus user atau modifikasi role |
 | **Manager** | product:read, product:update, sale:read, sale:void, report:read, dashboard:read, inventory:read, inventory:adjust, category:read |
-| **Cashier** | product:read, sale:create, sale:read, pos:access (hanya Dashboard + POS) |
-| **Staff** | product:read, inventory:read, inventory:adjust, category:read (Dashboard + Inventory) |
+| **Cashier** | product:read, sale:create, sale:read, pos:access, dashboard:read (Dashboard + POS) |
+| **Staff** | product:read, inventory:read, inventory:adjust, category:read, dashboard:read (Dashboard + Inventory) |
 
 ## 🆘 Troubleshooting
 

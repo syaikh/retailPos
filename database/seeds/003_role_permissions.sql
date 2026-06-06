@@ -26,22 +26,24 @@ WHERE code IN (
 )
 ON CONFLICT DO NOTHING;
 
--- Cashier: sale + POS access only (Dashboard + POS on frontend)
+-- Cashier: sale + POS + Dashboard access (Dashboard + POS on frontend)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 4, id FROM permissions
 WHERE code IN (
   'product:read',
   'sale:create', 'sale:read',
-  'pos:access'
+  'pos:access',
+  'dashboard:read'
 )
 ON CONFLICT DO NOTHING;
 
--- Staff: inventory + category read (Dashboard + Inventory on frontend)
+-- Staff: inventory + category read + Dashboard (Dashboard + Inventory on frontend)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 5, id FROM permissions
 WHERE code IN (
   'product:read',
   'inventory:read', 'inventory:adjust',
-  'category:read'
+  'category:read',
+  'dashboard:read'
 )
 ON CONFLICT DO NOTHING;
