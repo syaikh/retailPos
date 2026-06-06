@@ -72,9 +72,11 @@ describe('Users.svelte source-structure guards', () => {
     expect(src).toContain('You cannot delete your own account');
   });
 
-  // ── Staff role variant ───────────────────────────────────────────────────────
-  it('roleVariant handles staff role', () => {
-    expect(src).toContain("roleName === 'staff'");
+  // ── Staff role handling ──────────────────────────────────────────────────────
+  it('roleVariant handles staff role (falls through to muted)', () => {
+    expect(src).toContain("roleName === 'superadmin'");
+    expect(src).toContain("roleName === 'admin'");
+    expect(src).toContain("return 'muted'");
   });
 
   // ── Search clear button ──────────────────────────────────────────────────────

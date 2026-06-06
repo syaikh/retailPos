@@ -57,9 +57,6 @@
     const roleName = typeof r === 'object' ? r.name : r;
     if (roleName === 'superadmin') return 'primary';
     if (roleName === 'admin') return 'warning';
-    if (roleName === 'manager') return 'info';
-    if (roleName === 'staff') return 'info';
-    if (roleName === 'cashier') return 'success';
     return 'muted';
   };
 
@@ -315,9 +312,9 @@
                   </div>
                 </td>
                 <td>
-                  <Badge variant={roleVariant(user.role)}>
-                    {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : 'cashier')}
-                  </Badge>
+                   <Badge variant={roleVariant(user.role)}>
+                     {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
+                   </Badge>
                 </td>
                 <td>
                   <div class="flex items-center gap-2">
