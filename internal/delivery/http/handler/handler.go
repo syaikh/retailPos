@@ -1040,7 +1040,19 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	action := c.Query("action")
 	entityType := c.Query("entity_type")
 
-	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID, search, action, entityType)
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if t, err := time.Parse(time.RFC3339, sd); err == nil {
+			startDate = &t
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if t, err := time.Parse(time.RFC3339, ed); err == nil {
+			endDate = &t
+		}
+	}
+
+	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID, search, action, entityType, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return

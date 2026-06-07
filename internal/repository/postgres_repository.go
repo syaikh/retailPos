@@ -1342,7 +1342,7 @@ func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *domain.Aud
 	return err
 }
 
-func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string) ([]domain.AuditLog, int, error) {
+func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, startDate *time.Time, endDate *time.Time) ([]domain.AuditLog, int, error) {
 	var logs []domain.AuditLog
 	var total int
 
@@ -1363,6 +1363,14 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 	if entityType != "" {
 		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args)+1)
 		args = append(args, entityType)
+	}
+	if startDate != nil {
+		query += fmt.Sprintf(" AND al.created_at >= $%d", len(args)+1)
+		args = append(args, *startDate)
+	}
+	if endDate != nil {
+		query += fmt.Sprintf(" AND al.created_at <= $%d", len(args)+1)
+		args = append(args, *endDate)
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -1387,6 +1395,14 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 	if entityType != "" {
 		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args2)+1)
 		args2 = append(args2, entityType)
+	}
+	if startDate != nil {
+		query += fmt.Sprintf(" AND al.created_at >= $%d", len(args2)+1)
+		args2 = append(args2, *startDate)
+	}
+	if endDate != nil {
+		query += fmt.Sprintf(" AND al.created_at <= $%d", len(args2)+1)
+		args2 = append(args2, *endDate)
 	}
 	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)
@@ -1415,8 +1431,8 @@ func (r *postgresRepository) Create(ctx context.Context, log *domain.AuditLog) e
 	return r.CreateAuditLog(ctx, log)
 }
 
-func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string) ([]domain.AuditLog, int, error) {
-	return r.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType)
+func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, startDate *time.Time, endDate *time.Time) ([]domain.AuditLog, int, error) {
+	return r.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType, startDate, endDate)
 }
 
 func (r *postgresRepository) GetPeriodComparison(
