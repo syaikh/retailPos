@@ -1304,7 +1304,20 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 	}
 
 	if log.EntityID != nil && *log.EntityID > 0 {
+		if entity == "auth" && (action == "login" || action == "logout") {
+			if log.Username != "" {
+				return fmt.Sprintf("%s %s", displayAction, log.Username)
+			}
+			return displayAction
+		}
 		return fmt.Sprintf("%s %s #%d", displayAction, entity, *log.EntityID)
+	}
+
+	if entity == "auth" && (action == "login" || action == "logout") {
+		if log.Username != "" {
+			return fmt.Sprintf("%s %s", displayAction, log.Username)
+		}
+		return displayAction
 	}
 
 	if entity == "auth" {

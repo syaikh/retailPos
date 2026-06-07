@@ -75,6 +75,14 @@
   let customEndDate = $state('');
   let showCustomDateModal = $state(false);
 
+  const today = new Date().toISOString().split('T')[0];
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+
+  let startDateMin = $derived(ninetyDaysAgo);
+  let startDateMax = $derived(customEndDate || today);
+  let endDateMin = $derived(customStartDate || ninetyDaysAgo);
+  let endDateMax = $derived(today);
+
   function getDateRange(range) {
     const now = new Date();
     switch (range) {
@@ -103,8 +111,8 @@
 
   function selectDateRange(rangeId) {
     if (rangeId === 'custom') {
+      showDateDropdown = false;
       showCustomDateModal = true;
-      // Pre-fill with last 7 days
       const now = new Date();
       const weekAgo = new Date(now - 7 * 86400000);
       customEndDate = now.toISOString().split('T')[0];
@@ -116,6 +124,28 @@
       fetchLogs();
     }
   }
+
+  $effect(() => {
+    if (!showDateDropdown) return;
+
+    const container = document.getElementById('date-dropdown-container');
+    const handleClickOutside = (e) => {
+      if (container && !container.contains(e.target)) {
+        showDateDropdown = false;
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') showDateDropdown = false;
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  });
 
   // --- Badge variant for action column ---
   const actionVariant = (a) => {
@@ -268,7 +298,7 @@
         </div>
 
         <!-- Date range dropdown -->
-        <div class="relative">
+        <div class="relative" id="date-dropdown-container">
           <button
             class="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong transition-colors"
             onclick={() => showDateDropdown = !showDateDropdown}
@@ -545,16 +575,30 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={() => showCustomDateModal = false}>
   <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-5 w-full max-w-sm mx-4" onclick={(e) => e.stopPropagation()}>
     <h3 class="text-sm font-semibold text-text-primary mb-4">Custom Date Range</h3>
-    <div class="space-y-3">
-      <div>
-        <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
-        <input id="custom-start" type="date" class="input w-full text-sm" bind:value={customStartDate} />
-      </div>
-      <div>
-        <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
-        <input id="custom-end" type="date" class="input w-full text-sm" bind:value={customEndDate} />
-      </div>
+  <div class="space-y-3">
+    <div>
+      <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
+      <input
+        id="custom-start"
+        type="date"
+        class="input w-full text-sm"
+        bind:value={customStartDate}
+        min={startDateMin}
+        max={startDateMax}
+      />
     </div>
+    <div>
+      <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
+      <input
+        id="custom-end"
+        type="date"
+        class="input w-full text-sm"
+        bind:value={customEndDate}
+        min={endDateMin}
+        max={endDateMax}
+      />
+    </div>
+  </div>
     <div class="flex items-center justify-end gap-2 mt-5">
       <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => showCustomDateModal = false}>Cancel</button>
       <button class="btn btn-primary text-sm px-4 py-2" onclick={applyCustomRange} disabled={!customStartDate || !customEndDate}>Apply</button>
@@ -570,5 +614,10 @@
   }
   .animate-slide-in {
     animation: slide-in 0.2s ease-out;
+  }
+
+  #custom-start::-webkit-calendar-picker-indicator,
+  #custom-end::-webkit-calendar-picker-indicator {
+    filter: invert(1);
   }
 </style>
