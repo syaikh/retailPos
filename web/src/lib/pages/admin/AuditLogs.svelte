@@ -71,6 +71,10 @@
     { id: 'custom', label: 'Custom Range' },
   ];
 
+  let customStartDate = $state('');
+  let customEndDate = $state('');
+  let showCustomDateModal = $state(false);
+
   function getDateRange(range) {
     const now = new Date();
     switch (range) {
@@ -78,7 +82,38 @@
       case '7d': return { start: new Date(now - 7 * 86400000), end: now };
       case '30d': return { start: new Date(now - 30 * 86400000), end: now };
       case '90d': return { start: new Date(now - 90 * 86400000), end: now };
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          return { start: new Date(customStartDate), end: new Date(customEndDate + 'T23:59:59') };
+        }
+        return { start: new Date(now - 7 * 86400000), end: now };
       default: return { start: new Date(now - 7 * 86400000), end: now };
+    }
+  }
+
+  function applyCustomRange() {
+    if (customStartDate && customEndDate) {
+      showCustomDateModal = false;
+      showDateDropdown = false;
+      selectedDateRange = 'custom';
+      offset = 0;
+      fetchLogs();
+    }
+  }
+
+  function selectDateRange(rangeId) {
+    if (rangeId === 'custom') {
+      showCustomDateModal = true;
+      // Pre-fill with last 7 days
+      const now = new Date();
+      const weekAgo = new Date(now - 7 * 86400000);
+      customEndDate = now.toISOString().split('T')[0];
+      customStartDate = weekAgo.toISOString().split('T')[0];
+    } else {
+      selectedDateRange = rangeId;
+      showDateDropdown = false;
+      offset = 0;
+      fetchLogs();
     }
   }
 
@@ -247,7 +282,7 @@
               {#each dateRanges as range}
                 <button
                   class="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/20' : 'text-text-secondary'}"
-                  onclick={() => { selectedDateRange = range.id; showDateDropdown = false; offset = 0; fetchLogs(); }}
+                  onclick={() => selectDateRange(range.id)}
                 >
                   {range.label}
                 </button>
@@ -503,6 +538,29 @@
       </div>
     </div>
   {/if}
+{/if}
+
+<!-- Custom Date Range Modal -->
+{#if showCustomDateModal}
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={() => showCustomDateModal = false}>
+  <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-5 w-full max-w-sm mx-4" onclick={(e) => e.stopPropagation()}>
+    <h3 class="text-sm font-semibold text-text-primary mb-4">Custom Date Range</h3>
+    <div class="space-y-3">
+      <div>
+        <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
+        <input id="custom-start" type="date" class="input w-full text-sm" bind:value={customStartDate} />
+      </div>
+      <div>
+        <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
+        <input id="custom-end" type="date" class="input w-full text-sm" bind:value={customEndDate} />
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-2 mt-5">
+      <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => showCustomDateModal = false}>Cancel</button>
+      <button class="btn btn-primary text-sm px-4 py-2" onclick={applyCustomRange} disabled={!customStartDate || !customEndDate}>Apply</button>
+    </div>
+  </div>
+</div>
 {/if}
 
 <style>
