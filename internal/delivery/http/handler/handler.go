@@ -950,6 +950,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create role"})
 		return
 	}
+	h.logAudit(c, "create", "role", role.ID, nil, role)
 	c.JSON(http.StatusCreated, gin.H{"data": role})
 }
 
@@ -973,6 +974,7 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role permissions"})
 		return
 	}
+	h.logAudit(c, "update", "role", id, nil, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
@@ -1000,6 +1002,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete role"})
 		return
 	}
+	h.logAudit(c, "delete", "role", id, role, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
@@ -1252,6 +1255,10 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 		case *domain.Category:
 			return v.Name
 		case domain.Category:
+			return v.Name
+		case *domain.Role:
+			return v.Name
+		case domain.Role:
 			return v.Name
 		}
 		return ""
