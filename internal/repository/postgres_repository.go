@@ -153,9 +153,9 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 	query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)
 
-	rows, err := r.db.Query(ctx, query, args2...)
+ 	rows, err := r.db.Query(ctx, query, args2...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to query users: %w", err)
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -1342,7 +1342,7 @@ func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *domain.Aud
 	return err
 }
 
-func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string) ([]domain.AuditLog, int, error) {
+func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string) ([]domain.AuditLog, int, error) {
 	var logs []domain.AuditLog
 	var total int
 
@@ -1356,9 +1356,13 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		query += fmt.Sprintf(" AND al.action = $%d", len(args)+1)
 		args = append(args, action)
 	}
-	if search != "" {
-		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address::text ILIKE $%d)", len(args)+1, len(args)+1, len(args)+1)
-		args = append(args, "%"+search+"%")
+ 	if search != "" {
+		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address::text ILIKE $%d)", len(args)+1, len(args)+2, len(args)+3)
+		args = append(args, "%"+search+"%", "%"+search+"%", "%"+search+"%")
+	}
+	if entityType != "" {
+		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args)+1)
+		args = append(args, entityType)
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -1366,7 +1370,7 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		return nil, 0, err
 	}
 
-	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), al.old_values, al.new_values, al.created_at::text FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
+	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), al.created_at::text FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
 	args2 := []interface{}{}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
@@ -1376,9 +1380,13 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		query += fmt.Sprintf(" AND al.action = $%d", len(args2)+1)
 		args2 = append(args2, action)
 	}
-	if search != "" {
-		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address ILIKE $%d)", len(args2)+1, len(args2)+1, len(args2)+1)
-		args2 = append(args2, "%"+search+"%")
+ 	if search != "" {
+		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address::text ILIKE $%d)", len(args2)+1, len(args2)+2, len(args2)+3)
+		args2 = append(args2, "%"+search+"%", "%"+search+"%", "%"+search+"%")
+	}
+	if entityType != "" {
+		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args2)+1)
+		args2 = append(args2, entityType)
 	}
 	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)
@@ -1407,8 +1415,8 @@ func (r *postgresRepository) Create(ctx context.Context, log *domain.AuditLog) e
 	return r.CreateAuditLog(ctx, log)
 }
 
-func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string) ([]domain.AuditLog, int, error) {
-	return r.GetAuditLogs(ctx, limit, offset, userID, search, action)
+func (r *postgresRepository) GetAll(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string) ([]domain.AuditLog, int, error) {
+	return r.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType)
 }
 
 func (r *postgresRepository) GetPeriodComparison(

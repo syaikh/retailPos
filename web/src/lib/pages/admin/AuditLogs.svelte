@@ -9,7 +9,7 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
-  import { Search, ScrollText, RefreshCw, CalendarDays, X, List, Plus, Edit, Trash, LogIn, LogOut, Info, ArrowRight, Monitor, Globe, ChevronRight } from 'lucide-svelte';
+  import { Search, ScrollText, RefreshCw, CalendarDays, X, List, Plus, Edit, Trash, LogIn, LogOut, Info, ArrowRight, Monitor, Globe, ChevronRight, Package, ShoppingCart, Users, Tag, Shield, Store } from 'lucide-svelte';
 
   let loading = $state(true);
   let items = $state([]);
@@ -42,6 +42,19 @@
     { id: 'LOGOUT', label: 'Logout', icon: LogOut, color: 'text-primary-light', activeBg: 'bg-primary-subtle/50', activeText: 'text-primary-light' }
   ];
 
+  const entityFilters = [
+    { id: 'all', label: 'All Entities', icon: List },
+    { id: 'product', label: 'Product', icon: Package },
+    { id: 'sale', label: 'Sale', icon: ShoppingCart },
+    { id: 'user', label: 'User', icon: Users },
+    { id: 'category', label: 'Category', icon: Tag },
+    { id: 'role', label: 'Role', icon: Shield },
+    { id: 'auth', label: 'Auth', icon: LogIn },
+    { id: 'brand', label: 'Brand', icon: Store }
+  ];
+
+  let selectedEntity = $state('all');
+
   const actionVariant = (a) => {
     if (a?.toUpperCase() === 'CREATE') return 'success';
     if (a?.toUpperCase() === 'DELETE') return 'danger';
@@ -67,6 +80,7 @@
         search: searchQuery
       });
       if (selectedAction !== 'all') params.append('action', selectedAction);
+      if (selectedEntity !== 'all') params.append('entity_type', selectedEntity);
 
       const r = await apiFetch(`/api/audit-logs?${params.toString()}`, {
         signal: abortController.signal
@@ -100,12 +114,13 @@
   // Track previous values to detect what changed
   let prevSearchQuery = $state('');
   let prevSelectedAction = $state('all');
+  let prevSelectedEntity = $state('all');
   let prevOffset = $state(0);
   let prevLimit = $state(20);
 
   // Debounced search function
   const debouncedSearchFetch = debounce(() => {
-    offset = 0; // Reset to first page when searching
+    offset = 0;
     fetchLogs();
   }, 400);
 
@@ -113,37 +128,34 @@
   $effect(() => {
     const currentSearchQuery = searchQuery;
     const currentSelectedAction = selectedAction;
+    const currentSelectedEntity = selectedEntity;
     const currentOffset = offset;
     const currentLimit = limit;
 
-    // Skip if component hasn't initialized yet
     if (!hasInitialized) {
       hasInitialized = true;
-      fetchLogs(); // Initial load
-      // Update previous values
+      fetchLogs();
       prevSearchQuery = currentSearchQuery;
       prevSelectedAction = currentSelectedAction;
+      prevSelectedEntity = currentSelectedEntity;
       prevOffset = currentOffset;
       prevLimit = currentLimit;
       return;
     }
 
-    // Check what changed
     const searchChanged = currentSearchQuery !== prevSearchQuery;
-    const filterChanged = currentSelectedAction !== prevSelectedAction;
+    const filterChanged = currentSelectedAction !== prevSelectedAction || currentSelectedEntity !== prevSelectedEntity;
     const paginationChanged = currentOffset !== prevOffset || currentLimit !== prevLimit;
 
     if (searchChanged) {
-      // Search changed - use debounced fetch
       debouncedSearchFetch();
     } else if (filterChanged || paginationChanged) {
-      // Filter or pagination changed - immediate fetch
       fetchLogs();
     }
 
-    // Update previous values
     prevSearchQuery = currentSearchQuery;
     prevSelectedAction = currentSelectedAction;
+    prevSelectedEntity = currentSelectedEntity;
     prevOffset = currentOffset;
     prevLimit = currentLimit;
   });
@@ -229,6 +241,13 @@
             </button>
           {/each}
         </div>
+
+        <!-- Entity Type Filter -->
+        <select class="select text-sm py-2 px-3" bind:value={selectedEntity}>
+          {#each entityFilters as entity}
+            <option value={entity.id}>{entity.label}</option>
+          {/each}
+        </select>
 
         <!-- Refresh Button -->
         <button

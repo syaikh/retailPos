@@ -1038,8 +1038,9 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 
 	search := c.Query("search")
 	action := c.Query("action")
+	entityType := c.Query("entity_type")
 
-	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID, search, action)
+	logs, total, err := h.auditRepo.GetAll(getCtx(c), limit, offset, userID, search, action, entityType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return
