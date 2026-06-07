@@ -43,13 +43,13 @@
   ];
 
   const entityFilters = [
-    { id: 'all', label: 'All Entities', icon: List },
+    { id: 'all', label: 'All', icon: List },
+    { id: 'auth', label: 'Auth', icon: LogIn },
+    { id: 'user', label: 'User', icon: Users },
+    { id: 'role', label: 'Role', icon: Shield },
     { id: 'product', label: 'Product', icon: Package },
     { id: 'sale', label: 'Sale', icon: ShoppingCart },
-    { id: 'user', label: 'User', icon: Users },
     { id: 'category', label: 'Category', icon: Tag },
-    { id: 'role', label: 'Role', icon: Shield },
-    { id: 'auth', label: 'Auth', icon: LogIn },
     { id: 'brand', label: 'Brand', icon: Store }
   ];
 
@@ -242,14 +242,24 @@
           {/each}
         </div>
 
-        <!-- Entity Type Filter -->
-        <select class="select text-sm py-2 px-3" bind:value={selectedEntity}>
-          {#each entityFilters as entity}
-            <option value={entity.id}>{entity.label}</option>
-          {/each}
-        </select>
+      <!-- Entity Type Filter -->
+      <div class="flex flex-wrap p-1 bg-surface-subtle/40 rounded-xl border border-border/40 backdrop-blur-md">
+        {#each entityFilters as entity}
+          {@const Icon = entity.icon}
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-all duration-200 group text-sm
+              {selectedEntity === entity.id
+                ? 'bg-surface-default text-text-primary shadow-sm scale-105 z-10'
+                : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover/30'}"
+            onclick={() => selectedEntity = entity.id}
+          >
+            <Icon size={14} />
+            <span>{entity.label}</span>
+          </button>
+        {/each}
+      </div>
 
-        <!-- Refresh Button -->
+      <!-- Refresh Button -->
         <button
           onclick={fetchLogs}
           disabled={loading}
