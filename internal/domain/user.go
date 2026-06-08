@@ -107,6 +107,7 @@ type InventoryMovement struct {
 	ReferenceID  *int   `json:"reference_id,omitempty"`
 	UserID       *int   `json:"user_id,omitempty"`
 	Notes        string `json:"notes"`
+	CreatedAt    string `json:"created_at"`
 }
 
 type DashboardStats struct {

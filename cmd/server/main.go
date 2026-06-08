@@ -152,6 +152,9 @@ func main() {
 		protected.PUT("/categories/:id", middleware.RequirePermission("category:update"), h.UpdateCategoryHandler)
 		protected.DELETE("/categories/:id", middleware.RequirePermission("category:delete"), h.DeleteCategoryHandler)
 
+		// Inventory
+		protected.POST("/inventory/adjust", middleware.RequirePermission("inventory:adjust"), h.AdjustStock)
+
 		// Audit Logs - superadmin only
 		protected.GET("/audit-logs", middleware.RequirePermission("audit:read"), h.ListAuditLogs)
 	}

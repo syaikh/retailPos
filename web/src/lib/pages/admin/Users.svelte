@@ -9,7 +9,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
@@ -366,40 +366,59 @@
 
 <!-- Add/Edit User Modal -->
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add New User' : 'Edit User'} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-4">
-    <div>
-      <label for="usr-username" class="block text-sm font-medium text-text-secondary mb-2">Username</label>
-      <input id="usr-username" type="text" placeholder="johndoe" class="input" bind:value={form.username} required />
-    </div>
-    <div>
-      <label for="usr-email" class="block text-sm font-medium text-text-secondary mb-2">Email</label>
-      <input id="usr-email" type="email" placeholder="john@example.com" class="input" bind:value={form.email} required />
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="usr-role" class="block text-sm font-medium text-text-secondary mb-2">Role</label>
-        <select id="usr-role" class="select" bind:value={form.role_id}>
-          {#each roles as role}
-            <option value={role.id}>{role.name}</option>
-          {/each}
-        </select>
+  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6">
+    <!-- Account Information Section -->
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="usr-username" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+            <User size={14} class="text-text-muted" />
+            Username
+          </label>
+          <input id="usr-username" type="text" placeholder="johndoe" class="input" bind:value={form.username} required />
+        </div>
+        <div>
+          <label for="usr-email" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+            Email Address
+          </label>
+          <input id="usr-email" type="email" placeholder="john@example.com" class="input" bind:value={form.email} required />
+        </div>
       </div>
-      <div class="flex items-end pb-2">
-        <label class="flex items-center gap-3 cursor-pointer select-none group">
-          <div class="relative">
-            <input type="checkbox" class="sr-only peer" bind:checked={form.is_active} />
-            <div class="w-10 h-5 bg-surface-default border border-border rounded-full peer peer-checked:bg-primary-subtle peer-checked:border-primary/50 transition-colors"></div>
-            <div class="absolute left-1 top-1 w-3 h-3 bg-text-muted rounded-full peer-checked:translate-x-5 peer-checked:bg-primary-light transition-transform shadow-sm"></div>
-          </div>
-          <span class="text-sm font-medium text-text-secondary group-hover:text-text-primary transition-colors">Active Account</span>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="usr-role" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+            <Shield size={14} class="text-text-muted" />
+            Role
+          </label>
+          <select id="usr-role" class="select" bind:value={form.role_id}>
+            {#each roles as role}
+              <option value={role.id}>{role.name}</option>
+            {/each}
+          </select>
+        </div>
+        <div class="flex items-end pb-2">
+          <label class="flex items-center gap-3 cursor-pointer select-none group">
+            <div class="relative">
+              <input type="checkbox" class="sr-only peer" bind:checked={form.is_active} />
+              <div class="w-10 h-5 bg-surface-default border border-border rounded-full peer peer-checked:bg-primary-subtle peer-checked:border-primary/50 transition-colors"></div>
+              <div class="absolute left-1 top-1 w-3 h-3 bg-text-muted rounded-full peer-checked:translate-x-5 peer-checked:bg-primary-light transition-transform shadow-sm"></div>
+            </div>
+            <span class="text-sm font-medium text-text-secondary group-hover:text-text-primary transition-colors">Active Account</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <label for="usr-password" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          {modalMode === 'add' ? 'Password' : 'New Password (optional)'}
         </label>
+        <input id="usr-password" type="password" placeholder="••••••••" class="input" bind:value={form.password} required={modalMode === 'add'} minlength="6" />
+        {#if modalMode === 'edit'}
+          <p class="text-xs text-text-muted mt-1.5">Leave blank to keep current password</p>
+        {/if}
       </div>
-    </div>
-    <div>
-      <label for="usr-password" class="block text-sm font-medium text-text-secondary mb-2">
-        {modalMode === 'add' ? 'Password' : 'New Password (optional)'}
-      </label>
-      <input id="usr-password" type="password" placeholder="••••••••" class="input" bind:value={form.password} required={modalMode === 'add'} minlength="6" />
     </div>
   </form>
   {#snippet footer()}
@@ -416,7 +435,7 @@
 
 <!-- Delete Confirm Modal -->
 <Modal bind:open={showDeleteModal} title="Delete User" size="sm">
-  <div class="text-center py-2">
+  <div class="text-center py-3">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
       <Trash2 size={24} class="text-danger" />
     </div>

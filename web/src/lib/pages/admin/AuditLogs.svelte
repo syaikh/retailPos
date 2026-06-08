@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { apiFetch } from '$lib/api/client';
+  import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth } from '$lib/stores/auth';
@@ -179,18 +179,19 @@
       if (selectedAction !== 'all') params.append('action', selectedAction);
       if (selectedEntity !== 'all') params.append('entity_type', selectedEntity);
 
-      const r = await apiFetch(`/api/audit-logs?${params.toString()}`, {
-        signal: abortController.signal,
-      });
+      console.debug('[AuditLogs] fetching', `audit-logs?${params.toString()}`, 'role=', userRole, 'canView=', canView);
+
+      const response = await apiClient.get(`audit-logs?${params.toString()}`);
 
       if (requestId !== currentRequestId) return;
 
-      if (r.ok) {
-        const data = await r.json();
-        items = data.data || [];
-        total = data.total || 0;
-      }
+      console.debug('[AuditLogs] response', response.status, response.data);
+      const data = response.data || {};
+      items = data.data || [];
+      total = data.total || 0;
+      console.debug('[AuditLogs] items', items.length, 'total', total);
     } catch (error) {
+      console.error('[AuditLogs] fetch error', error);
       if (error.name !== 'AbortError') toast.error('Failed to load audit logs');
     } finally {
       if (requestId === currentRequestId) {
@@ -575,30 +576,30 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={() => showCustomDateModal = false}>
   <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-5 w-full max-w-sm mx-4" onclick={(e) => e.stopPropagation()}>
     <h3 class="text-sm font-semibold text-text-primary mb-4">Custom Date Range</h3>
-  <div class="space-y-3">
-    <div>
-      <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
-      <input
-        id="custom-start"
-        type="date"
-        class="input w-full text-sm"
-        bind:value={customStartDate}
-        min={startDateMin}
-        max={startDateMax}
-      />
+    <div class="space-y-3">
+      <div>
+        <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
+        <input
+          id="custom-start"
+          type="date"
+          class="input w-full text-sm"
+          bind:value={customStartDate}
+          min={startDateMin}
+          max={startDateMax}
+        />
+      </div>
+      <div>
+        <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
+        <input
+          id="custom-end"
+          type="date"
+          class="input w-full text-sm"
+          bind:value={customEndDate}
+          min={endDateMin}
+          max={endDateMax}
+        />
+      </div>
     </div>
-    <div>
-      <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
-      <input
-        id="custom-end"
-        type="date"
-        class="input w-full text-sm"
-        bind:value={customEndDate}
-        min={endDateMin}
-        max={endDateMax}
-      />
-    </div>
-  </div>
     <div class="flex items-center justify-end gap-2 mt-5">
       <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => showCustomDateModal = false}>Cancel</button>
       <button class="btn btn-primary text-sm px-4 py-2" onclick={applyCustomRange} disabled={!customStartDate || !customEndDate}>Apply</button>

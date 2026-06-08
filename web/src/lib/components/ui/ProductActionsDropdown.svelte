@@ -1,21 +1,25 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import { MoreVertical, Package, Pencil, Trash2 } from 'lucide-svelte';
+import { MoreVertical, Package, Pencil, Trash2, ArrowUpDown } from 'lucide-svelte';
 
 let {
   product,
   canEdit = false,
   canDelete = false,
+  canAdjustStock = false,
   onView,
   onEdit,
   onDelete,
+  onAdjustStock,
 }: {
   product: any;
   canEdit?: boolean;
   canDelete?: boolean;
+  canAdjustStock?: boolean;
   onView?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onAdjustStock?: () => void;
 } = $props();
 
 let showDropdown = $state(false);
@@ -23,7 +27,7 @@ let dropdownRef = $state<HTMLDivElement | null>(null);
 let buttonRef = $state<HTMLButtonElement | null>(null);
 
 function toggleDropdown() {
-  // Close other dropdowns by dispatching a custom event
+// Close other dropdowns by dispatching a custom event
   if (!showDropdown) {
     document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
   }
@@ -52,11 +56,12 @@ function handleClickOutside(e: MouseEvent) {
   }
 }
 
-function handleAction(action: 'view' | 'edit' | 'delete') {
+function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
   closeDropdown();
   if (action === 'view' && onView) onView();
   if (action === 'edit' && onEdit) onEdit();
   if (action === 'delete' && onDelete) onDelete();
+  if (action === 'adjust' && onAdjustStock) onAdjustStock();
 }
 </script>
 
@@ -97,6 +102,16 @@ function handleAction(action: 'view' | 'edit' | 'delete') {
         <Package size={14} />
         View Details
       </button>
+      {#if canAdjustStock}
+        <button
+          onclick={() => handleAction('adjust')}
+          class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors"
+          role="menuitem"
+        >
+          <ArrowUpDown size={14} />
+          Adjust Stock
+        </button>
+      {/if}
       {#if canEdit}
         <button
           onclick={() => handleAction('edit')}

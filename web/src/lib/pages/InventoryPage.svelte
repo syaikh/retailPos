@@ -107,7 +107,16 @@ let showDeleteModal = $state(false);
     let canManageInventory = $state(false);
     let warningThreshold = $state(10);
     let criticalThreshold = $state(5);
-   const allowedInventoryRoles = ['superadmin', 'admin', 'staff'];
+   const allowedInventoryRoles = ['superadmin', 'admin', 'manager', 'staff'];
+
+    // Stock adjustment states
+    let showAdjustStockModal = $state(false);
+    let adjustingStock = $state(false);
+    let stockAdjustForm = $state({
+      product_id: null,
+      quantity_change: 0,
+      notes: ''
+    });
   
 // Track previous values to avoid duplicate fetches
     let previousSearchQuery = '';
@@ -386,7 +395,7 @@ try {
       }
     }
 
-  async function handleDelete() {
+async function handleDelete() {
     if (!selectedProduct) {
       toast.error('No product selected');
       return;
@@ -400,13 +409,50 @@ const response = await apiClient.delete(`/products/${selectedProduct.id}`);
        selectedProduct = null;
        await fetchProducts(offset, limit);
      } catch (err) {
-      console.error('Delete error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
-      toast.error(errorMessage);
-    } finally {
-      isDeleting = false;
-    }
-  }
+       console.error('Delete error:', err);
+       const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
+       toast.error(errorMessage);
+     } finally {
+       isDeleting = false;
+     }
+   }
+
+   // ── Stock Adjustment ────────────────────────────────────────────────
+   function openAdjustStock(product) {
+     stockAdjustForm = {
+       product_id: product.id,
+       quantity_change: 0,
+       notes: ''
+     };
+     showAdjustStockModal = true;
+   }
+
+   async function handleAdjustStock() {
+     if (stockAdjustForm.quantity_change === 0) {
+       toast.error('Quantity change must be non-zero');
+       return;
+     }
+
+     adjustingStock = true;
+     try {
+       await apiClient.post('/inventory/adjust', {
+         product_id: stockAdjustForm.product_id,
+         quantity_change: stockAdjustForm.quantity_change,
+         notes: stockAdjustForm.notes.trim() || undefined
+       });
+       toast.success('Stock adjusted successfully');
+       showAdjustStockModal = false;
+       if (selectedProduct && selectedProduct.id === stockAdjustForm.product_id) {
+         selectedProduct.stock += stockAdjustForm.quantity_change;
+       }
+       await fetchProducts(offset, limit);
+     } catch (err) {
+       const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
+       toast.error(errorMsg);
+     } finally {
+       adjustingStock = false;
+     }
+   }
 
 function resetForm() {
     form = {
@@ -479,6 +525,12 @@ function resetForm() {
     const role = getUserRoleName();
     return ['superadmin', 'admin'].includes(role);
   });
+
+   /** Whether the logged-in user may adjust stock (superadmin | admin | manager | staff) */
+   let canAdjustStock = $derived(() => {
+     const role = getUserRoleName();
+     return ["superadmin", "admin", "manager", "staff"].includes(role);
+   });
 
   /** Whether the logged-in user may edit/delete products (superadmin | admin | manager) */
   let canEdit = $derived(() => {
@@ -655,6 +707,7 @@ function handleWindowKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       if (showDetailDrawer) showDetailDrawer = false;
       if (showDeleteModal) showDeleteModal = false;
+       if (showAdjustStockModal) showAdjustStockModal = false;
       document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
     }
   }
@@ -888,7 +941,8 @@ function handleWindowKeydown(e: KeyboardEvent) {
 <td class="p-4 w-20" style="width: 80px;">
                     <ProductActionsDropdown
                       product={product}
-                      canEdit={canManageInventory}
+                      canEdit={canEdit()}
+                       canAdjustStock={canAdjustStock()}
                       canDelete={isSuperAdmin() || isAdmin()}
                     onView={() => {
                       selectedProduct = product;
@@ -915,7 +969,8 @@ function handleWindowKeydown(e: KeyboardEvent) {
                       modalMode = 'edit';
                       showModal = true;
                     }}
-                    onDelete={() => {
+                    onAdjustStock={() => openAdjustStock(product)}
+                     onDelete={() => {
                       selectedProduct = product;
                       showDeleteModal = true;
                     }}
@@ -1451,3 +1506,50 @@ function handleWindowKeydown(e: KeyboardEvent) {
   </div><!-- /drawer panel -->
 {/if}
 
+
+<!-- Adjust Stock Modal -->
+<Modal bind:open={showAdjustStockModal} title="Adjust Stock" size="sm">
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      handleAdjustStock();
+    }}
+    class="space-y-4"
+  >
+    {#if (products.find(p => p.id === stockAdjustForm.product_id) || selectedProduct) as prod}
+      <div>
+        <p class="text-sm text-text-muted mb-2">Product: <span class="text-text-primary font-medium">{prod?.name}</span></p>
+        <p class="text-sm text-text-muted">Current Stock: <span class="text-text-primary">{prod?.stock ?? 0}</span></p>
+      </div>
+    {/if}
+    <div>
+      <label for="adjust-qty" class="block text-sm font-medium text-text-secondary mb-2">Quantity Change</label>
+      <input
+        id="adjust-qty"
+        type="number"
+        bind:value={stockAdjustForm.quantity_change}
+        class="input"
+        placeholder="e.g., +10 or -5"
+        required
+      />
+      <p class="text-xs text-text-muted mt-1">Positive to add stock, negative to reduce.</p>
+    </div>
+    <div>
+      <label for="adjust-notes" class="block text-sm font-medium text-text-secondary mb-2">Notes (optional)</label>
+      <input
+        id="adjust-notes"
+        type="text"
+        bind:value={stockAdjustForm.notes}
+        class="input"
+        placeholder="Reason for adjustment"
+      />
+    </div>
+  </form>
+  {#snippet footer()}
+    <button class="btn btn-secondary rounded-full px-5" disabled={adjustingStock} onclick={() => showAdjustStockModal = false}>Cancel</button>
+    <button class="btn btn-primary rounded-full px-5" disabled={adjustingStock} onclick={handleAdjustStock}>
+      {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
+      Adjust Stock
+    </button>
+  {/snippet}
+</Modal>

@@ -1819,6 +1819,52 @@ func (r *postgresRepository) GetAllWarehouses(ctx context.Context, storeID *int)
 	return warehouses, nil
 }
 
+// AdjustStock updates product stock by quantity_change and records an inventory movement in a single transaction.
+func (r *postgresRepository) AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error {
+	if quantityChange == 0 {
+		return fmt.Errorf("quantity change must not be zero")
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var currentStock int
+	err = tx.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, productID).Scan(&currentStock)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("product not found")
+		}
+		return fmt.Errorf("failed to load product stock: %w", err)
+	}
+
+	newStock := currentStock + quantityChange
+	if newStock < 0 {
+		return fmt.Errorf("insufficient stock: current %d, requested %d", currentStock, quantityChange)
+	}
+
+	_, err = tx.Exec(ctx, `UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2`, newStock, productID)
+	if err != nil {
+		return fmt.Errorf("failed to update stock: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes)
+		VALUES ($1, $2, $3, NULL, NULL, $4, $5)
+	`, productID, quantityChange, "adjustment", userID, notes)
+	if err != nil {
+		return fmt.Errorf("failed to record inventory movement: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit stock adjustment: %w", err)
+	}
+
+	return nil
+}
+
 // GetNextInvoiceNumber generates the next invoice number in format INV-YYYY-XXXXXX
 // XXXXXX is a sequential 6-digit number within the current year
 func (r *postgresRepository) GetNextInvoiceNumber(ctx context.Context) (string, error) {

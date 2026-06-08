@@ -52,6 +52,7 @@ type ProductRepository interface {
 	GetNextSKU(ctx context.Context) (string, error)
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
+	AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error
 	
 	// Brand operations
 	GetBrandByID(ctx context.Context, id int) (*domain.Brand, error)

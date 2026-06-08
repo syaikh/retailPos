@@ -1188,6 +1188,59 @@ func (h *Handler) ExportInventory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": products})
 }
 
+func (h *Handler) AdjustStock(c *gin.Context) {
+	if !h.hasPermission(c, "inventory:adjust") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permission"})
+		return
+	}
+
+	var req struct {
+		ProductID     int    `json:"product_id" binding:"required"`
+		QuantityChange int   `json:"quantity_change" binding:"required"`
+		Notes         string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.QuantityChange == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "quantity_change must not be zero"})
+		return
+	}
+
+	userIDVal, _ := c.Get("userID")
+	var userID int
+	switch v := userIDVal.(type) {
+	case int:
+		userID = v
+	case float64:
+		userID = int(v)
+	}
+	userIDPtr := &userID
+	if userID == 0 {
+		userIDPtr = nil
+	}
+
+	if err := h.productRepo.AdjustStock(getCtx(c), req.ProductID, req.QuantityChange, userIDPtr, strings.TrimSpace(req.Notes)); err != nil {
+		if strings.Contains(err.Error(), "product not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		if strings.Contains(err.Error(), "insufficient stock") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to adjust stock"})
+		return
+	}
+
+	h.logAudit(c, "update", "inventory", req.ProductID, nil, map[string]interface{}{
+		"quantity_change": req.QuantityChange,
+		"notes": req.Notes,
+	})
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID int, oldValues, newValues interface{}) {
 	userIDVal, _ := c.Get("userID")
 	usernameVal, _ := c.Get("username")
