@@ -970,11 +970,18 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
+
+	oldRole, err := h.roleRepo.GetRoleByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
+		return
+	}
+
 	if err := h.roleRepo.UpdateRolePermissions(getCtx(c), id, req.PermissionIDs); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role permissions"})
 		return
 	}
-	h.logAudit(c, "update", "role", id, nil, nil)
+	h.logAudit(c, "update", "role", id, oldRole, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
@@ -1093,7 +1100,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		IsActive: input.IsActive,
 	}
 	if err := h.authRepo.CreateUser(getCtx(c), user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user: " + err.Error()})
 		return
 	}
 	// Fetch created user with role
@@ -1122,21 +1129,35 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// Fetch existing
 	existing, err := h.authRepo.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	// Only superadmin can assign superadmin role
 	if input.RoleID == 1 && h.userRole(c) != "superadmin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can assign superadmin role"})
 		return
 	}
 
-	// Update fields
-	existing.Username = input.Username
+	old := *existing
+	old.Password = existing.Password
+
+	if input.Username != "" {
+		normalized := normalizeUsername(input.Username)
+		if normalized == "" || normalized != strings.ToLower(input.Username) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Username must be 3-50 characters, alphanumeric (a-z, 0-9), and lowercase only."})
+			return
+		}
+
+		userByUsername, err := h.authRepo.GetByUsername(getCtx(c), normalized)
+		if err == nil && userByUsername != nil && userByUsername.ID != id {
+			c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
+			return
+		}
+
+		existing.Username = normalized
+	}
 	existing.Email = input.Email
 	existing.RoleID = input.RoleID
 	existing.StoreID = input.StoreID
@@ -1149,13 +1170,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		}
 		existing.Password = hashed
 	}
-	// Update in repository
 	if err := h.authRepo.UpdateUser(getCtx(c), existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return
 	}
 	existing.Password = ""
-	h.logAudit(c, "update", "user", existing.ID, nil, existing)
+	h.logAudit(c, "update", "user", existing.ID, &old, existing)
 	c.JSON(http.StatusOK, gin.H{"data": existing})
 }
 
@@ -1179,7 +1199,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return
 	}
-	h.logAudit(c, "delete", "user", id, nil, nil)
+	h.logAudit(c, "delete", "user", id, existing, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
@@ -1674,4 +1694,16 @@ func (h *Handler) ServeWS(c *gin.Context) {
 	if h.hub != nil {
 		websocket.ServeWebSocket(h.hub, c)
 	}
+}
+
+func normalizeUsername(username string) string {
+	s := strings.TrimSpace(username)
+	s = strings.ToLower(s)
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

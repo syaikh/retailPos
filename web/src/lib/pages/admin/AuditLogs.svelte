@@ -5,7 +5,6 @@
   import { debounce } from '$lib/utils/debounce';
   import { auth } from '$lib/stores/auth';
 
-  import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import {
@@ -158,6 +157,37 @@
     return 'muted';
   };
 
+  const actionVariantClass = (a) => {
+    const v = (a || '').toUpperCase();
+    if (v === 'CREATE') return 'bg-success-subtle text-success-light border border-success-default/20';
+    if (v === 'DELETE') return 'bg-danger-subtle text-danger-light border border-danger-default/20';
+    if (v === 'UPDATE') return 'bg-warning-subtle text-warning-light border border-warning-default/20';
+    if (v === 'LOGIN' || v === 'LOGOUT') return 'bg-primary-subtle text-primary-light border border-primary-default/20';
+    return 'bg-surface-default text-text-muted border border-border-default';
+  };
+
+  const actionIcon = (a) => {
+    const v = (a || '').toLowerCase();
+    if (v === 'create') return Plus;
+    if (v === 'update') return Edit;
+    if (v === 'delete') return Trash;
+    if (v === 'login') return LogIn;
+    if (v === 'logout') return LogOut;
+    return Info;
+  };
+
+  const entityIcon = (entity) => {
+    const v = (entity || '').toLowerCase();
+    if (v === 'auth') return Shield;
+    if (v === 'user') return Users;
+    if (v === 'role') return Shield;
+    if (v === 'product') return Package;
+    if (v === 'sale') return ShoppingCart;
+    if (v === 'category') return Tag;
+    if (v === 'brand') return Store;
+    return ScrollText;
+  };
+
   // --- Data fetching ---
 
   async function fetchLogs() {
@@ -260,11 +290,13 @@
     return out;
   }
 
-  function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' });
+  function formatTimestamp(d) {
+    if (!d) return { date: '—', time: '' };
+    const dateObj = new Date(d);
+    const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return { date: dateStr, time: timeStr };
   }
-
   let changes = $derived(selectedLog ? getChanges(selectedLog) : []);
 </script>
 
@@ -382,21 +414,32 @@
       {#if loading}
         <div class="divide-y divide-border">
           {#each { length: 6 } as _}
-            <div class="flex items-center gap-4 px-4 py-3">
-              <Skeleton width="w-28" height="h-3" />
-              <Skeleton width="w-20" height="h-3" />
+            <div class="flex items-center gap-3 px-4 py-3">
+              <div class="space-y-1.5 w-36">
+                <Skeleton width="w-full" height="h-3" />
+                <Skeleton width="w-20" height="h-2.5" />
+              </div>
+              <div class="flex items-center gap-2">
+                <Skeleton width="w-7" height="h-7" rounded="rounded-full" />
+                <Skeleton width="w-16" height="h-3" />
+              </div>
               <Skeleton width="w-16" height="h-5" rounded="rounded-full" />
-              <Skeleton width="w-14" height="h-5" rounded="rounded-full" />
-              <Skeleton width="w-32" height="h-3" />
-              <Skeleton width="w-24" height="h-3" class="ml-auto" />
-              <Skeleton width="w-7" height="h-7" rounded="rounded-lg" class="ml-2" />
+              <div class="flex items-center gap-1.5">
+                <Skeleton width="w-4" height="h-4" rounded="rounded" />
+                <Skeleton width="w-20" height="h-3.5" />
+              </div>
+              <Skeleton width="w-40" height="h-3" />
+              <Skeleton width="w-24" height="h-3" />
+              <Skeleton width="w-7" height="h-7" rounded="rounded-lg" />
             </div>
           {/each}
         </div>
       {:else if items.length === 0}
         <div class="px-4 py-16 text-center">
-          <ScrollText size={40} class="text-text-muted/40 mx-auto mb-3" />
-          <p class="text-text-primary font-medium">No log entries found</p>
+          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+            <ScrollText size={32} class="text-text-muted" />
+          </div>
+          <p class="text-text-primary font-semibold mt-4">No log entries found</p>
           <p class="text-text-muted text-sm mt-1">
             {searchQuery ? `No results for "${searchQuery}"` : 'Try adjusting your filters'}
           </p>
@@ -406,44 +449,66 @@
           <table class="w-full text-sm">
             <thead class="sticky top-0 bg-bg-secondary z-10">
               <tr>
-                <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-40">Timestamp</th>
-                <th class="text-left px-3 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-28">Actor</th>
-                <th class="text-left px-3 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-20">Action</th>
-                <th class="text-left px-3 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-24">Resource</th>
-                <th class="text-left px-3 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Description</th>
-                <th class="text-left px-3 py-2.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-32">IP Address</th>
-                <th class="w-10 px-2 py-2.5"></th>
+                <th class="text-left px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-44">Timestamp</th>
+                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-28">Actor</th>
+                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-20">Action</th>
+                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-28">Resource</th>
+                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Description</th>
+                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-32">IP Address</th>
+                <th class="w-10 px-2 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {#each items as log (log.id)}
-                <tr class="border-t border-border/60 hover:bg-surface-hover/40 transition-colors group">
-                  <td class="px-4 py-2.5 text-text-muted text-xs whitespace-nowrap">
-                    <div class="flex items-center gap-1.5">
-                      <CalendarDays size={11} class="opacity-40" />
-                      {formatDate(log.created_at)}
-                    </div>
+                {@const EntityIcon = entityIcon(log.entity_type)}
+                {@const ActionIcon = actionIcon(log.action)}
+                <tr class="border-t border-border/60 hover:bg-surface-hover/50 transition-colors group">
+                  <td class="px-4 py-3 text-xs whitespace-nowrap">
+                    {#if log.created_at}
+                      {@const ts = formatTimestamp(log.created_at)}
+                      <div class="flex flex-col">
+                        <span class="text-text-secondary font-medium">{ts.date}</span>
+                        <span class="text-text-muted text-[11px]">{ts.time}</span>
+                      </div>
+                    {:else}
+                      <span class="text-text-muted">—</span>
+                    {/if}
                   </td>
-                  <td class="px-3 py-2.5">
-                    <span class="font-medium text-text-primary text-xs">{log.username || '—'}</span>
+                  <td class="px-3 py-3">
+                    {#if log.username && log.username !== '—'}
+                      <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                          <span class="text-xs font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <span class="font-medium text-text-primary text-xs">{log.username}</span>
+                      </div>
+                    {:else}
+                      <span class="font-medium text-text-muted text-xs">—</span>
+                    {/if}
                   </td>
-                  <td class="px-3 py-2.5">
-                    <Badge variant={actionVariant(log.action)} size="sm">{log.action || '—'}</Badge>
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <span class="font-mono text-[11px] text-text-muted bg-surface-default px-1.5 py-0.5 rounded border border-border/50">
-                      {log.entity_type || '—'}
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium {actionVariantClass(log.action)}">
+                      <ActionIcon size={11} />
+                      {log.action || '—'}
                     </span>
                   </td>
-                  <td class="px-3 py-2.5 text-text-secondary text-xs max-w-xs truncate">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-1.5">
+                      <EntityIcon size={12} class="text-text-muted shrink-0" />
+                      <span class="font-mono text-xs text-text-muted bg-surface-default px-1.5 py-0.5 rounded border border-border/50 truncate max-w-[100px]">
+                        {log.entity_type || '—'}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-text-secondary" style="max-width:200px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
                     {log.description || '—'}
                   </td>
-                  <td class="px-3 py-2.5 font-mono text-[11px] text-text-muted">
+                  <td class="px-4 py-3 font-mono text-xs text-text-muted">
                     {log.ip_address || '—'}
                   </td>
-                  <td class="px-2 py-2.5">
+                  <td class="px-2 py-3">
                     <button
-                      class="p-1.5 rounded-md text-text-muted/50 hover:text-primary-light hover:bg-primary-subtle/20 transition-all opacity-0 group-hover:opacity-100"
+                      class="p-1.5 rounded-md text-text-muted/70 hover:text-primary-light hover:bg-primary-subtle/20 transition-all"
                       onclick={() => openDetails(log)}
                       title="View Details"
                     >
@@ -496,9 +561,14 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-surface-default rounded-lg p-3 border border-border/50">
             <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Timestamp</p>
-            <div class="flex items-center gap-1.5 text-xs text-text-secondary">
-              <CalendarDays size={12} />
-              {formatDate(selectedLog.created_at)}
+            <div class="flex flex-col">
+              {#if selectedLog.created_at}
+                {@const ts = formatTimestamp(selectedLog.created_at)}
+                <span class="font-medium">{ts.date}</span>
+                <span class="text-text-muted text-[11px]">{ts.time}</span>
+              {:else}
+                <span>—</span>
+              {/if}
             </div>
           </div>
           <div class="bg-surface-default rounded-lg p-3 border border-border/50">

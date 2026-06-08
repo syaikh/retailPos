@@ -183,8 +183,9 @@
       } else {
         toast.error(r.data?.error || 'Failed to save user');
       }
-    } catch {
-      toast.error('Network error');
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.message || 'Network error';
+      toast.error(message);
     } finally {
       saving = false;
     }
@@ -375,7 +376,7 @@
             <User size={14} class="text-text-muted" />
             Username
           </label>
-          <input id="usr-username" type="text" placeholder="johndoe" class="input" bind:value={form.username} required />
+          <input id="usr-username" type="text" placeholder="johndoe" class="input" bind:value={form.username} required minlength="3" maxlength="50" pattern="[a-zA-Z0-9]+" title="3-50 alphanumeric characters only (will be converted to lowercase)" />
         </div>
         <div>
           <label for="usr-email" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
