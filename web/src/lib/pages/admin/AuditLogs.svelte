@@ -663,7 +663,7 @@
           {/if}
         </div>
         <button title="Refresh" class="btn btn-secondary px-3" onclick={fetchLogs}>
-          <RefreshCw size={16} class="{loading ? 'animate-spin' : ''}" />
+          <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
         </button>
       </div>
     </div>
@@ -960,11 +960,11 @@
                   <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 {diff.color === 'success' ? 'bg-success-subtle' : diff.color === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}">
                     <diff.icon
                       size={12}
-                      class="{diff.color === 'success'
+                      class={diff.color === 'success'
                         ? 'text-success-light'
                         : diff.color === 'danger'
                           ? 'text-danger-light'
-                          : 'text-warning-light'}"
+                          : 'text-warning-light'}
                     />
                   </div>
                   <div class="flex-1 min-w-0">
@@ -996,7 +996,6 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
     <div
       class="bg-surface-default border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 pointer-events-auto"
-      onclick={(e) => e.stopPropagation()}
     >
       <h3 class="text-base font-semibold text-text-primary mb-5">Custom Date Range</h3>
       <div class="space-y-4">
