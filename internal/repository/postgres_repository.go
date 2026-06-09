@@ -1387,11 +1387,10 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 	if action != "" {
 		query += fmt.Sprintf(" AND al.action = $%d", len(args2)+1)
 		args2 = append(args2, action)
- 	if search != "" {
+	}
+	if search != "" {
 		query += fmt.Sprintf(" AND (u.username ILIKE $%d OR al.role ILIKE $%d OR al.action ILIKE $%d OR al.entity_type ILIKE $%d OR al.ip_address::text ILIKE $%d)", len(args2)+1, len(args2)+2, len(args2)+3, len(args2)+4, len(args2)+5)
 		args2 = append(args2, "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%")
-	}
-		args2 = append(args2, "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 	if entityType != "" {
 		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args2)+1)

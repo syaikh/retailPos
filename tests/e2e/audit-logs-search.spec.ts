@@ -1,27 +1,42 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, waitForAPI } from './fixtures';
+import { TEST_USERS, API_BASE, waitForAPI, authHeader } from './fixtures';
 
 test.describe('Audit Logs Search', () => {
+  let authToken: string;
+
   test.beforeEach(async ({ page }) => {
     // Wait for backend to be ready
     await waitForAPI(page);
 
-    // Login as superadmin (required for audit logs access)
+    // Login as superadmin
     await page.goto('/');
     await page.fill('#username', TEST_USERS.superadmin.username);
     await page.fill('#password', TEST_USERS.superadmin.password);
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 
+    // Get the auth token for direct API calls
+    authToken = await page.evaluate(() => sessionStorage.getItem('access_token')) || '';
+    expect(authToken).toBeTruthy();
+
     // Navigate to Audit Logs page
     await page.click('button:has-text("Audit Logs")');
     await expect(page.locator('h1:text("Audit Logs")')).toBeVisible({ timeout: 10000 });
   });
 
+  /**
+   * Helper: call the audit-logs API directly with a search term.
+   */
+  async function apiSearch(term: string, extraParams = '') {
+    const url = `${API_BASE}/api/audit-logs?limit=50&offset=0&search=${encodeURIComponent(term)}${extraParams}`;
+    const res = await fetch(url, { headers: authHeader(authToken) });
+    expect(res.ok).toBeTruthy();
+    return await res.json();
+  }
+
   // ─── Basic page load ────────────────────────────────────────────────
 
   test('should load audit logs page with table visible', async ({ page }) => {
-    // Table header should be visible
     await expect(page.locator('th:text("Timestamp")')).toBeVisible();
     await expect(page.locator('th:text("Actor")')).toBeVisible();
     await expect(page.locator('th:text("Resource")')).toBeVisible();
@@ -33,198 +48,243 @@ test.describe('Audit Logs Search', () => {
   test('should show search input and filter controls', async ({ page }) => {
     await expect(page.locator('input[placeholder="Search logs..."]')).toBeVisible();
     await expect(page.locator('#date-dropdown-container')).toBeVisible();
-    // Resource and Action dropdowns (select elements in the filter toolbar)
     const selects = page.locator('select');
     await expect(selects).toHaveCount(3);
   });
 
-  // ─── Search by username ─────────────────────────────────────────────
+  // ─── Search correctness via direct API verification ─────────────────
 
-  test('should search logs by username', async ({ page }) => {
-    // Type a known username prefix in the search bar
-    await page.fill('input[placeholder="Search logs..."]', 'superadmin');
-    // Wait for debounce (400ms) + network
-    await page.waitForTimeout(1000);
+  test('searching "login" returns only records where login appears in searchable columns', async () => {
+    const body = await apiSearch('login');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
 
-    // Table should show results (or empty state)
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-
-    // Either we have rows or empty state — both are valid outcomes
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('login');
+    }
   });
 
-  // ─── Search by action ───────────────────────────────────────────────
+  test('searching "auth" returns only records where auth appears in searchable columns', async () => {
+    const body = await apiSearch('auth');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
 
-  test('should search logs by action type', async ({ page }) => {
-    await page.fill('input[placeholder="Search logs..."]', 'login');
-    await page.waitForTimeout(1000);
-
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('auth');
+    }
   });
 
-  // ─── Search by resource (entity_type) ───────────────────────────────
+  test('searching "superadmin" returns only records where superadmin appears', async () => {
+    const body = await apiSearch('superadmin');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
 
-  test('should search logs by resource type', async ({ page }) => {
-    await page.fill('input[placeholder="Search logs..."]', 'user');
-    await page.waitForTimeout(1000);
-
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('superadmin');
+    }
   });
 
-  // ─── Search by role ─────────────────────────────────────────────────
+  test('searching "cashier" returns only records where cashier appears', async () => {
+    const body = await apiSearch('cashier');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
 
-  test('should search logs by role', async ({ page }) => {
-    await page.fill('input[placeholder="Search logs..."]', 'superadmin');
-    await page.waitForTimeout(1000);
-
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('cashier');
+    }
   });
 
-  // ─── Search by IP address ───────────────────────────────────────────
+  test('searching "update" returns only records with update action', async () => {
+    const body = await apiSearch('update');
+    expect(body.data).toBeInstanceOf(Array);
 
-  test('should search logs by IP address', async ({ page }) => {
-    await page.fill('input[placeholder="Search logs..."]', '192.168');
-    await page.waitForTimeout(1000);
-
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('update');
+    }
   });
 
-  // ─── Search with no results ─────────────────────────────────────────
+  test('searching "create" returns only records with create action', async () => {
+    const body = await apiSearch('create');
+    expect(body.data).toBeInstanceOf(Array);
 
-  test('should show empty state for search with no matching results', async ({ page }) => {
-    // Clear any existing search and wait for results to reset
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('create');
+    }
+  });
+
+  test('searching "user" returns only records with user resource type', async () => {
+    const body = await apiSearch('user');
+    expect(body.data).toBeInstanceOf(Array);
+
+    for (const log of body.data) {
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      // "user" should match entity_type=user OR username containing "user" OR role containing "user"
+      expect(combined).toContain('user');
+    }
+  });
+
+  test('searching nonexistent term returns empty results', async () => {
+    const body = await apiSearch('zzzznonexistent999zzz');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBe(0);
+    expect(body.total).toBe(0);
+  });
+
+  // ─── UI search: type in search bar and verify DOM updates ───────────
+
+  test('typing in search bar filters results in the UI', async ({ page }) => {
+    // Clear any existing search
     await page.fill('input[placeholder="Search logs..."]', '');
     await page.waitForTimeout(1500);
 
-    // Search for something that definitely doesn't exist
+    // Type "login" in the search bar
+    await page.fill('input[placeholder="Search logs..."]', 'login');
+    await page.waitForTimeout(2000);
+
+    // Pagination should show results (not 0)
+    const paginationText = await page.locator('text=/Showing.*of/').textContent();
+    expect(paginationText).toBeTruthy();
+    // Should not be "Showing 0-0 of 0"
+    expect(paginationText).not.toContain('0-0 of 0');
+  });
+
+  test('searching nonexistent term in UI shows empty state', async ({ page }) => {
+    await page.fill('input[placeholder="Search logs..."]', '');
+    await page.waitForTimeout(1500);
+
     await page.fill('input[placeholder="Search logs..."]', 'zzzznonexistent999zzz');
     await page.waitForTimeout(2500);
 
-    // Wait until pagination shows 0 results or empty state appears
     const emptyState = page.locator('text=No audit logs found');
     const showingZero = page.locator('text=Showing 0-0 of 0');
 
     const hasEmpty = await emptyState.isVisible().catch(() => false);
     const hasZeroPagination = await showingZero.isVisible().catch(() => false);
-
     expect(hasEmpty || hasZeroPagination).toBeTruthy();
   });
 
-  // ─── Clear search ───────────────────────────────────────────────────
-
-  test('should clear search and show all results again', async ({ page }) => {
-    // First search for something with no results
+  test('clearing search in UI restores results', async ({ page }) => {
+    // Search for something with no results
     await page.fill('input[placeholder="Search logs..."]', 'zzzznonexistent999zzz');
+    await page.waitForTimeout(2500);
+
+    // Clear the search
+    await page.fill('input[placeholder="Search logs..."]', '');
     await page.waitForTimeout(2000);
 
-    // Clear the search by clearing the input
-    await page.fill('input[placeholder="Search logs..."]', '');
-    await page.waitForTimeout(1500);
-
-    // After clearing, we should either see rows or empty state for the date range
-    // (depending on how many logs exist in last 24h)
+    // Should see results again
     const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
     const rowCount = await rows.count();
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    // Either rows visible or empty state — both are valid after clearing search
-    expect(rowCount > 0 || hasEmpty).toBeTruthy();
+    expect(rowCount).toBeGreaterThan(0);
   });
 
   // ─── Resource filter dropdown ───────────────────────────────────────
 
-  test('should filter by resource type using dropdown', async ({ page }) => {
-    // Select "User" from resource dropdown
+  test('filtering by resource "auth" shows only auth rows in UI', async ({ page }) => {
     const resourceSelect = page.locator('select').first();
-    await resourceSelect.selectOption('user');
-    await page.waitForTimeout(1000);
+    await resourceSelect.selectOption('auth');
+    await page.waitForTimeout(1500);
 
-    // Table should update
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    // All visible resource cells should say "auth"
+    const resourceCells = await page.locator('td:nth-child(3)').allTextContents();
+    expect(resourceCells.length).toBeGreaterThan(0);
+    for (const cell of resourceCells) {
+      expect(cell.toLowerCase()).toContain('auth');
+    }
   });
 
   // ─── Action filter dropdown ─────────────────────────────────────────
 
-  test('should filter by action type using dropdown', async ({ page }) => {
-    // Select "Login" from action dropdown
+  test('filtering by action "login" shows only login rows in UI', async ({ page }) => {
     const actionSelect = page.locator('select').nth(1);
     await actionSelect.selectOption('login');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    const actionCells = await page.locator('td:nth-child(4)').allTextContents();
+    expect(actionCells.length).toBeGreaterThan(0);
+    for (const cell of actionCells) {
+      expect(cell.toLowerCase()).toContain('login');
+    }
   });
 
   // ─── Date range filter ──────────────────────────────────────────────
 
-  test('should change date range filter', async ({ page }) => {
-    // Open date dropdown
+  test('changing date range filter works without errors', async ({ page }) => {
     await page.click('#date-dropdown-container button');
     await expect(page.locator('#date-dropdown-container button + div')).toBeVisible();
 
-    // Select "Last 7 Days"
     await page.click('button:has-text("Last 7 Days")');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
-    // Table should update (no error toast)
     const errorToast = page.locator('text=Failed to load audit logs');
     await expect(errorToast).toBeHidden({ timeout: 3000 });
   });
 
   // ─── Combined search + filter ───────────────────────────────────────
 
-  test('should combine search text with resource filter', async ({ page }) => {
-    // Select resource filter first
-    const resourceSelect = page.locator('select').first();
-    await resourceSelect.selectOption('auth');
-    await page.waitForTimeout(500);
+  test('combining search text with resource filter returns correct results via API', async () => {
+    const body = await apiSearch('superadmin', '&entity_type=auth');
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
 
-    // Then type in search
-    await page.fill('input[placeholder="Search logs..."]', 'login');
-    await page.waitForTimeout(1000);
-
-    // No error toast should appear
-    const errorToast = page.locator('text=Failed to load audit logs');
-    await expect(errorToast).toBeHidden({ timeout: 3000 });
-
-    // Table should show results or empty state
-    const rows = page.locator('tbody tr');
-    const emptyState = page.locator('text=No audit logs found');
-    const hasRows = await rows.count() > 0;
-    const hasEmpty = await emptyState.isVisible().catch(() => false);
-    expect(hasRows || hasEmpty).toBeTruthy();
+    for (const log of body.data) {
+      // Must match resource filter
+      expect((log.entity_type || '').toLowerCase()).toContain('auth');
+      // Must match search term
+      const username = (log.username || '').toLowerCase();
+      const role = (log.role || '').toLowerCase();
+      const action = (log.action || '').toLowerCase();
+      const entityType = (log.entity_type || '').toLowerCase();
+      const ip = (log.ip_address || '').toLowerCase();
+      const combined = `${username} ${role} ${action} ${entityType} ${ip}`;
+      expect(combined).toContain('superadmin');
+    }
   });
 
   // ─── Search does not cause 500 error ────────────────────────────────
 
   test('search should not produce 500 Internal Server Error', async ({ page }) => {
-    // Listen for console errors
     const errors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -232,15 +292,12 @@ test.describe('Audit Logs Search', () => {
       }
     });
 
-    // Perform a search
     await page.fill('input[placeholder="Search logs..."]', 'logg');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2500);
 
-    // Check no error toast appeared
     const errorToast = page.locator('text=Failed to load audit logs');
     await expect(errorToast).toBeHidden({ timeout: 3000 });
 
-    // Check no 500-related console errors
     const serverErrors = errors.filter(e => e.includes('500') || e.includes('Internal Server Error'));
     expect(serverErrors).toHaveLength(0);
   });
@@ -255,17 +312,15 @@ test.describe('Audit Logs Search', () => {
 
   test('should refresh data when refresh button is clicked', async ({ page }) => {
     await page.click('button[title="Refresh"]');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
-    // No error toast
     const errorToast = page.locator('text=Failed to load audit logs');
     await expect(errorToast).toBeHidden({ timeout: 3000 });
   });
 
-  // ─── Pagination is visible when there are results ───────────────────
+  // ─── Pagination is visible ──────────────────────────────────────────
 
   test('should show pagination controls', async ({ page }) => {
-    // Pagination should be present (even if only 1 page)
     const pagination = page.locator('text=Rows per page:');
     await expect(pagination).toBeVisible({ timeout: 5000 });
   });
@@ -273,21 +328,17 @@ test.describe('Audit Logs Search', () => {
   // ─── Non-superadmin cannot access audit logs ────────────────────────
 
   test('should deny access to non-superadmin users', async ({ page }) => {
-    // Logout
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
 
-    // Login as cashier
     await page.fill('#username', TEST_USERS.cashier.username);
     await page.fill('#password', TEST_USERS.cashier.password);
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 
-    // Try to navigate to audit logs
     await page.goto('/admin/audit-logs');
     await page.waitForTimeout(2000);
 
-    // Should show access denied or redirect
     const accessDenied = page.locator('text=Access Denied');
     const isOnLogin = page.url().includes('/login');
     const isDenied = await accessDenied.isVisible().catch(() => false);

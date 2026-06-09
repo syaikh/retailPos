@@ -1065,6 +1065,10 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		return
 	}
 
+	if logs == nil {
+		logs = []domain.AuditLog{}
+	}
+
 	for i := range logs {
 		logs[i].Description = h.generateAuditDescription(&logs[i])
 	}
