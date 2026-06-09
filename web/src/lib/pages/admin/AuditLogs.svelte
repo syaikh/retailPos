@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
@@ -7,7 +8,6 @@
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import FilterChip from '$lib/components/ui/FilterChip.svelte';
   import ActionBadge from '$lib/components/ui/ActionBadge.svelte';
   import {
     Search, ScrollText, RefreshCw, X, Download,
@@ -36,8 +36,8 @@
 
   let userRole = $derived(
     $auth.user?.role?.name ||
-    ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
-    ''
+      ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
+      ''
   );
   let canView = $derived(userRole === 'superadmin');
 
@@ -57,22 +57,28 @@
 
   // --- Filter definitions ---
 
-  // Actions relevant per resource type
-  const resourceActionMap: Record<string, string[]> = {
-    'all': ['create', 'update', 'delete', 'login', 'logout'],
-    'auth': ['login', 'logout'],
-    'user': ['create', 'update', 'delete'],
-    'role': ['create', 'update', 'delete'],
-    'product': ['create', 'update', 'delete'],
-    'sale': ['create', 'update', 'delete'],
-    'category': ['create', 'update', 'delete'],
-    'brand': ['create', 'update', 'delete'],
+  const actionsMap: Record<string, string[]> = {
+    all: ['all', 'create', 'update', 'delete', 'login', 'logout'],
+    auth: ['all', 'login', 'logout'],
+    user: ['all', 'create', 'update', 'delete'],
+    role: ['all', 'create', 'update', 'delete'],
+    product: ['all', 'create', 'update', 'delete'],
+    sale: ['all', 'create', 'update', 'delete'],
+    category: ['all', 'create', 'update', 'delete'],
+    brand: ['all', 'create', 'update', 'delete'],
   };
 
-  let relevantActions = $derived(
-    selectedResource === 'all'
-      ? actionFilters
-      : actionFilters.filter(f => resourceActionMap[selectedResource]?.includes(f.id) || f.id === 'all')
+  const ALL_ACTIONS = [
+    { id: 'all', label: 'All Actions' },
+    { id: 'create', label: 'Create' },
+    { id: 'update', label: 'Update' },
+    { id: 'delete', label: 'Delete' },
+    { id: 'login', label: 'Login' },
+    { id: 'logout', label: 'Logout' },
+  ];
+
+  let availableActionFilters = $derived(
+    selectedResource === 'all' ? ALL_ACTIONS : (actionsMap[selectedResource] || ['all']).map((id) => ALL_ACTIONS.find((a) => a.id === id) || { id, label: id })
   );
 
   const actionFilters = [
@@ -126,16 +132,21 @@
   function getDateRange(range) {
     const now = new Date();
     switch (range) {
-      case '24h': return { start: new Date(now.getTime() - 86400000), end: now };
-      case '7d': return { start: new Date(now.getTime() - 7 * 86400000), end: now };
-      case '30d': return { start: new Date(now.getTime() - 30 * 86400000), end: now };
-      case '90d': return { start: new Date(now.getTime() - 90 * 86400000), end: now };
+      case '24h':
+        return { start: new Date(now.getTime() - 86400000), end: now };
+      case '7d':
+        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+      case '30d':
+        return { start: new Date(now.getTime() - 30 * 86400000), end: now };
+      case '90d':
+        return { start: new Date(now.getTime() - 90 * 86400000), end: now };
       case 'custom':
         if (customStartDate && customEndDate) {
           return { start: new Date(customStartDate), end: new Date(customEndDate + 'T23:59:59') };
         }
         return { start: new Date(now.getTime() - 7 * 86400000), end: now };
-      default: return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+      default:
+        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
     }
   }
 
@@ -172,21 +183,21 @@
   }
 
   // Close dropdowns on outside click / Esc
-  $effect(() => {
-    if (!showDateDropdown && !showExportDropdown && !drawerOpen) return;
-
-    const handleClickOutside = (e) => {
+  onMount(() => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (showDateDropdown) {
         const container = document.getElementById('date-dropdown-container');
-        if (container && !container.contains(e.target)) showDateDropdown = false;
+        if (container && !container.contains(e.target as Node)) showDateDropdown = false;
       }
       if (showExportDropdown) {
-        const path = e.composedPath?.() || [];
-        const inDropdown = path.some(el => el?.classList?.contains('export-dropdown'));
-        if (!inDropdown) showExportDropdown = false;
+        const path = (e.composedPath?.() || []) as HTMLElement[];
+        const inExport = path.some(
+          (el) => el?.classList?.contains('export-dropdown') || el?.closest?.('.export-dropdown')
+        );
+        if (!inExport) showExportDropdown = false;
       }
     };
-    const handleEsc = (e) => {
+    const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (drawerOpen) closeDrawer();
         if (showDateDropdown) showDateDropdown = false;
@@ -206,16 +217,22 @@
   let activeFilters = $derived.by(() => {
     const filters = [];
     if (selectedResource !== 'all') {
-      filters.push({ type: 'entity', label: resourceFilters.find(f => f.id === selectedResource)?.label || selectedResource });
+      filters.push({
+        type: 'entity',
+        label: resourceFilters.find((f) => f.id === selectedResource)?.label || selectedResource,
+      });
     }
     if (selectedAction !== 'all') {
-      filters.push({ type: 'action', label: actionFilters.find(f => f.id === selectedAction)?.label || selectedAction });
+      filters.push({
+        type: 'action',
+        label: actionFilters.find((f) => f.id === selectedAction)?.label || selectedAction,
+      });
     }
     if (selectedDateRange !== '24h') {
       if (selectedDateRange === 'custom') {
         filters.push({ type: 'date', label: `${customStartDate} to ${customEndDate}` });
       } else {
-        const dr = dateRanges.find(d => d.id === selectedDateRange);
+        const dr = dateRanges.find((d) => d.id === selectedDateRange);
         if (dr) filters.push({ type: 'date', label: dr.label });
       }
     }
@@ -231,6 +248,15 @@
   }
 
   function clearAllFilters() {
+    selectedResource = 'all';
+    selectedAction = 'all';
+    selectedDateRange = '24h';
+    searchQuery = '';
+    offset = 0;
+    fetchLogs();
+  }
+
+  function resetFilters() {
     selectedResource = 'all';
     selectedAction = 'all';
     selectedDateRange = '24h';
@@ -260,7 +286,9 @@
       if (selectedAction !== 'all') params.append('action', selectedAction);
       if (selectedResource !== 'all') params.append('entity_type', selectedResource);
 
-      const response = await apiClient.get(`audit-logs?${params.toString()}`);
+      const response = await apiClient.get(`audit-logs?${params.toString()}`, {
+        signal: abortController.signal,
+      });
 
       if (requestId !== currentRequestId) return;
 
@@ -268,9 +296,16 @@
       items = data.data || [];
       total = data.total || 0;
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        const msg = error?.response?.data?.error || error?.message || 'Unknown error';
-        console.error('[AuditLogs] fetch error:', msg, error);
+      const isCanceled =
+        error?.name === 'CanceledError' ||
+        error?.name === 'AbortError' ||
+        error?.code === 'ERR_CANCELED' ||
+        /canceled/i.test(error?.message || '');
+      if (!isCanceled) {
+        console.error('[AuditLogs] fetch error:', error);
+        console.error('[AuditLogs] error.response:', error?.response);
+        console.error('[AuditLogs] error.request:', error?.request);
+        const msg = error?.response?.data?.error || error?.response?.data || error?.message || 'Unknown error';
         toast.error(`Failed to load audit logs: ${msg}`);
       }
     } finally {
@@ -288,15 +323,28 @@
   let prevOff = $state(0);
   let prevLim = $state(20);
 
-  const debouncedSearchFetch = debounce(() => { offset = 0; fetchLogs(); }, 400);
+  const debouncedSearchFetch = debounce(() => {
+    offset = 0;
+    fetchLogs();
+  }, 400);
 
   $effect(() => {
-    const sq = searchQuery, sa = selectedAction, se = selectedResource, sd = selectedDateRange, so = offset, sl = limit;
+    const sq = searchQuery,
+      sa = selectedAction,
+      se = selectedResource,
+      sd = selectedDateRange,
+      so = offset,
+      sl = limit;
 
     if (!hasInitialized) {
       hasInitialized = true;
       fetchLogs();
-      prevSearch = sq; prevAction = sa; prevEntity = se; prevDate = sd; prevOff = so; prevLim = sl;
+      prevSearch = sq;
+      prevAction = sa;
+      prevEntity = se;
+      prevDate = sd;
+      prevOff = so;
+      prevLim = sl;
       return;
     }
 
@@ -307,7 +355,12 @@
     if (searchChanged) debouncedSearchFetch();
     else if (filterChanged || pageChanged) fetchLogs();
 
-    prevSearch = sq; prevAction = sa; prevEntity = se; prevDate = sd; prevOff = so; prevLim = sl;
+    prevSearch = sq;
+    prevAction = sa;
+    prevEntity = se;
+    prevDate = sd;
+    prevOff = so;
+    prevLim = sl;
   });
 
   function handlePageChange(newOffset, newLimit) {
@@ -330,51 +383,51 @@
   }
 
   const fieldLabels: Record<string, string> = {
-    'name': 'Name',
-    'username': 'Username',
-    'email': 'Email',
-    'role': 'Role',
-    'role_id': 'Role',
-    'is_active': 'Active Status',
-    'is_system': 'System Role',
-    'description': 'Description',
-    'price': 'Price',
-    'stock': 'Stock',
-    'category': 'Category',
-    'category_id': 'Category',
-    'barcode': 'Barcode',
-    'sku': 'SKU',
-    'quantity_change': 'Quantity Change',
-    'notes': 'Notes',
-    'invoice_number': 'Invoice Number',
-    'status': 'Status',
-    'payment_method': 'Payment Method',
-    'discount': 'Discount',
-    'tax': 'Tax',
-    'subtotal': 'Subtotal',
-    'total': 'Total',
-    'cashier': 'Cashier',
-    'store': 'Store',
-    'store_id': 'Store',
-    'brand': 'Brand',
-    'brand_id': 'Brand',
-    'slug': 'Slug',
-    'parent_id': 'Parent',
-    'sort_order': 'Sort Order',
-    'image_url': 'Image URL',
-    'expiry_date': 'Expiry Date',
-    'unit': 'Unit',
-    'weight': 'Weight',
-    'created_at': 'Created At',
-    'updated_at': 'Updated At',
-    'old_password': 'Old Password',
-    'new_password': 'New Password',
-    'permission_ids': 'Permissions',
-    'permission_id': 'Permission',
+    name: 'Name',
+    username: 'Username',
+    email: 'Email',
+    role: 'Role',
+    role_id: 'Role',
+    is_active: 'Active Status',
+    is_system: 'System Role',
+    description: 'Description',
+    price: 'Price',
+    stock: 'Stock',
+    category: 'Category',
+    category_id: 'Category',
+    barcode: 'Barcode',
+    sku: 'SKU',
+    quantity_change: 'Quantity Change',
+    notes: 'Notes',
+    invoice_number: 'Invoice Number',
+    status: 'Status',
+    payment_method: 'Payment Method',
+    discount: 'Discount',
+    tax: 'Tax',
+    subtotal: 'Subtotal',
+    total: 'Total',
+    cashier: 'Cashier',
+    store: 'Store',
+    store_id: 'Store',
+    brand: 'Brand',
+    brand_id: 'Brand',
+    slug: 'Slug',
+    parent_id: 'Parent',
+    sort_order: 'Sort Order',
+    image_url: 'Image URL',
+    expiry_date: 'Expiry Date',
+    unit: 'Unit',
+    weight: 'Weight',
+    created_at: 'Created At',
+    updated_at: 'Updated At',
+    old_password: 'Old Password',
+    new_password: 'New Password',
+    permission_ids: 'Permissions',
+    permission_id: 'Permission',
   };
 
   function getFieldLabel(key: string) {
-    return fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   function formatTimestamp(d) {
@@ -405,13 +458,11 @@
     if (val == null) return '—';
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     if (typeof val === 'string') {
-      // Try to parse as date
       const dateMatch = val.match(/^\d{4}-\d{2}-\d{2}T/);
       if (dateMatch) {
         const d = new Date(val);
         if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
-                 d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         }
       }
       return val;
@@ -423,22 +474,19 @@
     if (typeof val === 'object') {
       if (Array.isArray(val)) {
         if (val.length === 0) return 'None';
-        return val.map(v => formatValue(v)).join(', ');
+        return val.map((v) => formatValue(v)).join(', ');
       }
-      // Object — try to extract a meaningful display
       if (val.name) return String(val.name);
       if (val.label) return String(val.label);
       if (val.description) return String(val.description);
       if (val.code) return String(val.code);
       if (val.username) return String(val.username);
       if (val.email) return String(val.email);
-      // For objects with id + other fields, show key info
       if (val.id != null) {
         const parts = [`ID: ${val.id}`];
         if (val.name) parts.push(val.name);
         else if (val.description) parts.push(val.description);
         else {
-          // Show first few non-id fields
           for (const [k, v] of Object.entries(val)) {
             if (k === 'id' || k === 'created_at' || k === 'updated_at' || k === 'is_system') continue;
             if (typeof v !== 'object') {
@@ -449,7 +497,6 @@
         }
         return parts.join(' · ');
       }
-      // Last resort: show key-value pairs
       const pairs = Object.entries(val)
         .filter(([k]) => k !== 'created_at' && k !== 'updated_at')
         .map(([k, v]) => `${getFieldLabel(k)}: ${formatValue(v)}`);
@@ -484,13 +531,13 @@
 
   function getResourceLabel(entityType: string) {
     const map: Record<string, string> = {
-      'auth': 'Authentication',
-      'user': 'User',
-      'role': 'Role',
-      'product': 'Product',
-      'sale': 'Sale',
-      'category': 'Category',
-      'brand': 'Brand',
+      auth: 'Authentication',
+      user: 'User',
+      role: 'Role',
+      product: 'Product',
+      sale: 'Sale',
+      category: 'Category',
+      brand: 'Brand',
     };
     return map[entityType] || entityType;
   }
@@ -499,7 +546,7 @@
     try {
       const { utils, writeFile } = await import('xlsx');
       const headers = ['Timestamp', 'Actor', 'Role', 'Action', 'Resource', 'Description', 'IP Address'];
-      const rows = items.map(log => [
+      const rows = items.map((log) => [
         formatTimestamp(log.created_at).full,
         log.username || '—',
         log.role || '—',
@@ -528,9 +575,9 @@
       doc.setFontSize(16);
       doc.text('Audit Logs Report', 20, 20);
       doc.setFontSize(10);
-      doc.text(`Period: ${dateRanges.find(d => d.id === selectedDateRange)?.label || selectedDateRange}`, 20, 28);
+      doc.text(`Period: ${dateRanges.find((d) => d.id === selectedDateRange)?.label || selectedDateRange}`, 20, 28);
       const headers = ['Timestamp', 'Actor', 'Action', 'Resource', 'Description'];
-      const body = items.map(log => [
+      const body = items.map((log) => [
         formatTimestamp(log.created_at).full,
         log.username || '—',
         log.action || '—',
@@ -566,29 +613,48 @@
         <!-- Export Dropdown -->
         <div class="relative export-dropdown">
           <button
-            class="btn btn-secondary text-sm px-4 py-2 flex items-center gap-2"
-            onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
+            class="btn btn-primary flex items-center gap-2 transition-all duration-300"
+            onclick={(e) => {
+              e.stopPropagation();
+              showExportDropdown = !showExportDropdown;
+            }}
+            aria-haspopup="menu"
+            aria-expanded={showExportDropdown}
           >
             <Download size={15} />
             Export
-            <ChevronDown size={14} class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" />
+            <ChevronDown
+              size={14}
+              class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
+            />
           </button>
           {#if showExportDropdown}
             <div
               class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
               onclick={(e) => e.stopPropagation()}
+              onkeydown={(e) => e.stopPropagation()}
+              role="menu"
+              tabindex="-1"
               transition:fly={{ y: -8, duration: 200 }}
             >
               <button
                 class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-                onclick={exportToExcel}
+                role="menuitem"
+                onclick={() => {
+                  showExportDropdown = false;
+                  exportToExcel();
+                }}
               >
                 <FileSpreadsheet size={16} class="text-success-light" />
                 Export to Excel
               </button>
               <button
                 class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-                onclick={exportToPDF}
+                role="menuitem"
+                onclick={() => {
+                  showExportDropdown = false;
+                  exportToPDF();
+                }}
               >
                 <Download size={16} class="text-danger-light" />
                 Export to PDF
@@ -596,31 +662,27 @@
             </div>
           {/if}
         </div>
-        <button
-          title="Refresh"
-          class="btn btn-secondary px-3"
-          onclick={fetchLogs}
-        >
+        <button title="Refresh" class="btn btn-secondary px-3" onclick={fetchLogs}>
           <RefreshCw size={16} class="{loading ? 'animate-spin' : ''}" />
         </button>
       </div>
     </div>
 
     <!-- 2. Filter Toolbar -->
-    <div class="space-y-4">
-      <!-- Search Row -->
-      <div class="flex items-center gap-3">
+    <div class="space-y-3">
+      <!-- Top Row -->
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="relative flex-1">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <input
             type="text"
-            placeholder="Search username, description, IP address, resource, action..."
-            class="input w-full pl-9 pr-9 py-2 text-sm bg-surface-default border-border focus:border-primary-default transition-colors"
+            placeholder="Search logs..."
+            class="input w-full pl-9 pr-9 py-1.5 text-sm bg-surface-default border-border focus:border-primary-default transition-colors"
             bind:value={searchQuery}
           />
           {#if searchQuery}
             <button
-              onclick={() => searchQuery = ''}
+              onclick={() => (searchQuery = '')}
               class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
             >
               <X size={14} />
@@ -628,104 +690,67 @@
           {/if}
         </div>
 
-        <!-- Date range dropdown -->
-        <div class="relative shrink-0" id="date-dropdown-container">
-          <button
-            class="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-            onclick={() => showDateDropdown = !showDateDropdown}
-          >
-            <Clock size={14} />
-            <span>{dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
-            <ChevronDown size={14} />
-          </button>
-          {#if showDateDropdown}
-            <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
-              {#each dateRanges as range}
-                <button
-                  class="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
-                  onclick={() => selectDateRange(range.id)}
-                >
-                  {range.label}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Filter Chips -->
-      <div class="flex flex-col gap-3">
-        <!-- Resource -->
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-semibold text-text-muted uppercase tracking-wider w-16 shrink-0">Resource</span>
-          <div class="flex flex-wrap gap-2">
-            {#each resourceFilters as f}
-              <FilterChip
-                active={selectedResource === f.id}
-                onclick={() => { selectedResource = f.id; offset = 0; selectedAction = 'all'; }}
-              >
-                {f.label}
-              </FilterChip>
-            {/each}
-          </div>
-        </div>
-
-        <!-- Action -->
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-semibold text-text-muted uppercase tracking-wider w-16 shrink-0">Action</span>
-          <div class="flex flex-wrap gap-2">
-             {#each relevantActions as f}
-              {@const disabled = isActionDisabled(f.id)}
-              <FilterChip
-                active={selectedAction === f.id}
-                disabled={disabled}
-                onclick={() => { if (!disabled) { selectedAction = f.id; offset = 0; } }}
-              >
-                {f.label}
-              </FilterChip>
-            {/each}
-          </div>
-        </div>
-      </div>
-
-      <!-- Active Filters Bar -->
-      {#if activeFilters.length > 0}
-        <div class="flex items-center gap-3 pt-4 border-t border-border/50">
-          <span class="text-sm font-medium text-text-secondary shrink-0">
-            Showing <span class="text-text-primary">{total}</span> results
-          </span>
-          <div class="h-4 w-px bg-border mx-1 shrink-0"></div>
-          <div class="flex flex-wrap items-center gap-2 flex-1">
-            {#each activeFilters as filter}
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-hover border border-border text-xs text-text-secondary">
-                <span class="capitalize">{filter.label}</span>
-                <button
-                  class="text-text-muted hover:text-text-primary transition-colors focus:outline-none"
-                  onclick={() => clearFilter(filter.type)}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            {/each}
-
+        <div class="flex items-center gap-2">
+          <div class="relative shrink-0" id="date-dropdown-container">
             <button
-              class="text-xs font-medium text-primary-light hover:text-primary-default transition-colors ml-2"
-              onclick={clearAllFilters}
+              class="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+              onclick={() => (showDateDropdown = !showDateDropdown)}
             >
-              Clear All
+              <Clock size={14} />
+              <span>{dateRanges.find((d) => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
+              <ChevronDown size={14} />
             </button>
+            {#if showDateDropdown}
+              <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
+                {#each dateRanges as range}
+                  <button
+                    class="w-full text-left px-4 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
+                    onclick={() => selectDateRange(range.id)}
+                  >
+                    {range.label}
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
+
+          <select
+            value={selectedResource}
+            onchange={(e) => {
+              selectedResource = e.currentTarget.value;
+              offset = 0;
+              selectedAction = 'all';
+            }}
+            class="rounded-md border border-border bg-surface-default px-2.5 py-1.5 text-xs text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
+          >
+            {#each resourceFilters as f}
+              <option value={f.id}>{f.label}</option>
+            {/each}
+          </select>
+
+          <select
+            value={selectedAction}
+            onchange={(e) => {
+              selectedAction = e.currentTarget.value;
+              offset = 0;
+            }}
+            class="rounded-md border border-border bg-surface-default px-2.5 py-1.5 text-xs text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
+          >
+            {#each availableActionFilters as f}
+              <option value={f.id}>{f.label}</option>
+            {/each}
+          </select>
         </div>
-      {/if}
+      </div>
     </div>
 
     <!-- 3. Audit Log Table -->
-    <div class="mt-4">
+    <div class="mt-2">
       {#if loading}
         <div class="card p-0 overflow-hidden">
-          <div class="divide-y divide-border">
+          <div class="divide-y divide-border/70">
             {#each { length: 8 } as _}
-              <div class="flex items-center h-12 px-4">
+              <div class="flex items-center h-9 px-4">
                 <div class="w-[180px] shrink-0">
                   <Skeleton width="w-32" height="h-3" />
                 </div>
@@ -734,10 +759,10 @@
                   <Skeleton width="w-24" height="h-3" />
                 </div>
                 <div class="w-[120px] shrink-0">
-                  <Skeleton width="w-20" height="h-4" />
+                  <Skeleton width="w-20" height="h-3" />
                 </div>
                 <div class="w-[120px] shrink-0">
-                  <Skeleton width="w-16" height="h-5" rounded="rounded-full" />
+                  <Skeleton width="w-16" height="h-3.5" rounded="rounded-full" />
                 </div>
                 <div class="flex-1">
                   <Skeleton width="w-full max-w-sm" height="h-3" />
@@ -755,10 +780,10 @@
             <Search size={32} class="text-text-muted" />
           </div>
           <p class="text-text-primary font-semibold mt-4">No audit logs found</p>
-          <p class="text-text-muted text-sm mt-1 max-w-sm">Try adjusting your filters or search terms to find what you're looking for.</p>
-          <button class="btn btn-secondary mt-6" onclick={clearAllFilters}>
-            Clear Filters
-          </button>
+          <p class="text-text-muted text-sm mt-1 max-w-sm">
+            Try adjusting your filters or search terms to find what you're looking for.
+          </p>
+          <button class="btn btn-secondary mt-6" onclick={clearAllFilters}> Clear Filters </button>
         </div>
       {:else}
         <div class="card p-0 overflow-hidden">
@@ -774,40 +799,43 @@
                   <th class="px-4 py-3 w-[150px]">IP Address</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-border">
+              <tbody class="divide-y divide-border/70">
                 {#each items as log (log.id)}
                   {@const ts = formatTimestamp(log.created_at)}
-                  <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" onclick={() => openDrawer(log)}>
-                    <td class="px-4 py-3 align-middle">
-                      <div class="flex flex-col">
-                        <span class="text-text-primary font-medium text-sm">{ts.date}</span>
-                        <span class="text-text-muted text-xs">{ts.time}</span>
-                      </div>
+                  <tr
+                    class="h-10 px-4 leading-none border-t border-border/70 hover:bg-surface-hover/70 transition-colors cursor-pointer"
+                    onclick={() => openDrawer(log)}
+                  >
+                    <td class="py-2 align-middle">
+                      <span class="text-text-primary font-medium text-xs leading-snug">{ts.date}</span>
+                      <span class="block text-text-muted text-[10px]">{ts.time}</span>
                     </td>
-                    <td class="px-4 py-3 align-middle">
+                    <td class="py-2 align-middle">
                       {#if log.username && log.username !== '—'}
                         <div class="flex items-center gap-2">
                           <div class="w-6 h-6 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
                             <span class="text-[10px] font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
                           </div>
-                          <span class="font-medium text-text-primary text-sm truncate max-w-[130px]">{log.username}</span>
+                          <span class="font-medium text-text-primary text-xs truncate max-w-[130px]">{log.username}</span>
                         </div>
                       {:else}
-                        <span class="font-medium text-text-muted text-sm">—</span>
+                        <span class="font-medium text-text-muted text-xs">—</span>
                       {/if}
                     </td>
-                    <td class="px-4 py-3 align-middle">
-                      <span class="font-mono text-sm text-text-secondary bg-surface-hover px-2 py-1 rounded border border-border/50 capitalize">
+                    <td class="py-2 align-middle">
+                      <span
+                        class="font-mono text-xs text-text-secondary bg-surface-hover px-2 py-1 rounded border border-border/50 capitalize"
+                      >
                         {log.entity_type || '—'}
                       </span>
                     </td>
-                    <td class="px-4 py-3 align-middle">
+                    <td class="py-2 align-middle">
                       <ActionBadge action={log.action} />
                     </td>
-                    <td class="px-4 py-3 align-middle text-sm text-text-secondary truncate max-w-xs" title={log.description}>
+                    <td class="py-2 align-middle text-xs text-text-secondary truncate max-w-xs leading-snug" title={log.description}>
                       {log.description || '—'}
                     </td>
-                    <td class="px-4 py-3 align-middle font-mono text-sm text-text-muted">
+                    <td class="py-2 align-middle font-mono text-[10px] text-text-muted leading-none">
                       {log.ip_address || '—'}
                     </td>
                   </tr>
@@ -821,177 +849,202 @@
           </div>
         </div>
       {/if}
-     </div>
-   </div>
- {/if}
-
-  <!-- Details Drawer -->
-  {#if drawerOpen && selectedLog}
-    {@const changes = getChanges(selectedLog)}
-    <button type="button" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onclick={closeDrawer} aria-label="Close drawer"></button>
-   <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in">
-     <!-- Header -->
-     <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-       <div class="flex items-center gap-3">
-         <ActionBadge action={selectedLog.action} />
-         <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
-       </div>
-       <button class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDrawer}>
-         <X size={18} />
-       </button>
-     </div>
-
-     <!-- Body -->
-     <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-       <!-- Human-friendly summary -->
-       <div class="bg-surface-default rounded-lg p-4 border border-border/50">
-         <p class="text-sm text-text-primary leading-relaxed">
-           <span class="font-semibold">{selectedLog.username || 'Unknown user'}</span>
-           {#if selectedLog.role}<span class="text-text-muted"> ({selectedLog.role})</span>{/if}
-           <span> </span>
-           <span class="font-medium">{getActionVerb(selectedLog.action)}</span>
-           {#if selectedLog.entity_type}
-             <span> a </span>
-             <span class="font-medium">{getResourceLabel(selectedLog.entity_type)}</span>
-           {/if}
-           {#if selectedLog.entity_id}
-             <span> (ID: {selectedLog.entity_id})</span>
-           {/if}
-         </p>
-         <p class="text-xs text-text-muted mt-2 flex items-center gap-1.5">
-           <Clock size={12} />
-           {formatDateHuman(selectedLog.created_at)} · {formatTimestamp(selectedLog.created_at).full}
-         </p>
-       </div>
-
-       <!-- Description -->
-       {#if selectedLog.description}
-         <div>
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Description</p>
-           <p class="text-sm text-text-primary">{selectedLog.description}</p>
-         </div>
-       {/if}
-
-       <!-- Meta grid -->
-       <div class="grid grid-cols-2 gap-3">
-         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">When</p>
-           <p class="text-sm text-text-primary">{formatTimestamp(selectedLog.created_at).full}</p>
-           <p class="text-xs text-text-muted mt-0.5">{formatDateHuman(selectedLog.created_at)}</p>
-         </div>
-         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Who</p>
-           <div class="flex items-center gap-2">
-             {#if selectedLog.username && selectedLog.username !== '—'}
-               <div class="w-5 h-5 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
-                 <span className="text-[8px] font-bold text-white">{selectedLog.username.charAt(0).toUpperCase()}</span>
-               </div>
-             {/if}
-             <p class="text-sm text-text-primary">{selectedLog.username || 'Unknown'}</p>
-           </div>
-           {#if selectedLog.role}
-             <p class="text-xs text-text-secondary mt-0.5 capitalize">{selectedLog.role}</p>
-           {/if}
-         </div>
-         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">From</p>
-           <div class="flex items-center gap-1.5 text-sm text-text-primary">
-             <Globe size={14} class="text-text-muted" />
-             <span class="font-mono">{selectedLog.ip_address || '—'}</span>
-           </div>
-         </div>
-         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Resource</p>
-           <p class="text-sm text-text-primary capitalize">{getResourceLabel(selectedLog.entity_type) || '—'}</p>
-           {#if selectedLog.entity_id}
-             <p class="text-xs text-text-secondary font-mono mt-0.5">ID: {selectedLog.entity_id}</p>
-           {/if}
-         </div>
-       </div>
-
-       <!-- User Agent -->
-       {#if selectedLog.user_agent}
-         <div>
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">Browser / Device</p>
-           <div class="flex items-start gap-2 p-3 bg-surface-default rounded-lg border border-border/50">
-             <Monitor size={14} class="text-text-muted mt-0.5 shrink-0" />
-             <p class="text-xs text-text-secondary font-mono leading-relaxed break-all">{selectedLog.user_agent}</p>
-           </div>
-         </div>
-       {/if}
-
-        <!-- Data Changes -->
-        {#if changes.length > 0}
-         <div>
-           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3">What Changed</p>
-           <div class="space-y-2">
-             {#each changes as change}
-               {@const diff = getDiffDescription(change)}
-               <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-                 <div class="flex items-start gap-3">
-                   <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 {diff.color === 'success' ? 'bg-success-subtle' : diff.color === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}">
-                     <diff.icon size={12} class="{diff.color === 'success' ? 'text-success-light' : diff.color === 'danger' ? 'text-danger-light' : 'text-warning-light'}" />
-                   </div>
-                   <div class="flex-1 min-w-0">
-                     <p class="text-xs font-semibold text-text-secondary">{diff.label}</p>
-                     <p class="text-sm text-text-primary mt-0.5">{diff.text}</p>
-                   </div>
-                 </div>
-               </div>
-             {/each}
-           </div>
-         </div>
-        {:else if selectedLog.action === 'CREATE' || selectedLog.action === 'UPDATE' || selectedLog.action === 'DELETE'}
-          <div class="p-4 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
-            <p class="text-sm text-text-muted">No specific data changes captured for this {selectedLog.action.toLowerCase()} action.</p>
-          </div>
-        {/if}
-     </div>
-   </div>
- {/if}
-
-  <!-- Custom Date Range Modal -->
-  {#if showCustomDateModal}
-  <button type="button" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onclick={() => showCustomDateModal = false} aria-label="Close date modal"></button>
-  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-    <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 pointer-events-auto" onclick={(e) => e.stopPropagation()}>
-    <h3 class="text-base font-semibold text-text-primary mb-5">Custom Date Range</h3>
-    <div class="space-y-4">
-      <div>
-        <label for="custom-start" class="block text-sm font-medium text-text-secondary mb-1.5">Start Date</label>
-        <input
-          id="custom-start"
-          type="date"
-          class="input w-full text-sm bg-surface-hover"
-          bind:value={customStartDate}
-          min={startDateMin}
-          max={startDateMax}
-        />
-      </div>
-      <div>
-        <label for="custom-end" class="block text-sm font-medium text-text-secondary mb-1.5">End Date</label>
-        <input
-          id="custom-end"
-          type="date"
-          class="input w-full text-sm bg-surface-hover"
-          bind:value={customEndDate}
-          min={endDateMin}
-          max={endDateMax}
-        />
-      </div>
-    </div>
-    <div class="flex items-center justify-end gap-3 mt-6">
-      <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => showCustomDateModal = false}>Cancel</button>
-      <button class="btn btn-primary text-sm px-4 py-2" onclick={applyCustomRange} disabled={!customStartDate || !customEndDate}>Apply</button>
     </div>
   </div>
-</div>
+{/if}
+
+<!-- Details Drawer -->
+{#if drawerOpen && selectedLog}
+  {@const changes = getChanges(selectedLog)}
+  <button type="button" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onclick={closeDrawer} aria-label="Close drawer"></button>
+  <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+      <div class="flex items-center gap-3">
+        <ActionBadge action={selectedLog.action} />
+        <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
+      </div>
+      <button class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDrawer}>
+        <X size={18} />
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+      <!-- Human-friendly summary -->
+      <div class="bg-surface-default rounded-lg p-4 border border-border/50">
+        <p class="text-sm text-text-primary leading-relaxed">
+          <span class="font-semibold">{selectedLog.username || 'Unknown user'}</span>
+          {#if selectedLog.role}<span class="text-text-muted"> ({selectedLog.role})</span>{/if}
+          <span> </span>
+          <span class="font-medium">{getActionVerb(selectedLog.action)}</span>
+          {#if selectedLog.entity_type}
+            <span> a </span>
+            <span class="font-medium">{getResourceLabel(selectedLog.entity_type)}</span>
+          {/if}
+          {#if selectedLog.entity_id}
+            <span> (ID: {selectedLog.entity_id})</span>
+          {/if}
+        </p>
+        <p class="text-xs text-text-muted mt-2 flex items-center gap-1.5">
+          <Clock size={12} />
+          {formatDateHuman(selectedLog.created_at)} · {formatTimestamp(selectedLog.created_at).full}
+        </p>
+      </div>
+
+      <!-- Description -->
+      {#if selectedLog.description}
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Description</p>
+          <p class="text-sm text-text-primary">{selectedLog.description}</p>
+        </div>
+      {/if}
+
+      <!-- Meta grid -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">When</p>
+          <p class="text-sm text-text-primary">{formatTimestamp(selectedLog.created_at).full}</p>
+          <p class="text-xs text-text-muted mt-0.5">{formatDateHuman(selectedLog.created_at)}</p>
+        </div>
+        <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Who</p>
+          <div class="flex items-center gap-2">
+            {#if selectedLog.username && selectedLog.username !== '—'}
+              <div class="w-5 h-5 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                <span class="text-[8px] font-bold text-white">{selectedLog.username.charAt(0).toUpperCase()}</span>
+              </div>
+            {/if}
+            <p class="text-sm text-text-primary">{selectedLog.username || 'Unknown'}</p>
+          </div>
+          {#if selectedLog.role}
+            <p class="text-xs text-text-secondary mt-0.5 capitalize">{selectedLog.role}</p>
+          {/if}
+        </div>
+        <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">From</p>
+          <div class="flex items-center gap-1.5 text-sm text-text-primary">
+            <Globe size={14} class="text-text-muted" />
+            <span class="font-mono">{selectedLog.ip_address || '—'}</span>
+          </div>
+        </div>
+        <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Resource</p>
+          <p class="text-sm text-text-primary capitalize">{getResourceLabel(selectedLog.entity_type) || '—'}</p>
+          {#if selectedLog.entity_id}
+            <p class="text-xs text-text-secondary font-mono mt-0.5">ID: {selectedLog.entity_id}</p>
+          {/if}
+        </div>
+      </div>
+
+      <!-- User Agent -->
+      {#if selectedLog.user_agent}
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">Browser / Device</p>
+          <div class="flex items-start gap-2 p-3 bg-surface-default rounded-lg border border-border/50">
+            <Monitor size={14} class="text-text-muted mt-0.5 shrink-0" />
+            <p class="text-xs text-text-secondary font-mono leading-relaxed break-all">{selectedLog.user_agent}</p>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Data Changes -->
+      {#if changes.length > 0}
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3">What Changed</p>
+          <div class="space-y-2">
+            {#each changes as change}
+              {@const diff = getDiffDescription(change)}
+              <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+                <div class="flex items-start gap-3">
+                  <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 {diff.color === 'success' ? 'bg-success-subtle' : diff.color === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}">
+                    <diff.icon
+                      size={12}
+                      class="{diff.color === 'success'
+                        ? 'text-success-light'
+                        : diff.color === 'danger'
+                          ? 'text-danger-light'
+                          : 'text-warning-light'}"
+                    />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-text-secondary">{diff.label}</p>
+                    <p class="text-sm text-text-primary mt-0.5">{diff.text}</p>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else if selectedLog.action === 'CREATE' || selectedLog.action === 'UPDATE' || selectedLog.action === 'DELETE'}
+        <div class="p-4 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
+          <p class="text-sm text-text-muted">No specific data changes captured for this {selectedLog.action.toLowerCase()} action.</p>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Custom Date Range Modal -->
+{#if showCustomDateModal}
+  <button
+    type="button"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    onclick={() => (showCustomDateModal = false)}
+    aria-label="Close date modal"
+  ></button>
+  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+    <div
+      class="bg-surface-default border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 pointer-events-auto"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <h3 class="text-base font-semibold text-text-primary mb-5">Custom Date Range</h3>
+      <div class="space-y-4">
+        <div>
+          <label for="custom-start" class="block text-sm font-medium text-text-secondary mb-1.5">Start Date</label>
+          <input
+            id="custom-start"
+            type="date"
+            class="input w-full text-sm bg-surface-hover"
+            bind:value={customStartDate}
+            min={startDateMin}
+            max={startDateMax}
+          />
+        </div>
+        <div>
+          <label for="custom-end" class="block text-sm font-medium text-text-secondary mb-1.5">End Date</label>
+          <input
+            id="custom-end"
+            type="date"
+            class="input w-full text-sm bg-surface-hover"
+            bind:value={customEndDate}
+            min={endDateMin}
+            max={endDateMax}
+          />
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-3 mt-6">
+        <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => (showCustomDateModal = false)}>Cancel</button>
+        <button
+          class="btn btn-primary text-sm px-4 py-2"
+          onclick={applyCustomRange}
+          disabled={!customStartDate || !customEndDate}
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
   @keyframes slide-in {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
   .animate-slide-in {
     animation: slide-in 0.2s ease-out;
