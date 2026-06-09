@@ -24,10 +24,10 @@ apiClient.interceptors.request.use(
 );
 
 // 3. Setup Response Interceptor untuk menangani Auto-Refresh 401
+setupAxiosInterceptors(apiClient);
 let interceptorsInitialized = false;
 export const setupApiInterceptors = async () => {
   if (interceptorsInitialized) return;
-  setupAxiosInterceptors(apiClient);
   interceptorsInitialized = true;
 };
 

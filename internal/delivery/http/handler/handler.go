@@ -977,12 +977,12 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		return
 	}
 
-	if err := h.roleRepo.UpdateRolePermissions(getCtx(c), id, req.PermissionIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role permissions"})
-		return
-	}
-	h.logAudit(c, "update", "role", id, oldRole, nil)
-	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+  if err := h.roleRepo.UpdateRolePermissions(getCtx(c), id, req.PermissionIDs); err != nil {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role permissions"})
+    return
+  }
+  h.logAudit(c, "update", "role", id, oldRole, map[string]interface{}{"permission_ids": req.PermissionIDs})
+  c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
 func (h *Handler) DeleteRole(c *gin.Context) {
@@ -1241,24 +1241,24 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		userIDPtr = nil
 	}
 
-	if err := h.productRepo.AdjustStock(getCtx(c), req.ProductID, req.QuantityChange, userIDPtr, strings.TrimSpace(req.Notes)); err != nil {
-		if strings.Contains(err.Error(), "product not found") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
-			return
-		}
-		if strings.Contains(err.Error(), "insufficient stock") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to adjust stock"})
-		return
-	}
-
-	h.logAudit(c, "update", "inventory", req.ProductID, nil, map[string]interface{}{
-		"quantity_change": req.QuantityChange,
-		"notes": req.Notes,
-	})
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+  if err := h.productRepo.AdjustStock(getCtx(c), req.ProductID, req.QuantityChange, userIDPtr, strings.TrimSpace(req.Notes)); err != nil {
+    if strings.Contains(err.Error(), "product not found") {
+      c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+      return
+    }
+    if strings.Contains(err.Error(), "insufficient stock") {
+      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      return
+    }
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to adjust stock"})
+    return
+  }
+  oldProduct, _ := h.productRepo.GetProductByID(getCtx(c), req.ProductID, nil)
+  h.logAudit(c, "update", "inventory", req.ProductID, oldProduct, map[string]interface{}{
+    "quantity_change": req.QuantityChange,
+    "notes": req.Notes,
+  })
+  c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID int, oldValues, newValues interface{}) {
@@ -1350,7 +1350,7 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 		return ""
 	}
 
-	identifier := getIdentifier(log.NewValues)
+ 	identifier := getIdentifier(log.NewValues)
 	if identifier == "" {
 		identifier = getIdentifier(log.OldValues)
 	}
@@ -1385,6 +1385,15 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 		}
 		return fmt.Sprintf("%s %s #%d", displayAction, entity, *log.EntityID)
 	}
+
+	if entity == "auth" && (action == "login" || action == "logout") {
+		if log.Username != "" {
+			return fmt.Sprintf("%s %s", displayAction, log.Username)
+		}
+		return displayAction
+	}
+
+	return fmt.Sprintf("%s %s", displayAction, entity)
 
 	if entity == "auth" && (action == "login" || action == "logout") {
 		if log.Username != "" {

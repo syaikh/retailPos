@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
@@ -7,13 +7,16 @@
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
+  import FilterChip from '$lib/components/ui/FilterChip.svelte';
+  import ActionBadge from '$lib/components/ui/ActionBadge.svelte';
   import {
-    Search, ScrollText, RefreshCw, CalendarDays, X, List,
-    Plus, Edit, Trash, LogIn, LogOut, Info, ArrowRight,
-    Monitor, Globe, ChevronRight, Package, ShoppingCart,
-    Users, Tag, Shield, Store, Calendar, ChevronDown, ExternalLink,
+    Search, ScrollText, RefreshCw, X, Download,
+    Plus, Edit, Trash, LogIn, LogOut, Info, FileSpreadsheet, ArrowRight, Minus,
+    Monitor, Globe, Package, ShoppingCart,
+    Users, Tag, Shield, Store, Calendar, ChevronDown, List, Clock
   } from 'lucide-svelte';
 
+  // State variables
   let loading = $state(true);
   let items = $state([]);
   let total = $state(0);
@@ -21,11 +24,10 @@
   let offset = $state(0);
   let searchQuery = $state('');
   let selectedAction = $state('all');
-  let selectedEntity = $state('all');
-  let selectedDateRange = $state('7d');
+  let selectedResource = $state('all');
+  let selectedDateRange = $state('24h');
   let showDateDropdown = $state(false);
-  let showDetailsDrawer = $state(false);
-  let selectedLog = $state(null);
+  let showExportDropdown = $state(false);
 
   // Request tracking to prevent duplicate requests
   let currentRequestId = $state(0);
@@ -38,9 +40,40 @@
     ''
   );
   let canView = $derived(userRole === 'superadmin');
-  let isDrawerOpen = $state(false);
+
+  // Drawer state
+  let drawerOpen = $state(false);
+  let selectedLog = $state(null);
+
+  function openDrawer(log) {
+    selectedLog = log;
+    drawerOpen = true;
+  }
+
+  function closeDrawer() {
+    drawerOpen = false;
+    selectedLog = null;
+  }
 
   // --- Filter definitions ---
+
+  // Actions relevant per resource type
+  const resourceActionMap: Record<string, string[]> = {
+    'all': ['create', 'update', 'delete', 'login', 'logout'],
+    'auth': ['login', 'logout'],
+    'user': ['create', 'update', 'delete'],
+    'role': ['create', 'update', 'delete'],
+    'product': ['create', 'update', 'delete'],
+    'sale': ['create', 'update', 'delete'],
+    'category': ['create', 'update', 'delete'],
+    'brand': ['create', 'update', 'delete'],
+  };
+
+  let relevantActions = $derived(
+    selectedResource === 'all'
+      ? actionFilters
+      : actionFilters.filter(f => resourceActionMap[selectedResource]?.includes(f.id) || f.id === 'all')
+  );
 
   const actionFilters = [
     { id: 'all', label: 'All', icon: List },
@@ -51,9 +84,17 @@
     { id: 'logout', label: 'Logout', icon: LogOut },
   ];
 
-  const entityFilters = [
+  function isActionDisabled(actionId: string): boolean {
+    if (selectedResource === 'all') return false;
+    if (actionId === 'all') return false;
+    const relevant = resourceActionMap[selectedResource];
+    if (!relevant) return true;
+    return !relevant.includes(actionId);
+  }
+
+  const resourceFilters = [
     { id: 'all', label: 'All', icon: List },
-    { id: 'auth', label: 'Auth', icon: LogIn },
+    { id: 'auth', label: 'Auth', icon: Shield },
     { id: 'user', label: 'User', icon: Users },
     { id: 'role', label: 'Role', icon: Shield },
     { id: 'product', label: 'Product', icon: Package },
@@ -85,16 +126,16 @@
   function getDateRange(range) {
     const now = new Date();
     switch (range) {
-      case '24h': return { start: new Date(now - 86400000), end: now };
-      case '7d': return { start: new Date(now - 7 * 86400000), end: now };
-      case '30d': return { start: new Date(now - 30 * 86400000), end: now };
-      case '90d': return { start: new Date(now - 90 * 86400000), end: now };
+      case '24h': return { start: new Date(now.getTime() - 86400000), end: now };
+      case '7d': return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+      case '30d': return { start: new Date(now.getTime() - 30 * 86400000), end: now };
+      case '90d': return { start: new Date(now.getTime() - 90 * 86400000), end: now };
       case 'custom':
         if (customStartDate && customEndDate) {
           return { start: new Date(customStartDate), end: new Date(customEndDate + 'T23:59:59') };
         }
-        return { start: new Date(now - 7 * 86400000), end: now };
-      default: return { start: new Date(now - 7 * 86400000), end: now };
+        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+      default: return { start: new Date(now.getTime() - 7 * 86400000), end: now };
     }
   }
 
@@ -113,7 +154,7 @@
       showDateDropdown = false;
       showCustomDateModal = true;
       const now = new Date();
-      const weekAgo = new Date(now - 7 * 86400000);
+      const weekAgo = new Date(now.getTime() - 7 * 86400000);
       customEndDate = now.toISOString().split('T')[0];
       customStartDate = weekAgo.toISOString().split('T')[0];
     } else {
@@ -124,69 +165,79 @@
     }
   }
 
-  $effect(() => {
-    if (!showDateDropdown) return;
+  function clearDateFilter() {
+    selectedDateRange = '24h';
+    offset = 0;
+    fetchLogs();
+  }
 
-    const container = document.getElementById('date-dropdown-container');
+  // Close dropdowns on outside click / Esc
+  $effect(() => {
+    if (!showDateDropdown && !showExportDropdown && !drawerOpen) return;
+
     const handleClickOutside = (e) => {
-      if (container && !container.contains(e.target)) {
-        showDateDropdown = false;
+      if (showDateDropdown) {
+        const container = document.getElementById('date-dropdown-container');
+        if (container && !container.contains(e.target)) showDateDropdown = false;
+      }
+      if (showExportDropdown) {
+        const path = e.composedPath?.() || [];
+        const inDropdown = path.some(el => el?.classList?.contains('export-dropdown'));
+        if (!inDropdown) showExportDropdown = false;
       }
     };
     const handleEsc = (e) => {
-      if (e.key === 'Escape') showDateDropdown = false;
+      if (e.key === 'Escape') {
+        if (drawerOpen) closeDrawer();
+        if (showDateDropdown) showDateDropdown = false;
+        if (showExportDropdown) showExportDropdown = false;
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleEsc);
-
     return () => {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleEsc);
     };
   });
 
-  // --- Badge variant for action column ---
-  const actionVariant = (a) => {
-    if (!a) return 'muted';
-    const v = a.toUpperCase();
-    if (v === 'CREATE') return 'success';
-    if (v === 'DELETE') return 'danger';
-    if (v === 'UPDATE') return 'warning';
-    if (v === 'LOGIN' || v === 'LOGOUT') return 'primary';
-    return 'muted';
-  };
+  // --- Active Filters Computation ---
+  let activeFilters = $derived.by(() => {
+    const filters = [];
+    if (selectedResource !== 'all') {
+      filters.push({ type: 'entity', label: resourceFilters.find(f => f.id === selectedResource)?.label || selectedResource });
+    }
+    if (selectedAction !== 'all') {
+      filters.push({ type: 'action', label: actionFilters.find(f => f.id === selectedAction)?.label || selectedAction });
+    }
+    if (selectedDateRange !== '24h') {
+      if (selectedDateRange === 'custom') {
+        filters.push({ type: 'date', label: `${customStartDate} to ${customEndDate}` });
+      } else {
+        const dr = dateRanges.find(d => d.id === selectedDateRange);
+        if (dr) filters.push({ type: 'date', label: dr.label });
+      }
+    }
+    return filters;
+  });
 
-  const actionVariantClass = (a) => {
-    const v = (a || '').toUpperCase();
-    if (v === 'CREATE') return 'bg-success-subtle text-success-light border border-success-default/20';
-    if (v === 'DELETE') return 'bg-danger-subtle text-danger-light border border-danger-default/20';
-    if (v === 'UPDATE') return 'bg-warning-subtle text-warning-light border border-warning-default/20';
-    if (v === 'LOGIN' || v === 'LOGOUT') return 'bg-primary-subtle text-primary-light border border-primary-default/20';
-    return 'bg-surface-default text-text-muted border border-border-default';
-  };
+  function clearFilter(type) {
+    if (type === 'entity') selectedResource = 'all';
+    if (type === 'action') selectedAction = 'all';
+    if (type === 'date') selectedDateRange = '24h';
+    offset = 0;
+    fetchLogs();
+  }
 
-  const actionIcon = (a) => {
-    const v = (a || '').toLowerCase();
-    if (v === 'create') return Plus;
-    if (v === 'update') return Edit;
-    if (v === 'delete') return Trash;
-    if (v === 'login') return LogIn;
-    if (v === 'logout') return LogOut;
-    return Info;
-  };
-
-  const entityIcon = (entity) => {
-    const v = (entity || '').toLowerCase();
-    if (v === 'auth') return Shield;
-    if (v === 'user') return Users;
-    if (v === 'role') return Shield;
-    if (v === 'product') return Package;
-    if (v === 'sale') return ShoppingCart;
-    if (v === 'category') return Tag;
-    if (v === 'brand') return Store;
-    return ScrollText;
-  };
+  function clearAllFilters() {
+    selectedResource = 'all';
+    selectedAction = 'all';
+    selectedDateRange = '24h';
+    searchQuery = '';
+    offset = 0;
+    fetchLogs();
+  }
 
   // --- Data fetching ---
 
@@ -207,22 +258,21 @@
         end_date: range.end.toISOString(),
       });
       if (selectedAction !== 'all') params.append('action', selectedAction);
-      if (selectedEntity !== 'all') params.append('entity_type', selectedEntity);
-
-      console.debug('[AuditLogs] fetching', `audit-logs?${params.toString()}`, 'role=', userRole, 'canView=', canView);
+      if (selectedResource !== 'all') params.append('entity_type', selectedResource);
 
       const response = await apiClient.get(`audit-logs?${params.toString()}`);
 
       if (requestId !== currentRequestId) return;
 
-      console.debug('[AuditLogs] response', response.status, response.data);
       const data = response.data || {};
       items = data.data || [];
       total = data.total || 0;
-      console.debug('[AuditLogs] items', items.length, 'total', total);
     } catch (error) {
-      console.error('[AuditLogs] fetch error', error);
-      if (error.name !== 'AbortError') toast.error('Failed to load audit logs');
+      if (error.name !== 'AbortError') {
+        const msg = error?.response?.data?.error || error?.message || 'Unknown error';
+        console.error('[AuditLogs] fetch error:', msg, error);
+        toast.error(`Failed to load audit logs: ${msg}`);
+      }
     } finally {
       if (requestId === currentRequestId) {
         loading = false;
@@ -231,18 +281,17 @@
     }
   }
 
-  // --- Effect: watch all filter changes ---
   let prevSearch = $state('');
   let prevAction = $state('all');
   let prevEntity = $state('all');
-  let prevDate = $state('7d');
+  let prevDate = $state('24h');
   let prevOff = $state(0);
   let prevLim = $state(20);
 
   const debouncedSearchFetch = debounce(() => { offset = 0; fetchLogs(); }, 400);
 
   $effect(() => {
-    const sq = searchQuery, sa = selectedAction, se = selectedEntity, sd = selectedDateRange, so = offset, sl = limit;
+    const sq = searchQuery, sa = selectedAction, se = selectedResource, sd = selectedDateRange, so = offset, sl = limit;
 
     if (!hasInitialized) {
       hasInitialized = true;
@@ -266,16 +315,6 @@
     limit = newLimit;
   }
 
-  function openDetails(log) {
-    selectedLog = log;
-    isDrawerOpen = true;
-  }
-
-  function closeDetails() {
-    isDrawerOpen = false;
-    selectedLog = null;
-  }
-
   // --- Diff computation ---
   function getChanges(log) {
     const ov = log?.old_values || {};
@@ -290,14 +329,223 @@
     return out;
   }
 
+  const fieldLabels: Record<string, string> = {
+    'name': 'Name',
+    'username': 'Username',
+    'email': 'Email',
+    'role': 'Role',
+    'role_id': 'Role',
+    'is_active': 'Active Status',
+    'is_system': 'System Role',
+    'description': 'Description',
+    'price': 'Price',
+    'stock': 'Stock',
+    'category': 'Category',
+    'category_id': 'Category',
+    'barcode': 'Barcode',
+    'sku': 'SKU',
+    'quantity_change': 'Quantity Change',
+    'notes': 'Notes',
+    'invoice_number': 'Invoice Number',
+    'status': 'Status',
+    'payment_method': 'Payment Method',
+    'discount': 'Discount',
+    'tax': 'Tax',
+    'subtotal': 'Subtotal',
+    'total': 'Total',
+    'cashier': 'Cashier',
+    'store': 'Store',
+    'store_id': 'Store',
+    'brand': 'Brand',
+    'brand_id': 'Brand',
+    'slug': 'Slug',
+    'parent_id': 'Parent',
+    'sort_order': 'Sort Order',
+    'image_url': 'Image URL',
+    'expiry_date': 'Expiry Date',
+    'unit': 'Unit',
+    'weight': 'Weight',
+    'created_at': 'Created At',
+    'updated_at': 'Updated At',
+    'old_password': 'Old Password',
+    'new_password': 'New Password',
+    'permission_ids': 'Permissions',
+    'permission_id': 'Permission',
+  };
+
+  function getFieldLabel(key: string) {
+    return fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
   function formatTimestamp(d) {
-    if (!d) return { date: '—', time: '' };
+    if (!d) return { date: '—', time: '', full: '—' };
     const dateObj = new Date(d);
     const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    return { date: dateStr, time: timeStr };
+    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    return { date: dateStr, time: timeStr, full: `${dateStr} ${timeStr}` };
   }
-  let changes = $derived(selectedLog ? getChanges(selectedLog) : []);
+
+  function formatDateHuman(d) {
+    if (!d) return '—';
+    const dateObj = new Date(d);
+    const now = new Date();
+    const diffMs = now.getTime() - dateObj.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function formatValue(val) {
+    if (val == null) return '—';
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (typeof val === 'string') {
+      // Try to parse as date
+      const dateMatch = val.match(/^\d{4}-\d{2}-\d{2}T/);
+      if (dateMatch) {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
+                 d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+      }
+      return val;
+    }
+    if (typeof val === 'number') {
+      if (val > 10000 && Number.isInteger(val)) return 'Rp ' + val.toLocaleString('id-ID');
+      return val.toLocaleString('id-ID');
+    }
+    if (typeof val === 'object') {
+      if (Array.isArray(val)) {
+        if (val.length === 0) return 'None';
+        return val.map(v => formatValue(v)).join(', ');
+      }
+      // Object — try to extract a meaningful display
+      if (val.name) return String(val.name);
+      if (val.label) return String(val.label);
+      if (val.description) return String(val.description);
+      if (val.code) return String(val.code);
+      if (val.username) return String(val.username);
+      if (val.email) return String(val.email);
+      // For objects with id + other fields, show key info
+      if (val.id != null) {
+        const parts = [`ID: ${val.id}`];
+        if (val.name) parts.push(val.name);
+        else if (val.description) parts.push(val.description);
+        else {
+          // Show first few non-id fields
+          for (const [k, v] of Object.entries(val)) {
+            if (k === 'id' || k === 'created_at' || k === 'updated_at' || k === 'is_system') continue;
+            if (typeof v !== 'object') {
+              parts.push(`${getFieldLabel(k)}: ${formatValue(v)}`);
+              if (parts.length >= 3) break;
+            }
+          }
+        }
+        return parts.join(' · ');
+      }
+      // Last resort: show key-value pairs
+      const pairs = Object.entries(val)
+        .filter(([k]) => k !== 'created_at' && k !== 'updated_at')
+        .map(([k, v]) => `${getFieldLabel(k)}: ${formatValue(v)}`);
+      return pairs.join(', ') || '—';
+    }
+    return String(val);
+  }
+
+  function getDiffDescription(change) {
+    const label = getFieldLabel(change.key);
+    const oldVal = formatValue(change.old);
+    const newVal = formatValue(change.new);
+
+    if (change.old == null && change.new != null) {
+      return { label, text: `Set to "${newVal}"`, icon: Plus, color: 'success' };
+    }
+    if (change.old != null && change.new == null) {
+      return { label, text: `Removed (was "${oldVal}")`, icon: Minus, color: 'danger' };
+    }
+    return { label, text: `Changed from "${oldVal}" to "${newVal}"`, icon: ArrowRight, color: 'warning' };
+  }
+
+  function getActionVerb(action: string) {
+    const v = (action || '').toUpperCase();
+    if (v === 'CREATE') return 'Created';
+    if (v === 'UPDATE') return 'Updated';
+    if (v === 'DELETE') return 'Deleted';
+    if (v === 'LOGIN') return 'Logged in';
+    if (v === 'LOGOUT') return 'Logged out';
+    return action;
+  }
+
+  function getResourceLabel(entityType: string) {
+    const map: Record<string, string> = {
+      'auth': 'Authentication',
+      'user': 'User',
+      'role': 'Role',
+      'product': 'Product',
+      'sale': 'Sale',
+      'category': 'Category',
+      'brand': 'Brand',
+    };
+    return map[entityType] || entityType;
+  }
+
+  async function exportToExcel() {
+    try {
+      const { utils, writeFile } = await import('xlsx');
+      const headers = ['Timestamp', 'Actor', 'Role', 'Action', 'Resource', 'Description', 'IP Address'];
+      const rows = items.map(log => [
+        formatTimestamp(log.created_at).full,
+        log.username || '—',
+        log.role || '—',
+        log.action || '—',
+        log.entity_type || '—',
+        log.description || '—',
+        log.ip_address || '—',
+      ]);
+      const workbook = utils.book_new();
+      const sheet = utils.aoa_to_sheet([headers, ...rows]);
+      utils.book_append_sheet(workbook, sheet, 'Audit Logs');
+      const fileName = `audit-logs-${selectedDateRange}-${today}.xlsx`;
+      writeFile(workbook, fileName);
+      showExportDropdown = false;
+      toast.success('Excel export completed');
+    } catch (error) {
+      toast.error('Failed to export to Excel');
+    }
+  }
+
+  async function exportToPDF() {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text('Audit Logs Report', 20, 20);
+      doc.setFontSize(10);
+      doc.text(`Period: ${dateRanges.find(d => d.id === selectedDateRange)?.label || selectedDateRange}`, 20, 28);
+      const headers = ['Timestamp', 'Actor', 'Action', 'Resource', 'Description'];
+      const body = items.map(log => [
+        formatTimestamp(log.created_at).full,
+        log.username || '—',
+        log.action || '—',
+        log.entity_type || '—',
+        (log.description || '—').substring(0, 60),
+      ]);
+      autoTable(doc, { startY: 34, head: [headers], body, theme: 'grid' });
+      const fileName = `audit-logs-${selectedDateRange}-${today}.pdf`;
+      doc.save(fileName);
+      showExportDropdown = false;
+      toast.success('PDF export completed');
+    } catch (error) {
+      toast.error('Failed to export to PDF');
+    }
+  }
 </script>
 
 {#if !canView}
@@ -307,17 +555,67 @@
     <p class="text-text-muted text-sm mt-1">Audit logs are restricted to superadmin only</p>
   </div>
 {:else}
-  <div class="space-y-4">
-    <!-- ─── Filter Toolbar ─── -->
-    <div class="card p-3">
-      <!-- Row 1: Search + Date + Refresh -->
-      <div class="flex items-center gap-3 mb-3">
+  <div class="space-y-6 max-w-7xl mx-auto">
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold text-text-primary">Audit Logs</h1>
+        <p class="text-sm text-text-muted mt-1">Track and monitor all system activities</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- Export Dropdown -->
+        <div class="relative export-dropdown">
+          <button
+            class="btn btn-secondary text-sm px-4 py-2 flex items-center gap-2"
+            onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
+          >
+            <Download size={15} />
+            Export
+            <ChevronDown size={14} class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" />
+          </button>
+          {#if showExportDropdown}
+            <div
+              class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
+              onclick={(e) => e.stopPropagation()}
+              transition:fly={{ y: -8, duration: 200 }}
+            >
+              <button
+                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                onclick={exportToExcel}
+              >
+                <FileSpreadsheet size={16} class="text-success-light" />
+                Export to Excel
+              </button>
+              <button
+                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+                onclick={exportToPDF}
+              >
+                <Download size={16} class="text-danger-light" />
+                Export to PDF
+              </button>
+            </div>
+          {/if}
+        </div>
+        <button
+          title="Refresh"
+          class="btn btn-secondary px-3"
+          onclick={fetchLogs}
+        >
+          <RefreshCw size={16} class="{loading ? 'animate-spin' : ''}" />
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. Filter Toolbar -->
+    <div class="space-y-4">
+      <!-- Search Row -->
+      <div class="flex items-center gap-3">
         <div class="relative flex-1">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <input
             type="text"
-            placeholder="Search user, resource, description, IP..."
-            class="input w-full pl-9 pr-9 py-2 text-sm"
+            placeholder="Search username, description, IP address, resource, action..."
+            class="input w-full pl-9 pr-9 py-2 text-sm bg-surface-default border-border focus:border-primary-default transition-colors"
             bind:value={searchQuery}
           />
           {#if searchQuery}
@@ -331,20 +629,20 @@
         </div>
 
         <!-- Date range dropdown -->
-        <div class="relative" id="date-dropdown-container">
+        <div class="relative shrink-0" id="date-dropdown-container">
           <button
-            class="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong transition-colors"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
             onclick={() => showDateDropdown = !showDateDropdown}
           >
-            <Calendar size={14} />
-            <span>{dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 7 Days'}</span>
-            <ChevronDown size={12} />
+            <Clock size={14} />
+            <span>{dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
+            <ChevronDown size={14} />
           </button>
           {#if showDateDropdown}
-            <div class="absolute right-0 top-full mt-1 z-50 bg-surface-default border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
+            <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
               {#each dateRanges as range}
                 <button
-                  class="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/20' : 'text-text-secondary'}"
+                  class="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
                   onclick={() => selectDateRange(range.id)}
                 >
                   {range.label}
@@ -353,324 +651,336 @@
             </div>
           {/if}
         </div>
-
-        <!-- Refresh (secondary) -->
-        <button
-          title="Refresh"
-          class="p-2 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover border border-transparent hover:border-border transition-all"
-          onclick={fetchLogs}
-        >
-          <RefreshCw size={16} class="{loading ? 'animate-spin' : ''}" />
-        </button>
       </div>
 
-      <!-- Row 2: Action + Resource filter chips -->
-      <div class="flex flex-col gap-2">
-        <!-- Action -->
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] font-semibold text-text-muted uppercase tracking-wider w-14 shrink-0">Action</span>
-          <div class="flex flex-wrap gap-1.5">
-            {#each actionFilters as f}
-              {@const Icon = f.icon}
-              <button
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all {selectedAction === f.id ? 'bg-primary-subtle text-primary-light border border-primary/30' : 'bg-surface-default text-text-muted border border-border hover:border-border-strong hover:text-text-secondary'}"
-                onclick={() => { selectedAction = f.id; offset = 0; }}
-              >
-                <Icon size={12} />
-                {f.label}
-              </button>
-            {/each}
-          </div>
-        </div>
-
+      <!-- Filter Chips -->
+      <div class="flex flex-col gap-3">
         <!-- Resource -->
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] font-semibold text-text-muted uppercase tracking-wider w-14 shrink-0">Resource</span>
-          <div class="flex flex-wrap gap-1.5">
-            {#each entityFilters as f}
-              {@const Icon = f.icon}
-              <button
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all {selectedEntity === f.id ? 'bg-primary-subtle text-primary-light border border-primary/30' : 'bg-surface-default text-text-muted border border-border hover:border-border-strong hover:text-text-secondary'}"
-                onclick={() => { selectedEntity = f.id; offset = 0; }}
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold text-text-muted uppercase tracking-wider w-16 shrink-0">Resource</span>
+          <div class="flex flex-wrap gap-2">
+            {#each resourceFilters as f}
+              <FilterChip
+                active={selectedResource === f.id}
+                onclick={() => { selectedResource = f.id; offset = 0; selectedAction = 'all'; }}
               >
-                <Icon size={12} />
                 {f.label}
-              </button>
+              </FilterChip>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Action -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold text-text-muted uppercase tracking-wider w-16 shrink-0">Action</span>
+          <div class="flex flex-wrap gap-2">
+             {#each relevantActions as f}
+              {@const disabled = isActionDisabled(f.id)}
+              <FilterChip
+                active={selectedAction === f.id}
+                disabled={disabled}
+                onclick={() => { if (!disabled) { selectedAction = f.id; offset = 0; } }}
+              >
+                {f.label}
+              </FilterChip>
             {/each}
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ─── Table ─── -->
-    <div class="card p-0 overflow-hidden">
-      <div class="px-4 py-2.5 border-b border-border flex items-center justify-between">
-        <p class="text-sm font-medium text-text-primary">Activity Log</p>
-        {#if !loading && total > 0}
-          <span class="text-xs text-text-muted">{total} entries</span>
-        {/if}
-      </div>
+      <!-- Active Filters Bar -->
+      {#if activeFilters.length > 0}
+        <div class="flex items-center gap-3 pt-4 border-t border-border/50">
+          <span class="text-sm font-medium text-text-secondary shrink-0">
+            Showing <span class="text-text-primary">{total}</span> results
+          </span>
+          <div class="h-4 w-px bg-border mx-1 shrink-0"></div>
+          <div class="flex flex-wrap items-center gap-2 flex-1">
+            {#each activeFilters as filter}
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-hover border border-border text-xs text-text-secondary">
+                <span class="capitalize">{filter.label}</span>
+                <button
+                  class="text-text-muted hover:text-text-primary transition-colors focus:outline-none"
+                  onclick={() => clearFilter(filter.type)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            {/each}
 
-      {#if loading}
-        <div class="divide-y divide-border">
-          {#each { length: 6 } as _}
-            <div class="flex items-center gap-3 px-4 py-3">
-              <div class="space-y-1.5 w-36">
-                <Skeleton width="w-full" height="h-3" />
-                <Skeleton width="w-20" height="h-2.5" />
-              </div>
-              <div class="flex items-center gap-2">
-                <Skeleton width="w-7" height="h-7" rounded="rounded-full" />
-                <Skeleton width="w-16" height="h-3" />
-              </div>
-              <Skeleton width="w-16" height="h-5" rounded="rounded-full" />
-              <div class="flex items-center gap-1.5">
-                <Skeleton width="w-4" height="h-4" rounded="rounded" />
-                <Skeleton width="w-20" height="h-3.5" />
-              </div>
-              <Skeleton width="w-40" height="h-3" />
-              <Skeleton width="w-24" height="h-3" />
-              <Skeleton width="w-7" height="h-7" rounded="rounded-lg" />
-            </div>
-          {/each}
-        </div>
-      {:else if items.length === 0}
-        <div class="px-4 py-16 text-center">
-          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
-            <ScrollText size={32} class="text-text-muted" />
+            <button
+              class="text-xs font-medium text-primary-light hover:text-primary-default transition-colors ml-2"
+              onclick={clearAllFilters}
+            >
+              Clear All
+            </button>
           </div>
-          <p class="text-text-primary font-semibold mt-4">No log entries found</p>
-          <p class="text-text-muted text-sm mt-1">
-            {searchQuery ? `No results for "${searchQuery}"` : 'Try adjusting your filters'}
-          </p>
-        </div>
-      {:else}
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="sticky top-0 bg-bg-secondary z-10">
-              <tr>
-                <th class="text-left px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-44">Timestamp</th>
-                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-28">Actor</th>
-                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-20">Action</th>
-                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-28">Resource</th>
-                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Description</th>
-                <th class="text-left px-3 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-32">IP Address</th>
-                <th class="w-10 px-2 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each items as log (log.id)}
-                {@const EntityIcon = entityIcon(log.entity_type)}
-                {@const ActionIcon = actionIcon(log.action)}
-                <tr class="border-t border-border/60 hover:bg-surface-hover/50 transition-colors group">
-                  <td class="px-4 py-3 text-xs whitespace-nowrap">
-                    {#if log.created_at}
-                      {@const ts = formatTimestamp(log.created_at)}
-                      <div class="flex flex-col">
-                        <span class="text-text-secondary font-medium">{ts.date}</span>
-                        <span class="text-text-muted text-[11px]">{ts.time}</span>
-                      </div>
-                    {:else}
-                      <span class="text-text-muted">—</span>
-                    {/if}
-                  </td>
-                  <td class="px-3 py-3">
-                    {#if log.username && log.username !== '—'}
-                      <div class="flex items-center gap-2.5">
-                        <div class="w-7 h-7 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
-                          <span class="text-xs font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
-                        </div>
-                        <span class="font-medium text-text-primary text-xs">{log.username}</span>
-                      </div>
-                    {:else}
-                      <span class="font-medium text-text-muted text-xs">—</span>
-                    {/if}
-                  </td>
-                  <td class="px-4 py-3">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium {actionVariantClass(log.action)}">
-                      <ActionIcon size={11} />
-                      {log.action || '—'}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-1.5">
-                      <EntityIcon size={12} class="text-text-muted shrink-0" />
-                      <span class="font-mono text-xs text-text-muted bg-surface-default px-1.5 py-0.5 rounded border border-border/50 truncate max-w-[100px]">
-                        {log.entity_type || '—'}
-                      </span>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-xs text-text-secondary" style="max-width:200px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
-                    {log.description || '—'}
-                  </td>
-                  <td class="px-4 py-3 font-mono text-xs text-text-muted">
-                    {log.ip_address || '—'}
-                  </td>
-                  <td class="px-2 py-3">
-                    <button
-                      class="p-1.5 rounded-md text-text-muted/70 hover:text-primary-light hover:bg-primary-subtle/20 transition-all"
-                      onclick={() => openDetails(log)}
-                      title="View Details"
-                    >
-                      <ExternalLink size={13} />
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="px-4 py-3 bg-surface-subtle/20 border-t border-border/60">
-          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
         </div>
       {/if}
     </div>
-  </div>
 
-  <!-- ─── Details Drawer ─── -->
-  {#if isDrawerOpen && selectedLog}
-    <!-- Backdrop -->
-    <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onclick={closeDetails}></div>
-
-    <!-- Drawer panel -->
-    <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in">
-      <!-- Header -->
-      <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div class="flex items-center gap-3">
-          <Badge variant={actionVariant(selectedLog.action)} size="sm">{selectedLog.action}</Badge>
-          <span class="font-mono text-xs text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
-        </div>
-        <button class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDetails}>
-          <X size={18} />
-        </button>
-      </div>
-
-      <!-- Body -->
-      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-        <!-- Description -->
-        <div>
-          <p class="text-text-primary font-medium">{selectedLog.description}</p>
-        </div>
-
-        {#if selectedLog.entity_id}
-          <div class="text-xs text-text-muted font-mono">Entity ID: {selectedLog.entity_id}</div>
-        {/if}
-
-        <!-- Meta grid -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Timestamp</p>
-            <div class="flex flex-col">
-              {#if selectedLog.created_at}
-                {@const ts = formatTimestamp(selectedLog.created_at)}
-                <span class="font-medium">{ts.date}</span>
-                <span class="text-text-muted text-[11px]">{ts.time}</span>
-              {:else}
-                <span>—</span>
-              {/if}
-            </div>
-          </div>
-          <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Actor</p>
-            <p class="text-xs text-text-primary font-medium">{selectedLog.username || '—'}</p>
-          </div>
-          <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">IP Address</p>
-            <div class="flex items-center gap-1.5 text-xs text-text-secondary font-mono">
-              <Globe size={12} />
-              {selectedLog.ip_address || '—'}
-            </div>
-          </div>
-          <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Role</p>
-            <p class="text-xs text-text-secondary">{selectedLog.role || '—'}</p>
+    <!-- 3. Audit Log Table -->
+    <div class="mt-4">
+      {#if loading}
+        <div class="card p-0 overflow-hidden">
+          <div class="divide-y divide-border">
+            {#each { length: 8 } as _}
+              <div class="flex items-center h-12 px-4">
+                <div class="w-[180px] shrink-0">
+                  <Skeleton width="w-32" height="h-3" />
+                </div>
+                <div class="w-[180px] shrink-0 flex items-center gap-2">
+                  <Skeleton width="w-6" height="h-6" rounded="rounded-full" />
+                  <Skeleton width="w-24" height="h-3" />
+                </div>
+                <div class="w-[120px] shrink-0">
+                  <Skeleton width="w-20" height="h-4" />
+                </div>
+                <div class="w-[120px] shrink-0">
+                  <Skeleton width="w-16" height="h-5" rounded="rounded-full" />
+                </div>
+                <div class="flex-1">
+                  <Skeleton width="w-full max-w-sm" height="h-3" />
+                </div>
+                <div class="w-[150px] shrink-0">
+                  <Skeleton width="w-24" height="h-3" />
+                </div>
+              </div>
+            {/each}
           </div>
         </div>
-
-        <!-- User Agent -->
-        {#if selectedLog.user_agent}
-          <div>
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">User Agent</p>
-            <div class="flex items-start gap-2 p-3 bg-surface-default rounded-lg border border-border/50">
-              <Monitor size={14} class="text-text-muted mt-0.5 shrink-0" />
-              <p class="text-xs text-text-secondary font-mono leading-relaxed break-all">{selectedLog.user_agent}</p>
-            </div>
+      {:else if items.length === 0}
+        <div class="card px-4 py-24 flex flex-col items-center justify-center text-center">
+          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+            <Search size={32} class="text-text-muted" />
           </div>
-        {/if}
+          <p class="text-text-primary font-semibold mt-4">No audit logs found</p>
+          <p class="text-text-muted text-sm mt-1 max-w-sm">Try adjusting your filters or search terms to find what you're looking for.</p>
+          <button class="btn btn-secondary mt-6" onclick={clearAllFilters}>
+            Clear Filters
+          </button>
+        </div>
+      {:else}
+        <div class="card p-0 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+              <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
+                <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
+                  <th class="px-4 py-3 w-[180px]">Timestamp</th>
+                  <th class="px-4 py-3 w-[180px]">Actor</th>
+                  <th class="px-4 py-3 w-[120px]">Resource</th>
+                  <th class="px-4 py-3 w-[120px]">Action</th>
+                  <th class="px-4 py-3">Description</th>
+                  <th class="px-4 py-3 w-[150px]">IP Address</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-border">
+                {#each items as log (log.id)}
+                  {@const ts = formatTimestamp(log.created_at)}
+                  <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" onclick={() => openDrawer(log)}>
+                    <td class="px-4 py-3 align-middle">
+                      <div class="flex flex-col">
+                        <span class="text-text-primary font-medium text-sm">{ts.date}</span>
+                        <span class="text-text-muted text-xs">{ts.time}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                      {#if log.username && log.username !== '—'}
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                            <span class="text-[10px] font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <span class="font-medium text-text-primary text-sm truncate max-w-[130px]">{log.username}</span>
+                        </div>
+                      {:else}
+                        <span class="font-medium text-text-muted text-sm">—</span>
+                      {/if}
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                      <span class="font-mono text-sm text-text-secondary bg-surface-hover px-2 py-1 rounded border border-border/50 capitalize">
+                        {log.entity_type || '—'}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                      <ActionBadge action={log.action} />
+                    </td>
+                    <td class="px-4 py-3 align-middle text-sm text-text-secondary truncate max-w-xs" title={log.description}>
+                      {log.description || '—'}
+                    </td>
+                    <td class="px-4 py-3 align-middle font-mono text-sm text-text-muted">
+                      {log.ip_address || '—'}
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="p-4 bg-surface-subtle/30">
+            <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+          </div>
+        </div>
+      {/if}
+     </div>
+   </div>
+ {/if}
+
+  <!-- Details Drawer -->
+  {#if drawerOpen && selectedLog}
+    {@const changes = getChanges(selectedLog)}
+    <button type="button" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onclick={closeDrawer} aria-label="Close drawer"></button>
+   <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in">
+     <!-- Header -->
+     <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+       <div class="flex items-center gap-3">
+         <ActionBadge action={selectedLog.action} />
+         <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
+       </div>
+       <button class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDrawer}>
+         <X size={18} />
+       </button>
+     </div>
+
+     <!-- Body -->
+     <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+       <!-- Human-friendly summary -->
+       <div class="bg-surface-default rounded-lg p-4 border border-border/50">
+         <p class="text-sm text-text-primary leading-relaxed">
+           <span class="font-semibold">{selectedLog.username || 'Unknown user'}</span>
+           {#if selectedLog.role}<span class="text-text-muted"> ({selectedLog.role})</span>{/if}
+           <span> </span>
+           <span class="font-medium">{getActionVerb(selectedLog.action)}</span>
+           {#if selectedLog.entity_type}
+             <span> a </span>
+             <span class="font-medium">{getResourceLabel(selectedLog.entity_type)}</span>
+           {/if}
+           {#if selectedLog.entity_id}
+             <span> (ID: {selectedLog.entity_id})</span>
+           {/if}
+         </p>
+         <p class="text-xs text-text-muted mt-2 flex items-center gap-1.5">
+           <Clock size={12} />
+           {formatDateHuman(selectedLog.created_at)} · {formatTimestamp(selectedLog.created_at).full}
+         </p>
+       </div>
+
+       <!-- Description -->
+       {#if selectedLog.description}
+         <div>
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Description</p>
+           <p class="text-sm text-text-primary">{selectedLog.description}</p>
+         </div>
+       {/if}
+
+       <!-- Meta grid -->
+       <div class="grid grid-cols-2 gap-3">
+         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">When</p>
+           <p class="text-sm text-text-primary">{formatTimestamp(selectedLog.created_at).full}</p>
+           <p class="text-xs text-text-muted mt-0.5">{formatDateHuman(selectedLog.created_at)}</p>
+         </div>
+         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Who</p>
+           <div class="flex items-center gap-2">
+             {#if selectedLog.username && selectedLog.username !== '—'}
+               <div class="w-5 h-5 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                 <span className="text-[8px] font-bold text-white">{selectedLog.username.charAt(0).toUpperCase()}</span>
+               </div>
+             {/if}
+             <p class="text-sm text-text-primary">{selectedLog.username || 'Unknown'}</p>
+           </div>
+           {#if selectedLog.role}
+             <p class="text-xs text-text-secondary mt-0.5 capitalize">{selectedLog.role}</p>
+           {/if}
+         </div>
+         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">From</p>
+           <div class="flex items-center gap-1.5 text-sm text-text-primary">
+             <Globe size={14} class="text-text-muted" />
+             <span class="font-mono">{selectedLog.ip_address || '—'}</span>
+           </div>
+         </div>
+         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Resource</p>
+           <p class="text-sm text-text-primary capitalize">{getResourceLabel(selectedLog.entity_type) || '—'}</p>
+           {#if selectedLog.entity_id}
+             <p class="text-xs text-text-secondary font-mono mt-0.5">ID: {selectedLog.entity_id}</p>
+           {/if}
+         </div>
+       </div>
+
+       <!-- User Agent -->
+       {#if selectedLog.user_agent}
+         <div>
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">Browser / Device</p>
+           <div class="flex items-start gap-2 p-3 bg-surface-default rounded-lg border border-border/50">
+             <Monitor size={14} class="text-text-muted mt-0.5 shrink-0" />
+             <p class="text-xs text-text-secondary font-mono leading-relaxed break-all">{selectedLog.user_agent}</p>
+           </div>
+         </div>
+       {/if}
 
         <!-- Data Changes -->
-        <div>
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">Data Changes</p>
-          {#if changes.length > 0}
-            <div class="space-y-2">
-              {#each changes as change}
-                <div class="border border-border/50 rounded-lg overflow-hidden">
-                  <div class="bg-surface-default px-3 py-1.5 border-b border-border/50">
-                    <span class="text-[11px] font-semibold text-text-secondary">{change.key.replace(/_/g, ' ')}</span>
-                  </div>
-                  <div class="grid grid-cols-2 divide-x divide-border/50">
-                    <div class="p-2.5">
-                      <p class="text-[9px] uppercase tracking-widest text-text-muted font-semibold mb-1">Before</p>
-                      <p class="text-[11px] font-mono text-danger-light break-all">
-                        {change.old != null ? JSON.stringify(change.old) : '—'}
-                      </p>
-                    </div>
-                    <div class="p-2.5">
-                      <p class="text-[9px] uppercase tracking-widest text-text-muted font-semibold mb-1">After</p>
-                      <p class="text-[11px] font-mono text-success-light break-all">
-                        {change.new != null ? JSON.stringify(change.new) : '—'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {:else if selectedLog.action === 'CREATE' || selectedLog.action === 'UPDATE' || selectedLog.action === 'DELETE'}
-            <div class="p-6 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
-              <p class="text-xs text-text-muted italic">No specific data changes captured.</p>
-            </div>
-          {:else}
-            <div class="p-6 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
-              <p class="text-xs text-text-muted italic">System event — no data changes.</p>
-            </div>
-          {/if}
-        </div>
-      </div>
-    </div>
-  {/if}
-{/if}
+        {#if changes.length > 0}
+         <div>
+           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3">What Changed</p>
+           <div class="space-y-2">
+             {#each changes as change}
+               {@const diff = getDiffDescription(change)}
+               <div class="bg-surface-default rounded-lg p-3 border border-border/50">
+                 <div class="flex items-start gap-3">
+                   <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 {diff.color === 'success' ? 'bg-success-subtle' : diff.color === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}">
+                     <diff.icon size={12} class="{diff.color === 'success' ? 'text-success-light' : diff.color === 'danger' ? 'text-danger-light' : 'text-warning-light'}" />
+                   </div>
+                   <div class="flex-1 min-w-0">
+                     <p class="text-xs font-semibold text-text-secondary">{diff.label}</p>
+                     <p class="text-sm text-text-primary mt-0.5">{diff.text}</p>
+                   </div>
+                 </div>
+               </div>
+             {/each}
+           </div>
+         </div>
+        {:else if selectedLog.action === 'CREATE' || selectedLog.action === 'UPDATE' || selectedLog.action === 'DELETE'}
+          <div class="p-4 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
+            <p class="text-sm text-text-muted">No specific data changes captured for this {selectedLog.action.toLowerCase()} action.</p>
+          </div>
+        {/if}
+     </div>
+   </div>
+ {/if}
 
-<!-- Custom Date Range Modal -->
-{#if showCustomDateModal}
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={() => showCustomDateModal = false}>
-  <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-5 w-full max-w-sm mx-4" onclick={(e) => e.stopPropagation()}>
-    <h3 class="text-sm font-semibold text-text-primary mb-4">Custom Date Range</h3>
-    <div class="space-y-3">
+  <!-- Custom Date Range Modal -->
+  {#if showCustomDateModal}
+  <button type="button" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onclick={() => showCustomDateModal = false} aria-label="Close date modal"></button>
+  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+    <div class="bg-surface-default border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 pointer-events-auto" onclick={(e) => e.stopPropagation()}>
+    <h3 class="text-base font-semibold text-text-primary mb-5">Custom Date Range</h3>
+    <div class="space-y-4">
       <div>
-        <label for="custom-start" class="block text-xs font-medium text-text-secondary mb-1">Start Date</label>
+        <label for="custom-start" class="block text-sm font-medium text-text-secondary mb-1.5">Start Date</label>
         <input
           id="custom-start"
           type="date"
-          class="input w-full text-sm"
+          class="input w-full text-sm bg-surface-hover"
           bind:value={customStartDate}
           min={startDateMin}
           max={startDateMax}
         />
       </div>
       <div>
-        <label for="custom-end" class="block text-xs font-medium text-text-secondary mb-1">End Date</label>
+        <label for="custom-end" class="block text-sm font-medium text-text-secondary mb-1.5">End Date</label>
         <input
           id="custom-end"
           type="date"
-          class="input w-full text-sm"
+          class="input w-full text-sm bg-surface-hover"
           bind:value={customEndDate}
           min={endDateMin}
           max={endDateMax}
         />
       </div>
     </div>
-    <div class="flex items-center justify-end gap-2 mt-5">
+    <div class="flex items-center justify-end gap-3 mt-6">
       <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => showCustomDateModal = false}>Cancel</button>
       <button class="btn btn-primary text-sm px-4 py-2" onclick={applyCustomRange} disabled={!customStartDate || !customEndDate}>Apply</button>
     </div>
