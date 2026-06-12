@@ -20,7 +20,7 @@
   const canNext = $derived(currentPage < totalPages);
 
   let pageInput = $state<string>('');
-  let editing = $derived(pageInput !== '');
+  let editing = $state(false);
   let cancelled = $state(false);
 
   function goToPage(page: number) {
@@ -36,24 +36,31 @@
   function startEdit() {
     pageInput = String(currentPage);
     cancelled = false;
+    editing = true;
   }
 
   function cancelEdit() {
     cancelled = true;
     pageInput = '';
+    editing = false;
   }
 
   function submitEdit() {
-    if (cancelled) return;
+    if (cancelled) { editing = false; return; }
     const parsed = parseInt(pageInput);
     if (isNaN(parsed) || parsed < 1) {
-      goToPage(1);
+      // Empty input or invalid — stay on current page, no rerender
+      const curPage = currentPage;
+      pageInput = String(curPage);
+      // Don't call goToPage, just reset input to current page
+      return;
     } else if (parsed > totalPages) {
       goToPage(totalPages);
     } else {
       goToPage(parsed);
     }
     pageInput = '';
+    editing = false;
   }
 
   function handleInput(e: Event) {
