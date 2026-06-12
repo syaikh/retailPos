@@ -21,6 +21,7 @@
 
   let pageInput = $state<string>('');
   let editing = $derived(pageInput !== '');
+  let cancelled = $state(false);
 
   function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
@@ -34,13 +35,16 @@
 
   function startEdit() {
     pageInput = String(currentPage);
+    cancelled = false;
   }
 
   function cancelEdit() {
+    cancelled = true;
     pageInput = '';
   }
 
   function submitEdit() {
+    if (cancelled) return;
     const parsed = parseInt(pageInput);
     if (isNaN(parsed) || parsed < 1) {
       goToPage(1);
@@ -54,7 +58,6 @@
 
   function handleInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
-    // Allow only digits
     pageInput = val.replace(/[^0-9]/g, '');
   }
 
