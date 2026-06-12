@@ -754,7 +754,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
-		 VALUES ($1, $2, $3, 'completed', $4, $4, $5, $6) RETURNING id`)
+		 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`)
 	if err != nil {
 		tx.Rollback()
 		return 0
@@ -835,8 +835,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
-					 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`)
+					`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
+					 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`)
 				itemStmt, _ = tx.PrepareContext(ctx,
 					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
 
@@ -904,7 +904,7 @@ func randomTime24Hour(dayDate, now time.Time) time.Time {
 }
 
 // processIndividualSale handles one sale with optimized transaction
-func processIndividualSale(ctx context.Context, db *sql.DB, invoice string, cashierID int, paymentMethod string, createdAt time.Time, products []ProductInfo, productMap map[int]ProductInfo) error {
+func processIndividualSale(ctx context.Context, db *sql.DB, invoice string, cashierID int, customerID int, paymentMethod string, createdAt time.Time, products []ProductInfo, productMap map[int]ProductInfo) error {
 	// Start individual transaction for this sale
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -947,9 +947,9 @@ func processIndividualSale(ctx context.Context, db *sql.DB, invoice string, cash
 	// Insert sale record with pre-calculated total
 	var saleID int
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
-		 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`,
-		invoice, cashierID, paymentMethod, totalAmount, createdAt,
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
+		 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`,
+		invoice, cashierID, customerID, paymentMethod, totalAmount, createdAt,
 	).Scan(&saleID)
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
