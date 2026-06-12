@@ -276,9 +276,7 @@ let canView = $derived($auth.user != null);
                     </div>
                   </div>
                 </td>
-                <td>
-                  <code class="text-xs bg-surface-default px-2 py-1 rounded text-text-muted">{cat.slug}</code>
-                </td>
+                <td class="text-text-secondary text-sm">{cat.slug}</td>
                 <td class="text-center">
                   <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
                     {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
