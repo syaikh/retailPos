@@ -56,6 +56,7 @@ type dailySaleItem struct {
 type dailySaleRecord struct {
 	Invoice       string
 	CashierID     int
+	CustomerID    int
 	StoreID       sql.NullInt64
 	PaymentMethod string
 	CreatedAt     time.Time
@@ -166,8 +167,17 @@ func RunDaily(db *sql.DB) error {
 		return err
 	}
 
-	// 4. Build sales records in memory (start numbering after maxSeq)
-	records := buildRecords(products, storeIDs, cashierIDs, dateConsidered, now, salesCount, maxSeq)
+	// 4. Load customer IDs for sales assignment
+	customerIDs, err := loadCustomerIDs(ctx, db)
+	if err != nil {
+		return err
+	}
+	if len(customerIDs) == 0 {
+		return fmt.Errorf("no customers found — run the bulk seeder first with: go run ./cmd/dummy -products 100 -days 180")
+	}
+
+	// 5. Build sales records in memory (start numbering after maxSeq)
+	records := buildRecords(products, storeIDs, cashierIDs, customerIDs, dateConsidered, now, salesCount, maxSeq)
 
 	// 5. Persist
 	inserted := insertRecords(ctx, db, records)
@@ -254,12 +264,32 @@ func loadStoreIDs(ctx context.Context, db *sql.DB) ([]int, error) {
 	return out, nil
 }
 
+func loadCustomerIDs(ctx context.Context, db *sql.DB) ([]int, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id FROM customers ORDER BY id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]int, 0)
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
 // ---------- record building ----------
 
 func buildRecords(
 	products []dailySaleProduct,
 	storeIDs []int,
 	cashierIDs []int,
+	customerIDs []int,
 	targetDate, now time.Time,
 	salesCount, startSeq int,
 ) []dailySaleRecord {
@@ -284,11 +314,13 @@ func buildRecords(
 
 		seq := startSeq + i + 1 // +1 because startSeq=0 means first invoice is 1
 		cashierID := cashierIDs[rand.Intn(len(cashierIDs))]
+		customerID := customerIDs[rand.Intn(len(customerIDs))]
 		storeID := storeIDForSale(storeIDs, dailyStoreID)
 
 		records = append(records, dailySaleRecord{
 			Invoice:       fmt.Sprintf("INV-%d-%06d", targetDate.Year(), seq),
 			CashierID:     cashierID,
+			CustomerID:    customerID,
 			StoreID:       storeID,
 			PaymentMethod: weightedPick(paymentMethods, paymentWeights),
 			CreatedAt:     createdAt,
@@ -473,10 +505,10 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 	var saleID int
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO sales
-			(invoice_number, cashier_id, store_id, subtotal, total_amount, payment_method, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7)
+			(invoice_number, cashier_id, customer_id, store_id, subtotal, total_amount, payment_method, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)
 		 RETURNING id
-	`, sale.Invoice, sale.CashierID, sale.StoreID, sale.TotalAmount, sale.TotalAmount,
+	`, sale.Invoice, sale.CashierID, sale.CustomerID, sale.StoreID, sale.TotalAmount, sale.TotalAmount,
 		sale.PaymentMethod, sale.CreatedAt).Scan(&saleID)
 	if err != nil {
 		return fmt.Errorf("insert sale: %w", err)

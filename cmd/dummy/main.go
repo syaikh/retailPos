@@ -311,19 +311,25 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		}
 	}
 
-	// 5. Inject sales transactions (10-20 per day across all days)
-	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
-
-	if err := injectDailySales(ctx, db, userIDs, productData, startDate, endDate); err != nil {
-		return fmt.Errorf("failed to inject sales: %w", err)
-	}
-
-	// 6. Inject dummy customers (50-100)
+	// 5. Inject dummy customers (50-100) — must happen BEFORE sales so we can link them
 	fmt.Printf("👥 Injecting dummy customers...\n")
 	if err := injectCustomers(ctx, db, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject customers: %w", err)
 	}
 	fmt.Printf("   ✅ Customers injected\n")
+
+	// 6. Load customer IDs for sales assignment
+	customerIDs := getIDs(ctx, db, "customers")
+	if len(customerIDs) == 0 {
+		return fmt.Errorf("no customers found after injection")
+	}
+
+	// 7. Inject sales transactions (10-20 per day across all days)
+	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
+
+	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject sales: %w", err)
+	}
 
 	fmt.Println("🎉 Dummy data injection completed successfully!")
 	return nil
@@ -610,10 +616,11 @@ type workerJob struct {
 	workerID     int
 	startInvoice int
 	days         []int // Days this worker handles (relative to startDate)
+	customerIDs  []int // Available customer IDs to assign to sales
 }
 
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
-func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, startDate, endDate time.Time) error {
+func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, startDate, endDate time.Time) error {
 	numWorkers := 4 // Concurrent workers for performance
 
 	now := time.Now().In(jakartaTZ)
@@ -656,6 +663,7 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 			workerID:     i,
 			startInvoice: currentInvoice,
 			days:         []int{},
+			customerIDs:  customerIDs,
 		}
 
 		// Update invoice counter for next worker
@@ -745,8 +753,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	}
 
 	saleStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, payment_method, status, subtotal, total_amount, created_at)
-		 VALUES ($1, $2, $3, 'completed', $4, $4, $5) RETURNING id`)
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
+		 VALUES ($1, $2, $3, 'completed', $4, $4, $5, $6) RETURNING id`)
 	if err != nil {
 		tx.Rollback()
 		return 0
@@ -775,6 +783,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			invoiceCounter++
 
 			cashierID := randElemInt(userIDs)
+			customerID := randElemInt(job.customerIDs)
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
 			createdAt := randomTime24Hour(dayDate, now)
 
@@ -806,7 +815,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			// Insert sale
 			var saleID int
-			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, paymentMethod, totalAmount, createdAt).Scan(&saleID)
+			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalAmount, createdAt).Scan(&saleID)
 			if err != nil {
 				continue
 			}
