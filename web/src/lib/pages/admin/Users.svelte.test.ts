@@ -5,10 +5,10 @@ import path from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), 'Users.svelte'), 'utf-8');
+  return readFileSync(path.join(path.dirname(__filename), 'UsersPage.svelte'), 'utf-8');
 }
 
-describe('Users.svelte source-structure guards', () => {
+describe('UsersPage.svelte source-structure guards', () => {
   const src = getSource();
 
   // ── Imports ──────────────────────────────────────────────────────────────────
