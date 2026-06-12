@@ -360,6 +360,15 @@
     fetchCustomers();
     isInitialMount = false;
     focusSearch();
+    try {
+      const r = await apiClient.get('/sales?limit=1&offset=0&sort=desc');
+      const data = r.data?.data || r.data;
+      if (Array.isArray(data) && data.length > 0) {
+        lastSale = data[0];
+      } else if (data && !Array.isArray(data)) {
+        lastSale = data;
+      }
+    } catch (_) {}
     unsubscribeStock = ws.on('stock_update', (data) => {
       const product = products.find(p => p.id === data.id);
       if (product) {
@@ -659,15 +668,18 @@
             {/if}
           </button>
 
-          {#if lastSale}
-            <button
-              class="btn btn-ghost w-full py-2 mt-2"
-              onclick={printReceipt}
-            >
-              <Printer size={16} />
-              Print Receipt
-            </button>
-          {/if}
+          <button
+            class="btn btn-ghost w-full py-2 mt-2"
+            onclick={printReceipt}
+            disabled={!lastSale}
+          >
+            <Printer size={16} />
+            {#if lastSale}
+              Print Last Receipt · {lastSale.invoice_number}
+            {:else}
+              Print Last Receipt
+            {/if}
+          </button>
         </div>
       </div>
     </div>

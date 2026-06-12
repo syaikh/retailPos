@@ -4,7 +4,8 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
 import { chart } from '$lib/actions/chart';
-   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaHourFromUTC } from '$lib/utils/jakartaTime';
+  import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaHourFromUTC } from '$lib/utils/jakartaTime';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -14,7 +15,7 @@ import { chart } from '$lib/actions/chart';
   import {
     Receipt, BarChart3, Banknote,
     CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye, Search, X,
+    ChevronDown, Eye, Search, X, Printer,
     Clock, TrendingUp, TrendingDown, Info,
     CircleDollarSign
   } from 'lucide-svelte';
@@ -991,6 +992,25 @@ async function exportToExcel() {
     showTransactionModal = true;
   }
 
+  function printTransactionReceipt() {
+    if (!selectedTransaction || !selectedTransaction.items) return;
+    printReceiptStore.set({
+      invoice_number: selectedTransaction.invoice_number,
+      created_at: selectedTransaction.created_at,
+      items: selectedTransaction.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      })),
+      total_amount: selectedTransaction.total_amount,
+      paymentMethod: selectedTransaction.payment_method || '—',
+      cashReceived: selectedTransaction.cash_received || selectedTransaction.total_amount,
+      changeDue: selectedTransaction.change_due || 0,
+      customer_name: selectedTransaction.customer_name || undefined,
+    });
+    setTimeout(() => window.print(), 300);
+  }
+
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
     limit = newLimit;
@@ -1766,6 +1786,10 @@ onValueChange={(val) => {
         <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
           <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
             Close
+          </button>
+          <button class="btn btn-secondary btn-sm px-4 flex items-center gap-1.5" onclick={printTransactionReceipt}>
+            <Printer size={14} />
+            Print Receipt
           </button>
           <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={() => {
             const data = {
