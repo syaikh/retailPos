@@ -13,6 +13,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// stockMinimum is defined in main.go (same package)
+
 // loadJakartaLocation loads the Asia/Jakarta timezone location.
 // Falls back to UTC if the tzdata bundle is missing.
 var jakartaLoc *time.Location

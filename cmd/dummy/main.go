@@ -10,12 +10,24 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+// stockMinimum is the minimum stock threshold for newly seeded products.
+// Read from STOCK_MINIMUM env var; defaults to 0 so products are not flagged as low stock.
+var stockMinimum = func() int {
+	if v := os.Getenv("STOCK_MINIMUM"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			return n
+		}
+	}
+	return 0
+}()
 
 type ProductTemplate struct {
 	Category     string
@@ -579,7 +591,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		barcode := generateBarcode(i)
 
 		stock := generateStockLevel(catName)
-		stockMin := 5 + rand.Intn(10) // minimum stock threshold 5-14
+		// stock_min: use env STOCK_MINIMUM (default 0) so products are not flagged as low stock
+		stockMin := stockMinimum
 
 		// Random date within last 6 months (evenly distributed across the period)
 		randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
