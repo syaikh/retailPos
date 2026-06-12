@@ -190,10 +190,17 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 }
 
 func (r *postgresRepository) CreateUser(ctx context.Context, user *domain.User) error {
-	return r.db.QueryRow(ctx, `
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
 		INSERT INTO users (username, email, password_hash, role_id, store_id, is_active)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at
-	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.IsActive).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.IsActive).Scan(&user.ID, &createdAt, &updatedAt)
+	if err != nil {
+		return err
+	}
+	user.CreatedAt = createdAt.Format(time.RFC3339)
+	user.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return nil
 }
 
 func (r *postgresRepository) UpdateUser(ctx context.Context, user *domain.User) error {
@@ -348,18 +355,15 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
-		       p.store_id, p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
-		       p.created_at, p.updated_at
-		FROM products p 
-		LEFT JOIN categories c ON p.category_id = c.id 
-		LEFT JOIN brands b ON p.brand_id = b.id 
-		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
-		WHERE p.id = $1 AND p.deleted_at IS NULL`
+		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
+		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.created_at, v.updated_at
+		FROM v_products_full v
+		WHERE v.id = $1`
 
 	args := []interface{}{id}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND v.store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
 
@@ -422,14 +426,11 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status,
-		       p.store_id, p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
-		       p.created_at, p.updated_at
-		FROM products p 
-		LEFT JOIN categories c ON p.category_id = c.id 
-		LEFT JOIN brands b ON p.brand_id = b.id 
-		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
-		WHERE p.sku = $1 AND p.deleted_at IS NULL`
+		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
+		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.created_at, v.updated_at
+		FROM v_products_full v
+		WHERE v.sku = $1`
 
 	args := []interface{}{sku}
 	if storeID != nil {
@@ -493,12 +494,12 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	var total int
 
 	query := `SELECT COUNT(*) 
-		FROM products p 
-		WHERE p.deleted_at IS NULL`
+		FROM v_products_full v 
+		WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1
 	if search != "" {
-		query += fmt.Sprintf(" AND (p.name ILIKE $%d OR p.sku ILIKE $%d OR p.barcode ILIKE $%d)", argIdx, argIdx, argIdx)
+		query += fmt.Sprintf(" AND (v.name ILIKE $%d OR v.sku ILIKE $%d OR v.barcode ILIKE $%d)", argIdx, argIdx, argIdx)
 		args = append(args, "%"+search+"%")
 		argIdx++
 	}
@@ -509,20 +510,20 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 			args = append(args, cid)
 			argIdx++
 		}
-		query += fmt.Sprintf(" AND p.category_id IN (%s)", strings.Join(placeholders, ","))
+		query += fmt.Sprintf(" AND v.category_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
-		query += fmt.Sprintf(" AND p.stock <= $%d", argIdx)
+		query += fmt.Sprintf(" AND v.stock <= $%d", argIdx)
 		args = append(args, *maxStock)
 		argIdx++
 	}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", argIdx)
+		query += fmt.Sprintf(" AND v.store_id = $%d", argIdx)
 		args = append(args, *storeID)
 		argIdx++
 	}
 	if status != "" {
-		query += fmt.Sprintf(" AND p.status = $%d", argIdx)
+		query += fmt.Sprintf(" AND v.status = $%d", argIdx)
 		args = append(args, status)
 		argIdx++
 	}
@@ -532,18 +533,15 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query2 := `SELECT p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name, p.price, p.cost, p.stock, p.status, p.store_id, 
-		       p.brand_id, b.name as brand_name, p.unit_of_measure_id, u.name as unit_of_measure, p.weight_grams, p.description,
-		       p.created_at, p.updated_at 
-		FROM products p 
-		LEFT JOIN categories c ON p.category_id = c.id 
-		LEFT JOIN brands b ON p.brand_id = b.id 
-		LEFT JOIN units_of_measure u ON p.unit_of_measure_id = u.id 
-		WHERE p.deleted_at IS NULL`
+	query2 := `SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status, v.store_id, 
+		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.created_at, v.updated_at 
+		FROM v_products_full v 
+		WHERE 1=1`
 	args2 := []interface{}{}
 	argIdx2 := 1
 	if search != "" {
-		query2 += fmt.Sprintf(" AND (p.name ILIKE $%d OR p.sku ILIKE $%d OR p.barcode ILIKE $%d)", argIdx2, argIdx2, argIdx2)
+		query2 += fmt.Sprintf(" AND (v.name ILIKE $%d OR v.sku ILIKE $%d OR v.barcode ILIKE $%d)", argIdx2, argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")
 		argIdx2++
 	}
@@ -554,20 +552,20 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 			args2 = append(args2, cid)
 			argIdx2++
 		}
-		query2 += fmt.Sprintf(" AND p.category_id IN (%s)", strings.Join(placeholders, ","))
+		query2 += fmt.Sprintf(" AND v.category_id IN (%s)", strings.Join(placeholders, ","))
 	}
 	if maxStock != nil {
-		query2 += fmt.Sprintf(" AND p.stock <= $%d", argIdx2)
+		query2 += fmt.Sprintf(" AND v.stock <= $%d", argIdx2)
 		args2 = append(args2, *maxStock)
 		argIdx2++
 	}
 	if storeID != nil {
-		query2 += fmt.Sprintf(" AND p.store_id = $%d", argIdx2)
+		query2 += fmt.Sprintf(" AND v.store_id = $%d", argIdx2)
 		args2 = append(args2, *storeID)
 		argIdx2++
 	}
 	if status != "" {
-		query2 += fmt.Sprintf(" AND p.status = $%d", argIdx2)
+		query2 += fmt.Sprintf(" AND v.status = $%d", argIdx2)
 		args2 = append(args2, status)
 		argIdx2++
 	}
@@ -577,7 +575,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 			query2 += " " + sortDir
 		}
 	} else {
-		query2 += " ORDER BY p.id DESC"
+		query2 += " ORDER BY v.id DESC"
 	}
 	query2 += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
@@ -685,7 +683,7 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 		description = *product.Description
 	}
 
-	return r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, store_id, status,
 		                    brand_id, description, tax_class_id, weight_grams, unit_of_measure_id, default_discount_percent)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
@@ -693,6 +691,25 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, product *domain.
 	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
 		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount).
 		Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	if storeIDVal != nil {
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
+		`, product.ID, storeIDVal, product.Stock)
+		if err != nil {
+			return fmt.Errorf("failed to initialize product stock: %w", err)
+		}
+	}
+	_, err = r.db.Exec(ctx, `
+		UPDATE products SET stock = $1 WHERE id = $2
+	`, product.Stock, product.ID)
+	if err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+	return nil
 }
 
 
@@ -757,7 +774,26 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, product *domain.
 		WHERE id = $16
 	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
 		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if storeIDVal != nil {
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
+		`, product.ID, storeIDVal, product.Stock)
+		if err != nil {
+			return fmt.Errorf("failed to sync product stock: %w", err)
+		}
+	}
+	_, err = r.db.Exec(ctx, `
+		UPDATE products SET stock = $1 WHERE id = $2
+	`, product.Stock, product.ID)
+	if err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
+	return nil
 }
 
 func (r *postgresRepository) DeleteProduct(ctx context.Context, id int, storeID *int) error {
@@ -1068,7 +1104,26 @@ func (r *postgresRepository) RestoreProduct(ctx context.Context, product *domain
 		    store_id = $8, status = $9, deleted_at = NULL, updated_at = NOW()
 		WHERE id = $10
 	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status, product.ID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if storeIDVal != nil {
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
+		`, product.ID, storeIDVal, product.Stock)
+		if err != nil {
+			return fmt.Errorf("failed to restore product stock: %w", err)
+		}
+	}
+	_, err = r.db.Exec(ctx, `
+		UPDATE products SET stock = $1 WHERE id = $2
+	`, product.Stock, product.ID)
+	if err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
+	return nil
 }
 
 // ==================== SALE ====================
@@ -1101,19 +1156,32 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
 		}
 
-		// 2. Update product stock (database constraint CHECK (stock >= 0) will prevent negative stock)
+		// 2. Update product stock in product_stock table; insert row if missing
 		cmd, err := tx.Exec(ctx, `
-			UPDATE products 
-			SET stock = stock - $1, updated_at = NOW() 
-			WHERE id = $2 AND deleted_at IS NULL
+			UPDATE product_stock
+			SET quantity = quantity - $1, updated_at = NOW()
+			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
 		`, items[i].Quantity, items[i].ProductID)
-
 		if err != nil {
-			// This could be a constraint violation (insufficient stock)
 			return fmt.Errorf("failed to update stock for product %d: %w", items[i].ProductID, err)
 		}
 		if cmd.RowsAffected() == 0 {
-			return fmt.Errorf("product %d not found or already deleted", items[i].ProductID)
+			var currentQty int
+			tx.QueryRow(ctx, `
+				SELECT COALESCE(quantity, 0) FROM product_stock
+				WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
+			`, items[i].ProductID).Scan(&currentQty)
+			newQty := currentQty - items[i].Quantity
+			if newQty < 0 {
+				newQty = 0
+			}
+			_, err = tx.Exec(ctx, `
+				INSERT INTO product_stock (product_id, quantity, updated_at)
+				VALUES ($1, GREATEST(0, $2), NOW())
+			`, items[i].ProductID, newQty)
+			if err != nil {
+				return fmt.Errorf("failed to insert stock row for product %d: %w", items[i].ProductID, err)
+			}
 		}
 
 		// 3. Record inventory movement
@@ -1135,10 +1203,12 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 	var createdAt, updatedAt time.Time
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
-		FROM sales WHERE id = $1
-	`, id).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeID, &sale.Subtotal, &sale.Discount, &sale.Tax,
-		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
+		SELECT s.id, s.invoice_number, s.cashier_id, s.customer_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name
+		FROM sales s
+		LEFT JOIN customers c ON s.customer_id = c.id
+		WHERE s.id = $1
+	`, id).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID, &sale.Subtotal, &sale.Discount, &sale.Tax,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt, &sale.CustomerName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("sale not found")
@@ -1218,7 +1288,10 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	}
 
 	// ---- DATA QUERY ----
-	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at FROM sales s WHERE 1=1`
+	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name
+		FROM sales s
+		LEFT JOIN customers c ON s.customer_id = c.id
+		WHERE 1=1`
 	args2 := []interface{}{}
 	argIdx2 := 1
 
@@ -1271,7 +1344,7 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		var storeIDVal sql.NullInt64
 		var createdAt, updatedAt time.Time
 		err = rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &s.Subtotal, &s.Discount, &s.Tax,
-			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt)
+			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt, &s.CustomerName)
 		if err != nil {
 			continue
 		}
@@ -1521,7 +1594,8 @@ func (r *postgresRepository) GetPeriodComparison(
 }
 
 func (r *postgresRepository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
-	todayStart := time.Now().In(mustLoadJakarta()).Truncate(24 * time.Hour)
+	jakartaNow := time.Now().In(mustLoadJakarta())
+	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, mustLoadJakarta())
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	todayQuery := `
@@ -1553,7 +1627,7 @@ func (r *postgresRepository) GetLiveDashboardStats(ctx context.Context, storeID 
 	}
 
 	cfg := config.Load()
-	stockQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND stock <= $1`
+	stockQuery := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
 	stockArgs := []interface{}{cfg.StockCriticalThreshold}
 	stockIdx := 2
 	if storeID != nil {
@@ -1628,7 +1702,6 @@ func (r *postgresRepository) GetBrandByID(ctx context.Context, id int) (*domain.
 		return nil, err
 	}
 	brand.CreatedAt = createdAt.Format(time.RFC3339)
-	brand.UpdatedAt = updatedAt.Format(time.RFC3339)
 	return &brand, nil
 }
 
@@ -1647,7 +1720,7 @@ func (r *postgresRepository) GetAllBrands(ctx context.Context) ([]domain.Brand, 
 			return nil, err
 		}
 		b.CreatedAt = createdAt.Format(time.RFC3339)
-		b.UpdatedAt = updatedAt.Format(time.RFC3339)
+		
 		brands = append(brands, b)
 	}
 	return brands, nil
@@ -1819,6 +1892,46 @@ func (r *postgresRepository) GetAllWarehouses(ctx context.Context, storeID *int)
 	return warehouses, nil
 }
 
+// GetStockByProductID returns the product_stock row for a product (generic store/warehouse)
+func (r *postgresRepository) GetStockByProductID(ctx context.Context, productID int) (*domain.ProductStock, error) {
+	var ps domain.ProductStock
+	var storeID, warehouseID sql.NullInt64
+	var reorderPoint, reorderQuantity sql.NullInt64
+	var lastRestockedAt sql.NullTime
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, product_id, warehouse_id, store_id, quantity, reorder_point, reorder_quantity, last_restocked_at, created_at, updated_at
+		FROM product_stock
+		WHERE product_id = $1
+		ORDER BY id ASC LIMIT 1
+	`, productID).Scan(&ps.ID, &ps.ProductID, &warehouseID, &storeID, &ps.Quantity, &reorderPoint, &reorderQuantity, &lastRestockedAt, &createdAt, &updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if warehouseID.Valid {
+		v := int(warehouseID.Int64)
+		ps.WarehouseID = &v
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		ps.StoreID = &v
+	}
+	if reorderPoint.Valid {
+		v := int(reorderPoint.Int64)
+		ps.ReorderPoint = v
+	}
+	if reorderQuantity.Valid {
+		v := int(reorderQuantity.Int64)
+		ps.ReorderQuantity = v
+	}
+	if lastRestockedAt.Valid {
+		ps.LastRestockedAt = lastRestockedAt.Time.Format(time.RFC3339)
+	}
+	ps.CreatedAt = createdAt.Format(time.RFC3339)
+	ps.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return &ps, nil
+}
+
 // AdjustStock updates product stock by quantity_change and records an inventory movement in a single transaction.
 func (r *postgresRepository) AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error {
 	if quantityChange == 0 {
@@ -1832,12 +1945,17 @@ func (r *postgresRepository) AdjustStock(ctx context.Context, productID int, qua
 	defer tx.Rollback(ctx)
 
 	var currentStock int
-	err = tx.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, productID).Scan(&currentStock)
+	err = tx.QueryRow(ctx, `
+		SELECT COALESCE(quantity, 0) FROM product_stock
+		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
+		FOR UPDATE
+	`, productID).Scan(&currentStock)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("product not found")
+			currentStock = 0
+		} else {
+			return fmt.Errorf("failed to load product stock: %w", err)
 		}
-		return fmt.Errorf("failed to load product stock: %w", err)
 	}
 
 	newStock := currentStock + quantityChange
@@ -1845,9 +1963,22 @@ func (r *postgresRepository) AdjustStock(ctx context.Context, productID int, qua
 		return fmt.Errorf("insufficient stock: current %d, requested %d", currentStock, quantityChange)
 	}
 
-	_, err = tx.Exec(ctx, `UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2`, newStock, productID)
+	cmd, err := tx.Exec(ctx, `
+		UPDATE product_stock
+		SET quantity = $2, updated_at = NOW()
+		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
+	`, productID, newStock)
 	if err != nil {
 		return fmt.Errorf("failed to update stock: %w", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO product_stock (product_id, quantity, updated_at)
+			VALUES ($1, $2, NOW())
+		`, productID, newStock)
+		if err != nil {
+			return fmt.Errorf("failed to insert stock: %w", err)
+		}
 	}
 
 	_, err = tx.Exec(ctx, `
@@ -1886,3 +2017,184 @@ func (r *postgresRepository) GetNextInvoiceNumber(ctx context.Context) (string, 
 
 	return fmt.Sprintf("INV-%d-%06d", year, maxSeq+1), nil
 }
+
+// ==================== PAYMENT METHODS ====================
+
+func (r *postgresRepository) GetAllActive(ctx context.Context) ([]domain.PaymentMethod, error) {
+	var methods []domain.PaymentMethod
+	rows, err := r.db.Query(ctx, `
+		SELECT id, code, name, is_active, requires_reference, sort_order, created_at
+		FROM payment_methods
+		WHERE is_active = true
+		ORDER BY sort_order ASC, id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var m domain.PaymentMethod
+		var createdAt time.Time
+		err := rows.Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		m.CreatedAt = createdAt.Format(time.RFC3339)
+		methods = append(methods, m)
+	}
+	return methods, nil
+}
+
+func (r *postgresRepository) GetPaymentMethodByCode(ctx context.Context, code string) (*domain.PaymentMethod, error) {
+	var m domain.PaymentMethod
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, code, name, is_active, requires_reference, sort_order, created_at
+		FROM payment_methods
+		WHERE code = $1
+	`, code).Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("payment method not found")
+		}
+		return nil, err
+	}
+	m.CreatedAt = createdAt.Format(time.RFC3339)
+	return &m, nil
+}
+
+func (r *postgresRepository) GetPaymentMethodByID(ctx context.Context, id int) (*domain.PaymentMethod, error) {
+	var m domain.PaymentMethod
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, code, name, is_active, requires_reference, sort_order, created_at
+		FROM payment_methods
+		WHERE id = $1
+	`, id).Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("payment method not found")
+		}
+		return nil, err
+	}
+	m.CreatedAt = createdAt.Format(time.RFC3339)
+	return &m, nil
+}
+
+func (r *postgresRepository) GetByPhone(ctx context.Context, phone string) (*domain.Customer, error) {
+	var c domain.Customer
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
+		FROM customers
+		WHERE phone = $1
+	`, phone).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("customer not found")
+		}
+		return nil, err
+	}
+	c.CreatedAt = createdAt.Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return &c, nil
+}
+
+func (r *postgresRepository) GetCustomerByID(ctx context.Context, id int) (*domain.Customer, error) {
+	var c domain.Customer
+	var createdAt, updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
+		FROM customers WHERE id = $1
+	`, id).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("customer not found")
+		}
+		return nil, err
+	}
+	c.CreatedAt = createdAt.Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return &c, nil
+}
+
+func (r *postgresRepository) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool) ([]domain.Customer, int, error) {
+	args := []interface{}{}
+	argIdx := 1
+	countQuery := `SELECT COUNT(*) FROM customers WHERE is_walk_in = false`
+	if search != "" {
+		countQuery += fmt.Sprintf(" AND (name ILIKE $%d OR phone ILIKE $%d OR email ILIKE $%d)", argIdx, argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+	if isActive != nil {
+		countQuery += fmt.Sprintf(" AND is_active = $%d", argIdx)
+		args = append(args, *isActive)
+		argIdx++
+	}
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	query := `SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at FROM customers WHERE is_walk_in = false`
+	queryArgs := []interface{}{}
+	argIdx2 := 1
+	if search != "" {
+		query += fmt.Sprintf(" AND (name ILIKE $%d OR phone ILIKE $%d OR email ILIKE $%d)", argIdx2, argIdx2, argIdx2)
+		queryArgs = append(queryArgs, "%"+search+"%")
+		argIdx2++
+	}
+	if isActive != nil {
+		query += fmt.Sprintf(" AND is_active = $%d", argIdx2)
+		queryArgs = append(queryArgs, *isActive)
+		argIdx2++
+	}
+	query += fmt.Sprintf(" ORDER BY id DESC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
+	queryArgs = append(queryArgs, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var customers []domain.Customer
+	for rows.Next() {
+		var c domain.Customer
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
+			return nil, 0, err
+		}
+		c.CreatedAt = createdAt.Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.Format(time.RFC3339)
+		customers = append(customers, c)
+	}
+	return customers, total, nil
+}
+
+func (r *postgresRepository) CreateCustomer(ctx context.Context, customer *domain.Customer) error {
+	var createdAt, updatedAt time.Time
+	return r.db.QueryRow(ctx, `
+		INSERT INTO customers (name, phone, email, address, tax_id, note, is_active, is_walk_in)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, created_at, updated_at
+	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.IsWalkIn).
+		Scan(&customer.ID, &createdAt, &updatedAt)
+}
+
+func (r *postgresRepository) UpdateCustomer(ctx context.Context, customer *domain.Customer, id int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE customers
+		SET name = $1, phone = $2, email = $3, address = $4, tax_id = $5, note = $6, is_active = $7, updated_at = NOW()
+		WHERE id = $8
+	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, id)
+	return err
+}
+
+func (r *postgresRepository) DeleteCustomer(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, `UPDATE customers SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	return err
+}
+

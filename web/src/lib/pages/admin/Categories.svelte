@@ -240,7 +240,7 @@ let canView = $derived($auth.user != null);
       </div>
     {:else if categories.length === 0}
       <div class="px-4 py-12 text-center">
-        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
         </div>
         <p class="text-text-primary font-semibold mt-4">Tidak ada kategori</p>

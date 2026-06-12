@@ -5,7 +5,7 @@
    import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
    import { debounce } from '$lib/utils/debounce';
    import { useWebSocket } from '$lib/composables/useWebSocket';
-   import type { Sale, SaleItem } from '$lib/types';
+   import type { Sale, SaleItem, Customer } from '$lib/types';
 
    import Badge from '$lib/components/ui/Badge.svelte';
    import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -41,9 +41,17 @@
   let paymentMethod = $state('Cash');
   let checkingOut = $state(false);
 
-  let showCheckoutModal = $state(false);
-  let cashReceived = $state(0);
-  let changeDue = $derived(cashReceived - totalAmount);
+   let showCheckoutModal = $state(false);
+   let cashReceived = $state(0);
+   let changeDue = $derived(cashReceived - totalAmount);
+
+   let customers: Customer[] = $state([]);
+   let selectedCustomerId = $state<number | null>(null);
+   let showCustomerModal = $state(false);
+   let customerSearch = $state('');
+   let customerResults: Customer[] = $state([]);
+   let customerSearching = $state(false);
+   let selectedCustomerLabel = $derived(selectedCustomerId ? (customers.find(c => c.id === selectedCustomerId)?.name || '') : 'Walk-in / General');
 
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
   const totalAmount = $derived(subtotal);
@@ -70,6 +78,25 @@
     fetchProducts(true);
   }, 400);
 
+  async function fetchCustomers() {
+    try {
+      const r = await apiClient.get('/customers?limit=200');
+      customers = r.data.data || [];
+    } catch (err) {
+      console.warn('Failed to load customers', err);
+    }
+  }
+
+  async function searchCustomers() {
+    if (!customerSearch.trim()) { customerResults = []; return; }
+    customerSearching = true;
+    try {
+      const r = await apiClient.get('/customers', { params: { search: customerSearch.trim(), limit: 10 } });
+      customerResults = r.data.data || [];
+    } catch (e) { console.warn('customer search failed', e); }
+    customerSearching = false;
+  }
+
   $effect(() => {
     if (isInitialMount) return;
     if (previousSearchQuery === searchQuery) return;
@@ -81,6 +108,22 @@
     } else {
       isSearching = true;
       debouncedSearch();
+    }
+  });
+
+  const debouncedCustomerSearch = debounce(() => {
+    if (customerSearch.trim()) {
+      searchCustomers();
+    } else {
+      customerResults = [];
+    }
+  }, 400);
+
+  $effect(() => {
+    if (customerSearch.trim()) {
+      debouncedCustomerSearch();
+    } else {
+      customerResults = [];
     }
   });
 
@@ -148,13 +191,14 @@
         subtotal: item.price * item.quantity,
       }));
       const response = await apiClient.post('/sales', {
-        cashier_id: $auth.user?.id || 1,
-        store_id: $auth.user?.store_id || null,
+        cashier_id: ($auth.user as any)?.id || 1,
+        store_id: ($auth.user as any)?.store_id || null,
         subtotal,
         discount: 0,
         tax: 0,
         total_amount: totalAmount,
         payment_method: paymentMethod,
+        customer_id: selectedCustomerId,
         status: 'completed',
         items,
       });
@@ -176,6 +220,7 @@
 
   function printReceipt() {
     if (!lastSale || !lastSale.items) return;
+    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
     printReceiptStore.set({
       invoice_number: lastSale.invoice_number,
       created_at: lastSale.created_at,
@@ -188,6 +233,7 @@
       paymentMethod: paymentMethod,
       cashReceived: cashReceived,
       changeDue: changeDue,
+      customer_name: customer?.name,
     });
     setTimeout(() => window.print(), 300);
   }
@@ -216,6 +262,7 @@
     closeCheckoutModal();
     processCheckout().then(() => {
       if (lastSale && lastSale.items) {
+        const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
         printReceiptStore.set({
           invoice_number: lastSale.invoice_number,
           created_at: lastSale.created_at,
@@ -228,6 +275,7 @@
           paymentMethod: paymentMethod,
           cashReceived: cashReceived,
           changeDue: changeDue,
+          customer_name: customer?.name,
         });
       }
       setTimeout(() => window.print(), 300);
@@ -309,6 +357,7 @@
   onMount(async () => {
     isInitialMount = true;
     await fetchProducts(false);
+    fetchCustomers();
     isInitialMount = false;
     focusSearch();
     unsubscribeStock = ws.on('stock_update', (data) => {
@@ -418,8 +467,9 @@
                         </span>
                         {#if product.barcode}
                           <span class="flex items-center gap-1 ml-4">
-                            {product.barcode}
-                            <button
+                             {product.barcode}
+
+           <button
                               class="p-0.5 hover:text-primary transition-colors"
                               title="Salin barcode"
                               onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
@@ -587,9 +637,17 @@
             </div>
           </div>
 
-          <button
-            class="btn btn-success w-full py-3"
-            onclick={openCheckoutModal}
+           <div>
+             <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
+             <button class="btn btn-secondary w-full justify-between" onclick={() => (showCustomerModal = true)}>
+               <span class="truncate">{selectedCustomerLabel}</span>
+               <Search size={14} />
+             </button>
+           </div>
+
+           <button
+             class="btn btn-success w-full py-3"
+             onclick={openCheckoutModal}
             disabled={checkingOut || cart.length === 0}
           >
             {#if checkingOut}
@@ -662,6 +720,14 @@
             {opt.label}
           </button>
         {/each}
+      </div>
+
+      <div class="mb-4">
+        <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
+        <button class="btn btn-secondary w-full justify-between text-sm" onclick={() => { showCheckoutModal = false; showCustomerModal = true; }}>
+          <span class="truncate">{selectedCustomerLabel}</span>
+          <Search size={14} />
+        </button>
       </div>
 
       {#if paymentMethod === 'Cash'}
@@ -755,6 +821,39 @@
           <Check size={16} />
           Selesai &amp; Cetak [Enter]
         </button>
+      </div>
+    </div>
+  </div>
+  {/if}
+
+{#if showCustomerModal}
+  <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }}>
+    <div class="absolute inset-0 bg-black/60" onclick={() => (showCustomerModal = false)} role="presentation"></div>
+    <div class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-text-primary">Select Customer</h2>
+        <button onclick={() => (showCustomerModal = false)} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50">
+          <X size={18} />
+        </button>
+      </div>
+      <input class="input w-full mb-3" placeholder="Search by phone or name..." bind:value={customerSearch} />
+      {#if customerSearching}
+        <p class="text-sm text-text-muted mb-2">Searching...</p>
+      {/if}
+      <div class="max-h-80 overflow-y-auto space-y-1">
+        <button class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = null; showCustomerModal = false; }}>
+          <span class="text-sm font-medium">Walk-in / General</span>
+        </button>
+        {#each customerResults as c}
+          <button class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = c.id; showCustomerModal = false; customerSearch = ''; }}>
+            <div class="text-sm font-medium">{c.name}</div>
+            <div class="text-xs text-text-muted">{c.phone || 'no phone'} {c.email ? `· ${c.email}` : ''}</div>
+          </button>
+        {:else}
+          {#if customerSearch.trim() && !customerSearching}
+            <p class="text-sm text-text-muted text-center py-4">No customers found</p>
+          {/if}
+        {/each}
       </div>
     </div>
   </div>

@@ -26,7 +26,8 @@ func TestGetLiveDashboardStats_Accuracy(t *testing.T) {
 	repo := NewPostgresRepository(testDB.Pool())
 	ctx := context.Background()
 
-	todayStart := time.Now().In(mustLoadJakarta()).Truncate(24 * time.Hour)
+	jakartaNow := time.Now().In(mustLoadJakarta())
+	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, mustLoadJakarta())
 
 	const expectedRevenue = 73344
 	insertSale(t, testDB.Pool(), "TEST-LIVE-ACC", nil, expectedRevenue, todayStart.Add(3*time.Hour))

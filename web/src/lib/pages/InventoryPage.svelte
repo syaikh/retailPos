@@ -13,7 +13,7 @@ import Badge from '$lib/components/ui/Badge.svelte';
    import Pagination from '$lib/components/ui/Pagination.svelte';
    import ProductActionsDropdown from '$lib/components/ui/ProductActionsDropdown.svelte';
    import {
-      Search, Plus, Pencil, Trash2,
+      Search, Plus, Pencil, Trash2, Package,
       SlidersHorizontal, AlertTriangle, Loader2, Copy, ArrowUpDown, X, ChevronDown
      } from 'lucide-svelte';
 
@@ -109,6 +109,8 @@ let showDeleteModal = $state(false);
     let criticalThreshold = $state(5);
    const allowedInventoryRoles = ['superadmin', 'admin', 'manager', 'staff'];
 
+    let stockAdjustProduct = $state(null);
+
     // Stock adjustment states
     let showAdjustStockModal = $state(false);
     let adjustingStock = $state(false);
@@ -119,7 +121,6 @@ let showDeleteModal = $state(false);
     });
   
 // Track previous values to avoid duplicate fetches
-    let previousSearchQuery = '';
     let previousCategories = ['All'];
 
   // Sorting state
@@ -251,29 +252,36 @@ async function fetchProducts(newOffset, newLimit) {
       fetchProducts(0, limit);
     }, 400);
 
-  // Track if this is initial mount (to prevent double fetch)
+  // Track if this is initial mount (to prevent double fetch in category effect)
   let isInitialMount = $state(true);
 
-  // Watch for search query changes and trigger debounced search
-  $effect(() => {
-    // Skip the initial render to prevent double fetch
-    if (isInitialMount) return;
-    
-    // Only proceed if searchQuery actually changed
-    if (previousSearchQuery === searchQuery) return;
-    
+  // Track previous search to avoid duplicate fetches
+  let previousSearchQuery = '';
+
+  // Event-driven search (no $effect to avoid infinite loops)
+  function handleSearchInput() {
+    offset = 0;
+    if (searchQuery === '') {
+      debouncedSearch.cancel();
+      isSearching = false;
+      previousSearchQuery = '';
+      fetchProducts(0, limit);
+      return;
+    }
+    if (searchQuery === previousSearchQuery) return;
     previousSearchQuery = searchQuery;
-    
-if (searchQuery === '') {
-       // Immediate fetch when clearing search
-       offset = 0;
-       isSearching = false;
-       fetchProducts(0, limit);
-     } else {
-       isSearching = true;
-       debouncedSearch();
-     }
-  });
+    isSearching = true;
+    debouncedSearch();
+  }
+
+  function clearSearch() {
+    searchQuery = '';
+    offset = 0;
+    isSearching = false;
+    previousSearchQuery = '';
+    fetchProducts(0, limit);
+  }
+
 
 // Watch for category selection changes
     $effect(() => {
@@ -418,41 +426,48 @@ const response = await apiClient.delete(`/products/${selectedProduct.id}`);
    }
 
    // ── Stock Adjustment ────────────────────────────────────────────────
-   function openAdjustStock(product) {
-     stockAdjustForm = {
-       product_id: product.id,
-       quantity_change: 0,
-       notes: ''
-     };
-     showAdjustStockModal = true;
-   }
+    function openAdjustStock(product) {
+      stockAdjustProduct = product;
+      stockAdjustForm = {
+        product_id: product.id,
+        quantity_change: 0,
+        notes: ''
+      };
+      showAdjustStockModal = true;
+    }
 
-   async function handleAdjustStock() {
-     if (stockAdjustForm.quantity_change === 0) {
-       toast.error('Quantity change must be non-zero');
-       return;
-     }
+async function handleAdjustStock() {
+      if (stockAdjustForm.quantity_change === 0) {
+        toast.error('Quantity change must be non-zero');
+        return;
+      }
+      const trimmedNotes = stockAdjustForm.notes?.trim();
+      if (!trimmedNotes) {
+        toast.error('Notes are required - please provide a reason for adjustment');
+        return;
+      }
 
-     adjustingStock = true;
-     try {
-       await apiClient.post('/inventory/adjust', {
-         product_id: stockAdjustForm.product_id,
-         quantity_change: stockAdjustForm.quantity_change,
-         notes: stockAdjustForm.notes.trim() || undefined
-       });
-       toast.success('Stock adjusted successfully');
-       showAdjustStockModal = false;
-       if (selectedProduct && selectedProduct.id === stockAdjustForm.product_id) {
-         selectedProduct.stock += stockAdjustForm.quantity_change;
-       }
-       await fetchProducts(offset, limit);
-     } catch (err) {
-       const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
-       toast.error(errorMsg);
-     } finally {
-       adjustingStock = false;
-     }
-   }
+      adjustingStock = true;
+      try {
+        await apiClient.post('/inventory/adjust', {
+          product_id: stockAdjustForm.product_id,
+          quantity_change: stockAdjustForm.quantity_change,
+          notes: trimmedNotes
+        });
+        toast.success('Stock adjusted successfully');
+        showAdjustStockModal = false;
+        stockAdjustProduct = null;
+        if (selectedProduct && selectedProduct.id === stockAdjustForm.product_id) {
+          selectedProduct.stock += stockAdjustForm.quantity_change;
+        }
+        await fetchProducts(offset, limit);
+      } catch (err) {
+        const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
+        toast.error(errorMsg);
+      } finally {
+        adjustingStock = false;
+      }
+    }
 
 function resetForm() {
     form = {
@@ -737,13 +752,14 @@ function handleWindowKeydown(e: KeyboardEvent) {
            type="text"
            placeholder="Search products..."
            bind:value={searchQuery}
+            oninput={handleSearchInput}
            class="input pl-10 pr-12 h-10"
          />
         {#if isSearching}
           <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
         {:else if searchQuery}
           <button
-            onclick={() => searchQuery = ''}
+            onclick={clearSearch}
             class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
             title="Clear search"
           >
@@ -1169,7 +1185,7 @@ function handleWindowKeydown(e: KeyboardEvent) {
 {#if showDetailDrawer && selectedProduct}
   <!-- ── Overlay ── -->
   <div
-    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+    class="fixed inset-0 bg-black/60  z-50"
     onclick={() => (showDetailDrawer = false)}
     aria-hidden="true"
   ></div>
@@ -1187,7 +1203,7 @@ function handleWindowKeydown(e: KeyboardEvent) {
   -->
   <div
     class="fixed inset-y-0 right-0 w-[480px] max-w-full
-           bg-surface-drawer border-l border-border shadow-2xl z-[55]
+           bg-surface-default border-l border-border shadow-2xl z-[55]
            flex flex-col
            transition-transform duration-300 ease-out"
     transition:fly={{ x: 480, duration: 300, easing: t => t * (2 - t) }}
@@ -1444,7 +1460,7 @@ function handleWindowKeydown(e: KeyboardEvent) {
     {#if canEdit()}
     <div
       class="absolute bottom-0 left-0 right-0 p-4
-             bg-gradient-to-t from-surface-drawer via-surface-drawer to-transparent
+             bg-surface-default
              border-t border-border/50"
     >
 <div class="flex items-center gap-3">
@@ -1516,10 +1532,10 @@ function handleWindowKeydown(e: KeyboardEvent) {
     }}
     class="space-y-4"
   >
-    {#if (products.find(p => p.id === stockAdjustForm.product_id) || selectedProduct) as prod}
+    {#if stockAdjustProduct}
       <div>
-        <p class="text-sm text-text-muted mb-2">Product: <span class="text-text-primary font-medium">{prod?.name}</span></p>
-        <p class="text-sm text-text-muted">Current Stock: <span class="text-text-primary">{prod?.stock ?? 0}</span></p>
+        <p class="text-sm text-text-muted mb-2">Product: <span class="text-text-primary font-medium">{stockAdjustProduct.name}</span></p>
+        <p class="text-sm text-text-muted">Current Stock: <span class="text-text-primary">{stockAdjustProduct.stock ?? 0}</span></p>
       </div>
     {/if}
     <div>
@@ -1534,16 +1550,17 @@ function handleWindowKeydown(e: KeyboardEvent) {
       />
       <p class="text-xs text-text-muted mt-1">Positive to add stock, negative to reduce.</p>
     </div>
-    <div>
-      <label for="adjust-notes" class="block text-sm font-medium text-text-secondary mb-2">Notes (optional)</label>
-      <input
-        id="adjust-notes"
-        type="text"
-        bind:value={stockAdjustForm.notes}
-        class="input"
-        placeholder="Reason for adjustment"
-      />
-    </div>
+<div>
+       <label for="adjust-notes" class="block text-sm font-medium text-text-secondary mb-2">Notes <span class="text-destructive">*</span></label>
+       <input
+         id="adjust-notes"
+         type="text"
+         bind:value={stockAdjustForm.notes}
+         class="input"
+         placeholder="Reason for adjustment (required)"
+         required
+       />
+     </div>
   </form>
   {#snippet footer()}
     <button class="btn btn-secondary rounded-full px-5" disabled={adjustingStock} onclick={() => showAdjustStockModal = false}>Cancel</button>

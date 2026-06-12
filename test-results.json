@@ -1,0 +1,171 @@
+{
+  "config": {
+    "configFile": "/home/my-excellency/Projects/retail-pos-system/playwright.config.js",
+    "rootDir": "/home/my-excellency/Projects/retail-pos-system/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/my-excellency/Projects/retail-pos-system/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/my-excellency/Projects/retail-pos-system/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "customers.spec.ts",
+      "file": "customers.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Customers UI - Superadmin",
+          "file": "customers.spec.ts",
+          "line": 453,
+          "column": 6,
+          "specs": [
+            {
+              "title": "displays customers page with table",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 26853,
+                      "error": {
+                        "message": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n",
+                        "stack": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n    at login (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:37:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:455:5",
+                        "location": {
+                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
+                          "column": 14,
+                          "line": 37
+                        },
+                        "snippet": "  35 | async function login(page: any, username: string, password: string) {\n  36 |   await page.goto(`${FRONTEND_BASE}/login`);\n> 37 |   await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });\n     |              ^\n  38 |   await page.fill('#username', username);\n  39 |   await page.fill('#password', password);\n  40 |   await page.click('button[type=\"submit\"]');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
+                            "column": 14,
+                            "line": 37
+                          },
+                          "message": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  35 | async function login(page: any, username: string, password: string) {\n  36 |   await page.goto(`${FRONTEND_BASE}/login`);\n> 37 |   await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });\n     |              ^\n  38 |   await page.fill('#username', username);\n  39 |   await page.fill('#password', password);\n  40 |   await page.click('button[type=\"submit\"]');\n    at login (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:37:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:455:5"
+                        },
+                        {
+                          "location": {
+                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
+                            "column": 14,
+                            "line": 48
+                          },
+                          "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  46 |   await page.evaluate(() => sessionStorage.clear());\n  47 |   await page.reload();\n> 48 |   await page.waitForSelector('#username', { state: 'visible', timeout: 10000 });\n     |              ^\n  49 | }\n  50 |\n  51 | // ============================================================================\n    at logout (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:48:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:461:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T00:51:39.421Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/customers-Customers-UI---S-e128a-s-customers-page-with-table-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/customers-Customers-UI---S-e128a-s-customers-page-with-table-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
+                        "column": 14,
+                        "line": 37
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c79134c03d523b7bf7b3-3dc60566db955ef5c217",
+              "file": "customers.spec.ts",
+              "line": 464,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-12T00:51:38.383Z",
+    "duration": 29194.592,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

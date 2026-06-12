@@ -34,6 +34,9 @@ async function createTestSale(request: any, token: string, productId = 1) {
 
   expect(res.ok()).toBeTruthy();
   const data = await res.json();
+  if (!res.ok()) {
+    console.log('Sale creation failed:', JSON.stringify(data));
+  }
   expect(data.data).toBeTruthy();
   return { saleId: data.data.id, invoiceNumber, totalAmount };
 }
@@ -54,9 +57,9 @@ test.describe('Dashboard Live Stats', () => {
 
   test('shows real stat cards on initial load', async ({ page }) => {
     await expect(page.getByText("Today's Revenue")).toBeVisible();
-    await expect(page.getByText("Transactions")).toBeVisible();
-    await expect(page.getByText("Total Products")).toBeVisible();
-    await expect(page.getByText("Low Stock Alerts")).toBeVisible();
+    await expect(page.getByText('Transactions', { exact: true })).toBeVisible();
+    await expect(page.getByText('Total Products')).toBeVisible();
+    await expect(page.getByText('Low Stock Alerts')).toBeVisible();
   });
 
   test('updates revenue and transactions after a new sale is broadcast', async ({ page, request }) => {
@@ -64,9 +67,10 @@ test.describe('Dashboard Live Stats', () => {
     const productRes = await request.get(`${API_BASE}/api/products?limit=1`, {
       headers: authHeader(token),
     });
+    expect(productRes.ok()).toBeTruthy();
     const productData = await productRes.json();
-    const firstProduct = productData.data[0];
-    const productId = firstProduct?.id ?? 1;
+    const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0);
+    const productId = productWithStock?.id ?? 4227;
 
     const beforeStats = await request.get(`${API_BASE}/api/dashboard/live`, {
       headers: authHeader(token),
@@ -74,7 +78,24 @@ test.describe('Dashboard Live Stats', () => {
     const beforeJson = await beforeStats.json();
     const beforeRevenue = (beforeJson.data?.todays_revenue ?? 0) as number;
 
-    await createTestSale(request, token, productId);
+    const saleRes = await request.post(`${API_BASE}/api/sales`, {
+      headers: authHeader(token),
+      data: {
+        invoice_number: `INV-LIVE-${Date.now()}`,
+        cashier_id: 1,
+        subtotal: 25000,
+        discount: 0,
+        tax: 0,
+        total_amount: 25000,
+        payment_method: 'cash',
+        items: [{ product_id: productId, quantity: 1, unit_price: 25000, subtotal: 25000 }],
+      },
+    });
+
+    const saleBody = await saleRes.text();
+    expect(saleRes.ok(), `sale creation failed: status=${saleRes.status()} body=${saleBody}`).toBeTruthy();
+    const saleJson = JSON.parse(saleBody);
+    expect(saleJson.data).toBeTruthy();
 
     const afterRes = await request.get(`${API_BASE}/api/dashboard/live`, {
       headers: authHeader(token),

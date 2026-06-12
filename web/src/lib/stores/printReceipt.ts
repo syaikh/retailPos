@@ -12,6 +12,7 @@ export interface ReceiptData {
   paymentMethod: string;
   cashReceived: number;
   changeDue: number;
+  customer_name?: string;
 }
 
 export const printReceipt = writable<ReceiptData | null>(null);

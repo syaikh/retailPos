@@ -22,7 +22,6 @@ import (
 )
 
 func main() {
-	// Set timezone to Asia/Jakarta
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		loc, _ = time.LoadLocation("UTC")
@@ -35,10 +34,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Database Connection
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		// Default local DB -- sesuaikan dengan docker compose jika berbeda
 		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
 	}
 	dbPool, err := pgxpool.New(context.Background(), dsn)
@@ -46,15 +43,13 @@ func main() {
 		panic(fmt.Sprintf("Unable to connect to database: %v\n", err))
 	}
 
-	// Verify DB connection
 	if err := dbPool.Ping(context.Background()); err != nil {
 		panic(fmt.Sprintf("Unable to ping database: %v\n", err))
 	}
-	fmt.Println("✅ Connected to PostgreSQL")
+	fmt.Println(" Connected to PostgreSQL")
 
 	router := gin.Default()
 
-	// CORS
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.CORSOrigin},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -64,24 +59,21 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-// Real Repositories
- 	authRepo := repository.NewPostgresRepository(dbPool)
- 	roleRepo := repository.NewPostgresRepository(dbPool)
- 	productRepo := repository.NewPostgresRepository(dbPool)
- 	saleRepo := repository.NewPostgresRepository(dbPool)
- 	auditRepo := repository.NewPostgresRepository(dbPool)
- 	categoryRepo := repository.NewPostgresRepository(dbPool)
+	authRepo := repository.NewPostgresRepository(dbPool)
+	roleRepo := repository.NewPostgresRepository(dbPool)
+	productRepo := repository.NewPostgresRepository(dbPool)
+	paymentRepo := repository.NewPostgresRepository(dbPool)
+	saleRepo := repository.NewPostgresRepository(dbPool)
+	customerRepo := repository.NewPostgresRepository(dbPool)
+	auditRepo := repository.NewPostgresRepository(dbPool)
+	categoryRepo := repository.NewPostgresRepository(dbPool)
 
- 	// Auth service with real DB pool
- 	authService := auth.NewAuthService(authRepo, dbPool)
+	authService := auth.NewAuthService(authRepo, dbPool)
+	hub := websocket.NewHub(authService)
+	go hub.Run()
 
- 	// WebSocket hub
- 	hub := websocket.NewHub(authService)
- 	go hub.Run()
+	h := handler.NewHandler(authRepo, roleRepo, productRepo, paymentRepo, saleRepo, customerRepo, authService, hub, auditRepo, categoryRepo)
 
- 	h := handler.NewHandler(authRepo, roleRepo, productRepo, saleRepo, authService, hub, auditRepo, categoryRepo)
-
-	// Public routes
 	public := router.Group("/api")
 	public.Use(middleware.RateLimitMiddleware())
 	{
@@ -96,9 +88,10 @@ func main() {
 		public.GET("/units-of-measure", h.GetUnitsOfMeasure)
 		public.GET("/warehouses", h.GetWarehouses)
 		public.GET("/dashboard/years", h.GetAvailableYears)
+		public.GET("/payment-methods", h.ListPaymentMethods)
+		public.GET("/payment-methods/:code", h.GetPaymentMethodByCode)
 	}
 
-	// Protected routes (require authentication)
 	protected := router.Group("/api")
 	protected.Use(func(c *gin.Context) {
 		c.Set("authService", authService)
@@ -109,23 +102,20 @@ func main() {
 		protected.POST("/validate", h.ValidateSession)
 		protected.POST("/logout", h.Logout)
 
-		// Products
 		protected.GET("/products/:id", h.GetProductByID)
+		protected.GET("/product-stock/:id", h.GetProductStockByID)
 		protected.POST("/products", middleware.RequirePermission("product:create"), h.CreateProduct)
 		protected.PUT("/products/:id", middleware.RequirePermission("product:update"), h.UpdateProduct)
 		protected.DELETE("/products/:id", middleware.RequirePermission("product:delete"), h.DeleteProduct)
 
-		// Brands
 		protected.POST("/brands", h.CreateBrand)
 		protected.PUT("/brands/:id", h.UpdateBrand)
 		protected.DELETE("/brands/:id", h.DeleteBrand)
 
-		// Sales
 		protected.POST("/sales", middleware.RequirePermission("sale:create"), h.CreateSale)
 		protected.GET("/sales", middleware.RequirePermission("sale:read"), h.GetSalesHistory)
 		protected.GET("/sales/:id", middleware.RequirePermission("sale:read"), h.GetSaleByID)
 
-		// Dashboard
 		protected.GET("/dashboard/stats", middleware.RequirePermission("dashboard:read"), h.GetDashboardStats)
 		protected.GET("/dashboard/live", middleware.RequirePermission("dashboard:read"), h.GetLiveDashboardStats)
 		protected.GET("/dashboard/chart", middleware.RequirePermission("report:read"), h.GetSalesChartData)
@@ -133,41 +123,39 @@ func main() {
 		protected.GET("/dashboard/chart/monthly", middleware.RequirePermission("report:read"), h.GetSalesMonthlyReport)
 		protected.GET("/dashboard/comparison", middleware.RequirePermission("report:read"), h.GetPeriodComparison)
 
-		// Admin Users - require user permissions
 		protected.GET("/admin/users", middleware.RequirePermission("user:read"), h.ListUsers)
 		protected.POST("/admin/users", middleware.RequirePermission("user:create"), h.CreateUser)
 		protected.PUT("/admin/users/:id", middleware.RequirePermission("user:update"), h.UpdateUser)
 		protected.DELETE("/admin/users/:id", middleware.RequirePermission("user:delete"), h.DeleteUser)
 
-		// Admin Roles - require role permissions
 		protected.GET("/admin/roles", middleware.RequirePermission("role:read"), h.ListRoles)
 		protected.POST("/admin/roles", middleware.RequirePermission("role:create"), h.CreateRole)
 		protected.PUT("/admin/roles/:id/permissions", middleware.RequirePermission("role:update"), h.UpdateRolePermissions)
 		protected.DELETE("/admin/roles/:id", middleware.RequirePermission("role:delete"), h.DeleteRole)
 		protected.GET("/admin/permissions", middleware.RequirePermission("role:read"), h.ListPermissions)
 
-		// Category Management
 		protected.GET("/categories/manage", middleware.RequirePermission("category:read"), h.ListCategoriesManagement)
 		protected.POST("/categories", middleware.RequirePermission("category:create"), h.CreateCategoryHandler)
 		protected.PUT("/categories/:id", middleware.RequirePermission("category:update"), h.UpdateCategoryHandler)
 		protected.DELETE("/categories/:id", middleware.RequirePermission("category:delete"), h.DeleteCategoryHandler)
 
-		// Inventory
 		protected.POST("/inventory/adjust", middleware.RequirePermission("inventory:adjust"), h.AdjustStock)
 
-		// Audit Logs - superadmin only
+		protected.GET("/customers", middleware.RequirePermission("customer:read"), h.GetCustomers)
+		protected.GET("/customers/:id", middleware.RequirePermission("customer:read"), h.GetCustomerByID)
+		protected.POST("/customers", middleware.RequirePermission("customer:create"), h.CreateCustomer)
+		protected.PUT("/customers/:id", middleware.RequirePermission("customer:update"), h.UpdateCustomer)
+		protected.DELETE("/customers/:id", middleware.RequirePermission("customer:delete"), h.DeleteCustomer)
+
 		protected.GET("/audit-logs", middleware.RequirePermission("audit:read"), h.ListAuditLogs)
 	}
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "timestamp": time.Now().Format(time.RFC3339)})
 	})
 
-	// WebSocket
 	router.GET("/ws", h.ServeWS)
 
-	// Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "9095"
@@ -182,7 +170,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
 	go func() {
 		println("Server starting on " + addr + " (env: " + cfg.Env + ")")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -190,7 +177,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -204,11 +190,7 @@ func main() {
 		fmt.Printf("Server forced to shutdown: %v\n", err)
 	}
 
-	// Close WebSocket connections
 	hub.Shutdown()
-
-	// Close database connection
 	dbPool.Close()
-
 	println("Server exited")
 }

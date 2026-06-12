@@ -40,6 +40,14 @@ type CategoryRepository interface {
 	SlugExists(ctx context.Context, slug string, excludeID int) (bool, error)
 }
 
+type ProductStockRepository interface {
+	GetStock(ctx context.Context, productID int) (int, error)
+	GetStockByProductID(ctx context.Context, productID int) (*domain.ProductStock, error)
+	GetAllStock(ctx context.Context, limit, offset int, search string, storeID *int) ([]domain.ProductStock, int, error)
+	AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error
+	UpsertStock(ctx context.Context, productID int, storeID *int, quantity int) error
+}
+
 type ProductRepository interface {
 	GetProductByID(ctx context.Context, id int, storeID *int) (*domain.Product, error)
 	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*domain.Product, error)
@@ -53,6 +61,7 @@ type ProductRepository interface {
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
 	AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error
+	GetStockByProductID(ctx context.Context, productID int) (*domain.ProductStock, error)
 	
 	// Brand operations
 	GetBrandByID(ctx context.Context, id int) (*domain.Brand, error)
@@ -88,6 +97,12 @@ type SaleRepository interface {
 	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 }
 
+type PaymentMethodRepository interface {
+	GetAllActive(ctx context.Context) ([]domain.PaymentMethod, error)
+	GetPaymentMethodByCode(ctx context.Context, code string) (*domain.PaymentMethod, error)
+	GetPaymentMethodByID(ctx context.Context, id int) (*domain.PaymentMethod, error)
+}
+
 type PermissionRepository interface {
 	GetByRoleID(ctx context.Context, roleID int) ([]domain.Permission, error)
 }
@@ -99,4 +114,13 @@ type AuditLogRepository interface {
 
 type InventoryRepository interface {
 	GetAll(ctx context.Context, limit, offset int, search string, categoryID *int, storeID *int) ([]domain.Product, int, error)
+}
+
+type CustomerRepository interface {
+	GetCustomerByID(ctx context.Context, id int) (*domain.Customer, error)
+	GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool) ([]domain.Customer, int, error)
+	CreateCustomer(ctx context.Context, customer *domain.Customer) error
+	UpdateCustomer(ctx context.Context, customer *domain.Customer, id int) error
+	DeleteCustomer(ctx context.Context, id int) error
+	GetByPhone(ctx context.Context, phone string) (*domain.Customer, error)
 }

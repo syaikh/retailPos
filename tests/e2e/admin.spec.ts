@@ -27,7 +27,8 @@ test.describe('Admin Panel - User Management', () => {
     await page.getByRole('button', { name: 'Create User' }).click();
 
     await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 10000 });
-    await expect(page.getByText(inputUsername.toLowerCase())).toBeVisible({ timeout: 10000 });
+    await page.getByPlaceholder('Search users by name or email…').fill(inputUsername.toLowerCase());
+    await expect(page.getByText(inputUsername.toLowerCase(), { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test('should reject username with invalid characters', async ({ page }) => {

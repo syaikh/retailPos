@@ -28,9 +28,9 @@ type ProductTemplate struct {
 }
 
 var (
-	// Payment methods with realistic distribution
-	paymentMethods = []string{"Cash", "QRIS", "Debit", "Credit"}
-	paymentWeights = []int{40, 35, 15, 10} // Percentages
+	// Payment methods aligned with payment_methods master data
+	paymentMethods = []string{"CASH", "QRIS", "CARD", "TRANSFER", "E_WALLET"}
+	paymentWeights = []int{40, 35, 15, 5, 5} // Percentages
 
 	// Comprehensive category list
 	categories = []string{

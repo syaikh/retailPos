@@ -27,7 +27,9 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 	userRepo := repository.NewPostgresRepository(testDB.Pool())
 	roleRepo := repository.NewPostgresRepository(testDB.Pool())
 	productRepo := repository.NewPostgresRepository(testDB.Pool())
+	paymentRepo := repository.NewPostgresRepository(testDB.Pool())
 	saleRepo := repository.NewPostgresRepository(testDB.Pool())
+	customerRepo := repository.NewPostgresRepository(testDB.Pool())
 	auditRepo := repository.NewPostgresRepository(testDB.Pool())
 	categoryRepo := repository.NewPostgresRepository(testDB.Pool())
 
@@ -39,7 +41,9 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 		userRepo,
 		roleRepo,
 		productRepo,
+		paymentRepo,
 		saleRepo,
+		customerRepo,
 		authService,
 		nil, // wsHub not needed for API tests
 		auditRepo,

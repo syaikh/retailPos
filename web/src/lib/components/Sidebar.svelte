@@ -41,6 +41,7 @@
     { label: 'Inventory',  href: '/inventory',  icon: Package         },
     { label: 'Reports',    href: '/reports',    icon: BarChart3       },
     { label: 'Categories', href: '/categories',  icon: Tag             },
+    { label: 'Customers',  href: '/customers',  icon: User            },
   ];
 
   const managerNavItems = [
@@ -48,6 +49,7 @@
     { label: 'Inventory',  href: '/inventory',  icon: Package         },
     { label: 'Reports',    href: '/reports',    icon: BarChart3       },
     { label: 'Categories', href: '/categories',  icon: Tag             },
+    { label: 'Customers',  href: '/customers',  icon: User            },
   ];
 
   const cashierNavItems = [

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,21 +26,25 @@ func getCtx(c *gin.Context) context.Context {
 }
 
 type Handler struct {
-	authRepo     repository.UserRepository
-	roleRepo     repository.RoleRepository
-	productRepo  repository.ProductRepository
-	saleRepo     repository.SaleRepository
-	authService  *auth.AuthService
-	hub          *websocket.Hub
-	auditRepo    repository.AuditLogRepository
-	categoryRepo repository.CategoryRepository
+	authRepo       repository.UserRepository
+	roleRepo       repository.RoleRepository
+	productRepo    repository.ProductRepository
+	paymentRepo    repository.PaymentMethodRepository
+	saleRepo       repository.SaleRepository
+	customerRepo   repository.CustomerRepository
+	authService    *auth.AuthService
+	hub            *websocket.Hub
+	auditRepo      repository.AuditLogRepository
+	categoryRepo   repository.CategoryRepository
 }
 
 func NewHandler(
 	authRepo repository.UserRepository,
 	roleRepo repository.RoleRepository,
 	productRepo repository.ProductRepository,
+	paymentRepo repository.PaymentMethodRepository,
 	saleRepo repository.SaleRepository,
+	customerRepo repository.CustomerRepository,
 	authService *auth.AuthService,
 	hub *websocket.Hub,
 	auditRepo repository.AuditLogRepository,
@@ -48,7 +54,9 @@ func NewHandler(
 		authRepo:     authRepo,
 		roleRepo:     roleRepo,
 		productRepo:  productRepo,
+		paymentRepo:  paymentRepo,
 		saleRepo:     saleRepo,
+		customerRepo: customerRepo,
 		authService:  authService,
 		hub:          hub,
 		auditRepo:    auditRepo,
@@ -288,6 +296,16 @@ func (h *Handler) GetProductByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": product})
 }
 
+func (h *Handler) GetProductStockByID(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	stock, err := h.productRepo.GetStockByProductID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "stock not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": stock})
+}
+
 func (h *Handler) CreateProduct(c *gin.Context) {
 	var product domain.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
@@ -450,6 +468,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	sale := &domain.Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     userID,
+		CustomerID:    req.CustomerID,
 		StoreID:       storeID,
 		Subtotal:      req.Subtotal,
 		Discount:      req.Discount,
@@ -1090,13 +1109,22 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	normalized := normalizeUsername(input.Username)
+	if normalized == "" || normalized != strings.ToLower(input.Username) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username must be 3-50 characters, alphanumeric (a-z, 0-9), and lowercase only."})
+		return
+	}
+	if existing, _ := h.authRepo.GetByUsername(getCtx(c), normalized); existing != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
+		return
+	}
 	hashedPassword, err := h.authService.HashPassword(input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 		return
 	}
 	user := &domain.User{
-		Username: input.Username,
+		Username: normalized,
 		Email:    input.Email,
 		Password: hashedPassword,
 		RoleID:   input.RoleID,
@@ -1231,6 +1259,10 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "quantity_change must not be zero"})
 		return
 	}
+	if strings.TrimSpace(req.Notes) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "notes are required"})
+		return
+	}
 
 	userIDVal, _ := c.Get("userID")
 	var userID int
@@ -1257,12 +1289,8 @@ func (h *Handler) AdjustStock(c *gin.Context) {
     c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to adjust stock"})
     return
   }
-  oldProduct, _ := h.productRepo.GetProductByID(getCtx(c), req.ProductID, nil)
-  h.logAudit(c, "update", "inventory", req.ProductID, oldProduct, map[string]interface{}{
-    "quantity_change": req.QuantityChange,
-    "notes": req.Notes,
-  })
-  c.JSON(http.StatusOK, gin.H{"status": "ok"})
+
+   c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID int, oldValues, newValues interface{}) {
@@ -1664,6 +1692,27 @@ func (h *Handler) GetStockThresholds(c *gin.Context) {
 }
 
 // GetAvailableYears returns distinct years that have sales data
+// ==================== PAYMENT METHODS ====================
+
+func (h *Handler) ListPaymentMethods(c *gin.Context) {
+	methods, err := h.paymentRepo.GetAllActive(getCtx(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch payment methods"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": methods})
+}
+
+func (h *Handler) GetPaymentMethodByCode(c *gin.Context) {
+	code := c.Param("code")
+	method, err := h.paymentRepo.GetPaymentMethodByCode(getCtx(c), code)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment method not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": method})
+}
+
 func (h *Handler) GetAvailableYears(c *gin.Context) {
 	var storeID *int
 	if sid, exists := c.Get("storeID"); exists {
@@ -1694,6 +1743,171 @@ func (h *Handler) GetWarehouses(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": warehouses})
+}
+
+func (h *Handler) GetCustomers(c *gin.Context) {
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if val, err := strconv.Atoi(o); err == nil && val > 0 {
+			offset = val
+		}
+	}
+	search := c.Query("search")
+	customers, total, err := h.customerRepo.GetAllCustomers(getCtx(c), limit, offset, search, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch customers"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": customers, "total": total})
+}
+
+func (h *Handler) GetCustomerByID(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid customer id"})
+		return
+	}
+	customer, err := h.customerRepo.GetCustomerByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "customer not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": customer})
+}
+
+var phoneRegexp = regexp.MustCompile(`^[0-9+\-() ]{7,20}$`)
+
+func validateCustomerRequest(name string, email, phone *string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	if len(name) > 200 {
+		return fmt.Errorf("name must be at most 200 characters")
+	}
+	if phone == nil || strings.TrimSpace(*phone) == "" {
+		return fmt.Errorf("phone is required")
+	}
+	if !phoneRegexp.MatchString(strings.TrimSpace(*phone)) {
+		return fmt.Errorf("invalid phone format")
+	}
+	if email == nil || strings.TrimSpace(*email) == "" {
+		return fmt.Errorf("email is required")
+	}
+	if _, err := mail.ParseAddress(*email); err != nil {
+		return fmt.Errorf("invalid email format")
+	}
+	return nil
+}
+
+func (h *Handler) CreateCustomer(c *gin.Context) {
+	var req domain.CustomerCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if err := validateCustomerRequest(req.Name, &req.Email, &req.Phone); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	customer := &domain.Customer{
+		Name:     strings.TrimSpace(req.Name),
+		Phone:    &req.Phone,
+		Email:    &req.Email,
+		Address:  req.Address,
+		TaxID:    req.TaxID,
+		Note:     req.Note,
+		IsActive: true,
+		IsWalkIn: false,
+	}
+	if err := h.customerRepo.CreateCustomer(getCtx(c), customer); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create customer"})
+		return
+	}
+	h.logAudit(c, "create", "customer", customer.ID, nil, customer)
+	c.JSON(http.StatusCreated, gin.H{"data": customer})
+}
+
+func (h *Handler) UpdateCustomer(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid customer id"})
+		return
+	}
+	var req domain.CustomerUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	existing, err := h.customerRepo.GetCustomerByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "customer not found"})
+		return
+	}
+	if existing.IsWalkIn {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify walk-in customer"})
+		return
+	}
+	old := *existing
+	if req.Name != nil {
+		existing.Name = *req.Name
+	}
+	if req.Phone != nil {
+		existing.Phone = req.Phone
+	}
+	if req.Email != nil {
+		existing.Email = req.Email
+	}
+	if req.Address != nil {
+		existing.Address = req.Address
+	}
+	if req.TaxID != nil {
+		existing.TaxID = req.TaxID
+	}
+	if req.Note != nil {
+		existing.Note = req.Note
+	}
+	if req.IsActive != nil {
+		existing.IsActive = *req.IsActive
+	}
+	if err := validateCustomerRequest(existing.Name, existing.Email, existing.Phone); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.customerRepo.UpdateCustomer(getCtx(c), existing, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update customer"})
+		return
+	}
+	h.logAudit(c, "update", "customer", existing.ID, &old, existing)
+	c.JSON(http.StatusOK, gin.H{"data": existing})
+}
+
+func (h *Handler) DeleteCustomer(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid customer id"})
+	return
+	}
+	existing, err := h.customerRepo.GetCustomerByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "customer not found"})
+		return
+	}
+	if existing.IsWalkIn {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot delete walk-in customer"})
+		return
+	}
+	if err := h.customerRepo.DeleteCustomer(getCtx(c), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete customer"})
+		return
+	}
+	h.logAudit(c, "delete", "customer", id, existing, nil)
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
 func getRole(c *gin.Context) string {

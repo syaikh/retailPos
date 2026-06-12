@@ -43,7 +43,7 @@
 {#if open}
   <!-- Backdrop - no click handler to prevent closing when clicking outside -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 "
     transition:fade={{ duration: 200 }}
   >
     <!-- Panel - stop propagation to prevent events bubbling to backdrop -->

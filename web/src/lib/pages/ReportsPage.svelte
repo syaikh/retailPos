@@ -977,10 +977,12 @@ async function exportToExcel() {
     s === 'completed' ? 'success' : s === 'refunded' ? 'danger' : 'warning';
 
   function getPaymentMethodVariant(method = '') {
+    if (!method) return 'muted';
     const m = method.toLowerCase();
-    if (m === 'cash') return 'success';
-    if (m === 'qris' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default';
-    if (m.includes('credit') || m.includes('debit') || m === 'card') return 'primary';
+    if (m === 'cash' || method === 'CASH') return 'success';
+    if (m === 'qris' || m === 'e_wallet' || method === 'QRIS' || method === 'E_WALLET' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default';
+    if (m === 'card' || method === 'CARD' || m.includes('credit') || m.includes('debit')) return 'primary';
+    if (m === 'transfer' || method === 'TRANSFER') return 'muted';
     return 'muted';
   }
 
@@ -1637,6 +1639,7 @@ onValueChange={(val) => {
             <tr>
               <th>Invoice</th>
               <th>Date</th>
+              <th>Customer</th>
               <th>Items</th>
               <th>Payment</th>
               <th class="text-right">Total (Rp)</th>
@@ -1656,6 +1659,9 @@ onValueChange={(val) => {
                 </td>
                 <td class="text-sm text-text-secondary">
                   {formatDateTime(new Date(sale.created_at))}
+                </td>
+                <td class="text-sm text-text-secondary">
+                  {sale.customer_name || '—'}
                 </td>
                 <td class="text-sm text-text-secondary">
                   {sale.items?.length || 0} items

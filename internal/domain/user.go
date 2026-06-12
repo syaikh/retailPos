@@ -55,19 +55,21 @@ type Product struct {
 }
 
 type Sale struct {
-	ID          int      `json:"id"`
-	InvoiceNumber string     `json:"invoice_number"`
-	CashierID     int        `json:"cashier_id"`
-	StoreID       *int       `json:"store_id,omitempty"`
-	Subtotal      int        `json:"subtotal"`
-	Discount      int        `json:"discount"`
-	Tax           int        `json:"tax"`
-	TotalAmount   int        `json:"total_amount"`
-	PaymentMethod string     `json:"payment_method"`
-	Status        string     `json:"status"`
+	ID            int      `json:"id"`
+	InvoiceNumber string   `json:"invoice_number"`
+	CashierID     int      `json:"cashier_id"`
+	CustomerID    *int     `json:"customer_id,omitempty"`
+	CustomerName  string   `json:"customer_name,omitempty"`
+	StoreID       *int     `json:"store_id,omitempty"`
+	Subtotal      int      `json:"subtotal"`
+	Discount      int      `json:"discount"`
+	Tax           int      `json:"tax"`
+	TotalAmount   int      `json:"total_amount"`
+	PaymentMethod string   `json:"payment_method"`
+	Status        string   `json:"status"`
 	Items         []SaleItem `json:"items,omitempty"`
-	CreatedAt     string     `json:"created_at,omitempty"`
-	UpdatedAt     string     `json:"updated_at,omitempty"`
+	CreatedAt     string   `json:"created_at,omitempty"`
+	UpdatedAt     string   `json:"updated_at,omitempty"`
 }
 
 type SaleItem struct {
@@ -154,6 +156,7 @@ type SaleCreateRequest struct {
 	Tax           int         `json:"tax"`
 	TotalAmount   int         `json:"total_amount"`
 	PaymentMethod string      `json:"payment_method"`
+	CustomerID    *int        `json:"customer_id,omitempty"`
 	Items         []SaleItem  `json:"items"`
 }
 
@@ -165,7 +168,6 @@ type Brand struct {
 	Description string `json:"description,omitempty"`
 	IsActive    bool   `json:"is_active"`
 	CreatedAt   string `json:"created_at,omitempty"`
-	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
 type TaxClass struct {
@@ -173,8 +175,44 @@ type TaxClass struct {
 	Name         string  `json:"name"`
 	RatePercent  float64 `json:"rate_percent"`
 	Description  string  `json:"description,omitempty"`
-	IsActive     bool    `json:"is_active"`
-	CreatedAt    string  `json:"created_at,omitempty"`
+	IsActive    bool   `json:"is_active"`
+	CreatedAt   string `json:"created_at,omitempty"`
+}
+
+type Customer struct {
+	ID              int     `json:"id"`
+	Name            string  `json:"name"`
+	Phone           *string `json:"phone,omitempty"`
+	Email           *string `json:"email,omitempty"`
+	Address         *string `json:"address,omitempty"`
+	TaxID           *string `json:"tax_id,omitempty"`
+	LoyaltyPoints   int     `json:"loyalty_points"`
+	TotalSpent      int     `json:"total_spent"`
+	LastPurchaseAt  *string `json:"last_purchase_at,omitempty"`
+	Note            *string `json:"note,omitempty"`
+	IsActive        bool    `json:"is_active"`
+	IsWalkIn        bool    `json:"is_walk_in"`
+	CreatedAt       string  `json:"created_at,omitempty"`
+	UpdatedAt       string  `json:"updated_at,omitempty"`
+}
+
+type CustomerCreateRequest struct {
+	Name     string  `json:"name"`
+	Phone    string `json:"phone,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Address  *string `json:"address,omitempty"`
+	TaxID    *string `json:"tax_id,omitempty"`
+	Note     *string `json:"note,omitempty"`
+}
+
+type CustomerUpdateRequest struct {
+	Name     *string `json:"name,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	Address  *string `json:"address,omitempty"`
+	TaxID    *string `json:"tax_id,omitempty"`
+	Note     *string `json:"note,omitempty"`
+	IsActive *bool   `json:"is_active,omitempty"`
 }
 
 type UnitOfMeasure struct {

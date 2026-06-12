@@ -36,6 +36,7 @@
   let canDelete = $derived(userRole === 'superadmin');
   let canView = $derived(userRole !== 'cashier' && userRole !== '');
   let canEditSuperadmin = $derived(userRole === 'superadmin');
+  let usernameHasInvalidChars = $derived(form.username.length > 0 && !/^[a-zA-Z0-9]+$/.test(form.username));
 
   let currentUserID = $derived($auth.user?.id || 0);
 
@@ -424,7 +425,7 @@
   </form>
   {#snippet footer()}
     <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveUser} disabled={saving}>
+    <button class="btn btn-primary min-w-32" onclick={saveUser} disabled={saving || (modalMode === 'add' && usernameHasInvalidChars)}>
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> Saving...
       {:else}

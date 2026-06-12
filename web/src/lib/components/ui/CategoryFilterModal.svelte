@@ -66,7 +66,7 @@
 {#if open}
   <!-- Backdrop - no click handler to prevent closing when clicking outside -->
   <div
-    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+    class="fixed inset-0 z-50 bg-black/50 "
     transition:fade={{ duration: 200 }}
   ></div>
 

@@ -62,6 +62,25 @@ export interface Warehouse {
   created_at?: string;
 }
 
+export interface PaymentMethod {
+  id: number;
+  code: string;
+  name: string;
+  requires_reference?: boolean;
+  sort_order?: number;
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  tax_id?: string;
+  loyalty_points?: number;
+  is_walk_in?: boolean;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -111,6 +130,7 @@ export interface Sale {
   status: string;
   items: SaleItem[];
   created_at: string;
+  customer_name?: string;
 }
 
 export interface Permission {

@@ -9,6 +9,7 @@ import AdminUsers from '$lib/pages/admin/Users.svelte';
 import AdminRoles from '$lib/pages/admin/Roles.svelte';
 import AdminAuditLogs from '$lib/pages/admin/AuditLogs.svelte';
 import AdminCategories from '$lib/pages/admin/Categories.svelte';
+import CustomersPage from '$lib/pages/CustomersPage.svelte';
 import Layout from '$lib/components/Layout.svelte';
 import Toast from '$lib/components/ui/Toast.svelte';
 import { auth } from '$lib/stores/auth';
@@ -36,6 +37,7 @@ function getComponent(path) {
       case '/inventory':        return InventoryPage;
       case '/reports':          return ReportsPage;
       case '/categories':       return AdminCategories;
+      case '/customers':        return CustomersPage;
       case '/admin':            return AdminUsers;
       case '/admin/users':      return AdminUsers;
       case '/admin/roles':      return AdminRoles;
@@ -161,6 +163,12 @@ function getComponent(path) {
       <span class="thermal-label">Waktu:</span>
       <span class="thermal-value">{new Date($printReceipt.created_at || Date.now()).toLocaleString('id-ID')}</span>
     </div>
+    {#if $printReceipt.customer_name}
+    <div class="thermal-row">
+      <span class="thermal-label">Customer:</span>
+      <span class="thermal-value">{$printReceipt.customer_name}</span>
+    </div>
+    {/if}
     <div class="thermal-divider"></div>
     {#each $printReceipt.items as item}
       <div class="thermal-item">

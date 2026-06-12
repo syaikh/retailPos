@@ -141,7 +141,12 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
     try {
       const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${accessToken}` } });
       if (response.status === 200 && response.data.user) {
-        return { success: true, user: response.data.user };
+        // Merge permissions from validate response into user object
+        const user = response.data.user as User;
+        if (response.data.permissions) {
+          user.permissions = response.data.permissions;
+        }
+        return { success: true, user };
       }
     } catch (err) {
       // If validation fails with 401, try to refresh the token
@@ -153,7 +158,11 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
         // Validate the new token
         const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
         if (response.status === 200 && response.data.user) {
-          return { success: true, user: response.data.user };
+          const user = response.data.user as User;
+          if (response.data.permissions) {
+            user.permissions = response.data.permissions;
+          }
+          return { success: true, user };
         }
       }
     }
