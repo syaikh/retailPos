@@ -357,6 +357,7 @@ func truncateTransactionalData(ctx context.Context, db *sql.DB) error {
 		"inventory_movements",
 		"sales",
 		"products",
+		"customers",
 	}
 
 	for _, table := range tables {
