@@ -426,7 +426,7 @@
           </div>
         {:else if products.length === 0}
           <div class="px-4 py-12 text-center">
-            <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+            <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Package size={32} class="text-text-muted" />
             </div>
             <p class="text-text-primary font-semibold mt-4">No products found</p>

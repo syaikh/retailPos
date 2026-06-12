@@ -776,7 +776,7 @@
         </div>
       {:else if items.length === 0}
         <div class="card px-4 py-24 flex flex-col items-center justify-center text-center">
-          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto">
+          <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
             <Search size={32} class="text-text-muted" />
           </div>
           <p class="text-text-primary font-semibold mt-4">No audit logs found</p>
