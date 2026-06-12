@@ -247,13 +247,13 @@ func (h *Handler) ValidateSession(c *gin.Context) {
 func (h *Handler) GetProducts(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
 			limit = val
 		}
 	}
 	offset := 0
 	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val > 0 {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
 			offset = val
 		}
 	}
@@ -516,13 +516,13 @@ func (h *Handler) CreateSale(c *gin.Context) {
 func (h *Handler) GetSalesHistory(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
 			limit = val
 		}
 	}
 	offset := 0
 	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val > 0 {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
 			offset = val
 		}
 	}
@@ -1045,13 +1045,13 @@ func (h *Handler) ListPermissions(c *gin.Context) {
 func (h *Handler) ListAuditLogs(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
 			limit = val
 		}
 	}
 	offset := 0
 	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val > 0 {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
 			offset = val
 		}
 	}
@@ -1748,13 +1748,13 @@ func (h *Handler) GetWarehouses(c *gin.Context) {
 func (h *Handler) GetCustomers(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
 			limit = val
 		}
 	}
 	offset := 0
 	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val > 0 {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
 			offset = val
 		}
 	}

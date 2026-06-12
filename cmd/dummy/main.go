@@ -318,6 +318,13 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
+	// 6. Inject dummy customers (50-100)
+	fmt.Printf("👥 Injecting dummy customers...\n")
+	if err := injectCustomers(ctx, db, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject customers: %w", err)
+	}
+	fmt.Printf("   ✅ Customers injected\n")
+
 	fmt.Println("🎉 Dummy data injection completed successfully!")
 	return nil
 }
@@ -1266,4 +1273,61 @@ func getDSN() string {
 		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
 	}
 	return dsn
+}
+// ==================== CUSTOMER GENERATION ====================
+
+var (
+	customerFirstNames = []string{
+		"Ahmad", "Siti", "Budi", "Dewi", "Eko", "Rina", "Hendra", "Maya", "Rizky", "Ani",
+		"Joko", "Lestari", "Agus", "Wati", "Bambang", "Sri", "Dedi", "Nur", "Fajar", "Fitri",
+		"Gunawan", "Hasan", "Irfan", "Joko", "Kartika", "Lukman", "Mira", "Nanda", "Oscar", "Putri",
+		"Reza", "Susi", "Tri", "Umi", "Vina", "Wahyu", "Yani", "Zulfikri", "Ayu", "Bayu",
+		"Citra", "Dimas", "Erna", "Farhan", "Gita", "Hanan", "Indra", "Jihan", "Kevin", "Lina",
+	}
+	customerLastNames = []string{
+		"Santoso", "Wijaya", "Kusuma", "Pratama", "Sari", "Hidayat", "Nugroho", "Permata",
+		"Saputra", "Maulana", "Hakim", "Gunawan", "Siregar", "Simanjuntak", "Nainggolan",
+		"Lubis", "Pane", "Rajagukguk", "Sinaga", "Tobing", "Umar", "Utomo", "Wibowo",
+		"Yulianto", "Zulkifli", "Abdullah", "Bachtiar", "Chandra", "Damanik", "Effendi",
+		"Firmansyah", "Girsang", "Halim", "Ibrahim", "Junaedi", "Kurniawan", "Lestari",
+		"Mansyur", "Nasution", "Oktavian", "Purba", "Quari", "Rahman", "Setiawan", "Thamrin",
+	}
+)
+
+func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+	numCustomers := 50 + rand.Intn(51) // 50-100
+	fmt.Printf("   🎲 Generating %d customers\n", numCustomers)
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
+		 VALUES ($1, $2, $3, true, false, $4)`)
+	if err != nil {
+		return fmt.Errorf("prepare: %w", err)
+	}
+	defer stmt.Close()
+
+	now := time.Now()
+	for i := 0; i < numCustomers; i++ {
+		first := customerFirstNames[rand.Intn(len(customerFirstNames))]
+		last := customerLastNames[rand.Intn(len(customerLastNames))]
+		name := fmt.Sprintf("%s %s", first, last)
+		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", rand.Intn(10000000000)))
+		email := fmt.Sprintf("%s.%s@email.com", strings.ToLower(first), strings.ToLower(last))
+
+		daysAgo := rand.Intn(int(now.Sub(startDate).Hours()/24)) + 1
+		createdAt := now.AddDate(0, 0, -daysAgo)
+
+		if _, err := stmt.ExecContext(ctx, name, phone, email, createdAt); err != nil {
+			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)
+			continue
+		}
+	}
+
+	return tx.Commit()
 }

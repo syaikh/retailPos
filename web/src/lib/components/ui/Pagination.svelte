@@ -19,6 +19,9 @@
   const canPrev = $derived(currentPage > 1);
   const canNext = $derived(currentPage < totalPages);
 
+  let pageInput = $state<string>('');
+  let editing = $derived(pageInput !== '');
+
   function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
     onPageChange((page - 1) * limit, limit);
@@ -26,9 +29,43 @@
 
   function handleLimitChange(e: Event) {
     const newLimit = parseInt((e.target as HTMLSelectElement).value);
-    // When changing limit, try to keep the user near the same data by resetting offset to 0
-    // or calculating new page. Resetting to 0 is safer for UX.
     onPageChange(0, newLimit);
+  }
+
+  function startEdit() {
+    pageInput = String(currentPage);
+  }
+
+  function cancelEdit() {
+    pageInput = '';
+  }
+
+  function submitEdit() {
+    const parsed = parseInt(pageInput);
+    if (isNaN(parsed) || parsed < 1) {
+      goToPage(1);
+    } else if (parsed > totalPages) {
+      goToPage(totalPages);
+    } else {
+      goToPage(parsed);
+    }
+    pageInput = '';
+  }
+
+  function handleInput(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    // Allow only digits
+    pageInput = val.replace(/[^0-9]/g, '');
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+    }
   }
 </script>
 
@@ -68,9 +105,27 @@
       <ChevronLeft size={18} />
     </button>
     
-    <div class="px-4 py-1.5 text-sm font-medium bg-surface-default border border-border-strong rounded-xl min-w-[100px] text-center">
-      Page {currentPage} of {totalPages}
-    </div>
+    {#if editing}
+      <input
+        type="text"
+        inputmode="numeric"
+        class="px-3 py-1.5 text-sm font-medium bg-surface-default border border-primary-default rounded-xl w-16 text-center focus:outline-none focus:ring-1 focus:ring-primary-default [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        value={pageInput}
+        oninput={handleInput}
+        onkeydown={handleKeydown}
+        onblur={submitEdit}
+        autofocus
+      />
+      <span class="text-sm text-text-muted">/ {totalPages}</span>
+    {:else}
+      <button
+        class="px-4 py-1.5 text-sm font-medium bg-surface-default border border-border-strong rounded-xl min-w-[100px] text-center hover:border-primary-default/50 transition-colors cursor-text"
+        onclick={startEdit}
+        title="Click to jump to page"
+      >
+        Page {currentPage} of {totalPages}
+      </button>
+    {/if}
 
     <button 
       class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
