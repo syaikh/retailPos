@@ -10,24 +10,12 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
 )
-
-// stockMinimum is the minimum stock threshold for newly seeded products.
-// Read from STOCK_MINIMUM env var; defaults to 0 so products are not flagged as low stock.
-var stockMinimum = func() int {
-	if v := os.Getenv("STOCK_MINIMUM"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			return n
-		}
-	}
-	return 0
-}()
 
 type ProductTemplate struct {
 	Category     string
@@ -563,12 +551,20 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	defer tx.Rollback()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, stock_min, category_id, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer stmt.Close()
+
+	// Prepare product_stock INSERT (view v_products_full reads stock from product_stock)
+	stockStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare stock statement: %w", err)
+	}
+	defer stockStmt.Close()
 
 	batch := make([]ProductInfo, 0, batchSize)
 
@@ -591,18 +587,21 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		barcode := generateBarcode(i)
 
 		stock := generateStockLevel(catName)
-		// stock_min: use env STOCK_MINIMUM (default 0) so products are not flagged as low stock
-		stockMin := stockMinimum
 
 		// Random date within last 6 months (evenly distributed across the period)
 		randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
 		createdAt := time.Now().AddDate(0, 0, -randomDays)
 
 		var id int
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, stockMin, catID, createdAt).Scan(&id)
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
+		}
+
+		// Insert into product_stock so v_products_full view returns correct stock
+		if _, err := stockStmt.ExecContext(ctx, id, stock); err != nil {
+			fmt.Printf("Warning: worker %d failed to insert product_stock for product %d: %v\n", job.workerID, i, err)
 		}
 
 		product := ProductInfo{

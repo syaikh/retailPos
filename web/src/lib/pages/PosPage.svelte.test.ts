@@ -24,8 +24,8 @@ function extractRhsBySemantics(source: string, lineLabel: string): string | null
 // ─── sample product used across tests ─────────────────────────────────────────
 const PRODUCTS = [
   { id: 1, name: 'Kopi Susu Gula Aren', sku: 'KSGA-001', price: 18000, stock: 50, barcode: '899001001' },
-  { id: 2, name: 'Roti Coklat',        sku: 'RTC-002',  price: 12000, stock:  3, barcode: '899002002' },
-  { id: 3, name: 'Susu UHT 250ml',     sku: 'SUHT-003', price:  9000, stock:  0 },
+  { id: 2, name: 'Roti Coklat', sku: 'RTC-002', price: 12000, stock: 3, barcode: '899002002' },
+  { id: 3, name: 'Susu UHT 250ml', sku: 'SUHT-003', price: 9000, stock: 0 },
 ];
 
 // ─── source-structure guard tests ─────────────────────────────────────────────

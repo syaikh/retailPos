@@ -1011,6 +1011,51 @@ async function exportToExcel() {
     setTimeout(() => window.print(), 300);
   }
 
+  async function downloadInvoice() {
+    if (!selectedTransaction) return;
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.text('INVOICE', 20, 20);
+      doc.setFontSize(10);
+      doc.text(`Invoice #: ${selectedTransaction.invoice_number}`, 20, 30);
+      doc.text(`Date: ${formatDateTime(new Date(selectedTransaction.created_at))}`, 20, 36);
+      doc.text(`Payment: ${selectedTransaction.payment_method || '—'}`, 20, 42);
+      if (selectedTransaction.customer_name) {
+        doc.text(`Customer: ${selectedTransaction.customer_name}`, 20, 48);
+      }
+
+      const itemRows = (selectedTransaction.items || []).map((item) => [
+        item.name,
+        item.quantity.toString(),
+        `Rp ${(item.unit_price || 0).toLocaleString('id-ID')}`,
+        `Rp ${(item.unit_price * item.quantity).toLocaleString('id-ID')}`,
+      ]);
+
+      autoTable(doc, {
+        startY: 58,
+        head: [['Item', 'Qty', 'Price', 'Subtotal']],
+        body: itemRows,
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [124, 58, 237] },
+      });
+
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.text(`Total: Rp ${(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}`, 20, finalY);
+
+      doc.save(`invoice-${selectedTransaction.invoice_number}.pdf`);
+      toast.success('Invoice downloaded');
+    } catch (error) {
+      toast.error('Failed to download invoice');
+    }
+  }
+
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
     limit = newLimit;
@@ -1726,6 +1771,10 @@ onValueChange={(val) => {
               <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</p>
               <p class="text-base text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
             </div>
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Customer</p>
+              <p class="text-base text-text-primary">{selectedTransaction.customer_name || 'Walk-in / General'}</p>
+            </div>
           </div>
           <div class="space-y-3">
             <div>
@@ -1791,16 +1840,7 @@ onValueChange={(val) => {
             <Printer size={14} />
             Print Receipt
           </button>
-          <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={() => {
-            const data = {
-              invoice: selectedTransaction.invoice_number,
-              date: formatDateTime(new Date(selectedTransaction.created_at)),
-              items: selectedTransaction.items,
-              total: selectedTransaction.total_amount
-            };
-            console.log('Download invoice:', data);
-            toast.info('Invoice download feature coming soon');
-          }}>
+          <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={downloadInvoice}>
             <Download size={14} />
             Download Invoice
           </button>

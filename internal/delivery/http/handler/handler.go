@@ -283,6 +283,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return
 	}
+	if products == nil {
+		products = []domain.Product{}
+	}
 	c.JSON(http.StatusOK, gin.H{"data": products, "total": total})
 }
 

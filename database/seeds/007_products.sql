@@ -7,3 +7,12 @@ VALUES
 (4, 'SKU-004', 'Kopiko 78°C', '8992721000611', 2, 4, 'Kopi instan dengan kafein tinggi', 8000, 6500, 150, NULL, 'active', 1, 1, 25, NOW(), NOW()),
 (5, 'SKU-005', 'Beng-beng', '8999909300125', 3, 1, 'Coklat bar dengan wafer', 2500, 2000, 300, NULL, 'active', 1, 1, 45, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- Seed: Product Stock (v_products_full view reads stock from product_stock)
+INSERT INTO product_stock (product_id, quantity) VALUES
+(1, 100),
+(2, 200),
+(3, 75),
+(4, 150),
+(5, 300)
+ON CONFLICT DO NOTHING;

@@ -13,6 +13,7 @@ type Config struct {
 	JWTSecret              string
 	StockWarningThreshold  int
 	StockCriticalThreshold int
+	StockMinimum           int
 	Timezone               *time.Location
 }
 
@@ -57,6 +58,7 @@ func Load() *Config {
 
 	warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
 	criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
+	stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
 
 	return &Config{
 		Env:                    env,
@@ -64,6 +66,7 @@ func Load() *Config {
 		JWTSecret:              jwtSecret,
 		StockWarningThreshold:  warningThreshold,
 		StockCriticalThreshold: criticalThreshold,
+		StockMinimum:           stockMinimum,
 		Timezone:               defaultLocation,
 	}
 }
