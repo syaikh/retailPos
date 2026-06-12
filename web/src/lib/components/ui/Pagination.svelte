@@ -63,6 +63,10 @@
     editing = false;
   }
 
+  function selectAll(e: Event) {
+    (e.target as HTMLInputElement).select();
+  }
+
   function handleInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     pageInput = val.replace(/[^0-9]/g, '');
@@ -121,6 +125,7 @@
         inputmode="numeric"
         class="px-3 py-1.5 text-sm font-medium bg-surface-default border border-primary-default rounded-xl w-16 text-center focus:outline-none focus:ring-1 focus:ring-primary-default [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         value={pageInput}
+        onfocus={selectAll}
         oninput={handleInput}
         onkeydown={handleKeydown}
         onblur={submitEdit}
