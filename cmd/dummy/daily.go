@@ -176,8 +176,15 @@ func RunDaily(db *sql.DB) error {
 		return fmt.Errorf("no customers found — run the bulk seeder first with: go run ./cmd/dummy -products 100 -days 180")
 	}
 
+	// 4b. Load walk-in customer ID
+	var walkInCustomerID int
+	err = db.QueryRowContext(ctx, "SELECT id FROM customers WHERE is_walk_in = true LIMIT 1").Scan(&walkInCustomerID)
+	if err != nil {
+		return fmt.Errorf("no walk-in customer found: %w", err)
+	}
+
 	// 5. Build sales records in memory (start numbering after maxSeq)
-	records := buildRecords(products, storeIDs, cashierIDs, customerIDs, dateConsidered, now, salesCount, maxSeq)
+	records := buildRecords(products, storeIDs, cashierIDs, customerIDs, walkInCustomerID, dateConsidered, now, salesCount, maxSeq)
 
 	// 5. Persist
 	inserted := insertRecords(ctx, db, records)
@@ -290,6 +297,7 @@ func buildRecords(
 	storeIDs []int,
 	cashierIDs []int,
 	customerIDs []int,
+	walkInCustomerID int,
 	targetDate, now time.Time,
 	salesCount, startSeq int,
 ) []dailySaleRecord {
@@ -315,6 +323,9 @@ func buildRecords(
 		seq := startSeq + i + 1 // +1 because startSeq=0 means first invoice is 1
 		cashierID := cashierIDs[rand.Intn(len(cashierIDs))]
 		customerID := customerIDs[rand.Intn(len(customerIDs))]
+		if rand.Intn(100) < 40 {
+			customerID = walkInCustomerID
+		}
 		storeID := storeIDForSale(storeIDs, dailyStoreID)
 
 		records = append(records, dailySaleRecord{

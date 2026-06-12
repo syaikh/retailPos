@@ -324,10 +324,17 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("no customers found after injection")
 	}
 
-	// 7. Inject sales transactions (10-20 per day across all days)
+	// 7. Load walk-in customer ID
+	var walkInCustomerID int
+	err = db.QueryRowContext(ctx, "SELECT id FROM customers WHERE is_walk_in = true LIMIT 1").Scan(&walkInCustomerID)
+	if err != nil {
+		return fmt.Errorf("no walk-in customer found: %w", err)
+	}
+
+	// 8. Inject sales transactions (10-20 per day across all days)
 	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
 
-	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, startDate, endDate); err != nil {
+	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, walkInCustomerID, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
@@ -614,14 +621,15 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 
 // workerJob represents a job for a worker in the concurrent pool
 type workerJob struct {
-	workerID     int
-	startInvoice int
-	days         []int // Days this worker handles (relative to startDate)
-	customerIDs  []int // Available customer IDs to assign to sales
+	workerID         int
+	startInvoice     int
+	days             []int // Days this worker handles (relative to startDate)
+	customerIDs      []int // Available customer IDs to assign to sales
+	walkInCustomerID int   // Walk-in/general customer ID for 30-50% of sales
 }
 
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
-func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, startDate, endDate time.Time) error {
+func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
 	numWorkers := 4 // Concurrent workers for performance
 
 	now := time.Now().In(jakartaTZ)
@@ -661,10 +669,11 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	currentInvoice := 1
 	for i := 0; i < numWorkers; i++ {
 		job := workerJob{
-			workerID:     i,
-			startInvoice: currentInvoice,
-			days:         []int{},
-			customerIDs:  customerIDs,
+			workerID:         i,
+			startInvoice:     currentInvoice,
+			days:             []int{},
+			customerIDs:      customerIDs,
+			walkInCustomerID: walkInCustomerID,
 		}
 
 		// Update invoice counter for next worker
@@ -784,7 +793,11 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			invoiceCounter++
 
 			cashierID := randElemInt(userIDs)
+			// 30-50% of sales use the walk-in/general customer
 			customerID := randElemInt(job.customerIDs)
+			if rand.Intn(100) < 40 {
+				customerID = job.walkInCustomerID
+			}
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
 			createdAt := randomTime24Hour(dayDate, now)
 
@@ -1323,6 +1336,19 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	defer stmt.Close()
 
 	now := time.Now()
+
+	// Insert a walk-in/general customer first
+	walkInID := 0
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
+		 VALUES ('Walk-in / General', '', '', true, true, $1)
+		 RETURNING id`,
+		now,
+	).Scan(&walkInID)
+	if err != nil {
+		return fmt.Errorf("insert walk-in customer: %w", err)
+	}
+
 	for i := 0; i < numCustomers; i++ {
 		first := customerFirstNames[rand.Intn(len(customerFirstNames))]
 		last := customerLastNames[rand.Intn(len(customerLastNames))]
@@ -1339,5 +1365,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		}
 	}
 
-	return tx.Commit()
+	tx.Commit()
+	_ = walkInID // returned for reference
+	return nil
 }
