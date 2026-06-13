@@ -21,6 +21,8 @@
   let selectedCategory = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+  let sortBy = $state('name');
+  let sortDir = $state('asc');
 
   let form = $state({
     name: '',
@@ -46,6 +48,46 @@ let canView = $derived($auth.user != null);
     const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
     return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
   }
+
+  function handleSort(column) {
+    if (sortBy === column) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = column;
+      sortDir = 'asc';
+    }
+  }
+
+  let sortedCategories = $derived(
+    [...categories].sort((a, b) => {
+      let aVal, bVal;
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'slug':
+          aVal = a.slug.toLowerCase();
+          bVal = b.slug.toLowerCase();
+          break;
+        case 'product_count':
+          aVal = a.product_count || 0;
+          bVal = b.product_count || 0;
+          break;
+        case 'created_at':
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+      if (sortDir === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    })
+  );
 
   async function fetchCategories(isSearch = false) {
     // Note: Authorization checked via API response (403), not frontend
@@ -251,17 +293,45 @@ let canView = $derived($auth.user != null);
     {:else}
       <div class="overflow-x-auto">
         <table>
-          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-            <tr>
-              <th>Nama Kategori</th>
-              <th>Slug</th>
-              <th class="text-center">Jumlah Produk</th>
-              <th>Tanggal Dibuat</th>
-              <th class="text-center">Aksi</th>
+           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
+             <tr>
+               <th class="text-left">
+                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+                   Nama Kategori
+                   <span class="inline-block w-3 text-center {sortBy === 'name' ? 'text-primary-light' : 'invisible'}">
+                     {sortBy === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
+                   </span>
+                 </button>
+               </th>
+               <th class="text-left">
+                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
+                   Slug
+                   <span class="inline-block w-3 text-center {sortBy === 'slug' ? 'text-primary-light' : 'invisible'}">
+                     {sortBy === 'slug' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
+                   </span>
+                 </button>
+               </th>
+               <th class="text-center">
+                 <button class="flex items-center gap-1 hover:text-primary transition-colors mx-auto" onclick={() => handleSort('product_count')}>
+                   Jumlah Produk
+                   <span class="inline-block w-3 text-center {sortBy === 'product_count' ? 'text-primary-light' : 'invisible'}">
+                     {sortBy === 'product_count' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
+                   </span>
+                 </button>
+               </th>
+               <th class="text-left">
+                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
+                   Tanggal Dibuat
+                   <span class="inline-block w-3 text-center {sortBy === 'created_at' ? 'text-primary-light' : 'invisible'}">
+                     {sortBy === 'created_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
+                   </span>
+                 </button>
+               </th>
+               <th class="text-center">Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {#each categories as cat (cat.id)}
+            {#each sortedCategories as cat (cat.id)}
               <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                 <td>
                   <div class="flex items-center gap-3">
