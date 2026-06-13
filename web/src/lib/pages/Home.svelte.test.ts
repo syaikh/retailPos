@@ -63,4 +63,8 @@ describe('Home.svelte live dashboard', () => {
     expect(source).toContain('Reports');
     expect(source).toContain('Administration');
   });
+
+  it('Inventory quick link points to /inventory/products', () => {
+    expect(source).toContain("href: '/inventory/products'");
+  });
 });

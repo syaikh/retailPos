@@ -218,24 +218,35 @@
     cart = [];
   }
 
-  function printReceipt() {
-    if (!lastSale || !lastSale.items) return;
+  async function printReceipt() {
+    if (!lastSale || !lastSale.invoice_number) return;
+    let sale = lastSale;
+    if (!sale.items || sale.items.length === 0) {
+      try {
+        const detail = await apiClient.get(`/sales/${sale.id}`);
+        sale = detail.data?.data || detail.data;
+      } catch (_) { return; }
+    }
+    if (!sale || !sale.items || sale.items.length === 0) return;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
     printReceiptStore.set({
-      invoice_number: lastSale.invoice_number,
-      created_at: lastSale.created_at,
-      items: lastSale.items.map((item) => ({
+      invoice_number: sale.invoice_number,
+      created_at: sale.created_at,
+      items: (sale.items || []).map((item) => ({
         name: item.name,
         quantity: item.quantity,
         unit_price: item.unit_price,
       })),
-      total_amount: lastSale.total_amount,
-      paymentMethod: paymentMethod,
-      cashReceived: cashReceived,
-      changeDue: changeDue,
+      total_amount: sale.total_amount,
+      paymentMethod: sale.payment_method || paymentMethod,
+      cashReceived: sale.cash_received || cashReceived,
+      changeDue: sale.change_due || changeDue,
       customer_name: customer?.name,
     });
-    setTimeout(() => window.print(), 300);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => printReceiptStore.set(null), 1000);
+    }, 300);
   }
 
   function handlePageChange(newOffset) {
@@ -278,7 +289,12 @@
           customer_name: customer?.name,
         });
       }
-      setTimeout(() => window.print(), 300);
+    setTimeout(() => {
+      window.print();
+      // Clear the receipt store after print dialog closes so the
+      // hidden receipt container doesn't linger in the DOM
+      setTimeout(() => printReceiptStore.set(null), 1000);
+    }, 300);
     });
   }
 
@@ -361,14 +377,30 @@
     isInitialMount = false;
     focusSearch();
     try {
-      const r = await apiClient.get('/sales?limit=1&offset=0&sort=desc');
-      const data = r.data?.data || r.data;
+      const today = new Date();
+      const endDate = today.toISOString().split('T')[0];
+      const startDate = '2025-01-01';
+      const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
+      const body = r.data;
+      let data = body?.data || body;
       if (Array.isArray(data) && data.length > 0) {
         lastSale = data[0];
-      } else if (data && !Array.isArray(data)) {
+      } else if (data && !Array.isArray(data) && (data as any).id) {
         lastSale = data;
       }
-    } catch (_) {}
+      if (lastSale) {
+        console.log('[POS] Last sale loaded:', lastSale.invoice_number, 'items:', lastSale.items?.length);
+      }
+      if (lastSale && !lastSale.items) {
+        const detail = await apiClient.get(`/sales/${lastSale.id}`);
+        const detailData = detail.data?.data || detail.data;
+        if (detailData?.items) {
+          lastSale = detailData;
+        }
+      }
+    } catch (err: any) {
+      console.warn('[POS] Failed to load last sale:', err?.response?.data?.error || err?.message);
+    }
     unsubscribeStock = ws.on('stock_update', (data) => {
       const product = products.find(p => p.id === data.id);
       if (product) {
@@ -379,6 +411,9 @@
     unsubscribeSale = ws.on('sale_created', (data) => {
       if (data && data.invoice && data.total != null) {
         toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
+      }
+      if (data) {
+        lastSale = data;
       }
     });
     return () => {
@@ -668,18 +703,18 @@
             {/if}
           </button>
 
-          <button
-            class="btn btn-ghost w-full py-2 mt-2"
-            onclick={printReceipt}
-            disabled={!lastSale}
-          >
-            <Printer size={16} />
-            {#if lastSale}
-              Print Last Receipt · {lastSale.invoice_number}
-            {:else}
-              Print Last Receipt
-            {/if}
-          </button>
+           <button
+             class="btn btn-ghost w-full py-2 mt-2"
+             onclick={printReceipt}
+             disabled={!lastSale || !lastSale.invoice_number}
+           >
+             <Printer size={16} />
+             {#if lastSale && lastSale.invoice_number}
+               Print Last Receipt · {lastSale.invoice_number}
+             {:else}
+               Print Last Receipt
+             {/if}
+           </button>
         </div>
       </div>
     </div>

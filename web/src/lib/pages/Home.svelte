@@ -71,7 +71,7 @@
     {
       label: 'Inventory',
       desc: 'Manage products, stock & categories',
-      href: '/inventory',
+      href: '/inventory/products',
       icon: Package,
       iconBg: 'bg-success-subtle',
       iconColor: 'text-success-light',

@@ -185,8 +185,8 @@ describe('PosPage source-structure guards', () => {
       expect(source).toContain("total_amount: totalAmount");
     });
 
-    it('printReceipt guards with if (!lastSale || !lastSale.items)', () => {
-      expect(source).toContain('if (!lastSale || !lastSale.items) return');
+    it('printReceipt guards with if (!lastSale || !lastSale.invoice_number)', () => {
+      expect(source).toContain('if (!lastSale || !lastSale.invoice_number) return');
     });
 
     it('printReceipt calls window.print()', () => {
@@ -195,12 +195,13 @@ describe('PosPage source-structure guards', () => {
 
     it('Print Last Receipt button is always visible with disabled guard', () => {
       expect(source).toContain('Print Last Receipt');
-      expect(source).toContain('disabled={!lastSale}');
+      expect(source).toContain('disabled={!lastSale || !lastSale.invoice_number}');
       expect(source).toContain('lastSale.invoice_number');
     });
 
     it('fetches last sale from API on mount', () => {
-      expect(source).toContain("apiClient.get('/sales?limit=1&offset=0&sort=desc')");
+      expect(source).toContain("apiClient.get(`/sales?limit=1&offset=0&startDate=");
+      expect(source).toContain('endDate=');
     });
   });
 

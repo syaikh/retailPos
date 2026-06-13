@@ -13,16 +13,17 @@
 
   function getBreadcrumb(path: string): { label: string; href: string }[] {
     const map: Record<string, string> = {
-      '/':                  'Dashboard',
-      '/pos':               'Point of Sale',
-      '/inventory':         'Inventory',
-      '/reports':           'Reports',
-      '/categories':        'Categories',
-      '/customers':         'Customers',
-      '/admin':             'Administration',
-      '/admin/users':       'Users',
-      '/admin/roles':       'Roles',
-      '/admin/audit-logs':  'Audit Logs',
+      '/':                   'Dashboard',
+      '/pos':                'Point of Sale',
+      '/inventory/products': 'Products',
+      '/inventory/stock':    'Stock',
+      '/reports':            'Reports',
+      '/categories':         'Categories',
+      '/customers':          'Customers',
+      '/admin':              'Administration',
+      '/admin/users':        'Users',
+      '/admin/roles':        'Roles',
+      '/admin/audit-logs':   'Audit Logs',
     };
 
     const parts: { label: string; href: string }[] = [];

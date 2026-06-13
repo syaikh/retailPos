@@ -3,7 +3,8 @@
 import LoginPage from '$lib/pages/LoginPage.svelte';
 import Home from '$lib/pages/Home.svelte';
 import PosPage from '$lib/pages/PosPage.svelte';
-import InventoryPage from '$lib/pages/InventoryPage.svelte';
+import ProductsPage from '$lib/pages/ProductsPage.svelte';
+import StockPage from '$lib/pages/StockPage.svelte';
 import ReportsPage from '$lib/pages/ReportsPage.svelte';
 import AdminUsers from '$lib/pages/admin/UsersPage.svelte';
 import AdminRoles from '$lib/pages/admin/RolesPage.svelte';
@@ -32,18 +33,20 @@ $effect(() => {
 
 function getComponent(path) {
     switch (path) {
-      case '/login':            return LoginPage;
-      case '/pos':              return PosPage;
-      case '/inventory':        return InventoryPage;
-      case '/reports':          return ReportsPage;
-      case '/categories':       return AdminCategories;
-      case '/customers':        return CustomersPage;
-      case '/admin':            return AdminUsers;
-      case '/admin/users':      return AdminUsers;
-      case '/admin/roles':      return AdminRoles;
-      case '/admin/audit-logs': return AdminAuditLogs;
-      case '/admin/categories': return AdminCategories;
-      default:                  return Home;
+      case '/login':               return LoginPage;
+      case '/pos':                 return PosPage;
+      case '/inventory':           return ProductsPage;
+      case '/inventory/products':  return ProductsPage;
+      case '/inventory/stock':     return StockPage;
+      case '/reports':             return ReportsPage;
+      case '/categories':          return AdminCategories;
+      case '/customers':           return CustomersPage;
+      case '/admin':               return AdminUsers;
+      case '/admin/users':         return AdminUsers;
+      case '/admin/roles':         return AdminRoles;
+      case '/admin/audit-logs':    return AdminAuditLogs;
+      case '/admin/categories':    return AdminCategories;
+      default:                     return Home;
     }
   }
 
@@ -110,7 +113,12 @@ function getComponent(path) {
       currentPath = '/';
       window.history.replaceState({}, '', '/');
     } else {
-      currentPath = path;
+    if (path === '/inventory') {
+      goto('/inventory/products');
+      return;
+    }
+
+    currentPath = path;
       Component = getComponent(path);
     }
 

@@ -13,6 +13,8 @@
     Store,
     User,
     Tag,
+    ClipboardList,
+    Database,
   } from 'lucide-svelte';
   import { goto, getPath } from '$lib/router';
   import { logout } from '$lib/api/auth';
@@ -24,47 +26,62 @@
 
   let collapsed = $state(false);
   let adminExpanded = $state(false);
+  let masterDataExpanded = $state(true);
 
   const isAdminPath = $derived(currentPath.startsWith('/admin'));
+  const isMasterDataPath = $derived(
+    currentPath.startsWith('/inventory/products') ||
+    currentPath.startsWith('/categories') ||
+    currentPath.startsWith('/customers')
+  );
+  const isStockPath = $derived(currentPath.startsWith('/inventory/stock'));
 
-  // Auto-expand admin if on an admin route
   $effect(() => {
     if (isAdminPath) adminExpanded = true;
+  });
+
+  $effect(() => {
+    if (isMasterDataPath) masterDataExpanded = true;
   });
 
   let username = $derived($auth.user?.username || 'User');
   let role = $derived($auth.user?.role?.name || ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) || ($auth.user?.role_id === 1 ? 'superadmin' : $auth.user?.role_id === 2 ? 'admin' : $auth.user?.role_id === 3 ? 'cashier' : $auth.user?.role_id === 4 ? 'manager' : $auth.user?.role_id === 5 ? 'staff' : 'cashier'));
 
   const navItems = [
-    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
-    { label: 'Point of Sale', href: '/pos',     icon: ShoppingCart    },
-    { label: 'Inventory',  href: '/inventory',  icon: Package         },
-    { label: 'Reports',    href: '/reports',    icon: BarChart3       },
-    { label: 'Categories', href: '/categories',  icon: Tag             },
-    { label: 'Customers',  href: '/customers',  icon: User            },
+    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
+    { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
+    { label: 'Reports',       href: '/reports',           icon: BarChart3 },
+  ];
+
+  const masterDataSubItems = [
+    { label: 'Products',   href: '/inventory/products', icon: Package },
+    { label: 'Categories', href: '/categories',          icon: Tag },
+    { label: 'Customers',  href: '/customers',           icon: User },
   ];
 
   const managerNavItems = [
-    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
-    { label: 'Inventory',  href: '/inventory',  icon: Package         },
-    { label: 'Reports',    href: '/reports',    icon: BarChart3       },
-    { label: 'Categories', href: '/categories',  icon: Tag             },
-    { label: 'Customers',  href: '/customers',  icon: User            },
+    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
+    { label: 'Reports',       href: '/reports',           icon: BarChart3 },
+  ];
+
+  const managerMasterDataSubItems = [
+    { label: 'Products',   href: '/inventory/products', icon: Package },
+    { label: 'Categories', href: '/categories',          icon: Tag },
+    { label: 'Customers',  href: '/customers',           icon: User },
   ];
 
   const cashierNavItems = [
-    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
-    { label: 'Point of Sale', href: '/pos',   icon: ShoppingCart    },
+    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
+    { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
   ];
 
   const staffNavItems = [
-    { label: 'Dashboard',  href: '/',           icon: LayoutDashboard },
-    { label: 'Inventory',  href: '/inventory',  icon: Package         },
+    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
   ];
 
   const adminItems = [
-    { label: 'Users',       href: '/admin/users',       icon: Users      },
-    { label: 'Roles',       href: '/admin/roles',       icon: Shield     },
+    { label: 'Users',       href: '/admin/users',       icon: Users },
+    { label: 'Roles',       href: '/admin/roles',       icon: Shield },
     { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText, requiresSuperadmin: true },
   ];
 
@@ -73,6 +90,17 @@
     role === 'cashier' ? cashierNavItems :
     (role === 'manager' ? managerNavItems : navItems)
   );
+
+  let visibleMasterDataSubItems = $derived(
+    role === 'staff' ? [] :
+    role === 'cashier' ? [] :
+    (role === 'manager' ? managerMasterDataSubItems : masterDataSubItems)
+  );
+
+  let showStockItem = $derived(
+    role !== 'cashier'
+  );
+
   let showAdminSection = $derived(role === 'admin' || role === 'superadmin');
 
   function isActive(href: string) {
@@ -145,30 +173,100 @@
       </button>
     {/each}
 
-    <!-- Admin section -->
+    <!-- Master Data group -->
+    {#if visibleMasterDataSubItems.length > 0}
+      <div class="pt-1">
+        {#if !collapsed}
+          <p class="px-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1 animate-fade-in">
+            Master Data
+          </p>
+        {/if}
+        <button
+          onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
+          class={isMasterDataPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+          title={collapsed ? 'Master Data' : ''}
+        >
+          <Database size={18} class="shrink-0" />
+          {#if !collapsed}
+            <span class="animate-fade-in relative z-10 flex-1">Master Data</span>
+            <span class="animate-fade-in">
+              {#if masterDataExpanded}
+                <ChevronLeft size={12} class="text-text-muted -rotate-90 transition-transform" />
+              {:else}
+                <ChevronRight size={12} class="text-text-muted transition-transform" />
+              {/if}
+            </span>
+          {/if}
+        </button>
+
+        {#if masterDataExpanded && !collapsed}
+          {#each visibleMasterDataSubItems as subItem}
+            <button
+              onclick={(e) => { createRipple(e, e.currentTarget); navigate(subItem.href); }}
+              class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+            >
+              <subItem.icon size={16} class="shrink-0" />
+              <span class="animate-fade-in relative z-10">{subItem.label}</span>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Stock (operational, not master data) -->
+    {#if showStockItem}
+      <div class="pt-1">
+        <button
+          onclick={(e) => { createRipple(e, e.currentTarget); navigate('/inventory/stock'); }}
+          class={isStockPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+          title={collapsed ? 'Stock' : ''}
+        >
+          <ClipboardList size={18} class="shrink-0" />
+          {#if !collapsed}
+            <span class="animate-fade-in relative z-10">Stock</span>
+          {/if}
+        </button>
+      </div>
+    {/if}
+
+    <!-- Administration group -->
     {#if showAdminSection}
-    <div class="pt-4 pb-1">
+    <div class="pt-4">
       {#if !collapsed}
         <p class="px-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1 animate-fade-in">
           Administration
         </p>
-      {:else}
-        <div class="border-t border-sidebar-border mx-2 mb-2"></div>
       {/if}
-    </div>
-
-    {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
       <button
-        onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
-        class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
-        title={collapsed ? item.label : ''}
+        onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) adminExpanded = !adminExpanded; else navigate('/admin/users'); }}
+        class={isAdminPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        title={collapsed ? 'Administration' : ''}
       >
-        <item.icon size={18} class="shrink-0" />
+        <Shield size={18} class="shrink-0" />
         {#if !collapsed}
-          <span class="animate-fade-in relative z-10">{item.label}</span>
+          <span class="animate-fade-in relative z-10 flex-1">Administration</span>
+          <span class="animate-fade-in">
+            {#if adminExpanded}
+              <ChevronLeft size={12} class="text-text-muted -rotate-90 transition-transform" />
+            {:else}
+              <ChevronRight size={12} class="text-text-muted transition-transform" />
+            {/if}
+          </span>
         {/if}
       </button>
-    {/each}
+
+      {#if adminExpanded && !collapsed}
+        {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
+          <button
+            onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
+            class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+          >
+            <item.icon size={16} class="shrink-0" />
+            <span class="animate-fade-in relative z-10">{item.label}</span>
+          </button>
+        {/each}
+      {/if}
+    </div>
     {/if}
   </nav>
 
