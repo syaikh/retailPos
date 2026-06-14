@@ -142,6 +142,11 @@
     }
   }
 
+  function openProductDetails(product) {
+    selectedProduct = product;
+    showDetailDrawer = true;
+  }
+
   function openAdjustStock(product) {
     stockAdjustProduct = product;
     stockAdjustForm = {
@@ -702,13 +707,16 @@
         </thead>
         <tbody>
           {#each products as product}
-            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+            <tr
+              class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
+              onclick={() => openProductDetails(product)}
+            >
               <td class="p-4 pr-6" style="width: 38%;">
                 <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
                     {product.sku}
-                    <button class="p-0.5 hover:text-primary transition-colors" title="Salin SKU" onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}>
+                    <button class="p-0.5 hover:text-primary transition-colors" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
                       {#if showCopySuccess?.has(`sku_${product.id}`)}
                         <span class="text-sm text-primary font-semibold">✓</span>
                       {:else}
@@ -719,7 +727,7 @@
                   {#if product.barcode}
                     <span class="flex items-center gap-1 ml-4">
                       {product.barcode}
-                      <button class="p-0.5 hover:text-primary transition-colors" title="Salin barcode" onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}>
+                      <button class="p-0.5 hover:text-primary transition-colors" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
                         {#if showCopySuccess?.has(`barcode_${product.id}`)}
                           <span class="text-sm text-primary font-semibold">✓</span>
                         {:else}
@@ -742,7 +750,7 @@
                   <Badge variant="success">In Stock</Badge>
                 {/if}
               </td>
-              <td class="p-4 w-20" style="width: 80px;">
+              <td class="p-4 w-20" style="width: 80px;" onclick={(e) => e.stopPropagation()}>
                 <ProductActionsDropdown
                   {product}
                   canEdit={canEdit()}
