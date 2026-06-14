@@ -57,11 +57,6 @@
   });
   let lowStockOnly = $state(false);
 
-  let lowStockBtnStyle = $derived(lowStockOnly
-    ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
-    : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
-  );
-
   let previousCategories = ['All'];
   let sortBy = $state('name');
   let sortDir = $state('asc');
@@ -578,13 +573,9 @@
         role="switch"
         aria-checked={lowStockOnly}
         onclick={() => { lowStockOnly = !lowStockOnly; offset = 0; fetchProducts(0, limit); }}
-        class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200"
-        style={lowStockBtnStyle}
+        class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200 border {lowStockOnly ? 'bg-warning/10 border-warning/30 text-warning-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
       >
-        <span
-          class="block rounded-full shrink-0 transition-colors duration-200"
-          style="width: 8px; height: 8px; background: {lowStockOnly ? '#c4b5fd' : '#6b7280'}; box-shadow: {lowStockOnly ? '0 0 6px rgba(196,181,253,0.7)' : 'none'};"
-        ></span>
+        <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
         <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
       </button>
       <button
