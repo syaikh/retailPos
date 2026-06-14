@@ -245,7 +245,7 @@ let canView = $derived($auth.user != null);
         {/if}
       </div>
       {#if canCreate}
-        <button class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+        <button class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
           <Plus size={18} />
           Tambah Kategori
         </button>

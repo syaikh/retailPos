@@ -196,14 +196,14 @@
       <button
         type="button"
         onclick={onCancel}
-        class="btn btn-secondary rounded-full px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="btn btn-secondary px-5 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Cancel
       </button>
       <button
         type="submit"
         disabled={saving}
-        class="btn btn-primary rounded-full shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="btn btn-primary shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saving ? 'Saving...' : mode === 'add' ? 'Add' : 'Update'}
       </button>

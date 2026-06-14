@@ -555,7 +555,7 @@
       <button
         type="button"
         onclick={() => showCategoryFilterModal = true}
-        class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200"
+        class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200"
         style={categoryBtnStyle}
       >
         <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}" />
@@ -573,7 +573,7 @@
         role="switch"
         aria-checked={lowStockOnly}
         onclick={() => { lowStockOnly = !lowStockOnly; offset = 0; fetchProducts(0, limit); }}
-        class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200 border {lowStockOnly ? 'bg-warning/10 border-warning/30 text-warning-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+        class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200 border {lowStockOnly ? 'bg-warning/10 border-warning/30 text-warning-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
       >
         <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
         <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
@@ -586,7 +586,7 @@
           showModal = true;
         }}
         disabled={!canManageInventory}
-        class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
         title={canManageInventory ? 'Add product' : 'Requires inventory role'}
       >
         <Plus size={18} />
@@ -769,8 +769,8 @@
     <p class="text-text-muted text-sm">This action cannot be undone and will remove the product from the catalog.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary rounded-full px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger rounded-full px-5" disabled={isDeleting} onclick={() => handleDelete()}>
+    <button class="btn btn-secondary px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</button>
+    <button class="btn btn-danger px-5" disabled={isDeleting} onclick={() => handleDelete()}>
       {isDeleting ? 'Deleting...' : 'Delete'}
     </button>
   {/snippet}

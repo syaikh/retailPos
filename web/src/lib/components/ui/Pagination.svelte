@@ -88,7 +88,7 @@
   <div class="flex items-center gap-3 text-sm text-text-secondary">
     <span>Rows per page:</span>
     <select 
-      class="bg-surface-default border border-border-strong rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-default cursor-pointer"
+      class="bg-surface-default border border-border-strong rounded-xl px-2 py-1 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-default cursor-pointer"
       value={limit}
       onchange={handleLimitChange}
     >

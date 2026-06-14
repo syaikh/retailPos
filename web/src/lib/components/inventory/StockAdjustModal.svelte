@@ -57,8 +57,8 @@
     </div>
   </form>
   {#snippet footer()}
-    <button class="btn btn-secondary rounded-full px-5" disabled={adjustingStock} onclick={onCancel}>Cancel</button>
-    <button class="btn btn-primary rounded-full px-5" disabled={adjustingStock} onclick={onSubmit}>
+    <button class="btn btn-secondary px-5" disabled={adjustingStock} onclick={onCancel}>Cancel</button>
+    <button class="btn btn-primary px-5" disabled={adjustingStock} onclick={onSubmit}>
       {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       Adjust Stock
     </button>

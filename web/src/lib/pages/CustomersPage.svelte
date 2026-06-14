@@ -281,7 +281,7 @@
       {#if canCreate}
         <button
           onclick={() => { resetForm(); showCreateModal = true; }}
-          class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
+          class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5"
         >
           <Plus size={18} />
           Add Customer
@@ -465,8 +465,8 @@
     </div>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary rounded-full px-5" onclick={() => showCreateModal = false}>Cancel</button>
-    <button class="btn btn-primary rounded-full px-5" disabled={creating} onclick={createCustomer}>
+    <button class="btn btn-secondary px-5" onclick={() => showCreateModal = false}>Cancel</button>
+    <button class="btn btn-primary px-5" disabled={creating} onclick={createCustomer}>
       {#if creating}
         <Loader2 size={14} class="animate-spin mr-1" /> Creating...
       {:else}

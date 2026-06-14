@@ -1659,7 +1659,7 @@ onValueChange={(val) => {
             bind:value={searchQuery}
             oninput={doSearch}
             class="pl-9 pr-4 py-1.5 text-sm bg-slate-900/50 border border-slate-800
-                   text-white rounded-full outline-none transition-colors
+                   text-white rounded-xl outline-none transition-colors
                    focus:border-purple-500 placeholder:text-text-muted"
           />
           {#if searchQuery}

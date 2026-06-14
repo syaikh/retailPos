@@ -26,8 +26,8 @@
   let isSearching = $state(false);
   let isInitialMount = $state(true);
 
-  let sortBy = $state('id');
-  let sortDir = $state('desc');
+  let sortBy = $state('username');
+  let sortDir = $state('asc');
   let filterRole = $state('all');
   let filterStatus = $state('all');
 
@@ -48,8 +48,8 @@
   let prevSearchQuery = '';
   let prevOffset = 0;
   let prevLimit = 20;
-  let prevSortBy = 'id';
-  let prevSortDir = 'desc';
+  let prevSortBy = 'username';
+  let prevSortDir = 'asc';
   let prevFilterRole = 'all';
   let prevFilterStatus = 'all';
 
@@ -61,7 +61,7 @@
     is_active: true
   });
 
-  let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all');
+  let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
 
   let pills = $derived(() => {
     const result = [];
@@ -200,8 +200,8 @@
   function clearFilters() {
     filterRole = 'all';
     filterStatus = 'all';
-    sortBy = 'id';
-    sortDir = 'desc';
+    sortBy = 'username';
+    sortDir = 'asc';
   }
 
   function openAdd() {
@@ -321,7 +321,7 @@
         {#if canCreate}
         <button
           onclick={openAdd}
-          class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
+          class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5"
         >
           <Plus size={18} />
           Add User

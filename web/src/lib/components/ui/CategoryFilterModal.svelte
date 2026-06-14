@@ -100,7 +100,7 @@
           type="text"
           placeholder="Cari kategori..."
           bind:value={searchQuery}
-          class="w-full h-10 pl-10 pr-4 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          class="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
         />
       </div>
 

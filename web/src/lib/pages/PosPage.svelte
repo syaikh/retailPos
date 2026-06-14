@@ -640,7 +640,7 @@
                         focusSearch();
                       }
                     }}
-                    class="w-12 text-center text-sm font-semibold text-text-primary bg-surface border border-border rounded-lg px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    class="w-12 text-center text-sm font-semibold text-text-primary bg-surface border border-border rounded-xl px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   />
                   <button
                     class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
@@ -795,7 +795,7 @@
         <div class="flex flex-wrap gap-2 mb-4">
           {#each quickCashPresets as preset}
             <button
-              class="px-3.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
+              class="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
               onclick={() => cashReceived = preset}
             >
               Rp {preset.toLocaleString('id-ID')}
