@@ -602,18 +602,82 @@
     <p class="text-text-muted text-sm mt-1">Audit logs are restricted to superadmin only</p>
   </div>
 {:else}
-  <div class="space-y-6 max-w-7xl mx-auto">
-    <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold text-text-primary">Audit Logs</h1>
-        <p class="text-sm text-text-muted mt-1">Track and monitor all system activities</p>
-      </div>
+  <div class="space-y-5 max-w-7xl mx-auto">
+    <!-- Filter Toolbar -->
+    <div class="card p-4">
       <div class="flex items-center gap-3">
+        <div class="relative flex-1">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search by actor, role, action, resource, IP..."
+            class="input pl-9 pr-10 w-full h-10"
+            bind:value={searchQuery}
+          />
+          {#if searchQuery}
+            <button
+              onclick={() => (searchQuery = '')}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            >
+              <X size={14} />
+            </button>
+          {/if}
+        </div>
+
+        <div class="relative shrink-0" id="date-dropdown-container">
+          <button
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+            onclick={() => (showDateDropdown = !showDateDropdown)}
+          >
+            <Clock size={14} />
+            <span>{dateRanges.find((d) => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
+            <ChevronDown size={14} />
+          </button>
+          {#if showDateDropdown}
+            <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
+              {#each dateRanges as range}
+                <button
+                  class="w-full text-left px-4 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
+                  onclick={() => selectDateRange(range.id)}
+                >
+                  {range.label}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <select
+          value={selectedResource}
+          onchange={(e) => {
+            selectedResource = e.currentTarget.value;
+            offset = 0;
+            selectedAction = 'all';
+          }}
+          class="appearance-none rounded-xl border border-border bg-surface-default px-3 h-10 pr-8 text-sm text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
+        >
+          {#each resourceFilters as f}
+            <option value={f.id}>{f.label}</option>
+          {/each}
+        </select>
+
+        <select
+          value={selectedAction}
+          onchange={(e) => {
+            selectedAction = e.currentTarget.value;
+            offset = 0;
+          }}
+          class="appearance-none rounded-xl border border-border bg-surface-default px-3 h-10 pr-8 text-sm text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
+        >
+          {#each availableActionFilters as f}
+            <option value={f.id}>{f.label}</option>
+          {/each}
+        </select>
+
         <!-- Export Dropdown -->
         <div class="relative export-dropdown">
           <button
-            class="btn btn-primary flex items-center gap-2 transition-all duration-300"
+            class="btn btn-primary flex items-center gap-2 transition-all duration-300 h-10"
             onclick={(e) => {
               e.stopPropagation();
               showExportDropdown = !showExportDropdown;
@@ -662,90 +726,14 @@
             </div>
           {/if}
         </div>
-        <button title="Refresh" class="btn btn-secondary px-3" onclick={fetchLogs}>
+        <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={fetchLogs}>
           <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
         </button>
       </div>
     </div>
 
-    <!-- 2. Filter Toolbar -->
-    <div class="space-y-3">
-      <!-- Top Row -->
-      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="relative flex-1">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search logs..."
-            class="input w-full pl-9 pr-9 py-1.5 text-sm bg-surface-default border-border focus:border-primary-default transition-colors"
-            bind:value={searchQuery}
-          />
-          {#if searchQuery}
-            <button
-              onclick={() => (searchQuery = '')}
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <X size={14} />
-            </button>
-          {/if}
-        </div>
-
-        <div class="flex items-center gap-2">
-          <div class="relative shrink-0" id="date-dropdown-container">
-            <button
-              class="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-              onclick={() => (showDateDropdown = !showDateDropdown)}
-            >
-              <Clock size={14} />
-              <span>{dateRanges.find((d) => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
-              <ChevronDown size={14} />
-            </button>
-            {#if showDateDropdown}
-              <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
-                {#each dateRanges as range}
-                  <button
-                    class="w-full text-left px-4 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
-                    onclick={() => selectDateRange(range.id)}
-                  >
-                    {range.label}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-
-          <select
-            value={selectedResource}
-            onchange={(e) => {
-              selectedResource = e.currentTarget.value;
-              offset = 0;
-              selectedAction = 'all';
-            }}
-            class="rounded-md border border-border bg-surface-default px-2.5 py-1.5 text-xs text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
-          >
-            {#each resourceFilters as f}
-              <option value={f.id}>{f.label}</option>
-            {/each}
-          </select>
-
-          <select
-            value={selectedAction}
-            onchange={(e) => {
-              selectedAction = e.currentTarget.value;
-              offset = 0;
-            }}
-            class="rounded-md border border-border bg-surface-default px-2.5 py-1.5 text-xs text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
-          >
-            {#each availableActionFilters as f}
-              <option value={f.id}>{f.label}</option>
-            {/each}
-          </select>
-        </div>
-      </div>
-    </div>
-
     <!-- 3. Audit Log Table -->
-    <div class="mt-2">
+    <div>
       {#if loading}
         <div class="card p-0 overflow-hidden">
           <div class="divide-y divide-border/70">
@@ -806,38 +794,38 @@
                     class="h-10 px-4 leading-none border-t border-border/70 hover:bg-surface-hover/70 transition-colors cursor-pointer"
                     onclick={() => openDrawer(log)}
                   >
-                    <td class="py-2 align-middle">
-                      <span class="text-text-primary font-medium text-xs leading-snug">{ts.date}</span>
-                      <span class="block text-text-muted text-[10px]">{ts.time}</span>
-                    </td>
-                    <td class="py-2 align-middle">
-                      {#if log.username && log.username !== '—'}
-                        <div class="flex items-center gap-2">
-                          <div class="w-6 h-6 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
-                            <span class="text-[10px] font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
-                          </div>
-                          <span class="font-medium text-text-primary text-xs truncate max-w-[130px]">{log.username}</span>
-                        </div>
-                      {:else}
-                        <span class="font-medium text-text-muted text-xs">—</span>
-                      {/if}
-                    </td>
-                    <td class="py-2 align-middle">
-                      <span
-                        class="font-mono text-xs text-text-secondary bg-surface-hover px-2 py-1 rounded border border-border/50 capitalize"
-                      >
-                        {log.entity_type || '—'}
-                      </span>
-                    </td>
-                    <td class="py-2 align-middle">
-                      <ActionBadge action={log.action} />
-                    </td>
-                    <td class="py-2 align-middle text-xs text-text-secondary truncate max-w-xs leading-snug" title={log.description}>
-                      {log.description || '—'}
-                    </td>
-                    <td class="py-2 align-middle font-mono text-[10px] text-text-muted leading-none">
-                      {log.ip_address || '—'}
-                    </td>
+                     <td class="py-2 align-middle">
+                       <span class="text-text-primary font-medium text-sm leading-snug">{ts.date}</span>
+                       <span class="block text-text-muted text-[10px]">{ts.time}</span>
+                     </td>
+                     <td class="py-2 align-middle">
+                       {#if log.username && log.username !== '—'}
+                         <div class="flex items-center gap-2">
+                           <div class="w-6 h-6 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                             <span class="text-[10px] font-bold text-white">{log.username.charAt(0).toUpperCase()}</span>
+                           </div>
+                           <span class="font-medium text-text-primary text-sm truncate max-w-[130px]">{log.username}</span>
+                         </div>
+                       {:else}
+                         <span class="font-medium text-text-muted text-sm">—</span>
+                       {/if}
+                     </td>
+                     <td class="py-2 align-middle">
+                       <span
+                         class="font-mono text-sm text-text-secondary bg-surface-hover px-2 py-1 rounded border border-border/50 capitalize"
+                       >
+                         {log.entity_type || '—'}
+                       </span>
+                     </td>
+                     <td class="py-2 align-middle">
+                       <ActionBadge action={log.action} />
+                     </td>
+                     <td class="py-2 align-middle text-sm text-text-secondary truncate max-w-xs leading-snug" title={log.description}>
+                       {log.description || '—'}
+                     </td>
+                     <td class="py-2 align-middle font-mono text-[10px] text-text-muted leading-none">
+                       {log.ip_address || '—'}
+                     </td>
                   </tr>
                 {/each}
               </tbody>
