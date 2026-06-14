@@ -641,10 +641,10 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold">PRODUCT NAME</th>
-            <th class="text-left p-4 font-semibold w-60">CATEGORY</th>
-            <th class="text-right p-4 font-semibold w-36">PRICE</th>
-            <th class="text-right p-4 font-semibold w-24">STOCK</th>
+            <th class="text-left p-4 font-semibold" style="width: 38%;">PRODUCT NAME</th>
+            <th class="text-left p-4 font-semibold w-48">CATEGORY</th>
+            <th class="text-right p-4 font-semibold w-32">PRICE</th>
+            <th class="text-right p-4 font-semibold w-20">STOCK</th>
             <th class="text-left p-4 font-semibold w-28">STATUS</th>
             <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
           </tr>
@@ -676,22 +676,22 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold">
+            <th class="text-left p-4 font-semibold" style="width: 38%;">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
                 PRODUCT NAME <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-60">
+            <th class="text-left p-4 font-semibold w-48">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('category')}>
                 CATEGORY <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-36">
+            <th class="text-right p-4 font-semibold w-32">
               <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('price')}>
                 PRICE <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-24">
+            <th class="text-right p-4 font-semibold w-20">
               <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('stock')}>
                 STOCK <ArrowUpDown size={14} class="text-text-muted" />
               </button>
@@ -703,8 +703,8 @@
         <tbody>
           {#each products as product}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-              <td class="p-4 min-w-0">
-                <div class="font-medium truncate w-full" title={product.name}>{product.name}</div>
+              <td class="p-4 pr-6" style="width: 38%;">
+                <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
                     {product.sku}
@@ -771,14 +771,18 @@
             </tr>
           {/each}
         </tbody>
-      </table>
-    {/if}
-  </div>
+       </table>
+        {/if}
 
-  <Pagination {total} {limit} {offset} onPageChange={fetchProducts} />
-</div>
+        {#if !loading && products.length > 0}
+          <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+            <Pagination {total} {limit} {offset} onPageChange={fetchProducts} />
+          </div>
+        {/if}
+      </div>
+    </div>
 
-<ProductFormModal
+    <ProductFormModal
   bind:open={showModal}
   bind:mode={modalMode}
   bind:form
