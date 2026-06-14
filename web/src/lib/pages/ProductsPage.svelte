@@ -665,7 +665,7 @@
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-28">STATUS</th>
-            <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
