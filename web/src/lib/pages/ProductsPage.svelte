@@ -716,24 +716,24 @@
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
                     {product.sku}
-                    <button class="p-0.5 hover:text-primary transition-colors" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
-                      {#if showCopySuccess?.has(`sku_${product.id}`)}
-                        <span class="text-sm text-primary font-semibold">✓</span>
-                      {:else}
-                        <Copy size={14} class="text-text-muted hover:text-primary" />
-                      {/if}
-                    </button>
-                  </span>
-                  {#if product.barcode}
-                    <span class="flex items-center gap-1 ml-4">
-                      {product.barcode}
-                      <button class="p-0.5 hover:text-primary transition-colors" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
-                        {#if showCopySuccess?.has(`barcode_${product.id}`)}
-                          <span class="text-sm text-primary font-semibold">✓</span>
-                        {:else}
-                          <Copy size={14} class="text-text-muted hover:text-primary" />
-                        {/if}
-                      </button>
+                     <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
+                       {#if showCopySuccess?.has(`sku_${product.id}`)}
+                         <span class="text-xs text-primary font-bold leading-none">✓</span>
+                       {:else}
+                         <Copy size={14} class="text-text-muted hover:text-primary" />
+                       {/if}
+                     </button>
+                   </span>
+                   {#if product.barcode}
+                     <span class="flex items-center gap-1 ml-4">
+                       {product.barcode}
+                       <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
+                         {#if showCopySuccess?.has(`barcode_${product.id}`)}
+                           <span class="text-xs text-primary font-bold leading-none">✓</span>
+                         {:else}
+                           <Copy size={14} class="text-text-muted hover:text-primary" />
+                         {/if}
+                       </button>
                     </span>
                   {/if}
                 </div>
@@ -833,11 +833,12 @@
 
 {#if showDetailDrawer && selectedProduct}
   <div class="fixed inset-0 bg-black/60 z-50" onclick={() => (showDetailDrawer = false)} aria-hidden="true"></div>
-  <div
-    class="fixed inset-y-0 right-0 w-[480px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col transition-transform duration-300 ease-out"
-    transition:fly={{ x: 480, duration: 300, easing: t => t * (2 - t) }}
-    role="dialog" aria-modal="true" tabindex="-1"
-  >
+    <div
+      class="fixed inset-y-0 right-0 w-[480px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col transition-transform duration-300 ease-out"
+      transition:fly={{ x: 480, duration: 300, easing: t => t * (2 - t) }}
+      role="dialog" aria-modal="true" tabindex="-1"
+      onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); showDetailDrawer = false; } }}
+    >
     <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
       <div class="flex items-center gap-3">
         <h2 class="text-lg font-bold text-text-primary">Detail Produk</h2>
