@@ -185,7 +185,12 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 		args2 = append(args2, *isActive)
 		argIdx2++
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, sortDir, argIdx2, argIdx2+1)
+	textSortColumns := map[string]bool{"username": true, "email": true}
+	sortExpr := sortBy
+	if textSortColumns[sortBy] {
+		sortExpr = "LOWER(" + sortBy + ")"
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortExpr, sortDir, argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args2...)

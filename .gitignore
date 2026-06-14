@@ -85,6 +85,9 @@ test-results/
 session-*.md
 *.session
 
+# Scripts
+scripts/kill-port.sh
+
 # Documentation files (except essential ones)
 *.md
 !README.md

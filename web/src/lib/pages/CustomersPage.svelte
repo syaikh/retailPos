@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
-  import { Pencil, Trash2, Check, X, Plus } from 'lucide-svelte';
+  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2 } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
+  import { toast } from '$lib/stores/toast';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search } from 'lucide-svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
   import { debounce } from '$lib/utils/debounce';
 
   const userPermissions = $derived($auth.user?.permissions || []);
@@ -14,15 +15,11 @@
 
   let customers = $state<any[]>([]);
   let loading = $state(false);
-  let errorMsg = $state('');
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
   let searchQuery = $state('');
-  let name = $state('');
-  let phone = $state('');
-  let email = $state('');
-  let note = $state('');
+  let statusFilter = $state('all');
 
   let editingId = $state<number | null>(null);
   let editName = $state('');
@@ -30,6 +27,17 @@
   let editEmail = $state('');
   let editNote = $state('');
   let editActive = $state(true);
+
+  let sortBy = $state('name');
+  let sortDir = $state('asc');
+
+  let showCreateModal = $state(false);
+  let creating = $state(false);
+  let formName = $state('');
+  let formPhone = $state('');
+  let formEmail = $state('');
+  let formNote = $state('');
+  let fieldErrors = $state({ name: '', phone: '', email: '', note: '' });
 
   function validateEmail(email: string): boolean {
     if (!email) return true;
@@ -41,27 +49,74 @@
     return /^[0-9+\-() ]{7,20}$/.test(phone);
   }
 
+  function validateForm(): boolean {
+    const errors = { name: '', phone: '', email: '', note: '' };
+    let valid = true;
+
+    if (!formName.trim()) {
+      errors.name = 'Name is required';
+      valid = false;
+    } else if (formName.trim().length > 200) {
+      errors.name = 'Name must be at most 200 characters';
+      valid = false;
+    }
+
+    if (!formPhone.trim()) {
+      errors.phone = 'Phone is required';
+      valid = false;
+    } else if (!validatePhone(formPhone.trim())) {
+      errors.phone = 'Invalid phone format';
+      valid = false;
+    }
+
+    if (!formEmail.trim()) {
+      errors.email = 'Email is required';
+      valid = false;
+    } else if (!validateEmail(formEmail.trim())) {
+      errors.email = 'Invalid email format';
+      valid = false;
+    }
+
+    fieldErrors = errors;
+    return valid;
+  }
+
+  function resetForm() {
+    formName = '';
+    formPhone = '';
+    formEmail = '';
+    formNote = '';
+    fieldErrors = { name: '', phone: '', email: '', note: '' };
+  }
+
+  function getStatusFilterParams(): string | undefined {
+    if (statusFilter === 'active') return 'true';
+    if (statusFilter === 'inactive') return 'false';
+    return undefined;
+  }
+
   async function load(newOffset = offset, newLimit = limit) {
     loading = true;
-    errorMsg = '';
     try {
       offset = newOffset;
       limit = newLimit;
-      const r = await apiClient.get('/customers', { params: { limit, offset, search: searchQuery || undefined } });
+      const params: any = { limit, offset, search: searchQuery || undefined };
+      const activeParam = getStatusFilterParams();
+      if (activeParam !== undefined) params.isActive = activeParam;
+      const r = await apiClient.get('/customers', { params });
       customers = r.data.data || [];
       total = r.data.total || 0;
+      sortCustomers();
     } catch (e: any) {
       console.error(e);
-      errorMsg = e?.response?.data?.error || e?.message || 'Failed to load customers';
+      toast.error(e?.response?.data?.error || e?.message || 'Failed to load customers');
     } finally {
       loading = false;
     }
   }
 
-  // Debounced search - only triggers on user input
   const debouncedSearch = debounce(() => load(0, limit), 400);
 
-  // Track when we're programmatically clearing to avoid double trigger
   let skipNextSearch = false;
 
   function clearSearch() {
@@ -78,24 +133,67 @@
     debouncedSearch();
   }
 
+  function handleStatusFilterChange() {
+    offset = 0;
+    load(0, limit);
+  }
+
+  function handleSort(column: string) {
+    if (sortBy === column) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = column;
+      sortDir = 'asc';
+    }
+    sortCustomers();
+  }
+
+  function sortCustomers() {
+    customers.sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (sortBy) {
+        case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
+        case 'phone': aVal = (a.phone || '').toLowerCase(); bVal = (b.phone || '').toLowerCase(); break;
+        case 'email': aVal = (a.email || '').toLowerCase(); bVal = (b.email || '').toLowerCase(); break;
+        case 'status': aVal = a.is_active !== false ? 1 : 0; bVal = b.is_active !== false ? 1 : 0; break;
+        default: return 0;
+      }
+      if (sortDir === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    });
+  }
+
+  function getInitials(name: string): string {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return parts[0].charAt(0).toUpperCase();
+  }
+
   async function createCustomer() {
-    if (!name.trim()) { errorMsg = 'Name is required'; return; }
-    if (!phone.trim()) { errorMsg = 'Phone is required'; return; }
-    if (!validatePhone(phone.trim())) { errorMsg = 'Invalid phone format'; return; }
-    if (!email.trim()) { errorMsg = 'Email is required'; return; }
-    if (!validateEmail(email.trim())) { errorMsg = 'Invalid email format'; return; }
-    errorMsg = '';
+    if (!validateForm()) return;
+    creating = true;
     try {
       await apiClient.post('/customers', {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        note: note.trim() || undefined,
+        name: formName.trim(),
+        phone: formPhone.trim(),
+        email: formEmail.trim(),
+        note: formNote.trim() || undefined,
       });
-      name = ''; phone = ''; email = ''; note = '';
+      toast.success(`Customer "${formName.trim()}" created successfully`);
+      resetForm();
+      showCreateModal = false;
       await load();
     } catch (e: any) {
-      errorMsg = e?.response?.data?.error || 'Failed to create customer';
+      const msg = e?.response?.data?.error || 'Failed to create customer';
+      toast.error(msg);
+    } finally {
+      creating = false;
     }
   }
 
@@ -113,12 +211,11 @@
   }
 
   async function saveEdit(id: number) {
-    if (!editName.trim()) { errorMsg = 'Name is required'; return; }
-    if (!editPhone.trim()) { errorMsg = 'Phone is required'; return; }
-    if (!validatePhone(editPhone.trim())) { errorMsg = 'Invalid phone format'; return; }
-    if (!editEmail.trim()) { errorMsg = 'Email is required'; return; }
-    if (!validateEmail(editEmail.trim())) { errorMsg = 'Invalid email format'; return; }
-    errorMsg = '';
+    if (!editName.trim()) { toast.error('Name is required'); return; }
+    if (!editPhone.trim()) { toast.error('Phone is required'); return; }
+    if (!validatePhone(editPhone.trim())) { toast.error('Invalid phone format'); return; }
+    if (!editEmail.trim()) { toast.error('Email is required'); return; }
+    if (!validateEmail(editEmail.trim())) { toast.error('Invalid email format'); return; }
     try {
       await apiClient.put(`/customers/${id}`, {
         name: editName.trim(),
@@ -127,10 +224,11 @@
         note: editNote.trim() || undefined,
         is_active: editActive,
       });
+      toast.success('Customer updated successfully');
       editingId = null;
       await load();
     } catch (e: any) {
-      errorMsg = e?.response?.data?.error || 'Failed to update customer';
+      toast.error(e?.response?.data?.error || 'Failed to update customer');
     }
   }
 
@@ -139,9 +237,10 @@
     try {
       await apiClient.delete(`/customers/${c.id}`);
       if (editingId === c.id) editingId = null;
+      toast.success(`Customer "${c.name}" deactivated`);
       await load();
     } catch (e: any) {
-      errorMsg = e?.response?.data?.error || 'Failed to deactivate customer';
+      toast.error(e?.response?.data?.error || 'Failed to deactivate customer');
     }
   }
 
@@ -149,54 +248,72 @@
 </script>
 
 <div class="space-y-4">
-  <h1 class="text-2xl font-bold text-text-primary">Customers</h1>
-
-  <!-- Search -->
-  <div class="relative max-w-xs">
-    <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-    <input
-      type="text"
-      placeholder="Search customers..."
-      bind:value={searchQuery}
-      oninput={handleSearchInput}
-      class="input pl-10 pr-8 w-full"
-    />
-    {#if searchQuery}
-      <button
-        onclick={clearSearch}
-        class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-        title="Clear search"
-      >
-        <X size={14} />
-      </button>
-    {/if}
-  </div>
-
-  {#if canCreate}
-    <div class="border border-border rounded-xl p-4 space-y-3 bg-bg-card">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <input class="input" placeholder="Name *" bind:value={name} required />
-        <input class="input" placeholder="Phone *" bind:value={phone} required />
-        <input class="input" placeholder="Email *" bind:value={email} required />
-        <button class="btn btn-primary" onclick={createCustomer}>
-          <Plus size={14} /> Create
-        </button>
+  <div class="border border-border rounded-xl p-4 space-y-3 bg-bg-card">
+    <div class="flex items-center gap-3">
+      <div class="relative flex-1">
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search customers..."
+          bind:value={searchQuery}
+          oninput={handleSearchInput}
+          class="input pl-10 pr-8 w-full"
+        />
+        {#if searchQuery}
+          <button
+            onclick={clearSearch}
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        {/if}
       </div>
+      <select
+        bind:value={statusFilter}
+        onchange={handleStatusFilterChange}
+        class="input h-10 px-3 w-40"
+      >
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      {#if canCreate}
+        <button
+          onclick={() => { resetForm(); showCreateModal = true; }}
+          class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
+        >
+          <Plus size={18} />
+          Add Customer
+        </button>
+      {/if}
     </div>
-  {/if}
-
-  {#if errorMsg}
-    <div class="text-danger text-sm">{errorMsg}</div>
-  {/if}
+  </div>
 
   <div class="border border-border rounded-xl overflow-hidden bg-bg-card">
     <table class="min-w-full text-sm table-fixed">
       <thead class="bg-surface-hover text-text-secondary">
         <tr>
-          <th class="text-left px-4 py-2 w-[30%]">Name</th>
-          <th class="text-left px-4 py-2 w-[18%]">Phone</th>
-          <th class="text-left px-4 py-2 w-[26%]">Email</th>
-          <th class="text-left px-4 py-2 w-[14%]">Status</th>
+          <th class="text-left px-4 py-2 w-[30%]">
+            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+              NAME <ArrowUpDown size={14} class="text-text-muted" />
+            </button>
+          </th>
+          <th class="text-left px-4 py-2 w-[18%]">
+            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
+              PHONE <ArrowUpDown size={14} class="text-text-muted" />
+            </button>
+          </th>
+          <th class="text-left px-4 py-2 w-[26%]">
+            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
+              EMAIL <ArrowUpDown size={14} class="text-text-muted" />
+            </button>
+          </th>
+          <th class="text-left px-4 py-2 w-[14%]">
+            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
+              STATUS <ArrowUpDown size={14} class="text-text-muted" />
+            </button>
+          </th>
           <th class="text-left px-4 py-2 w-[12%]">Actions</th>
         </tr>
       </thead>
@@ -223,7 +340,14 @@
           {#each customers as c}
             {#if editingId === c.id}
               <tr class="border-t border-border bg-primary-subtle/10">
-                <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} /></td>
+                <td class="px-4 py-1.5 h-12 overflow-hidden">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {getInitials(editName)}
+                    </div>
+                    <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} />
+                  </div>
+                </td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} /></td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} /></td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden">
@@ -245,7 +369,14 @@
               </tr>
             {:else}
               <tr class="border-t border-border">
-                <td class="px-4 py-1.5 h-12 overflow-hidden">{c.name}</td>
+                <td class="px-4 py-1.5 h-12 overflow-hidden">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
+                      {getInitials(c.name)}
+                    </div>
+                    <span class="truncate">{c.name}</span>
+                  </div>
+                </td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
                 <td class="px-4 py-1.5 h-12 overflow-hidden">
@@ -275,8 +406,72 @@
         {/if}
       </tbody>
     </table>
-  </div>
 
-  <!-- Pagination -->
-  <Pagination {total} {limit} {offset} onPageChange={load} />
+    {#if !loading && customers.length > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination {total} {limit} {offset} onPageChange={load} />
+      </div>
+    {/if}
+  </div>
 </div>
+
+<Modal bind:open={showCreateModal} title="Add Customer" size="md">
+  <div class="space-y-4">
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
+      <input
+        class="input"
+        class:border-danger={fieldErrors.name}
+        placeholder="e.g. John Doe"
+        bind:value={formName}
+      />
+      {#if fieldErrors.name}
+        <p class="text-danger text-xs mt-0.5">{fieldErrors.name}</p>
+      {/if}
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
+        <input
+          class="input"
+          class:border-danger={fieldErrors.phone}
+          placeholder="e.g. 08123456789"
+          bind:value={formPhone}
+        />
+        {#if fieldErrors.phone}
+          <p class="text-danger text-xs mt-0.5">{fieldErrors.phone}</p>
+        {/if}
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
+        <input
+          class="input"
+          class:border-danger={fieldErrors.email}
+          placeholder="e.g. john@example.com"
+          bind:value={formEmail}
+        />
+        {#if fieldErrors.email}
+          <p class="text-danger text-xs mt-0.5">{fieldErrors.email}</p>
+        {/if}
+      </div>
+    </div>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-text-secondary">Note</label>
+      <textarea
+        class="input min-h-[60px] resize-none"
+        placeholder="Optional notes about this customer"
+        bind:value={formNote}
+      ></textarea>
+    </div>
+  </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary rounded-full px-5" onclick={() => showCreateModal = false}>Cancel</button>
+    <button class="btn btn-primary rounded-full px-5" disabled={creating} onclick={createCustomer}>
+      {#if creating}
+        <Loader2 size={14} class="animate-spin mr-1" /> Creating...
+      {:else}
+        <UserPlus size={14} class="mr-1" /> Create Customer
+      {/if}
+    </button>
+  {/snippet}
+</Modal>

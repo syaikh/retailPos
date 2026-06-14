@@ -1768,7 +1768,12 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 		}
 	}
 	search := c.Query("search")
-	customers, total, err := h.customerRepo.GetAllCustomers(getCtx(c), limit, offset, search, nil)
+	var isActive *bool
+	if activeStr := c.Query("isActive"); activeStr != "" {
+		b := activeStr == "true"
+		isActive = &b
+	}
+	customers, total, err := h.customerRepo.GetAllCustomers(getCtx(c), limit, offset, search, isActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch customers"})
 		return

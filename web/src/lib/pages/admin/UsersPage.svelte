@@ -348,13 +348,6 @@
     </div>
 
     <div class="card p-0 overflow-hidden">
-      <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-        <p class="text-sm font-semibold text-text-primary">User Accounts</p>
-        {#if !loading}
-          <span class="badge badge-muted">{total} users</span>
-        {/if}
-      </div>
-
       <div class="overflow-x-auto" style="min-width: 0;">
         <table class="w-full table-fixed border-collapse" style="min-width: 680px;">
           <thead class="bg-muted/50">
