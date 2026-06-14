@@ -9,7 +9,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ChevronUp, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ArrowUpDown, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
@@ -366,55 +366,25 @@
           </colgroup>
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
              <tr>
-                <th
-                  class="cursor-pointer select-none"
-                  onclick={() => toggleSort('username')}
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>User</span>
-                    {#if sortBy === 'username'}
-                      {#if sortDir === 'asc'}
-                        <ChevronUp size={14} class="text-primary-light" />
-                      {:else}
-                        <ChevronDown size={14} class="text-primary-light" />
-                      {/if}
-                    {/if}
-                  </div>
+                <th class="text-left">
+                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('username')}>
+                    USER <ArrowUpDown size={14} class="text-text-muted" />
+                  </button>
                 </th>
-                <th
-                  class="cursor-pointer select-none"
-                  onclick={() => toggleSort('role_id')}
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>Role</span>
-                    {#if sortBy === 'role_id'}
-                      {#if sortDir === 'asc'}
-                        <ChevronUp size={14} class="text-primary-light" />
-                      {:else}
-                        <ChevronDown size={14} class="text-primary-light" />
-                      {/if}
-                    {/if}
-                  </div>
+                <th class="text-left">
+                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('role_id')}>
+                    ROLE <ArrowUpDown size={14} class="text-text-muted" />
+                  </button>
                 </th>
-                <th class="cursor-pointer select-none">
-                  <span>Status</span>
+                <th class="text-left">
+                  STATUS
                 </th>
-                <th
-                  class="cursor-pointer select-none"
-                  onclick={() => toggleSort('last_login')}
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>Last Login</span>
-                    {#if sortBy === 'last_login'}
-                      {#if sortDir === 'asc'}
-                        <ChevronUp size={14} class="text-primary-light" />
-                      {:else}
-                        <ChevronDown size={14} class="text-primary-light" />
-                      {/if}
-                    {/if}
-                  </div>
+                <th class="text-left">
+                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('last_login')}>
+                    Last Login <ArrowUpDown size={14} class="text-text-muted" />
+                  </button>
                 </th>
-                <th class="text-center">Actions</th>
+                <th class="text-center">ACTIONS</th>
               </tr>
           </thead>
           <tbody>
