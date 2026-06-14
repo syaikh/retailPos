@@ -328,7 +328,7 @@
         </button>
         {/if}
       </div>
-      <div class="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-border-subtle h-7 transition-opacity duration-150 {pills().length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}">
+      <div class="flex items-center gap-2 transition-all duration-150 {pills().length > 0 ? 'mt-2.5 pt-2.5 border-t border-border-subtle h-7 opacity-100' : 'opacity-0 pointer-events-none h-0'}">
         <SlidersHorizontal size={12} class="text-text-muted shrink-0" />
         {#each pills() as pill}
           <span class="inline-flex items-center gap-1 rounded-md bg-primary-subtle text-primary-light border border-primary-default/20 px-2 py-0.5 text-xs font-medium">
