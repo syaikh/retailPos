@@ -271,20 +271,6 @@
 </script>
 
 <div class="space-y-5">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h2 class="text-2xl font-bold text-text-primary">User Management</h2>
-      <p class="text-text-muted">Manage user accounts, roles, and access permissions</p>
-    </div>
-    <div class="flex items-center gap-2">
-      {#if canCreate}
-      <button class="btn btn-primary" onclick={openAdd}>
-        <Plus size={16} /> Add User
-      </button>
-      {/if}
-    </div>
-  </div>
-
   {#if !canView}
     <div class="card px-4 py-12 text-center">
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
@@ -330,6 +316,15 @@
           </select>
           <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
         </div>
+        {#if canCreate}
+        <button
+          onclick={openAdd}
+          class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5"
+        >
+          <Plus size={18} />
+          Add User
+        </button>
+        {/if}
       </div>
       <div class="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-border-subtle h-7 transition-opacity duration-150 {pills().length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}">
         <SlidersHorizontal size={12} class="text-text-muted shrink-0" />
@@ -359,12 +354,11 @@
       </div>
 
       <div class="overflow-x-auto">
-        <table style="width:100%;table-layout:fixed;border-collapse:collapse">
+        <table class="w-full table-fixed border-collapse">
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
              <tr>
                 <th
                   class="cursor-pointer select-none"
-                  style="width:30%"
                   onclick={() => toggleSort('username')}
                 >
                   <div class="flex items-center gap-1.5">
@@ -379,8 +373,7 @@
                   </div>
                 </th>
                 <th
-                  class="cursor-pointer select-none"
-                  style="width:15%"
+                  class="cursor-pointer select-none w-40"
                   onclick={() => toggleSort('role_id')}
                 >
                   <div class="flex items-center gap-1.5">
@@ -394,12 +387,11 @@
                     {/if}
                   </div>
                 </th>
-                <th class="cursor-pointer select-none" style="width:12%">
+                <th class="cursor-pointer select-none w-32">
                   <span>Status</span>
                 </th>
                 <th
-                  class="cursor-pointer select-none"
-                  style="width:28%"
+                  class="cursor-pointer select-none w-56"
                   onclick={() => toggleSort('last_login')}
                 >
                   <div class="flex items-center gap-1.5">
@@ -413,7 +405,7 @@
                     {/if}
                   </div>
                 </th>
-                <th class="text-center" style="width:15%">Actions</th>
+                <th class="text-center w-28">Actions</th>
               </tr>
           </thead>
           <tbody>
