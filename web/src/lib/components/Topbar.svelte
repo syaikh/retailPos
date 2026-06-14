@@ -16,7 +16,6 @@
       '/':                   'Dashboard',
       '/pos':                'Point of Sale',
       '/inventory/products': 'Products',
-      '/inventory/stock':    'Stock',
       '/reports':            'Reports',
       '/categories':         'Categories',
       '/customers':          'Customers',

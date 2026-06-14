@@ -929,7 +929,26 @@ func (h *Handler) ListUsers(c *gin.Context) {
 			offset = val
 		}
 	}
-	users, total, err := h.authRepo.GetAllUsers(getCtx(c), limit, offset, c.Query("search"))
+	sortBy := c.Query("sort")
+	sortDir := c.Query("dir")
+	roleID := 0
+	if r := c.Query("role"); r != "" {
+		if val, err := strconv.Atoi(r); err == nil && val > 0 {
+			roleID = val
+		}
+	}
+	var isActive *bool
+	if s := c.Query("status"); s != "" {
+		switch s {
+		case "true":
+			v := true
+			isActive = &v
+		case "false":
+			v := false
+			isActive = &v
+		}
+	}
+	users, total, err := h.authRepo.GetAllUsers(getCtx(c), limit, offset, c.Query("search"), sortBy, sortDir, roleID, isActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return
@@ -1425,19 +1444,6 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 		if log.Username != "" {
 			return fmt.Sprintf("%s %s", displayAction, log.Username)
 		}
-		return displayAction
-	}
-
-	return fmt.Sprintf("%s %s", displayAction, entity)
-
-	if entity == "auth" && (action == "login" || action == "logout") {
-		if log.Username != "" {
-			return fmt.Sprintf("%s %s", displayAction, log.Username)
-		}
-		return displayAction
-	}
-
-	if entity == "auth" {
 		return displayAction
 	}
 

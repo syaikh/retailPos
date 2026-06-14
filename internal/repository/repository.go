@@ -12,7 +12,7 @@ import (
 type UserRepository interface {
 	GetByID(id int) (*domain.User, error)
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
-	GetAllUsers(ctx context.Context, limit, offset int, search string) ([]domain.User, int, error)
+	GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool) ([]domain.User, int, error)
 	CreateUser(ctx context.Context, user *domain.User) error
 	UpdateUser(ctx context.Context, user *domain.User) error
 	DeleteUser(ctx context.Context, id int) error

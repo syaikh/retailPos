@@ -9,7 +9,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ChevronUp, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
@@ -26,6 +26,11 @@
   let isSearching = $state(false);
   let isInitialMount = $state(true);
 
+  let sortBy = $state('id');
+  let sortDir = $state('desc');
+  let filterRole = $state('all');
+  let filterStatus = $state('all');
+
   let userRole = $derived(
     $auth.user?.role?.name ||
     ($auth.user?.role && typeof $auth.user?.role === 'object' ? $auth.user.role.name : $auth.user?.role) ||
@@ -40,12 +45,14 @@
 
   let currentUserID = $derived($auth.user?.id || 0);
 
-  // Track previous values
   let prevSearchQuery = '';
   let prevOffset = 0;
   let prevLimit = 20;
+  let prevSortBy = 'id';
+  let prevSortDir = 'desc';
+  let prevFilterRole = 'all';
+  let prevFilterStatus = 'all';
 
-  // Form State
   let form = $state({
     username: '',
     email: '',
@@ -53,6 +60,25 @@
     role_id: 0,
     is_active: true
   });
+
+  let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all');
+
+  let pills = $derived(() => {
+    const result = [];
+    if (filterRole !== 'all') {
+      const r = roles.find(role => String(role.id) === filterRole);
+      result.push({ key: 'role', label: r ? r.name : filterRole });
+    }
+    if (filterStatus !== 'all') {
+      result.push({ key: 'status', label: filterStatus === 'true' ? 'Active' : 'Inactive' });
+    }
+    return result;
+  });
+
+  function removePill(key) {
+    if (key === 'role') filterRole = 'all';
+    if (key === 'status') filterStatus = 'all';
+  }
 
   const roleVariant = (r) => {
     const roleName = typeof r === 'object' ? r.name : r;
@@ -64,9 +90,10 @@
   async function fetchUsers(isSearch = false) {
     try {
       if (!isSearch) loading = true;
-      const uRes = await apiClient.get('/admin/users', {
-        params: { limit, offset, search: searchQuery }
-      });
+      const params = { limit, offset, search: searchQuery, sort: sortBy, dir: sortDir };
+      if (filterRole !== 'all') params.role = filterRole;
+      if (filterStatus !== 'all') params.status = filterStatus;
+      const uRes = await apiClient.get('/admin/users', { params });
       users = uRes.data?.data || [];
       total = uRes.data?.total || 0;
     } catch {
@@ -96,23 +123,17 @@
     isInitialMount = false;
   });
 
-  // Debounced search
   const debouncedSearch = debounce(() => {
     offset = 0;
     prevOffset = 0;
     fetchUsers(true);
   }, 400);
 
-  // Track search query changes with explicit tracking
   $effect(() => {
-    // Access searchQuery to establish dependency
     const sq = searchQuery;
-    
     if (isInitialMount) return;
-    
     if (sq !== prevSearchQuery) {
       prevSearchQuery = sq;
-      
       if (sq === '') {
         offset = 0;
         prevOffset = 0;
@@ -125,14 +146,10 @@
     }
   });
 
-  // Track pagination changes with explicit tracking
   $effect(() => {
-    // Access offset and limit to establish dependency
     const off = offset;
     const lim = limit;
-    
     if (isInitialMount) return;
-    
     if (off !== prevOffset || lim !== prevLimit) {
       prevOffset = off;
       prevLimit = lim;
@@ -140,9 +157,51 @@
     }
   });
 
+  $effect(() => {
+    const sb = sortBy;
+    const sd = sortDir;
+    if (isInitialMount) return;
+    if (sb !== prevSortBy || sd !== prevSortDir) {
+      prevSortBy = sb;
+      prevSortDir = sd;
+      offset = 0;
+      prevOffset = 0;
+      fetchUsers(false);
+    }
+  });
+
+  $effect(() => {
+    const fr = filterRole;
+    const fs = filterStatus;
+    if (isInitialMount) return;
+    if (fr !== prevFilterRole || fs !== prevFilterStatus) {
+      prevFilterRole = fr;
+      prevFilterStatus = fs;
+      offset = 0;
+      prevOffset = 0;
+      fetchUsers(false);
+    }
+  });
+
   function handlePageChange(newOffset, newLimit) {
     offset = newOffset;
     limit = newLimit;
+  }
+
+  function toggleSort(key) {
+    if (sortBy === key) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = key;
+      sortDir = 'asc';
+    }
+  }
+
+  function clearFilters() {
+    filterRole = 'all';
+    filterStatus = 'all';
+    sortBy = 'id';
+    sortDir = 'desc';
   }
 
   function openAdd() {
@@ -154,12 +213,12 @@
   function openEdit(user) {
     modalMode = 'edit';
     selectedUser = user;
-    form = { 
-      username: user.username, 
-      email: user.email, 
-      password: '', // Don't show password
-      role_id: user.role_id, 
-      is_active: user.is_active 
+    form = {
+      username: user.username,
+      email: user.email,
+      password: '',
+      role_id: user.role_id,
+      is_active: user.is_active
     };
     showModal = true;
   }
@@ -212,7 +271,6 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Header Section -->
   <div class="flex items-center justify-between mb-6">
     <div>
       <h2 class="text-2xl font-bold text-text-primary">User Management</h2>
@@ -227,24 +285,6 @@
     </div>
   </div>
 
-  <!-- Search -->
-  <div class="card p-4">
-    <div class="relative max-w-sm">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-      <input type="text" placeholder="Search users by name or email…" class="input pl-9 pr-10" bind:value={searchQuery} />
-      {#if searchQuery}
-        <button
-          onclick={() => searchQuery = ''}
-          class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-          title="Clear search"
-        >
-          <X size={14} />
-        </button>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Table -->
   {#if !canView}
     <div class="card px-4 py-12 text-center">
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
@@ -254,6 +294,62 @@
       <p class="text-text-muted text-sm mt-1">You do not have permission to view users</p>
     </div>
   {:else}
+    <div class="card p-4">
+      <div class="flex items-center gap-3">
+        <div class="relative flex-1">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input type="text" placeholder="Search users by name or email…" class="input pl-9 pr-10 w-full" bind:value={searchQuery} />
+          <button
+            onclick={() => searchQuery = ''}
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-all duration-150 {searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div class="relative shrink-0">
+          <select
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-[140px] {filterRole !== 'all' ? 'text-text-primary' : ''}"
+            bind:value={filterRole}
+          >
+            <option value="all">All Roles</option>
+            {#each roles as role}
+              <option value={String(role.id)}>{role.name}</option>
+            {/each}
+          </select>
+          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        </div>
+        <div class="relative shrink-0">
+          <select
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-[120px] {filterStatus !== 'all' ? 'text-text-primary' : ''}"
+            bind:value={filterStatus}
+          >
+            <option value="all">All Status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        </div>
+      </div>
+      <div class="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-border-subtle h-7 transition-opacity duration-150 {pills().length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}">
+        <SlidersHorizontal size={12} class="text-text-muted shrink-0" />
+        {#each pills() as pill}
+          <span class="inline-flex items-center gap-1 rounded-md bg-primary-subtle text-primary-light border border-primary-default/20 px-2 py-0.5 text-xs font-medium">
+            {pill.label}
+            <button onclick={() => removePill(pill.key)} class="hover:text-white transition-colors">
+              <X size={10} />
+            </button>
+          </span>
+        {/each}
+        <button
+          onclick={clearFilters}
+          class="ml-auto text-xs font-medium text-text-muted hover:text-danger transition-colors shrink-0"
+        >
+          Clear all
+        </button>
+      </div>
+    </div>
+
     <div class="card p-0 overflow-hidden">
       <div class="px-4 py-3 border-b border-border flex items-center justify-between">
         <p class="text-sm font-semibold text-text-primary">User Accounts</p>
@@ -262,114 +358,180 @@
         {/if}
       </div>
 
-      {#if loading}
-        <div class="divide-y divide-border">
-          {#each { length: 5 } as _}
-          <div class="flex items-center gap-4 px-4 py-3.5">
-            <Skeleton width="w-9" height="h-9" rounded="rounded-full" />
-            <div class="flex flex-col gap-1.5">
-              <Skeleton width="w-32" height="h-3.5" />
-              <Skeleton width="w-44" height="h-3" />
-            </div>
-            <Skeleton width="w-16" height="h-6" rounded="rounded-full" class="ml-auto" />
-            <Skeleton width="w-20" height="h-6" rounded="rounded-full" />
-            <Skeleton width="w-16" height="h-8" rounded="rounded-xl" />
-          </div>
-        {/each}
-      </div>
-    {:else if users.length === 0}
-      <div class="px-4 py-12 text-center">
-        <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
-          <Users size={32} class="text-text-muted" />
-        </div>
-        <p class="text-text-primary font-semibold mt-4">No users found</p>
-        <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No match for "${searchQuery}"` : 'Start by adding a user'}
-        </p>
-      </div>
-    {:else}
       <div class="overflow-x-auto">
-        <table>
+        <table style="width:100%;table-layout:fixed;border-collapse:collapse">
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-            <tr>
-              <th>User</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Last Login</th>
-              <th class="text-center">Actions</th>
-            </tr>
+             <tr>
+                <th
+                  class="cursor-pointer select-none"
+                  style="width:30%"
+                  onclick={() => toggleSort('username')}
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>User</span>
+                    {#if sortBy === 'username'}
+                      {#if sortDir === 'asc'}
+                        <ChevronUp size={14} class="text-primary-light" />
+                      {:else}
+                        <ChevronDown size={14} class="text-primary-light" />
+                      {/if}
+                    {/if}
+                  </div>
+                </th>
+                <th
+                  class="cursor-pointer select-none"
+                  style="width:15%"
+                  onclick={() => toggleSort('role_id')}
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>Role</span>
+                    {#if sortBy === 'role_id'}
+                      {#if sortDir === 'asc'}
+                        <ChevronUp size={14} class="text-primary-light" />
+                      {:else}
+                        <ChevronDown size={14} class="text-primary-light" />
+                      {/if}
+                    {/if}
+                  </div>
+                </th>
+                <th class="cursor-pointer select-none" style="width:12%">
+                  <span>Status</span>
+                </th>
+                <th
+                  class="cursor-pointer select-none"
+                  style="width:28%"
+                  onclick={() => toggleSort('last_login')}
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>Last Login</span>
+                    {#if sortBy === 'last_login'}
+                      {#if sortDir === 'asc'}
+                        <ChevronUp size={14} class="text-primary-light" />
+                      {:else}
+                        <ChevronDown size={14} class="text-primary-light" />
+                      {/if}
+                    {/if}
+                  </div>
+                </th>
+                <th class="text-center" style="width:15%">Actions</th>
+              </tr>
           </thead>
           <tbody>
-            {#each users as user (user.id)}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                <td>
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
-                      <User size={14} class="text-white" />
+            {#if loading}
+              {#each { length: 5 } as _}
+                <tr class="border-t border-border">
+                  <td>
+                    <div class="flex items-center gap-3">
+                      <Skeleton width="w-9" height="h-9" rounded="rounded-full" />
+                      <div class="flex flex-col gap-1.5">
+                        <Skeleton width="w-32" height="h-3.5" />
+                        <Skeleton width="w-44" height="h-3" />
+                      </div>
                     </div>
-                    <div>
-                      <p class="font-medium text-text-primary">{user.username}</p>
-                      <p class="text-xs text-text-muted">{user.email || '—'}</p>
+                  </td>
+                  <td>
+                    <Skeleton width="w-16" height="h-6" rounded="rounded-full" />
+                  </td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <Skeleton width="w-1.5" height="h-1.5" rounded="rounded-full" />
+                      <Skeleton width="w-12" height="h-3.5" />
                     </div>
+                  </td>
+                  <td>
+                    <Skeleton width="w-36" height="h-3.5" />
+                  </td>
+                  <td>
+                    <div class="flex items-center justify-center gap-2">
+                      <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
+                      <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            {:else if users.length === 0}
+              <tr>
+                <td colspan="5" class="px-4 py-12 text-center">
+                  <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
+                    <Users size={32} class="text-text-muted" />
                   </div>
+                  <p class="text-text-primary font-semibold mt-4">No users found</p>
+                  <p class="text-text-muted text-sm mt-1">
+                    {searchQuery ? `No match for "${searchQuery}"` : 'Start by adding a user'}
+                  </p>
                 </td>
-                <td>
-                   <Badge variant={roleVariant(user.role)}>
-                     {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
-                   </Badge>
-                </td>
-                <td>
-                  <div class="flex items-center gap-2">
-                    <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
-                    <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
-                  </div>
-                </td>
-                <td class="text-text-muted text-sm">
-                  {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
-                </td>
-                 <td>
-                   <div class="flex items-center justify-center gap-2">
-                     <button 
-                       class="btn-icon btn-ghost text-text-muted hover:text-primary-light" 
-                       title="Edit"
-                       onclick={() => openEdit(user)}
-                       disabled={user.role_id === 1 && !canEditSuperadmin}
-                     >
-                       <Pencil size={14} />
-                     </button>
-                     <button
-                       class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
-                       onclick={() => { selectedUser = user; showDeleteModal = true; }}
-                       title="Delete"
-                       disabled={user.id === currentUserID || user.role_id === 1}
-                     >
-                       <Trash2 size={14} />
-                     </button>
-                   </div>
-                 </td>
               </tr>
-            {/each}
+            {:else}
+              {#each users as user (user.id)}
+                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                  <td class="overflow-hidden text-ellipsis whitespace-nowrap">
+                    <div class="flex items-center gap-3">
+                      <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                        <User size={14} class="text-white" />
+                      </div>
+                      <div>
+                        <p class="font-medium text-text-primary">{user.username}</p>
+                        <p class="text-xs text-text-muted">{user.email || '—'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <Badge variant={roleVariant(user.role)}>
+                      {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
+                    </Badge>
+                  </td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
+                      <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
+                    </div>
+                  </td>
+                  <td class="text-text-muted text-sm">
+                    {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
+                  </td>
+                  <td>
+                    <div class="flex items-center justify-center gap-2">
+                      <button
+                        class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
+                        title="Edit"
+                        onclick={() => openEdit(user)}
+                        disabled={user.role_id === 1 && !canEditSuperadmin}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
+                        onclick={() => { selectedUser = user; showDeleteModal = true; }}
+                        title="Delete"
+                        disabled={user.id === currentUserID || user.role_id === 1}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            {/if}
           </tbody>
         </table>
       </div>
 
-      <div class="p-4 bg-surface-subtle/30">
-        <Pagination 
-          {total} 
-          {limit} 
-          {offset} 
-          onPageChange={handlePageChange} 
-        />
-      </div>
-    {/if}
+      {#if !loading && users.length > 0}
+        <div class="p-4 bg-surface-subtle/30">
+          <Pagination
+            {total}
+            {limit}
+            {offset}
+            onPageChange={handlePageChange}
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
 
-<!-- Add/Edit User Modal -->
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add New User' : 'Edit User'} size="md">
   <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6">
-    <!-- Account Information Section -->
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -435,7 +597,6 @@
   {/snippet}
 </Modal>
 
-<!-- Delete Confirm Modal -->
 <Modal bind:open={showDeleteModal} title="Delete User" size="sm">
   <div class="text-center py-3">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">

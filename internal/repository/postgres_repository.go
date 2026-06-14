@@ -128,15 +128,38 @@ func (r *postgresRepository) getUserByID(ctx context.Context, id int) (*domain.U
 	return &u, nil
 }
 
-func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int, search string) ([]domain.User, int, error) {
+func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool) ([]domain.User, int, error) {
 	var users []domain.User
 	var total int
 
+	validSortColumns := map[string]bool{
+		"id": true, "username": true, "email": true, "role_id": true,
+		"is_active": true, "created_at": true, "last_login": true, "updated_at": true,
+	}
+	if !validSortColumns[sortBy] {
+		sortBy = "id"
+	}
+	if sortDir != "asc" && sortDir != "desc" {
+		sortDir = "desc"
+	}
+
 	query := `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
 	args := []interface{}{}
+	argIdx := 1
 	if search != "" {
-		query += " AND (username ILIKE $1 OR email ILIKE $1)"
+		query += fmt.Sprintf(" AND (username ILIKE $%d OR email ILIKE $%d)", argIdx, argIdx)
 		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+	if roleID > 0 {
+		query += fmt.Sprintf(" AND role_id = $%d", argIdx)
+		args = append(args, roleID)
+		argIdx++
+	}
+	if isActive != nil {
+		query += fmt.Sprintf(" AND is_active = $%d", argIdx)
+		args = append(args, *isActive)
+		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -146,14 +169,26 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 
 	query = `SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login FROM users WHERE deleted_at IS NULL`
 	args2 := []interface{}{}
+	argIdx2 := 1
 	if search != "" {
-		query += " AND (username ILIKE $1 OR email ILIKE $1)"
+		query += fmt.Sprintf(" AND (username ILIKE $%d OR email ILIKE $%d)", argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")
+		argIdx2++
 	}
-	query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
+	if roleID > 0 {
+		query += fmt.Sprintf(" AND role_id = $%d", argIdx2)
+		args2 = append(args2, roleID)
+		argIdx2++
+	}
+	if isActive != nil {
+		query += fmt.Sprintf(" AND is_active = $%d", argIdx2)
+		args2 = append(args2, *isActive)
+		argIdx2++
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, sortDir, argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
- 	rows, err := r.db.Query(ctx, query, args2...)
+	rows, err := r.db.Query(ctx, query, args2...)
 	if err != nil {
 		return nil, 0, err
 	}

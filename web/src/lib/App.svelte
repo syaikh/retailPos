@@ -4,7 +4,6 @@ import LoginPage from '$lib/pages/LoginPage.svelte';
 import Home from '$lib/pages/Home.svelte';
 import PosPage from '$lib/pages/PosPage.svelte';
 import ProductsPage from '$lib/pages/ProductsPage.svelte';
-import StockPage from '$lib/pages/StockPage.svelte';
 import ReportsPage from '$lib/pages/ReportsPage.svelte';
 import AdminUsers from '$lib/pages/admin/UsersPage.svelte';
 import AdminRoles from '$lib/pages/admin/RolesPage.svelte';
@@ -37,7 +36,6 @@ function getComponent(path) {
       case '/pos':                 return PosPage;
       case '/inventory':           return ProductsPage;
       case '/inventory/products':  return ProductsPage;
-      case '/inventory/stock':     return StockPage;
       case '/reports':             return ReportsPage;
       case '/categories':          return AdminCategories;
       case '/customers':           return CustomersPage;
@@ -114,6 +112,10 @@ function getComponent(path) {
       window.history.replaceState({}, '', '/');
     } else {
     if (path === '/inventory') {
+      goto('/inventory/products');
+      return;
+    }
+    if (path === '/inventory/stock') {
       goto('/inventory/products');
       return;
     }

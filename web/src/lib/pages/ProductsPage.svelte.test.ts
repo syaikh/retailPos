@@ -107,26 +107,81 @@ describe('ProductsPage.svelte — source structure guards', () => {
     expect(src).toContain('>PRICE<');
   });
 
-  // ── No StockPage-specific features ──────────────────────────────────────────
-  it('does NOT have low-stock toggle button', () => {
-    expect(src).not.toContain("lowStockOnly");
-    expect(src).not.toContain('Low Stock');
+  // ── Stock management features present ────────────────────────────────────────
+  it('declares lowStockOnly filter toggle', () => {
+    expect(src).toContain('let lowStockOnly');
   });
 
-  it('does NOT import StockAdjustModal', () => {
-    expect(src).not.toContain('StockAdjustModal');
+  it('declares stockAdjustForm for stock adjustment', () => {
+    expect(src).toContain('stockAdjustForm');
   });
 
-  it('does NOT declare stockAdjustForm', () => {
-    expect(src).not.toContain('stockAdjustForm');
+  it('declares showAdjustStockModal', () => {
+    expect(src).toContain('showAdjustStockModal');
   });
 
-  it('does NOT have stock adjustment modal', () => {
-    expect(src).not.toContain('showAdjustStockModal');
+  it('declares stockAdjustProduct', () => {
+    expect(src).toContain('stockAdjustProduct');
   });
 
-  it('does NOT have STOCK column in table', () => {
-    expect(src).not.toContain('>STOCK<');
+  it('imports StockAdjustModal component', () => {
+    expect(src).toContain("import StockAdjustModal from '$lib/components/inventory/StockAdjustModal.svelte'");
+  });
+
+  it('has Low Stock toggle button', () => {
+    expect(src).toContain('Low Stock');
+  });
+
+  it('renders product table with STOCK column', () => {
+    expect(src).toContain('>STOCK<');
+  });
+
+  it('renders product table with STATUS column', () => {
+    expect(src).toContain('STATUS');
+  });
+
+  it('has openAdjustStock function', () => {
+    expect(src).toContain('openAdjustStock');
+  });
+
+  it('has handleAdjustStock function', () => {
+    expect(src).toContain('handleAdjustStock');
+  });
+
+  it('fetches stock-thresholds on mount', () => {
+    expect(src).toContain('fetchThresholds');
+  });
+
+  it('uses criticalThreshold for low stock filter', () => {
+    expect(src).toContain('criticalThreshold');
+  });
+
+  it('uses warningThreshold for stock status badges', () => {
+    expect(src).toContain('warningThreshold');
+  });
+
+  it('has Critical badge for low stock', () => {
+    expect(src).toContain('Critical');
+  });
+
+  it('has In Stock badge for healthy stock', () => {
+    expect(src).toContain('In Stock');
+  });
+
+  it('has Low badge for warning stock', () => {
+    expect(src).toContain('>Low<');
+  });
+
+  it('passes canAdjustStock to ProductActionsDropdown', () => {
+    expect(src).toContain('canAdjustStock={allowedStockRoles.includes(getUserRoleName())}');
+  });
+
+  it('declares allowedStockRoles', () => {
+    expect(src).toContain('allowedStockRoles');
+  });
+
+  it('calls /inventory/adjust endpoint', () => {
+    expect(src).toContain('/inventory/adjust');
   });
 
   // ── Permission checks ────────────────────────────────────────────────────────

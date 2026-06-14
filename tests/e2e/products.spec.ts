@@ -80,9 +80,57 @@ test.describe('Products Management', () => {
     }
   });
 
-  test('should NOT have stock column in products table', async ({ page }) => {
+  test('should have STOCK and STATUS columns in products table', async ({ page }) => {
     await navigateToProducts(page);
-    await expect(page.locator('text=STOCK')).toBeHidden();
+    await expect(page.locator('text=STOCK')).toBeVisible();
+    await expect(page.locator('text=STATUS')).toBeVisible();
+  });
+
+  test('should show stock status badges', async ({ page }) => {
+    await navigateToProducts(page);
+    await page.waitForTimeout(2000);
+    const statusCells = page.locator('table tbody tr td:nth-child(5)');
+    const cellCount = await statusCells.count();
+    expect(cellCount).toBeGreaterThan(0);
+  });
+
+  test('should toggle low stock filter', async ({ page }) => {
+    await navigateToProducts(page);
+    const lowStockBtn = page.locator('button').filter({ hasText: 'Low Stock' }).first();
+    await lowStockBtn.click();
+    await page.waitForTimeout(1000);
+    await lowStockBtn.click();
+    await page.waitForTimeout(1000);
+  });
+
+  test('should open stock adjustment modal from actions dropdown', async ({ page }) => {
+    await navigateToProducts(page);
+    await page.waitForTimeout(2000);
+    const firstRowAction = page.locator('table tbody tr:first-child td:last-child button').first();
+    await firstRowAction.click();
+    await page.waitForTimeout(500);
+    const adjustOption = page.locator('text=Adjust Stock').first();
+    if (await adjustOption.isVisible()) {
+      await adjustOption.click();
+      await expect(page.locator('text=Adjust Stock').last()).toBeVisible({ timeout: 5000 });
+    }
+  });
+
+  test('should adjust stock with valid input', async ({ page }) => {
+    await navigateToProducts(page);
+    await page.waitForTimeout(2000);
+    const firstRowAction = page.locator('table tbody tr:first-child td:last-child button').first();
+    await firstRowAction.click();
+    await page.waitForTimeout(500);
+    const adjustOption = page.locator('text=Adjust Stock').first();
+    if (await adjustOption.isVisible()) {
+      await adjustOption.click();
+      await expect(page.locator('text=Adjust Stock').last()).toBeVisible({ timeout: 5000 });
+      await page.fill('#adjust-qty', '10');
+      await page.fill('#adjust-notes', 'Restocking from supplier');
+      await page.click('button', { hasText: 'Adjust Stock' });
+      await expect(page.locator('text=Stock adjusted successfully')).toBeVisible({ timeout: 5000 });
+    }
   });
 });
 
@@ -122,5 +170,38 @@ test.describe('Products API - Category Filter', () => {
         expect(validCategories).toContain(product.category_name);
       }
     }
+  });
+});
+
+test.describe('Products API - Stock', () => {
+  test('GET /api/products returns stock data', async ({ request }) => {
+    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
+      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
+    });
+    const { access_token: token } = await tokenResponse.json();
+    const response = await request.get(`${API_BASE}/api/products?limit=200`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const product of body.data) {
+      expect(product.stock).toBeGreaterThan(0);
+    }
+  });
+
+  test('GET /api/stock-thresholds returns threshold config', async ({ request }) => {
+    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
+      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
+    });
+    const { access_token: token } = await tokenResponse.json();
+    const response = await request.get(`${API_BASE}/api/stock-thresholds`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body).toHaveProperty('warning');
+    expect(body).toHaveProperty('critical');
   });
 });

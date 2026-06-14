@@ -72,7 +72,7 @@
 
   <!-- Side Drawer - separate from backdrop -->
   <div
-    class="absolute right-0 top-0 h-full w-full max-w-md bg-surface border-l border-border flex flex-col shadow-2xl"
+    class="fixed right-0 top-0 h-full w-full max-w-md bg-surface border-l border-border flex flex-col shadow-2xl z-[55]"
     transition:fly={{ x: '100%', duration: 300 }}
     role="dialog"
     aria-modal="true"

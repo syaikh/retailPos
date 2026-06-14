@@ -25,17 +25,26 @@ describe('Sidebar.svelte role-based navigation', () => {
     expect(mdBlock).not.toContain("'/inventory/stock'");
   });
 
-  it('Stock is a separate top-level item', () => {
-    expect(src).toContain("navigate('/inventory/stock')");
-    expect(src).toContain('showStockItem');
+  it('does NOT have a separate Stock top-level item', () => {
+    expect(src).not.toContain("navigate('/inventory/stock')");
+    expect(src).not.toContain('showStockItem');
+  });
+
+  it('does NOT import ClipboardList icon', () => {
+    expect(src).not.toContain('ClipboardList');
+  });
+
+  it('defines staffMasterDataSubItems with Products', () => {
+    expect(src).toContain('staffMasterDataSubItems');
+    expect(src).toContain("href: '/inventory/products'");
   });
 
   it('defines visibleMasterDataSubItems based on role', () => {
     expect(src).toContain('visibleMasterDataSubItems');
   });
 
-  it('staff role sees no master data sub-items', () => {
-    expect(src).toContain("role === 'staff' ? []");
+  it('staff role sees Products in master data sub-items', () => {
+    expect(src).toContain("role === 'staff' ? staffMasterDataSubItems");
   });
 
   it('cashier role sees no master data sub-items', () => {
@@ -48,14 +57,6 @@ describe('Sidebar.svelte role-based navigation', () => {
 
   it('admin/superadmin sees full masterDataSubItems', () => {
     expect(src).toContain('masterDataSubItems');
-  });
-
-  it('cashier role does NOT see Stock item', () => {
-    expect(src).toContain("role !== 'cashier'");
-  });
-
-  it('staff role sees Stock item', () => {
-    expect(src).toContain('showStockItem');
   });
 
   it('creates expandable Master Data group', () => {
@@ -120,9 +121,5 @@ describe('Sidebar.svelte role-based navigation', () => {
 
   it('imports Database icon for Master Data group', () => {
     expect(src).toContain('Database');
-  });
-
-  it('imports ClipboardList icon for Stock item', () => {
-    expect(src).toContain('ClipboardList');
   });
 });

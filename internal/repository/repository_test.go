@@ -42,8 +42,7 @@ func TestPostgresRepository_GetAllUsers(t *testing.T) {
 
 	repo := NewPostgresRepository(testDB.Pool())
 
-	// Test getting all users
-	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "")
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "id", "desc", 0, nil)
 	require.NoError(t, err)
 	assert.Greater(t, total, 0)
 	assert.Len(t, users, total)
@@ -56,13 +55,11 @@ func TestPostgresRepository_GetAllUsers_WithSearch(t *testing.T) {
 
 	repo := NewPostgresRepository(testDB.Pool())
 
-	// Test search functionality
-	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "admin")
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "admin", "id", "desc", 0, nil)
 	require.NoError(t, err)
 	assert.Greater(t, total, 0)
 	assert.Len(t, users, total)
 
-	// Should find superadmin and admin
 	foundSuperAdmin := false
 	foundAdmin := false
 	for _, user := range users {
@@ -74,6 +71,77 @@ func TestPostgresRepository_GetAllUsers_WithSearch(t *testing.T) {
 		}
 	}
 	assert.True(t, foundSuperAdmin || foundAdmin)
+}
+
+func TestPostgresRepository_GetAllUsers_FilterByRole(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "id", "desc", 1, nil)
+	require.NoError(t, err)
+	assert.Greater(t, total, 0)
+	for _, user := range users {
+		assert.Equal(t, 1, user.RoleID)
+	}
+}
+
+func TestPostgresRepository_GetAllUsers_FilterByActiveStatus(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	active := true
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "id", "desc", 0, &active)
+	require.NoError(t, err)
+	assert.Greater(t, total, 0)
+	for _, user := range users {
+		assert.True(t, user.IsActive)
+	}
+}
+
+func TestPostgresRepository_GetAllUsers_FilterByInactiveStatus(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	inactive := false
+	users, _, err := repo.GetAllUsers(context.Background(), 100, 0, "", "id", "desc", 0, &inactive)
+	require.NoError(t, err)
+	for _, user := range users {
+		assert.False(t, user.IsActive)
+	}
+}
+
+func TestPostgresRepository_GetAllUsers_SortByUsernameAsc(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "username", "asc", 0, nil)
+	require.NoError(t, err)
+	assert.Greater(t, total, 0)
+	if len(users) > 1 {
+		assert.LessOrEqual(t, users[0].Username, users[len(users)-1].Username)
+	}
+}
+
+func TestPostgresRepository_GetAllUsers_SortByEmailDesc(t *testing.T) {
+	testDB := NewTestDB(t)
+	defer testDB.Close(t)
+
+	repo := NewPostgresRepository(testDB.Pool())
+
+	users, total, err := repo.GetAllUsers(context.Background(), 10, 0, "", "email", "desc", 0, nil)
+	require.NoError(t, err)
+	assert.Greater(t, total, 0)
+	if len(users) > 1 {
+		assert.GreaterOrEqual(t, users[0].Email, users[len(users)-1].Email)
+	}
 }
 
 func TestPostgresRepository_GetRolePermissions(t *testing.T) {

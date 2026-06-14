@@ -13,9 +13,10 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import ProductActionsDropdown from '$lib/components/ui/ProductActionsDropdown.svelte';
   import ProductFormModal from '$lib/components/inventory/ProductFormModal.svelte';
+  import StockAdjustModal from '$lib/components/inventory/StockAdjustModal.svelte';
   import {
     Search, Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, Loader2, Copy, ArrowUpDown, X, ChevronDown
+    SlidersHorizontal, Loader2, Copy, ArrowUpDown, X, ChevronDown, AlertTriangle
   } from 'lucide-svelte';
 
   const toast = {
@@ -82,6 +83,22 @@
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
   const allowedInventoryRoles = ['superadmin', 'admin', 'manager', 'staff'];
+  const allowedStockRoles = ['superadmin', 'admin', 'manager', 'staff'];
+
+  let stockAdjustProduct = $state(null);
+  let showAdjustStockModal = $state(false);
+  let adjustingStock = $state(false);
+  let stockAdjustForm = $state({
+    product_id: null,
+    quantity_change: 0,
+    notes: ''
+  });
+  let lowStockOnly = $state(false);
+
+  let lowStockBtnStyle = $derived(lowStockOnly
+    ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
+    : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
+  );
 
   let previousCategories = ['All'];
   let sortBy = $state('name');
@@ -122,6 +139,45 @@
     } catch (err) {
       warningThreshold = 10;
       criticalThreshold = 5;
+    }
+  }
+
+  function openAdjustStock(product) {
+    stockAdjustProduct = product;
+    stockAdjustForm = {
+      product_id: product.id,
+      quantity_change: 0,
+      notes: ''
+    };
+    showAdjustStockModal = true;
+  }
+
+  async function handleAdjustStock() {
+    if (stockAdjustForm.quantity_change === 0) {
+      toast.error('Quantity change must be non-zero');
+      return;
+    }
+    const trimmedNotes = stockAdjustForm.notes?.trim();
+    if (!trimmedNotes) {
+      toast.error('Notes are required - please provide a reason for adjustment');
+      return;
+    }
+    adjustingStock = true;
+    try {
+      await apiClient.post('/inventory/adjust', {
+        product_id: stockAdjustForm.product_id,
+        quantity_change: stockAdjustForm.quantity_change,
+        notes: trimmedNotes
+      });
+      toast.success('Stock adjusted successfully');
+      showAdjustStockModal = false;
+      stockAdjustProduct = null;
+      await fetchProducts(offset, limit);
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
+      toast.error(errorMsg);
+    } finally {
+      adjustingStock = false;
     }
   }
 
@@ -177,6 +233,7 @@
       });
       const filteredCategories = selectedCategories.filter(c => c.toLowerCase() !== 'all');
       if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
+      if (lowStockOnly) params.append('maxStock', criticalThreshold.toString());
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
@@ -549,6 +606,20 @@
         <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
       </button>
       <button
+        type="button"
+        role="switch"
+        aria-checked={lowStockOnly}
+        onclick={() => { lowStockOnly = !lowStockOnly; offset = 0; fetchProducts(0, limit); }}
+        class="flex items-center gap-[9px] h-10 px-[14px] rounded-lg shrink-0 transition-all duration-200"
+        style={lowStockBtnStyle}
+      >
+        <span
+          class="block rounded-full shrink-0 transition-colors duration-200"
+          style="width: 8px; height: 8px; background: {lowStockOnly ? '#c4b5fd' : '#6b7280'}; box-shadow: {lowStockOnly ? '0 0 6px rgba(196,181,253,0.7)' : 'none'};"
+        ></span>
+        <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
+      </button>
+      <button
         onclick={() => {
           if (!canManageInventory) return;
           modalMode = 'add';
@@ -573,6 +644,8 @@
             <th class="text-left p-4 font-semibold">PRODUCT NAME</th>
             <th class="text-left p-4 font-semibold w-60">CATEGORY</th>
             <th class="text-right p-4 font-semibold w-36">PRICE</th>
+            <th class="text-right p-4 font-semibold w-24">STOCK</th>
+            <th class="text-left p-4 font-semibold w-28">STATUS</th>
             <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
@@ -582,6 +655,8 @@
               <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
               <td class="p-4 w-60"><Skeleton class="h-4 w-3/4" /></td>
               <td class="p-4 text-right w-36"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
+              <td class="p-4 text-right w-24"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
+              <td class="p-4 w-28"><Skeleton class="h-6 w-20 rounded-full" /></td>
               <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
             </tr>
           {/each}
@@ -594,7 +669,7 @@
         </div>
         <p class="text-text-primary font-semibold mt-4">No products found</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery || selectedCategories.length > 0 && !selectedCategories.includes('All') ? 'Try adjusting your filters' : 'Start by adding your first product'}
+          {searchQuery || (selectedCategories.length > 0 && !selectedCategories.includes('All')) || lowStockOnly ? 'Try adjusting your filters' : 'Start by adding your first product'}
         </p>
       </div>
     {:else}
@@ -616,6 +691,12 @@
                 PRICE <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
+            <th class="text-right p-4 font-semibold w-24">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('stock')}>
+                STOCK <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-28">STATUS</th>
             <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
@@ -651,12 +732,22 @@
               </td>
               <td class="p-4 w-60">{product.category_name || '-'}</td>
               <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
+              <td class="p-4 text-right w-24">{product.stock ?? 0}</td>
+              <td class="p-4 w-28">
+                {#if product.stock <= criticalThreshold}
+                  <Badge variant="destructive">Critical</Badge>
+                {:else if product.stock <= warningThreshold}
+                  <Badge variant="warning">Low</Badge>
+                {:else}
+                  <Badge variant="success">In Stock</Badge>
+                {/if}
+              </td>
               <td class="p-4 w-20" style="width: 80px;">
                 <ProductActionsDropdown
                   {product}
                   canEdit={canEdit()}
                   canDelete={isSuperAdmin() || isAdmin()}
-                  canAdjustStock={false}
+                  canAdjustStock={allowedStockRoles.includes(getUserRoleName())}
                   onView={() => { selectedProduct = product; showDetailDrawer = true; }}
                   onEdit={() => {
                     selectedProduct = product;
@@ -674,6 +765,7 @@
                     showModal = true;
                   }}
                   onDelete={() => { selectedProduct = product; showDeleteModal = true; }}
+                  onAdjustStock={() => openAdjustStock(product)}
                 />
               </td>
             </tr>
@@ -717,6 +809,15 @@
     </button>
   {/snippet}
 </Modal>
+
+<StockAdjustModal
+  bind:open={showAdjustStockModal}
+  bind:stockAdjustProduct
+  bind:stockAdjustForm
+  {adjustingStock}
+  onSubmit={handleAdjustStock}
+  onCancel={() => { showAdjustStockModal = false; stockAdjustProduct = null; }}
+/>
 
 {#if showDetailDrawer && selectedProduct}
   <div class="fixed inset-0 bg-black/60 z-50" onclick={() => (showDetailDrawer = false)} aria-hidden="true"></div>

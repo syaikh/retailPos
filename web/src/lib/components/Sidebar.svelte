@@ -13,7 +13,6 @@
     Store,
     User,
     Tag,
-    ClipboardList,
     Database,
   } from 'lucide-svelte';
   import { goto, getPath } from '$lib/router';
@@ -34,7 +33,6 @@
     currentPath.startsWith('/categories') ||
     currentPath.startsWith('/customers')
   );
-  const isStockPath = $derived(currentPath.startsWith('/inventory/stock'));
 
   $effect(() => {
     if (isAdminPath) adminExpanded = true;
@@ -79,6 +77,10 @@
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
   ];
 
+  const staffMasterDataSubItems = [
+    { label: 'Products',   href: '/inventory/products', icon: Package },
+  ];
+
   const adminItems = [
     { label: 'Users',       href: '/admin/users',       icon: Users },
     { label: 'Roles',       href: '/admin/roles',       icon: Shield },
@@ -92,13 +94,9 @@
   );
 
   let visibleMasterDataSubItems = $derived(
-    role === 'staff' ? [] :
+    role === 'staff' ? staffMasterDataSubItems :
     role === 'cashier' ? [] :
     (role === 'manager' ? managerMasterDataSubItems : masterDataSubItems)
-  );
-
-  let showStockItem = $derived(
-    role !== 'cashier'
   );
 
   let showAdminSection = $derived(role === 'admin' || role === 'superadmin');
@@ -210,22 +208,6 @@
             </button>
           {/each}
         {/if}
-      </div>
-    {/if}
-
-    <!-- Stock (operational, not master data) -->
-    {#if showStockItem}
-      <div class="pt-1">
-        <button
-          onclick={(e) => { createRipple(e, e.currentTarget); navigate('/inventory/stock'); }}
-          class={isStockPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
-          title={collapsed ? 'Stock' : ''}
-        >
-          <ClipboardList size={18} class="shrink-0" />
-          {#if !collapsed}
-            <span class="animate-fade-in relative z-10">Stock</span>
-          {/if}
-        </button>
       </div>
     {/if}
 
