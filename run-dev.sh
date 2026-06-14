@@ -18,4 +18,11 @@ export DATABASE_URL="${DATABASE_URL:-postgres://pos:admin123@localhost:${DATABAS
 echo "Starting server in $ENV mode on port $PORT"
 echo "Connecting to database: $DATABASE_URL"
 
+# Check if port is in use and kill the process
+PID=$(lsof -ti :$PORT 2>/dev/null)
+if [ -n "$PID" ]; then
+  echo "Port $PORT is in use by process $PID, killing it..."
+  kill -9 $PID
+fi
+
 go run ./cmd/server/main.go "$@"
