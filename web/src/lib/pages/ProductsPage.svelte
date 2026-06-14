@@ -475,6 +475,7 @@
       const next = new Set(base);
       next.add(field);
       showCopySuccess = next;
+      toast.success('Copied to clipboard');
       setTimeout(() => {
         const removed = new Set(next);
         removed.delete(field);
@@ -715,25 +716,25 @@
                 <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
-                    {product.sku}
-                     <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
-                       {#if showCopySuccess?.has(`sku_${product.id}`)}
-                         <span class="text-xs text-primary font-bold leading-none">✓</span>
-                       {:else}
-                         <Copy size={14} class="text-text-muted hover:text-primary" />
-                       {/if}
-                     </button>
-                   </span>
-                   {#if product.barcode}
-                     <span class="flex items-center gap-1 ml-4">
-                       {product.barcode}
-                       <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
-                         {#if showCopySuccess?.has(`barcode_${product.id}`)}
-                           <span class="text-xs text-primary font-bold leading-none">✓</span>
-                         {:else}
-                           <Copy size={14} class="text-text-muted hover:text-primary" />
-                         {/if}
-                       </button>
+                    <button class="text-left hover:text-primary transition-colors truncate max-w-[120px]" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>{product.sku}</button>
+                    <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
+                      {#if showCopySuccess?.has(`sku_${product.id}`)}
+                        <span class="text-xs text-primary font-bold leading-none">✓</span>
+                      {:else}
+                        <Copy size={14} class="text-text-muted hover:text-primary" />
+                      {/if}
+                    </button>
+                  </span>
+                  {#if product.barcode}
+                    <span class="flex items-center gap-1 ml-4">
+                      <button class="text-left hover:text-primary transition-colors truncate max-w-[140px]" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>{product.barcode}</button>
+                      <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
+                        {#if showCopySuccess?.has(`barcode_${product.id}`)}
+                          <span class="text-xs text-primary font-bold leading-none">✓</span>
+                        {:else}
+                          <Copy size={14} class="text-text-muted hover:text-primary" />
+                        {/if}
+                      </button>
                     </span>
                   {/if}
                 </div>
