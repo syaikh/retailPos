@@ -352,7 +352,7 @@ let canView = $derived($auth.user != null);
               <td class="p-4 text-right w-32">
                 <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
                   {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
-                  {cat.product_count}
+                  {cat.product_count ?? 0}
                 </span>
               </td>
               <td class="p-4 w-36 text-text-secondary text-sm">
