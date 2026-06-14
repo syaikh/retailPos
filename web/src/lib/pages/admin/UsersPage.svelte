@@ -357,34 +357,25 @@
 
       <div class="overflow-x-auto" style="min-width: 0;">
         <table class="w-full table-fixed border-collapse" style="min-width: 680px;">
-          <colgroup>
-            <col style="width: auto;" />
-            <col style="width: 160px;" />
-            <col style="width: 128px;" />
-            <col style="width: 224px;" />
-            <col style="width: 112px;" />
-          </colgroup>
-          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
+          <thead class="bg-muted/50">
              <tr>
-                <th class="text-left">
-                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('username')}>
+                <th class="text-left p-4 font-semibold">
+                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('username')}>
                     USER <ArrowUpDown size={14} class="text-text-muted" />
                   </button>
                 </th>
-                <th class="text-left">
-                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('role_id')}>
+                <th class="text-left p-4 font-semibold w-40">
+                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('role_id')}>
                     ROLE <ArrowUpDown size={14} class="text-text-muted" />
                   </button>
                 </th>
-                <th class="text-left">
-                  STATUS
-                </th>
-                <th class="text-left">
-                  <button class="flex items-center gap-1 hover:text-primary-light transition-colors" onclick={() => toggleSort('last_login')}>
-                    Last Login <ArrowUpDown size={14} class="text-text-muted" />
+                <th class="text-left p-4 font-semibold w-28">STATUS</th>
+                <th class="text-left p-4 font-semibold w-56">
+                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('last_login')}>
+                    LAST LOGIN <ArrowUpDown size={14} class="text-text-muted" />
                   </button>
                 </th>
-                <th class="text-center">ACTIONS</th>
+                <th class="text-center p-4 font-semibold w-28">ACTIONS</th>
               </tr>
           </thead>
           <tbody>
@@ -435,7 +426,7 @@
             {:else}
               {#each users as user (user.id)}
                 <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                  <td class="overflow-hidden text-ellipsis whitespace-nowrap">
+                  <td class="p-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                     <div class="flex items-center gap-3">
                       <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
                         <User size={14} class="text-white" />
@@ -447,21 +438,21 @@
                     </div>
                   </td>
                   <td>
-                    <Badge variant={roleVariant(user.role)}>
-                      {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
-                    </Badge>
-                  </td>
-                  <td>
-                    <div class="flex items-center gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
-                      <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
-                    </div>
-                  </td>
-                  <td class="text-text-muted text-sm">
-                    {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
-                  </td>
-                  <td>
-                    <div class="flex items-center justify-center gap-2">
+                     <Badge variant={roleVariant(user.role)}>
+                       {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
+                     </Badge>
+                   </td>
+                   <td>
+                     <div class="flex items-center gap-2">
+                       <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
+                       <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
+                     </div>
+                   </td>
+                   <td class="text-text-muted text-sm">
+                     {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
+                   </td>
+                   <td class="text-center">
+                     <div class="flex items-center justify-center gap-2">
                       <button
                         class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
                         title="Edit"

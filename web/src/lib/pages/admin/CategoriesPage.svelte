@@ -8,7 +8,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, Tag, Loader2, X, ArrowUpDown } from 'lucide-svelte';
 
   let loading = $state(true);
   let categories = $state([]);
@@ -222,175 +222,178 @@ let canView = $derived($auth.user != null);
 </script>
 
 <div class="space-y-5">
-  <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h2 class="text-2xl font-bold text-text-primary">Manajemen Kategori</h2>
-      <p class="text-text-muted">Kelola kategori produk toko Anda</p>
-    </div>
-    <div class="flex items-center gap-2">
-      {#if canCreate}
-        <button class="btn btn-primary" onclick={openAdd}>
-          <Plus size={16} /> Tambah Kategori
-        </button>
-      {/if}
-    </div>
-  </div>
-
   <!-- Search -->
   <div class="card p-4">
-    <div class="relative max-w-sm">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-      <input
-        type="text"
-        placeholder="Cari nama kategori…"
-        class="input pl-9 pr-10"
-        bind:value={searchQuery}
-        oninput={handleSearchInput}
-      />
-      {#if searchQuery}
-        <button
-          onclick={clearSearch}
-          class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-          title="Hapus pencarian"
-        >
-          <X size={14} />
+    <div class="flex items-center gap-4">
+      <div class="relative flex-2">
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search categories..."
+          class="input pl-10 pr-12 h-10"
+          bind:value={searchQuery}
+          oninput={handleSearchInput}
+        />
+        {#if searchQuery}
+          <button
+            onclick={clearSearch}
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        {/if}
+      </div>
+      {#if canCreate}
+        <button class="btn btn-primary rounded-full shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+          <Plus size={18} />
+          Tambah Kategori
         </button>
       {/if}
     </div>
   </div>
 
   <!-- Table -->
-  <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-      <p class="text-sm font-semibold text-text-primary">Daftar Kategori</p>
-      {#if !loading}
-        <span class="badge badge-muted">{total} kategori</span>
-      {/if}
-    </div>
+  <div class="card overflow-hidden">
 
     {#if loading}
-      <div class="divide-y divide-border">
-        {#each { length: 5 } as _}
-          <div class="flex items-center gap-4 px-4 py-3.5">
-            <Skeleton width="w-40" height="h-3.5" />
-            <Skeleton width="w-28" height="h-3.5" />
-            <Skeleton width="w-12" height="h-6" rounded="rounded-full" />
-            <Skeleton width="w-20" height="h-3" />
-          </div>
-        {/each}
-      </div>
+      <table class="w-full table-fixed">
+        <thead class="bg-muted/50">
+          <tr>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+                CATEGORY NAME <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-48">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
+                SLUG <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-right p-4 font-semibold w-20">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('product_count')}>
+                PRODUCTS <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-36">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
+                CREATED <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each Array(5) as _}
+            <tr class="border-t border-border">
+              <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
+              <td class="p-4 w-48"><Skeleton class="h-4 w-3/4" /></td>
+              <td class="p-4 text-right w-20"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
+              <td class="p-4 w-36"><Skeleton class="h-4 w-2/3" /></td>
+              <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     {:else if categories.length === 0}
       <div class="px-4 py-12 text-center">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">Tidak ada kategori</p>
+        <p class="text-text-primary font-semibold mt-4">No categories found</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `Tidak ditemukan untuk "${searchQuery}"` : 'Mulai dengan menambahkan kategori'}
+          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding your first category'}
         </p>
       </div>
     {:else}
-      <div class="overflow-x-auto">
-        <table>
-           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-             <tr>
-               <th class="text-left">
-                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-                   Nama Kategori
-                   <span class="inline-block w-3 text-center {sortBy === 'name' ? 'text-primary-light' : 'invisible'}">
-                     {sortBy === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
-                   </span>
-                 </button>
-               </th>
-               <th class="text-left">
-                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
-                   Slug
-                   <span class="inline-block w-3 text-center {sortBy === 'slug' ? 'text-primary-light' : 'invisible'}">
-                     {sortBy === 'slug' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
-                   </span>
-                 </button>
-               </th>
-               <th class="text-center">
-                 <button class="flex items-center gap-1 hover:text-primary transition-colors mx-auto" onclick={() => handleSort('product_count')}>
-                   Jumlah Produk
-                   <span class="inline-block w-3 text-center {sortBy === 'product_count' ? 'text-primary-light' : 'invisible'}">
-                     {sortBy === 'product_count' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
-                   </span>
-                 </button>
-               </th>
-               <th class="text-left">
-                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
-                   Tanggal Dibuat
-                   <span class="inline-block w-3 text-center {sortBy === 'created_at' ? 'text-primary-light' : 'invisible'}">
-                     {sortBy === 'created_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↑'}
-                   </span>
-                 </button>
-               </th>
-               <th class="text-center">Aksi</th>
+      <table class="w-full table-fixed">
+        <thead class="bg-muted/50">
+          <tr>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+                CATEGORY NAME <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-48">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
+                SLUG <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-right p-4 font-semibold w-20">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('product_count')}>
+                PRODUCTS <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-left p-4 font-semibold w-36">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
+                CREATED <ArrowUpDown size={14} class="text-text-muted" />
+              </button>
+            </th>
+            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each sortedCategories as cat (cat.id)}
+            <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+              <td class="p-4 pr-6" style="width: 40%;">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center shrink-0">
+                    <Tag size={14} class="text-primary-light" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate" title={cat.name}>{cat.name}</p>
+                    {#if cat.description}
+                      <p class="text-xs text-text-muted truncate max-w-[200px]">{cat.description}</p>
+                    {/if}
+                  </div>
+                </div>
+              </td>
+              <td class="p-4 w-40 text-text-secondary text-sm">{cat.slug}</td>
+              <td class="p-4 text-right w-32">
+                <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
+                  {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
+                  {cat.product_count}
+                </span>
+              </td>
+              <td class="p-4 w-36 text-text-secondary text-sm">
+                {formatDate(cat.created_at)}
+              </td>
+              <td class="p-4 w-20">
+                <div class="flex items-center justify-center gap-2">
+                  {#if canEdit}
+                    <button
+                      class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
+                      title="Edit"
+                      onclick={() => openEdit(cat)}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  {/if}
+                  {#if canDelete}
+                    <button
+                      class="btn-icon btn-ghost {cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
+                      onclick={() => openDelete(cat)}
+                      disabled={cat.product_count > 0}
+                      title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  {/if}
+                  {#if !canEdit && !canDelete}
+                    <span class="text-xs text-text-muted">—</span>
+                  {/if}
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {#each sortedCategories as cat (cat.id)}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                <td>
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center shrink-0">
-                      <Tag size={14} class="text-primary-light" />
-                    </div>
-                    <div>
-                      <p class="font-medium text-text-primary">{cat.name}</p>
-                      {#if cat.description}
-                        <p class="text-xs text-text-muted truncate max-w-[200px]">{cat.description}</p>
-                      {/if}
-                    </div>
-                  </div>
-                </td>
-                <td class="text-text-secondary text-sm">{cat.slug}</td>
-                <td class="text-center">
-                  <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
-                    {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
-                    {cat.product_count}
-                  </span>
-                </td>
-                <td class="text-text-secondary text-sm">
-                  {formatDate(cat.created_at)}
-                </td>
-                <td>
-                  <div class="flex items-center justify-center gap-2">
-                    {#if canEdit}
-                      <button
-                        class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
-                        title="Edit"
-                        onclick={() => openEdit(cat)}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    {/if}
-                    {#if canDelete}
-                      <button
-                        class="btn-icon btn-ghost {cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
-                        onclick={() => openDelete(cat)}
-                        disabled={cat.product_count > 0}
-                        title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    {/if}
-                    {#if !canEdit && !canDelete}
-                      <span class="text-xs text-text-muted">—</span>
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+          {/each}
+        </tbody>
+      </table>
 
-      <div class="p-4 bg-surface-subtle/30">
-        <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
-      </div>
+      {#if !loading && categories.length > 0}
+        <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
