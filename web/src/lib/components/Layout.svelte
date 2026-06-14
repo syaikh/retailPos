@@ -22,7 +22,7 @@
      <Topbar {currentPath} />
 
      <!-- Scrollable content area -->
-     <main class="flex-1 overflow-y-auto bg-bg-default grid">
+     <main class="flex-1 overflow-y-auto bg-bg-default grid" style="scrollbar-gutter: stable;">
       {#key currentPath}
         <div 
           in:fly={{ y: 15, duration: 300, delay: 150 }} 

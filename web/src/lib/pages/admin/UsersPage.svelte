@@ -293,9 +293,10 @@
             <X size={14} />
           </button>
         </div>
-        <div class="relative shrink-0">
+        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
           <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-[140px] {filterRole !== 'all' ? 'text-text-primary' : ''}"
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer {filterRole !== 'all' ? 'text-text-primary' : ''}"
+            style="width: 140px; min-width: 140px; max-width: 140px;"
             bind:value={filterRole}
           >
             <option value="all">All Roles</option>
@@ -305,9 +306,10 @@
           </select>
           <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
         </div>
-        <div class="relative shrink-0">
+        <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;">
           <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-[120px] {filterStatus !== 'all' ? 'text-text-primary' : ''}"
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer {filterStatus !== 'all' ? 'text-text-primary' : ''}"
+            style="width: 128px; min-width: 128px; max-width: 128px;"
             bind:value={filterStatus}
           >
             <option value="all">All Status</option>
@@ -353,8 +355,15 @@
         {/if}
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full table-fixed border-collapse">
+      <div class="overflow-x-auto" style="min-width: 0;">
+        <table class="w-full table-fixed border-collapse" style="min-width: 680px;">
+          <colgroup>
+            <col style="width: auto;" />
+            <col style="width: 160px;" />
+            <col style="width: 128px;" />
+            <col style="width: 224px;" />
+            <col style="width: 112px;" />
+          </colgroup>
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
              <tr>
                 <th
@@ -373,7 +382,7 @@
                   </div>
                 </th>
                 <th
-                  class="cursor-pointer select-none w-40"
+                  class="cursor-pointer select-none"
                   onclick={() => toggleSort('role_id')}
                 >
                   <div class="flex items-center gap-1.5">
@@ -387,11 +396,11 @@
                     {/if}
                   </div>
                 </th>
-                <th class="cursor-pointer select-none w-32">
+                <th class="cursor-pointer select-none">
                   <span>Status</span>
                 </th>
                 <th
-                  class="cursor-pointer select-none w-56"
+                  class="cursor-pointer select-none"
                   onclick={() => toggleSort('last_login')}
                 >
                   <div class="flex items-center gap-1.5">
@@ -405,7 +414,7 @@
                     {/if}
                   </div>
                 </th>
-                <th class="text-center w-28">Actions</th>
+                <th class="text-center">Actions</th>
               </tr>
           </thead>
           <tbody>
