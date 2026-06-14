@@ -4,19 +4,22 @@
   import { toast } from '$lib/stores/toast';
   import { auth } from '$lib/stores/auth';
 
-  import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import { Plus, Pencil, Trash2, Shield, Loader2 } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Shield, Loader2, Search, X, ChevronRight, ChevronDown, Users, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye } from 'lucide-svelte';
 
   let loading = $state(true);
   let roles = $state([]);
   let permissions = $state([]);
   let showModal = $state(false);
   let showDeleteModal = $state(false);
+  let showDiscardModal = $state(false);
   let selectedRole = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+  let permissionSearch = $state('');
+  let nameTouched = $state(false);
+  let pendingClose = $state(false);
 
   let userRole = $derived(
     $auth.user?.role?.name ||
@@ -27,6 +30,118 @@
   let canView = $derived(userRole !== 'cashier' && userRole !== '');
   let canEdit = $derived(userRole === 'superadmin');
   let canDelete = $derived(userRole === 'superadmin');
+
+  let collapsedGroups = $state(new Set());
+  let initialPermissionIds = $state([]);
+
+  const groupMeta = {
+    'user': { label: 'User & Role', icon: Users },
+    'role': { label: 'User & Role', icon: Users },
+    'product': { label: 'Product', icon: Package },
+    'category': { label: 'Category', icon: Tag },
+    'sale': { label: 'Sales', icon: ShoppingCart },
+    'inventory': { label: 'Inventory', icon: Warehouse },
+    'customer': { label: 'Customer', icon: UserPlus },
+    'report': { label: 'Report', icon: BarChart3 },
+    'dashboard': { label: 'Dashboard', icon: LayoutDashboard },
+    'pos': { label: 'POS', icon: Store },
+    'audit': { label: 'System', icon: Settings },
+  };
+
+  let groupedPermissions = $derived(() => {
+    const filtered = permissionSearch.trim()
+      ? permissions.filter(p =>
+          p.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
+          p.code.toLowerCase().includes(permissionSearch.toLowerCase())
+        )
+      : permissions;
+
+    const groups = {};
+    for (const p of filtered) {
+      const key = p.code.split(':')[0];
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    }
+
+    const order = ['user', 'role', 'product', 'category', 'sale', 'inventory', 'customer', 'report', 'dashboard', 'pos', 'audit'];
+    return order
+      .filter(key => groups[key]?.length)
+      .map(key => ({
+        key,
+        label: groupMeta[key]?.label || key,
+        icon: groupMeta[key]?.icon || Shield,
+        permissions: groups[key],
+      }));
+  });
+
+  let searchResultCount = $derived(
+    permissionSearch.trim()
+      ? permissions.filter(p =>
+          p.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
+          p.code.toLowerCase().includes(permissionSearch.toLowerCase())
+        ).length
+      : permissions.length
+  );
+
+  let nameError = $derived(() => {
+    if (!nameTouched) return '';
+    if (!form.name.trim()) return 'Role name is required';
+    if (roles.some(r => r.name.toLowerCase() === form.name.trim().toLowerCase() && r.id !== selectedRole?.id)) {
+      return 'Role name already exists';
+    }
+    return '';
+  });
+
+  let hasUnsavedChanges = $derived(() => {
+    const current = JSON.stringify([...form.permission_ids].sort());
+    const initial = JSON.stringify([...initialPermissionIds].sort());
+    return current !== initial;
+  });
+
+  function allExpanded() {
+    return groupedPermissions().every(g => !collapsedGroups.has(g.key));
+  }
+
+  function toggleGroup(key) {
+    const s = new Set(collapsedGroups);
+    if (s.has(key)) s.delete(key);
+    else s.add(key);
+    collapsedGroups = s;
+  }
+
+  function setAllExpanded(expanded) {
+    collapsedGroups = expanded ? new Set() : new Set(groupedPermissions().map(g => g.key));
+  }
+
+  function toggleGroupAll(group) {
+    const allSelected = group.permissions.every(p => form.permission_ids.includes(p.id));
+    if (allSelected) {
+      form.permission_ids = form.permission_ids.filter(id => !group.permissions.some(p => p.id === id));
+    } else {
+      const toAdd = group.permissions.filter(p => !form.permission_ids.includes(p.id)).map(p => p.id);
+      form.permission_ids = [...form.permission_ids, ...toAdd];
+    }
+  }
+
+  function requestClose() {
+    if (hasUnsavedChanges()) {
+      pendingClose = true;
+      showDiscardModal = true;
+    } else {
+      showModal = false;
+    }
+  }
+
+  function confirmDiscard() {
+    showDiscardModal = false;
+    showModal = false;
+    pendingClose = false;
+  }
+
+  function cancelDiscard() {
+    showDiscardModal = false;
+    pendingClose = false;
+  }
 
   // Form State
   let form = $state({
@@ -60,64 +175,72 @@
 
   function openAdd() {
     modalMode = 'add';
+    permissionSearch = '';
+    collapsedGroups = new Set();
+    nameTouched = false;
+    initialPermissionIds = [];
     form = { name: '', description: '', permission_ids: [] };
     showModal = true;
   }
 
   function openEdit(role) {
     modalMode = 'edit';
+    permissionSearch = '';
+    collapsedGroups = new Set();
+    nameTouched = false;
     selectedRole = role;
-    
-    // Map permission codes to IDs for the form
+
     const currentPermIds = permissions
       .filter(p => role.permissions.includes(p.code))
       .map(p => p.id);
 
-    form = { 
-      name: role.name, 
-      description: role.description, 
-      permission_ids: currentPermIds 
+    initialPermissionIds = [...currentPermIds];
+    form = {
+      name: role.name,
+      description: role.description,
+      permission_ids: currentPermIds
     };
     showModal = true;
   }
 
   async function saveRole() {
-    if (!form.name) {
-      toast.error('Role name is required');
+    nameTouched = true;
+    if (nameError()) {
+      toast.error(nameError());
       return;
     }
 
     try {
       saving = true;
-      
+
       if (modalMode === 'add') {
         const r = await apiFetch('/api/admin/roles', {
           method: 'POST',
           body: JSON.stringify({ name: form.name, description: form.description })
         });
-        
+
         if (r.ok) {
           const newRole = await r.json();
-          // After creating role, update its permissions
           await apiFetch(`/api/admin/roles/${newRole.data.id}/permissions`, {
             method: 'PUT',
             body: JSON.stringify({ permission_ids: form.permission_ids })
           });
           toast.success('Role created');
         } else {
-          throw new Error('Failed to create role');
+          const data = await r.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to create role');
         }
       } else {
-        // Update permissions for existing role
         const r = await apiFetch(`/api/admin/roles/${selectedRole.id}/permissions`, {
           method: 'PUT',
           body: JSON.stringify({ permission_ids: form.permission_ids })
         });
-        
+
         if (r.ok) {
           toast.success('Permissions updated');
         } else {
-          throw new Error('Failed to update permissions');
+          const data = await r.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update permissions');
         }
       }
 
@@ -136,17 +259,18 @@
       toast.error('Cannot delete system roles');
       return;
     }
-    
+
     try {
       const r = await apiFetch(`/api/admin/roles/${selectedRole.id}`, { method: 'DELETE' });
       if (r.ok) {
         roles = roles.filter(r => r.id !== selectedRole.id);
         toast.success(`Role "${selectedRole.name}" removed`);
       } else {
-        toast.error('Failed to delete role');
+        const data = await r.json().catch(() => ({}));
+        toast.error(data.error || 'Failed to delete role');
       }
     } catch {
-      toast.error('Failed to delete role');
+      toast.error('Connection lost. Check your network.');
     } finally {
       showDeleteModal = false;
       selectedRole = null;
@@ -158,6 +282,18 @@
       form.permission_ids = form.permission_ids.filter(pid => pid !== id);
     } else {
       form.permission_ids = [...form.permission_ids, id];
+    }
+  }
+
+  function handleGroupKeydown(e, group) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = e.target.closest('[data-group]')?.nextElementSibling?.querySelector('button[data-group-toggle]');
+      next?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = e.target.closest('[data-group]')?.previousElementSibling?.querySelector('button[data-group-toggle]');
+      prev?.focus();
     }
   }
 
@@ -294,12 +430,26 @@
 </div>
 
 <!-- Add/Edit Role Modal -->
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Create New Role' : 'Edit Permissions'} size="lg">
   <div class="space-y-4">
     {#if modalMode === 'add'}
       <div>
         <label for="role-name" class="block text-sm font-medium text-text-secondary mb-2">Role Name</label>
-        <input id="role-name" type="text" placeholder="e.g. manager" class="input" bind:value={form.name} required />
+        <input
+          id="role-name"
+          type="text"
+          placeholder="e.g. manager"
+          class="input"
+          class:border-danger={nameError()}
+          bind:value={form.name}
+          onblur={() => nameTouched = true}
+          aria-invalid={!!nameError()}
+          aria-describedby={nameError() ? 'role-name-error' : undefined}
+          required
+        />
+        {#if nameError()}
+          <p id="role-name-error" class="text-xs text-danger mt-1.5" role="alert">{nameError()}</p>
+        {/if}
       </div>
       <div>
         <label for="role-desc" class="block text-sm font-medium text-text-secondary mb-2">Description</label>
@@ -314,39 +464,156 @@
         </div>
       </div>
     {/if}
-    
-    <div>
-      <p class="block text-sm font-medium text-text-secondary mb-3">Permissions</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {#each permissions as perm}
-          <label 
-            class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors
-                   {form.permission_ids.includes(perm.id) ? 'border-primary/40 bg-primary-subtle/40' : 'border-border hover:border-border-strong hover:bg-surface-default'}"
-          >
-            <input 
-              type="checkbox" 
-              class="w-4 h-4 accent-primary rounded" 
-              checked={form.permission_ids.includes(perm.id)}
-              onchange={() => togglePermission(perm.id)}
-            />
-            <div>
-              <p class="text-sm font-medium text-text-primary">{perm.name}</p>
-              <p class="text-[10px] text-text-muted uppercase tracking-wider">{perm.code}</p>
+
+    <div class="border-t border-border pt-5 mt-2">
+      <div class="sticky top-0 bg-surface pb-3 z-10">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-medium text-text-secondary">Permissions</p>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-text-muted">{form.permission_ids.length} of {permissions.length} selected</span>
+            {#if groupedPermissions().length > 1}
+              <button
+                type="button"
+                class="text-xs text-primary hover:text-primary-light transition-colors"
+                onclick={() => setAllExpanded(!allExpanded())}
+              >
+                {allExpanded() ? 'Collapse All' : 'Expand All'}
+              </button>
+            {/if}
+          </div>
+        </div>
+        <div class="relative">
+          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Cari permission..."
+            class="input pl-9 pr-9 text-sm"
+            bind:value={permissionSearch}
+            role="searchbox"
+            aria-label="Search permissions"
+            aria-describedby="search-status"
+            onkeydown={(e) => {
+              if (e.key === 'Escape' && permissionSearch) {
+                e.stopPropagation();
+                permissionSearch = '';
+              }
+            }}
+          />
+          {#if permissionSearch}
+            <button
+              type="button"
+              class="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text-primary transition-colors"
+              onclick={() => permissionSearch = ''}
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          {/if}
+        </div>
+        <div id="search-status" class="sr-only" aria-live="polite">
+          {searchResultCount} permissions found
+        </div>
+      </div>
+      <div class="space-y-3 max-h-64 overflow-y-auto">
+        {#if groupedPermissions().length > 0}
+          {#each groupedPermissions() as group (group.key)}
+            {@const isCollapsed = collapsedGroups.has(group.key)}
+            {@const Icon = group.icon}
+            {@const allGroupSelected = group.permissions.every(p => form.permission_ids.includes(p.id))}
+            {@const someGroupSelected = group.permissions.some(p => form.permission_ids.includes(p.id)) && !allGroupSelected}
+            <div class="rounded-xl border border-border/50 overflow-hidden" data-group>
+              <div class="flex items-center gap-3 px-3 py-3 bg-surface-subtle/40 hover:bg-surface-subtle/60 transition-colors">
+                <button
+                  type="button"
+                  class="flex items-center gap-3 flex-1 text-left min-w-0"
+                  aria-expanded={!isCollapsed}
+                  aria-controls="group-body-{group.key}"
+                  aria-label="Toggle {group.label} permissions"
+                  onclick={() => toggleGroup(key)}
+                  onkeydown={(e) => handleGroupKeydown(e, group)}
+                  data-group-toggle
+                >
+                  {#if isCollapsed}
+                    <ChevronRight size={14} class="text-text-muted shrink-0" />
+                  {:else}
+                    <ChevronDown size={14} class="text-text-muted shrink-0" />
+                  {/if}
+                  <Icon size={14} class="text-primary-light shrink-0" />
+                  <span class="text-sm font-medium text-text-primary truncate">{group.label}</span>
+                </button>
+                {#if isCollapsed}
+                  <span class="text-[10px] text-text-muted font-medium shrink-0">{group.permissions.length} permissions</span>
+                {:else}
+                  <button
+                    type="button"
+                    class="text-[10px] font-semibold shrink-0 px-2 py-1 rounded-md transition-colors {allGroupSelected ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-surface-default text-text-muted border border-border/50 hover:border-border-strong hover:text-text-primary'}"
+                    onclick={() => toggleGroupAll(group)}
+                    aria-label={allGroupSelected ? 'Deselect all ' + group.label + ' permissions' : 'Select all ' + group.label + ' permissions'}
+                  >
+                    {allGroupSelected ? 'Deselect All' : 'Select All'}
+                  </button>
+                {/if}
+                <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
+                  {group.permissions.filter(p => form.permission_ids.includes(p.id)).length}/{group.permissions.length}
+                </span>
+              </div>
+              {#if !isCollapsed}
+                <div id="group-body-{group.key}" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-3 bg-surface/20">
+                  {#each group.permissions as perm (perm.id)}
+                    <label
+                      class="flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors
+                             {form.permission_ids.includes(perm.id) ? 'border-primary/40 bg-primary-subtle/40' : 'border-transparent hover:border-border hover:bg-surface-default'}"
+                      title={perm.description || ''}
+                    >
+                      <input
+                        type="checkbox"
+                        id="perm-{perm.id}"
+                        class="w-4 h-4 accent-primary rounded"
+                        checked={form.permission_ids.includes(perm.id)}
+                        onchange={() => togglePermission(perm.id)}
+                      />
+                      <div class="min-w-0">
+                        <p class="text-sm font-medium text-text-primary truncate">{perm.name}</p>
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider">{perm.code}</p>
+                      </div>
+                    </label>
+                  {/each}
+                </div>
+              {/if}
             </div>
-          </label>
-        {/each}
+          {/each}
+        {:else}
+          <div class="py-6 text-center">
+            <p class="text-sm text-text-muted italic">Tidak ada permission yang cocok</p>
+          </div>
+        {/if}
       </div>
     </div>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving}>
+    <button class="btn btn-secondary" onclick={requestClose} disabled={saving}>Cancel</button>
+    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving || !!nameError()} aria-busy={saving}>
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> Saving...
       {:else}
         {modalMode === 'add' ? 'Create Role' : 'Update Permissions'}
       {/if}
     </button>
+  {/snippet}
+</Modal>
+
+<!-- Unsaved Changes Confirmation -->
+<Modal bind:open={showDiscardModal} title="Discard Changes?" size="sm">
+  <div class="text-center py-2">
+    <div class="w-14 h-14 rounded-2xl bg-warning-subtle flex items-center justify-center mx-auto mb-4">
+      <Eye size={24} class="text-warning" />
+    </div>
+    <p class="text-text-primary font-semibold mb-1">You have unsaved changes</p>
+    <p class="text-text-muted text-sm">Your permission selections will be lost if you close without saving.</p>
+  </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary" onclick={cancelDiscard}>Keep Editing</button>
+    <button class="btn btn-danger" onclick={confirmDiscard}>Discard</button>
   {/snippet}
 </Modal>
 
