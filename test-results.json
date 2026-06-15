@@ -65,21 +65,21 @@
   },
   "suites": [
     {
-      "title": "customers.spec.ts",
-      "file": "customers.spec.ts",
+      "title": "roles.spec.ts",
+      "file": "roles.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Customers UI - Superadmin",
-          "file": "customers.spec.ts",
-          "line": 453,
+          "title": "Admin Panel — Role Management (Create Role Modal)",
+          "file": "roles.spec.ts",
+          "line": 109,
           "column": 6,
           "specs": [
             {
-              "title": "displays customers page with table",
-              "ok": false,
+              "title": "should open Create Role modal when clicking Create Role button",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -92,66 +92,873 @@
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 26853,
-                      "error": {
-                        "message": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n",
-                        "stack": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n    at login (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:37:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:455:5",
-                        "location": {
-                          "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
-                          "column": 14,
-                          "line": 37
-                        },
-                        "snippet": "  35 | async function login(page: any, username: string, password: string) {\n  36 |   await page.goto(`${FRONTEND_BASE}/login`);\n> 37 |   await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });\n     |              ^\n  38 |   await page.fill('#username', username);\n  39 |   await page.fill('#password', password);\n  40 |   await page.click('button[type=\"submit\"]');"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
-                            "column": 14,
-                            "line": 37
-                          },
-                          "message": "TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  35 | async function login(page: any, username: string, password: string) {\n  36 |   await page.goto(`${FRONTEND_BASE}/login`);\n> 37 |   await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });\n     |              ^\n  38 |   await page.fill('#username', username);\n  39 |   await page.fill('#password', password);\n  40 |   await page.click('button[type=\"submit\"]');\n    at login (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:37:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:455:5"
-                        },
-                        {
-                          "location": {
-                            "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
-                            "column": 14,
-                            "line": 48
-                          },
-                          "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  46 |   await page.evaluate(() => sessionStorage.clear());\n  47 |   await page.reload();\n> 48 |   await page.waitForSelector('#username', { state: 'visible', timeout: 10000 });\n     |              ^\n  49 | }\n  50 |\n  51 | // ============================================================================\n    at logout (/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:48:14)\n    at /home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts:461:5"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 8323,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-06-12T00:51:39.421Z",
+                      "startTime": "2026-06-15T01:17:43.832Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/customers-Customers-UI---S-e128a-s-customers-page-with-table-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/my-excellency/Projects/retail-pos-system/test-results/customers-Customers-UI---S-e128a-s-customers-page-with-table-chromium/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/my-excellency/Projects/retail-pos-system/tests/e2e/customers.spec.ts",
-                        "column": 14,
-                        "line": 37
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "c79134c03d523b7bf7b3-3dc60566db955ef5c217",
-              "file": "customers.spec.ts",
-              "line": 464,
+              "id": "7a25b8aaa0fcc60dba5a-94fe153da93e9800bbc0",
+              "file": "roles.spec.ts",
+              "line": 117,
+              "column": 7
+            },
+            {
+              "title": "should close modal when clicking Cancel with no changes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11160,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:17:52.960Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-8c63eabd62fbd738f4d4",
+              "file": "roles.spec.ts",
+              "line": 135,
+              "column": 7
+            },
+            {
+              "title": "should close modal when pressing Escape with no changes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6534,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:04.368Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-b490054d4641aaeef4a8",
+              "file": "roles.spec.ts",
+              "line": 141,
+              "column": 7
+            },
+            {
+              "title": "should show inline error when role name is empty and blurred",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7535,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:11.058Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-32bd660953320508ae8e",
+              "file": "roles.spec.ts",
+              "line": 149,
+              "column": 7
+            },
+            {
+              "title": "should show error for duplicate role name",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5977,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:18.680Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-d46978c14a2f7b821175",
+              "file": "roles.spec.ts",
+              "line": 161,
+              "column": 7
+            },
+            {
+              "title": "should disable save button when name is invalid",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11192,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:24.806Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-ab86f7674bf22b58afee",
+              "file": "roles.spec.ts",
+              "line": 167,
+              "column": 7
+            },
+            {
+              "title": "should enable save button when name is valid",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8171,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:36.158Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-c6475051f805e16e296e",
+              "file": "roles.spec.ts",
+              "line": 174,
+              "column": 7
+            },
+            {
+              "title": "should create a role with name and description only (no permissions)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7590,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:44.427Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-6b2f06b5aafbacf8240f",
+              "file": "roles.spec.ts",
+              "line": 183,
+              "column": 7
+            },
+            {
+              "title": "should create a role with specific permissions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8418,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:18:52.101Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-274f07a1e0d0a29e0961",
+              "file": "roles.spec.ts",
+              "line": 198,
+              "column": 7
+            },
+            {
+              "title": "should display all permission groups collapsed by default",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7509,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:00.621Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-3c9e3fb5db6717bcf13a",
+              "file": "roles.spec.ts",
+              "line": 222,
+              "column": 7
+            },
+            {
+              "title": "should expand and collapse permission groups",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8517,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:08.198Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-339f5ff1fbc55323ab6a",
+              "file": "roles.spec.ts",
+              "line": 234,
+              "column": 7
+            },
+            {
+              "title": "should show Expand All / Collapse All toggle",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5427,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:16.898Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-9e8830eb78912b87e545",
+              "file": "roles.spec.ts",
+              "line": 250,
+              "column": 7
+            },
+            {
+              "title": "should select all permissions in a group",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6135,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:22.405Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-83faab5fc1f35134c7d0",
+              "file": "roles.spec.ts",
+              "line": 273,
+              "column": 7
+            },
+            {
+              "title": "should deselect all permissions in a group",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6775,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:28.643Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-4198e417c660d76fb459",
+              "file": "roles.spec.ts",
+              "line": 290,
+              "column": 7
+            },
+            {
+              "title": "should filter permissions by search query",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7835,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:35.476Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-bd4805a3c67fd603e975",
+              "file": "roles.spec.ts",
+              "line": 307,
+              "column": 7
+            },
+            {
+              "title": "should show empty state when no permissions match search",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9000,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:43.589Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-7b5878d3722d9bd8da7b",
+              "file": "roles.spec.ts",
+              "line": 320,
+              "column": 7
+            },
+            {
+              "title": "should clear search with X button",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5988,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:52.990Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-3e1bed997d4195aac155",
+              "file": "roles.spec.ts",
+              "line": 327,
+              "column": 7
+            },
+            {
+              "title": "should clear search with Escape key",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5458,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:19:59.089Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-f3061b82f861a6d6335d",
+              "file": "roles.spec.ts",
+              "line": 343,
+              "column": 7
+            },
+            {
+              "title": "should show discard confirmation when canceling with unsaved changes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7022,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:04.619Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-b6e28e4abc6eaf501512",
+              "file": "roles.spec.ts",
+              "line": 359,
+              "column": 7
+            },
+            {
+              "title": "should discard changes when confirming discard",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7862,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:11.725Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-a11c6cb6e7902deab877",
+              "file": "roles.spec.ts",
+              "line": 374,
+              "column": 7
+            },
+            {
+              "title": "should keep editing when canceling discard",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9488,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:19.660Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-74452d3ce346dd43801a",
+              "file": "roles.spec.ts",
+              "line": 396,
+              "column": 7
+            },
+            {
+              "title": "should update selected count as permissions are toggled",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7088,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:29.231Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-aec36b4e877f2633f975",
+              "file": "roles.spec.ts",
+              "line": 420,
+              "column": 7
+            },
+            {
+              "title": "should show correct selected/total count per group",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5944,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:36.398Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-65880ac8ab2500a17dc0",
+              "file": "roles.spec.ts",
+              "line": 442,
+              "column": 7
+            },
+            {
+              "title": "should create a role selecting permissions from multiple groups",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8775,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:42.413Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-6d0ef5ae1a9e962b8fc6",
+              "file": "roles.spec.ts",
+              "line": 461,
+              "column": 7
+            },
+            {
+              "title": "should show success toast after creating a role",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9027,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:20:51.233Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-2a3f201d303bdc067ec1",
+              "file": "roles.spec.ts",
+              "line": 495,
+              "column": 7
+            },
+            {
+              "title": "should reset form state when reopening modal",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7677,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-15T01:21:00.314Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a25b8aaa0fcc60dba5a-61a644fc54430744ddcf",
+              "file": "roles.spec.ts",
+              "line": 508,
               "column": 7
             }
           ]
@@ -161,11 +968,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-06-12T00:51:38.383Z",
-    "duration": 29194.592,
-    "expected": 0,
+    "startTime": "2026-06-15T01:17:41.164Z",
+    "duration": 207127.331,
+    "expected": 26,
     "skipped": 0,
-    "unexpected": 1,
+    "unexpected": 0,
     "flaky": 0
   }
 }

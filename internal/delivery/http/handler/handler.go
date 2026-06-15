@@ -987,10 +987,10 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	if err := h.roleRepo.CreateRole(getCtx(c), &role); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create role"})
-		return
-	}
+ 	if err := h.roleRepo.CreateRole(getCtx(c), &role); err != nil {
+ 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create role: " + err.Error()})
+ 		return
+ 	}
 	h.logAudit(c, "create", "role", role.ID, nil, role)
 	c.JSON(http.StatusCreated, gin.H{"data": role})
 }

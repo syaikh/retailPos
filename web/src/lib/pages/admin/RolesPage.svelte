@@ -36,7 +36,6 @@
 
   const groupMeta = {
     'user': { label: 'User & Role', icon: Users },
-    'role': { label: 'User & Role', icon: Users },
     'product': { label: 'Product', icon: Package },
     'category': { label: 'Category', icon: Tag },
     'sale': { label: 'Sales', icon: ShoppingCart },
@@ -58,12 +57,14 @@
 
     const groups = {};
     for (const p of filtered) {
-      const key = p.code.split(':')[0];
+      let key = p.code.split(':')[0];
+      // Merge role:* permissions into user group
+      if (key === 'role') key = 'user';
       if (!groups[key]) groups[key] = [];
       groups[key].push(p);
     }
 
-    const order = ['user', 'role', 'product', 'category', 'sale', 'inventory', 'customer', 'report', 'dashboard', 'pos', 'audit'];
+    const order = ['user', 'product', 'category', 'sale', 'inventory', 'customer', 'report', 'dashboard', 'pos', 'audit'];
     return order
       .filter(key => groups[key]?.length)
       .map(key => ({
@@ -91,6 +92,8 @@
     }
     return '';
   });
+
+  let nameErrorText = $derived(nameError());
 
   let hasUnsavedChanges = $derived(() => {
     const current = JSON.stringify([...form.permission_ids].sort());
@@ -176,7 +179,7 @@
   function openAdd() {
     modalMode = 'add';
     permissionSearch = '';
-    collapsedGroups = new Set();
+    collapsedGroups = new Set(permissions.map(p => p.code.split(':')[0] === 'role' ? 'user' : p.code.split(':')[0]));
     nameTouched = false;
     initialPermissionIds = [];
     form = { name: '', description: '', permission_ids: [] };
@@ -186,7 +189,7 @@
   function openEdit(role) {
     modalMode = 'edit';
     permissionSearch = '';
-    collapsedGroups = new Set();
+    collapsedGroups = new Set(permissions.map(p => p.code.split(':')[0] === 'role' ? 'user' : p.code.split(':')[0]));
     nameTouched = false;
     selectedRole = role;
 
@@ -205,8 +208,8 @@
 
   async function saveRole() {
     nameTouched = true;
-    if (nameError()) {
-      toast.error(nameError());
+    if (nameErrorText) {
+      toast.error(nameErrorText);
       return;
     }
 
@@ -440,15 +443,15 @@
           type="text"
           placeholder="e.g. manager"
           class="input"
-          class:border-danger={nameError()}
+          class:border-danger={nameErrorText}
           bind:value={form.name}
           onblur={() => nameTouched = true}
-          aria-invalid={!!nameError()}
-          aria-describedby={nameError() ? 'role-name-error' : undefined}
+          aria-invalid={!!nameErrorText}
+          aria-describedby={nameErrorText ? 'role-name-error' : undefined}
           required
         />
-        {#if nameError()}
-          <p id="role-name-error" class="text-xs text-danger mt-1.5" role="alert">{nameError()}</p>
+        {#if nameErrorText}
+          <p id="role-name-error" class="text-xs text-danger mt-1.5" role="alert">{nameErrorText}</p>
         {/if}
       </div>
       <div>
@@ -529,7 +532,7 @@
                   aria-expanded={!isCollapsed}
                   aria-controls="group-body-{group.key}"
                   aria-label="Toggle {group.label} permissions"
-                  onclick={() => toggleGroup(key)}
+                  onclick={() => toggleGroup(group.key)}
                   onkeydown={(e) => handleGroupKeydown(e, group)}
                   data-group-toggle
                 >
@@ -592,7 +595,7 @@
   </div>
   {#snippet footer()}
     <button class="btn btn-secondary" onclick={requestClose} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving || !!nameError()} aria-busy={saving}>
+    <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving || !!nameErrorText} aria-busy={saving}>
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> Saving...
       {:else}

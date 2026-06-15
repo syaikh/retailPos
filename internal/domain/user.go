@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type User struct {
 	ID          int      `json:"id"`
 	Username    string   `json:"username"`
@@ -15,11 +17,11 @@ type User struct {
 }
 
 type Role struct {
-	ID          int      `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	IsSystem    bool     `json:"is_system"`
-	CreatedAt   string   `json:"created_at,omitempty"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsSystem    bool      `json:"is_system"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
 }
 
 type Permission struct {

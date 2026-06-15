@@ -282,9 +282,9 @@ func (r *postgresRepository) GetRoleByID(ctx context.Context, id int) (*domain.R
 		}
 		return nil, err
 	}
-	role.IsSystem = isSystem
-	role.CreatedAt = createdAt.Format(time.RFC3339)
-	return &role, nil
+  role.IsSystem = isSystem
+  role.CreatedAt = createdAt
+  return &role, nil
 }
 
 func (r *postgresRepository) GetAllRoles(ctx context.Context) ([]domain.Role, error) {
@@ -302,9 +302,9 @@ func (r *postgresRepository) GetAllRoles(ctx context.Context) ([]domain.Role, er
 		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Description, &isSystem, &createdAt); err != nil {
 			return nil, err
 		}
-		rl.IsSystem = isSystem
-		rl.CreatedAt = createdAt.Format(time.RFC3339)
-		roles = append(roles, rl)
+ 		rl.IsSystem = isSystem
+ 		rl.CreatedAt = createdAt
+ 		roles = append(roles, rl)
 	}
 	return roles, nil
 }
