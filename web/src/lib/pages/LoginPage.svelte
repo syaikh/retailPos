@@ -138,7 +138,7 @@
         </div>
 
         {#if errorMsg}
-          <div class="flex items-center gap-2 p-3 rounded-xl bg-danger-subtle border border-danger/25 text-danger-light text-sm">
+          <div class="flex items-center gap-2 p-3 rounded-xl bg-danger-subtle border border-danger/25 text-danger-light text-sm" role="alert">
             <span class="w-1.5 h-1.5 rounded-full bg-danger shrink-0"></span>
             {errorMsg}
           </div>

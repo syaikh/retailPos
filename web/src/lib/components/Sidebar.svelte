@@ -7,6 +7,7 @@
     Users,
     Shield,
     ScrollText,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     LogOut,
@@ -15,6 +16,7 @@
     Tag,
     Database,
   } from 'lucide-svelte';
+  import { fly } from 'svelte/transition';
   import { goto, getPath } from '$lib/router';
   import { logout } from '$lib/api/auth';
   import { auth } from '$lib/stores/auth';
@@ -138,10 +140,10 @@
   }
 </script>
 
-<!-- Sidebar -->
 <aside
   class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar shrink-0 transition-all duration-300 ease-spring"
   style:width={collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'}
+  aria-label="Sidebar"
 >
   <!-- Brand -->
   <div class="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
@@ -149,7 +151,7 @@
       <Store size={18} class="text-white" />
     </div>
     {#if !collapsed}
-      <div class="animate-fade-in overflow-hidden">
+      <div class="overflow-hidden">
         <p class="text-sm font-bold text-text-primary leading-tight truncate">RetailPOS</p>
         <p class="text-[10px] text-text-muted truncate">Management System</p>
       </div>
@@ -157,96 +159,91 @@
   </div>
 
   <!-- Nav -->
-  <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar">
+  <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar" aria-label="Main navigation">
     {#each visibleNavItems as item}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        aria-current={isActive(item.href) ? 'page' : undefined}
         title={collapsed ? item.label : ''}
       >
         <item.icon size={18} class="shrink-0" />
         {#if !collapsed}
-          <span class="animate-fade-in relative z-10">{item.label}</span>
+          <span class="relative z-10">{item.label}</span>
         {/if}
       </button>
     {/each}
 
     <!-- Master Data group -->
     {#if visibleMasterDataSubItems.length > 0}
-      <div class="pt-1">
+      <div class="pt-1" role="group" aria-label="Master Data">
         {#if !collapsed}
-          <p class="px-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1 animate-fade-in">
-            Master Data
-          </p>
+          <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Master Data</p>
         {/if}
         <button
           onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
-          class={isMasterDataPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+          class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+          aria-expanded={masterDataExpanded}
+          aria-controls="sidebar-section-master-data"
           title={collapsed ? 'Master Data' : ''}
         >
           <Database size={18} class="shrink-0" />
           {#if !collapsed}
-            <span class="animate-fade-in relative z-10 flex-1">Master Data</span>
-            <span class="animate-fade-in">
-              {#if masterDataExpanded}
-                <ChevronLeft size={12} class="text-text-muted -rotate-90 transition-transform" />
-              {:else}
-                <ChevronRight size={12} class="text-text-muted transition-transform" />
-              {/if}
-            </span>
+            <span class="relative z-10 flex-1">Master Data</span>
+            <ChevronDown size={14} class="text-text-muted transition-transform duration-200 {masterDataExpanded ? 'rotate-0' : '-rotate-90'}" />
           {/if}
         </button>
 
         {#if masterDataExpanded && !collapsed}
-          {#each visibleMasterDataSubItems as subItem}
-            <button
-              onclick={(e) => { createRipple(e, e.currentTarget); navigate(subItem.href); }}
-              class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
-            >
-              <subItem.icon size={16} class="shrink-0" />
-              <span class="animate-fade-in relative z-10">{subItem.label}</span>
-            </button>
-          {/each}
+          <div id="sidebar-section-master-data" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
+            {#each visibleMasterDataSubItems as subItem}
+              <button
+                onclick={(e) => { createRipple(e, e.currentTarget); navigate(subItem.href); }}
+                class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+                aria-current={isActive(subItem.href) ? 'page' : undefined}
+              >
+                <subItem.icon size={16} class="shrink-0" />
+                <span class="relative z-10">{subItem.label}</span>
+              </button>
+            {/each}
+          </div>
         {/if}
       </div>
     {/if}
 
     <!-- Administration group -->
     {#if showAdminSection}
-    <div class="pt-4">
+    <div class="pt-4" role="group" aria-label="Administration">
       {#if !collapsed}
-        <p class="px-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1 animate-fade-in">
-          Administration
-        </p>
+        <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Administration</p>
       {/if}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) adminExpanded = !adminExpanded; else navigate('/admin/users'); }}
-        class={isAdminPath ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        aria-expanded={adminExpanded}
+        aria-controls="sidebar-section-admin"
         title={collapsed ? 'Administration' : ''}
       >
         <Shield size={18} class="shrink-0" />
         {#if !collapsed}
-          <span class="animate-fade-in relative z-10 flex-1">Administration</span>
-          <span class="animate-fade-in">
-            {#if adminExpanded}
-              <ChevronLeft size={12} class="text-text-muted -rotate-90 transition-transform" />
-            {:else}
-              <ChevronRight size={12} class="text-text-muted transition-transform" />
-            {/if}
-          </span>
+          <span class="relative z-10 flex-1">Administration</span>
+          <ChevronDown size={14} class="text-text-muted transition-transform duration-200 {adminExpanded ? 'rotate-0' : '-rotate-90'}" />
         {/if}
       </button>
 
       {#if adminExpanded && !collapsed}
-        {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
-          <button
-            onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
-            class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
-          >
-            <item.icon size={16} class="shrink-0" />
-            <span class="animate-fade-in relative z-10">{item.label}</span>
-          </button>
-        {/each}
+        <div id="sidebar-section-admin" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
+          {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
+            <button
+              onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
+              class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+              aria-current={isActive(item.href) ? 'page' : undefined}
+            >
+              <item.icon size={16} class="shrink-0" />
+              <span class="relative z-10">{item.label}</span>
+            </button>
+          {/each}
+        </div>
       {/if}
     </div>
     {/if}
@@ -260,7 +257,7 @@
         <User size={14} class="text-white" />
       </div>
       {#if !collapsed}
-        <div class="flex-1 min-w-0 animate-fade-in">
+        <div class="flex-1 min-w-0">
           <p class="text-xs font-semibold text-text-primary truncate">{username}</p>
           <p class="text-[10px] text-text-muted capitalize truncate">{role}</p>
         </div>
@@ -280,6 +277,7 @@
         onclick={handleLogout}
         class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle"
         title="Logout"
+        aria-label="Logout"
       >
         <LogOut size={18} />
       </button>
@@ -290,12 +288,13 @@
       onclick={() => collapsed = !collapsed}
       class="sidebar-item w-full justify-center text-text-muted"
       title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     >
       {#if collapsed}
         <ChevronRight size={16} />
       {:else}
         <ChevronLeft size={16} />
-        <span class="text-xs animate-fade-in">Collapse</span>
+        <span class="text-xs">Collapse</span>
       {/if}
     </button>
   </div>

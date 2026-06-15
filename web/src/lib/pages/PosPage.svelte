@@ -7,6 +7,7 @@
    import { useWebSocket } from '$lib/composables/useWebSocket';
    import type { Sale, SaleItem, Customer } from '$lib/types';
 
+   import SearchBar from '$lib/components/ui/SearchBar.svelte';
    import Badge from '$lib/components/ui/Badge.svelte';
    import Pagination from '$lib/components/ui/Pagination.svelte';
    import { Search, Plus, Minus, ShoppingCart, X, Package, Copy, Printer, Wallet, Check, Receipt } from 'lucide-svelte';
@@ -432,26 +433,8 @@
        <div class="card p-4">
          <div class="flex items-center gap-2">
            <kbd class="px-1.5 py-0.5 text-[10px] font-medium text-primary/60 bg-primary-subtle/30 rounded border border-primary/20 select-none">F2</kbd>
-           <div class="relative flex-1">
-             <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-             <input
-               type="text"
-               placeholder="Search products..."
-               id="pos-search-input"
-               bind:value={searchQuery}
-               class="input pl-10 pr-10 w-full"
-               autocomplete="off"
-              spellcheck="false"
-            />
-            {#if searchQuery}
-              <button
-                onclick={() => searchQuery = ''}
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-                title="Clear search [ESC]"
-              >
-                <X size={16} />
-              </button>
-            {/if}
+           <div class="flex-1">
+             <SearchBar bind:value={searchQuery} placeholder="Search by name, SKU, or barcode..." id="pos-search-input" />
           </div>
         </div>
       </div>

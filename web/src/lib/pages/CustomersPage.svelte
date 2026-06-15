@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
-  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2 } from 'lucide-svelte';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
+  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2, ChevronDown } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -117,17 +118,10 @@
 
   const debouncedSearch = debounce(() => load(0, limit), 400);
 
-  let skipNextSearch = false;
-
-  function clearSearch() {
-    skipNextSearch = true;
-    searchQuery = '';
-    load(0, limit);
-  }
-
   function handleSearchInput() {
-    if (skipNextSearch) {
-      skipNextSearch = false;
+    if (!searchQuery) {
+      currentPage = 1;
+      load(0, limit);
       return;
     }
     debouncedSearch();
@@ -250,34 +244,21 @@
 <div class="space-y-4">
   <div class="border border-border rounded-xl p-4 space-y-3 bg-bg-card">
     <div class="flex items-center gap-3">
-      <div class="relative flex-1">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search customers..."
-          bind:value={searchQuery}
-          oninput={handleSearchInput}
-          class="input pl-10 pr-8 w-full"
-        />
-        {#if searchQuery}
-          <button
-            onclick={clearSearch}
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        {/if}
+      <div class="flex-1">
+        <SearchBar bind:value={searchQuery} placeholder="Search by name, phone, or email..." oninput={handleSearchInput} />
       </div>
-      <select
-        bind:value={statusFilter}
-        onchange={handleStatusFilterChange}
-        class="input h-10 px-3 w-40"
-      >
-        <option value="all">All Status</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
+      <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
+        <select
+          bind:value={statusFilter}
+          onchange={handleStatusFilterChange}
+          class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+      </div>
       {#if canCreate}
         <button
           onclick={() => { resetForm(); showCreateModal = true; }}

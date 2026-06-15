@@ -102,25 +102,29 @@
 
   <!-- Navigation -->
   <div class="flex items-center gap-1">
-    <button 
+    <button
       class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
       onclick={() => goToPage(1)}
       disabled={!canPrev}
       title="First Page"
+      aria-label="First page"
     >
       <ChevronsLeft size={18} />
     </button>
-    <button 
+    <button
       class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
       onclick={() => goToPage(currentPage - 1)}
       disabled={!canPrev}
       title="Previous"
+      aria-label="Previous page"
     >
       <ChevronLeft size={18} />
     </button>
     
     {#if editing}
+      <label for="page-input" class="sr-only">Go to page</label>
       <input
+        id="page-input"
         type="text"
         inputmode="numeric"
         class="px-3 py-1.5 text-sm font-medium bg-surface-default border border-primary-default rounded-xl w-16 text-center focus:outline-none focus:ring-1 focus:ring-primary-default [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -130,31 +134,35 @@
         onkeydown={handleKeydown}
         onblur={submitEdit}
         autofocus
+        aria-label="Go to page"
       />
-      <span class="text-sm text-text-muted">/ {totalPages}</span>
+      <span class="text-sm text-text-muted" aria-hidden="true">/ {totalPages}</span>
     {:else}
       <button
         class="px-4 py-1.5 text-sm font-medium bg-surface-default border border-border-strong rounded-xl min-w-[100px] text-center hover:border-primary-default/50 transition-colors cursor-text"
         onclick={startEdit}
         title="Click to jump to page"
+        aria-label="Current page. Click to jump to a specific page."
       >
         Page {currentPage} of {totalPages}
       </button>
     {/if}
 
-    <button 
+    <button
       class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
       onclick={() => goToPage(currentPage + 1)}
       disabled={!canNext}
       title="Next"
+      aria-label="Next page"
     >
       <ChevronRight size={18} />
     </button>
-    <button 
+    <button
       class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
       onclick={() => goToPage(totalPages)}
       disabled={!canNext}
       title="Last Page"
+      aria-label="Last page"
     >
       <ChevronsRight size={18} />
     </button>

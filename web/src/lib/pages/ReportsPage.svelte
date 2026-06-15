@@ -6,6 +6,7 @@
 import { chart } from '$lib/actions/chart';
   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaHourFromUTC } from '$lib/utils/jakartaTime';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -15,7 +16,7 @@ import { chart } from '$lib/actions/chart';
   import {
     Receipt, BarChart3, Banknote,
     CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye, Search, X, Printer,
+    ChevronDown, Eye, Printer,
     Clock, TrendingUp, TrendingDown, Info,
     CircleDollarSign
   } from 'lucide-svelte';
@@ -1648,33 +1649,12 @@ onValueChange={(val) => {
         {#if !loading}
           <span class="badge badge-muted">{total} records</span>
         {/if}
-        <div class="relative">
-          <Search
-            size={15}
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-          />
-          <input
-            type="text"
-            placeholder="Cari invoice atau produk..."
-            bind:value={searchQuery}
-            oninput={doSearch}
-            class="pl-9 pr-4 py-1.5 text-sm bg-slate-900/50 border border-slate-800
-                   text-white rounded-xl outline-none transition-colors
-                   focus:border-purple-500 placeholder:text-text-muted"
-          />
-          {#if searchQuery}
-            <button
-              type="button"
-              onclick={() => { searchQuery = ''; doSearch(); }}
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5
-                     rounded-full hover:bg-slate-700 active:scale-95
-                     text-text-muted hover:text-white transition-colors"
-              aria-label="Clear search"
-            >
-              <X size={13} />
-            </button>
-          {/if}
-        </div>
+        <SearchBar
+          bind:value={searchQuery}
+          placeholder="Search by invoice or product name..."
+          oninput={doSearch}
+          inputClass="py-1.5 bg-slate-900/50 border-slate-800 text-white focus:border-purple-500"
+        />
       </div>
     </div>
 

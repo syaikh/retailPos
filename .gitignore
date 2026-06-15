@@ -79,6 +79,7 @@ coverage.xml
 
 # Test results and screenshots
 test-results/
+playwright-report/
 
 # Local development files
 .kilo/

@@ -412,11 +412,51 @@
 }
 
 @utility sidebar-item {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:text-text-primary hover:shadow-glow-primary-sm;
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text-secondary border border-transparent transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:text-text-primary hover:shadow-glow-primary-sm;
 }
 
 @utility sidebar-item-active {
   @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light transition-all duration-200 cursor-pointer select-none bg-primary-subtle backdrop-blur-xl border border-primary-default/20 shadow-glow-primary hover:bg-primary-default/20 hover:text-white hover:border-primary-default/30 active:scale-[0.965] active:-translate-y-px;
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 25%;
+    bottom: 25%;
+    width: 3.5px;
+    background: var(--color-primary-light);
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  &:hover::before {
+    top: 15%;
+    bottom: 15%;
+  }
+}
+
+@utility sidebar-parent-active {
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:shadow-glow-primary-sm;
+  color: var(--color-primary-light);
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 35%;
+    bottom: 35%;
+    width: 2.5px;
+    background: var(--color-primary-light);
+    border-radius: 0 3px 3px 0;
+    opacity: 0.5;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  &:hover::before {
+    opacity: 0.8;
+    top: 30%;
+    bottom: 30%;
+  }
 }
 
 @utility gradient-text {
@@ -452,7 +492,7 @@ tbody tr {
 .sidebar-ripple {
   position: absolute;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.35);
+  background: rgba(139, 92, 246, 0.3);
   transform: scale(0);
   animation: sidebar-ripple-anim 0.6s linear;
   pointer-events: none;

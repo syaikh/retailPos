@@ -4,6 +4,7 @@
   import { toast } from '$lib/stores/toast';
   import { auth } from '$lib/stores/auth';
 
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -48,7 +49,6 @@
   // Debounce role search
   let searchTimer = null;
   function handleRoleSearch(val) {
-    roleSearch = val;
     pageOffset = 0;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
@@ -353,21 +353,20 @@
     <!-- Search & Filter Panel -->
     <div class="card p-4">
       <div class="flex items-center gap-4">
-        <div class="relative flex-1">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input type="text" placeholder="Search roles…" class="input pl-10 pr-12 h-10 w-full" value={roleSearch} oninput={(e) => handleRoleSearch(e.target.value)} />
-          {#if roleSearch}
-            <button onclick={() => { roleSearch = ''; handleRoleSearch(''); }} class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"><X size={14} /></button>
-          {/if}
+        <div class="flex-1">
+          <SearchBar bind:value={roleSearch} placeholder="Search roles…" oninput={() => handleRoleSearch(roleSearch)} inputClass="h-10" />
         </div>
-        <select class="input h-10 w-40 text-sm shrink-0" bind:value={filterType} onchange={() => pageOffset = 0}>
-          <option value="all">All Roles</option>
-          <option value="system">System Only</option>
-          <option value="custom">Custom Only</option>
-        </select>
+        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
+          <select class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full" bind:value={filterType} onchange={() => pageOffset = 0}>
+            <option value="all">All Roles</option>
+            <option value="system">System Only</option>
+            <option value="custom">Custom Only</option>
+          </select>
+          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        </div>
         {#if canEdit}
           <div class="flex items-center gap-2 shrink-0">
-            <button class="btn btn-ghost p-2.5 h-10" onclick={() => { fetchData(); closeAll(); }} title="Refresh" disabled={loading}>
+            <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={() => { fetchData(); closeAll(); }} disabled={loading}>
               <RefreshCw size={16} class="{loading ? 'animate-spin' : ''}" />
             </button>
             <button class="btn btn-primary shadow-glow-primary-sm px-5 h-10" onclick={openAdd}>
@@ -417,11 +416,11 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold w-8"></th>
-              <th class="text-left p-4 font-semibold" style="width: 25%;">ROLE</th>
+              <th class="text-left p-4 font-semibold" style="width: 35%;">ROLE</th>
               <th class="text-left p-4 font-semibold w-20">TYPE</th>
-              <th class="text-left p-4 font-semibold w-28">PERMISSIONS</th>
-              <th class="text-left p-4 font-semibold" style="width: 30%;">DESCRIPTION</th>
-              <th class="text-right p-4 font-semibold w-32">ACTIONS</th>
+              <th class="text-left p-4 font-semibold w-20">PERMISSIONS</th>
+              <th class="text-left p-4 font-semibold" style="width: 20%;">DESCRIPTION</th>
+              <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -459,24 +458,24 @@
       <div class="card overflow-hidden" role="list">
         <div class="overflow-x-auto">
           <table class="w-full table-fixed border-collapse" style="min-width: 760px;">
-            <thead class="bg-muted/50">
-              <tr>
-                <th class="text-left p-4 font-semibold w-8"></th>
-                <th class="text-left p-4 font-semibold" style="width: 25%;">
-                  <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('name')}>
-                    ROLE <ArrowUpDown size={14} class="text-text-muted" />
-                  </button>
-                </th>
-                <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">TYPE</th>
-                <th class="text-left p-4 font-semibold w-28">
-                  <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('permissions')}>
-                    PERMISSIONS <ArrowUpDown size={14} class="text-text-muted" />
-                  </button>
-                </th>
-                <th class="text-left p-4 font-semibold" style="width: 30%;">DESCRIPTION</th>
-                <th class="text-right p-4 font-semibold w-32 text-xs uppercase tracking-wider">ACTIONS</th>
-              </tr>
-            </thead>
+          <thead class="bg-muted/50">
+            <tr>
+              <th class="text-left p-4 font-semibold w-8"></th>
+              <th class="text-left p-4 font-semibold" style="width: 35%;">
+                <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('name')}>
+                  ROLE <ArrowUpDown size={14} class="text-text-muted" />
+                </button>
+              </th>
+              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">TYPE</th>
+              <th class="text-left p-4 font-semibold w-20">
+                <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('permissions')}>
+                  PERMISSIONS <ArrowUpDown size={14} class="text-text-muted" />
+                </button>
+              </th>
+              <th class="text-left p-4 font-semibold" style="width: 20%;">DESCRIPTION</th>
+              <th class="text-right p-4 font-semibold w-10"></th>
+            </tr>
+          </thead>
             <tbody>
               {#each paginatedRoles() as role (role.id)}
                 {@const isExpanded = expandedRoleId === role.id}
@@ -606,10 +605,8 @@
             {#if groupedPermissions().length > 1}<button type="button" class="text-xs text-primary hover:text-primary-light transition-colors" onclick={() => setAllExpanded(!allExpanded())}>{allExpanded() ? 'Collapse All' : 'Expand All'}</button>{/if}
           </div>
         </div>
-        <div class="relative mb-3">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input type="text" placeholder="Search permissions…" class="input pl-9 pr-9 text-sm" bind:value={permissionSearch} role="searchbox" aria-label="Search permissions" onkeydown={(e) => { if (e.key === 'Escape' && permissionSearch) { e.stopPropagation(); permissionSearch = ''; } }} />
-          {#if permissionSearch}<button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text-primary transition-colors" onclick={() => permissionSearch = ''} aria-label="Clear search"><X size={14} /></button>{/if}
+        <div class="mb-3">
+          <SearchBar bind:value={permissionSearch} placeholder="Search permissions…" inputClass="text-sm" />
         </div>
         <div class="space-y-2 max-h-80 overflow-y-auto">
           {#if groupedPermissions().length > 0}

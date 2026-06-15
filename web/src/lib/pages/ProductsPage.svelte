@@ -13,9 +13,10 @@
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import ProductActionsDropdown from '$lib/components/ui/ProductActionsDropdown.svelte';
   import ProductFormModal from '$lib/components/inventory/ProductFormModal.svelte';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import StockAdjustModal from '$lib/components/inventory/StockAdjustModal.svelte';
   import {
-    Search, Plus, Pencil, Trash2, Package,
+    Plus, Pencil, Trash2, Package,
     SlidersHorizontal, Loader2, Copy, ArrowUpDown, X, ChevronDown, AlertTriangle
   } from 'lucide-svelte';
   import { toast } from '$lib/stores/toast';
@@ -230,13 +231,6 @@
     debouncedSearch();
   }
 
-  function clearSearch() {
-    searchQuery = '';
-    offset = 0;
-    isSearching = false;
-    previousSearchQuery = '';
-    fetchProducts(0, limit);
-  }
 
   $effect(() => {
     if (isInitialMount) return;
@@ -531,26 +525,8 @@
 <div class="space-y-6">
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      <div class="relative flex-2">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search products..."
-          bind:value={searchQuery}
-          oninput={handleSearchInput}
-          class="input pl-10 pr-12 h-10"
-        />
-        {#if isSearching}
-          <Loader2 size={14} class="absolute right-4 top-1/2 -translate-y-1/2 text-primary-light animate-spin" />
-        {:else if searchQuery}
-          <button
-            onclick={clearSearch}
-            class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        {/if}
+      <div class="flex-2">
+        <SearchBar bind:value={searchQuery} placeholder="Search by name, SKU, or barcode..." oninput={handleSearchInput} loading={isSearching} inputClass="h-10" />
       </div>
       <button
         type="button"
@@ -605,7 +581,7 @@
             <th class="text-right p-4 font-semibold w-32">PRICE</th>
             <th class="text-right p-4 font-semibold w-20">STOCK</th>
             <th class="text-left p-4 font-semibold w-28">STATUS</th>
-            <th class="text-left p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-right p-4 font-semibold w-10"></th>
           </tr>
         </thead>
         <tbody>
@@ -656,7 +632,7 @@
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-28">STATUS</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-right p-4 font-semibold w-10"></th>
           </tr>
         </thead>
         <tbody>

@@ -77,9 +77,9 @@
         <span class="text-text-muted text-xs">/</span>
       {/if}
       {#if i === breadcrumb.length - 1}
-        <span class="text-lg font-bold tracking-tight text-white">
+        <h1 class="text-lg font-bold tracking-tight text-white">
           {crumb.label}
-        </span>
+        </h1>
       {:else}
         <a href={crumb.href} class="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer">
           {crumb.label}
@@ -96,7 +96,7 @@
     </div>
     
     <!-- Notification bell -->
-    <button class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary" onclick={handleNotifications}>
+    <button class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary" onclick={handleNotifications} aria-label="Notifications">
       <Bell size={18} />
       <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full animate-pulse-dot"></span>
     </button>

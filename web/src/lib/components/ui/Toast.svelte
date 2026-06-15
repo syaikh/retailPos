@@ -18,7 +18,7 @@
 </script>
 
 <!-- Fixed toast portal -->
-<div class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+<div class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none" aria-live="polite" aria-relevant="additions removals">
   {#each $toast as t (t.id)}
     <div
       class="pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-modal

@@ -79,10 +79,10 @@ describe('UsersPage.svelte source-structure guards', () => {
     expect(src).toContain("return 'muted'");
   });
 
-  // ── Search clear button ──────────────────────────────────────────────────────
-  it('search input has clear button (X icon)', () => {
-    expect(src).toContain('onclick={() => searchQuery = \'\'}');
-    expect(src).toContain('<X size={14}');
+  // ── SearchBar component ──────────────────────────────────────────────────────
+  it('search input uses reusable SearchBar component', () => {
+    expect(src).toContain("SearchBar");
+    expect(src).toContain('bind:value={searchQuery}');
   });
 
   // ── API consistency ──────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ describe('UsersPage.svelte source-structure guards', () => {
 
   // ── last_login rendering ─────────────────────────────────────────────────────
   it('renders last_login column with Never fallback', () => {
-    expect(src).toContain('Last Login');
+    expect(src).toContain('LAST LOGIN');
     expect(src).toContain("user.last_login");
     expect(src).toContain("'Never'");
   });

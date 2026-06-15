@@ -8,7 +8,8 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Search, Plus, Pencil, Trash2, Tag, Loader2, X, ArrowUpDown } from 'lucide-svelte';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
+  import { Plus, Pencil, Trash2, Tag, Loader2, X, ArrowUpDown } from 'lucide-svelte';
 
   let loading = $state(true);
   let categories = $state([]);
@@ -134,11 +135,6 @@ let canView = $derived($auth.user != null);
     fetchCategories(true);
   }, 400);
 
-  function clearSearch() {
-    searchQuery = '';
-    offset = 0;
-    fetchCategories(false);
-  }
 
   // Pagination
   function handlePageChange(newOffset, newLimit) {
@@ -225,24 +221,8 @@ let canView = $derived($auth.user != null);
   <!-- Search -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      <div class="relative flex-2">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search categories..."
-          class="input pl-10 pr-12 h-10"
-          bind:value={searchQuery}
-          oninput={handleSearchInput}
-        />
-        {#if searchQuery}
-          <button
-            onclick={clearSearch}
-            class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        {/if}
+      <div class="flex-2">
+        <SearchBar bind:value={searchQuery} placeholder="Search by name or slug..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
         <button class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>

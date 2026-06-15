@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import { X, Search, Check } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
   let {
@@ -93,16 +94,7 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-      <!-- Search Bar -->
-      <div class="relative">
-        <Search size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-        <input
-          type="text"
-          placeholder="Cari kategori..."
-          bind:value={searchQuery}
-          class="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-        />
-      </div>
+      <SearchBar bind:value={searchQuery} placeholder="Cari berdasarkan nama..." inputClass="bg-surface border-border focus:ring-primary focus:border-transparent" />
 
       <!-- Popular Categories Chips -->
       {#if popularCategories.length > 0}

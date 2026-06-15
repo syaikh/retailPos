@@ -30,6 +30,22 @@ $effect(() => {
   }
 });
 
+  const pageTitles = {
+  '/login':              'Login',
+  '/':                   'Dashboard',
+  '/pos':                'Point of Sale',
+  '/inventory':          'Products',
+  '/inventory/products': 'Products',
+  '/reports':            'Reports',
+  '/categories':         'Categories',
+  '/customers':          'Customers',
+  '/admin':              'Administration',
+  '/admin/users':        'User Management',
+  '/admin/roles':        'Role Management',
+  '/admin/audit-logs':   'Audit Logs',
+  '/admin/categories':   'Category Management',
+};
+
 function getComponent(path) {
     switch (path) {
       case '/login':               return LoginPage;
@@ -48,6 +64,11 @@ function getComponent(path) {
     }
   }
 
+  function updateTitle(path) {
+    const page = pageTitles[path] || 'Dashboard';
+    document.title = `${page} — RetailPOS`;
+  }
+
   function handleRoute(path) {
     const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
@@ -57,6 +78,7 @@ function getComponent(path) {
       currentPath = '/login';
       window.history.replaceState({}, '', '/login');
       isInitializing = false;
+      updateTitle('/login');
       return;
     }
 
@@ -68,6 +90,7 @@ function getComponent(path) {
     currentPath = path;
     isInitializing = false;
     Component = getComponent(path);
+    updateTitle(path);
   }
 
   async function initializeRoute(path) {
@@ -100,6 +123,7 @@ function getComponent(path) {
         Component = LoginPage;
         currentPath = '/login';
       }
+      updateTitle('/login');
       isInitializing = false;
       subscribe(handleRoute);
       return;
@@ -110,6 +134,7 @@ function getComponent(path) {
       Component = Home;
       currentPath = '/';
       window.history.replaceState({}, '', '/');
+      updateTitle('/');
     } else {
     if (path === '/inventory') {
       goto('/inventory/products');
@@ -122,6 +147,7 @@ function getComponent(path) {
 
     currentPath = path;
       Component = getComponent(path);
+      updateTitle(path);
     }
 
     isInitializing = false;

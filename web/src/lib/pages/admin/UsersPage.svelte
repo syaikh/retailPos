@@ -9,6 +9,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ArrowUpDown, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -282,17 +283,7 @@
   {:else}
     <div class="card p-4">
       <div class="flex items-center gap-3">
-        <div class="relative flex-1">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input type="text" placeholder="Search users by name or email…" class="input pl-9 pr-10 w-full" bind:value={searchQuery} />
-          <button
-            onclick={() => searchQuery = ''}
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-all duration-150 {searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
         <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
           <select
             class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer {filterRole !== 'all' ? 'text-text-primary' : ''}"

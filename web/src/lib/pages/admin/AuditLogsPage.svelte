@@ -9,6 +9,7 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import ActionBadge from '$lib/components/ui/ActionBadge.svelte';
+  import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import {
     Search, ScrollText, RefreshCw, X, Download,
     Plus, Edit, Trash, LogIn, LogOut, Info, FileSpreadsheet, ArrowRight, Minus,
@@ -607,21 +608,7 @@
     <div class="card p-4">
       <div class="flex items-center gap-3">
         <div class="relative flex-1">
-          <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by actor, role, action, resource, IP..."
-            class="input pl-9 pr-10 w-full h-10"
-            bind:value={searchQuery}
-          />
-          {#if searchQuery}
-            <button
-              onclick={() => (searchQuery = '')}
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <X size={14} />
-            </button>
-          {/if}
+          <SearchBar bind:value={searchQuery} placeholder="Search by actor, role, action, entity, or IP..." inputClass="h-10" />
         </div>
 
         <div class="relative shrink-0" id="date-dropdown-container">
@@ -647,33 +634,42 @@
           {/if}
         </div>
 
-        <select
-          value={selectedResource}
-          onchange={(e) => {
-            selectedResource = e.currentTarget.value;
-            offset = 0;
-            selectedAction = 'all';
-          }}
-          class="appearance-none rounded-xl border border-border bg-surface-default px-3 h-10 pr-8 text-sm text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
-        >
-          {#each resourceFilters as f}
-            <option value={f.id}>{f.label}</option>
-          {/each}
-        </select>
+        <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;">
+          <select
+            value={selectedResource}
+            onchange={(e) => {
+              selectedResource = e.currentTarget.value;
+              offset = 0;
+              selectedAction = 'all';
+            }}
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+          >
+            {#each resourceFilters as f}
+              <option value={f.id}>{f.label}</option>
+            {/each}
+          </select>
+          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        </div>
 
-        <select
-          value={selectedAction}
-          onchange={(e) => {
-            selectedAction = e.currentTarget.value;
-            offset = 0;
-          }}
-          class="appearance-none rounded-xl border border-border bg-surface-default px-3 h-10 pr-8 text-sm text-text-secondary hover:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary-default"
-        >
-          {#each availableActionFilters as f}
-            <option value={f.id}>{f.label}</option>
-          {/each}
-        </select>
+        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
+          <select
+            value={selectedAction}
+            onchange={(e) => {
+              selectedAction = e.currentTarget.value;
+              offset = 0;
+            }}
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+          >
+            {#each availableActionFilters as f}
+              <option value={f.id}>{f.label}</option>
+            {/each}
+          </select>
+          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        </div>
 
+        <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={fetchLogs}>
+          <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
+        </button>
         <!-- Export Dropdown -->
         <div class="relative export-dropdown">
           <button
@@ -726,9 +722,6 @@
             </div>
           {/if}
         </div>
-        <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={fetchLogs}>
-          <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
-        </button>
       </div>
     </div>
 

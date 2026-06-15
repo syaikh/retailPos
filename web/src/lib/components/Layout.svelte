@@ -14,6 +14,11 @@
 </script>
 
 <div class="flex h-screen bg-bg-default">
+   <!-- Skip-to-content for keyboard users -->
+   <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary-default focus:text-white focus:rounded-xl focus:text-sm focus:font-semibold focus:outline-none focus:ring-2 focus:ring-primary-light focus:shadow-glow-primary">
+     Skip to main content
+   </a>
+
    <!-- Sidebar -->
    <Sidebar bind:currentPath />
 
@@ -22,7 +27,7 @@
      <Topbar {currentPath} />
 
      <!-- Scrollable content area -->
-     <main class="flex-1 overflow-y-auto bg-bg-default grid" style="scrollbar-gutter: stable;">
+     <main id="main-content" class="flex-1 overflow-y-auto bg-bg-default grid" style="scrollbar-gutter: stable;">
       {#key currentPath}
         <div 
           in:fly={{ y: 15, duration: 300, delay: 150 }} 
