@@ -987,13 +987,50 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
- 	if err := h.roleRepo.CreateRole(getCtx(c), &role); err != nil {
- 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create role: " + err.Error()})
- 		return
- 	}
+	if err := h.roleRepo.CreateRole(getCtx(c), &role); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create role: " + err.Error()})
+		return
+	}
 	h.logAudit(c, "create", "role", role.ID, nil, role)
 	c.JSON(http.StatusCreated, gin.H{"data": role})
 }
+
+func (h *Handler) UpdateRole(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+
+	if h.userRole(c) != "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only superadmin can modify roles"})
+		return
+	}
+
+	oldRole, err := h.roleRepo.GetRoleByID(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	updated := *oldRole
+	updated.Name = req.Name
+	updated.Description = req.Description
+
+	if err := h.roleRepo.UpdateRole(getCtx(c), &updated); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role"})
+		return
+	}
+
+	h.logAudit(c, "update", "role", id, oldRole, updated)
+	c.JSON(http.StatusOK, gin.H{"data": updated})
+}
+
 
 func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))

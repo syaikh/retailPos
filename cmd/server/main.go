@@ -130,6 +130,7 @@ func main() {
 
 		protected.GET("/admin/roles", middleware.RequirePermission("role:read"), h.ListRoles)
 		protected.POST("/admin/roles", middleware.RequirePermission("role:create"), h.CreateRole)
+		protected.PUT("/admin/roles/:id", middleware.RequirePermission("role:update"), h.UpdateRole)
 		protected.PUT("/admin/roles/:id/permissions", middleware.RequirePermission("role:update"), h.UpdateRolePermissions)
 		protected.DELETE("/admin/roles/:id", middleware.RequirePermission("role:delete"), h.DeleteRole)
 		protected.GET("/admin/permissions", middleware.RequirePermission("role:read"), h.ListPermissions)
