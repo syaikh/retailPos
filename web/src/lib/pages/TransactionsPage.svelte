@@ -11,7 +11,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Eye, Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown, ArrowUpDown } from 'lucide-svelte';
+  import { Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown, ArrowUpDown } from 'lucide-svelte';
 
   let loading = $state(true);
   let salesData = $state([]);
@@ -666,11 +666,10 @@
                 onkeydown={(e) => { if (e.key === 'Enter') openTransactionDetails(sale); }}
                 tabindex="0"
               >
-                <td class="p-4">
-                  <span class="font-mono text-sm font-medium text-white group-hover:text-primary-light transition-colors flex items-center gap-1.5">
-                    <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
-                    {sale.invoice_number}
-                  </span>
+                  <td class="p-4">
+                    <span class="font-mono text-sm font-medium text-white">
+                      {sale.invoice_number}
+                    </span>
                 </td>
                 <td class="p-4 text-sm text-text-secondary">
                   {formatDateTime(new Date(sale.created_at))}
