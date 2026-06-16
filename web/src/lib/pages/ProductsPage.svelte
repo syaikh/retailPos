@@ -611,12 +611,12 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 38%;">
+            <th class="text-left p-4 font-semibold" style="width: 44%;">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
                 PRODUCT NAME <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-48">
+            <th class="text-left p-4 font-semibold w-44">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('category')}>
                 CATEGORY <ArrowUpDown size={14} class="text-text-muted" />
               </button>
@@ -626,12 +626,12 @@
                 PRICE <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-20">
+            <th class="text-right p-4 font-semibold w-24">
               <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('stock')}>
                 STOCK <ArrowUpDown size={14} class="text-text-muted" />
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-28">STATUS</th>
+            <th class="text-left p-4 font-semibold w-24">STATUS</th>
             <th class="text-right p-4 font-semibold w-10"></th>
           </tr>
         </thead>
@@ -641,7 +641,7 @@
               class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
               onclick={() => openProductDetails(product)}
             >
-              <td class="p-4 pr-6" style="width: 38%;">
+              <td class="p-4 pr-6" style="width: 44%;">
                 <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
@@ -670,15 +670,19 @@
               </td>
               <td class="p-4 w-60">{product.category_name || '-'}</td>
               <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
-              <td class="p-4 text-right w-24">{product.stock ?? 0}</td>
-              <td class="p-4 w-28">
-                {#if product.stock <= criticalThreshold}
-                  <Badge variant="destructive">Critical</Badge>
+              <td class="p-4 text-right w-24">
+                {#if product.stock === 0}
+                  <Badge variant="destructive" size="sm">Out of Stock</Badge>
+                {:else if product.stock <= criticalThreshold}
+                  <Badge variant="destructive" size="sm">{product.stock}</Badge>
                 {:else if product.stock <= warningThreshold}
-                  <Badge variant="warning">Low</Badge>
+                  <Badge variant="warning" size="sm">{product.stock}</Badge>
                 {:else}
-                  <Badge variant="success">In Stock</Badge>
+                  <Badge variant="success" size="sm">{product.stock}</Badge>
                 {/if}
+              </td>
+              <td class="p-4 w-24">
+                <Badge variant={statusInfo(product.status).variant} size="sm">{statusInfo(product.status).label}</Badge>
               </td>
               <td class="p-4 w-20" style="width: 80px;" onclick={(e) => e.stopPropagation()}>
                 <ProductActionsDropdown

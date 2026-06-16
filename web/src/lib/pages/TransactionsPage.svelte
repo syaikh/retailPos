@@ -11,7 +11,6 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import Modal from '$lib/components/ui/Modal.svelte';
   import { Eye, Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown, ArrowUpDown } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -25,7 +24,7 @@
   let startDate = $state(getDateNDaysAgoInJakarta(30));
   let endDate = $state(getTodayInJakarta());
 
-  let showTransactionModal = $state(false);
+  let showTransactionDrawer = $state(false);
   let selectedTransaction = $state(null);
 
   let paymentMethodOptions: { code: string; name: string }[] = $state([]);
@@ -284,7 +283,11 @@
 
   function openTransactionDetails(transaction: any) {
     selectedTransaction = transaction;
-    showTransactionModal = true;
+    showTransactionDrawer = true;
+  }
+
+  function closeTransactionDrawer() {
+    showTransactionDrawer = false;
   }
 
   function printTransactionReceipt() {
@@ -401,6 +404,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      showTransactionDrawer = false;
       showDatePicker = false;
       showPaymentDropdown = false;
       showExportDropdown = false;
@@ -656,31 +660,33 @@
           </thead>
           <tbody>
             {#each salesData as sale (sale.id)}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                <td>
-                  <button
-                    class="font-mono text-sm font-medium text-white hover:text-primary-light transition-colors flex items-center gap-1.5 group underline decoration-border-strong underline-offset-4 hover:decoration-primary-light cursor-pointer"
-                    onclick={() => openTransactionDetails(sale)}
-                  >
-                    <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity" />
+              <tr
+                class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
+                onclick={() => openTransactionDetails(sale)}
+                onkeydown={(e) => { if (e.key === 'Enter') openTransactionDetails(sale); }}
+                tabindex="0"
+              >
+                <td class="p-4">
+                  <span class="font-mono text-sm font-medium text-white group-hover:text-primary-light transition-colors flex items-center gap-1.5">
+                    <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
                     {sale.invoice_number}
-                  </button>
+                  </span>
                 </td>
-                <td class="text-sm text-text-secondary">
+                <td class="p-4 text-sm text-text-secondary">
                   {formatDateTime(new Date(sale.created_at))}
                 </td>
-                <td class="text-sm text-text-secondary">
+                <td class="p-4 text-sm text-text-secondary">
                   {sale.customer_name || '—'}
                 </td>
-                <td class="text-sm text-text-secondary">
+                <td class="p-4 text-sm text-text-secondary">
                   {sale.items?.length || 0} items
                 </td>
-                <td>
+                <td class="p-4">
                   <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-sm px-3 py-1">
                     {sale.payment_method || '—'}
                   </Badge>
                 </td>
-                <td class="text-right text-sm font-semibold text-text-primary">
+                <td class="p-4 text-right text-sm font-semibold text-text-primary">
                   {(sale.total_amount || 0).toLocaleString('id-ID')}
                 </td>
               </tr>
@@ -701,22 +707,45 @@
   </div>
 </div>
 
-<Modal bind:open={showTransactionModal} title="Transaction Details" size="xl">
-  {#if selectedTransaction}
-    <div class="space-y-5">
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4 pb-4 border-b border-border">
+{#if showTransactionDrawer && selectedTransaction}
+  <div class="fixed inset-0 bg-black/60 z-50" onclick={closeTransactionDrawer} aria-hidden="true"></div>
+  <div
+    class="fixed inset-y-0 right-0 w-[520px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col"
+    transition:fly={{ x: 520, duration: 300, easing: t => t * (2 - t) }}
+    role="dialog" aria-modal="true" tabindex="-1"
+    onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeTransactionDrawer(); } }}
+  >
+    <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
+      <div class="flex items-center gap-3">
+        <h2 class="text-lg font-bold text-text-primary">Transaction Details</h2>
+        <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {statusVariant(selectedTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(selectedTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
+          {selectedTransaction.status || 'completed'}
+        </span>
+      </div>
+      <button
+        class="p-2 rounded-lg text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors"
+        onclick={closeTransactionDrawer}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') { e.preventDefault(); closeTransactionDrawer(); } }}
+        title="Close detail" aria-label="Close detail panel"
+      >
+        <X size={18} />
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
         <div class="space-y-3">
           <div>
             <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Invoice Number</p>
-            <p class="text-base font-semibold text-text-primary font-mono">{selectedTransaction.invoice_number}</p>
+            <p class="text-sm font-semibold text-text-primary font-mono">{selectedTransaction.invoice_number}</p>
           </div>
           <div>
             <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</p>
-            <p class="text-base text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
+            <p class="text-sm text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
           </div>
           <div>
             <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Customer</p>
-            <p class="text-base text-text-primary">{selectedTransaction.customer_name || 'Walk-in / General'}</p>
+            <p class="text-sm text-text-primary">{selectedTransaction.customer_name || 'Walk-in / General'}</p>
           </div>
         </div>
         <div class="space-y-3">
@@ -725,14 +754,6 @@
             <div class="mt-1">
               <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(selectedTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(selectedTransaction.payment_method) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'}">
                 {selectedTransaction.payment_method || '—'}
-              </span>
-            </div>
-          </div>
-          <div>
-            <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Status</p>
-            <div class="mt-1">
-              <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {statusVariant(selectedTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(selectedTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
-                {selectedTransaction.status || 'completed'}
               </span>
             </div>
           </div>
@@ -774,23 +795,23 @@
           </div>
         </div>
       {/if}
-
-      <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
-        <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
-          Close
-        </button>
-        <button class="btn btn-secondary btn-sm px-4 flex items-center gap-1.5" onclick={printTransactionReceipt}>
-          <Printer size={14} />
-          Print Receipt
-        </button>
-        <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={downloadInvoice}>
-          <Download size={14} />
-          Download Invoice
-        </button>
-      </div>
     </div>
-  {/if}
-</Modal>
+
+    <div class="shrink-0 border-t border-border px-6 py-4 flex items-center justify-end gap-2 bg-surface-default">
+      <button class="btn btn-secondary btn-sm px-4" onclick={closeTransactionDrawer}>
+        Close
+      </button>
+      <button class="btn btn-secondary btn-sm px-4 flex items-center gap-1.5" onclick={printTransactionReceipt}>
+        <Printer size={14} />
+        Print Receipt
+      </button>
+      <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={downloadInvoice}>
+        <Download size={14} />
+        Download Invoice
+      </button>
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(input[type="date"]::-webkit-calendar-picker-indicator) {
