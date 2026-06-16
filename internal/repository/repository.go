@@ -95,6 +95,7 @@ type SaleRepository interface {
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	BeginTx(ctx context.Context) (pgx.Tx, error)
 	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
+	GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int) ([]domain.SaleExportRow, error)
 }
 
 type PaymentMethodRepository interface {

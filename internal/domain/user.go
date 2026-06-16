@@ -84,6 +84,15 @@ type SaleItem struct {
 	Subtotal  int `json:"subtotal"`
 }
 
+type SaleExportRow struct {
+	InvoiceNumber string `json:"invoice_number"`
+	CreatedAt     string `json:"created_at"`
+	CustomerName  string `json:"customer_name"`
+	ItemCount     int    `json:"items_count"`
+	PaymentMethod string `json:"payment_method"`
+	TotalAmount   int    `json:"total_amount"`
+}
+
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

@@ -114,6 +114,7 @@ func main() {
 
 		protected.POST("/sales", middleware.RequirePermission("sale:create"), h.CreateSale)
 		protected.GET("/sales", middleware.RequirePermission("sale:read"), h.GetSalesHistory)
+		protected.GET("/sales/export", middleware.RequirePermission("report:read"), h.ExportSales)
 		protected.GET("/sales/:id", middleware.RequirePermission("sale:read"), h.GetSaleByID)
 
 		protected.GET("/dashboard/stats", middleware.RequirePermission("dashboard:read"), h.GetDashboardStats)

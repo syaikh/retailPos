@@ -1477,6 +1477,69 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	return sales, total, nil
 }
 
+func (r *postgresRepository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int) ([]domain.SaleExportRow, error) {
+	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
+		(SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
+		s.payment_method, s.total_amount
+		FROM sales s
+		LEFT JOIN customers c ON s.customer_id = c.id
+		WHERE 1=1`
+	args := []interface{}{}
+	argIdx := 1
+
+	if search != "" {
+		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx, argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+	if startDate != "" {
+		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
+		query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
+		args = append(args, start)
+		argIdx++
+	}
+	if endDate != "" {
+		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
+		query += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
+		args = append(args, end.Add(24*time.Hour))
+		argIdx++
+	}
+	if paymentMethods != "" {
+		query += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx)
+		args = append(args, paymentMethods)
+		argIdx++
+	}
+	if minTotal != nil {
+		query += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx)
+		args = append(args, *minTotal)
+		argIdx++
+	}
+	if maxTotal != nil {
+		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
+		args = append(args, *maxTotal)
+		argIdx++
+	}
+	query += " ORDER BY s.created_at DESC"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []domain.SaleExportRow
+	for rows.Next() {
+		var row domain.SaleExportRow
+		var createdAt time.Time
+		if err := rows.Scan(&row.InvoiceNumber, &createdAt, &row.CustomerName, &row.ItemCount, &row.PaymentMethod, &row.TotalAmount); err != nil {
+			continue
+		}
+		row.CreatedAt = createdAt.Format(time.RFC3339)
+		result = append(result, row)
+	}
+	return result, nil
+}
+
 // ==================== AUDIT ====================
 
 func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *domain.AuditLog) error {

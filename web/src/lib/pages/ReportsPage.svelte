@@ -165,7 +165,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
       activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
       activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
-        getWeeklyDayRangeLabel() : 'vs SAME WEEK LAST YEAR') :
+        getWeeklyDayRangeLabel() : 'vs PREVIOUS WEEK') :
       activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
       activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
     comparisonLabel:
@@ -175,7 +175,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === '7days' ? 'vs Previous 7 Days' :
       activePeriodType === '30days' ? 'vs Previous 30 Days' :
       activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
-        getWeeklyDayRangeLabel() : 'vs Same Week Last Year') :
+        getWeeklyDayRangeLabel() : 'vs Previous Week') :
       activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs Previous Month') :
       activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
   };
@@ -381,8 +381,14 @@ case 'daily': {
         const start = selectedMonthlyRange.start;
         const end = selectedMonthlyRange.end;
         // For chart data: query full month range to get daily aggregation
-        // Frontend will filter out dates after yesterday
+        // Frontend will filter out future dates in chartData
         let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+        // For current month, use yesterday for dropdown period display
+        const todayJakarta = getTodayInJakarta().split('-').map(Number);
+        if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+          const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+          endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+        }
         return {
           start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
           end: endStr
@@ -409,7 +415,7 @@ case 'daily': {
           }
           // End at last day of previous month
           endMonth = currentMonth - 1;
-          const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0).getUTCDate();
+          const lastDayOfPrevMonth = new Date(currentYear, currentMonth - 1, 0).getDate();
           endDay = lastDayOfPrevMonth;
         }
         return {
@@ -687,6 +693,25 @@ async function fetchSalesWithRange(start, end) {
       ? (selectedYearlyRange.start.year === parseInt(getTodayInJakarta().split('-')[0]) ? 'completed' : 'todate')
       : activePeriodType === '30days' ? '30days' : 'todate';
 
+  // Chart endpoint uses full month range for monthly view to get daily aggregation
+  // We need to use the original end date from the calendar for chart data
+  let chartEndDate = end;
+  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    // For monthly view, use the full month end from calendar selection
+    const calendarEnd = selectedMonthlyRange.end;
+    chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
+  }
+  if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    const year = selectedYearlyRange.start.year;
+    const currentYear = parseInt(getTodayInJakarta().split('-')[0]);
+    if (year === currentYear) {
+      // Current year: only show data through last completed month
+      chartEndDate = end;
+    } else {
+      // Past years: full year
+      chartEndDate = `${year}-12-31`;
+    }
+  }
   // Use yesterday as comparison date for current month (MTD comparison)
   // Use Dec 31 of selected year for yearly comparison (so backend uses correct year)
   let comparisonDate = end;
@@ -699,21 +724,12 @@ async function fetchSalesWithRange(start, end) {
   }
   if (activePeriodType === 'yearly' && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
-    comparisonDate = `${year}-12-31`;
-  }
-
-  // Chart endpoint uses full month range for monthly view to get daily aggregation
-  // We need to use the original end date from the calendar for chart data
-  let chartEndDate = end;
-  if (activePeriodType === 'monthly' && selectedMonthlyRange) {
-    // For monthly view, use the full month end from calendar selection
-    const calendarEnd = selectedMonthlyRange.end;
-    chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
-  }
-  if (activePeriodType === 'yearly' && selectedYearlyRange) {
-    // For yearly view, use full year (Dec 31) for monthly aggregation
-    const year = selectedYearlyRange.start.year;
-    chartEndDate = `${year}-12-31`;
+    const currentYear = parseInt(getTodayInJakarta().split('-')[0]);
+    if (year === currentYear) {
+      comparisonDate = end;
+    } else {
+      comparisonDate = `${year}-12-31`;
+    }
   }
 
   const [chartRes, comparisonRes] = await Promise.all([
@@ -756,13 +772,11 @@ async function fetchSalesWithRange(start, end) {
         return sum + (val > 0 ? val : 0);
       }, 0);
 
-      // For real-time, totalRevenue uses comparison.current_revenue for consistency
+      // For real-time, totalRevenue uses chartTotal for consistency with the displayed value
       // For monthly/weekly/daily views, use chart total (sum of daily points)
-      const totalRevenue = activePeriodType === 'realtime'
-        ? comparison.current_revenue
-        : (chartType === 'daily' && activePeriodType !== '7days' && activePeriodType !== '30days')
-          ? chartTotal  // Use chart total for consistency with displayed chart data
-          : comparison.current_revenue;
+      const totalRevenue = (chartType === 'hourly' || (chartType === 'daily' && activePeriodType !== '7days' && activePeriodType !== '30days'))
+        ? chartTotal
+        : comparison.current_revenue;
 
       const previousRevenue = comparison.previous_revenue;
 
@@ -1203,11 +1217,9 @@ onValueChange={(val) => {
                              fetchSalesWithRange(`${year}-01-01`, `${year}-01-01`);
                              return;
                            }
-                           // End at last day of previous month
-                           // new Date(year, month, 0) returns last day of previous month
-                           // For May (month=5), gives April 30
-                           endMonth = currentMonth - 1;
-                           const lastDayOfPrevMonth = new Date(year, currentMonth, 0).getUTCDate();
+                            // End at last day of previous month
+                            endMonth = currentMonth - 1;
+                             const lastDayOfPrevMonth = new Date(year, currentMonth - 1, 0).getDate();
                            endDay = lastDayOfPrevMonth;
                          }
                          activePeriodType = 'yearly';
@@ -1261,7 +1273,7 @@ onValueChange={(val) => {
             onclick={() => { showExportDropdown = false; exportToExcel(); }}
           >
             <FileSpreadsheet size={16} class="text-success-light" />
-            Export Chart to Excel
+            Export to Excel
           </button>
           <button
             class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
@@ -1269,7 +1281,7 @@ onValueChange={(val) => {
             onclick={() => { showExportDropdown = false; exportToPDF(); }}
           >
             <Download size={16} class="text-danger-light" />
-            Export Chart to PDF
+            Export to PDF
           </button>
         </div>
       {/if}

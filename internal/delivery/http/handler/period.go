@@ -194,12 +194,18 @@ func getMonthlyRanges(refDate time.Time, completedMode bool) PeriodRange {
 	// To-date: same number of days
 	daysElapsed := refDate.Day()
 	previousStart := startOfMonth.AddDate(0, -1, 0)
+	previousEnd := previousStart.AddDate(0, 0, daysElapsed)
+	// Cap previousEnd to not exceed startOfMonth — prevents overflow when
+	// previous month has fewer days (e.g., May 31 → Apr 1 + 31 = May 2)
+	if previousEnd.After(startOfMonth) {
+		previousEnd = startOfMonth
+	}
 
 	return PeriodRange{
 		CurrentStart:  startOfMonth,
 		CurrentEnd:    refDate.AddDate(0, 0, 1),
 		PreviousStart: previousStart,
-		PreviousEnd:   previousStart.AddDate(0, 0, daysElapsed),
+		PreviousEnd:   previousEnd,
 	}
 }
 

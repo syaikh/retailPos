@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -19,6 +20,7 @@ import (
 	"retail-pos-system/pkg/websocket"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 )
 
 func getCtx(c *gin.Context) context.Context {
@@ -579,6 +581,109 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": sales, "total": total})
 }
 
+func (h *Handler) ExportSales(c *gin.Context) {
+	format := c.Query("format")
+	search := c.Query("search")
+	paymentMethods := c.Query("paymentMethods")
+	minTotal := parseIntPtr(c.Query("minTotal"))
+	maxTotal := parseIntPtr(c.Query("maxTotal"))
+
+	const maxAmountFilter = 50000000
+	if minTotal != nil && (*minTotal < 0 || *minTotal > maxAmountFilter) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minTotal must be between 0 and 50,000,000"})
+		return
+	}
+	if maxTotal != nil && (*maxTotal < 0 || *maxTotal > maxAmountFilter) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "maxTotal must be between 0 and 50,000,000"})
+		return
+	}
+	if minTotal != nil && maxTotal != nil && *minTotal > *maxTotal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minTotal cannot exceed maxTotal"})
+		return
+	}
+
+	cfg := config.Load()
+	now := time.Now().In(cfg.Timezone)
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	if startDate == "" {
+		startDate = now.AddDate(0, 0, -30).Format("2006-01-02")
+	}
+	if endDate == "" {
+		endDate = now.Format("2006-01-02")
+	}
+
+	rows, err := h.saleRepo.GetSalesForExport(getCtx(c), search, startDate, endDate, paymentMethods, minTotal, maxTotal)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales data"})
+		return
+	}
+
+	filename := "transactions-" + now.Format("2006-01-02")
+
+	switch format {
+	case "xlsx":
+		wb := excelize.NewFile()
+		sheet := "Transactions"
+		wb.SetSheetName("Sheet1", sheet)
+
+		headers := []string{"INVOICE", "DATE", "CUSTOMER", "ITEMS", "PAYMENT", "TOTAL (RP)"}
+		for i, h := range headers {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			wb.SetCellValue(sheet, col+"1", h)
+		}
+		headerStyle, _ := wb.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
+			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
+		})
+		wb.SetCellStyle(sheet, "A1", "F1", headerStyle)
+
+		for i, row := range rows {
+			r := i + 2
+			wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), row.InvoiceNumber)
+			wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), row.CreatedAt)
+			wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), row.CustomerName)
+			wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), row.ItemCount)
+			wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), row.PaymentMethod)
+			wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), row.TotalAmount)
+		}
+
+		colWidths := []float64{20, 22, 25, 8, 15, 18}
+		for i, w := range colWidths {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			wb.SetColWidth(sheet, col, col, w)
+		}
+
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+
+		if err := wb.Write(c.Writer); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write xlsx"})
+			return
+		}
+
+	default: // csv
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
+		// BOM for Excel compatibility
+		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+		writer := csv.NewWriter(c.Writer)
+		writer.Write([]string{"INVOICE", "DATE", "CUSTOMER", "ITEMS", "PAYMENT", "TOTAL (RP)"})
+		for _, row := range rows {
+			writer.Write([]string{
+				row.InvoiceNumber,
+				row.CreatedAt,
+				row.CustomerName,
+				strconv.Itoa(row.ItemCount),
+				row.PaymentMethod,
+				strconv.Itoa(row.TotalAmount),
+			})
+		}
+		writer.Flush()
+	}
+}
+
 func parseIntPtr(s string) *int {
 	if s == "" {
 		return nil
@@ -913,7 +1018,17 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	refDate := time.Now().In(cfg.Timezone)
 	if dateStr := c.Query("date"); dateStr != "" {
 		if parsed, err := time.ParseInLocation("2006-01-02", dateStr, cfg.Timezone); err == nil {
-			refDate = parsed
+			if c.Query("mode") == "realtime" {
+				// For realtime: use the requested date but preserve the current hour/minute/second
+				// so getRealtimeRanges correctly includes the partial current hour
+				refDate = time.Date(
+					parsed.Year(), parsed.Month(), parsed.Day(),
+					refDate.Hour(), refDate.Minute(), refDate.Second(), refDate.Nanosecond(),
+					cfg.Timezone,
+				)
+			} else {
+				refDate = parsed
+			}
 		}
 	}
 

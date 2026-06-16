@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import { apiFetch } from '$lib/api/client';
+  import { getAuthToken } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
@@ -80,6 +81,12 @@
     if (startDate === endDate) return startDate;
     return `${startDate} – ${endDate}`;
   });
+
+  const isFiltered = $derived(
+    appliedPaymentMethods.length > 0 ||
+    (appliedSliderMin !== null && appliedSliderMin > 0) ||
+    (appliedSliderMax !== null && appliedSliderMax < SLIDER_MAX_BOUND)
+  );
 
   const hasPendingChanges = $derived(
     (sliderMin ?? 0) !== (appliedSliderMin ?? 0) ||
@@ -200,6 +207,11 @@
     selectedPaymentMethods = [];
     sliderMin = null;
     sliderMax = null;
+    appliedPaymentMethods = [];
+    appliedSliderMin = null;
+    appliedSliderMax = null;
+    offset = 0;
+    fetchSales(false);
   }
 
   function paymentMethodName(code: string): string {
@@ -338,80 +350,53 @@
     }
   }
 
-  async function exportCsv() {
-    if (salesData.length === 0) { toast.warning('No data to export'); return; }
-    const headers = ['INVOICE','DATE','CUSTOMER','ITEMS','PAYMENT','TOTAL (RP)'];
-    const rows = salesData.map(s =>
-      `"${s.invoice_number}","${formatDateTime(new Date(s.created_at))}","${(s.customer_name || '').replace(/"/g, '""')}","${s.items?.length || 0}","${(s.payment_method || '').replace(/"/g, '""')}","${s.total_amount || 0}"`
-    );
-    const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  function buildExportUrl(format: string): string {
+    const params = new URLSearchParams({
+      format,
+      startDate,
+      endDate,
+      search: sanitizeSearch(searchQuery),
+      sortBy,
+      sortDir,
+    });
+    if (appliedPaymentMethods.length > 0) {
+      params.set('paymentMethods', appliedPaymentMethods.join(','));
+    }
+    if (appliedSliderMin !== null && appliedSliderMin > 0) {
+      params.set('minTotal', appliedSliderMin.toString());
+    }
+    if (appliedSliderMax !== null && appliedSliderMax < SLIDER_MAX_BOUND) {
+      params.set('maxTotal', appliedSliderMax.toString());
+    }
+    return `/api/sales/export?${params.toString()}`;
+  }
+
+  async function downloadExport(format: string) {
+    const token = getAuthToken();
+    if (!token) { toast.error('Session expired'); return; }
+
+    const res = await fetch(buildExportUrl(format), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { toast.error('Export failed'); return; }
+
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `transactions-${getTodayInJakarta()}.csv`;
+    a.download = `transactions-${getTodayInJakarta()}.${format === 'csv' ? 'csv' : 'xlsx'}`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportCsv() {
+    downloadExport('csv');
     showExportDropdown = false;
-    toast.success('CSV exported');
   }
 
-  async function exportPdf() {
-    if (salesData.length === 0) { toast.warning('No data to export'); return; }
-    try {
-      const { jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text('Transactions Report', 20, 20);
-      doc.setFontSize(9);
-      doc.text(`Period: ${startDate} – ${endDate}`, 20, 28);
-      doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 20, 34);
-      const body = salesData.map(s => [
-        s.invoice_number,
-        formatDateTime(new Date(s.created_at)),
-        s.customer_name || '—',
-        (s.items?.length || 0).toString(),
-        s.payment_method || '—',
-        `Rp ${(s.total_amount || 0).toLocaleString('id-ID')}`,
-      ]);
-      autoTable(doc, {
-        startY: 42,
-        head: [['Invoice', 'Date', 'Customer', 'Items', 'Payment', 'Total (Rp)']],
-        body,
-        theme: 'grid',
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [124, 58, 237] },
-      });
-      doc.save(`transactions-${getTodayInJakarta()}.pdf`);
-      showExportDropdown = false;
-      toast.success('PDF exported');
-    } catch {
-      toast.error('Failed to export PDF');
-    }
-  }
-
-  async function exportExcel() {
-    if (salesData.length === 0) { toast.warning('No data to export'); return; }
-    try {
-      const XLSX = await import('xlsx');
-      const data = salesData.map(s => ({
-        INVOICE: s.invoice_number,
-        DATE: formatDateTime(new Date(s.created_at)),
-        CUSTOMER: s.customer_name || '',
-        ITEMS: s.items?.length || 0,
-        PAYMENT: s.payment_method || '',
-        'TOTAL (RP)': s.total_amount || 0,
-      }));
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-      XLSX.writeFile(wb, `transactions-${getTodayInJakarta()}.xlsx`);
-      showExportDropdown = false;
-      toast.success('Excel exported');
-    } catch {
-      toast.error('Failed to export Excel');
-    }
+  function exportExcel() {
+    downloadExport('xlsx');
+    showExportDropdown = false;
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -520,14 +505,6 @@
               <button
                 class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
                 role="menuitem"
-                onclick={() => { showExportDropdown = false; exportPdf(); }}
-              >
-                <Download size={16} class="text-danger-light" />
-                Export to PDF
-              </button>
-              <button
-                class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-                role="menuitem"
                 onclick={() => { showExportDropdown = false; exportExcel(); }}
               >
                 <FileSpreadsheet size={16} class="text-info-light" />
@@ -612,7 +589,7 @@
         <div class="flex-1 min-w-0"></div>
 
         <div class="flex items-end gap-2">
-          <button class="btn btn-secondary" onclick={resetFilters}>
+          <button class="btn btn-secondary" disabled={!isFiltered} onclick={resetFilters}>
             Reset
           </button>
           {#if hasPendingChanges}
