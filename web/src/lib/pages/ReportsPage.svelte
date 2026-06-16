@@ -159,7 +159,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === 'yearly' ? 'Peak Revenue Month' :
       activePeriodType === 'monthly' ? 'Avg. Revenue / Day' : 'Avg. Revenue / Day',
     card5:
-      activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(currentJakartaHour).padStart(2, '0') + ':00)' :
+      activePeriodType === 'realtime' ? 'vs YESTERDAY' :
       activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
       activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
       activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
@@ -169,7 +169,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
       activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
     comparisonLabel:
-      activePeriodType === 'realtime' ? 'vs Yesterday (' + String(currentJakartaHour).padStart(2, '0') + 'hrs)' :
+      activePeriodType === 'realtime' ? 'vs Yesterday' :
       activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
       activePeriodType === 'daily' ? 'vs Same Day Last Week' :
       activePeriodType === '7days' ? 'vs Previous 7 Days' :
@@ -1289,9 +1289,7 @@ onValueChange={(val) => {
            <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
              Ongoing Month
            </span>
-          {:else if activePeriodType === 'realtime'}
-            <span class="text-xs text-text-muted font-normal ml-2">(Real-time data up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
-         {/if}
+  {/if}
        </h3>
      </div>
 
@@ -1317,11 +1315,7 @@ onValueChange={(val) => {
         {/each}
       {:else}
         <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue
-            {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
-            {/if}
-          </div>
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
           <div class="text-lg font-bold text-text-primary mt-1">
             {formatCurrencyShort(kpiData.totalRevenue)}
           </div>
@@ -1343,11 +1337,7 @@ onValueChange={(val) => {
         </div>
 
         <div class="bg-surface rounded-lg p-4 border border-border/50 relative">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders
-            {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
-            {/if}
-          </div>
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
           <div class="text-lg font-bold text-text-primary mt-1">
             {formatLargeNumber(kpiData.totalOrders)}
           </div>
@@ -1359,11 +1349,7 @@ onValueChange={(val) => {
         </div>
 
         <div class="bg-surface rounded-lg p-4 border border-border/50">
-          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value
-            {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
-            {/if}
-          </div>
+          <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
           <div class="flex items-center gap-1 mt-1">
             <span class="text-lg font-bold text-text-primary">
               {formatCurrencyShort(kpiData.avgOrderValue)}
@@ -1384,9 +1370,6 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
             {statCardLabels.card4}
-            {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
-            {/if}
           </div>
           <div class="flex items-baseline gap-1 mt-1">
             <span class="text-lg font-bold text-text-primary">
@@ -1407,13 +1390,6 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide flex items-center gap-1">
             {statCardLabels.comparisonLabel}
-            {#if activePeriodType === 'realtime'}
-              <Info 
-                size={12} 
-                class="text-text-muted cursor-help" 
-                title={`Real-time data from 00:00 to ${String(currentJakartaHour).padStart(2, '0')}:00 WIB`}
-              />
-            {/if}
           </div>
           <div class="flex items-baseline gap-1 mt-1">
             {#if kpiData.percentChange !== null}
@@ -1436,11 +1412,6 @@ onValueChange={(val) => {
               {/if}
             {/if}
           </div>
-          {#if comparisonDateRange}
-            <div class="text-xs text-text-muted mt-1">
-              vs {comparisonDateRange}
-            </div>
-          {/if}
         </div>
       {/if}
     </div>
