@@ -60,7 +60,7 @@ func GetComparisonRanges(
 	}
 
 	pr.DaysInPeriod = int(pr.CurrentEnd.Sub(pr.CurrentStart).Hours() / 24)
-	// For weekly: isPartial if before Thursday (Mon-Wed: 0-2 days completed)
+	// For weekly: isPartial if not last day of week (Mon-Sat), matching monthly pattern
 	// For other periods in completed mode: use existing logic
 	pr.IsPartial = isPeriodIncomplete(periodType, refDate) && (periodType == PeriodWeekly || completedMode)
 
@@ -125,26 +125,13 @@ func getWeeklyRanges(refDate time.Time, completedMode bool) PeriodRange {
 	daysElapsed := int(refDate.Sub(startOfWeek).Hours()/24) + 1
 	previousStart := startOfWeek.AddDate(0, 0, -7)
 
-	// For partial weeks (not full week completed), use like-for-like comparison
-	// Compare Mon-Fri of this week vs Mon-Fri of last week
-	// This applies when we're in the middle of a week (Tue-Sat)
-	weekday := refDate.Weekday()
+	// Like-for-like comparison for all days (matching monthly MTD pattern)
+	// Example: Tuesday (daysElapsed=2) -> prevEnd = previousStart + 2 days
 	var currentStart, currentEnd, prevStart, prevEnd time.Time
-	
-	if weekday == time.Saturday {
-		// Saturday - full week completed, compare full weeks
-		currentStart = startOfWeek
-		currentEnd = refDate.AddDate(0, 0, 1) // Sunday + 1 = next day
-		prevStart = previousStart
-		prevEnd = previousStart.AddDate(0, 0, 7) // Full previous week
-	} else {
-		// Partial week - use like-for-like (same days vs last week)
-		// Example: Thursday (weekday=4) -> daysElapsed=4 -> prevEnd = previousStart + 4 days
-		currentStart = startOfWeek
-		currentEnd = refDate.AddDate(0, 0, 1) // Include today
-		prevStart = previousStart
-		prevEnd = previousStart.AddDate(0, 0, daysElapsed) // Same number of days as current period
-	}
+	currentStart = startOfWeek
+	currentEnd = refDate.AddDate(0, 0, 1) // Include today
+	prevStart = previousStart
+	prevEnd = previousStart.AddDate(0, 0, daysElapsed) // Same number of days as current period
 
 	return PeriodRange{
 		CurrentStart:  currentStart,
@@ -241,13 +228,11 @@ func getYearlyRanges(refDate time.Time, completedMode bool) PeriodRange {
 func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 	switch periodType {
 	case PeriodWeekly:
-		// Week is incomplete if before Thursday (weekday < 4)
-		// Mon=1, Tue=2, Wed=3 -> incomplete (less than 3 days completed)
-		// Thu=4, Fri=5, Sat=6, Sun=0 -> complete (3+ days)
-		weekday := refDate.Weekday()
-		// Sunday = 0, but we treat it as complete (6 days done)
-		// Saturday = 6, complete (full week)
-		return weekday >= time.Monday && weekday <= time.Wednesday
+		// Week is incomplete if not last day (matching monthly pattern)
+		// Mon-Sat -> incomplete (next day still same week)
+		// Sunday -> complete (next day is Monday = new week)
+		nextDay := refDate.AddDate(0, 0, 1)
+		return nextDay.Weekday() != time.Monday
 	case PeriodMonthly:
 		// Month is incomplete if not last day
 		nextDay := refDate.AddDate(0, 0, 1)

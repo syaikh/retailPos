@@ -33,40 +33,45 @@ func TestDailyRanges_H7Comparison(t *testing.T) {
 	assert.Equal(t, 7, dayDiff, "Should be exactly 7 days difference")
 }
 
-// TestWeeklyRanges_ThreeDayThreshold verifies that weeks starting Mon-Wed are disabled
-// and weeks starting Thu-Sat are selectable for to-date mode
-func TestWeeklyRanges_ThreeDayThreshold(t *testing.T) {
+// TestWeeklyRanges_PartialDetection verifies partial week detection for all days
+// Only Sunday is complete (last day of week), matching monthly pattern
+func TestWeeklyRanges_PartialDetection(t *testing.T) {
 	jkt := config.Load().Timezone
 
-	// Test case 1: Monday (dayOfWeek = 1) - should be incomplete, before threshold
+	// Test case 1: Monday (dayOfWeek = 1) - partial (not last day of week)
 	monday := time.Date(2026, 6, 1, 0, 0, 0, 0, jkt)
 	ranges := GetComparisonRanges(PeriodWeekly, monday, false) // todate mode
-	assert.True(t, ranges.IsPartial, "Monday week should be partial (before Thursday threshold)")
+	assert.True(t, ranges.IsPartial, "Monday week should be partial (not last day of week)")
 
-	// Test case 2: Tuesday (dayOfWeek = 2) - should be incomplete, before threshold
+	// Test case 2: Tuesday (dayOfWeek = 2) - partial
 	tuesday := time.Date(2026, 6, 2, 0, 0, 0, 0, jkt)
 	ranges = GetComparisonRanges(PeriodWeekly, tuesday, false)
-	assert.True(t, ranges.IsPartial, "Tuesday week should be partial (before Thursday threshold)")
+	assert.True(t, ranges.IsPartial, "Tuesday week should be partial")
 
-	// Test case 3: Wednesday (dayOfWeek = 3) - should be incomplete, before threshold
+	// Test case 3: Wednesday (dayOfWeek = 3) - partial
 	wednesday := time.Date(2026, 6, 3, 0, 0, 0, 0, jkt)
 	ranges = GetComparisonRanges(PeriodWeekly, wednesday, false)
-	assert.True(t, ranges.IsPartial, "Wednesday week should be partial (before Thursday threshold)")
+	assert.True(t, ranges.IsPartial, "Wednesday week should be partial")
 
-	// Test case 4: Thursday (dayOfWeek = 4) - should be complete, threshold met
+	// Test case 4: Thursday (dayOfWeek = 4) - partial (not last day)
 	thursday := time.Date(2026, 6, 4, 0, 0, 0, 0, jkt)
 	ranges = GetComparisonRanges(PeriodWeekly, thursday, false)
-	assert.False(t, ranges.IsPartial, "Thursday week should be complete (3+ days elapsed)")
+	assert.True(t, ranges.IsPartial, "Thursday week should be partial")
 
-	// Test case 5: Friday (dayOfWeek = 5) - should be complete
+	// Test case 5: Friday (dayOfWeek = 5) - partial
 	friday := time.Date(2026, 6, 5, 0, 0, 0, 0, jkt)
 	ranges = GetComparisonRanges(PeriodWeekly, friday, false)
-	assert.False(t, ranges.IsPartial, "Friday week should be complete")
+	assert.True(t, ranges.IsPartial, "Friday week should be partial")
 
-	// Test case 6: Saturday (dayOfWeek = 6) - should be complete (full week done)
+	// Test case 6: Saturday (dayOfWeek = 6) - partial
 	saturday := time.Date(2026, 6, 6, 0, 0, 0, 0, jkt)
 	ranges = GetComparisonRanges(PeriodWeekly, saturday, false)
-	assert.False(t, ranges.IsPartial, "Saturday week should be complete")
+	assert.True(t, ranges.IsPartial, "Saturday week should be partial")
+
+	// Test case 7: Sunday (dayOfWeek = 0) - complete (last day of week)
+	sunday := time.Date(2026, 6, 7, 0, 0, 0, 0, jkt)
+	ranges = GetComparisonRanges(PeriodWeekly, sunday, false)
+	assert.False(t, ranges.IsPartial, "Sunday week should be complete (last day of week)")
 }
 
 // TestWeeklyRanges_LikeForLikeComparison verifies that partial weeks use same-day comparison

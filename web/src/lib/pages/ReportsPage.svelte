@@ -4,7 +4,7 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
 import { chart } from '$lib/actions/chart';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaDayOfWeek } from '$lib/utils/jakartaTime';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
@@ -375,7 +375,14 @@ case 'daily': {
           end: endStr
         };
       }
-      return { start: today, end: today };
+      // Default: current week (Monday to yesterday)
+      {
+        const dayOfWeek = getJakartaDayOfWeek();
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monday = getDateNDaysAgoInJakarta(mondayOffset);
+        const yesterday = getDateNDaysAgoInJakarta(1);
+        return { start: monday, end: yesterday };
+      }
     case 'monthly':
       if (monthlySelectionMade && selectedMonthlyRange) {
         const start = selectedMonthlyRange.start;
@@ -433,9 +440,29 @@ case 'daily': {
 function setPeriod(periodType) {
   // For calendar-based periods, keep dropdown open to allow date selection
   // Don't fetch - user must select a date from the calendar
-  if (periodType === 'daily' || periodType === 'weekly' || periodType === 'monthly' || periodType === 'yearly') {
+  if (periodType === 'daily' || periodType === 'monthly' || periodType === 'yearly') {
     // Don't change selectedPeriodType - button text stays as-is
     // Don't change activePeriodType - chart stays as-is
+    return;
+  }
+  
+  // Weekly auto-loads the current week (Monday to yesterday)
+  if (periodType === 'weekly') {
+    selectedPeriodType = 'weekly';
+    activePeriodType = 'weekly';
+    dropdownOpen = false;
+    // Reset selection to ensure default (current week) is computed
+    weeklySelectionMade = false;
+    const range = getPeriodDateRange('weekly');
+    // Set selection for calendar display
+    const [sy, sm, sd] = range.start.split('-').map(Number);
+    const [ey, em, ed] = range.end.split('-').map(Number);
+    selectedWeeklyRange = {
+      start: new CalendarDate(sy, sm, sd),
+      end: new CalendarDate(ey, em, ed)
+    };
+    weeklySelectionMade = true;
+    fetchSalesWithRange(range.start, range.end);
     return;
   }
   
@@ -465,10 +492,7 @@ function getPeriodDescription() {
     case 'daily':
       return `Daily · ${start}`;
     case 'weekly':
-      if (selectedWeeklyRange) {
-        return `Weekly · ${start} - ${end}`;
-      }
-      return 'Weekly · Select a week';
+      return `Weekly · ${start} - ${end}`;
     case 'monthly':
       return `Monthly · ${start} - ${end}`;
     case 'yearly':
@@ -539,8 +563,20 @@ const chartConfig = $derived.by(() => {
           }
         }
       }
+    } else if (activePeriodType === 'weekly') {
+      // For weekly, filter to only show data up to yesterday
+      const yesterday = getDateNDaysAgoInJakarta(1);
+      labels = [];
+      values = [];
+      chartData.forEach(d => {
+        if (d.date && d.date <= yesterday) {
+          const date = new Date(d.date);
+          labels.push(date.toLocaleString('id-ID', { month: 'short', day: 'numeric' }));
+          values.push(d.total);
+        }
+      });
     } else {
-      // For weekly/daily view, show data as-is with month + day
+      // For 7days/30days view, show data as-is with month + day
       labels = chartData.map((d, i) => {
         if (!d.date) return String(i + 1);
         const date = new Date(d.date);
@@ -700,6 +736,13 @@ async function fetchSalesWithRange(start, end) {
     // For monthly view, use the full month end from calendar selection
     const calendarEnd = selectedMonthlyRange.end;
     chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
+  }
+  if (activePeriodType === 'weekly') {
+    // Extend chart end by 1 day so backend doesn't use hourly aggregation (start != end)
+    const endParts = chartEndDate.split('-').map(Number);
+    const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+    const nextDate = new Date(endDate.getTime() + 86400000);
+    chartEndDate = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDate.getUTCDate()).padStart(2, '0')}`;
   }
   if (activePeriodType === 'yearly' && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
