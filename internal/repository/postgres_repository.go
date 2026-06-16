@@ -1286,7 +1286,7 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 	return &sale, nil
 }
 
-func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int) ([]domain.Sale, int, error) {
+func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal *int) ([]domain.Sale, int, error) {
 	var sales []domain.Sale
 	var total int
 
@@ -1298,7 +1298,7 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	argIdx := 1
 
 	if search != "" {
-		countQuery += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d))", argIdx, argIdx)
+		countQuery += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx, argIdx, argIdx)
 		countArgs = append(countArgs, "%"+search+"%")
 		argIdx++
 	}
@@ -1321,6 +1321,21 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		countArgs = append(countArgs, *storeID)
 		argIdx++
 	}
+	if paymentMethods != "" {
+		countQuery += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx)
+		countArgs = append(countArgs, paymentMethods)
+		argIdx++
+	}
+	if minTotal != nil {
+		countQuery += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx)
+		countArgs = append(countArgs, *minTotal)
+		argIdx++
+	}
+	if maxTotal != nil {
+		countQuery += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
+		countArgs = append(countArgs, *maxTotal)
+		argIdx++
+	}
 
 	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
 	if err != nil {
@@ -1336,7 +1351,7 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	argIdx2 := 1
 
 	if search != "" {
-		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d))", argIdx2, argIdx2)
+		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx2, argIdx2, argIdx2)
 		args2 = append(args2, "%"+search+"%")
 		argIdx2++
 	}
@@ -1359,9 +1374,26 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 		args2 = append(args2, *storeID)
 		argIdx2++
 	}
-	if sortBy != "" {
+	if paymentMethods != "" {
+		query += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx2)
+		args2 = append(args2, paymentMethods)
+		argIdx2++
+	}
+	if minTotal != nil {
+		query += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx2)
+		args2 = append(args2, *minTotal)
+		argIdx2++
+	}
+	if maxTotal != nil {
+		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx2)
+		args2 = append(args2, *maxTotal)
+		argIdx2++
+	}
+	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
+	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	if sortBy != "" && allowedSortBy[sortBy] {
 		query += fmt.Sprintf(" ORDER BY %s", sortBy)
-		if sortDir != "" {
+		if sortDir != "" && allowedSortDir[sortDir] {
 			query += " " + sortDir
 		}
 	} else {
@@ -1684,7 +1716,7 @@ func (r *postgresRepository) GetLiveDashboardStats(ctx context.Context, storeID 
 // GetAvailableYears returns distinct years that have sales data
 func (r *postgresRepository) GetAvailableYears(ctx context.Context, storeID *int) ([]int, error) {
 	query := `
-		SELECT DISTINCT EXTRACT(YEAR FROM created_at)::integer as year
+		SELECT DISTINCT EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))::integer as year
 		FROM sales
 		WHERE status = 'completed'
 	`

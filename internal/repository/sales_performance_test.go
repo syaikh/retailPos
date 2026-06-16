@@ -22,7 +22,7 @@ func TestGetAllSalesPerformance(t *testing.T) {
 
 	// Measure time for fetching sales with items
 	start := time.Now()
-	sales, _, err := repo.GetAllSales(ctx, 20, 0, "", "created_at", "ASC", "", "", nil)
+	sales, _, err := repo.GetAllSales(ctx, 20, 0, "", "created_at", "ASC", "", "", nil, "", nil, nil)
 	require.NoError(t, err)
 	elapsed := time.Since(start)
 	

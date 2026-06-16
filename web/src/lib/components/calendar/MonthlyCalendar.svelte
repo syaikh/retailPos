@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type DateValue, CalendarDate } from "@internationalized/date";
   import { cn, getThemeStyle, type Theme } from "./utils";
+  import { getTodayJakartaDate } from "$lib/utils/jakartaTime";
 
   interface Props {
     value?: { start: DateValue; end: DateValue } | null;
@@ -24,11 +25,8 @@
   let hoverMonth: number | null = $state(null);
   let hoverYear: number = $state(0);
 
-  const today = new CalendarDate(
-    new Date().getFullYear(),
-    new Date().getMonth() + 1,
-    new Date().getDate()
-  );
+  const jakartaToday = getTodayJakartaDate();
+  const today = new CalendarDate(jakartaToday.year, jakartaToday.month, jakartaToday.day);
 
   // Initialize year from maxValue if available
   $effect(() => {

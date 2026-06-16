@@ -283,11 +283,12 @@
   {:else}
     <div class="card p-4">
       <div class="flex items-center gap-3">
-        <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
+        <div class="flex-1">
+          <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
+        </div>
         <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
           <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer {filterRole !== 'all' ? 'text-text-primary' : ''}"
-            style="width: 140px; min-width: 140px; max-width: 140px;"
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full {filterRole !== 'all' ? 'text-text-primary' : ''}"
             bind:value={filterRole}
           >
             <option value="all">All Roles</option>
@@ -299,8 +300,7 @@
         </div>
         <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;">
           <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer {filterStatus !== 'all' ? 'text-text-primary' : ''}"
-            style="width: 128px; min-width: 128px; max-width: 128px;"
+            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full {filterStatus !== 'all' ? 'text-text-primary' : ''}"
             bind:value={filterStatus}
           >
             <option value="all">All Status</option>

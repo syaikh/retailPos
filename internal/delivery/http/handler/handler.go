@@ -530,22 +530,64 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		}
 	}
 
-	// Get date parameters with defaults
+	search := c.Query("search")
+	paymentMethods := c.Query("paymentMethods")
+	minTotal := parseIntPtr(c.Query("minTotal"))
+	maxTotal := parseIntPtr(c.Query("maxTotal"))
+
+	const maxAmountFilter = 50000000
+	if minTotal != nil && (*minTotal < 0 || *minTotal > maxAmountFilter) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minTotal must be between 0 and 50,000,000"})
+		return
+	}
+	if maxTotal != nil && (*maxTotal < 0 || *maxTotal > maxAmountFilter) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "maxTotal must be between 0 and 50,000,000"})
+		return
+	}
+	if minTotal != nil && maxTotal != nil && *minTotal > *maxTotal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minTotal cannot exceed maxTotal"})
+		return
+	}
+
+	sortBy := c.Query("sortBy")
+	sortDir := c.Query("sortDir")
+	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
+	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	if !allowedSortBy[sortBy] {
+		sortBy = "created_at"
+	}
+	if !allowedSortDir[sortDir] {
+		sortDir = "DESC"
+	}
+
+	cfg := config.Load()
+	now := time.Now().In(cfg.Timezone)
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 	if startDate == "" {
-		startDate = "2025-11-01" // Default to November 2025 where data exists
+		startDate = now.AddDate(0, 0, -30).Format("2006-01-02")
 	}
 	if endDate == "" {
-		endDate = "2025-11-30"
+		endDate = now.Format("2006-01-02")
 	}
 
-	sales, total, err := h.saleRepo.GetAllSales(getCtx(c), limit, offset, c.Query("search"), "created_at", "DESC", startDate, endDate, nil)
+	sales, total, err := h.saleRepo.GetAllSales(getCtx(c), limit, offset, search, sortBy, sortDir, startDate, endDate, nil, paymentMethods, minTotal, maxTotal)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": sales, "total": total})
+}
+
+func parseIntPtr(s string) *int {
+	if s == "" {
+		return nil
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 func (h *Handler) GetSaleByID(c *gin.Context) {
@@ -568,7 +610,7 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 
 	// Get total revenue & sales (simplified)
-	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil)
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", today, today, nil, "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales data"})
 		return
@@ -579,7 +621,7 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	}
 
 	// Get yesterday's revenue for trend display
-	ydaySales, _, err2 := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", yesterday, yesterday, nil)
+	ydaySales, _, err2 := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "", "", yesterday, yesterday, nil, "", nil, nil)
 	var ydayRev int
 	if err2 == nil {
 		for _, s := range ydaySales {
@@ -650,7 +692,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	// Determine if hourly aggregation is needed (single day = realtime/yesterday)
 	isHourly := startDate == endDate
 
-	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return
@@ -709,8 +751,8 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	}
 
 	var data []ChartDataPoint
-	start, _ := time.Parse("2006-01-02", startDate)
-	end, _ := time.Parse("2006-01-02", endDate)
+	start, _ := time.ParseInLocation("2006-01-02", startDate, cfg.Timezone)
+	end, _ := time.ParseInLocation("2006-01-02", endDate, cfg.Timezone)
 
 	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		dateStr := d.Format("2006-01-02")
@@ -736,7 +778,7 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 		startDate = now.AddDate(0, 0, -84).Format("2006-01-02") // 12 weeks back
 	}
 
-	sales, _, err := h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	sales, _, err := 	h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return
@@ -807,7 +849,7 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 		startDate = now.AddDate(-1, 1, 0).Format("2006-01-02") // 12 months back
 	}
 
-	sales, _, err := h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil)
+	sales, _, err := 	h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return

@@ -381,13 +381,13 @@
           {#if roleSearchDebounced}
             <span class="inline-flex items-center gap-1 rounded-md bg-primary-subtle text-primary-light border border-primary-default/20 px-2 py-0.5 text-xs font-medium">
               Search: "{roleSearchDebounced}"
-              <button onclick={() => { roleSearch = ''; handleRoleSearch(''); }} class="hover:text-white transition-colors"><X size={10} /></button>
+              <button onclick={() => { roleSearch = ''; handleRoleSearch(''); }} class="hover:text-white transition-colors" aria-label="Clear search filter"><X size={10} /></button>
             </span>
           {/if}
           {#if filterType !== 'all'}
             <span class="inline-flex items-center gap-1 rounded-md bg-primary-subtle text-primary-light border border-primary-default/20 px-2 py-0.5 text-xs font-medium">
               {filterType === 'system' ? 'System' : 'Custom'}
-              <button onclick={() => filterType = 'all'} class="hover:text-white transition-colors"><X size={10} /></button>
+              <button onclick={() => filterType = 'all'} class="hover:text-white transition-colors" aria-label="Clear type filter"><X size={10} /></button>
             </span>
           {/if}
           <button onclick={clearFilters} class="ml-auto text-xs font-medium text-text-muted hover:text-danger transition-colors">Clear all</button>

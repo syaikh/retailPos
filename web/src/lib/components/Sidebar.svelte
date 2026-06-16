@@ -50,6 +50,7 @@
   const navItems = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
   ];
 
@@ -61,6 +62,7 @@
 
   const managerNavItems = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
   ];
 
@@ -73,6 +75,7 @@
   const cashierNavItems = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
   ];
 
   const staffNavItems = [
@@ -165,9 +168,14 @@
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         aria-current={isActive(item.href) ? 'page' : undefined}
+        aria-label={collapsed ? item.label : undefined}
         title={collapsed ? item.label : ''}
       >
-        <item.icon size={18} class="shrink-0" />
+        {#if item.iconText}
+          <span class="text-xs font-bold shrink-0">{item.iconText}</span>
+        {:else}
+          <item.icon size={18} class="shrink-0" />
+        {/if}
         {#if !collapsed}
           <span class="relative z-10">{item.label}</span>
         {/if}
@@ -185,6 +193,7 @@
           class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
           aria-expanded={masterDataExpanded}
           aria-controls="sidebar-section-master-data"
+          aria-label={collapsed ? 'Master Data' : undefined}
           title={collapsed ? 'Master Data' : ''}
         >
           <Database size={18} class="shrink-0" />
@@ -222,6 +231,7 @@
         class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
         aria-expanded={adminExpanded}
         aria-controls="sidebar-section-admin"
+        aria-label={collapsed ? 'Administration' : undefined}
         title={collapsed ? 'Administration' : ''}
       >
         <Shield size={18} class="shrink-0" />

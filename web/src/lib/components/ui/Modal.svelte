@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
 
@@ -17,6 +18,9 @@
     footer?: Snippet;
   } = $props();
 
+  let panelEl: HTMLDivElement;
+  let previousFocus: HTMLElement | null = null;
+
   const sizes = {
     sm: 'max-w-sm',
     md: 'max-w-lg',
@@ -24,7 +28,27 @@
     xl: 'max-w-4xl',
   };
 
-  // Only allow Escape key to close - remove backdrop click handler
+  const focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function trapFocus(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || !panelEl) return;
+    const focusable = panelEl.querySelectorAll<HTMLElement>(focusableSelector);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') open = false;
   }
@@ -36,6 +60,22 @@
   function stopPropagationKey(e: KeyboardEvent) {
     e.stopPropagation();
   }
+
+  $effect(() => {
+    if (open) {
+      previousFocus = document.activeElement as HTMLElement;
+      requestAnimationFrame(() => {
+        if (panelEl) {
+          const focusable = panelEl.querySelector<HTMLElement>(focusableSelector);
+          if (focusable) focusable.focus();
+          else panelEl.focus();
+        }
+      });
+    } else if (previousFocus) {
+      previousFocus.focus();
+      previousFocus = null;
+    }
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -46,8 +86,9 @@
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 "
     transition:fade={{ duration: 200 }}
   >
-    <!-- Panel - stop propagation to prevent events bubbling to backdrop -->
+    <!-- Panel - trap focus within the dialog -->
     <div
+      bind:this={panelEl}
       class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col"
       transition:fly={{ y: 20, duration: 300 }}
       role="dialog"
@@ -55,7 +96,7 @@
       aria-label={title || 'Dialog'}
       tabindex="-1"
       onclick={stopPropagation}
-      onkeydown={stopPropagationKey}
+      onkeydown={trapFocus}
     >
       <!-- Header -->
       {#if title}
@@ -88,7 +129,7 @@
 
       <!-- Footer -->
       {#if footer}
-        <div class="px-6 py-4 border-t border-border flex items-center justify-end gap-3">
+        <div class="px-6 py-4 border-t border-border flex items-center justify-end gap-3" onkeydown={trapFocus}>
           {@render footer()}
         </div>
       {/if}

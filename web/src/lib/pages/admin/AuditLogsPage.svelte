@@ -5,6 +5,7 @@
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth } from '$lib/stores/auth';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$lib/utils/jakartaTime';
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -122,32 +123,43 @@
   let customEndDate = $state('');
   let showCustomDateModal = $state(false);
 
-  const today = new Date().toISOString().split('T')[0];
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+  const today = getTodayInJakarta();
+  const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
 
   let startDateMin = $derived(ninetyDaysAgo);
   let startDateMax = $derived(customEndDate || today);
   let endDateMin = $derived(customStartDate || ninetyDaysAgo);
   let endDateMax = $derived(today);
 
+  // Convert a Jakarta date string (YYYY-MM-DD) to UTC epoch for RFC3339 API
+  function jakartaDateToUTC(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    // Jakarta midnight = UTC 17:00 previous day
+    // Date.UTC(y, m-1, d, 0,0,0,0) gives UTC midnight of the date
+    return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
+  }
+
   function getDateRange(range) {
-    const now = new Date();
     switch (range) {
       case '24h':
-        return { start: new Date(now.getTime() - 86400000), end: now };
+        return { start: new Date(Date.now() - 86400000), end: new Date() };
       case '7d':
-        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+        return { start: new Date(Date.now() - 7 * 86400000), end: new Date() };
       case '30d':
-        return { start: new Date(now.getTime() - 30 * 86400000), end: now };
+        return { start: new Date(Date.now() - 30 * 86400000), end: new Date() };
       case '90d':
-        return { start: new Date(now.getTime() - 90 * 86400000), end: now };
+        return { start: new Date(Date.now() - 90 * 86400000), end: new Date() };
       case 'custom':
         if (customStartDate && customEndDate) {
-          return { start: new Date(customStartDate), end: new Date(customEndDate + 'T23:59:59') };
+          // Interpret user-selected dates as Jakarta dates, convert to UTC epoch
+          const startMs = jakartaDateToUTC(customStartDate);
+          // End date inclusive: midnight Jakarta of next day
+          const endMs = jakartaDateToUTC(customEndDate) + 86400000;
+          return { start: new Date(startMs), end: new Date(endMs) };
         }
-        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+        return { start: new Date(Date.now() - 7 * 86400000), end: new Date() };
       default:
-        return { start: new Date(now.getTime() - 7 * 86400000), end: now };
+        return { start: new Date(Date.now() - 7 * 86400000), end: new Date() };
     }
   }
 
@@ -165,10 +177,8 @@
     if (rangeId === 'custom') {
       showDateDropdown = false;
       showCustomDateModal = true;
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 86400000);
-      customEndDate = now.toISOString().split('T')[0];
-      customStartDate = weekAgo.toISOString().split('T')[0];
+      customEndDate = getTodayInJakarta();
+      customStartDate = getDateNDaysAgoInJakarta(7);
     } else {
       selectedDateRange = rangeId;
       showDateDropdown = false;

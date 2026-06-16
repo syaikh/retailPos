@@ -89,7 +89,7 @@ type ProductRepository interface {
 type SaleRepository interface {
 	CreateSale(ctx context.Context, tx pgx.Tx, sale *domain.Sale, items []domain.SaleItem) error
 	GetSaleByID(ctx context.Context, id int) (*domain.Sale, error)
-	GetAllSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate string, storeID *int) ([]domain.Sale, int, error)
+	GetAllSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal *int) ([]domain.Sale, int, error)
 	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (*domain.PeriodComparison, error)
 	GetAvailableYears(ctx context.Context, storeID *int) ([]int, error)
 	GetNextInvoiceNumber(ctx context.Context) (string, error)

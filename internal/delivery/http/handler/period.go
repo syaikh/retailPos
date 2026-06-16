@@ -154,25 +154,24 @@ func getWeeklyRanges(refDate time.Time, completedMode bool) PeriodRange {
 	}
 }
 
-// getRealtimeRanges compares today (00:00 to last full hour inclusive) vs yesterday (same hours)
-// Example: at 07:39, compares 00:00-07:00 today (inclusive) vs 00:00-07:00 yesterday (inclusive)
+// getRealtimeRanges compares today (00:00 through current hour, including partial data) vs yesterday (same hours)
+// Example: refDate=07:39, returns today [00:00, 08:00) vs yesterday [00:00, 08:00) (includes partial hour 7 data)
 func getRealtimeRanges(refDate time.Time) PeriodRange {
-	// refDate is today at 00:00, get current time
-	now := time.Now().In(refDate.Location())
-	
-	// Only use full hours - add 1 hour to include the last full hour
-	currentHour := now.Hour()
-	// To include hour 05 (inclusive), end should be 06:00 (exclusive)
-	lastFullHourExclusive := time.Date(now.Year(), now.Month(), now.Day(), currentHour+1, 0, 0, 0, now.Location())
-	
-	yesterday := refDate.AddDate(0, 0, -1) // yesterday at 00:00
-	yesterdaySameHourExclusive := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), currentHour+1, 0, 0, 0, yesterday.Location())
+	// refDate is the current time (e.g., 07:39 Jakarta)
+	// Include the current (partial) hour — end at currentHour+1 (exclusive)
+	// At 07:39: currentHour=7, end=08:00 → covers [00:00, 08:00) = hours 0-7
+	currentHour := refDate.Hour()
+	currentPeriodEnd := time.Date(refDate.Year(), refDate.Month(), refDate.Day(), currentHour+1, 0, 0, 0, refDate.Location())
+
+	// Yesterday at same hours
+	yesterdayStart := refDate.AddDate(0, 0, -1)
+	yesterdaySamePeriodEnd := time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), currentHour+1, 0, 0, 0, yesterdayStart.Location())
 
 	return PeriodRange{
-		CurrentStart:  refDate,      // today 00:00
-		CurrentEnd:    lastFullHourExclusive,  // currentHour+1 00:00 (exclusive)
-		PreviousStart: yesterday,   // yesterday 00:00
-		PreviousEnd:   yesterdaySameHourExclusive, // same hour+1 yesterday (exclusive)
+		CurrentStart:  time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, refDate.Location()),    // today 00:00
+		CurrentEnd:    currentPeriodEnd,                                                                            // currentHour+1:00 (exclusive) — includes partial hour
+		PreviousStart: time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), 0, 0, 0, 0, yesterdayStart.Location()), // yesterday 00:00
+		PreviousEnd:   yesterdaySamePeriodEnd,                                                                      // same hour+1 yesterday (exclusive)
 	}
 }
 

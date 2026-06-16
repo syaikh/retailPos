@@ -4,6 +4,8 @@ import {
   getDateNDaysAgoInJakarta,
   getFirstOfMonthNAgoInJakarta,
   getMaxDateInJakarta,
+  getCurrentJakartaHour,
+  getJakartaHourFromUTC,
   JAKARTA_OFFSET_MS,
 } from '$lib/utils/jakartaTime';
 
@@ -98,6 +100,31 @@ describe('jakartaTime utilities', () => {
     for (const fn of checkers) {
       expect(fn()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+
+  it('getCurrentJakartaHour returns 0-23 range', () => {
+    const hour = getCurrentJakartaHour();
+    expect(hour).toBeGreaterThanOrEqual(0);
+    expect(hour).toBeLessThanOrEqual(23);
+    expect(Number.isInteger(hour)).toBe(true);
+  });
+
+  it('getJakartaHourFromUTC converts correctly', () => {
+    // UTC 2026-06-15T17:00:00Z = Jakarta 2026-06-16 00:00 (midnight)
+    expect(getJakartaHourFromUTC('2026-06-15T17:00:00Z')).toBe(0);
+    // UTC 2026-06-15T22:00:00Z = Jakarta 2026-06-16 05:00
+    expect(getJakartaHourFromUTC('2026-06-15T22:00:00Z')).toBe(5);
+    // UTC 2026-06-15T00:00:00Z = Jakarta 2026-06-15 07:00
+    expect(getJakartaHourFromUTC('2026-06-15T00:00:00Z')).toBe(7);
+    // UTC 2026-06-15T23:59:00Z = Jakarta 2026-06-16 06:59
+    expect(getJakartaHourFromUTC('2026-06-15T23:59:00Z')).toBe(6);
+  });
+
+  it('getJakartaHourFromUTC with RFC3339 offset format', () => {
+    // With explicit +07:00 offset
+    expect(getJakartaHourFromUTC('2026-06-16T05:30:00+07:00')).toBe(5);
+    // With explicit -05:00 offset (US Eastern)
+    expect(getJakartaHourFromUTC('2026-06-15T18:30:00-05:00')).toBe(6);
   });
 
   it('getTodayInJakarta does not return a UTC date', () => {

@@ -5,6 +5,7 @@
    import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
    import { debounce } from '$lib/utils/debounce';
    import { useWebSocket } from '$lib/composables/useWebSocket';
+   import { getTodayInJakarta } from '$lib/utils/jakartaTime';
    import type { Sale, SaleItem, Customer } from '$lib/types';
 
    import SearchBar from '$lib/components/ui/SearchBar.svelte';
@@ -378,8 +379,7 @@
     isInitialMount = false;
     focusSearch();
     try {
-      const today = new Date();
-      const endDate = today.toISOString().split('T')[0];
+      const endDate = getTodayInJakarta();
       const startDate = '2025-01-01';
       const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
       const body = r.data;
@@ -592,6 +592,7 @@
                   <button
                     class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
                     onclick={() => updateQty(item.id, -1)}
+                    aria-label="Decrease quantity"
                   >
                     <Minus size={14} />
                   </button>
@@ -628,12 +629,14 @@
                   <button
                     class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
                     onclick={() => updateQty(item.id, 1)}
+                    aria-label="Increase quantity"
                   >
                     <Plus size={14} />
                   </button>
                   <button
                     class="w-8 h-8 rounded-lg hover:bg-danger-subtle text-text-muted hover:text-danger flex items-center justify-center transition-colors ml-1 active:scale-95"
                     onclick={() => removeFromCart(item.id)}
+                    aria-label="Remove item"
                   >
                     <X size={14} />
                   </button>
@@ -862,7 +865,7 @@
     <div class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-bold text-text-primary">Select Customer</h2>
-        <button onclick={() => (showCustomerModal = false)} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50">
+        <button onclick={() => (showCustomerModal = false)} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Close customer selection">
           <X size={18} />
         </button>
       </div>

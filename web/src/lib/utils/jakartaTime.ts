@@ -38,12 +38,29 @@ function getJakartaDateParts(): { year: number; month: number; day: number } {
  * Returns the UTC epoch milliseconds of midnight (00:00) on a given Jakarta
  * calendar date.
  *
- * Midnight Jakarta = 07:00 UTC of that same calendar date.
+ * Midnight Jakarta = 17:00 UTC of the previous UTC calendar day.
+ *   e.g. 2026-06-16 00:00 WIB = 2026-06-15 17:00 UTC
  */
 function midnightJakartaEpoch(year: number, month: number, day: number): number {
-  // month is already 0-indexed; Date.UTC uses 0-indexed months.
-  // 07:00 UTC = 00:00 WIB (Jakarta)
-  return Date.UTC(year, month, day, 7, 0, 0, 0);
+  // Subtract the 7-hour offset from 00:00 UTC of the target date to get
+  // the UTC instant that corresponds to midnight Jakarta.
+  return Date.UTC(year, month, day, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
+}
+
+/**
+ * Given a UTC epoch millisecond value, return the Jakarta calendar date parts.
+ *
+ * Because midnight Jakarta is 7 hours behind UTC midnight of the same calendar
+ * date, we add the offset back before reading UTC fields so that the calendar
+ * date matches Jakarta's wall clock.
+ */
+function jakartaDateFromEpoch(epochMs: number): { year: number; month: number; day: number } {
+  const shifted = new Date(epochMs + JAKARTA_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(),
+    day: shifted.getUTCDate(),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -78,8 +95,8 @@ export function getDateNDaysAgoInJakarta(daysAgo: number): string {
   const msPerDay = 86_400_000;
   const todayMidnightJKT = midnightJakartaEpoch(year, month, day);
   const targetMs = todayMidnightJKT - daysAgo * msPerDay; // safe: daysAgo ≤ ~365, result < 2^53
-  const utc = new Date(targetMs);
-  return formatYYYYMMDD(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+  const { year: y, month: m, day: d } = jakartaDateFromEpoch(targetMs);
+  return formatYYYYMMDD(y, m, d);
 }
 
 /**
@@ -95,13 +112,14 @@ export function getDateNDaysAgoInJakarta(daysAgo: number): string {
  */
 export function getFirstOfMonthNAgoInJakarta(monthsAgo: number): string {
   const { year, month } = getJakartaDateParts();
-  // Reconstruct a Date in UTC with month shifted back by monthsAgo, day = 1
-  const firstOfTargetMonth = new Date(Date.UTC(year, month - monthsAgo, 1, 7, 0, 0, 0));
-  return formatYYYYMMDD(
-    firstOfTargetMonth.getUTCFullYear(),
-    firstOfTargetMonth.getUTCMonth(),
-    firstOfTargetMonth.getUTCDate(),
+  const targetDate = new Date(Date.UTC(year, month - monthsAgo, 1));
+  const targetMidnightJKT = midnightJakartaEpoch(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth(),
+    targetDate.getUTCDate()
   );
+  const { year: y, month: m, day: d } = jakartaDateFromEpoch(targetMidnightJKT);
+  return formatYYYYMMDD(y, m, d);
 }
 
 /**

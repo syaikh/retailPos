@@ -27,8 +27,8 @@
 
   let hoverDate: DateValue | null = $state(null);
   let displayMonth = $state(new CalendarDate(
-    new Date().getFullYear(),
-    new Date().getMonth() + 1,
+    getTodayJakartaDate().year,
+    getTodayJakartaDate().month,
     1
   ));
 

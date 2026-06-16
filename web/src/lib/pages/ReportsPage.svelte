@@ -4,29 +4,20 @@
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
 import { chart } from '$lib/actions/chart';
-  import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaHourFromUTC } from '$lib/utils/jakartaTime';
-  import SearchBar from '$lib/components/ui/SearchBar.svelte';
-  import Badge from '$lib/components/ui/Badge.svelte';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$lib/utils/jakartaTime';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import Pagination from '$lib/components/ui/Pagination.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$lib/components/calendar';
   import { CalendarDate } from '@internationalized/date';
   import {
-    Receipt, BarChart3, Banknote,
+    BarChart3,
     CalendarDays, Download, FileSpreadsheet,
-    ChevronDown, Eye, Printer,
-    Clock, TrendingUp, TrendingDown, Info,
-    CircleDollarSign
+    ChevronDown,
+    Clock, TrendingUp, TrendingDown, CircleDollarSign, Info
   } from 'lucide-svelte';
 
   let loading = $state(true);
-  let salesData = $state([]);
   let chartData = $state([]);
-  let total = $state(0);
-  let limit = $state(20);
-  let offset = $state(0);
   let availableYears = $state([]);
 
   // KPI data
@@ -83,30 +74,16 @@ let selectedYearlyRange = $state(null);
 // Track if user has made a selection
 let yearlySelectionMade = $state(false);
 
-// Selected year for display fallback
-let selectedYear = $state(new Date().getFullYear());
+// Selected year for display fallback (Jakarta timezone)
+let selectedYear = $state(parseInt(getTodayInJakarta().split('-')[0]));
 
 // Export dropdown
 let showExportDropdown = $state(false);
 
-// Global transaction search (invoice number OR product name)
-let searchQuery = $state('');
-
-// Live time state for realtime updates
-let currentTimeHour = $state(`${String(new Date().getHours()).padStart(2, '0')}:00`);
-
-// Transaction details modal
-let showTransactionModal = $state(false);
-let selectedTransaction = $state(null);
-
-// Debounce helper — waits 300 ms after last keystroke before resolving
-function debounce(fn, delay = 300) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
-}
+// Live time state for realtime updates (Jakarta timezone)
+let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
+// Reactive Jakarta hour derived from the live-updating currentTimeHour
+let currentJakartaHour = $derived(parseInt(currentTimeHour.split(':')[0]));
 
 // Period options for dropdown
 const periodOptions = [
@@ -182,7 +159,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === 'yearly' ? 'Peak Revenue Month' :
       activePeriodType === 'monthly' ? 'Avg. Revenue / Day' : 'Avg. Revenue / Day',
     card5:
-      activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(new Date().getHours()).padStart(2, '0') + ':00)' :
+      activePeriodType === 'realtime' ? 'vs YESTERDAY (00:00 - ' + String(currentJakartaHour).padStart(2, '0') + ':00)' :
       activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
       activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
       activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
@@ -192,7 +169,7 @@ let statCardLabels = $derived.by(() => {
       activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
       activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
     comparisonLabel:
-      activePeriodType === 'realtime' ? 'vs Yesterday (' + String(new Date().getHours()).padStart(2, '0') + 'hrs)' :
+      activePeriodType === 'realtime' ? 'vs Yesterday (' + String(currentJakartaHour).padStart(2, '0') + 'hrs)' :
       activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
       activePeriodType === 'daily' ? 'vs Same Day Last Week' :
       activePeriodType === '7days' ? 'vs Previous 7 Days' :
@@ -234,11 +211,9 @@ let comparisonDateRange = $derived.by(() => {
     }
   }
 
-  // Real-time: Show hour range "vs Kemarin pada 00:00 - HH:00"
+  // Real-time: Show hour range "00:00 - HH:00" (Jakarta timezone)
   if (activePeriodType === 'realtime') {
-    const now = new Date();
-    const lastFullHour = now.getHours();
-    return `00:00 - ${String(lastFullHour).padStart(2, '0')}:00`;
+    return `00:00 - ${String(currentJakartaHour).padStart(2, '0')}:00`;
   }
 
   // Yesterday: Show just the single date (same day last week)
@@ -283,13 +258,6 @@ let comparisonDateRange = $derived.by(() => {
   return prev.start && prev.end ? `${formatDate(prev.start)} - ${formatDate(prev.end)}` : '';
 });
 
-// Calculate cancellation/return rate from sales data
-let cancellationRate = $derived.by(() => {
-  if (!salesData || salesData.length === 0) return 0;
-  const returned = salesData.filter(s => s.status === 'refunded').length;
-  return (returned / salesData.length) * 100;
-});
-
 // Get peak value from chart data for card4
 let peakChartValue = $derived.by(() => {
   if (chartData.length === 0) return null;
@@ -321,17 +289,18 @@ let chartYear = $derived.by(() => {
   if (endDate) {
     return parseInt(endDate.split('-')[0]);
   }
-  return new Date().getFullYear();
+  return parseInt(getTodayInJakarta().split('-')[0]);
 });
 let daysInMonth = $derived.by(() => {
-  const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const parts = getTodayInJakarta().split('-').map(Number);
+  return new Date(parts[0], parts[1], 0).getDate();
 });
 
 // Projected revenue for partial monthly views
 let projectedRevenue = $derived.by(() => {
   if (activePeriodType === 'monthly' && kpiData.isPartial) {
-    return (kpiData.totalRevenue / new Date().getDate()) * daysInMonth;
+    const currentDay = parseInt(getTodayInJakarta().split('-')[2]);
+    return (kpiData.totalRevenue / currentDay) * daysInMonth;
   }
   return null;
 });
@@ -345,8 +314,7 @@ $effect(() => {
   if (selectedPeriodType !== 'realtime') return;
 
   function updateTime() {
-    const now = new Date();
-    currentTimeHour = `${String(now.getHours()).padStart(2, '0')}:00`;
+    currentTimeHour = `${String(getCurrentJakartaHour()).padStart(2, '0')}:00`;
   }
 
   updateTime();
@@ -363,18 +331,6 @@ const formatDate = (dateString) => {
   const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' });
   const year = date.getUTCFullYear();
   return `${day} ${month} ${year}`;
-};
-
-// Format date and time: dd mmm yyyy hh:mm:ss
-const formatDateTime = (date) => {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('id-ID', { month: 'short' });
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const seconds = date.getSeconds().toString().padStart(2, '0');
-
-  return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
 };
 
 // Get date range based on period type
@@ -707,14 +663,6 @@ async function fetchSalesWithRange(start, end) {
     startDate = start;
     endDate = end;
 
-    const params = new URLSearchParams({
-      startDate: start,
-      endDate: end,
-      limit: limit.toString(),
-      offset: offset.toString(),
-      search: searchQuery.trim(),
-    });
-
 // Select chart endpoint based on chartType
   const chartEndpoint = chartType === 'yearly'
     ? '/api/dashboard/chart/monthly' // yearly view uses monthly aggregation for whole year
@@ -768,37 +716,22 @@ async function fetchSalesWithRange(start, end) {
     chartEndDate = `${year}-12-31`;
   }
 
-  const [salesRes, chartRes, comparisonRes] = await Promise.all([
-      apiFetch(`/api/sales?${params.toString()}`),
+  const [chartRes, comparisonRes] = await Promise.all([
       apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${chartEndDate}`),
       apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${comparisonDate}`)
     ]);
-
-    if (salesRes.ok) {
-      const data = await salesRes.json();
-      // For real-time, show all transactions from today (no hour filtering)
-      // The realtime view shows live data as it happens
-      if (activePeriodType === 'realtime') {
-        salesData = data.data || [];
-        total = data.total || 0;
-      } else {
-        salesData = data.data || [];
-        total = data.total || 0;
-      }
-      salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }
 
     if (chartRes.ok) {
       const cData = await chartRes.json();
       const rawData = cData.data || [];
       
-      // For real-time, filter to only show full hours (include last full hour, exclude current partial hour)
-      // If current time is 05:39, lastFullHour is 05, show hours 0-5 (inclusive)
+      // For real-time, show data from 00:00 through the current hour (includes partial hour)
+      // Example: at 05:39 Jakarta, currentHour is 5, show hours 0-5 (inclusive)
       if (activePeriodType === 'realtime') {
-        const lastFullHour = getCurrentJakartaHour();
+        const currentHour = getCurrentJakartaHour();
         chartData = rawData.filter(item => {
           const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
-          return hour <= lastFullHour; // Include last full hour (0-5 when current is 05:xx)
+          return hour <= currentHour; // Include current partial hour (0-5 when at 05:xx)
         });
       } else if (chartType === 'daily' && activePeriodType === 'monthly') {
         // For monthly view: keep all dates for chart generation
@@ -972,126 +905,6 @@ async function exportToExcel() {
       toast.success('PDF export completed');
     } catch (error) {
       toast.error('Failed to export to PDF');
-    }
-  }
-
-  const statusVariant = (s) =>
-    s === 'completed' ? 'success' : s === 'refunded' ? 'danger' : 'warning';
-
-  function getPaymentMethodVariant(method = '') {
-    if (!method) return 'muted';
-    const m = method.toLowerCase();
-    if (m === 'cash' || method === 'CASH') return 'success';
-    if (m === 'qris' || m === 'e_wallet' || method === 'QRIS' || method === 'E_WALLET' || m.includes('ewallet') || m.includes('dana') || m.includes('ovo') || m.includes('gopay') || m.includes('linkaja')) return 'default';
-    if (m === 'card' || method === 'CARD' || m.includes('credit') || m.includes('debit')) return 'primary';
-    if (m === 'transfer' || method === 'TRANSFER') return 'muted';
-    return 'muted';
-  }
-
-  function openTransactionDetails(transaction) {
-    selectedTransaction = transaction;
-    showTransactionModal = true;
-  }
-
-  function printTransactionReceipt() {
-    if (!selectedTransaction || !selectedTransaction.items) return;
-    printReceiptStore.set({
-      invoice_number: selectedTransaction.invoice_number,
-      created_at: selectedTransaction.created_at,
-      items: selectedTransaction.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-      })),
-      total_amount: selectedTransaction.total_amount,
-      paymentMethod: selectedTransaction.payment_method || '—',
-      cashReceived: selectedTransaction.cash_received || selectedTransaction.total_amount,
-      changeDue: selectedTransaction.change_due || 0,
-      customer_name: selectedTransaction.customer_name || undefined,
-    });
-    setTimeout(() => window.print(), 300);
-  }
-
-  async function downloadInvoice() {
-    if (!selectedTransaction) return;
-    try {
-      const { jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-
-      const doc = new jsPDF();
-
-      doc.setFontSize(18);
-      doc.text('INVOICE', 20, 20);
-      doc.setFontSize(10);
-      doc.text(`Invoice #: ${selectedTransaction.invoice_number}`, 20, 30);
-      doc.text(`Date: ${formatDateTime(new Date(selectedTransaction.created_at))}`, 20, 36);
-      doc.text(`Payment: ${selectedTransaction.payment_method || '—'}`, 20, 42);
-      if (selectedTransaction.customer_name) {
-        doc.text(`Customer: ${selectedTransaction.customer_name}`, 20, 48);
-      }
-
-      const itemRows = (selectedTransaction.items || []).map((item) => [
-        item.name,
-        item.quantity.toString(),
-        `Rp ${(item.unit_price || 0).toLocaleString('id-ID')}`,
-        `Rp ${(item.unit_price * item.quantity).toLocaleString('id-ID')}`,
-      ]);
-
-      autoTable(doc, {
-        startY: 58,
-        head: [['Item', 'Qty', 'Price', 'Subtotal']],
-        body: itemRows,
-        theme: 'grid',
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [124, 58, 237] },
-      });
-
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(12);
-      doc.text(`Total: Rp ${(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}`, 20, finalY);
-
-      doc.save(`invoice-${selectedTransaction.invoice_number}.pdf`);
-      toast.success('Invoice downloaded');
-    } catch (error) {
-      toast.error('Failed to download invoice');
-    }
-  }
-
-  function handlePageChange(newOffset, newLimit) {
-    offset = newOffset;
-    limit = newLimit;
-    // Only fetch sales data for pagination, not chart/stats
-    fetchSalesTableOnly();
-  }
-
-  // Debounced version of fetchSales used by the search input
-  // Only updates the sales table, NOT the chart or stats cards
-  const doSearch = debounce(() => {
-    offset = 0;
-    // Only fetch sales data - don't re-fetch chart/comparison
-    fetchSalesTableOnly();
-  }, 300);
-
-  // Fetch ONLY sales table data (for search/pagination) without re-rendering chart or stats
-  async function fetchSalesTableOnly() {
-    try {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        limit: limit.toString(),
-        offset: offset.toString(),
-        search: searchQuery.trim(),
-      });
-
-      const salesRes = await apiFetch(`/api/sales?${params.toString()}`);
-      if (salesRes.ok) {
-        const data = await salesRes.json();
-        salesData = data.data || [];
-        total = data.total || 0;
-        salesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      }
-    } catch (error) {
-      toast.error('Failed to load sales data');
     }
   }
 
@@ -1476,11 +1289,22 @@ onValueChange={(val) => {
            <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
              Ongoing Month
            </span>
-         {:else if activePeriodType === 'realtime'}
-           <span class="text-xs text-text-muted font-normal ml-2">(Data as of {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+          {:else if activePeriodType === 'realtime'}
+            <span class="text-xs text-text-muted font-normal ml-2">(Real-time data up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
          {/if}
        </h3>
      </div>
+
+    <!-- Comparison Period Info Bar (applies to all KPI cards below) -->
+    {#if !loading && (kpiData.previousRevenue > 0 || kpiData.previousOrders > 0 || kpiData.comparisonType !== 'zero')}
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 px-1 text-xs text-text-muted">
+        <span class="text-text-secondary font-medium">Comparison:</span>
+        <span>{statCardLabels.comparisonLabel}</span>
+        {#if comparisonDateRange}
+          <span>· {comparisonDateRange}</span>
+        {/if}
+      </div>
+    {/if}
 
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -1495,7 +1319,7 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue
             {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
             {/if}
           </div>
           <div class="text-lg font-bold text-text-primary mt-1">
@@ -1521,17 +1345,12 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50 relative">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders
             {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
             {/if}
           </div>
           <div class="text-lg font-bold text-text-primary mt-1">
             {formatLargeNumber(kpiData.totalOrders)}
           </div>
-          {#if cancellationRate > 0}
-            <div class="text-xs text-danger mt-1 cursor-help" title="Cancellation/Return Rate">
-              {cancellationRate.toFixed(1)}% returned
-            </div>
-          {/if}
           {#if kpiData.previousOrders > 0}
             <div class="text-xs text-text-secondary mt-1 font-medium">
               vs {formatLargeNumber(kpiData.previousOrders)}
@@ -1542,7 +1361,7 @@ onValueChange={(val) => {
         <div class="bg-surface rounded-lg p-4 border border-border/50">
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value
             {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
             {/if}
           </div>
           <div class="flex items-center gap-1 mt-1">
@@ -1566,7 +1385,7 @@ onValueChange={(val) => {
           <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">
             {statCardLabels.card4}
             {#if activePeriodType === 'realtime'}
-              <span class="text-xs text-text-muted font-normal ml-1" title="Data reflects performance up to the last completed hour">(up to {String(new Date().getHours()).padStart(2, '0')}:00)</span>
+              <span class="text-xs text-text-muted font-normal ml-1">(up to {String(currentJakartaHour).padStart(2, '0')}:00 WIB)</span>
             {/if}
           </div>
           <div class="flex items-baseline gap-1 mt-1">
@@ -1592,7 +1411,7 @@ onValueChange={(val) => {
               <Info 
                 size={12} 
                 class="text-text-muted cursor-help" 
-                title="Data reflects performance up to the last completed hour"
+                title={`Real-time data from 00:00 to ${String(currentJakartaHour).padStart(2, '0')}:00 WIB`}
               />
             {/if}
           </div>
@@ -1641,191 +1460,4 @@ onValueChange={(val) => {
     </div>
   </div>
 
-  <!-- Sales table -->
-  <div class="card p-0 overflow-hidden">
-    <div class="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3">
-      <p class="text-sm font-semibold text-text-primary">Transaction History</p>
-      <div class="flex items-center gap-3">
-        {#if !loading}
-          <span class="badge badge-muted">{total} records</span>
-        {/if}
-        <SearchBar
-          bind:value={searchQuery}
-          placeholder="Search by invoice or product name..."
-          oninput={doSearch}
-          inputClass="py-1.5 bg-slate-900/50 border-slate-800 text-white focus:border-purple-500"
-        />
-      </div>
-    </div>
-
-    {#if loading}
-      <div class="divide-y divide-border">
-        {#each { length: 5 } as _}
-          <div class="flex items-center gap-4 px-4 py-3.5">
-            <Skeleton width="w-32" height="h-4" />
-            <Skeleton width="w-24" height="h-4" />
-            <Skeleton width="w-20" height="h-6" rounded="rounded-full" class="ml-auto" />
-            <Skeleton width="w-28" height="h-4" />
-          </div>
-        {/each}
-      </div>
-{:else if salesData.length === 0}
-       <div class="px-4 py-12 text-center">
-         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
-           <Banknote size={32} class="text-text-muted" />
-         </div>
-         <p class="text-text-primary font-semibold mt-4">No transactions found</p>
-         <p class="text-text-muted text-sm mt-1">Try adjusting the date range</p>
-       </div>
-     {:else}
-      <div class="overflow-x-auto">
-        <table>
-          <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
-            <tr>
-              <th>Invoice</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Payment</th>
-              <th class="text-right">Total (Rp)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each salesData as sale (sale.id)}
-              <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                <td>
-                  <button
-                    class="font-mono text-sm font-medium text-white hover:text-primary-light transition-colors flex items-center gap-1.5 group underline decoration-border-strong underline-offset-4 hover:decoration-primary-light cursor-pointer"
-                    onclick={() => openTransactionDetails(sale)}
-                  >
-                    <Eye size={14} class="opacity-70 group-hover:opacity-100 transition-opacity" />
-                    {sale.invoice_number}
-                  </button>
-                </td>
-                <td class="text-sm text-text-secondary">
-                  {formatDateTime(new Date(sale.created_at))}
-                </td>
-                <td class="text-sm text-text-secondary">
-                  {sale.customer_name || '—'}
-                </td>
-                <td class="text-sm text-text-secondary">
-                  {sale.items?.length || 0} items
-                </td>
-                <td>
-                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-sm px-3 py-1">
-                    {sale.payment_method || '—'}
-                  </Badge>
-                </td>
-                <td class="text-right text-sm font-semibold text-text-primary">
-                  {(sale.total_amount || 0).toLocaleString('id-ID')}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="p-4 bg-surface-subtle/30">
-        <Pagination 
-          {total} 
-          {limit} 
-          {offset} 
-          onPageChange={handlePageChange} 
-        />
-      </div>
-    {/if}
-  </div>
-
-<!-- Transaction Details Modal -->
-  <Modal bind:open={showTransactionModal} title="Transaction Details" size="xl">
-    {#if selectedTransaction}
-      <div class="space-y-5">
-        <!-- Summary Section - Two Column -->
-        <div class="grid grid-cols-2 gap-x-8 gap-y-4 pb-4 border-b border-border">
-          <div class="space-y-3">
-            <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Invoice Number</p>
-              <p class="text-base font-semibold text-text-primary font-mono">{selectedTransaction.invoice_number}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</p>
-              <p class="text-base text-text-primary">{formatDateTime(new Date(selectedTransaction.created_at))}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Customer</p>
-              <p class="text-base text-text-primary">{selectedTransaction.customer_name || 'Walk-in / General'}</p>
-            </div>
-          </div>
-          <div class="space-y-3">
-            <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Payment Method</p>
-              <div class="mt-1">
-                <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(selectedTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(selectedTransaction.payment_method) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'}">
-                  {selectedTransaction.payment_method || '—'}
-                </span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Status</p>
-              <div class="mt-1">
-                <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {statusVariant(selectedTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(selectedTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
-                  {selectedTransaction.status || 'completed'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {#if selectedTransaction.items && selectedTransaction.items.length > 0}
-        <div>
-          <p class="text-sm font-semibold text-text-secondary mb-3">Items</p>
-          <div class="border border-border rounded-lg">
-            <div class="max-h-80 overflow-y-auto">
-              <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-surface-subtle z-10">
-                  <tr>
-                    <th class="text-left py-3 px-4 font-semibold text-text-primary">Description</th>
-                    <th class="text-center py-3 px-4 font-semibold text-text-primary w-20">Qty</th>
-                    <th class="text-right py-3 px-4 font-semibold text-text-primary w-28">Price</th>
-                    <th class="text-right py-3 px-4 font-semibold text-text-primary w-32">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-border">
-                  {#each selectedTransaction.items as item}
-                    <tr class="hover:bg-surface/50">
-                      <td class="py-3 px-4 text-text-primary">{item.name}</td>
-                      <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
-                      <td class="py-3 px-4 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
-                      <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-            <div class="bg-surface-subtle/50 border-t border-border">
-              <div class="flex justify-between items-center py-3 px-4">
-                <span class="font-bold text-text-primary">TOTAL</span>
-                <span class="font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/if}
-
-        <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
-          <button class="btn btn-secondary btn-sm px-4" onclick={() => showTransactionModal = false}>
-            Close
-          </button>
-          <button class="btn btn-secondary btn-sm px-4 flex items-center gap-1.5" onclick={printTransactionReceipt}>
-            <Printer size={14} />
-            Print Receipt
-          </button>
-          <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={downloadInvoice}>
-            <Download size={14} />
-            Download Invoice
-          </button>
-        </div>
-      </div>
-    {/if}
-  </Modal>
 </div>

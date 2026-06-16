@@ -2,7 +2,7 @@
  * State management composable for period selection in ReportsPage
  * Uses Svelte 5 Runes syntax
  */
-import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta } from '$lib/utils/jakartaTime';
+import { getTodayInJakarta, getDateNDaysAgoInJakarta, getFirstOfMonthNAgoInJakarta, getCurrentJakartaHour } from '$lib/utils/jakartaTime';
 
 export function usePeriodState() {
 	// State using Svelte 5 Runes
@@ -37,15 +37,14 @@ export function usePeriodState() {
 	});
 
 	// Live time state for realtime updates
-	let currentTimeHour = $state(`${String(new Date().getHours()).padStart(2, '0')}:00`);
+	let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
 
 	// Effect to update time every minute when in realtime mode
 	$effect(() => {
 		if (selectedPeriodType !== 'realtime') return;
 
 		function updateTime() {
-			const now = new Date();
-			currentTimeHour = `${String(now.getHours()).padStart(2, '0')}:00`;
+			currentTimeHour = `${String(getCurrentJakartaHour()).padStart(2, '0')}:00`;
 		}
 
 		updateTime();
@@ -117,13 +116,14 @@ export function usePeriodState() {
 		}
 	}
 
-	// Format date for display
+	// Format date for display (Jakarta timezone)
 	function formatDateDisplay(dateString) {
 		if (!dateString) return '';
-		const date = new Date(dateString);
-		const day = String(date.getDate()).padStart(2, '0');
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const year = date.getFullYear();
+		// Parse as UTC to avoid timezone shift, format in Jakarta
+		const date = new Date(dateString + 'T00:00:00Z');
+		const day = String(date.getUTCDate()).padStart(2, '0');
+		const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+		const year = date.getUTCFullYear();
 		return `${day}-${month}-${year}`;
 	}
 

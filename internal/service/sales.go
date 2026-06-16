@@ -62,7 +62,7 @@ func (s *SalesService) GetSaleByID(ctx context.Context, id int) (*domain.Sale, e
 }
 
 func (s *SalesService) ListSales(ctx context.Context, limit, offset int, search string, storeID *int) ([]domain.Sale, int, error) {
-	return s.repo.GetAllSales(ctx, limit, offset, search, "created_at", "DESC", "", "", storeID)
+	return s.repo.GetAllSales(ctx, limit, offset, search, "created_at", "DESC", "", "", storeID, "", nil, nil)
 }
 
 var (

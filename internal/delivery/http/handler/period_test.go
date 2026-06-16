@@ -195,6 +195,93 @@ func TestYearlyRanges_CompletedMode(t *testing.T) {
 	assert.Equal(t, 1, ranges.PreviousEnd.Day()) // Jan 1 2025 exclusive
 }
 
+// TestRealtimeRanges_IncludesCurrentHour verifies that getRealtimeRanges includes
+// the current (partial) hour in both current and previous periods.
+func TestRealtimeRanges_IncludesCurrentHour(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// Simulate 05:39 Jakarta on June 16, 2026
+	now := time.Date(2026, 6, 16, 5, 39, 0, 0, jkt)
+	ranges := getRealtimeRanges(now)
+
+	// Current period: today midnight to 06:00 (exclusive) → covers hours 0-5
+	assert.Equal(t, 2026, ranges.CurrentStart.Year())
+	assert.Equal(t, time.June, ranges.CurrentStart.Month())
+	assert.Equal(t, 16, ranges.CurrentStart.Day())
+	assert.Equal(t, 0, ranges.CurrentStart.Hour())
+	assert.Equal(t, 0, ranges.CurrentStart.Minute())
+
+	assert.Equal(t, 2026, ranges.CurrentEnd.Year())
+	assert.Equal(t, time.June, ranges.CurrentEnd.Month())
+	assert.Equal(t, 16, ranges.CurrentEnd.Day())
+	assert.Equal(t, 6, ranges.CurrentEnd.Hour()) // 06:00 exclusive
+	assert.Equal(t, 0, ranges.CurrentEnd.Minute())
+
+	// Previous period: yesterday midnight to 06:00 (exclusive) → covers yesterday hours 0-5
+	assert.Equal(t, 2026, ranges.PreviousStart.Year())
+	assert.Equal(t, time.June, ranges.PreviousStart.Month())
+	assert.Equal(t, 15, ranges.PreviousStart.Day())
+	assert.Equal(t, 0, ranges.PreviousStart.Hour())
+
+	assert.Equal(t, 2026, ranges.PreviousEnd.Year())
+	assert.Equal(t, time.June, ranges.PreviousEnd.Month())
+	assert.Equal(t, 15, ranges.PreviousEnd.Day())
+	assert.Equal(t, 6, ranges.PreviousEnd.Hour()) // 06:00 exclusive
+}
+
+// TestRealtimeRanges_MidnightBoundary verifies correct behavior at exact midnight
+func TestRealtimeRanges_MidnightBoundary(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// At 00:15 Jakarta on June 16 (just after midnight)
+	now := time.Date(2026, 6, 16, 0, 15, 0, 0, jkt)
+	ranges := getRealtimeRanges(now)
+
+	// CurrentHour = 0, current period end = 01:00 (exclusive)
+	assert.Equal(t, 0, ranges.CurrentStart.Hour())
+	assert.Equal(t, 1, ranges.CurrentEnd.Hour())
+
+	// Previous: yesterday at same hours
+	assert.Equal(t, 15, ranges.PreviousStart.Day())
+	assert.Equal(t, 1, ranges.PreviousEnd.Hour())
+}
+
+// TestRealtimeRanges_EndOfDay verifies coverage up to hour 23
+func TestRealtimeRanges_EndOfDay(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// At 23:45 Jakarta on June 16 (1 hour before midnight)
+	now := time.Date(2026, 6, 16, 23, 45, 0, 0, jkt)
+	ranges := getRealtimeRanges(now)
+
+	// Current hour = 23, current period end = 00:00 next day (exclusive)
+	assert.Equal(t, 16, ranges.CurrentStart.Day())
+	assert.Equal(t, 0, ranges.CurrentStart.Hour())
+
+	assert.Equal(t, 17, ranges.CurrentEnd.Day()) // midnight next day (June 17)
+	assert.Equal(t, 0, ranges.CurrentEnd.Hour())  // 00:00
+
+	// Previous period: yesterday 00:00 to today 00:00
+	assert.Equal(t, 15, ranges.PreviousStart.Day())
+	assert.Equal(t, 0, ranges.PreviousStart.Hour())
+	assert.Equal(t, 16, ranges.PreviousEnd.Day())
+	assert.Equal(t, 0, ranges.PreviousEnd.Hour())
+}
+
+// TestRealtimeRanges_TimezonePreservation verifies the ranges preserve Asia/Jakarta timezone
+func TestRealtimeRanges_TimezonePreservation(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	now := time.Date(2026, 6, 16, 10, 30, 0, 0, jkt)
+	ranges := getRealtimeRanges(now)
+
+	// All times should be in Asia/Jakarta timezone
+	assert.Equal(t, jkt.String(), ranges.CurrentStart.Location().String())
+	assert.Equal(t, jkt.String(), ranges.CurrentEnd.Location().String())
+	assert.Equal(t, jkt.String(), ranges.PreviousStart.Location().String())
+	assert.Equal(t, jkt.String(), ranges.PreviousEnd.Location().String())
+}
+
 // TestYearlyRanges_YearIncomplete verifies that current year is marked as incomplete
 func TestYearlyRanges_YearIncomplete(t *testing.T) {
 	jkt := config.Load().Timezone

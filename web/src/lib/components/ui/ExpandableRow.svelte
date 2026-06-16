@@ -21,12 +21,13 @@
 
 <tr class="border-t border-border/60 hover:bg-surface-hover/50 transition-colors group {className}" onclick={toggle} style="cursor: pointer;">
   <td class="w-10 px-2 py-3 text-center">
-    <button
-      type="button"
-      class="p-1 rounded text-text-muted/70 hover:text-text-primary transition-all focus:outline-none inline-flex items-center justify-center"
-      onclick={(e) => { e.stopPropagation(); toggle(); }}
-      aria-expanded={expanded}
-    >
+      <button
+        type="button"
+        class="p-1 rounded text-text-muted/70 hover:text-text-primary transition-all focus:outline-none inline-flex items-center justify-center"
+        onclick={(e) => { e.stopPropagation(); toggle(); }}
+        aria-expanded={expanded}
+        aria-label="Toggle details"
+      >
       {#if expanded}
         <ChevronDown size={16} />
       {:else}

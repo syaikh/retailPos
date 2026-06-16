@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2, ChevronDown } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
@@ -39,6 +40,10 @@
   let formEmail = $state('');
   let formNote = $state('');
   let fieldErrors = $state({ name: '', phone: '', email: '', note: '' });
+
+  let deactivateTarget = $state<any>(null);
+  let showDeactivateModal = $state(false);
+  let deactivating = $state(false);
 
   function validateEmail(email: string): boolean {
     if (!email) return true;
@@ -227,14 +232,24 @@
   }
 
   async function deactivateCustomer(c: any) {
-    if (!confirm(`Deactivate customer "${c.name}"?`)) return;
+    deactivateTarget = c;
+    showDeactivateModal = true;
+  }
+
+  async function confirmDeactivate() {
+    if (!deactivateTarget) return;
+    deactivating = true;
     try {
-      await apiClient.delete(`/customers/${c.id}`);
-      if (editingId === c.id) editingId = null;
-      toast.success(`Customer "${c.name}" deactivated`);
+      await apiClient.delete(`/customers/${deactivateTarget.id}`);
+      if (editingId === deactivateTarget.id) editingId = null;
+      toast.success(`Customer "${deactivateTarget.name}" deactivated`);
+      showDeactivateModal = false;
+      deactivateTarget = null;
       await load();
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to deactivate customer');
+    } finally {
+      deactivating = false;
     }
   }
 
@@ -300,7 +315,19 @@
       </thead>
       <tbody>
         {#if loading}
-          <tr><td class="px-4 py-3" colspan={5}>Loading...</td></tr>
+          {#each { length: 5 } as _, i}
+            <tr class="border-t border-border" role="presentation">
+              <td class="px-4 py-3" colspan={5}>
+                <div class="flex items-center gap-3">
+                  <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
+                  <div class="flex-1 space-y-2">
+                    <Skeleton width="w-3/5" height="h-4" />
+                    <Skeleton width="w-2/5" height="h-4" />
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {/each}
         {:else if customers.length === 0}
           <tr class="border-t border-border">
             <td colspan={5}>
@@ -452,6 +479,22 @@
         <Loader2 size={14} class="animate-spin mr-1" /> Creating...
       {:else}
         <UserPlus size={14} class="mr-1" /> Create Customer
+      {/if}
+    </button>
+  {/snippet}
+</Modal>
+
+  <Modal bind:open={showDeactivateModal} title="Deactivate Customer" size="sm">
+  <p class="text-sm text-text-secondary">
+    Are you sure you want to deactivate <strong class="text-text-primary">{deactivateTarget?.name}</strong>? This will hide them from active listings but preserve their history.
+  </p>
+  {#snippet footer()}
+    <button class="btn btn-secondary px-5" onclick={() => { showDeactivateModal = false; deactivateTarget = null; }}>Cancel</button>
+    <button class="btn btn-danger px-5" disabled={deactivating} onclick={confirmDeactivate}>
+      {#if deactivating}
+        <Loader2 size={14} class="animate-spin mr-1" /> Deactivating...
+      {:else}
+        <Trash2 size={14} class="mr-1" /> Deactivate
       {/if}
     </button>
   {/snippet}

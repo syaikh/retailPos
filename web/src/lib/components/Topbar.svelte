@@ -17,6 +17,7 @@
       '/pos':                'Point of Sale',
       '/inventory/products': 'Products',
       '/reports':            'Reports',
+      '/transactions':       'Transactions',
       '/categories':         'Categories',
       '/customers':          'Customers',
       '/admin':              'Administration',

@@ -10,6 +10,7 @@ import AdminRoles from '$lib/pages/admin/RolesPage.svelte';
 import AdminAuditLogs from '$lib/pages/admin/AuditLogsPage.svelte';
 import AdminCategories from '$lib/pages/admin/CategoriesPage.svelte';
 import CustomersPage from '$lib/pages/CustomersPage.svelte';
+import TransactionsPage from '$lib/pages/TransactionsPage.svelte';
 import Layout from '$lib/components/Layout.svelte';
 import Toast from '$lib/components/ui/Toast.svelte';
 import { auth } from '$lib/stores/auth';
@@ -37,6 +38,7 @@ $effect(() => {
   '/inventory':          'Products',
   '/inventory/products': 'Products',
   '/reports':            'Reports',
+  '/transactions':       'Transaction History',
   '/categories':         'Categories',
   '/customers':          'Customers',
   '/admin':              'Administration',
@@ -53,6 +55,7 @@ function getComponent(path) {
       case '/inventory':           return ProductsPage;
       case '/inventory/products':  return ProductsPage;
       case '/reports':             return ReportsPage;
+      case '/transactions':        return TransactionsPage;
       case '/categories':          return AdminCategories;
       case '/customers':           return CustomersPage;
       case '/admin':               return AdminUsers;
