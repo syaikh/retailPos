@@ -464,15 +464,15 @@
             <table class="w-full table-fixed">
               <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
                 <tr>
-                  <th class="p-4 w-64">PRODUCT NAME</th>
-                  <th class="p-4 text-center w-32">Stock</th>
-                  <th class="p-4 text-right w-28">Price</th>
-                  <th class="p-4 w-20"></th>
+                  <th class="p-4 w-64 font-semibold">PRODUCT NAME</th>
+                  <th class="p-4 text-center w-32 font-semibold">Stock</th>
+                  <th class="p-4 text-right w-28 font-semibold">Price</th>
+                  <th class="p-4 w-20 font-semibold"></th>
                 </tr>
               </thead>
               <tbody>
                 {#each products as product (product.id)}
-                  <tr class="hover:bg-surface-hover/50 transition-colors">
+                  <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                     <td class="p-4 w-64">
                       <div class="font-medium truncate w-full text-text-primary" title={product.name}>
                         {product.name}
@@ -537,7 +537,7 @@
               </tbody>
             </table>
           </div>
-          <div class="p-3 border-t border-border bg-surface-subtle/20">
+          <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
             <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
           </div>
         {/if}

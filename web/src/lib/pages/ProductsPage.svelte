@@ -69,10 +69,6 @@
     : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
   );
 
-  const popularCategories = $derived(
-    ['Makanan', 'Minuman', 'Snack', 'Lainnya'].filter(cat => categories.includes(cat))
-  );
-
   let form = $state({
     name: '',
     sku: '',
@@ -518,7 +514,6 @@
   bind:open={showCategoryFilterModal}
   bind:selectedCategories
   {categories}
-  {popularCategories}
   onApply={(cats) => { offset = 0; fetchProducts(0, limit); }}
 />
 
@@ -580,7 +575,7 @@
             <th class="text-left p-4 font-semibold w-48">CATEGORY</th>
             <th class="text-right p-4 font-semibold w-32">PRICE</th>
             <th class="text-right p-4 font-semibold w-20">STOCK</th>
-            <th class="text-left p-4 font-semibold w-28">STATUS</th>
+            <th class="text-left p-4 font-semibold w-24">STATUS</th>
             <th class="text-right p-4 font-semibold w-10"></th>
           </tr>
         </thead>
@@ -591,7 +586,7 @@
               <td class="p-4 w-60"><Skeleton class="h-4 w-3/4" /></td>
               <td class="p-4 text-right w-36"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
               <td class="p-4 text-right w-24"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
-              <td class="p-4 w-28"><Skeleton class="h-6 w-20 rounded-full" /></td>
+              <td class="p-4 w-24"><Skeleton class="h-6 w-20 rounded-full" /></td>
               <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
             </tr>
           {/each}
@@ -669,7 +664,7 @@
                 </div>
               </td>
               <td class="p-4 w-60">{product.category_name || '-'}</td>
-              <td class="p-4 text-right w-36">{product.price?.toLocaleString('id-ID')}</td>
+              <td class="p-4 text-right w-36 font-semibold">{product.price?.toLocaleString('id-ID')}</td>
               <td class="p-4 text-right w-24">
                 {#if product.stock === 0}
                   <Badge variant="destructive" size="sm">Out of Stock</Badge>

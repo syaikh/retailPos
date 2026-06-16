@@ -23,6 +23,7 @@
   let searchQuery = $state('');
   let statusFilter = $state('all');
 
+  let showStatusDropdown = $state(false);
   let editingId = $state<number | null>(null);
   let editName = $state('');
   let editPhone = $state('');
@@ -253,7 +254,22 @@
     }
   }
 
-  onMount(load);
+  const handleClickOutside = (e) => {
+    if (showStatusDropdown && !e.target.closest('.status-filter-container')) showStatusDropdown = false;
+  };
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') showStatusDropdown = false;
+  };
+
+  onMount(() => {
+    load();
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  });
 </script>
 
 <div class="space-y-4">
@@ -262,17 +278,30 @@
       <div class="flex-1">
         <SearchBar bind:value={searchQuery} placeholder="Search by name, phone, or email..." oninput={handleSearchInput} />
       </div>
-      <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
-        <select
-          bind:value={statusFilter}
-          onchange={handleStatusFilterChange}
-          class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+      <div class="relative shrink-0 status-filter-container" style="width: 140px; min-width: 140px; max-width: 140px;">
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {statusFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+          onclick={() => showStatusDropdown = !showStatusDropdown}
         >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+          <span class="flex-1 text-left truncate">{statusFilter === 'all' ? 'All Status' : statusFilter === 'active' ? 'Active' : 'Inactive'}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+        {#if showStatusDropdown}
+          <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]">
+            <button
+              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { statusFilter = 'all'; handleStatusFilterChange(); showStatusDropdown = false; }}
+            >All Status</button>
+            <button
+              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'active' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { statusFilter = 'active'; handleStatusFilterChange(); showStatusDropdown = false; }}
+            >Active</button>
+            <button
+              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'inactive' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { statusFilter = 'inactive'; handleStatusFilterChange(); showStatusDropdown = false; }}
+            >Inactive</button>
+          </div>
+        {/if}
       </div>
       {#if canCreate}
         <button
@@ -286,31 +315,31 @@
     </div>
   </div>
 
-  <div class="border border-border rounded-xl overflow-hidden bg-bg-card">
+  <div class="card overflow-hidden">
     <table class="min-w-full text-sm table-fixed">
-      <thead class="bg-surface-hover text-text-secondary">
+      <thead class="bg-muted/50">
         <tr>
-          <th class="text-left px-4 py-2 w-[30%]">
+          <th class="text-left p-4 font-semibold w-[30%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
               NAME <ArrowUpDown size={14} class="text-text-muted" />
             </button>
           </th>
-          <th class="text-left px-4 py-2 w-[18%]">
+          <th class="text-left p-4 font-semibold w-[18%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
               PHONE <ArrowUpDown size={14} class="text-text-muted" />
             </button>
           </th>
-          <th class="text-left px-4 py-2 w-[26%]">
+          <th class="text-left p-4 font-semibold w-[26%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
               EMAIL <ArrowUpDown size={14} class="text-text-muted" />
             </button>
           </th>
-          <th class="text-left px-4 py-2 w-[14%]">
+          <th class="text-left p-4 font-semibold w-[14%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
               STATUS <ArrowUpDown size={14} class="text-text-muted" />
             </button>
           </th>
-          <th class="text-left px-4 py-2 w-[12%]">Actions</th>
+          <th class="text-center p-4 font-semibold w-20">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -344,84 +373,84 @@
               </div>
             </td>
           </tr>
-        {:else}
-          {#each customers as c}
-            {#if editingId === c.id}
-              <tr class="border-t border-border bg-primary-subtle/10">
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
-                      {getInitials(editName)}
-                    </div>
-                    <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} />
-                  </div>
-                </td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} /></td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} /></td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  <label class="flex items-center gap-2 text-xs">
-                    <input type="checkbox" bind:checked={editActive} />
-                    {editActive ? 'Active' : 'Inactive'}
-                  </label>
-                </td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  <div class="flex items-center gap-1">
-                    <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save">
-                      <Check size={14} />
-                    </button>
-                    <button class="btn-icon btn-ghost text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel">
-                      <X size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
             {:else}
-              <tr class="border-t border-border">
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
-                      {getInitials(c.name)}
-                    </div>
-                    <span class="truncate">{c.name}</span>
-                  </div>
-                </td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  {#if c.is_active !== false}
-                    <span class="badge badge-success text-xs">Active</span>
-                  {:else}
-                    <span class="badge badge-danger text-xs">Inactive</span>
-                  {/if}
-                </td>
-                <td class="px-4 py-1.5 h-12 overflow-hidden">
-                  <div class="flex items-center gap-1">
-                    {#if canUpdate}
-                      <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit">
-                        <Pencil size={14} />
-                      </button>
-                    {/if}
-                    {#if canDelete && c.is_active !== false}
-                      <button class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate">
-                        <Trash2 size={14} />
-                      </button>
-                    {/if}
-                  </div>
-                </td>
-              </tr>
+              {#each customers as c}
+                {#if editingId === c.id}
+                  <tr class="border-t border-border bg-primary-subtle/10">
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">
+                      <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {getInitials(editName)}
+                        </div>
+                        <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} />
+                      </div>
+                    </td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} /></td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} /></td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">
+                      <label class="flex items-center gap-2 text-xs">
+                        <input type="checkbox" bind:checked={editActive} />
+                        {editActive ? 'Active' : 'Inactive'}
+                      </label>
+                    </td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">
+                      <div class="flex items-center gap-1">
+                        <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save">
+                          <Check size={14} />
+                        </button>
+                        <button class="btn-icon btn-ghost text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                {:else}
+                  <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
+                          {getInitials(c.name)}
+                        </div>
+                        <span class="truncate">{c.name}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden">
+                      {#if c.is_active !== false}
+                        <span class="badge badge-success text-xs">Active</span>
+                      {:else}
+                        <span class="badge badge-danger text-xs">Inactive</span>
+                      {/if}
+                    </td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
+                      <div class="flex items-center justify-center gap-1">
+                        {#if canUpdate}
+                          <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit">
+                            <Pencil size={14} />
+                          </button>
+                        {/if}
+                        {#if canDelete && c.is_active !== false}
+                          <button class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate">
+                            <Trash2 size={14} />
+                          </button>
+                        {/if}
+                      </div>
+                    </td>
+                  </tr>
+                {/if}
+              {/each}
             {/if}
-          {/each}
-        {/if}
-      </tbody>
-    </table>
+          </tbody>
+        </table>
 
-    {#if !loading && customers.length > 0}
-      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination {total} {limit} {offset} onPageChange={load} />
+        {#if !loading && customers.length > 0}
+          <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+            <Pagination {total} {limit} {offset} onPageChange={load} />
+          </div>
+        {/if}
       </div>
-    {/if}
-  </div>
-</div>
+    </div>
 
 <Modal bind:open={showCreateModal} title="Add Customer" size="md">
   <div class="space-y-4">

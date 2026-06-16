@@ -150,6 +150,7 @@ func main() {
 		protected.DELETE("/customers/:id", middleware.RequirePermission("customer:delete"), h.DeleteCustomer)
 
 		protected.GET("/audit-logs", middleware.RequirePermission("audit:read"), h.ListAuditLogs)
+		protected.GET("/audit-logs/export", middleware.RequirePermission("audit:read"), h.ExportAuditLogs)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

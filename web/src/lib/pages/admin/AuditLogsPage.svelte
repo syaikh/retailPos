@@ -4,7 +4,7 @@
   import apiClient from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
-  import { auth } from '$lib/stores/auth';
+  import { auth, getAuthToken } from '$lib/stores/auth';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$lib/utils/jakartaTime';
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -29,6 +29,8 @@
   let selectedResource = $state('all');
   let selectedDateRange = $state('24h');
   let showDateDropdown = $state(false);
+  let showResourceDropdown = $state(false);
+  let showActionDropdown = $state(false);
   let showExportDropdown = $state(false);
 
   // Request tracking to prevent duplicate requests
@@ -123,6 +125,9 @@
   let customEndDate = $state('');
   let showCustomDateModal = $state(false);
 
+  let resourceLabel = $derived(resourceFilters.find(f => f.id === selectedResource)?.label || 'All');
+  let actionLabel = $derived(availableActionFilters.find(f => f.id === selectedAction)?.label || 'All Actions');
+
   const today = getTodayInJakarta();
   const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
 
@@ -200,6 +205,10 @@
         const container = document.getElementById('date-dropdown-container');
         if (container && !container.contains(e.target as Node)) showDateDropdown = false;
       }
+      const resourceContainer = document.getElementById('resource-dropdown-container');
+      if (showResourceDropdown && resourceContainer && !resourceContainer.contains(e.target as Node)) showResourceDropdown = false;
+      const actionContainer = document.getElementById('action-dropdown-container');
+      if (showActionDropdown && actionContainer && !actionContainer.contains(e.target as Node)) showActionDropdown = false;
       if (showExportDropdown) {
         const path = (e.composedPath?.() || []) as HTMLElement[];
         const inExport = path.some(
@@ -212,6 +221,8 @@
       if (e.key === 'Escape') {
         if (drawerOpen) closeDrawer();
         if (showDateDropdown) showDateDropdown = false;
+        if (showResourceDropdown) showResourceDropdown = false;
+        if (showActionDropdown) showActionDropdown = false;
         if (showExportDropdown) showExportDropdown = false;
       }
     };
@@ -340,24 +351,27 @@
   }, 400);
 
   $effect(() => {
+    if (canView && !hasInitialized) {
+      hasInitialized = true;
+      prevSearch = searchQuery;
+      prevAction = selectedAction;
+      prevEntity = selectedResource;
+      prevDate = selectedDateRange;
+      prevOff = offset;
+      prevLim = limit;
+      fetchLogs();
+    }
+  });
+
+  $effect(() => {
+    if (!hasInitialized) return;
+
     const sq = searchQuery,
       sa = selectedAction,
       se = selectedResource,
       sd = selectedDateRange,
       so = offset,
       sl = limit;
-
-    if (!hasInitialized) {
-      hasInitialized = true;
-      fetchLogs();
-      prevSearch = sq;
-      prevAction = sa;
-      prevEntity = se;
-      prevDate = sd;
-      prevOff = so;
-      prevLim = sl;
-      return;
-    }
 
     const searchChanged = sq !== prevSearch;
     const filterChanged = sa !== prevAction || se !== prevEntity || sd !== prevDate;
@@ -553,56 +567,45 @@
     return map[entityType] || entityType;
   }
 
-  async function exportToExcel() {
-    try {
-      const { utils, writeFile } = await import('xlsx');
-      const headers = ['Timestamp', 'Actor', 'Role', 'Action', 'Resource', 'Description', 'IP Address'];
-      const rows = items.map((log) => [
-        formatTimestamp(log.created_at).full,
-        log.username || '—',
-        log.role || '—',
-        log.action || '—',
-        log.entity_type || '—',
-        log.description || '—',
-        log.ip_address || '—',
-      ]);
-      const workbook = utils.book_new();
-      const sheet = utils.aoa_to_sheet([headers, ...rows]);
-      utils.book_append_sheet(workbook, sheet, 'Audit Logs');
-      const fileName = `audit-logs-${selectedDateRange}-${today}.xlsx`;
-      writeFile(workbook, fileName);
-      showExportDropdown = false;
-      toast.success('Excel export completed');
-    } catch (error) {
-      toast.error('Failed to export to Excel');
-    }
+  function buildExportUrl(format: string): string {
+    const range = getDateRange(selectedDateRange);
+    const params = new URLSearchParams({
+      format,
+      search: searchQuery,
+      start_date: range.start.toISOString(),
+      end_date: range.end.toISOString(),
+    });
+    if (selectedAction !== 'all') params.append('action', selectedAction);
+    if (selectedResource !== 'all') params.append('entity_type', selectedResource);
+    return `/api/audit-logs/export?${params.toString()}`;
   }
 
-  async function exportToPDF() {
-    try {
-      const { jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text('Audit Logs Report', 20, 20);
-      doc.setFontSize(10);
-      doc.text(`Period: ${dateRanges.find((d) => d.id === selectedDateRange)?.label || selectedDateRange}`, 20, 28);
-      const headers = ['Timestamp', 'Actor', 'Action', 'Resource', 'Description'];
-      const body = items.map((log) => [
-        formatTimestamp(log.created_at).full,
-        log.username || '—',
-        log.action || '—',
-        log.entity_type || '—',
-        (log.description || '—').substring(0, 60),
-      ]);
-      autoTable(doc, { startY: 34, head: [headers], body, theme: 'grid' });
-      const fileName = `audit-logs-${selectedDateRange}-${today}.pdf`;
-      doc.save(fileName);
-      showExportDropdown = false;
-      toast.success('PDF export completed');
-    } catch (error) {
-      toast.error('Failed to export to PDF');
-    }
+  async function downloadExport(format: string) {
+    const token = getAuthToken();
+    if (!token) { toast.error('Session expired'); return; }
+
+    const res = await fetch(buildExportUrl(format), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { toast.error('Export failed'); return; }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-logs-${today}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showExportDropdown = false;
+    toast.success(`Audit logs exported to ${format.toUpperCase()}`);
+  }
+
+  function exportToCsv() {
+    downloadExport('csv');
+  }
+
+  function exportToExcel() {
+    downloadExport('xlsx');
   }
 </script>
 
@@ -644,37 +647,48 @@
           {/if}
         </div>
 
-        <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;">
-          <select
-            value={selectedResource}
-            onchange={(e) => {
-              selectedResource = e.currentTarget.value;
-              offset = 0;
-              selectedAction = 'all';
-            }}
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+        <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;" id="resource-dropdown-container">
+          <button
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+            onclick={() => showResourceDropdown = !showResourceDropdown}
           >
-            {#each resourceFilters as f}
-              <option value={f.id}>{f.label}</option>
-            {/each}
-          </select>
-          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+            <span class="flex-1 text-left truncate">{resourceLabel}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showResourceDropdown}
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
+              {#each resourceFilters as f}
+                <button
+                  class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => { selectedResource = f.id; offset = 0; selectedAction = 'all'; showResourceDropdown = false; }}
+                >
+                  {f.label}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
 
-        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
-          <select
-            value={selectedAction}
-            onchange={(e) => {
-              selectedAction = e.currentTarget.value;
-              offset = 0;
-            }}
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full"
+        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;" id="action-dropdown-container">
+          <button
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+            onclick={() => showActionDropdown = !showActionDropdown}
           >
-            {#each availableActionFilters as f}
-              <option value={f.id}>{f.label}</option>
-            {/each}
-          </select>
-          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+            <span class="flex-1 text-left truncate">{actionLabel}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showActionDropdown}
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
+              {#each availableActionFilters as f}
+                <button
+                  class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => { selectedAction = f.id; offset = 0; showActionDropdown = false; }}
+                >
+                  {f.label}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={fetchLogs}>
@@ -712,22 +726,22 @@
                 role="menuitem"
                 onclick={() => {
                   showExportDropdown = false;
-                  exportToExcel();
+                  exportToCsv();
                 }}
               >
                 <FileSpreadsheet size={16} class="text-success-light" />
-                Export to Excel
+                Export to CSV
               </button>
               <button
                 class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
                 role="menuitem"
                 onclick={() => {
                   showExportDropdown = false;
-                  exportToPDF();
+                  exportToExcel();
                 }}
               >
-                <Download size={16} class="text-danger-light" />
-                Export to PDF
+                <FileSpreadsheet size={16} class="text-info-light" />
+                Export to Excel
               </button>
             </div>
           {/if}
@@ -794,7 +808,7 @@
                 {#each items as log (log.id)}
                   {@const ts = formatTimestamp(log.created_at)}
                   <tr
-                    class="h-10 px-4 leading-none border-t border-border/70 hover:bg-surface-hover/70 transition-colors cursor-pointer"
+                    class="h-10 px-4 leading-none border-t border-border/70 hover:bg-surface-hover/50 transition-colors cursor-pointer"
                     onclick={() => openDrawer(log)}
                   >
                      <td class="py-2 align-middle">
@@ -835,7 +849,7 @@
             </table>
           </div>
 
-          <div class="p-4 bg-surface-subtle/30">
+          <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
             <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
           </div>
         </div>

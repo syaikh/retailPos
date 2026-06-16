@@ -317,7 +317,7 @@ let canView = $derived($auth.user != null);
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
               <td class="p-4 pr-6" style="width: 40%;">
                 <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 rounded-xl bg-primary-subtle flex items-center justify-center shrink-0">
+                  <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0">
                     <Tag size={14} class="text-primary-light" />
                   </div>
                   <div class="min-w-0">

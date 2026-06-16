@@ -44,6 +44,9 @@
   // ── Expanded detail row ──────────────────────────────────────────
   let expandedRoleId = $state(null);
 
+  // ── Filter type dropdown ─────────────────────────────────────────
+  let showFilterTypeDropdown = $state(false);
+
   // ── Action dropdown ──────────────────────────────────────────────
   let openActionRoleId = $state(null);
 
@@ -335,6 +338,7 @@
     if (e.key === 'Escape') {
       showRoleDrawer = false;
       openActionRoleId = null;
+      showFilterTypeDropdown = false;
       document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
     }
   }
@@ -342,6 +346,9 @@
   function handleDocumentClick(e) {
     if (openActionRoleId && !e.target.closest('.role-action-dropdown')) {
       openActionRoleId = null;
+    }
+    if (showFilterTypeDropdown && !e.target.closest('.filter-type-container')) {
+      showFilterTypeDropdown = false;
     }
   }
 
@@ -370,13 +377,30 @@
         <div class="flex-1">
           <SearchBar bind:value={roleSearch} placeholder="Search roles…" oninput={() => handleRoleSearch(roleSearch)} inputClass="h-10" />
         </div>
-        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
-          <select class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full" bind:value={filterType} onchange={() => pageOffset = 0}>
-            <option value="all">All Roles</option>
-            <option value="system">System Only</option>
-            <option value="custom">Custom Only</option>
-          </select>
-          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+        <div class="relative shrink-0 filter-type-container" style="width: 140px; min-width: 140px; max-width: 140px;">
+          <button
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+            onclick={() => showFilterTypeDropdown = !showFilterTypeDropdown}
+          >
+            <span class="flex-1 text-left truncate">{filterType === 'all' ? 'All Roles' : filterType === 'system' ? 'System Only' : 'Custom Only'}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showFilterTypeDropdown}
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]">
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterType === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterType = 'all'; pageOffset = 0; showFilterTypeDropdown = false; }}
+              >All Roles</button>
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterType === 'system' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterType = 'system'; pageOffset = 0; showFilterTypeDropdown = false; }}
+              >System Only</button>
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterType === 'custom' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterType = 'custom'; pageOffset = 0; showFilterTypeDropdown = false; }}
+              >Custom Only</button>
+            </div>
+          {/if}
         </div>
         {#if canEdit}
           <div class="flex items-center gap-2 shrink-0">
@@ -492,16 +516,16 @@
             <tbody>
               {#each paginatedRoles() as role (role.id)}
                 {@const rolePerms = getRolePermissions(role)}
-                <tr class="border-t border-border hover:bg-surface-subtle/30 transition-colors group cursor-pointer" role="listitem" onclick={() => openRoleDrawer(role)} onkeydown={(e) => { if (e.key === 'Enter') openRoleDrawer(role); }} tabindex="0">
+                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" role="listitem" onclick={() => openRoleDrawer(role)} onkeydown={(e) => { if (e.key === 'Enter') openRoleDrawer(role); }} tabindex="0">
                   <td class="p-4">
                     <div class="flex items-center gap-2.5 min-w-0">
-                      <div class="w-8 h-8 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={14} class="text-primary-light" /></div>
+                      <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={14} class="text-primary-light" /></div>
                       <span class="text-sm font-semibold text-text-primary truncate">{role.name}</span>
                     </div>
                   </td>
                   <td class="p-4">{#if role.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}</td>
-                  <td class="p-4"><button class="text-sm text-text-secondary hover:text-primary transition-colors underline-offset-2 hover:underline" onclick={(e) => { e.stopPropagation(); openRoleDrawer(role); }}>{rolePerms.length} permissions</button></td>
-                  <td class="p-4">{#if role.description}<span class="text-sm text-text-muted truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">No description</span>{/if}</td>
+                  <td class="p-4"><span class="text-sm text-text-primary">{rolePerms.length} permissions</span></td>
+                  <td class="p-4">{#if role.description}<span class="text-sm text-text-primary truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">No description</span>{/if}</td>
                   <td class="p-4">
                     <div class="flex items-center justify-end">
                       <div class="relative" onclick={(e) => e.stopPropagation()}>
@@ -573,7 +597,7 @@
     {:else}
       {#if modalMode === 'edit'}
         <div class="flex items-center gap-3 p-3 bg-surface-subtle rounded-xl border border-border-subtle">
-          <div class="w-9 h-9 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
+<div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
           <div class="min-w-0"><p class="text-sm font-semibold text-text-primary truncate">{selectedRole?.name}</p><p class="text-xs text-text-muted truncate">{selectedRole?.description || 'No description'}</p></div>
         </div>
       {/if}

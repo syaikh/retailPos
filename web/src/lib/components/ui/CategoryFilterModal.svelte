@@ -1,12 +1,11 @@
 <script lang="ts">
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
-  import { X, Search, Check } from 'lucide-svelte';
+  import { X } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
   let {
     open = $bindable(false),
     categories = [],
     selectedCategories = $bindable([]),
-    popularCategories = [],
     onClose,
     onApply,
   } = $props();
@@ -39,10 +38,6 @@
     } else {
       tempSelectedCategories = [...tempSelectedCategories, cat];
     }
-  }
-
-  function togglePopularCategory(cat) {
-    toggleCategory(cat);
   }
 
   function resetFilters() {
@@ -95,32 +90,6 @@
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
       <SearchBar bind:value={searchQuery} placeholder="Cari berdasarkan nama..." inputClass="bg-surface border-border focus:ring-primary focus:border-transparent" />
-
-      <!-- Popular Categories Chips -->
-      {#if popularCategories.length > 0}
-        <div>
-          <h3 class="text-sm font-medium text-text-secondary mb-3">Kategori Populer</h3>
-          <div class="flex flex-wrap gap-2">
-            {#each popularCategories as cat}
-              {@const isSelected = tempSelectedCategories.includes(cat)}
-              <button
-                type="button"
-                onclick={() => togglePopularCategory(cat)}
-                class={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full transition-all ${
-                  isSelected
-                    ? 'bg-primary text-white'
-                    : 'bg-surface-subtle text-text-secondary hover:bg-surface-hover'
-                }`}
-              >
-                {#if isSelected}
-                  <Check size={14} />
-                {/if}
-                {cat}
-              </button>
-            {/each}
-          </div>
-        </div>
-      {/if}
 
       <!-- All Categories Grid -->
       <div>

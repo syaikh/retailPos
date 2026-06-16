@@ -523,7 +523,7 @@
     <div class="pt-1">
       <div class="flex flex-wrap items-end gap-3">
         <div class="relative payment-dropdown-container">
-          <p class="text-xs font-medium text-text-muted mb-1.5">Payment</p>
+          <p class="text-xs font-medium text-text-secondary mb-1.5">Payment</p>
           <button
             class="btn btn-secondary flex items-center gap-2 min-w-44"
             onclick={() => showPaymentDropdown = !showPaymentDropdown}
@@ -561,7 +561,7 @@
         </div>
 
         <div class="w-44">
-          <p class="text-xs font-medium text-text-muted mb-1.5">Min Amount (Rp)</p>
+          <p class="text-xs font-medium text-text-secondary mb-1.5">Min Total Trx (Rp)</p>
           <input
             type="text"
             inputmode="numeric"
@@ -573,7 +573,7 @@
         </div>
 
         <div class="w-44">
-          <p class="text-xs font-medium text-text-muted mb-1.5">Max Amount (Rp)</p>
+          <p class="text-xs font-medium text-text-secondary mb-1.5">Max Total Trx (Rp)</p>
           <input
             type="text"
             inputmode="numeric"
@@ -667,7 +667,7 @@
                 tabindex="0"
               >
                   <td class="p-4">
-                    <span class="font-mono text-sm font-medium text-white">
+                    <span class="text-sm font-medium text-text-primary">
                       {sale.invoice_number}
                     </span>
                 </td>
@@ -681,7 +681,7 @@
                   {sale.items?.length || 0} items
                 </td>
                 <td class="p-4">
-                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-sm px-3 py-1">
+                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-xs px-2.5 py-0.5">
                     {sale.payment_method || '—'}
                   </Badge>
                 </td>
@@ -694,7 +694,7 @@
         </table>
       </div>
 
-      <div class="p-4 bg-surface-subtle/30">
+      <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
         <Pagination
           {total}
           {limit}
@@ -796,18 +796,20 @@
       {/if}
     </div>
 
-    <div class="shrink-0 border-t border-border px-6 py-4 flex items-center justify-end gap-2 bg-surface-default">
-      <button class="btn btn-secondary btn-sm px-4" onclick={closeTransactionDrawer}>
-        Close
-      </button>
-      <button class="btn btn-secondary btn-sm px-4 flex items-center gap-1.5" onclick={printTransactionReceipt}>
-        <Printer size={14} />
-        Print Receipt
-      </button>
-      <button class="btn btn-primary btn-sm px-4 flex items-center gap-1.5" onclick={downloadInvoice}>
-        <Download size={14} />
-        Download Invoice
-      </button>
+    <div class="absolute bottom-0 left-0 right-0 p-4 bg-surface-default border-t border-border/50">
+      <div class="grid grid-cols-[auto_1fr_1fr] gap-3">
+        <button class="btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={closeTransactionDrawer}>
+          Close
+        </button>
+        <button class="btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={printTransactionReceipt}>
+          <Printer size={15} class="mr-1.5" />
+          Print Receipt
+        </button>
+        <button class="btn btn-primary rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={downloadInvoice}>
+          <Download size={15} class="mr-1.5" />
+          Download Invoice
+        </button>
+      </div>
     </div>
   </div>
 {/if}

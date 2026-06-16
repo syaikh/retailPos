@@ -1261,7 +1261,7 @@ func (h *Handler) ListPermissions(c *gin.Context) {
 func (h *Handler) ListAuditLogs(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 100000 {
 			limit = val
 		}
 	}
@@ -1271,6 +1271,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 			offset = val
 		}
 	}
+
 	var userID *int
 	if uid := c.Query("user_id"); uid != "" {
 		if val, err := strconv.Atoi(uid); err == nil {
@@ -1309,6 +1310,113 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
+}
+
+func (h *Handler) ExportAuditLogs(c *gin.Context) {
+	format := c.Query("format")
+	search := c.Query("search")
+	action := c.Query("action")
+	entityType := c.Query("entity_type")
+
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if t, err := time.Parse(time.RFC3339, sd); err == nil {
+			startDate = &t
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if t, err := time.Parse(time.RFC3339, ed); err == nil {
+			endDate = &t
+		}
+	}
+
+	logs, _, err := h.auditRepo.GetAll(getCtx(c), 100000, 0, nil, search, action, entityType, startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
+		return
+	}
+
+	if logs == nil {
+		logs = []domain.AuditLog{}
+	}
+
+	for i := range logs {
+		logs[i].Description = h.generateAuditDescription(&logs[i])
+	}
+
+	now := time.Now()
+	filename := "audit-logs-" + now.Format("2006-01-02")
+
+	switch format {
+	case "xlsx":
+		wb := excelize.NewFile()
+		sheet := "Audit Logs"
+		wb.SetSheetName("Sheet1", sheet)
+
+		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"}
+		for i, h := range headers {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			wb.SetCellValue(sheet, col+"1", h)
+		}
+		headerStyle, _ := wb.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
+			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
+		})
+		wb.SetCellStyle(sheet, "A1", "G1", headerStyle)
+
+		for i, log := range logs {
+			r := i + 2
+			t := log.CreatedAt
+			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+				t = parsed.Format("2006-01-02 15:04:05")
+			}
+			wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), t)
+			wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), log.Username)
+			wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), log.Role)
+			wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), log.Action)
+			wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), log.EntityType)
+			wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), log.Description)
+			wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), log.IPAddress)
+		}
+
+		colWidths := []float64{22, 20, 15, 12, 15, 50, 18}
+		for i, w := range colWidths {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			wb.SetColWidth(sheet, col, col, w)
+		}
+
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+
+		if err := wb.Write(c.Writer); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write xlsx"})
+			return
+		}
+
+	default: // csv
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
+		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+		writer := csv.NewWriter(c.Writer)
+		writer.Write([]string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
+		for _, log := range logs {
+			t := log.CreatedAt
+			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+				t = parsed.Format("2006-01-02 15:04:05")
+			}
+			writer.Write([]string{
+				t,
+				log.Username,
+				log.Role,
+				log.Action,
+				log.EntityType,
+				log.Description,
+				log.IPAddress,
+			})
+		}
+		writer.Flush()
+	}
 }
 
 // User CRUD (Admin)

@@ -31,6 +31,8 @@
   let sortDir = $state('asc');
   let filterRole = $state('all');
   let filterStatus = $state('all');
+  let showRoleDropdown = $state(false);
+  let showStatusDropdown = $state(false);
 
   let userRole = $derived(
     $auth.user?.role?.name ||
@@ -61,6 +63,9 @@
     role_id: 0,
     is_active: true
   });
+
+  let roleLabel = $derived(filterRole === 'all' ? 'All Roles' : roles.find(r => String(r.id) === filterRole)?.name || filterRole);
+  let statusLabel = $derived(filterStatus === 'all' ? 'All Status' : filterStatus === 'true' ? 'Active' : 'Inactive');
 
   let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
 
@@ -117,11 +122,26 @@
     }
   }
 
+  const handleClickOutside = (e) => {
+    if (showRoleDropdown && !e.target.closest('.role-filter-container')) showRoleDropdown = false;
+    if (showStatusDropdown && !e.target.closest('.status-filter-container')) showStatusDropdown = false;
+  };
+
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') { showRoleDropdown = false; showStatusDropdown = false; }
+  };
+
   onMount(async () => {
     isInitialMount = true;
     await fetchRoles();
     await fetchUsers(false);
     isInitialMount = false;
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
   });
 
   const debouncedSearch = debounce(() => {
@@ -286,28 +306,53 @@
         <div class="flex-1">
           <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
         </div>
-        <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;">
-          <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full {filterRole !== 'all' ? 'text-text-primary' : ''}"
-            bind:value={filterRole}
+        <div class="relative shrink-0 role-filter-container" style="width: 140px; min-width: 140px; max-width: 140px;">
+          <button
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterRole !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+            onclick={() => showRoleDropdown = !showRoleDropdown}
           >
-            <option value="all">All Roles</option>
-            {#each roles as role}
-              <option value={String(role.id)}>{role.name}</option>
-            {/each}
-          </select>
-          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+            <span class="flex-1 text-left truncate">{roleLabel}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showRoleDropdown}
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterRole = 'all'; showRoleDropdown = false; }}
+              >All Roles</button>
+              {#each roles as role}
+                <button
+                  class="w-full text-left px-4 py-2 text-sm transition-colors {filterRole === String(role.id) ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => { filterRole = String(role.id); showRoleDropdown = false; }}
+                >{role.name}</button>
+              {/each}
+            </div>
+          {/if}
         </div>
-        <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;">
-          <select
-            class="appearance-none bg-surface-default border border-border rounded-xl py-2.5 pl-3 pr-8 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus:text-text-primary focus:outline-none focus:border-primary-default focus:ring-2 focus:ring-primary-default/20 transition-colors cursor-pointer w-full {filterStatus !== 'all' ? 'text-text-primary' : ''}"
-            bind:value={filterStatus}
+        <div class="relative shrink-0 status-filter-container" style="width: 128px; min-width: 128px; max-width: 128px;">
+          <button
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterStatus !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+            onclick={() => showStatusDropdown = !showStatusDropdown}
           >
-            <option value="all">All Status</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-          <ChevronDown size={14} class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted" />
+            <span class="flex-1 text-left truncate">{statusLabel}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showStatusDropdown}
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]">
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterStatus = 'all'; showStatusDropdown = false; }}
+              >All Status</button>
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'true' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterStatus = 'true'; showStatusDropdown = false; }}
+              >Active</button>
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'false' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterStatus = 'false'; showStatusDropdown = false; }}
+              >Inactive</button>
+            </div>
+          {/if}
         </div>
         {#if canCreate}
         <button
@@ -343,7 +388,7 @@
         <table class="w-full table-fixed border-collapse" style="min-width: 680px;">
           <thead class="bg-muted/50">
              <tr>
-                <th class="text-left p-4 font-semibold">
+                 <th class="text-left p-4 font-semibold" style="width: 30%;">
                   <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('username')}>
                     USER <ArrowUpDown size={14} class="text-text-muted" />
                   </button>
@@ -354,40 +399,40 @@
                   </button>
                 </th>
                 <th class="text-left p-4 font-semibold w-28">STATUS</th>
-                <th class="text-left p-4 font-semibold w-56">
+                <th class="text-left p-4 font-semibold w-44">
                   <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('last_login')}>
                     LAST LOGIN <ArrowUpDown size={14} class="text-text-muted" />
                   </button>
                 </th>
-                <th class="text-center p-4 font-semibold w-28">ACTIONS</th>
+                <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
               </tr>
           </thead>
           <tbody>
             {#if loading}
               {#each { length: 5 } as _}
                 <tr class="border-t border-border">
-                  <td>
+                  <td class="p-4">
                     <div class="flex items-center gap-3">
-                      <Skeleton width="w-9" height="h-9" rounded="rounded-full" />
+                      <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
                       <div class="flex flex-col gap-1.5">
                         <Skeleton width="w-32" height="h-3.5" />
                         <Skeleton width="w-44" height="h-3" />
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td class="p-4">
                     <Skeleton width="w-16" height="h-6" rounded="rounded-full" />
                   </td>
-                  <td>
+                  <td class="p-4">
                     <div class="flex items-center gap-2">
                       <Skeleton width="w-1.5" height="h-1.5" rounded="rounded-full" />
                       <Skeleton width="w-12" height="h-3.5" />
                     </div>
                   </td>
-                  <td>
+                  <td class="p-4">
                     <Skeleton width="w-36" height="h-3.5" />
                   </td>
-                  <td>
+                  <td class="p-4">
                     <div class="flex items-center justify-center gap-2">
                       <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
                       <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
@@ -412,7 +457,7 @@
                 <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                   <td class="p-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                     <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
+                      <div class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
                         <User size={14} class="text-white" />
                       </div>
                       <div>
@@ -421,21 +466,27 @@
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td class="p-4">
                      <Badge variant={roleVariant(user.role)}>
                        {user.role?.name || (user.role_id === 1 ? 'superadmin' : user.role_id === 2 ? 'admin' : user.role_id === 3 ? 'cashier' : user.role_id === 4 ? 'manager' : user.role_id === 5 ? 'staff' : 'unknown')}
                      </Badge>
                    </td>
-                   <td>
+                   <td class="p-4">
                      <div class="flex items-center gap-2">
                        <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
                        <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
                      </div>
                    </td>
-                   <td class="text-text-muted text-sm">
-                     {user.last_login ? new Date(user.last_login).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Never'}
-                   </td>
-                   <td class="text-center">
+                   <td class="p-4 text-text-muted text-sm leading-relaxed">
+                      {#if user.last_login}
+                        {@const d = new Date(user.last_login)}
+                        <span class="block">{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span class="block text-[10px] text-text-muted">{d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                      {:else}
+                        Never
+                      {/if}
+                    </td>
+                   <td class="p-4 text-center">
                      <div class="flex items-center justify-center gap-2">
                       <button
                         class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
@@ -463,7 +514,7 @@
       </div>
 
       {#if !loading && users.length > 0}
-        <div class="p-4 bg-surface-subtle/30">
+        <div class="p-4 bg-surface-subtle/30 border-t border-border/50">
           <Pagination
             {total}
             {limit}
