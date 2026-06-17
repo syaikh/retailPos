@@ -3,7 +3,7 @@
   import apiClient from '$lib/api/client';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2, ChevronDown } from 'lucide-svelte';
+  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2 } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -23,7 +23,7 @@
   let searchQuery = $state('');
   let statusFilter = $state('all');
 
-  let showStatusDropdown = $state(false);
+  // let showStatusDropdown = $state(false);
   let editingId = $state<number | null>(null);
   let editName = $state('');
   let editPhone = $state('');
@@ -278,30 +278,25 @@
       <div class="flex-1">
         <SearchBar bind:value={searchQuery} placeholder="Search by name, phone, or email..." oninput={handleSearchInput} />
       </div>
-      <div class="relative shrink-0 status-filter-container" style="width: 140px; min-width: 140px; max-width: 140px;">
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
         <button
-          class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {statusFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
-          onclick={() => showStatusDropdown = !showStatusDropdown}
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'all'; handleStatusFilterChange(); }}
         >
-          <span class="flex-1 text-left truncate">{statusFilter === 'all' ? 'All Status' : statusFilter === 'active' ? 'Active' : 'Inactive'}</span>
-          <ChevronDown size={14} class="text-text-muted shrink-0" />
+          All
         </button>
-        {#if showStatusDropdown}
-          <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]">
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { statusFilter = 'all'; handleStatusFilterChange(); showStatusDropdown = false; }}
-            >All Status</button>
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'active' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { statusFilter = 'active'; handleStatusFilterChange(); showStatusDropdown = false; }}
-            >Active</button>
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {statusFilter === 'inactive' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { statusFilter = 'inactive'; handleStatusFilterChange(); showStatusDropdown = false; }}
-            >Inactive</button>
-          </div>
-        {/if}
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'active'; handleStatusFilterChange(); }}
+        >
+          Active
+        </button>
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'inactive'; handleStatusFilterChange(); }}
+        >
+          Inactive
+        </button>
       </div>
       {#if canCreate}
         <button
@@ -345,7 +340,7 @@
       <tbody>
         {#if loading}
           {#each { length: 5 } as _, i}
-            <tr class="border-t border-border" role="presentation">
+            <tr class="border-t border-border">
               <td class="px-4 py-3" colspan={5}>
                 <div class="flex items-center gap-3">
                   <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
@@ -455,8 +450,9 @@
 <Modal bind:open={showCreateModal} title="Add Customer" size="md">
   <div class="space-y-4">
     <div class="space-y-1">
-      <label class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
+      <label for="customer-name" class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
       <input
+        id="customer-name"
         class="input"
         class:border-danger={fieldErrors.name}
         placeholder="e.g. John Doe"
@@ -468,8 +464,9 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
+        <label for="customer-phone" class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
         <input
+          id="customer-phone"
           class="input"
           class:border-danger={fieldErrors.phone}
           placeholder="e.g. 08123456789"
@@ -480,8 +477,9 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
+        <label for="customer-email" class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
         <input
+          id="customer-email"
           class="input"
           class:border-danger={fieldErrors.email}
           placeholder="e.g. john@example.com"
@@ -493,8 +491,9 @@
       </div>
     </div>
     <div class="space-y-1">
-      <label class="text-xs font-semibold text-text-secondary">Note</label>
+      <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>
       <textarea
+        id="customer-note"
         class="input min-h-[60px] resize-none"
         placeholder="Optional notes about this customer"
         bind:value={formNote}
