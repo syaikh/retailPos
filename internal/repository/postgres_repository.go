@@ -1728,6 +1728,74 @@ func (r *postgresRepository) GetPeriodComparison(
 	return &result, nil
 }
 
+func (r *postgresRepository) GetDualChartData(
+	ctx context.Context,
+	currentStart, currentEnd, previousStart, previousEnd time.Time,
+) (current, previous []ChartDataPoint, err error) {
+
+	// Format dates as strings and pass them, casting to date in SQL
+	// to avoid pgx timestamptz ambiguity with generate_series
+	cs := currentStart.Format("2006-01-02")
+	ce := currentEnd.Format("2006-01-02")
+	ps := previousStart.Format("2006-01-02")
+	pe := previousEnd.Format("2006-01-02")
+
+	query := `
+		WITH date_series AS (
+			SELECT generate_series($1::timestamptz, $2::timestamptz, '1 day') AS dt
+		),
+		current_agg AS (
+			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
+				   COALESCE(SUM(total_amount), 0) AS revenue
+			FROM sales
+			WHERE created_at >= $1::timestamptz AND created_at < ($2::date + 1)::timestamptz
+				AND status = 'completed'
+			GROUP BY 1
+		),
+		previous_agg AS (
+			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
+				   COALESCE(SUM(total_amount), 0) AS revenue
+			FROM sales
+			WHERE created_at >= $3::timestamptz AND created_at < ($4::date + 1)::timestamptz
+				AND status = 'completed'
+			GROUP BY 1
+		)
+		SELECT (ds.dt AT TIME ZONE 'Asia/Jakarta')::date,
+			   COALESCE(c.revenue, 0),
+			   COALESCE(p.revenue, 0)
+		FROM date_series ds
+		LEFT JOIN current_agg c ON c.dt = (ds.dt AT TIME ZONE 'Asia/Jakarta')::date
+		LEFT JOIN previous_agg p ON p.dt = (ds.dt AT TIME ZONE 'Asia/Jakarta')::date - ($1::date - $3::date)
+		ORDER BY 1`
+
+	rows, err := r.db.Query(ctx, query, cs, ce, ps, pe)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var c ChartDataPoint
+		var p ChartDataPoint
+		var prevTotal int
+		var currentDate time.Time
+		if err := rows.Scan(&currentDate, &c.Total, &prevTotal); err != nil {
+			return nil, nil, fmt.Errorf("scan row: %w", err)
+		}
+		c.Date = currentDate.Format("2006-01-02")
+		// Compute prev date from currentDate using offset computed in SQL-compatible way
+		// Offset = currentStart - previousStart in days
+		offsetDays := int(currentStart.Sub(previousStart).Hours() / 24)
+		prevTime := currentDate.AddDate(0, 0, -offsetDays)
+		p.Date = prevTime.Format("2006-01-02")
+		p.Total = prevTotal
+		current = append(current, c)
+		previous = append(previous, p)
+	}
+
+	return current, previous, rows.Err()
+}
+
 func (r *postgresRepository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
 	jakartaNow := time.Now().In(mustLoadJakarta())
 	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, mustLoadJakarta())

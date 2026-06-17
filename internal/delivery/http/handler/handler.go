@@ -786,6 +786,8 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
+	prevStart := c.Query("prevStart")
+	prevEnd := c.Query("prevEnd")
 
 	if startDate == "" || endDate == "" {
 		// Use configured timezone (default Asia/Jakarta) for consistent date calculations
@@ -797,18 +799,18 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	// Determine if hourly aggregation is needed (single day = realtime/yesterday)
 	isHourly := startDate == endDate
 
-	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
-		return
+	type HourlyDataPoint struct {
+		Hour  int `json:"hour"`
+		Total int `json:"total"`
 	}
 
-	if isHourly {
-		// Hourly aggregation for realtime/yesterday
+	aggregateHourly := func(sd, ed string) []HourlyDataPoint {
+		sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", sd, ed, nil, "", nil, nil)
+		if err != nil {
+			return nil
+		}
 		hourlyTotals := make(map[int]int)
 		for _, s := range sales {
-			// Bug fix: use time.RFC3339 (the actual format produced by the repo) and
-			// convert to Jakarta local time before extracting the hour.
 			createdTime, err := time.Parse(time.RFC3339, s.CreatedAt)
 			if err != nil {
 				continue
@@ -816,13 +818,6 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			hour := createdTime.In(cfg.Timezone).Hour()
 			hourlyTotals[hour] += s.TotalAmount
 		}
-
-		type HourlyDataPoint struct {
-			Hour  int `json:"hour"`
-			Total int `json:"total"`
-		}
-
-		// Generate all 24 hours (0-23)
 		var data []HourlyDataPoint
 		for hour := 0; hour < 24; hour++ {
 			data = append(data, HourlyDataPoint{
@@ -830,8 +825,51 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 				Total: hourlyTotals[hour],
 			})
 		}
+		return data
+	}
 
+	// If prevStart and prevEnd are provided, return dual chart data
+	if prevStart != "" && prevEnd != "" {
+		if isHourly {
+			current := aggregateHourly(startDate, endDate)
+			previous := aggregateHourly(prevStart, prevEnd)
+			c.JSON(http.StatusOK, gin.H{
+				"current":  current,
+				"previous": previous,
+			})
+			return
+		}
+
+		currentStart, _ := time.ParseInLocation("2006-01-02", startDate, cfg.Timezone)
+		currentEnd, _ := time.ParseInLocation("2006-01-02", endDate, cfg.Timezone)
+		prevStartTime, _ := time.ParseInLocation("2006-01-02", prevStart, cfg.Timezone)
+		prevEndTime, _ := time.ParseInLocation("2006-01-02", prevEnd, cfg.Timezone)
+
+		current, previous, err := h.saleRepo.GetDualChartData(ctx,
+			currentStart, currentEnd,
+			prevStartTime, prevEndTime,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch dual chart data"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"current":  current,
+			"previous": previous,
+		})
+		return
+	}
+
+	if isHourly {
+		data := aggregateHourly(startDate, endDate)
 		c.JSON(http.StatusOK, gin.H{"data": data})
+		return
+	}
+
+	sales, _, err := h.saleRepo.GetAllSales(ctx, 10000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
 		return
 	}
 
@@ -941,11 +979,20 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 
+type MonthlyDataPoint struct {
+	Month      string `json:"month"`
+	MonthStart string `json:"month_start"`
+	Total      int    `json:"total"`
+	OrderCount int    `json:"order_count"`
+}
+
 func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	ctx := getCtx(c)
 	cfg := config.Load()
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
+	prevStart := c.Query("prevStart")
+	prevEnd := c.Query("prevEnd")
 
 	if startDate == "" || endDate == "" {
 		// Use configured timezone (default Asia/Jakarta) for consistent date calculations
@@ -954,55 +1001,60 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 		startDate = now.AddDate(-1, 1, 0).Format("2006-01-02") // 12 months back
 	}
 
-	sales, _, err := 	h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", startDate, endDate, nil, "", nil, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch sales"})
+	aggregateMonthly := func(sd, ed string) []MonthlyDataPoint {
+		if sd == "" || ed == "" {
+			return nil
+		}
+		sales, _, err := h.saleRepo.GetAllSales(ctx, 50000, 0, "", "created_at", "ASC", sd, ed, nil, "", nil, nil)
+		if err != nil {
+			return nil
+		}
+		monthlyTotals := make(map[string]map[string]interface{})
+		for _, s := range sales {
+			createdTime, _ := time.Parse(time.RFC3339, s.CreatedAt)
+			createdTime = createdTime.In(cfg.Timezone)
+			monthKey := createdTime.Format("2006-01")
+			monthStart := createdTime.Format("2006-01-01")
+
+			if monthlyTotals[monthKey] == nil {
+				monthlyTotals[monthKey] = map[string]interface{}{
+					"month":       monthKey,
+					"month_start": monthStart,
+					"total":       0,
+					"order_count": 0,
+				}
+			}
+			monthlyTotals[monthKey]["total"] = monthlyTotals[monthKey]["total"].(int) + s.TotalAmount
+			monthlyTotals[monthKey]["order_count"] = monthlyTotals[monthKey]["order_count"].(int) + 1
+		}
+
+		var data []MonthlyDataPoint
+		for _, v := range monthlyTotals {
+			data = append(data, MonthlyDataPoint{
+				Month:      v["month"].(string),
+				MonthStart: v["month_start"].(string),
+				Total:      v["total"].(int),
+				OrderCount: v["order_count"].(int),
+			})
+		}
+		sort.Slice(data, func(i, j int) bool {
+			return data[i].Month < data[j].Month
+		})
+		return data
+	}
+
+	current := aggregateMonthly(startDate, endDate)
+
+	if prevStart != "" && prevEnd != "" {
+		previous := aggregateMonthly(prevStart, prevEnd)
+		c.JSON(http.StatusOK, gin.H{
+			"current":  current,
+			"previous": previous,
+		})
 		return
 	}
 
-	monthlyTotals := make(map[string]map[string]interface{})
-	for _, s := range sales {
-		// Bug fix: use time.RFC3339 and convert to Jakarta local time
-		createdTime, _ := time.Parse(time.RFC3339, s.CreatedAt)
-		createdTime = createdTime.In(cfg.Timezone)
-		monthKey := createdTime.Format("2006-01")
-		monthStart := createdTime.Format("2006-01-01")
-
-		if monthlyTotals[monthKey] == nil {
-			monthlyTotals[monthKey] = map[string]interface{}{
-				"month":       monthKey,
-				"month_start": monthStart,
-				"total":       0,
-				"order_count": 0,
-			}
-		}
-		monthlyTotals[monthKey]["total"] = monthlyTotals[monthKey]["total"].(int) + s.TotalAmount
-		monthlyTotals[monthKey]["order_count"] = monthlyTotals[monthKey]["order_count"].(int) + 1
-	}
-
-	type MonthlyDataPoint struct {
-		Month      string `json:"month"`
-		MonthStart string `json:"month_start"`
-		Total      int    `json:"total"`
-		OrderCount int    `json:"order_count"`
-	}
-
-	var data []MonthlyDataPoint
-	for _, v := range monthlyTotals {
-		data = append(data, MonthlyDataPoint{
-			Month:      v["month"].(string),
-			MonthStart: v["month_start"].(string),
-			Total:      v["total"].(int),
-			OrderCount: v["order_count"].(int),
-		})
-	}
-
-	// Sort by month
-	sort.Slice(data, func(i, j int) bool {
-		return data[i].Month < data[j].Month
-	})
-
-	c.JSON(http.StatusOK, gin.H{"data": data})
+	c.JSON(http.StatusOK, gin.H{"data": current})
 }
 
 func (h *Handler) GetPeriodComparison(c *gin.Context) {

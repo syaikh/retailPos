@@ -18,6 +18,7 @@ import { chart } from '$lib/actions/chart';
 
   let loading = $state(true);
   let chartData = $state([]);
+  let prevChartData = $state([]);
   let availableYears = $state([]);
 
   // KPI data
@@ -346,7 +347,7 @@ function getPeriodDateRange(periodType) {
     case '7days':
       return { start: daysAgo(7), end: daysAgo(1) };
     case '30days':
-      return { start: daysAgo(31), end: daysAgo(1) };
+      return { start: daysAgo(30), end: daysAgo(1) };
 case 'daily': {
         // Only return a date if user has made a selection
         if (!dailySelectionMade || !selectedDailyDate) {
@@ -506,6 +507,9 @@ function getPeriodDescription() {
 const chartConfig = $derived.by(() => {
   let labels = [];
   let values = [];
+  let prevValues = [];
+  let dateStrings = [];
+  let prevDateStrings = [];
   let currentChartType = chartType;
 
   if (chartType === 'hourly') {
@@ -514,6 +518,11 @@ const chartConfig = $derived.by(() => {
     // Example: if current time is 05:39, show hours 0-5 (last full hour is 05:00)
     labels = chartData.map(d => `${String(d.hour).padStart(2, '0')}:00`);
     values = chartData.map(d => d.total);
+    // Align prev data by hour index, null for missing hours
+    prevValues = chartData.map(d => {
+      const prev = prevChartData.find(p => p.hour === d.hour);
+      return prev ? prev.total : null;
+    });
   } else if (chartType === 'daily') {
     currentChartType = 'line';
     
@@ -531,7 +540,7 @@ const chartConfig = $derived.by(() => {
         const endDateParts = periodEnd.split('-');
         const year = parseInt(endDateParts[0]);
         const month = parseInt(endDateParts[1]);
-        const daysInMonth = new Date(year, month, 0).getUTCDate();
+        const daysInMonth = new Date(year, month, 0).getDate();
         
         // Yesterday in Jakarta timezone - max date to show actual data for
         const yesterday = getDateNDaysAgoInJakarta(1);
@@ -544,127 +553,355 @@ const chartConfig = $derived.by(() => {
           }
         });
         
-        // Month names for X-axis labels
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Build prev values ordered by date (align by index — like-for-like)
+        const prevSorted = [...prevChartData]
+          .filter(d => d.date)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        const prevValuesList = prevSorted.map(d => d.total || 0);
+        let prevIdx = 0;
         
-        // Generate labels for all days in month with full date format
+        // Generate Day N labels with parallel date strings for tooltip
         labels = [];
         values = [];
+        prevValues = [];
+        dateStrings = [];
+        prevDateStrings = [];
         for (let day = 1; day <= daysInMonth; day++) {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          // Format: "1 May", "2 May", etc.
-          labels.push(`${day} ${monthNames[month - 1]}`);
+          labels.push(`Day ${day}`);
+          dateStrings.push(dateStr);
           // Show data for dates up to yesterday, null for future dates
-          // Chart.js will skip null values
           if (dateStr <= yesterday) {
+            const prevItem = prevSorted[prevIdx];
+            const hasPrev = prevItem && prevItem.total > 0;
+            prevDateStrings.push(prevItem ? prevItem.date : '');
             values.push(dataMap[dateStr] || 0);
+            prevValues.push(hasPrev ? prevItem.total : null);
+            prevIdx++;
           } else {
+            prevDateStrings.push('');
             values.push(null);
+            prevValues.push(null);
           }
         }
       }
     } else if (activePeriodType === 'weekly') {
-      // For weekly, filter to only show data up to yesterday
-      const yesterday = getDateNDaysAgoInJakarta(1);
+      // Build prev data map by date
+      const prevByDate = {};
+      prevChartData.forEach(pd => {
+        if (pd.date) prevByDate[pd.date] = pd.total;
+      });
+      // Build current data map
+      const dataMap = {};
+      chartData.forEach(d => {
+        if (d.date) dataMap[d.date] = d.total;
+      });
+      // Compute day offset between current and previous week
+      const sortedCurrent = chartData.filter(d => d.date && d.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
+      const sortedPrev = [...prevChartData].filter(d => d.date && d.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
+      let dayOffset = 0;
+      if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
+        const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
+        dayOffset = Math.round(diffMs / 86400000);
+      }
+      // Extend X-axis to full week (Monday-Sunday) even for partial weeks
+      const endDateTime = new Date(endDate + 'T00:00:00Z');
+      const endDayOfWeek = endDateTime.getUTCDay();
+      const daysSinceMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
+      const mondayDate = new Date(endDateTime.getTime() - daysSinceMonday * 86400000);
+      const sundayDate = new Date(mondayDate);
+      sundayDate.setDate(mondayDate.getDate() + 6);
+      const dayMs = 86400000;
       labels = [];
       values = [];
-      chartData.forEach(d => {
-        if (d.date && d.date <= yesterday) {
-          const date = new Date(d.date);
-          labels.push(date.toLocaleString('id-ID', { month: 'short', day: 'numeric' }));
-          values.push(d.total);
+      prevValues = [];
+      dateStrings = [];
+      prevDateStrings = [];
+      for (let d = new Date(mondayDate); d <= sundayDate; d = new Date(d.getTime() + dayMs)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const currentLabel = d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        if (dateStr <= endDate) {
+          const total = dataMap[dateStr];
+          const expectedPrev = new Date(d.getTime() - dayOffset * 86400000);
+          const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
+          const prevTotal = prevByDate[expectedPrevStr];
+          const hasPrev = prevTotal !== undefined && prevTotal > 0;
+          const prevLabel = hasPrev
+            ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
+            : 'No Data';
+          labels.push(`${currentLabel}\n${prevLabel}`);
+          dateStrings.push(dateStr);
+          prevDateStrings.push(hasPrev ? expectedPrevStr : '');
+          values.push(total !== undefined ? total : 0);
+          prevValues.push(hasPrev ? prevTotal : null);
+        } else {
+          labels.push(`${currentLabel}\nNo Data`);
+          dateStrings.push(dateStr);
+          prevDateStrings.push('');
+          values.push(null);
+          prevValues.push(null);
         }
-      });
+      }
     } else {
-      // For 7days/30days view, show data as-is with month + day
-      labels = chartData.map((d, i) => {
-        if (!d.date) return String(i + 1);
-        const date = new Date(d.date);
-        return date.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
+      // For 7days/30days view, use date-offset mapping instead of index alignment
+      // Build prev data map by date
+      const prevByDate = {};
+      prevChartData.forEach(pd => {
+        if (pd.date) prevByDate[pd.date] = pd.total;
       });
-      values = chartData.map(d => d.total);
+      // Compute day offset between current and previous period from first items
+      const sortedCurrent = chartData.filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+      const sortedPrev = [...prevChartData].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+      let dayOffset = 0;
+      if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
+        const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
+        dayOffset = Math.round(diffMs / 86400000);
+      }
+      labels = [];
+      values = [];
+      prevValues = [];
+      dateStrings = [];
+      prevDateStrings = [];
+      chartData.forEach((d, i) => {
+        if (!d.date) {
+          labels.push(String(i + 1));
+          dateStrings.push('');
+          prevDateStrings.push('');
+          values.push(d.total);
+          prevValues.push(null);
+          return;
+        }
+        const currentDate = new Date(d.date);
+        const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        // Compute expected previous date using dayOffset
+        const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
+        const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
+        const prevTotal = prevByDate[expectedPrevStr];
+        const hasPrev = prevTotal !== undefined && prevTotal > 0;
+        const prevLabel = hasPrev
+          ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
+          : 'No Data';
+        labels.push(`${currentLabel}\n${prevLabel}`);
+        dateStrings.push(d.date);
+        prevDateStrings.push(hasPrev ? expectedPrevStr : '');
+        values.push(d.total);
+        prevValues.push(hasPrev ? prevTotal : null);
+      });
     }
   } else if (chartType === 'monthly' || chartType === 'yearly') {
     currentChartType = 'bar';
-    labels = chartData.map(d => {
-      if (d.month_start) {
-        const date = new Date(d.month_start);
-        // Append year for yearly view, otherwise just month name
-        if (activePeriodType === 'yearly') {
-          return date.toLocaleString('id-ID', { month: 'short' }) + ' ' + chartYear;
+
+    if (activePeriodType === 'yearly') {
+      // Month-number mapping (1-12) for like-for-like alignment regardless of data availability
+      const currentByMonth = {};
+      chartData.forEach(d => {
+        if (d.month_start) {
+          const m = parseInt(d.month_start.split('-')[1]);
+          if (!isNaN(m)) currentByMonth[m] = d.total;
         }
-        return date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
+      });
+      const prevByMonth = {};
+      prevChartData.forEach(d => {
+        if (d.month_start) {
+          const m = parseInt(d.month_start.split('-')[1]);
+          if (!isNaN(m)) prevByMonth[m] = d.total;
+        }
+      });
+
+      // Determine how many months to display
+      const todayJakarta = getTodayInJakarta().split('-').map(Number);
+      const isCurrentYear = chartYear === todayJakarta[0];
+      const totalMonths = isCurrentYear ? Math.max(0, todayJakarta[1] - 1) : 12;
+      const prevYear = chartYear - 1;
+
+      labels = [];
+      values = [];
+      prevValues = [];
+      dateStrings = [];
+      prevDateStrings = [];
+
+      for (let m = 1; m <= totalMonths; m++) {
+        const currentDate = new Date(chartYear, m - 1, 1);
+        const currentLabel = currentDate.toLocaleString('en-US', { month: 'short' }) + ' ' + chartYear;
+        const prevDate = new Date(prevYear, m - 1, 1);
+        const hasPrevData = prevByMonth[m] !== undefined && prevByMonth[m] > 0;
+        const prevLabel = hasPrevData
+          ? prevDate.toLocaleString('en-US', { month: 'short' }) + ' ' + prevYear
+          : 'No Data';
+
+        labels.push(`${currentLabel}\n${prevLabel}`);
+        dateStrings.push(currentDate.toISOString().split('T')[0]);
+        prevDateStrings.push(hasPrevData ? prevDate.toISOString().split('T')[0] : '');
+        values.push(currentByMonth[m] || 0);
+        prevValues.push(hasPrevData ? prevByMonth[m] : null);
       }
-      return d.label || '';
-    });
-    values = chartData.map(d => d.total);
+    } else {
+      // Fallback for unexpected chartType=monthly
+      const prevSorted = [...prevChartData]
+        .filter(d => d.month_start)
+        .sort((a, b) => a.month_start.localeCompare(b.month_start));
+      labels = chartData.map((d, i) => {
+        if (d.month_start) {
+          const currentDate = new Date(d.month_start);
+          const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+          const prevItem = prevSorted[i];
+          const prevLabel = prevItem
+            ? new Date(prevItem.month_start).toLocaleString('en-US', { month: 'short' })
+            : '';
+          return `${currentLabel}\n${prevLabel}`;
+        }
+        return d.label || '';
+      });
+      values = chartData.map(d => d.total);
+      prevValues = prevSorted.map(d => d.total || 0);
+    }
   } else {
     currentChartType = 'bar';
-    labels = chartData.map(d => {
+    const prevSorted = [...prevChartData]
+      .filter(d => d.week_start)
+      .sort((a, b) => a.week_start.localeCompare(b.week_start));
+    labels = chartData.map((d, i) => {
       if (d.week_start && d.week_end) {
         const start = new Date(d.week_start);
         const end = new Date(d.week_end);
-        const startStr = start.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
-        const endStr = end.toLocaleString('id-ID', { month: 'short', day: 'numeric' });
-        return `${startStr} - ${endStr}`;
+        const startStr = start.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const endStr = end.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        const currentLabel = `${startStr} - ${endStr}`;
+        const prevItem = prevSorted[i];
+        const prevLabel = prevItem
+          ? new Date(prevItem.week_start).toLocaleString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
+            new Date(prevItem.week_end).toLocaleString('en-US', { month: 'short', day: 'numeric' })
+          : '';
+        return `${currentLabel}\n${prevLabel}`;
       }
       return d.label || '';
     });
     values = chartData.map(d => d.total);
+    prevValues = prevSorted.map(d => d.total || 0);
   }
+
+  const hasPrevData = prevValues.some(v => v !== null);
 
   return {
     type: currentChartType,
     data: {
       labels,
-      datasets: [{
-        label: 'Revenue',
-        data: values,
-        borderColor: '#7c3aed',
-        backgroundColor: currentChartType === 'bar' ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)',
-        borderWidth: currentChartType === 'bar' ? 0 : 2,
-        pointBackgroundColor: '#fff',
-        pointBorderColor: '#7c3aed',
-        pointBorderWidth: 2,
-        pointRadius: currentChartType === 'bar' ? 0 : 4,
-        pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
-        fill: currentChartType === 'bar' ? true : true,
-        tension: currentChartType === 'bar' ? 0 : 0.4
-      }]
+      datasets: [
+        {
+          label: 'Current Period',
+          data: values,
+          borderColor: '#0ea5e9',
+          backgroundColor: currentChartType === 'bar' ? '#0ea5e9' : 'rgba(14, 165, 233, 0.15)',
+          borderWidth: currentChartType === 'bar' ? 0 : 2,
+          pointBackgroundColor: '#0ea5e9',
+          pointBorderColor: '#0ea5e9',
+          pointBorderWidth: 0,
+          pointRadius: currentChartType === 'bar' ? 0 : 4,
+          pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
+          tension: 0
+        },
+        ...(hasPrevData ? [{
+          label: 'Previous Period',
+          data: prevValues,
+          borderColor: '#94a3b8',
+          backgroundColor: currentChartType === 'bar' ? 'rgba(148, 163, 184, 0.5)' : 'rgba(148, 163, 184, 0.05)',
+          borderWidth: currentChartType === 'bar' ? 0 : 2,
+          pointBackgroundColor: '#94a3b8',
+          pointBorderColor: '#94a3b8',
+          pointBorderWidth: 0,
+          pointRadius: currentChartType === 'bar' ? 0 : 4,
+          pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
+          tension: 0
+        }] : [])
+      ]
     },
 options: {
-       responsive: true,
-       maintainAspectRatio: false,
-       plugins: {
-         legend: { display: false },
-         tooltip: {
-           callbacks: {
- label: function(context) {
-                let label = context.dataset.label || '';
-                if (label) label += ': ';
-                if (context.parsed.y !== null) {
-                  const val = context.parsed.y;
-                  if (val >= 1000000000) label += 'Rp ' + (val / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
-                  else if (val > 1000000) label += 'Rp ' + (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
-                  else if (val > 1000) label += 'Rp ' + (val / 1000).toFixed(0) + ' Rb';
-                  else label += 'Rp ' + val.toLocaleString('id-ID');
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            bottom: chartType !== 'hourly' ? 20 : 0
+          }
+        },
+         plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color: '#cbd5e1', font: { family: 'inherit' }, usePointStyle: true, pointStyle: 'circle' }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                if (activePeriodType === 'monthly' && chartType === 'daily') {
+                  const idx = items[0].dataIndex;
+                  return `Day ${idx + 1}`;
                 }
+                return items[0].label;
+              },
+              label: function(context) {
+                if (context.parsed.y === null) return null;
+                let label = context.dataset.label || '';
+                const showDate = (chartType === 'daily' && ['monthly', 'weekly', '7days', '30days'].includes(activePeriodType)) ||
+                                 (activePeriodType === 'yearly' && chartType === 'yearly');
+                if (showDate) {
+                  const idx = context.dataIndex;
+                  const dsIdx = context.datasetIndex;
+                  const date = dsIdx === 0 ? dateStrings[idx] : prevDateStrings[idx];
+                  if (date) {
+                    const d = new Date(date + 'T00:00:00');
+                    label += ` (${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})`;
+                  } else if (dsIdx === 1) {
+                    label += ': No Data';
+                    return label;
+                  }
+                } else {
+                  label += ': ';
+                }
+                const val = context.parsed.y;
+                if (val >= 1000000000) label += 'Rp ' + (val / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                else if (val > 1000000) label += 'Rp ' + (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
+                else if (val > 1000) label += 'Rp ' + (val / 1000).toFixed(0) + ' Rb';
+                else label += 'Rp ' + val.toLocaleString('id-ID');
                 return label;
+              },
+              footer: function(items) {
+                if (items.length < 2) return '';
+                const curr = items[0].parsed.y;
+                const prev = items[1].parsed.y;
+                if (curr === null || prev === null) return 'Difference: N/A';
+                if (prev <= 0) return '';
+                const diffVal = curr - prev;
+                const diffPct = (diffVal / prev) * 100;
+                const prefix = diffVal >= 0 ? '+' : '';
+                let diffStr = prefix;
+                if (diffVal >= 1000000000) diffStr += 'Rp ' + (diffVal / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
+                else if (diffVal > 1000000) diffStr += 'Rp ' + (diffVal / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
+                else if (diffVal > 1000) diffStr += 'Rp ' + (diffVal / 1000).toFixed(0) + ' Rb';
+                else diffStr += 'Rp ' + diffVal.toLocaleString('id-ID');
+                diffStr += ` (${prefix}${diffPct.toFixed(1)}%)`;
+                return diffStr;
               }
-           }
-         }
+            }
+          }
        },
 scales: {
           x: {
             grid: { display: false },
-            ticks: { 
-              color: '#9ca3af', 
-              font: { family: 'inherit' },
-              // For monthly view with many labels, rotate and limit ticks
-              maxRotation: activePeriodType === 'monthly' ? 45 : 0,
-              minRotation: activePeriodType === 'monthly' ? 45 : 0,
-              autoSkip: true,
-              maxTicksLimit: activePeriodType === 'monthly' ? 15 : 20
+            ticks: {
+              color: '#9ca3af',
+              font: { family: 'inherit', size: 10 },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: activePeriodType === 'monthly' || activePeriodType === '30days',
+              maxTicksLimit: activePeriodType === 'monthly' || activePeriodType === '30days' ? 12 : undefined,
+              callback: function(val, idx, ticks) {
+                const label = this.getLabelForValue(val);
+                if (label && label.includes('\n')) return label.split('\n');
+                return label;
+              }
             }
           },
           y: {
@@ -682,14 +919,14 @@ scales: {
               }
            },
            min: 0,
-           suggestedMax: function(context) {
-             const values = context.chart.data.datasets[0].data;
-             const positiveValues = values.filter(v => v > 0);
-             if (positiveValues.length === 0 && values.length > 0) return 1000;
-             if (values.length === 0) return 1000;
-             const maxValue = Math.max(...values);
-             return maxValue + maxValue * 0.1;
-           }
+            suggestedMax: function(context) {
+              const allValues = context.chart.data.datasets.flatMap(ds => ds.data);
+              const positiveValues = allValues.filter(v => v > 0);
+              if (positiveValues.length === 0 && allValues.length > 0) return 1000;
+              if (allValues.length === 0) return 1000;
+              const maxValue = Math.max(...allValues);
+              return maxValue + maxValue * 0.1;
+            }
          }
        }
      }
@@ -775,29 +1012,64 @@ async function fetchSalesWithRange(start, end) {
     }
   }
 
-  const [chartRes, comparisonRes] = await Promise.all([
-      apiFetch(`${chartEndpoint}?startDate=${start}&endDate=${chartEndDate}`),
+  let prevStart = '';
+  let prevEnd = '';
+
+  const shiftDays = activePeriodType === 'realtime' || activePeriodType === 'daily' || activePeriodType === 'yesterday' ? 1 :
+    activePeriodType === 'weekly' || activePeriodType === '7days' ? 7 :
+    activePeriodType === '30days' ? 30 : 0;
+
+  if (shiftDays > 0) {
+    const startParts = start.split('-').map(Number);
+    const endParts = chartEndDate.split('-').map(Number);
+    const startDateObj = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+    const endDateObj = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+    const prevStartObj = new Date(startDateObj.getTime() - shiftDays * 86400000);
+    const prevEndObj = new Date(endDateObj.getTime() - shiftDays * 86400000);
+    prevStart = `${prevStartObj.getUTCFullYear()}-${String(prevStartObj.getUTCMonth() + 1).padStart(2, '0')}-${String(prevStartObj.getUTCDate()).padStart(2, '0')}`;
+    prevEnd = `${prevEndObj.getUTCFullYear()}-${String(prevEndObj.getUTCMonth() + 1).padStart(2, '0')}-${String(prevEndObj.getUTCDate()).padStart(2, '0')}`;
+  } else if (activePeriodType === 'monthly' && selectedMonthlyRange) {
+    const startM = selectedMonthlyRange.start;
+    const endM = selectedMonthlyRange.end;
+    const prevMonth = startM.month === 1 ? 12 : startM.month - 1;
+    const prevYear = startM.month === 1 ? startM.year - 1 : startM.year;
+    const prevEndMonth = endM.month === 1 ? 12 : endM.month - 1;
+    const prevEndYear = endM.month === 1 ? endM.year - 1 : endM.year;
+    const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+    prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+    prevEnd = `${prevEndYear}-${String(prevEndMonth).padStart(2, '0')}-${String(daysInPrevMonth).padStart(2, '0')}`;
+  } else if (activePeriodType === 'yearly' && selectedYearlyRange) {
+    const year = selectedYearlyRange.start.year;
+    prevStart = `${year - 1}-01-01`;
+    prevEnd = `${year - 1}-12-31`;
+  }
+
+  const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
+
+  const [dualRes, comparisonRes] = await Promise.all([
+      apiFetch(chartUrl),
       apiFetch(`/api/dashboard/comparison?period=${backendPeriodType}&mode=${comparisonMode}&date=${comparisonDate}`)
     ]);
 
-    if (chartRes.ok) {
-      const cData = await chartRes.json();
-      const rawData = cData.data || [];
-      
+    if (dualRes.ok) {
+      const dualData = await dualRes.json();
+      const rawCurrent = dualData.current || dualData.data || [];
+      const rawPrevious = dualData.previous || [];
+
       // For real-time, show data from 00:00 through the current hour (includes partial hour)
-      // Example: at 05:39 Jakarta, currentHour is 5, show hours 0-5 (inclusive)
       if (activePeriodType === 'realtime') {
         const currentHour = getCurrentJakartaHour();
-        chartData = rawData.filter(item => {
+        chartData = rawCurrent.filter(item => {
           const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
-          return hour <= currentHour; // Include current partial hour (0-5 when at 05:xx)
+          return hour <= currentHour;
         });
-      } else if (chartType === 'daily' && activePeriodType === 'monthly') {
-        // For monthly view: keep all dates for chart generation
-        // The chart config will handle the full month label generation
-        chartData = rawData;
+        prevChartData = rawPrevious.filter(item => {
+          const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
+          return hour <= currentHour;
+        });
       } else {
-        chartData = rawData;
+        chartData = rawCurrent;
+        prevChartData = rawPrevious;
       }
     }
 
