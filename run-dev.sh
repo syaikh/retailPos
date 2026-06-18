@@ -26,11 +26,42 @@ if ! podman inspect --format '{{.State.Running}}' postgres-dev 2>/dev/null | gre
   sleep 3
 fi
 
-# Check if port is in use and kill the process
-PID=$(lsof -ti :$PORT 2>/dev/null) || true
-if [ -n "$PID" ]; then
-  echo "Port $PORT is in use by process $PID, killing it..."
-  kill -9 $PID
-fi
+start_server() {
+  # Graceful shutdown server lama via SIGTERM
+  if [ -n "$SERVER_PID" ]; then
+    echo "Shutting down server (PID: $SERVER_PID)..."
+    kill $SERVER_PID 2>/dev/null || true
+    sleep 2
+  fi
 
-go run ./cmd/server/main.go "$@"
+  # Force kill jika masih ada yang menempati port
+  PID=$(lsof -ti :$PORT 2>/dev/null) || true
+  if [ -n "$PID" ]; then
+    echo "Port $PORT still in use by process $PID, force killing..."
+    kill -9 $PID 2>/dev/null || true
+  fi
+
+  go run ./cmd/server/main.go "$@" &
+  SERVER_PID=$!
+}
+
+cleanup() {
+  if [ -n "$SERVER_PID" ]; then
+    kill $SERVER_PID 2>/dev/null || true
+    wait $SERVER_PID 2>/dev/null || true
+  fi
+  exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+start_server "$@"
+echo "Server is running. Press 'r' + Enter to restart, 'q' + Enter to quit."
+
+while true; do
+  read key
+  case "$key" in
+    r|R) start_server "$@" ;;
+    q|Q) cleanup ;;
+  esac
+done

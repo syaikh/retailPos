@@ -109,6 +109,6 @@ describe('UsersPage.svelte source-structure guards', () => {
   it('renders last_login column with Never fallback', () => {
     expect(src).toContain('LAST LOGIN');
     expect(src).toContain("user.last_login");
-    expect(src).toContain("'Never'");
+    expect(src).toContain('Never');
   });
 });

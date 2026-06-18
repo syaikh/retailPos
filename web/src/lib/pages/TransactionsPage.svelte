@@ -5,13 +5,13 @@
   import { getAuthToken } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
   import { debounce } from '$lib/utils/debounce';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
-  import { Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown, ArrowUpDown } from 'lucide-svelte';
+  import { Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown } from 'lucide-svelte';
 
   let loading = $state(true);
   let salesData = $state([]);
@@ -56,6 +56,8 @@
     { label: 'This Month', days: 'month' as const },
     { label: 'This Year', days: 'year' as const },
   ];
+
+  const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + '-01-01');
 
   const dateRangeLabel = $derived.by(() => {
     const today = getTodayInJakarta();
@@ -149,13 +151,8 @@
   }
 
   const formatDateTime = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('id-ID', { month: 'short' });
-    const year = date.getFullYear();
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+    const isoStr = date instanceof Date ? date.toISOString() : String(date);
+    return formatDateTimeInJakarta(isoStr);
   };
 
   function applyDatePreset(days: number | 'month' | 'year') {
@@ -266,13 +263,7 @@
 
   function toggleSort(column: string) {
     if (sortBy === column) {
-      if (sortDir === 'DESC') {
-        sortDir = 'ASC';
-      } else if (sortDir === 'ASC') {
-        sortBy = 'created_at';
-        sortDir = 'DESC';
-        return;
-      }
+      sortDir = sortDir === 'ASC' ? 'DESC' : 'ASC';
     } else {
       sortBy = column;
       sortDir = 'ASC';
@@ -448,8 +439,8 @@
             class="btn btn-secondary flex items-center gap-2 min-w-44 date-picker-trigger"
             onclick={() => showDatePicker = !showDatePicker}
           >
-            <CalendarDays size={16} class="text-white shrink-0" />
-            <span class="text-sm font-medium truncate flex-1 text-left">{dateRangeLabel}</span>
+            <CalendarDays size={16} class="text-text-secondary shrink-0" />
+            <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
             <ChevronDown size={14} class="opacity-60 shrink-0" />
           </button>
           {#if showDatePicker}
@@ -465,9 +456,9 @@
                 {/each}
               </div>
               <div class="flex items-center gap-2 text-xs">
-                <input type="date" bind:value={startDate} class="input input-sm w-full" />
+                <input type="date" bind:value={startDate} class="input input-sm w-full" min={currentYearStart} max={endDate} />
                 <span class="text-text-muted">—</span>
-                <input type="date" bind:value={endDate} class="input input-sm w-full" />
+                <input type="date" bind:value={endDate} class="input input-sm w-full" min={startDate} max={getTodayInJakarta()} />
               </div>
               <div class="flex justify-end mt-2">
                 <button
@@ -528,7 +519,7 @@
             class="btn btn-secondary flex items-center gap-2 min-w-44"
             onclick={() => showPaymentDropdown = !showPaymentDropdown}
           >
-            <span class="text-sm truncate flex-1 text-left">
+            <span class="text-sm truncate flex-1 text-left text-text-secondary">
               {selectedPaymentMethods.length > 0
                 ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
                 : 'All methods'}
@@ -636,24 +627,24 @@
             <tr>
               <th class="text-left p-4 font-semibold">
                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('invoice_number')}>
-                  INVOICE <ArrowUpDown size={14} class="text-text-muted" />
+                  INVOICE {#if sortBy === 'invoice_number'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-left p-4 font-semibold">
                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('created_at')}>
-                  DATE <ArrowUpDown size={14} class="text-text-muted" />
+                  DATE {#if sortBy === 'created_at'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-left p-4 font-semibold w-[30%]">CUSTOMER</th>
               <th class="text-left p-4 font-semibold">ITEMS</th>
               <th class="text-left p-4 font-semibold">
                 <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('payment_method')}>
-                  PAYMENT <ArrowUpDown size={14} class="text-text-muted" />
+                  PAYMENT {#if sortBy === 'payment_method'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-right p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => toggleSort('total_amount')}>
-                  TOTAL (RP) <ArrowUpDown size={14} class="text-text-muted" />
+                <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => toggleSort('total_amount')}>
+                  TOTAL (RP) {#if sortBy === 'total_amount'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
             </tr>

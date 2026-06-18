@@ -27,7 +27,7 @@
 
   let collapsed = $state(false);
   let adminExpanded = $state(false);
-  let masterDataExpanded = $state(true);
+  let masterDataExpanded = $state(false);
 
   const isAdminPath = $derived(currentPath.startsWith('/admin'));
   const isMasterDataPath = $derived(

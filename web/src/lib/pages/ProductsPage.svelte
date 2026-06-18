@@ -18,7 +18,7 @@
   import StockAdjustModal from '$lib/components/inventory/StockAdjustModal.svelte';
   import {
     Plus, Pencil, Trash2, Package,
-    SlidersHorizontal, Loader2, Copy, ArrowUpDown, X, ChevronDown, AlertTriangle
+    SlidersHorizontal, Loader2, Copy, X, ChevronDown, AlertTriangle
   } from 'lucide-svelte';
   import { toast } from '$lib/stores/toast';
 
@@ -58,6 +58,12 @@
     notes: ''
   });
   let lowStockOnly = $state(false);
+  let filterStatus = $state('all');
+  let showStatusDropdown = $state(false);
+
+  let statusLabel = $derived(
+    filterStatus === 'all' ? 'All Status' : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)
+  );
 
   let previousCategories = ['All'];
   let sortBy = $state('name');
@@ -65,10 +71,92 @@
   let showCategoryFilterModal = $state(false);
   let modalCategorySearch = $state('');
 
+  let selectedIds = $state(new Set());
+  let showBulkStatusModal = $state(false);
+  let bulkStatusTarget = $state('active');
+  let isBulkUpdating = $state(false);
+
+  let allSelected = $derived(products.length > 0 && products.every(p => selectedIds.has(p.id)));
+  let someSelected = $derived(selectedIds.size > 0 && !allSelected);
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(products.map(p => p.id));
+    }
+  }
+
+  function toggleSelect(id) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) { next.delete(id); } else { next.add(id); }
+    selectedIds = next;
+  }
+
+  function clearSelection() {
+    selectedIds = new Set();
+  }
+
+  async function handleBulkStatusUpdate() {
+    isBulkUpdating = true;
+    const eligibleIds = products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).map(p => p.id);
+    const skippedCount = selectedIds.size - eligibleIds.length;
+    if (eligibleIds.length === 0) {
+      toast.warning(`All selected product(s) already ${bulkStatusTarget}`);
+      isBulkUpdating = false;
+      showBulkStatusModal = false;
+      return;
+    }
+    try {
+      await apiClient.post('/products/bulk/status', { ids: eligibleIds, status: bulkStatusTarget });
+      toast.success(`Updated ${eligibleIds.length} product(s) to ${bulkStatusTarget}`);
+      if (skippedCount > 0) {
+        toast.warning(`${skippedCount} product(s) already ${bulkStatusTarget}`);
+      }
+      selectedIds = new Set();
+      await fetchProducts(offset, limit);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update product statuses');
+    } finally {
+      isBulkUpdating = false;
+      showBulkStatusModal = false;
+    }
+  }
+
   let categoryBtnStyle = $derived(selectedCategories.length > 0
     ? 'background: rgba(124,58,236,0.12); border-color: rgba(124,58,236,0.35); color: #c4b5fd;'
     : 'background: rgba(30,27,36,0.7); border-color: #374151; color: #9ca3af;'
   );
+
+  let activeChips = $derived.by(() => {
+    const chips = [];
+    if (filterStatus !== 'all') {
+      chips.push({ type: 'status', label: statusLabel });
+    }
+    if (selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')) {
+      chips.push({ type: 'category', label: `${selectedCategories.length} Kategori` });
+    }
+    if (lowStockOnly) {
+      chips.push({ type: 'stock', label: 'Low Stock' });
+    }
+    return chips;
+  });
+
+  function clearFilter(type) {
+    if (type === 'status') filterStatus = 'all';
+    if (type === 'category') selectedCategories = ['All'];
+    if (type === 'stock') lowStockOnly = false;
+    offset = 0;
+    fetchProducts(0, limit);
+  }
+
+  function clearAllFilters() {
+    filterStatus = 'all';
+    selectedCategories = ['All'];
+    lowStockOnly = false;
+    offset = 0;
+    fetchProducts(0, limit);
+  }
 
   let form = $state({
     name: '',
@@ -184,6 +272,7 @@
   async function fetchProducts(newOffset?, newLimit?) {
     if (newOffset !== undefined) offset = newOffset;
     if (newLimit !== undefined) limit = newLimit;
+    selectedIds = new Set();
     try {
       loading = true;
       const params = new URLSearchParams({
@@ -194,6 +283,7 @@
       const filteredCategories = selectedCategories.filter(c => c.toLowerCase() !== 'all');
       if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
       if (lowStockOnly) params.append('maxStock', criticalThreshold.toString());
+      if (filterStatus !== 'all') params.append('status', filterStatus);
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
@@ -491,13 +581,25 @@
     });
   });
 
+  function handleClickOutside(e: MouseEvent) {
+    if (showStatusDropdown && !(e.target as Element).closest('.status-filter-container')) {
+      showStatusDropdown = false;
+    }
+  }
+
   function handleWindowKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       if (showDetailDrawer) showDetailDrawer = false;
       if (showDeleteModal) showDeleteModal = false;
+      if (showStatusDropdown) showStatusDropdown = false;
       document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
     }
   }
+
+  $effect(() => {
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  });
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} />
@@ -531,6 +633,32 @@
         </span>
         <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
       </button>
+      <div class="relative shrink-0 status-filter-container">
+        <button
+          type="button"
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {filterStatus !== 'all' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+          onclick={() => showStatusDropdown = !showStatusDropdown}
+        >
+          <span>{statusLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+        {#if showStatusDropdown}
+          <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]" onclick={(e) => e.stopPropagation()}>
+            <button
+              class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { filterStatus = 'all'; showStatusDropdown = false; offset = 0; fetchProducts(0, limit); }}
+            >All Status</button>
+            {#each ['active', 'inactive', 'archived'] as status}
+              <button
+                class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === status ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { filterStatus = status; showStatusDropdown = false; offset = 0; fetchProducts(0, limit); }}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       <button
         type="button"
         role="switch"
@@ -556,6 +684,32 @@
         Add Product
       </button>
     </div>
+
+    <div class="filter-chips-wrapper" class:is-open={activeChips.length > 0}>
+      <div class="filter-chips-inner">
+        <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/50">
+          {#each activeChips as chip}
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-subtle/20 border border-primary-subtle/30 rounded-full text-sm text-text-secondary">
+              <SlidersHorizontal size={13} class="text-primary-light shrink-0" />
+              <span class="font-medium truncate max-w-[180px]">{chip.label}</span>
+              <button
+                class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                onclick={() => clearFilter(chip.type)}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          {/each}
+          <button
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-primary bg-surface-default/50 border border-border/50 rounded-full transition-colors"
+            onclick={clearAllFilters}
+          >
+            Clear all
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="card overflow-hidden">
@@ -563,17 +717,19 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 38%;">PRODUCT NAME</th>
-            <th class="text-left p-4 font-semibold w-48">CATEGORY</th>
-            <th class="text-right p-4 font-semibold w-32">PRICE</th>
-            <th class="text-right p-4 font-semibold w-20">STOCK</th>
+            <th class="p-4 font-semibold w-12"></th>
+            <th class="text-left p-4 font-semibold" style="width: 34%;">PRODUCT NAME</th>
+            <th class="text-left p-4 font-semibold w-44">CATEGORY</th>
+            <th class="p-4 font-semibold w-32 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
+            <th class="p-4 font-semibold w-20 text-right"><span class="flex items-center justify-end gap-1">STOCK</span></th>
             <th class="text-left p-4 font-semibold w-24">STATUS</th>
-            <th class="text-right p-4 font-semibold w-10"></th>
+            <th class="text-left p-4 font-semibold w-10"></th>
           </tr>
         </thead>
         <tbody>
           {#each Array(5) as _}
             <tr class="border-t border-border">
+              <td class="p-4 w-12"><Skeleton class="h-4 w-4" /></td>
               <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
               <td class="p-4 w-60"><Skeleton class="h-4 w-3/4" /></td>
               <td class="p-4 text-right w-36"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
@@ -598,28 +754,31 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 44%;">
+            <th class="p-4 font-semibold w-12">
+              <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} />
+            </th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-                PRODUCT NAME <ArrowUpDown size={14} class="text-text-muted" />
+                PRODUCT NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-44">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('category')}>
-                CATEGORY <ArrowUpDown size={14} class="text-text-muted" />
+                CATEGORY {#if sortBy === 'category'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-32">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('price')}>
-                PRICE <ArrowUpDown size={14} class="text-text-muted" />
+            <th class="p-4 font-semibold w-32">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('price')}>
+                PRICE {#if sortBy === 'price'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-24">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('stock')}>
-                STOCK <ArrowUpDown size={14} class="text-text-muted" />
+            <th class="p-4 font-semibold w-24">
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('stock')}>
+                STOCK {#if sortBy === 'stock'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-24">STATUS</th>
-            <th class="text-right p-4 font-semibold w-10"></th>
+            <th class="text-left p-4 font-semibold w-10"></th>
           </tr>
         </thead>
         <tbody>
@@ -628,7 +787,10 @@
               class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
               onclick={() => openProductDetails(product)}
             >
-              <td class="p-4 pr-6" style="width: 44%;">
+              <td class="p-4 w-12" onclick={(e) => e.stopPropagation()}>
+                <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} />
+              </td>
+              <td class="p-4 pr-6" style="width: 40%;">
                 <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
@@ -703,6 +865,16 @@
        </table>
         {/if}
 
+        {#if selectedIds.size > 0}
+          <div class="px-4 py-2.5 bg-primary/5 border-t border-primary/20 flex items-center gap-3">
+            <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
+            <div class="flex items-center gap-2 ml-auto">
+              <button class="btn btn-secondary text-xs px-3 py-1.5 h-auto" onclick={() => showBulkStatusModal = true}>Change Status</button>
+              <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
+            </div>
+          </div>
+        {/if}
+
         {#if !loading && products.length > 0}
           <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
             <Pagination {total} {limit} {offset} onPageChange={fetchProducts} />
@@ -751,6 +923,28 @@
   onSubmit={handleAdjustStock}
   onCancel={() => { showAdjustStockModal = false; stockAdjustProduct = null; }}
 />
+
+<Modal bind:open={showBulkStatusModal} title="Change Status" size="sm">
+  <div class="py-2">
+    <p class="text-text-primary font-semibold mb-3">Set status to <span class="text-primary-light">{bulkStatusTarget}</span> for {products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).length} of {selectedIds.size} product(s):</p>
+    <div class="flex flex-wrap gap-2 justify-center">
+      {#each ['active', 'inactive', 'archived'] as status}
+        <button
+          class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTarget === status ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+          onclick={() => bulkStatusTarget = status}
+        >
+          {status.charAt(0).toUpperCase() + status.slice(1)}
+        </button>
+      {/each}
+    </div>
+  </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</button>
+    <button class="btn btn-primary px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
+      {isBulkUpdating ? 'Updating...' : 'Update'}
+    </button>
+  {/snippet}
+</Modal>
 
 {#if showDetailDrawer && selectedProduct}
   <div class="fixed inset-0 bg-black/60 z-50" onclick={() => (showDetailDrawer = false)} aria-hidden="true"></div>
@@ -966,3 +1160,21 @@
     {/if}
   </div>
 {/if}
+
+<style>
+  .filter-chips-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.2s ease-out, opacity 0.2s ease-out;
+  }
+
+  .filter-chips-wrapper.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .filter-chips-inner {
+    overflow: hidden;
+  }
+</style>

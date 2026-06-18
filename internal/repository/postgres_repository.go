@@ -21,6 +21,7 @@ func init() {
 	var err error
 	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
 	if err != nil {
+		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
 		jakartaLoc = time.UTC
 	}
 }
@@ -30,6 +31,7 @@ func mustLoadJakarta() *time.Location {
 		var err error
 		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
 		if err != nil {
+			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
 			jakartaLoc = time.UTC
 		}
 	}
@@ -841,6 +843,14 @@ func (r *postgresRepository) DeleteProduct(ctx context.Context, id int, storeID 
 	return err
 }
 
+func (r *postgresRepository) BulkUpdateProductStatus(ctx context.Context, ids []int, status string, storeID *int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.db.Exec(ctx, "UPDATE products SET status = $1 WHERE id = ANY($2)", status, ids)
+	return err
+}
+
 // ==================== CATEGORY ====================
 
 func (r *postgresRepository) ListCategories(ctx context.Context) ([]domain.Category, error) {
@@ -1304,17 +1314,19 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	}
 	if startDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
-		countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
-		countArgs = append(countArgs, start)
-		argIdx++
+		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+			countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
+			countArgs = append(countArgs, start)
+			argIdx++
+		}
 	}
 	if endDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
-		countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
-		countArgs = append(countArgs, end.Add(24*time.Hour))
-		argIdx++
+		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+			countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
+			countArgs = append(countArgs, end.Add(24*time.Hour))
+			argIdx++
+		}
 	}
 	if storeID != nil {
 		countQuery += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
@@ -1357,17 +1369,19 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	}
 	if startDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
-		query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
-		args2 = append(args2, start)
-		argIdx2++
+		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
+			args2 = append(args2, start)
+			argIdx2++
+		}
 	}
 	if endDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
-		query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
-		args2 = append(args2, end.Add(24*time.Hour))
-		argIdx2++
+		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
+			args2 = append(args2, end.Add(24*time.Hour))
+			argIdx2++
+		}
 	}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx2)
@@ -1493,16 +1507,18 @@ func (r *postgresRepository) GetSalesForExport(ctx context.Context, search, star
 		argIdx++
 	}
 	if startDate != "" {
-		start, _ := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta())
-		query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
-		args = append(args, start)
-		argIdx++
+		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
+			args = append(args, start)
+			argIdx++
+		}
 	}
 	if endDate != "" {
-		end, _ := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta())
-		query += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
-		args = append(args, end.Add(24*time.Hour))
-		argIdx++
+		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
+			args = append(args, end.Add(24*time.Hour))
+			argIdx++
+		}
 	}
 	if paymentMethods != "" {
 		query += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx)
@@ -1577,8 +1593,8 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		args = append(args, *startDate)
 	}
 	if endDate != nil {
-		query += fmt.Sprintf(" AND al.created_at <= $%d", len(args)+1)
-		args = append(args, *endDate)
+		query += fmt.Sprintf(" AND al.created_at < $%d", len(args)+1)
+		args = append(args, endDate.Add(24*time.Hour))
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -1609,8 +1625,8 @@ func (r *postgresRepository) GetAuditLogs(ctx context.Context, limit, offset int
 		args2 = append(args2, *startDate)
 	}
 	if endDate != nil {
-		query += fmt.Sprintf(" AND al.created_at <= $%d", len(args2)+1)
-		args2 = append(args2, *endDate)
+		query += fmt.Sprintf(" AND al.created_at < $%d", len(args2)+1)
+		args2 = append(args2, endDate.Add(24*time.Hour))
 	}
 	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT $%d OFFSET $%d", len(args2)+1, len(args2)+2)
 	args2 = append(args2, limit, offset)

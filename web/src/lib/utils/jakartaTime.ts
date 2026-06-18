@@ -185,6 +185,77 @@ export function getJakartaDayOfWeek(): number {
  * - Friday: 4 days completed
  * - Saturday: 5 days completed (full week minus today)
  */
+/**
+ * Format a UTC ISO date string to Jakarta date display (dd Mon yyyy).
+ * Example: "2026-06-16T07:30:00Z" → "16 Jun 2026"
+ */
+export function formatDateInJakarta(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '—';
+  const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
+  const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const month = months[jakartaDate.getUTCMonth()];
+  return `${day} ${month} ${jakartaDate.getUTCFullYear()}`;
+}
+
+/**
+ * Format a UTC ISO date string to Jakarta time display (HH:mm:ss).
+ * Example: "2026-06-16T07:30:00Z" → "14:30:00"
+ */
+export function formatTimeInJakarta(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '—';
+  const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
+  const hours = jakartaDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, '0');
+  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Format a UTC ISO date string to Jakarta datetime display (dd Mon yyyy HH:mm:ss).
+ */
+export function formatDateTimeInJakarta(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '—';
+  const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
+  const day = jakartaDate.getUTCDate().toString().padStart(2, '0');
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const month = months[jakartaDate.getUTCMonth()];
+  const hours = jakartaDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = jakartaDate.getUTCMinutes().toString().padStart(2, '0');
+  const seconds = jakartaDate.getUTCSeconds().toString().padStart(2, '0');
+  return `${day} ${month} ${jakartaDate.getUTCFullYear()} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Returns current Jakarta wall-clock time components.
+ */
+export function getCurrentJakartaClock(): { hours: string; minutes: string; seconds: string } {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return {
+    hours: String(shifted.getUTCHours()).padStart(2, '0'),
+    minutes: String(shifted.getUTCMinutes()).padStart(2, '0'),
+    seconds: String(shifted.getUTCSeconds()).padStart(2, '0'),
+  };
+}
+
+/**
+ * Returns current Jakarta date as a formatted display object.
+ */
+export function getCurrentJakartaDateDisplay(): { day: number; month: string; year: number; weekday: string } {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const weekdays = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  return {
+    day: shifted.getUTCDate(),
+    month: months[shifted.getUTCMonth()],
+    year: shifted.getUTCFullYear(),
+    weekday: weekdays[shifted.getUTCDay()],
+  };
+}
+
 export function getCompletedDaysInCurrentWeek(): number {
   const dayOfWeek = getJakartaDayOfWeek();
   // If today is Monday (1), no completed days yet (Mon to yesterday = none)

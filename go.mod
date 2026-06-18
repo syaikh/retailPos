@@ -11,6 +11,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/lib/pq v1.12.3
 	github.com/stretchr/testify v1.11.1
+	github.com/xuri/excelize/v2 v2.10.1
 	golang.org/x/crypto v0.49.0
 	golang.org/x/time v0.15.0
 )
@@ -47,7 +48,6 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
-	github.com/xuri/excelize/v2 v2.10.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	golang.org/x/arch v0.23.0 // indirect

@@ -22,6 +22,7 @@
   let pageInput = $state<string>('');
   let editing = $state(false);
   let cancelled = $state(false);
+  let pageInputEl: HTMLInputElement = $state()!;
 
   function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
@@ -37,6 +38,10 @@
     pageInput = String(currentPage);
     cancelled = false;
     editing = true;
+    requestAnimationFrame(() => {
+      pageInputEl?.focus();
+      pageInputEl?.select();
+    });
   }
 
   function cancelEdit() {
@@ -61,10 +66,6 @@
     }
     pageInput = '';
     editing = false;
-  }
-
-  function selectAll(e: Event) {
-    (e.target as HTMLInputElement).select();
   }
 
   function handleInput(e: Event) {
@@ -129,11 +130,10 @@
         inputmode="numeric"
         class="px-3 py-1.5 text-sm font-medium bg-surface-default border border-primary-default rounded-xl w-16 text-center focus:outline-none focus:ring-1 focus:ring-primary-default [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         value={pageInput}
-        onfocus={selectAll}
+        bind:this={pageInputEl}
         oninput={handleInput}
         onkeydown={handleKeydown}
         onblur={submitEdit}
-        autofocus
         aria-label="Go to page"
       />
       <span class="text-sm text-text-muted" aria-hidden="true">/ {totalPages}</span>

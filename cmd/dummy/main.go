@@ -245,7 +245,7 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	}
 
 	// Calculate date range
-	endDate := time.Now()
+	endDate := time.Now().In(jakartaTZ)
 	startDate := endDate.AddDate(0, 0, -numDays)
 
 	// Connect to database
@@ -590,7 +590,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 
 		// Random date within last 6 months (evenly distributed across the period)
 		randomDays := rand.Intn(150) + 30 // 30-180 days ago (6 month span)
-		createdAt := time.Now().AddDate(0, 0, -randomDays)
+		createdAt := time.Now().In(jakartaTZ).AddDate(0, 0, -randomDays)
 
 		var id int
 		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, createdAt).Scan(&id)
@@ -1348,7 +1348,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}
 	defer stmt.Close()
 
-	now := time.Now()
+	now := time.Now().In(jakartaTZ)
 
 	// Insert a walk-in/general customer first
 	walkInID := 0

@@ -18,7 +18,7 @@
     footer?: Snippet;
   } = $props();
 
-  let panelEl: HTMLDivElement;
+  let panelEl: HTMLDivElement = $state()!;
   let previousFocus: HTMLElement | null = null;
 
   const sizes = {
@@ -129,7 +129,7 @@
 
       <!-- Footer -->
       {#if footer}
-        <div class="px-6 py-4 border-t border-border flex items-center justify-end gap-3" onkeydown={trapFocus}>
+        <div class="px-6 py-4 border-t border-border flex items-center justify-end gap-3" role="none" onkeydown={trapFocus}>
           {@render footer()}
         </div>
       {/if}

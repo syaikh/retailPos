@@ -4,12 +4,13 @@
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth } from '$lib/stores/auth';
+  import { formatDateInJakarta } from '$lib/utils/jakartaTime';
 
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
-  import { Plus, Pencil, Trash2, Tag, Loader2, X, ArrowUpDown } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
   let categories = $state([]);
@@ -45,9 +46,7 @@ let canView = $derived($auth.user != null);
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';
-    const d = new Date(dateStr);
-    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-    return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    return formatDateInJakarta(dateStr);
   }
 
   function handleSort(column) {
@@ -240,26 +239,10 @@ let canView = $derived($auth.user != null);
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-                CATEGORY NAME <ArrowUpDown size={14} class="text-text-muted" />
-              </button>
-            </th>
-            <th class="text-left p-4 font-semibold w-48">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
-                SLUG <ArrowUpDown size={14} class="text-text-muted" />
-              </button>
-            </th>
-            <th class="text-right p-4 font-semibold w-20">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('product_count')}>
-                PRODUCTS <ArrowUpDown size={14} class="text-text-muted" />
-              </button>
-            </th>
-            <th class="text-left p-4 font-semibold w-36">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
-                CREATED <ArrowUpDown size={14} class="text-text-muted" />
-              </button>
-            </th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">CATEGORY NAME</th>
+            <th class="text-left p-4 font-semibold w-48">SLUG</th>
+            <th class="text-right p-4 font-semibold w-20">PRODUCTS</th>
+            <th class="text-left p-4 font-semibold w-36">CREATED</th>
             <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
@@ -291,22 +274,22 @@ let canView = $derived($auth.user != null);
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 40%;">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-                CATEGORY NAME <ArrowUpDown size={14} class="text-text-muted" />
+                CATEGORY NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-48">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
-                SLUG <ArrowUpDown size={14} class="text-text-muted" />
+                SLUG {#if sortBy === 'slug'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-right p-4 font-semibold w-20">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end" onclick={() => handleSort('product_count')}>
-                PRODUCTS <ArrowUpDown size={14} class="text-text-muted" />
+              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('product_count')}>
+                PRODUCTS {#if sortBy === 'product_count'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-36">
               <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
-                CREATED <ArrowUpDown size={14} class="text-text-muted" />
+                CREATED {#if sortBy === 'created_at'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-center p-4 font-semibold w-20">ACTIONS</th>

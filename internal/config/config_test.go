@@ -20,6 +20,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, "your-secret-key-change-in-production", cfg.JWTSecret)
 	assert.Equal(t, 10, cfg.StockWarningThreshold)
 	assert.Equal(t, 5, cfg.StockCriticalThreshold)
+	assert.Equal(t, "Asia/Jakarta", cfg.Timezone.String())
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -42,6 +43,7 @@ func TestLoadFromEnv(t *testing.T) {
 	assert.Equal(t, "test-secret", cfg.JWTSecret)
 	assert.Equal(t, 20, cfg.StockWarningThreshold)
 	assert.Equal(t, 8, cfg.StockCriticalThreshold)
+	assert.Equal(t, "Asia/Jakarta", cfg.Timezone.String())
 }
 
 func TestGetEnvInt_Defaults(t *testing.T) {

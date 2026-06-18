@@ -87,8 +87,8 @@ describe('ProductsPage.svelte — source structure guards', () => {
     expect(src).toContain('Add Product');
   });
 
-  it('renders product table with PRODUCT NAME header', () => {
-    expect(src).toContain('PRODUCT NAME');
+  it('renders product table with PRODUCT NAME header (text-left like content)', () => {
+    expect(src).toContain('text-left p-4 font-semibold" style="width: 34%;">PRODUCT NAME');
   });
 
   it('renders category filter button', () => {
@@ -99,12 +99,16 @@ describe('ProductsPage.svelte — source structure guards', () => {
     expect(src).toContain("import CategoryFilterModal");
   });
 
-  it('renders product table with CATEGORY column', () => {
-    expect(src).toContain('CATEGORY');
+  it('renders product table with CATEGORY column (text-left like content)', () => {
+    expect(src).toContain('text-left p-4 font-semibold w-44">CATEGORY');
   });
 
-  it('renders product table with PRICE column', () => {
-    expect(src).toContain('>PRICE<');
+  it('renders product table with PRICE column (text-right like content)', () => {
+    expect(src).toContain('justify-end gap-1">PRICE');
+  });
+
+  it('renders product table with Actions column header (text-left to match content)', () => {
+    expect(src).toContain('text-left p-4 font-semibold w-10"></th>');
   });
 
   // ── Stock management features present ────────────────────────────────────────
@@ -132,12 +136,17 @@ describe('ProductsPage.svelte — source structure guards', () => {
     expect(src).toContain('Low Stock');
   });
 
-  it('renders product table with STOCK column', () => {
-    expect(src).toContain('>STOCK<');
+  it('renders product table with STOCK column (text-right like content)', () => {
+    expect(src).toContain('justify-end gap-1">STOCK');
   });
 
-  it('renders product table with STATUS column', () => {
-    expect(src).toContain('STATUS');
+  it('data table PRICE and STOCK sort buttons have w-full for flex right-alignment', () => {
+    expect(src).toContain("justify-end w-full\" onclick={() => handleSort('price')}");
+    expect(src).toContain("justify-end w-full\" onclick={() => handleSort('stock')}");
+  });
+
+  it('renders product table with STATUS column (text-left like content)', () => {
+    expect(src).toContain('text-left p-4 font-semibold w-24">STATUS');
   });
 
   it('has openAdjustStock function', () => {
@@ -158,18 +167,6 @@ describe('ProductsPage.svelte — source structure guards', () => {
 
   it('uses warningThreshold for stock status badges', () => {
     expect(src).toContain('warningThreshold');
-  });
-
-  it('has Critical badge for low stock', () => {
-    expect(src).toContain('Critical');
-  });
-
-  it('has In Stock badge for healthy stock', () => {
-    expect(src).toContain('In Stock');
-  });
-
-  it('has Low badge for warning stock', () => {
-    expect(src).toContain('>Low<');
   });
 
   it('passes canAdjustStock to ProductActionsDropdown', () => {
@@ -261,6 +258,110 @@ describe('ProductsPage.svelte — source structure guards', () => {
   it('imports useWebSocket and registers handlers', () => {
     expect(src).toContain('useWebSocket');
     expect(src).toContain('product_updated');
-    expect(src).toContain('low_stock_alert');
+  });
+
+  // ── Bulk actions ──────────────────────────────────────────────────────────────
+  it('declares selectedIds state for bulk selection', () => {
+    expect(src).toContain('let selectedIds');
+  });
+
+  it('declares showBulkStatusModal state', () => {
+    expect(src).toContain('let showBulkStatusModal');
+  });
+
+  it('declares isBulkUpdating state', () => {
+    expect(src).toContain('let isBulkUpdating');
+  });
+
+  it('has toggleSelectAll and toggleSelect functions', () => {
+    expect(src).toContain('function toggleSelectAll');
+    expect(src).toContain('function toggleSelect');
+  });
+
+  it('has clearSelection function', () => {
+    expect(src).toContain('function clearSelection');
+  });
+
+  it('has handleBulkStatusUpdate function', () => {
+    expect(src).toContain('handleBulkStatusUpdate');
+  });
+
+  it('filters eligible products before bulk status update', () => {
+    expect(src).toContain('eligibleIds');
+    expect(src).toContain("p.status !== bulkStatusTarget");
+  });
+
+  it('calls /products/bulk/status endpoint', () => {
+    expect(src).toContain('/products/bulk/status');
+  });
+
+  it('renders checkbox column in data table header', () => {
+    expect(src).toContain('input type="checkbox"');
+  });
+
+  it('data table name column uses 40% width', () => {
+    expect(src).toContain('style="width: 40%;"');
+  });
+
+  it('select-all checkbox binds indeterminate state', () => {
+    expect(src).toContain('bind:indeterminate={someSelected}');
+  });
+
+  it('renders bulk action bar with Change Status button', () => {
+    expect(src).toContain('selectedIds.size > 0');
+    expect(src).toContain('Change Status');
+    expect(src).toContain('showBulkStatusModal = true');
+  });
+
+  it('renders bulk status modal with status options', () => {
+    expect(src).toContain("each ['active', 'inactive', 'archived']");
+  });
+
+  it('clears selection when fetchProducts is called', () => {
+    expect(src).toContain('selectedIds = new Set()');
+  });
+
+  // ── Status filter ─────────────────────────────────────────────────────────────
+  it('declares filterStatus state for status filter', () => {
+    expect(src).toContain('let filterStatus');
+  });
+
+  it('declares showStatusDropdown state', () => {
+    expect(src).toContain('let showStatusDropdown');
+  });
+
+  it('has statusLabel derived state', () => {
+    expect(src).toContain('let statusLabel');
+  });
+
+  it('renders status filter dropdown with All Status default', () => {
+    expect(src).toContain('All Status');
+    expect(src).toContain('.status-filter-container');
+  });
+
+  it('passes status query param when filterStatus is set', () => {
+    expect(src).toContain("params.append('status', filterStatus)");
+  });
+
+  it('closes status dropdown on Escape', () => {
+    expect(src).toContain("if (showStatusDropdown) showStatusDropdown = false;");
+  });
+
+  // ── Filter chips ─────────────────────────────────────────────────────────────
+  it('has activeChips derived state', () => {
+    expect(src).toContain('let activeChips');
+  });
+
+  it('has clearFilter and clearAllFilters functions', () => {
+    expect(src).toContain('function clearFilter');
+    expect(src).toContain('function clearAllFilters');
+  });
+
+  it('renders filter chips wrapper with is-open class', () => {
+    expect(src).toContain('filter-chips-wrapper" class:is-open={activeChips.length > 0}');
+  });
+
+  it('renders Clear all button in chips', () => {
+    expect(src).toContain('Clear all');
   });
 });

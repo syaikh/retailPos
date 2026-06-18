@@ -128,6 +128,71 @@ func TestGetDashboardStatsTodayString(t *testing.T) {
 	assert.Equal(t, now.Day(), parsedToday.Day())
 }
 
+// TestParseDateInJakarta_Invalid verifies that passing invalid date strings
+// to time.ParseInLocation returns an error (the silent-skip path).
+func TestParseDateInJakarta_Invalid(t *testing.T) {
+	jkt, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		date  string
+		valid bool
+	}{
+		{"empty string", "", false},
+		{"garbage", "not-a-date", false},
+		{"wrong format", "2025/01/01", false},
+		{"partial", "2025-01", false},
+		{"valid date", "2025-01-15", true},
+		{"leap year", "2024-02-29", true},
+		{"non-leap feb 29", "2023-02-29", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := time.ParseInLocation("2006-01-02", tc.date, jkt)
+			if tc.valid {
+				assert.NoError(t, err, "date %q should parse successfully", tc.date)
+			} else {
+				assert.Error(t, err, "date %q should fail to parse", tc.date)
+			}
+		})
+	}
+}
+
+// TestAuditLogBoundaryExclusive verifies the exclusive-end boundary pattern
+// used in audit log queries: endDate + 24h with < comparison.
+// This mirrors the fix changing <= endDate to < endDate+24h.
+func TestAuditLogBoundaryExclusive(t *testing.T) {
+	jkt, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+
+	// Simulate passing a Jakarta time as *time.Time (audit repo accepts *time.Time for dates)
+	endDate, _ := time.ParseInLocation("2006-01-02", "2025-12-01", jkt)
+	exclusiveEnd := endDate.Add(24 * time.Hour)
+
+	// Dec 1 00:00:00 + 24h = Dec 2 00:00:00
+	assert.Equal(t, 2025, exclusiveEnd.Year())
+	assert.Equal(t, time.December, exclusiveEnd.Month())
+	assert.Equal(t, 2, exclusiveEnd.Day())
+	assert.Equal(t, 0, exclusiveEnd.Hour())
+	assert.Equal(t, 0, exclusiveEnd.Minute())
+	assert.Equal(t, 0, exclusiveEnd.Second())
+	assert.True(t, endDate.Before(exclusiveEnd), "endDate must be before exclusiveEnd")
+
+	// Verify the old behavior (<= endDate) would miss same-day data at 23:59:59
+	lastMomentOfDec1 := endDate.Add(24*time.Hour - time.Nanosecond)
+	assert.True(t, lastMomentOfDec1.After(endDate), "last moment of Dec 1 is after 00:00 Dec 1")
+	assert.True(t, lastMomentOfDec1.Before(exclusiveEnd), "last moment of Dec 1 is before 00:00 Dec 2")
+
+	// Old: created_at <= endDate (excludes lastMomentOfDec1 if created_at is 23:59:59 UTC+7)
+	// New: created_at < exclusiveEnd (includes all of Dec 1)
+}
+
 // TestPeriodComparisonRanges verifies the DateRange logic in
 // handler/period.go for GetPeriodComparison.
 // This tangentially confirms that referenceDate is forced to Jakarta.

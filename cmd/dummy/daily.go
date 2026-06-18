@@ -81,7 +81,7 @@ func registerDailyFlags() {
 	// -daily is a no-op toggle; the real mode flag scans os.Args in main().
 	_ = flag.Bool("daily", false, "Run in daily-seed mode")
 
-	flag.StringVar(&dailyDateStr, "daily.date", time.Now().Format("2006-01-02"),
+	flag.StringVar(&dailyDateStr, "daily.date", time.Now().In(jakartaTZ).Format("2006-01-02"),
 		"Target date (YYYY-MM-DD) for daily transactions. Default: today")
 	flag.IntVar(&dailyMin, "daily.min", 10,
 		"Min transactions to generate (default: 10)")

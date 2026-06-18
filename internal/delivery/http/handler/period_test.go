@@ -287,6 +287,73 @@ func TestRealtimeRanges_TimezonePreservation(t *testing.T) {
 	assert.Equal(t, jkt.String(), ranges.PreviousEnd.Location().String())
 }
 
+// TestMonthlyRanges_IsPeriodIncomplete verifies monthly incomplete detection
+func TestMonthlyRanges_IsPeriodIncomplete(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// Jan 1 → next day is Jan 2 (same month) → incomplete
+	jan1 := time.Date(2024, 1, 1, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodMonthly, jan1), "Jan 1 should be incomplete")
+
+	// Jan 30 → next day is Jan 31 (same month) → incomplete
+	jan30 := time.Date(2024, 1, 30, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodMonthly, jan30), "Jan 30 should be incomplete")
+
+	// Jan 31 → next day is Feb 1 (different month) → complete
+	jan31 := time.Date(2024, 1, 31, 0, 0, 0, 0, jkt)
+	assert.False(t, isPeriodIncomplete(PeriodMonthly, jan31), "Jan 31 should be complete")
+
+	// Feb 28 non-leap → next day is Mar 1 (different month) → complete
+	feb28 := time.Date(2023, 2, 28, 0, 0, 0, 0, jkt)
+	assert.False(t, isPeriodIncomplete(PeriodMonthly, feb28), "Feb 28 non-leap should be complete")
+
+	// Feb 28 leap → next day is Feb 29 (same month) → incomplete
+	feb28Leap := time.Date(2024, 2, 28, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodMonthly, feb28Leap), "Feb 28 leap should be incomplete")
+
+	// Feb 29 leap → next day is Mar 1 (different month) → complete
+	feb29Leap := time.Date(2024, 2, 29, 0, 0, 0, 0, jkt)
+	assert.False(t, isPeriodIncomplete(PeriodMonthly, feb29Leap), "Feb 29 leap should be complete")
+
+	// Dec 31 → next day is Jan 1 next year (different month) → complete
+	dec31 := time.Date(2024, 12, 31, 0, 0, 0, 0, jkt)
+	assert.False(t, isPeriodIncomplete(PeriodMonthly, dec31), "Dec 31 should be complete")
+}
+
+// TestWeeklyRanges_IsPeriodIncomplete verifies weekly incomplete detection
+// Only Sunday is complete (last day of week)
+func TestWeeklyRanges_IsPeriodIncomplete(t *testing.T) {
+	jkt := config.Load().Timezone
+
+	// Monday → incomplete (not last day)
+	monday := time.Date(2024, 1, 1, 0, 0, 0, 0, jkt) // Monday
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, monday), "Monday should be incomplete")
+
+	// Tuesday → incomplete
+	tuesday := time.Date(2024, 1, 2, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, tuesday), "Tuesday should be incomplete")
+
+	// Wednesday → incomplete
+	wednesday := time.Date(2024, 1, 3, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, wednesday), "Wednesday should be incomplete")
+
+	// Thursday → incomplete
+	thursday := time.Date(2024, 1, 4, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, thursday), "Thursday should be incomplete")
+
+	// Friday → incomplete
+	friday := time.Date(2024, 1, 5, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, friday), "Friday should be incomplete")
+
+	// Saturday → incomplete
+	saturday := time.Date(2024, 1, 6, 0, 0, 0, 0, jkt)
+	assert.True(t, isPeriodIncomplete(PeriodWeekly, saturday), "Saturday should be incomplete")
+
+	// Sunday → complete (next day is Monday, new week)
+	sunday := time.Date(2024, 1, 7, 0, 0, 0, 0, jkt)
+	assert.False(t, isPeriodIncomplete(PeriodWeekly, sunday), "Sunday should be complete")
+}
+
 // TestYearlyRanges_YearIncomplete verifies that current year is marked as incomplete
 func TestYearlyRanges_YearIncomplete(t *testing.T) {
 	jkt := config.Load().Timezone

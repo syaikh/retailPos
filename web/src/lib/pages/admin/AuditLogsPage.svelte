@@ -5,7 +5,7 @@
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth, getAuthToken } from '$lib/stores/auth';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS, formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -15,7 +15,7 @@
     Search, ScrollText, RefreshCw, X, Download,
     Plus, Edit, Trash, LogIn, LogOut, Info, FileSpreadsheet, ArrowRight, Minus,
     Monitor, Globe, Package, ShoppingCart,
-    Users, Tag, Shield, Store, Calendar, ChevronDown, List, Clock
+    Users, Tag, Shield, Store, Calendar, ChevronDown, List, CalendarDays
   } from 'lucide-svelte';
 
   // State variables
@@ -28,7 +28,7 @@
   let selectedAction = $state('all');
   let selectedResource = $state('all');
   let selectedDateRange = $state('24h');
-  let showDateDropdown = $state(false);
+  let showDatePicker = $state(false);
   let showResourceDropdown = $state(false);
   let showActionDropdown = $state(false);
   let showExportDropdown = $state(false);
@@ -103,7 +103,7 @@
   }
 
   const resourceFilters = [
-    { id: 'all', label: 'All', icon: List },
+    { id: 'all', label: 'All Resources', icon: List },
     { id: 'auth', label: 'Auth', icon: Shield },
     { id: 'user', label: 'User', icon: Users },
     { id: 'role', label: 'Role', icon: Shield },
@@ -121,20 +121,28 @@
     { id: 'custom', label: 'Custom Range' },
   ];
 
+  const datePresets = [
+    { label: 'Last 24 Hours', rangeId: '24h' },
+    { label: 'Last 7 Days', rangeId: '7d' },
+    { label: 'Last 30 Days', rangeId: '30d' },
+    { label: 'Last 90 Days', rangeId: '90d' },
+  ];
+
+  const dateRangeLabel = $derived.by(() => {
+    if (selectedDateRange === 'custom') {
+      return `${customStartDate} – ${customEndDate}`;
+    }
+    return dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 24 Hours';
+  });
+
   let customStartDate = $state('');
   let customEndDate = $state('');
-  let showCustomDateModal = $state(false);
 
   let resourceLabel = $derived(resourceFilters.find(f => f.id === selectedResource)?.label || 'All');
   let actionLabel = $derived(availableActionFilters.find(f => f.id === selectedAction)?.label || 'All Actions');
 
   const today = getTodayInJakarta();
   const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
-
-  let startDateMin = $derived(ninetyDaysAgo);
-  let startDateMax = $derived(customEndDate || today);
-  let endDateMin = $derived(customStartDate || ninetyDaysAgo);
-  let endDateMax = $derived(today);
 
   // Convert a Jakarta date string (YYYY-MM-DD) to UTC epoch for RFC3339 API
   function jakartaDateToUTC(dateStr) {
@@ -144,16 +152,39 @@
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
 
+  function getJakartaMidnightMs(dateStr: string): number {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
+  }
+
   function getDateRange(range) {
     switch (range) {
       case '24h':
-        return { start: new Date(Date.now() - 86400000), end: new Date() };
-      case '7d':
-        return { start: new Date(Date.now() - 7 * 86400000), end: new Date() };
-      case '30d':
-        return { start: new Date(Date.now() - 30 * 86400000), end: new Date() };
-      case '90d':
-        return { start: new Date(Date.now() - 90 * 86400000), end: new Date() };
+        return { start: new Date(Date.now() - 86400000), end: new Date(Date.now()) };
+      case '7d': {
+        const sevenDaysAgo = getDateNDaysAgoInJakarta(7);
+        const todayJakarta = getTodayInJakarta();
+        return {
+          start: new Date(getJakartaMidnightMs(sevenDaysAgo)),
+          end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
+        };
+      }
+      case '30d': {
+        const thirtyDaysAgo = getDateNDaysAgoInJakarta(30);
+        const todayJakarta = getTodayInJakarta();
+        return {
+          start: new Date(getJakartaMidnightMs(thirtyDaysAgo)),
+          end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
+        };
+      }
+      case '90d': {
+        const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
+        const todayJakarta = getTodayInJakarta();
+        return {
+          start: new Date(getJakartaMidnightMs(ninetyDaysAgo)),
+          end: new Date(getJakartaMidnightMs(todayJakarta) + 86400000),
+        };
+      }
       case 'custom':
         if (customStartDate && customEndDate) {
           // Interpret user-selected dates as Jakarta dates, convert to UTC epoch
@@ -168,28 +199,19 @@
     }
   }
 
-  function applyCustomRange() {
-    if (customStartDate && customEndDate) {
-      showCustomDateModal = false;
-      showDateDropdown = false;
-      selectedDateRange = 'custom';
-      offset = 0;
-      fetchLogs();
-    }
+  function applyDatePreset(rangeId: string) {
+    selectedDateRange = rangeId;
+    showDatePicker = false;
+    offset = 0;
+    fetchLogs();
   }
 
-  function selectDateRange(rangeId) {
-    if (rangeId === 'custom') {
-      showDateDropdown = false;
-      showCustomDateModal = true;
-      customEndDate = getTodayInJakarta();
-      customStartDate = getDateNDaysAgoInJakarta(7);
-    } else {
-      selectedDateRange = rangeId;
-      showDateDropdown = false;
-      offset = 0;
-      fetchLogs();
-    }
+  function applyCustomDateRange() {
+    if (!customStartDate || !customEndDate) return;
+    showDatePicker = false;
+    selectedDateRange = 'custom';
+    offset = 0;
+    fetchLogs();
   }
 
   function clearDateFilter() {
@@ -201,9 +223,9 @@
   // Close dropdowns on outside click / Esc
   onMount(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (showDateDropdown) {
-        const container = document.getElementById('date-dropdown-container');
-        if (container && !container.contains(e.target as Node)) showDateDropdown = false;
+      if (showDatePicker) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) showDatePicker = false;
       }
       const resourceContainer = document.getElementById('resource-dropdown-container');
       if (showResourceDropdown && resourceContainer && !resourceContainer.contains(e.target as Node)) showResourceDropdown = false;
@@ -220,7 +242,7 @@
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (drawerOpen) closeDrawer();
-        if (showDateDropdown) showDateDropdown = false;
+        if (showDatePicker) showDatePicker = false;
         if (showResourceDropdown) showResourceDropdown = false;
         if (showActionDropdown) showActionDropdown = false;
         if (showExportDropdown) showExportDropdown = false;
@@ -285,6 +307,14 @@
     searchQuery = '';
     offset = 0;
     fetchLogs();
+  }
+
+  function getFilterIcon(type: string) {
+    if (type === 'entity') return Tag;
+    if (type === 'action') return List;
+    if (type === 'date') return CalendarDays;
+    if (type === 'search') return Search;
+    return List;
   }
 
   // --- Data fetching ---
@@ -457,17 +487,17 @@
 
   function formatTimestamp(d) {
     if (!d) return { date: '—', time: '', full: '—' };
-    const dateObj = new Date(d);
-    const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    const dateStr = formatDateInJakarta(d);
+    const timeStr = formatTimeInJakarta(d);
     return { date: dateStr, time: timeStr, full: `${dateStr} ${timeStr}` };
   }
 
   function formatDateHuman(d) {
     if (!d) return '—';
     const dateObj = new Date(d);
-    const now = new Date();
-    const diffMs = now.getTime() - dateObj.getTime();
+    const nowMs = Date.now() + JAKARTA_OFFSET_MS;
+    const shiftedDate = new Date(dateObj.getTime() + JAKARTA_OFFSET_MS);
+    const diffMs = nowMs - shiftedDate.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
@@ -476,7 +506,7 @@
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return formatDateInJakarta(d);
   }
 
   function formatValue(val) {
@@ -485,10 +515,7 @@
     if (typeof val === 'string') {
       const dateMatch = val.match(/^\d{4}-\d{2}-\d{2}T/);
       if (dateMatch) {
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        }
+        return formatDateTimeInJakarta(val);
       }
       return val;
     }
@@ -624,25 +651,40 @@
           <SearchBar bind:value={searchQuery} placeholder="Search by actor, role, action, entity, or IP..." inputClass="h-10" />
         </div>
 
-        <div class="relative shrink-0" id="date-dropdown-container">
+        <div class="relative shrink-0 date-picker-container">
           <button
-            class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-            onclick={() => (showDateDropdown = !showDateDropdown)}
+            class="date-picker-trigger btn btn-secondary flex items-center gap-2 min-w-44"
+            onclick={() => showDatePicker = !showDatePicker}
           >
-            <Clock size={14} />
-            <span>{dateRanges.find((d) => d.id === selectedDateRange)?.label || 'Last 24 Hours'}</span>
-            <ChevronDown size={14} />
+            <CalendarDays size={16} class="text-text-secondary shrink-0" />
+            <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
+            <ChevronDown size={14} class="opacity-60 shrink-0" />
           </button>
-          {#if showDateDropdown}
-            <div class="absolute right-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[200px]">
-              {#each dateRanges as range}
+          {#if showDatePicker}
+            <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64">
+              <div class="flex flex-wrap gap-1 mb-3">
+                {#each datePresets as preset}
+                  <button
+                    class="btn btn-ghost btn-xs"
+                    onclick={() => applyDatePreset(preset.rangeId)}
+                  >
+                    {preset.label}
+                  </button>
+                {/each}
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <input type="date" bind:value={customStartDate} class="input input-sm w-full" min={ninetyDaysAgo} max={customEndDate || today} />
+                <span class="text-text-muted">—</span>
+                <input type="date" bind:value={customEndDate} class="input input-sm w-full" min={customStartDate || ninetyDaysAgo} max={today} />
+              </div>
+              <div class="flex justify-end mt-2">
                 <button
-                  class="w-full text-left px-4 py-2 text-sm hover:bg-surface-hover transition-colors {selectedDateRange === range.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary'}"
-                  onclick={() => selectDateRange(range.id)}
+                  class="btn btn-primary btn-xs"
+                  onclick={applyCustomDateRange}
                 >
-                  {range.label}
+                  Apply
                 </button>
-              {/each}
+              </div>
             </div>
           {/if}
         </div>
@@ -745,6 +787,35 @@
               </button>
             </div>
           {/if}
+        </div>
+      </div>
+
+      <div class="filter-chips-wrapper" class:is-open={activeFilters.length > 0}>
+        <div class="filter-chips-inner">
+          <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/50">
+            {#each activeFilters as filter}
+              {@const FilterIcon = getFilterIcon(filter.type)}
+              <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-subtle/20 border border-primary-subtle/30 rounded-full text-sm text-text-secondary">
+                <FilterIcon size={13} class="text-primary-light shrink-0" />
+                <span class="font-medium truncate max-w-[180px]">{filter.label}</span>
+                <button
+                  class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                  title={`Clear ${filter.label}`}
+                  onclick={() => clearFilter(filter.type)}
+                  aria-label={`Clear ${filter.label} filter`}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            {/each}
+            <button
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-primary bg-surface-default/50 border border-border/50 rounded-full transition-colors"
+              onclick={clearAllFilters}
+            >
+              Clear all
+              <X size={12} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -990,57 +1061,6 @@
   </div>
 {/if}
 
-<!-- Custom Date Range Modal -->
-{#if showCustomDateModal}
-  <button
-    type="button"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    onclick={() => (showCustomDateModal = false)}
-    aria-label="Close date modal"
-  ></button>
-  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-    <div
-      class="bg-surface-default border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 pointer-events-auto"
-    >
-      <h3 class="text-base font-semibold text-text-primary mb-5">Custom Date Range</h3>
-      <div class="space-y-4">
-        <div>
-          <label for="custom-start" class="block text-sm font-medium text-text-secondary mb-1.5">Start Date</label>
-          <input
-            id="custom-start"
-            type="date"
-            class="input w-full text-sm bg-surface-hover"
-            bind:value={customStartDate}
-            min={startDateMin}
-            max={startDateMax}
-          />
-        </div>
-        <div>
-          <label for="custom-end" class="block text-sm font-medium text-text-secondary mb-1.5">End Date</label>
-          <input
-            id="custom-end"
-            type="date"
-            class="input w-full text-sm bg-surface-hover"
-            bind:value={customEndDate}
-            min={endDateMin}
-            max={endDateMax}
-          />
-        </div>
-      </div>
-      <div class="flex items-center justify-end gap-3 mt-6">
-        <button class="btn btn-secondary text-sm px-4 py-2" onclick={() => (showCustomDateModal = false)}>Cancel</button>
-        <button
-          class="btn btn-primary text-sm px-4 py-2"
-          onclick={applyCustomRange}
-          disabled={!customStartDate || !customEndDate}
-        >
-          Apply
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
-
 <style>
   @keyframes slide-in {
     from {
@@ -1054,8 +1074,24 @@
     animation: slide-in 0.2s ease-out;
   }
 
-  #custom-start::-webkit-calendar-picker-indicator,
-  #custom-end::-webkit-calendar-picker-indicator {
+  :global(input[type="date"]::-webkit-calendar-picker-indicator) {
     filter: invert(1);
+    cursor: pointer;
+  }
+
+  .filter-chips-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.2s ease-out, opacity 0.2s ease-out;
+  }
+
+  .filter-chips-wrapper.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .filter-chips-inner {
+    overflow: hidden;
   }
 </style>

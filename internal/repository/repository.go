@@ -64,6 +64,7 @@ type ProductRepository interface {
 	GetStockByProductID(ctx context.Context, productID int) (*domain.ProductStock, error)
 	
 	// Brand operations
+	BulkUpdateProductStatus(ctx context.Context, ids []int, status string, storeID *int) error
 	GetBrandByID(ctx context.Context, id int) (*domain.Brand, error)
 	GetAllBrands(ctx context.Context) ([]domain.Brand, error)
 	CreateBrand(ctx context.Context, brand *domain.Brand) error

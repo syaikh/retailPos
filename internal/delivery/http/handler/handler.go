@@ -434,6 +434,39 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
+func (h *Handler) BulkUpdateProductStatus(c *gin.Context) {
+	var req struct {
+		IDs    []int  `json:"ids"`
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no product IDs provided"})
+		return
+	}
+	validStatuses := map[string]bool{"active": true, "inactive": true, "draft": true, "discontinued": true, "archived": true}
+	if !validStatuses[req.Status] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return
+	}
+
+	if err := h.productRepo.BulkUpdateProductStatus(getCtx(c), req.IDs, req.Status, nil); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update product statuses"})
+		return
+	}
+	for _, id := range req.IDs {
+		h.logAudit(c, "update", "product", id, nil, gin.H{"status": req.Status})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":        "completed",
+		"updated_count": len(req.IDs),
+	})
+}
+
 // Sale Handlers
 func (h *Handler) CreateSale(c *gin.Context) {
 	var req domain.SaleCreateRequest
@@ -1339,10 +1372,14 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	if sd := c.Query("start_date"); sd != "" {
 		if t, err := time.Parse(time.RFC3339, sd); err == nil {
 			startDate = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", sd, config.Load().Timezone); err == nil {
+			startDate = &t
 		}
 	}
 	if ed := c.Query("end_date"); ed != "" {
 		if t, err := time.Parse(time.RFC3339, ed); err == nil {
+			endDate = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", ed, config.Load().Timezone); err == nil {
 			endDate = &t
 		}
 	}
@@ -1374,10 +1411,14 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	if sd := c.Query("start_date"); sd != "" {
 		if t, err := time.Parse(time.RFC3339, sd); err == nil {
 			startDate = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", sd, config.Load().Timezone); err == nil {
+			startDate = &t
 		}
 	}
 	if ed := c.Query("end_date"); ed != "" {
 		if t, err := time.Parse(time.RFC3339, ed); err == nil {
+			endDate = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", ed, config.Load().Timezone); err == nil {
 			endDate = &t
 		}
 	}
@@ -1388,15 +1429,11 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		return
 	}
 
-	if logs == nil {
-		logs = []domain.AuditLog{}
-	}
-
 	for i := range logs {
 		logs[i].Description = h.generateAuditDescription(&logs[i])
 	}
 
-	now := time.Now()
+	now := time.Now().In(config.Load().Timezone)
 	filename := "audit-logs-" + now.Format("2006-01-02")
 
 	switch format {

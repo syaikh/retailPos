@@ -23,6 +23,7 @@ func init() {
 	var err error
 	defaultLocation, err = time.LoadLocation("Asia/Jakarta")
 	if err != nil {
+		fmt.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.\n", err)
 		defaultLocation = time.UTC
 	}
 }

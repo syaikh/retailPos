@@ -107,6 +107,7 @@ func main() {
 		protected.POST("/products", middleware.RequirePermission("product:create"), h.CreateProduct)
 		protected.PUT("/products/:id", middleware.RequirePermission("product:update"), h.UpdateProduct)
 		protected.DELETE("/products/:id", middleware.RequirePermission("product:delete"), h.DeleteProduct)
+		protected.POST("/products/bulk/status", middleware.RequirePermission("product:update"), h.BulkUpdateProductStatus)
 
 		protected.POST("/brands", h.CreateBrand)
 		protected.PUT("/brands/:id", h.UpdateBrand)

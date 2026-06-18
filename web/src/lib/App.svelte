@@ -18,6 +18,7 @@ import { printReceipt } from '$lib/stores/printReceipt';
 import { checkAuth, restoreSession } from '$lib/api/auth';
 import { fade } from 'svelte/transition';
 import { useWebSocket } from '$lib/composables/useWebSocket';
+import { formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
 
 let Component = $state(LoginPage);
 let currentPath = $state(getPath());
@@ -200,7 +201,7 @@ function getComponent(path) {
     </div>
     <div class="thermal-row">
       <span class="thermal-label">Waktu:</span>
-      <span class="thermal-value">{new Date($printReceipt.created_at || Date.now()).toLocaleString('id-ID')}</span>
+      <span class="thermal-value">{formatDateTimeInJakarta($printReceipt.created_at || new Date().toISOString())}</span>
     </div>
     {#if $printReceipt.customer_name}
     <div class="thermal-row">

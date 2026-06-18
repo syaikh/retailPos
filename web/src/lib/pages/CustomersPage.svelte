@@ -3,7 +3,7 @@
   import apiClient from '$lib/api/client';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import { Pencil, Trash2, Check, X, Plus, ArrowUpDown, Search, UserPlus, Loader2 } from 'lucide-svelte';
+  import { Pencil, Trash2, Check, X, Plus, Search, UserPlus, Loader2 } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -316,22 +316,22 @@
         <tr>
           <th class="text-left p-4 font-semibold w-[30%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-              NAME <ArrowUpDown size={14} class="text-text-muted" />
+              NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[18%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
-              PHONE <ArrowUpDown size={14} class="text-text-muted" />
+              PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[26%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
-              EMAIL <ArrowUpDown size={14} class="text-text-muted" />
+              EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[14%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
-              STATUS <ArrowUpDown size={14} class="text-text-muted" />
+              STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-center p-4 font-semibold w-20">Actions</th>

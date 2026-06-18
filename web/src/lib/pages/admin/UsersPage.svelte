@@ -4,13 +4,14 @@
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth } from '$lib/stores/auth';
+  import { formatDateInJakarta, formatTimeInJakarta } from '$lib/utils/jakartaTime';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
-  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ArrowUpDown, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
+  import { Search, Plus, Pencil, Trash2, User, Users, Loader2, X, Shield, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
 
   let loading = $state(true);
   let users = $state([]);
@@ -69,21 +70,21 @@
 
   let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
 
-  let pills = $derived(() => {
-    const result = [];
+  let activeChips = $derived.by(() => {
+    const chips = [];
     if (filterRole !== 'all') {
       const r = roles.find(role => String(role.id) === filterRole);
-      result.push({ key: 'role', label: r ? r.name : filterRole });
+      chips.push({ type: 'role', label: r ? r.name : filterRole });
     }
     if (filterStatus !== 'all') {
-      result.push({ key: 'status', label: filterStatus === 'true' ? 'Active' : 'Inactive' });
+      chips.push({ type: 'status', label: filterStatus === 'true' ? 'Active' : 'Inactive' });
     }
-    return result;
+    return chips;
   });
 
-  function removePill(key) {
-    if (key === 'role') filterRole = 'all';
-    if (key === 'status') filterStatus = 'all';
+  function clearFilter(type) {
+    if (type === 'role') filterRole = 'all';
+    if (type === 'status') filterStatus = 'all';
   }
 
   const roleVariant = (r) => {
@@ -218,7 +219,7 @@
     }
   }
 
-  function clearFilters() {
+  function clearAllFilters() {
     filterRole = 'all';
     filterStatus = 'all';
     sortBy = 'username';
@@ -306,26 +307,30 @@
         <div class="flex-1">
           <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
         </div>
-        <div class="relative shrink-0 role-filter-container" style="width: 140px; min-width: 140px; max-width: 140px;">
+        <div class="relative shrink-0 role-filter-container">
           <button
-            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterRole !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterRole !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+            style="min-width: 140px;"
             onclick={() => showRoleDropdown = !showRoleDropdown}
           >
             <span class="flex-1 text-left truncate">{roleLabel}</span>
             <ChevronDown size={14} class="text-text-muted shrink-0" />
           </button>
           {#if showRoleDropdown}
-            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
+            <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-2 min-w-[360px] max-h-64 overflow-y-auto">
               <button
-                class="w-full text-left px-4 py-2 text-sm transition-colors {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
                 onclick={() => { filterRole = 'all'; showRoleDropdown = false; }}
               >All Roles</button>
-              {#each roles as role}
-                <button
-                  class="w-full text-left px-4 py-2 text-sm transition-colors {filterRole === String(role.id) ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-                  onclick={() => { filterRole = String(role.id); showRoleDropdown = false; }}
-                >{role.name}</button>
-              {/each}
+              <div class="grid grid-cols-2 gap-1 mt-1">
+                {#each roles as role}
+                  <button
+                    class="text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === String(role.id) ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                    onclick={() => { filterRole = String(role.id); showRoleDropdown = false; }}
+                    title={role.name}
+                  >{role.name}</button>
+                {/each}
+              </div>
             </div>
           {/if}
         </div>
@@ -364,22 +369,30 @@
         </button>
         {/if}
       </div>
-      <div class="flex items-center gap-2 transition-all duration-150 {pills().length > 0 ? 'mt-2.5 pt-2.5 border-t border-border-subtle h-7 opacity-100' : 'opacity-0 pointer-events-none h-0'}">
-        <SlidersHorizontal size={12} class="text-text-muted shrink-0" />
-        {#each pills() as pill}
-          <span class="inline-flex items-center gap-1 rounded-md bg-primary-subtle text-primary-light border border-primary-default/20 px-2 py-0.5 text-xs font-medium">
-            {pill.label}
-            <button onclick={() => removePill(pill.key)} class="hover:text-white transition-colors">
-              <X size={10} />
+      <div class="filter-chips-wrapper" class:is-open={activeChips.length > 0}>
+        <div class="filter-chips-inner">
+          <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/50">
+            {#each activeChips as chip}
+              <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-subtle/20 border border-primary-subtle/30 rounded-full text-sm text-text-secondary">
+                <SlidersHorizontal size={13} class="text-primary-light shrink-0" />
+                <span class="font-medium truncate max-w-[180px]">{chip.label}</span>
+                <button
+                  class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                  onclick={() => clearFilter(chip.type)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            {/each}
+            <button
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-primary bg-surface-default/50 border border-border/50 rounded-full transition-colors"
+              onclick={clearAllFilters}
+            >
+              Clear all
+              <X size={12} />
             </button>
-          </span>
-        {/each}
-        <button
-          onclick={clearFilters}
-          class="ml-auto text-xs font-medium text-text-muted hover:text-danger transition-colors shrink-0"
-        >
-          Clear all
-        </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -390,18 +403,18 @@
              <tr>
                  <th class="text-left p-4 font-semibold" style="width: 30%;">
                   <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('username')}>
-                    USER <ArrowUpDown size={14} class="text-text-muted" />
+                    USER {#if sortBy === 'username'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
                 <th class="text-left p-4 font-semibold w-40">
                   <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('role_id')}>
-                    ROLE <ArrowUpDown size={14} class="text-text-muted" />
+                    ROLE {#if sortBy === 'role_id'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
                 <th class="text-left p-4 font-semibold w-28">STATUS</th>
                 <th class="text-left p-4 font-semibold w-44">
                   <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('last_login')}>
-                    LAST LOGIN <ArrowUpDown size={14} class="text-text-muted" />
+                    LAST LOGIN {#if sortBy === 'last_login'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
                 <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
@@ -478,13 +491,12 @@
                      </div>
                    </td>
                    <td class="p-4 text-text-muted text-sm leading-relaxed">
-                      {#if user.last_login}
-                        {@const d = new Date(user.last_login)}
-                        <span class="block">{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                        <span class="block text-[10px] text-text-muted">{d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
-                      {:else}
-                        Never
-                      {/if}
+                       {#if user.last_login}
+                         <span class="block">{formatDateInJakarta(user.last_login)}</span>
+                         <span class="block text-[10px] text-text-muted">{formatTimeInJakarta(user.last_login)}</span>
+                       {:else}
+                         Never
+                       {/if}
                     </td>
                    <td class="p-4 text-center">
                      <div class="flex items-center justify-center gap-2">
@@ -607,3 +619,21 @@
     <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
   {/snippet}
 </Modal>
+
+<style>
+  .filter-chips-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.2s ease-out, opacity 0.2s ease-out;
+  }
+
+  .filter-chips-wrapper.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .filter-chips-inner {
+    overflow: hidden;
+  }
+</style>
