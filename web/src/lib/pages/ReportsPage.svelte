@@ -81,6 +81,11 @@ let selectedYear = $state(parseInt(getTodayInJakarta().split('-')[0]));
 // Export dropdown
 let showExportDropdown = $state(false);
 
+// Data table state
+let showDataTable = $state(false);
+let sortColumn = $state('period');
+let sortAsc = $state(true);
+
 // Live time state for realtime updates (Jakarta timezone)
 let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
 // Reactive Jakarta hour derived from the live-updating currentTimeHour
@@ -309,6 +314,155 @@ let aovTrend = $derived.by(() => {
   if (!kpiData.previousAvgOrderValue || kpiData.previousAvgOrderValue === 0) return null;
   return kpiData.avgOrderValue > kpiData.previousAvgOrderValue ? 'up' : 'down';
 });
+
+function getPeriodLabel(item) {
+  if (!item) return '';
+  if (item.hour !== undefined) return `${String(item.hour).padStart(2, '0')}:00`;
+  if (item.date) {
+    const d = new Date(item.date + 'T00:00:00Z');
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+  }
+  if (item.month_start) {
+    const d = new Date(item.month_start + 'T00:00:00Z');
+    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  }
+  return item.label || '';
+}
+
+// Table data: aligned rows from chart + prev chart
+let tableRows = $derived.by(() => {
+  if (chartData.length === 0) return [];
+
+  function computeDayOffset() {
+    const sortedCurrent = chartData.filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+    const sortedPrev = [...prevChartData].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+    if (sortedCurrent.length === 0 || sortedPrev.length === 0) return 0;
+    const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
+    return Math.round(diffMs / 86400000);
+  }
+
+  if (chartType === 'hourly') {
+    return chartData.map(d => {
+      const prev = prevChartData.find(p => p.hour === d.hour);
+      const prevRev = prev ? prev.total : null;
+      return {
+        period: getPeriodLabel(d),
+        dateStr: '',
+        revenue: d.total,
+        prevRevenue: prevRev,
+        orderCount: null
+      };
+    });
+  }
+
+  if (activePeriodType === 'monthly') {
+    const prevSorted = [...prevChartData].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+    return chartData.map((d, i) => {
+      const prev = prevSorted[i];
+      const prevRev = prev && prev.total > 0 ? prev.total : null;
+      const dateStr = d.date || '';
+      const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
+      return {
+        period: date ? date.toLocaleString('en-US', { month: 'short', day: 'numeric' }) : d.label || `Day ${i + 1}`,
+        dateStr,
+        revenue: d.total || 0,
+        prevRevenue: prevRev,
+        orderCount: null
+      };
+    });
+  }
+
+  if (chartType === 'daily') {
+    const prevByDate = {};
+    prevChartData.forEach(p => { if (p.date) prevByDate[p.date] = p.total; });
+    const dayOffset = computeDayOffset();
+    return chartData.map(d => {
+      if (!d.date) return null;
+      const currentDate = new Date(d.date + 'T00:00:00Z');
+      const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
+      const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
+      const prevTotal = prevByDate[expectedPrevStr];
+      const hasPrev = prevTotal !== undefined && prevTotal > 0;
+      return {
+        period: currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' }),
+        dateStr: d.date,
+        revenue: d.total || 0,
+        prevRevenue: hasPrev ? prevTotal : null,
+        orderCount: null
+      };
+    }).filter(Boolean);
+  }
+
+  // yearly / monthly aggregation
+  const prevSorted = [...prevChartData].sort((a, b) => (a.month_start || a.date || '').localeCompare(b.month_start || b.date || ''));
+  return chartData.map((d, i) => {
+    const prev = prevSorted[i];
+    const prevRev = prev && prev.total > 0 ? prev.total : null;
+    const dateStr = d.month_start || d.date || '';
+    const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
+    return {
+      period: date ? date.toLocaleString('en-US', { month: 'short', year: 'numeric' }) : d.label || '',
+      dateStr,
+      revenue: d.total || 0,
+      prevRevenue: prevRev,
+      orderCount: d.order_count || null
+    };
+  });
+});
+
+let sortedRows = $derived.by(() => {
+  const rows = [...tableRows];
+  const dir = sortAsc ? 1 : -1;
+  rows.sort((a, b) => {
+    let cmp = 0;
+    if (sortColumn === 'period') cmp = (a.dateStr || a.period).localeCompare(b.dateStr || b.period);
+    else if (sortColumn === 'revenue') cmp = a.revenue - b.revenue;
+    else if (sortColumn === 'prev') cmp = (a.prevRevenue ?? -1) - (b.prevRevenue ?? -1);
+    else if (sortColumn === 'change') {
+      const cA = a.prevRevenue > 0 ? ((a.revenue - a.prevRevenue) / a.prevRevenue) * 100 : 0;
+      const cB = b.prevRevenue > 0 ? ((b.revenue - b.prevRevenue) / b.prevRevenue) * 100 : 0;
+      cmp = cA - cB;
+    }
+    return cmp * dir;
+  });
+  return rows;
+});
+
+// Best / worst performing period
+let bestPeriod = $derived.by(() => {
+  if (chartData.length === 0) return null;
+  return chartData.reduce((max, item) => {
+    const val = item.total || 0;
+    return val > (max.total || 0) ? item : max;
+  }, chartData[0]);
+});
+
+let worstPeriod = $derived.by(() => {
+  if (chartData.length === 0) return null;
+  const nonZero = chartData.filter(item => (item.total || 0) > 0);
+  if (nonZero.length <= 1) return null;
+  return nonZero.reduce((min, item) => {
+    const val = item.total || 0;
+    return val < (min.total || 0) ? item : min;
+  }, nonZero[0]);
+});
+
+let bestWorstHeading = $derived(
+  chartType === 'hourly' ? 'Hour' :
+  chartType === 'daily' ? 'Date' :
+  chartType === 'yearly' ? 'Month' : 'Period'
+);
+
+let tablePeriodHeading = $derived(
+  chartType === 'hourly' ? 'Hour' :
+  chartType === 'daily' ? 'Date' :
+  chartType === 'yearly' ? 'Month' : 'Period'
+);
+
+function toggleSort(col) {
+  if (sortColumn === col) sortAsc = !sortAsc;
+  else { sortColumn = col; sortAsc = true; }
+}
 
 // Effect to update time every minute when in realtime mode
 $effect(() => {
@@ -1743,6 +1897,36 @@ onValueChange={(val) => {
       {/if}
     </div>
 
+    {#if !loading && (bestPeriod || worstPeriod)}
+      <div class="flex flex-wrap items-center gap-3 mb-4 px-1">
+        {#if bestPeriod}
+          <div class="flex items-center gap-1.5 text-xs bg-success/10 text-success-light px-2.5 py-1.5 rounded-full border border-success/20">
+            <TrendingUp size={12} />
+            <span class="font-medium">Best {bestWorstHeading}:</span>
+            <span>{getPeriodLabel(bestPeriod)}</span>
+            <span class="font-semibold">{formatCurrencyShort(bestPeriod.total || 0)}</span>
+          </div>
+        {/if}
+        {#if worstPeriod && worstPeriod.total !== bestPeriod?.total}
+          <div class="flex items-center gap-1.5 text-xs bg-danger/10 text-danger-light px-2.5 py-1.5 rounded-full border border-danger/20">
+            <TrendingDown size={12} />
+            <span class="font-medium">Worst {bestWorstHeading}:</span>
+            <span>{getPeriodLabel(worstPeriod)}</span>
+            <span class="font-semibold">{formatCurrencyShort(worstPeriod.total || 0)}</span>
+          </div>
+        {/if}
+        {#if tableRows.length > 0}
+          <button
+            class="text-xs text-text-muted hover:text-text-secondary transition-colors ml-auto flex items-center gap-1"
+            onclick={() => showDataTable = !showDataTable}
+          >
+            {showDataTable ? 'Hide' : 'Show'} Data Table
+            <ChevronDown size={12} class="transition-transform duration-200 {showDataTable ? 'rotate-180' : ''}" />
+          </button>
+        {/if}
+      </div>
+    {/if}
+
     <div class="h-64 relative">
       {#if loading}
         <div class="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-primary/30 bg-primary-subtle/10 shadow-glow-primary-sm overflow-hidden">
@@ -1756,6 +1940,124 @@ onValueChange={(val) => {
         <canvas use:chart={chartConfig}></canvas>
       {/if}
     </div>
+
+    <!-- Data Table -->
+    {#if !loading && showDataTable && sortedRows.length > 0}
+      <div class="mt-5 overflow-x-auto" transition:fly={{ y: -8, duration: 200 }}>
+        <table class="w-full text-xs text-left border-collapse">
+          <thead>
+            <tr class="border-b border-border/50">
+              <th
+                class="py-2 px-3 font-medium text-text-secondary cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
+                onclick={() => toggleSort('period')}
+              >
+                {tablePeriodHeading}
+                {#if sortColumn === 'period'}
+                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
+                {/if}
+              </th>
+              <th
+                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
+                onclick={() => toggleSort('revenue')}
+              >
+                Revenue (Rp)
+                {#if sortColumn === 'revenue'}
+                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
+                {/if}
+              </th>
+              <th
+                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
+                onclick={() => toggleSort('prev')}
+              >
+                Prev Period (Rp)
+                {#if sortColumn === 'prev'}
+                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
+                {/if}
+              </th>
+              <th
+                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
+                onclick={() => toggleSort('change')}
+              >
+                Change
+                {#if sortColumn === 'change'}
+                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
+                {/if}
+              </th>
+              {#if sortedRows.some(r => r.orderCount !== null)}
+                <th class="py-2 px-3 font-medium text-text-secondary text-right whitespace-nowrap">
+                  Orders
+                </th>
+              {/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each sortedRows as row (row.dateStr || row.period)}
+              {@const change = row.prevRevenue > 0 ? ((row.revenue - row.prevRevenue) / row.prevRevenue) * 100 : null}
+              <tr class="border-b border-border/30 hover:bg-surface-hover/50 transition-colors">
+                <td class="py-2 px-3 text-text-primary whitespace-nowrap">{row.period}</td>
+                <td class="py-2 px-3 text-text-primary text-right font-medium whitespace-nowrap">{row.revenue.toLocaleString('id-ID')}</td>
+                <td class="py-2 px-3 text-text-secondary text-right whitespace-nowrap">
+                  {#if row.prevRevenue !== null}
+                    {row.prevRevenue.toLocaleString('id-ID')}
+                  {:else}
+                    <span class="text-text-muted">—</span>
+                  {/if}
+                </td>
+                <td class="py-2 px-3 text-right whitespace-nowrap">
+                  {#if change !== null}
+                    <span class:font-medium={true} class:text-success={change > 0} class:text-danger={change < 0} class:text-text-muted={change === 0}>
+                      {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                    </span>
+                    {#if change > 0}
+                      <TrendingUp size={10} class="inline text-success ml-0.5" />
+                    {:else if change < 0}
+                      <TrendingDown size={10} class="inline text-danger ml-0.5" />
+                    {/if}
+                  {:else}
+                    <span class="text-text-muted">—</span>
+                  {/if}
+                </td>
+                {#if sortedRows.some(r => r.orderCount !== null)}
+                  <td class="py-2 px-3 text-text-secondary text-right whitespace-nowrap">{row.orderCount ?? '—'}</td>
+                {/if}
+              </tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            {#if true}
+              {@const totalRevenue = sortedRows.reduce((s, r) => s + (r.revenue || 0), 0)}
+              {@const totalPrev = sortedRows.reduce((s, r) => s + (r.prevRevenue || 0), 0)}
+              {@const hasPrevOverall = sortedRows.some(r => r.prevRevenue !== null)}
+              <tr class="border-t-2 border-border/60 font-semibold">
+                <td class="py-2.5 px-3 text-text-primary text-sm">Total</td>
+                <td class="py-2.5 px-3 text-text-primary text-right text-sm">{totalRevenue.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-text-secondary text-right text-sm">
+                  {#if hasPrevOverall}
+                    {totalPrev.toLocaleString('id-ID')}
+                  {:else}
+                    <span class="text-text-muted">—</span>
+                  {/if}
+                </td>
+                <td class="py-2.5 px-3 text-right text-sm">
+                  {#if hasPrevOverall && totalPrev > 0}
+                    {@const totalChange = ((totalRevenue - totalPrev) / totalPrev) * 100}
+                    <span class:font-bold={true} class:text-success={totalChange > 0} class:text-danger={totalChange < 0}>
+                      {totalChange > 0 ? '+' : ''}{totalChange.toFixed(1)}%
+                    </span>
+                  {:else}
+                    <span class="text-text-muted">—</span>
+                  {/if}
+                </td>
+                {#if sortedRows.some(r => r.orderCount !== null)}
+                  {@const totalOrders = sortedRows.reduce((s, r) => s + (r.orderCount || 0), 0)}
+                  <td class="py-2.5 px-3 text-text-secondary text-right text-sm">{totalOrders}</td>
+                {/if}
+              </tr>
+            {/if}
+          </tfoot>
+        </table>
+      </div>
+    {/if}
   </div>
 
 </div>

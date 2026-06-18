@@ -406,13 +406,9 @@
       const product = products.find(p => p.id === data.id);
       if (product) {
         product.stock = data.stock;
-        toast.info(`Stock updated: ${product.name} now has ${data.stock} units`);
       }
     });
     unsubscribeSale = ws.on('sale_created', (data) => {
-      if (data && data.invoice && data.total != null) {
-        toast.success(`New sale: ${data.invoice} (${data.total.toLocaleString('id-ID')})`);
-      }
       if (data) {
         lastSale = data;
       }

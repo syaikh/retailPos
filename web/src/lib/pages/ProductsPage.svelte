@@ -5,6 +5,7 @@
   import { auth } from '$lib/stores/auth';
   import { debounce } from '$lib/utils/debounce';
   import { useWebSocket } from '$lib/composables/useWebSocket';
+  import { formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
 
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -438,11 +439,7 @@
 
   function formatDate(value?: string): string {
     if (!value) return '-';
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString('id-ID', {
-      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
+    return formatDateTimeInJakarta(value);
   }
 
   $effect(() => {
@@ -490,12 +487,7 @@
       if (product) {
         product.stock = data.stock;
         product.price = data.price;
-        toast.info(`Product updated: ${product.name}`);
       }
-    });
-
-    ws.on('low_stock_alert', (data) => {
-      toast.error(`Low stock alert: ${data.name} (stock: ${data.stock})`);
     });
   });
 

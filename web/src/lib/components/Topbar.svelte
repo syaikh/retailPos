@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Bell } from 'lucide-svelte';
   import { useWebSocket } from '$lib/composables/useWebSocket';
+  import { getCurrentJakartaDateDisplay, getCurrentJakartaClock } from '$lib/utils/jakartaTime';
+  import NotificationBell from '$lib/components/NotificationBell.svelte';
 
   let { currentPath = '/' }: { currentPath?: string } = $props();
   const ws = useWebSocket();
@@ -41,33 +42,22 @@
     return parts;
   }
 
-  // Live clock - updates every minute
-  let currentTime = $state(new Date());
-  
+  // Live clock - updates every minute using Asia/Jakarta timezone
+  let jakartaClock = $state(getCurrentJakartaClock());
+  let jakartaDate = $state(getCurrentJakartaDateDisplay());
+
   $effect(() => {
     const timer = setInterval(() => {
-      currentTime = new Date();
+      jakartaClock = getCurrentJakartaClock();
+      jakartaDate = getCurrentJakartaDateDisplay();
     }, 60000);
     return () => clearInterval(timer);
   });
 
   const dateTimeString = $derived(
-    currentTime.toLocaleDateString('id-ID', { 
-      weekday: 'long', 
-      day: 'numeric',
-      month: 'long', 
-      year: 'numeric' 
-    }) + ' • ' +
-    currentTime.toLocaleTimeString('id-ID', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    })
+    `${jakartaDate.weekday}, ${jakartaDate.day} ${jakartaDate.month} ${jakartaDate.year} • ${jakartaClock.hours}:${jakartaClock.minutes}`
   );
 
-  function handleNotifications() {
-    console.log('Notifications clicked');
-  }
 </script>
 
 <header class="flex items-center h-16 px-6 border-b border-border-default bg-surface-default">
@@ -97,10 +87,7 @@
     </div>
     
     <!-- Notification bell -->
-    <button class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary" onclick={handleNotifications} aria-label="Notifications">
-      <Bell size={18} />
-      <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full animate-pulse-dot"></span>
-    </button>
+    <NotificationBell />
 
     <!-- Subtle divider -->
     <div class="w-px h-4 bg-border-subtle"></div>

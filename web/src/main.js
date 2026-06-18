@@ -8,6 +8,13 @@ import apiClient, { setupApiInterceptors } from './lib/api/client';
 // Setup interceptors dynamically (ini akan mengaktifkan logika auto-refresh 401)
 setupApiInterceptors();
 
+// Suppress known Chrome extension errors (Receiving end does not exist)
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason?.message?.includes('Receiving end does not exist')) {
+    event.preventDefault();
+  }
+});
+
 // Mount the app using mount() for client-only SPA (no hydration)
 const target = document.getElementById('app');
 const app = mount(App, { target });
