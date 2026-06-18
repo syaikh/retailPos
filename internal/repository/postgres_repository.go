@@ -161,7 +161,6 @@ func (r *postgresRepository) GetAllUsers(ctx context.Context, limit, offset int,
 	if isActive != nil {
 		query += fmt.Sprintf(" AND is_active = $%d", argIdx)
 		args = append(args, *isActive)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -567,7 +566,6 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 	if status != "" {
 		query += fmt.Sprintf(" AND v.status = $%d", argIdx)
 		args = append(args, status)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -896,7 +894,6 @@ func (r *postgresRepository) GetAllCategories(ctx context.Context, limit, offset
 	if search != "" {
 		countQuery += fmt.Sprintf(" AND (name ILIKE $%d OR slug ILIKE $%d)", argIdx, argIdx)
 		args = append(args, "%"+search+"%")
-		argIdx++
 	}
 	var total int
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
@@ -1217,10 +1214,12 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 		}
 		if cmd.RowsAffected() == 0 {
 			var currentQty int
-			tx.QueryRow(ctx, `
+			if err := tx.QueryRow(ctx, `
 				SELECT COALESCE(quantity, 0) FROM product_stock
 				WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
-			`, items[i].ProductID).Scan(&currentQty)
+			`, items[i].ProductID).Scan(&currentQty); err != nil {
+				return fmt.Errorf("failed to query current stock for product %d: %w", items[i].ProductID, err)
+			}
 			newQty := currentQty - items[i].Quantity
 			if newQty < 0 {
 				newQty = 0
@@ -1346,7 +1345,6 @@ func (r *postgresRepository) GetAllSales(ctx context.Context, limit, offset int,
 	if maxTotal != nil {
 		countQuery += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
 		countArgs = append(countArgs, *maxTotal)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
@@ -1533,7 +1531,6 @@ func (r *postgresRepository) GetSalesForExport(ctx context.Context, search, star
 	if maxTotal != nil {
 		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
 		args = append(args, *maxTotal)
-		argIdx++
 	}
 	query += " ORDER BY s.created_at DESC"
 
@@ -1873,7 +1870,6 @@ func (r *postgresRepository) GetAvailableYears(ctx context.Context, storeID *int
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
-		argIdx++
 	}
 
 	query += " ORDER BY year DESC"
@@ -2161,7 +2157,9 @@ func (r *postgresRepository) AdjustStock(ctx context.Context, productID int, qua
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	var currentStock int
 	err = tx.QueryRow(ctx, `
@@ -2350,7 +2348,6 @@ func (r *postgresRepository) GetAllCustomers(ctx context.Context, limit, offset 
 	if isActive != nil {
 		countQuery += fmt.Sprintf(" AND is_active = $%d", argIdx)
 		args = append(args, *isActive)
-		argIdx++
 	}
 	var total int
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {

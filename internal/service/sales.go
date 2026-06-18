@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"retail-pos-system/internal/domain"
@@ -45,7 +46,9 @@ func (s *SalesService) CreateSale(ctx context.Context, sale *domain.Sale, items 
 	}
 
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
-		tx.Rollback(ctx)
+		if rbErr := tx.Rollback(ctx); rbErr != nil {
+			return fmt.Errorf("rollback failed: %w (original: %w)", rbErr, err)
+		}
 		return err
 	}
 

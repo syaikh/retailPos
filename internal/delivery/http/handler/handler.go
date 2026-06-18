@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"retail-pos-system/internal/auth"
 	"retail-pos-system/internal/config"
@@ -191,7 +193,9 @@ func (h *Handler) Logout(c *gin.Context) {
 	userID := getUserID(c)
 	token, _ := c.Cookie("refresh_token")
 	if token != "" && userID > 0 {
-		h.authService.Logout(getCtx(c), userID, token)
+		if err := h.authService.Logout(getCtx(c), userID, token); err != nil {
+			log.Printf("failed to logout user %d: %v", userID, err)
+		}
 	}
 	// Clear cookie
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -520,7 +524,9 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to begin transaction"})
 		return
 	}
-	defer tx.Rollback(getCtx(c))
+	defer func() {
+		_ = tx.Rollback(getCtx(c))
+	}()
 
 	if err := h.saleRepo.CreateSale(getCtx(c), tx, sale, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create sale: " + err.Error()})
@@ -658,33 +664,33 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	case "xlsx":
 		wb := excelize.NewFile()
 		sheet := "Transactions"
-		wb.SetSheetName("Sheet1", sheet)
+		_ = wb.SetSheetName("Sheet1", sheet)
 
 		headers := []string{"INVOICE", "DATE", "CUSTOMER", "ITEMS", "PAYMENT", "TOTAL (RP)"}
 		for i, h := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
-			wb.SetCellValue(sheet, col+"1", h)
+			_ = wb.SetCellValue(sheet, col+"1", h)
 		}
 		headerStyle, _ := wb.NewStyle(&excelize.Style{
 			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
 			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
 		})
-		wb.SetCellStyle(sheet, "A1", "F1", headerStyle)
+		_ = wb.SetCellStyle(sheet, "A1", "F1", headerStyle)
 
 		for i, row := range rows {
 			r := i + 2
-			wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), row.InvoiceNumber)
-			wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), row.CreatedAt)
-			wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), row.CustomerName)
-			wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), row.ItemCount)
-			wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), row.PaymentMethod)
-			wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), row.TotalAmount)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), row.InvoiceNumber)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), row.CreatedAt)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), row.CustomerName)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), row.ItemCount)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), row.PaymentMethod)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), row.TotalAmount)
 		}
 
 		colWidths := []float64{20, 22, 25, 8, 15, 18}
 		for i, w := range colWidths {
 			col, _ := excelize.ColumnNumberToName(i + 1)
-			wb.SetColWidth(sheet, col, col, w)
+			_ = wb.SetColWidth(sheet, col, col, w)
 		}
 
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -699,12 +705,12 @@ func (h *Handler) ExportSales(c *gin.Context) {
 		c.Header("Content-Type", "text/csv; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
 		// BOM for Excel compatibility
-		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		writer.Write([]string{"INVOICE", "DATE", "CUSTOMER", "ITEMS", "PAYMENT", "TOTAL (RP)"})
+		_ = writer.Write([]string{"INVOICE", "DATE", "CUSTOMER", "ITEMS", "PAYMENT", "TOTAL (RP)"})
 		for _, row := range rows {
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				row.InvoiceNumber,
 				row.CreatedAt,
 				row.CustomerName,
@@ -1440,18 +1446,18 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	case "xlsx":
 		wb := excelize.NewFile()
 		sheet := "Audit Logs"
-		wb.SetSheetName("Sheet1", sheet)
+		_ = wb.SetSheetName("Sheet1", sheet)
 
 		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"}
 		for i, h := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
-			wb.SetCellValue(sheet, col+"1", h)
+			_ = wb.SetCellValue(sheet, col+"1", h)
 		}
 		headerStyle, _ := wb.NewStyle(&excelize.Style{
 			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
 			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
 		})
-		wb.SetCellStyle(sheet, "A1", "G1", headerStyle)
+		_ = wb.SetCellStyle(sheet, "A1", "G1", headerStyle)
 
 		for i, log := range logs {
 			r := i + 2
@@ -1459,19 +1465,19 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 				t = parsed.Format("2006-01-02 15:04:05")
 			}
-			wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), t)
-			wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), log.Username)
-			wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), log.Role)
-			wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), log.Action)
-			wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), log.EntityType)
-			wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), log.Description)
-			wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), log.IPAddress)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), t)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), log.Username)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), log.Role)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), log.Action)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), log.EntityType)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), log.Description)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), log.IPAddress)
 		}
 
 		colWidths := []float64{22, 20, 15, 12, 15, 50, 18}
 		for i, w := range colWidths {
 			col, _ := excelize.ColumnNumberToName(i + 1)
-			wb.SetColWidth(sheet, col, col, w)
+			_ = wb.SetColWidth(sheet, col, col, w)
 		}
 
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -1485,16 +1491,16 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	default: // csv
 		c.Header("Content-Type", "text/csv; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
-		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		writer.Write([]string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
+		_ = writer.Write([]string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 				t = parsed.Format("2006-01-02 15:04:05")
 			}
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				t,
 				log.Username,
 				log.Role,
@@ -1730,7 +1736,7 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 		role = s
 	}
 
-	log := &domain.AuditLog{
+	auditLog := &domain.AuditLog{
 		UserID:     &userID,
 		Username:   username,
 		Role:       role,
@@ -1743,10 +1749,14 @@ func (h *Handler) logAudit(c *gin.Context, action, entityType string, entityID i
 		UserAgent:  ua,
 		CreatedAt:  time.Now().In(config.Load().Timezone).Format(time.RFC3339),
 	}
-	log.Description = h.generateAuditDescription(log)
+	auditLog.Description = h.generateAuditDescription(auditLog)
 
 	// Fire and forget
-	go h.auditRepo.Create(context.Background(), log)
+	go func() {
+		if err := h.auditRepo.Create(context.Background(), auditLog); err != nil {
+			log.Printf("failed to create audit log: %v", err)
+		}
+	}()
 }
 
 func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
@@ -1801,7 +1811,7 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 	}
 
 	// Format action for display
-	displayAction := action
+	var displayAction string
 	switch action {
 	case "create":
 		displayAction = "Created"
@@ -1814,7 +1824,11 @@ func (h *Handler) generateAuditDescription(log *domain.AuditLog) string {
 	case "logout":
 		displayAction = "Logged out"
 	default:
-		displayAction = strings.Title(action)
+		if len(action) > 0 {
+			displayAction = string(unicode.ToUpper(rune(action[0]))) + action[1:]
+		} else {
+			displayAction = action
+		}
 	}
 
 	if identifier != "" {
@@ -2313,13 +2327,6 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 	}
 	h.logAudit(c, "delete", "customer", id, existing, nil)
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
-}
-
-func getRole(c *gin.Context) string {
-	if role, exists := c.Get("role"); exists {
-		return role.(string)
-	}
-	return ""
 }
 
 func (h *Handler) ServeWS(c *gin.Context) {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"strings"
 	"sync"
@@ -513,7 +514,11 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("failed to rollback: %v", err)
+		}
+	}()
 
 	var saleID int
 	err = tx.QueryRowContext(ctx, `

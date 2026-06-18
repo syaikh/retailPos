@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -216,7 +215,7 @@ func main() {
 
 func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ctx := context.Background()
-	rand.Seed(time.Now().UnixNano())
+
 
 	// Validate parameters (relaxed for continuation)
 	if numProducts < 0 || numProducts > 5000 {
@@ -356,7 +355,11 @@ func truncateTransactionalData(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to disable triggers: %w", err)
 	}
-	defer db.ExecContext(ctx, "SET session_replication_role = 'origin'")
+	defer func() {
+		if _, err := db.ExecContext(ctx, "SET session_replication_role = 'origin'"); err != nil {
+			log.Printf("failed to reset replication role: %v", err)
+		}
+	}()
 
 	// Truncate tables in correct order (children first)
 	tables := []string{
@@ -548,7 +551,11 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("failed to rollback: %v", err)
+		}
+	}()
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, created_at)
@@ -779,7 +786,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
 		 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
 		return 0
 	}
 	defer saleStmt.Close()
@@ -787,7 +796,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	itemStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
 		return 0
 	}
 	defer itemStmt.Close()
@@ -849,7 +860,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			// Insert sale items
 			for _, item := range items {
-				itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal)
+				if _, err := itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal); err != nil {
+					log.Printf("failed to insert sale item: %v", err)
+				}
 			}
 
 			salesCreated++
@@ -858,7 +871,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			if batchSize >= 50 {
 				saleStmt.Close()
 				itemStmt.Close()
-				tx.Commit()
+				if err := tx.Commit(); err != nil {
+					log.Printf("failed to commit batch: %v", err)
+				}
 
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
@@ -881,7 +896,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt.Close()
 	itemStmt.Close()
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		log.Printf("failed to commit final batch: %v", err)
+	}
 
 	select {
 	case progress <- (salesCreated % 25):
@@ -928,74 +945,6 @@ func randomTime24Hour(dayDate, now time.Time) time.Time {
 
 	return time.Date(dayDate.Year(), dayDate.Month(), dayDate.Day(),
 		hour, minute, rand.Intn(60), 0, jakartaTZ)
-}
-
-// processIndividualSale handles one sale with optimized transaction
-func processIndividualSale(ctx context.Context, db *sql.DB, invoice string, cashierID int, customerID int, paymentMethod string, createdAt time.Time, products []ProductInfo, productMap map[int]ProductInfo) error {
-	// Start individual transaction for this sale
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Generate sale items first to calculate total
-	numItems := generateItemCount()
-	totalAmount := 0
-	saleItemRecords := make([]SaleItemRecord, 0, numItems)
-
-	// Select products for this sale
-	saleProducts := selectProductsForSale(products, numItems)
-
-	for _, productID := range saleProducts {
-		product := productMap[productID]
-
-		// Generate quantity (depends on product type)
-		quantity := generateQuantity(product.Category)
-
-		// Use current product price as snapshot (transaction-time pricing)
-		unitPrice := product.Price
-		subtotal := unitPrice * quantity
-		totalAmount += subtotal
-
-		saleItemRecords = append(saleItemRecords, SaleItemRecord{
-			ProductID: productID,
-			Quantity:  quantity,
-			UnitPrice: unitPrice,
-			Subtotal:  subtotal,
-		})
-	}
-
-	// Skip sale if no valid items
-	if totalAmount <= 0 || len(saleItemRecords) == 0 {
-		return fmt.Errorf("no valid items for sale")
-	}
-
-	// Insert sale record with pre-calculated total
-	var saleID int
-	err = tx.QueryRowContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
-		 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`,
-		invoice, cashierID, customerID, paymentMethod, totalAmount, createdAt,
-	).Scan(&saleID)
-	if err != nil {
-		return fmt.Errorf("failed to insert sale: %w", err)
-	}
-
-	// Insert sale items in batch within the same transaction
-	for _, item := range saleItemRecords {
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to insert sale item: %w", err)
-		}
-	}
-
-	// Commit the transaction
-	return tx.Commit()
 }
 
 // Helper functions for realistic data generation
@@ -1136,14 +1085,6 @@ func generateStockLevel(category string) int {
 	}
 }
 
-func generateWeightedDate(startDate time.Time, days int) time.Time {
-	// Use exponential distribution to favor more recent dates
-	lambda := 3.0 // Controls the weighting (higher = more recent bias)
-	u := rand.Float64()
-	dayOffset := int(-math.Log(1-u)/lambda*float64(days)) % days
-	return startDate.AddDate(0, 0, dayOffset)
-}
-
 func weightedRandomChoice(items []string, weights []int) string {
 	total := 0
 	for _, w := range weights {
@@ -1223,7 +1164,10 @@ func getIDs(ctx context.Context, db *sql.DB, table string) []int {
 	ids := []int{}
 	for rows.Next() {
 		var id int
-		rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			log.Printf("failed to scan row: %v", err)
+			continue
+		}
 		ids = append(ids, id)
 	}
 	return ids
@@ -1241,13 +1185,6 @@ func randElemInt(s []int) int {
 		return 0
 	}
 	return s[rand.Intn(len(s))]
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // promptTimeRange interactively asks user for time range selection
@@ -1271,7 +1208,7 @@ func promptTimeRange() int {
 			break
 		}
 		if err != nil {
-			reader.ReadString('\n') // clear buffer
+			_, _ = reader.ReadString('\n') // clear buffer
 		}
 		fmt.Println("Invalid choice. Please enter 1-5.")
 	}
@@ -1294,7 +1231,7 @@ func promptTimeRange() int {
 				return months * 30 // approximate days
 			}
 			if err != nil {
-				reader.ReadString('\n')
+				_, _ = reader.ReadString('\n')
 			}
 			fmt.Println("Invalid input. Please enter a number between 6 and 36.")
 		}
@@ -1338,7 +1275,11 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("failed to rollback: %v", err)
+		}
+	}()
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
@@ -1378,7 +1319,9 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		}
 	}
 
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit customers: %w", err)
+	}
 	_ = walkInID // returned for reference
 	return nil
 }
