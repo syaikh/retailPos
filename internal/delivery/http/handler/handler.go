@@ -19,6 +19,7 @@ import (
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/domain"
 	"retail-pos-system/internal/repository"
+	"retail-pos-system/internal/service"
 	"retail-pos-system/pkg/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -40,6 +41,7 @@ type Handler struct {
 	hub            *websocket.Hub
 	auditRepo      repository.AuditLogRepository
 	categoryRepo   repository.CategoryRepository
+	excelService   *service.ExcelService
 }
 
 func NewHandler(
@@ -53,6 +55,7 @@ func NewHandler(
 	hub *websocket.Hub,
 	auditRepo repository.AuditLogRepository,
 	categoryRepo repository.CategoryRepository,
+	excelService *service.ExcelService,
 ) *Handler {
 	return &Handler{
 		authRepo:     authRepo,
@@ -65,6 +68,7 @@ func NewHandler(
 		hub:          hub,
 		auditRepo:    auditRepo,
 		categoryRepo: categoryRepo,
+		excelService: excelService,
 	}
 }
 
@@ -1160,7 +1164,72 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
       "is_partial":     ranges.IsPartial,
       "days_in_period": ranges.DaysInPeriod,
     },
-  })
+	})
+}
+
+func (h *Handler) ExportDashboard(c *gin.Context) {
+	ctx := getCtx(c)
+	cfg := config.Load()
+
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	prevStart := c.Query("prevStart")
+	prevEnd := c.Query("prevEnd")
+	periodLabel := c.Query("period")
+	isHourly := startDate != "" && endDate != "" && startDate == endDate
+
+	if startDate == "" || endDate == "" {
+		now := time.Now().In(cfg.Timezone)
+		endDate = now.Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+	}
+
+	currentStart, err := time.ParseInLocation("2006-01-02", startDate, cfg.Timezone)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
+		return
+	}
+	currentEnd, err := time.ParseInLocation("2006-01-02", endDate, cfg.Timezone)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
+		return
+	}
+
+	prevStartTime := currentStart
+	prevEndTime := currentStart
+	if prevStart != "" && prevEnd != "" {
+		prevStartTime, err = time.ParseInLocation("2006-01-02", prevStart, cfg.Timezone)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
+			return
+		}
+		prevEndTime, err = time.ParseInLocation("2006-01-02", prevEnd, cfg.Timezone)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
+			return
+		}
+	}
+
+	params := service.DashboardExportParams{
+		PeriodLabel: periodLabel,
+		StartDate:   currentStart,
+		EndDate:     currentEnd,
+		PrevStart:   prevStartTime,
+		PrevEnd:     prevEndTime,
+		IsHourly:    isHourly,
+	}
+
+	data, err := h.excelService.GenerateDashboardExport(ctx, params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate dashboard export"})
+		return
+	}
+
+	filename := fmt.Sprintf("dashboard-%s", time.Now().In(cfg.Timezone).Format("2006-01-02"))
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+	c.Header("Content-Length", fmt.Sprintf("%d", len(data)))
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data)
 }
 
 // Admin Handlers

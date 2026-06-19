@@ -86,6 +86,9 @@ let showDataTable = $state(false);
 let sortColumn = $state('period');
 let sortAsc = $state(true);
 
+// Chart canvas ref for toDataURL export
+let chartCanvas = $state();
+
 // Live time state for realtime updates (Jakarta timezone)
 let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
 // Reactive Jakarta hour derived from the live-updating currentTimeHour
@@ -1089,6 +1092,9 @@ scales: {
 
 let startDate = $state('');
 let endDate = $state('');
+let chartEndDate = $state('');
+let prevStart = $state('');
+let prevEnd = $state('');
 
 async function fetchSalesWithRange(start, end) {
   try {
@@ -1122,28 +1128,28 @@ async function fetchSalesWithRange(start, end) {
 
   // Chart endpoint uses full month range for monthly view to get daily aggregation
   // We need to use the original end date from the calendar for chart data
-  let chartEndDate = end;
+  let _chartEndDate = end;
   if (activePeriodType === 'monthly' && selectedMonthlyRange) {
     // For monthly view, use the full month end from calendar selection
     const calendarEnd = selectedMonthlyRange.end;
-    chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
+    _chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
   }
   if (activePeriodType === 'weekly') {
     // Extend chart end by 1 day so backend doesn't use hourly aggregation (start != end)
-    const endParts = chartEndDate.split('-').map(Number);
+    const endParts = _chartEndDate.split('-').map(Number);
     const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
     const nextDate = new Date(endDate.getTime() + 86400000);
-    chartEndDate = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDate.getUTCDate()).padStart(2, '0')}`;
+    _chartEndDate = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDate.getUTCDate()).padStart(2, '0')}`;
   }
   if (activePeriodType === 'yearly' && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
     const currentYear = parseInt(getTodayInJakarta().split('-')[0]);
     if (year === currentYear) {
       // Current year: only show data through last completed month
-      chartEndDate = end;
+      _chartEndDate = end;
     } else {
       // Past years: full year
-      chartEndDate = `${year}-12-31`;
+      _chartEndDate = `${year}-12-31`;
     }
   }
   // Use yesterday as comparison date for current month (MTD comparison)
@@ -1166,16 +1172,13 @@ async function fetchSalesWithRange(start, end) {
     }
   }
 
-  let prevStart = '';
-  let prevEnd = '';
-
   const shiftDays = activePeriodType === 'realtime' || activePeriodType === 'daily' || activePeriodType === 'yesterday' ? 1 :
     activePeriodType === 'weekly' || activePeriodType === '7days' ? 7 :
     activePeriodType === '30days' ? 30 : 0;
 
   if (shiftDays > 0) {
     const startParts = start.split('-').map(Number);
-    const endParts = chartEndDate.split('-').map(Number);
+    const endParts = _chartEndDate.split('-').map(Number);
     const startDateObj = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
     const endDateObj = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
     const prevStartObj = new Date(startDateObj.getTime() - shiftDays * 86400000);
@@ -1198,7 +1201,9 @@ async function fetchSalesWithRange(start, end) {
     prevEnd = `${year - 1}-12-31`;
   }
 
-  const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
+  // Store the final chart end date for export use
+  chartEndDate = _chartEndDate;
+  const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${_chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
 
   const [dualRes, comparisonRes] = await Promise.all([
       apiFetch(chartUrl),
@@ -1292,43 +1297,34 @@ async function fetchSales() {
   await fetchSalesWithRange(range.start, range.end);
 }
 
-async function exportToExcel() {
+  async function exportToExcel() {
     try {
-      const { utils, writeFile } = await import('xlsx');
+      const params = new URLSearchParams();
+      if (startDate) params.set('startDate', startDate);
+      if (chartEndDate) params.set('endDate', chartEndDate);
+      if (prevStart) params.set('prevStart', prevStart);
+      if (prevEnd) params.set('prevEnd', prevEnd);
+      params.set('period', selectedPeriodType);
 
-      const summaryData = [
-        ['Revenue Report Summary', ''],
-        ['Period', `${startDate} to ${endDate}`],
-        ['Granularity', chartType],
-        ['', ''],
-        ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
-        ['Total Orders', kpiData.totalOrders],
-        ['Average Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
-        ['Change vs Previous Period', `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`]
-      ];
+      const res = await apiFetch(`/api/dashboard/export?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || 'Export failed');
+      }
 
-      const headers = chartType === 'hourly' ? ['Hour', 'Revenue'] :
-                     chartType === 'daily' ? ['Date', 'Revenue'] :
-                     ['Period', 'Revenue', 'Orders'];
-
-      const dataRows = chartData.map(item => {
-        if (chartType === 'hourly') return [item.hour || item.label, item.total];
-        if (chartType === 'daily') return [item.date, item.total];
-        return [item.label, item.total, item.order_count];
-      });
-
-      const dataData = [headers, ...dataRows];
-
-      const workbook = utils.book_new();
-      utils.book_append_sheet(workbook, utils.aoa_to_sheet(summaryData), 'Summary');
-      utils.book_append_sheet(workbook, utils.aoa_to_sheet(dataData), 'Data');
-
-      const fileName = `revenue-report-${selectedPeriodType}-${startDate}-to-${endDate}.xlsx`;
-      writeFile(workbook, fileName);
+      const blob = await res.blob();
+      const fileName = `dashboard-${getTodayInJakarta()}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
 
       toast.success('Excel export completed');
     } catch (error) {
-      toast.error('Failed to export to Excel');
+      console.error('Excel export error:', error);
+      toast.error('Export Excel gagal: ' + (error.message || 'unknown error'));
     }
   }
 
@@ -1337,56 +1333,123 @@ async function exportToExcel() {
       const { jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
 
-      const doc = new jsPDF();
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      let yPos = 20;
 
+      // Title
       doc.setFontSize(16);
-      doc.text(`Revenue Report - ${selectedPeriodType}`, 20, 20);
+      doc.text('Revenue Report', margin, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.text(`Period: ${getPeriodDescription()}`, margin, yPos);
+      yPos += 6;
+      doc.text(`Granularity: ${chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Periodic'}`, margin, yPos);
+      yPos += 6;
 
-      doc.setFontSize(12);
-      doc.text(`Period: ${startDate} to ${endDate}`, 20, 30);
+      if (comparisonDateRange) {
+        doc.setFontSize(9);
+        doc.text(`Comparison: ${statCardLabels.comparisonLabel} · ${comparisonDateRange}`, margin, yPos);
+        yPos += 6;
+      }
 
+      // Summary table
       const summaryBody = [
         ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
-        ['Total Orders', kpiData.totalOrders.toString()],
-        ['Average Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
-        ['Change vs Previous Period', `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`]
+        ['Total Orders', kpiData.totalOrders.toLocaleString('id-ID')],
+        ['Avg Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
+        ['Change', kpiData.comparisonType === 'new' ? 'NEW' : kpiData.comparisonType === 'zero' ? '±0%' : `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`],
       ];
-
-      autoTable(doc, {
-        startY: 40,
-        head: [['Metric', 'Value']],
-        body: summaryBody,
-        theme: 'grid'
-      });
-
-      let dataHeaders, dataBody;
-      if (chartType === 'hourly') {
-        dataHeaders = ['Hour', 'Revenue'];
-        dataBody = chartData.map(item => [item.hour || item.label, `Rp ${item.total.toLocaleString('id-ID')}`]);
-      } else if (chartType === 'daily') {
-        dataHeaders = ['Date', 'Revenue'];
-        dataBody = chartData.map(item => [item.date, `Rp ${item.total.toLocaleString('id-ID')}`]);
-      } else {
-        dataHeaders = ['Period', 'Revenue', 'Orders'];
-        dataBody = chartData.map(item => [
-          item.label,
-          `Rp ${item.total.toLocaleString('id-ID')}`,
-          item.order_count
-        ]);
+      if (kpiData.previousRevenue > 0) {
+        summaryBody.push(['Prev Revenue', `Rp ${kpiData.previousRevenue.toLocaleString('id-ID')}`]);
       }
 
       autoTable(doc, {
-        startY: doc.lastAutoTable.finalY + 10,
-        head: [dataHeaders],
-        body: dataBody,
-        theme: 'grid'
+        startY: yPos + 2,
+        head: [['Metric', 'Value']],
+        body: summaryBody,
+        theme: 'grid',
+        styles: { fontSize: 9 },
       });
+      yPos = doc.lastAutoTable.finalY + 8;
 
-      const fileName = `revenue-report-${selectedPeriodType}-${startDate}-to-${endDate}.pdf`;
+      // Chart image via canvas.toDataURL
+      if (chartCanvas && chartData.length > 0) {
+        const imgData = chartCanvas.toDataURL('image/png');
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (chartCanvas.height / chartCanvas.width) * imgWidth;
+        const maxImgHeight = 90;
+        const finalImgHeight = Math.min(imgHeight, maxImgHeight);
+        doc.addImage(imgData, 'PNG', margin, yPos, imgWidth, finalImgHeight);
+        yPos += finalImgHeight + 8;
+      }
+
+      // Best / Worst
+      if (bestPeriod) {
+        doc.setFontSize(9);
+        doc.text(`Best ${bestWorstHeading}: ${getPeriodLabel(bestPeriod)} — Rp ${(bestPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
+        yPos += 5;
+      }
+      if (worstPeriod && worstPeriod.total !== bestPeriod?.total) {
+        doc.setFontSize(9);
+        doc.text(`Worst ${bestWorstHeading}: ${getPeriodLabel(worstPeriod)} — Rp ${(worstPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
+        yPos += 5;
+      }
+
+      doc.addPage();
+      yPos = 20;
+
+      // Data table from sortedRows
+      if (sortedRows.length > 0) {
+        const hasOrders = sortedRows.some(r => r.orderCount !== null);
+        const headers = ['Period', 'Revenue (Rp)', 'Prev Period (Rp)', 'Change %'];
+        if (hasOrders) headers.push('Orders');
+
+        const body = sortedRows.map(row => {
+          const change = row.prevRevenue > 0 ? (((row.revenue - row.prevRevenue) / row.prevRevenue) * 100) : null;
+          const rowData = [
+            row.period,
+            row.revenue.toLocaleString('id-ID'),
+            row.prevRevenue !== null ? row.prevRevenue.toLocaleString('id-ID') : '—',
+            change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '—',
+          ];
+          if (hasOrders) rowData.push(row.orderCount !== null ? row.orderCount.toString() : '—');
+          return rowData;
+        });
+
+        // Total row
+        const tRev = sortedRows.reduce((s, r) => s + (r.revenue || 0), 0);
+        const tPrev = sortedRows.reduce((s, r) => s + (r.prevRevenue || 0), 0);
+        const tChg = tPrev > 0 ? ((tRev - tPrev) / tPrev * 100) : null;
+        const totalRow = [
+          'TOTAL',
+          tRev.toLocaleString('id-ID'),
+          tPrev > 0 ? tPrev.toLocaleString('id-ID') : '—',
+          tChg !== null ? `${tChg >= 0 ? '+' : ''}${tChg.toFixed(1)}%` : '—',
+        ];
+        if (hasOrders) {
+          totalRow.push(sortedRows.reduce((s, r) => s + (r.orderCount || 0), 0).toString());
+        }
+        body.push(totalRow);
+
+        autoTable(doc, {
+          startY: yPos + 2,
+          head: [headers],
+          body,
+          theme: 'grid',
+          styles: { fontSize: 7 },
+          headStyles: { fillColor: [124, 58, 237] },
+          footStyles: { fillColor: [30, 41, 59] },
+        });
+      }
+
+      const fileName = `revenue-report-${selectedPeriodType}-${startDate || 'N/A'}-${endDate || 'N/A'}.pdf`;
       doc.save(fileName);
 
       toast.success('PDF export completed');
     } catch (error) {
+      console.error('PDF export error:', error);
       toast.error('Failed to export to PDF');
     }
   }
@@ -1937,7 +2000,7 @@ onValueChange={(val) => {
           No data available for this period
         </div>
       {:else}
-        <canvas use:chart={chartConfig}></canvas>
+        <canvas bind:this={chartCanvas} use:chart={chartConfig}></canvas>
       {/if}
     </div>
 

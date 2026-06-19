@@ -14,6 +14,7 @@ import (
 	"retail-pos-system/internal/delivery/http/handler"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/repository"
+	"retail-pos-system/internal/service"
 	"retail-pos-system/pkg/websocket"
 
 	"github.com/gin-contrib/cors"
@@ -72,7 +73,9 @@ func main() {
 	hub := websocket.NewHub(authService)
 	go hub.Run()
 
-	h := handler.NewHandler(authRepo, roleRepo, productRepo, paymentRepo, saleRepo, customerRepo, authService, hub, auditRepo, categoryRepo)
+	excelService := service.NewExcelService(saleRepo)
+
+	h := handler.NewHandler(authRepo, roleRepo, productRepo, paymentRepo, saleRepo, customerRepo, authService, hub, auditRepo, categoryRepo, excelService)
 
 	public := router.Group("/api")
 	public.Use(middleware.RateLimitMiddleware())
@@ -124,6 +127,7 @@ func main() {
 		protected.GET("/dashboard/chart/weekly", middleware.RequirePermission("report:read"), h.GetSalesWeeklyReport)
 		protected.GET("/dashboard/chart/monthly", middleware.RequirePermission("report:read"), h.GetSalesMonthlyReport)
 		protected.GET("/dashboard/comparison", middleware.RequirePermission("report:read"), h.GetPeriodComparison)
+		protected.GET("/dashboard/export", middleware.RequirePermission("report:read"), h.ExportDashboard)
 
 		protected.GET("/admin/users", middleware.RequirePermission("user:read"), h.ListUsers)
 		protected.POST("/admin/users", middleware.RequirePermission("user:create"), h.CreateUser)

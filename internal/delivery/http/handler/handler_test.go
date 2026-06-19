@@ -48,6 +48,7 @@ func setupTestServer(t *testing.T) (*gin.Engine, *repository.TestDB) {
 		nil, // wsHub not needed for API tests
 		auditRepo,
 		categoryRepo,
+		nil, // excelService not needed for API tests
 	)
 
 	// Set up Gin router
