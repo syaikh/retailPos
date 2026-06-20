@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -1171,65 +1172,94 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	ctx := getCtx(c)
 	cfg := config.Load()
 
-	startDate := c.Query("startDate")
-	endDate := c.Query("endDate")
-	prevStart := c.Query("prevStart")
-	prevEnd := c.Query("prevEnd")
-	periodLabel := c.Query("period")
-	isHourly := startDate != "" && endDate != "" && startDate == endDate
-
-	if startDate == "" || endDate == "" {
-		now := time.Now().In(cfg.Timezone)
-		endDate = now.Format("2006-01-02")
-		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+	var chartImage []byte
+	if chartData := c.PostForm("chartData"); chartData != "" {
+		log.Printf("DEBUG chartData length=%d", len(chartData))
+		if idx := strings.Index(chartData, ","); idx >= 0 {
+			encoded := chartData[idx+1:]
+			log.Printf("DEBUG base64 length=%d, first20=%s", len(encoded), encoded[:min(20, len(encoded))])
+			if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil {
+				chartImage = decoded
+				log.Printf("DEBUG decoded PNG length=%d", len(decoded))
+			} else {
+				log.Printf("ERROR base64 decode: %v", err)
+			}
+		} else {
+			log.Printf("ERROR no comma in chartData")
+		}
+	} else {
+		log.Printf("DEBUG no chartData in form")
 	}
 
-	currentStart, err := time.ParseInLocation("2006-01-02", startDate, cfg.Timezone)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
-		return
-	}
-	currentEnd, err := time.ParseInLocation("2006-01-02", endDate, cfg.Timezone)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
-		return
-	}
+	periodType := c.PostForm("period")
+	mode := c.PostForm("mode")
+	dateStr := c.PostForm("date")
 
-	prevStartTime := currentStart
-	prevEndTime := currentStart
-	if prevStart != "" && prevEnd != "" {
-		prevStartTime, err = time.ParseInLocation("2006-01-02", prevStart, cfg.Timezone)
+	if periodType != "" {
+		refDate := time.Now().In(cfg.Timezone)
+		if dateStr != "" {
+			if parsed, err := time.ParseInLocation("2006-01-02", dateStr, cfg.Timezone); err == nil {
+				refDate = parsed
+			}
+		}
+
+		var ranges PeriodRange
+		var periodLabel string
+		var isHourly bool
+		switch mode {
+		case "realtime":
+			ranges = getRealtimeRanges(refDate)
+			periodLabel = "realtime"
+			isHourly = true
+		case "30days":
+			ranges = get30DaysRanges(refDate)
+			periodLabel = "30days"
+			isHourly = false
+		default:
+			ranges = GetComparisonRanges(PeriodType(periodType), refDate, mode == "completed")
+			periodLabel = periodType
+			isHourly = false
+		}
+
+		var params service.DashboardExportParams
+		if mode == "realtime" {
+			params = service.DashboardExportParams{
+				PeriodLabel: periodLabel,
+				StartDate:   ranges.CurrentStart,
+				EndDate:     ranges.CurrentEnd,
+				PrevStart:   ranges.PreviousStart,
+				PrevEnd:     ranges.PreviousEnd,
+				IsHourly:    isHourly,
+				ChartImage:  chartImage,
+			}
+		} else {
+			params = service.DashboardExportParams{
+				PeriodLabel: periodLabel,
+				StartDate:   ranges.CurrentStart,
+				EndDate:     ranges.CurrentEnd.AddDate(0, 0, -1),
+				PrevStart:   ranges.PreviousStart,
+				PrevEnd:     ranges.PreviousEnd.AddDate(0, 0, -1),
+				IsHourly:    isHourly,
+				ChartImage:  chartImage,
+			}
+		}
+
+		data, err := h.excelService.GenerateDashboardExport(ctx, params)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
+			log.Printf("ERROR ExportDashboard: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to generate dashboard export: %v", err)})
 			return
 		}
-		prevEndTime, err = time.ParseInLocation("2006-01-02", prevEnd, cfg.Timezone)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
-			return
-		}
-	}
 
-	params := service.DashboardExportParams{
-		PeriodLabel: periodLabel,
-		StartDate:   currentStart,
-		EndDate:     currentEnd,
-		PrevStart:   prevStartTime,
-		PrevEnd:     prevEndTime,
-		IsHourly:    isHourly,
-	}
-
-	data, err := h.excelService.GenerateDashboardExport(ctx, params)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate dashboard export"})
+		filename := fmt.Sprintf("dashboard-%s", time.Now().In(cfg.Timezone).Format("2006-01-02"))
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+		c.Header("Content-Length", fmt.Sprintf("%d", len(data)))
+		c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data)
 		return
 	}
 
-	filename := fmt.Sprintf("dashboard-%s", time.Now().In(cfg.Timezone).Format("2006-01-02"))
-	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
-	c.Header("Content-Length", fmt.Sprintf("%d", len(data)))
-	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data)
+	c.JSON(http.StatusBadRequest, gin.H{"error": "missing period"})
 }
 
 // Admin Handlers

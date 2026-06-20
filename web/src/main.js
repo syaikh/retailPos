@@ -2,11 +2,8 @@ import './app.css';
 import App from './lib/App.svelte';
 import { mount } from 'svelte';
 
-// Import apiClient dan setup interceptors untuk Auto-Refresh Token
-import apiClient, { setupApiInterceptors } from './lib/api/client';
-
-// Setup interceptors dynamically (ini akan mengaktifkan logika auto-refresh 401)
-setupApiInterceptors();
+// Import apiClient untuk Auto-Refresh Token
+import apiClient from './lib/api/client';
 
 // Suppress known Chrome extension errors (Receiving end does not exist)
 window.addEventListener('unhandledrejection', (event) => {

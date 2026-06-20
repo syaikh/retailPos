@@ -25,10 +25,6 @@ describe('ReportsPage.svelte — export features', () => {
   });
 
   // ── Dynamic imports ─────────────────────────────────────────────────────────
-  it('dynamically imports xlsx in exportToExcel', () => {
-    expect(src).toContain("await import('xlsx')");
-  });
-
   it('dynamically imports jsPDF in exportToPDF', () => {
     expect(src).toContain("await import('jspdf')");
   });

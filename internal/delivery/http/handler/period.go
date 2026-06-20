@@ -212,16 +212,15 @@ func getYearlyRanges(refDate time.Time, completedMode bool) PeriodRange {
 		}
 	}
 
-	// To-date: full year Jan 1 - Dec 31 (exclusive)
-	// Compare selected year vs same period last year
-	// For refDate = Dec 31, 2024: compare 2024 vs 2023
-	// For refDate = Jun 4, 2026: compare Jan 1-Dec 31 2026 vs Jan 1-Dec 31 2025
-	// Note: we expect refDate near end of year for yearly view
+	// To-date: year-to-date vs same period last year
+	// For refDate = Dec 31, 2024: compare Jan 1-Dec 31 2024 vs Jan 1-Dec 31 2023
+	// For refDate = May 31, 2026: compare Jan 1-May 31 2026 vs Jan 1-May 31 2025
+	nextDay := refDate.AddDate(0, 0, 1)
 	return PeriodRange{
 		CurrentStart:  startOfYear,
-		CurrentEnd:    startOfYear.AddDate(1, 0, 0), // Jan 1 next year (exclusive)
+		CurrentEnd:    nextDay,
 		PreviousStart: startOfYear.AddDate(-1, 0, 0),
-		PreviousEnd:   startOfYear, // Jan 1 current year (exclusive)
+		PreviousEnd:   nextDay.AddDate(-1, 0, 0),
 	}
 }
 

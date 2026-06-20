@@ -152,13 +152,18 @@ func TestGetDualChartData_JakartaCrossMidnight(t *testing.T) {
 
 	current, previous, err := repo.GetDualChartData(ctx, currentStart, currentEnd, previousStart, previousEnd)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(current), "current period has 2 days (June 15-16)")
-	require.Equal(t, 2, len(previous), "previous period has 2 days")
+	// currentEnd=June 17 exclusive → series includes June 15, 16, 17 (3 entries)
+	require.Equal(t, 3, len(current), "current period has 3 days (June 15-17)")
+	require.Equal(t, 3, len(previous), "previous period has 3 days")
 
 	// Build a map for assertions
 	currentByDate := make(map[string]int)
 	for _, dp := range current {
 		currentByDate[dp.Date] = dp.Total
+	}
+	previousByDate := make(map[string]int)
+	for _, dp := range previous {
+		previousByDate[dp.Date] = dp.Total
 	}
 
 	t.Logf("Current data: %+v", currentByDate)
@@ -170,6 +175,10 @@ func TestGetDualChartData_JakartaCrossMidnight(t *testing.T) {
 	// June 16: midnight-crossing (2000) + late (3000) = 5000
 	assert.Equal(t, 5000, currentByDate["2025-06-16"],
 		"June 16 should have midnight-crossing + late sales (2000+3000)")
+
+	// June 17: exclusive boundary, no data
+	assert.Equal(t, 0, currentByDate["2025-06-17"],
+		"June 17 is the exclusive end, should have no data")
 
 	// Previous period should have no data
 	for _, dp := range previous {

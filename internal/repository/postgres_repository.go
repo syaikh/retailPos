@@ -1679,7 +1679,7 @@ func (r *postgresRepository) GetPeriodComparison(
 			WHERE created_at >= $3 AND created_at < $4
 				AND status = 'completed'
 		),
-		current_peak AS (
+		current_peak_hour AS (
 			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
 			FROM (
 				SELECT SUM(total_amount) as hourly_total
@@ -1689,7 +1689,7 @@ func (r *postgresRepository) GetPeriodComparison(
 				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
 			) hourly
 		),
-		previous_peak AS (
+		previous_peak_hour AS (
 			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
 			FROM (
 				SELECT SUM(total_amount) as hourly_total
@@ -1698,12 +1698,37 @@ func (r *postgresRepository) GetPeriodComparison(
 					AND status = 'completed'
 				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
 			) hourly
+		),
+		current_peak_month AS (
+			SELECT COALESCE(MAX(monthly_total), 0) as peak_revenue
+			FROM (
+				SELECT SUM(total_amount) as monthly_total
+				FROM sales
+				WHERE created_at >= $1 AND created_at < $2
+					AND status = 'completed'
+				GROUP BY EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')),
+				         EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+			) monthly
+		),
+		previous_peak_month AS (
+			SELECT COALESCE(MAX(monthly_total), 0) as peak_revenue
+			FROM (
+				SELECT SUM(total_amount) as monthly_total
+				FROM sales
+				WHERE created_at >= $3 AND created_at < $4
+					AND status = 'completed'
+				GROUP BY EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')),
+				         EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+			) monthly
 		)
 		SELECT
 			cp.revenue, cp.orders,
 			pp.revenue, pp.orders,
-			cpeak.peak_revenue, ppeak.peak_revenue
-		FROM current_period cp, previous_period pp, current_peak cpeak, previous_peak ppeak`
+			cpeak_hour.peak_revenue, ppeak_hour.peak_revenue,
+			cpeak_month.peak_revenue, ppeak_month.peak_revenue
+		FROM current_period cp, previous_period pp,
+		     current_peak_hour cpeak_hour, previous_peak_hour ppeak_hour,
+		     current_peak_month cpeak_month, previous_peak_month ppeak_month`
 
 	var result domain.PeriodComparison
 	err := r.db.QueryRow(ctx, query,
@@ -1716,6 +1741,8 @@ func (r *postgresRepository) GetPeriodComparison(
 		&result.PreviousOrders,
 		&result.PeakRevenueHour,
 		&result.PreviousPeakRevenue,
+		&result.PeakRevenueMonth,
+		&result.PreviousPeakRevenueMonth,
 	)
 
 	if err != nil {
@@ -1746,8 +1773,8 @@ func (r *postgresRepository) GetDualChartData(
 	currentStart, currentEnd, previousStart, previousEnd time.Time,
 ) (current, previous []ChartDataPoint, err error) {
 
-	// Format dates as strings and pass them, casting to date in SQL
-	// to avoid pgx timestamptz ambiguity with generate_series
+	// Pass dates as YYYY-MM-DD strings and use AT TIME ZONE 'Asia/Jakarta'
+	// so PostgreSQL correctly interprets them as WIB midnight, not UTC midnight
 	cs := currentStart.Format("2006-01-02")
 	ce := currentEnd.Format("2006-01-02")
 	ps := previousStart.Format("2006-01-02")
@@ -1755,13 +1782,13 @@ func (r *postgresRepository) GetDualChartData(
 
 	query := `
 		WITH date_series AS (
-			SELECT generate_series($1::timestamptz, $2::timestamptz, '1 day') AS dt
+			SELECT generate_series(($1::date AT TIME ZONE 'Asia/Jakarta'), ($2::date AT TIME ZONE 'Asia/Jakarta'), '1 day') AS dt
 		),
 		current_agg AS (
 			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
 				   COALESCE(SUM(total_amount), 0) AS revenue
 			FROM sales
-			WHERE created_at >= $1::timestamptz AND created_at < ($2::date + 1)::timestamptz
+			WHERE created_at >= ($1::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($2::date + 1) AT TIME ZONE 'Asia/Jakarta')
 				AND status = 'completed'
 			GROUP BY 1
 		),
@@ -1769,7 +1796,7 @@ func (r *postgresRepository) GetDualChartData(
 			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
 				   COALESCE(SUM(total_amount), 0) AS revenue
 			FROM sales
-			WHERE created_at >= $3::timestamptz AND created_at < ($4::date + 1)::timestamptz
+			WHERE created_at >= ($3::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($4::date + 1) AT TIME ZONE 'Asia/Jakarta')
 				AND status = 'completed'
 			GROUP BY 1
 		)

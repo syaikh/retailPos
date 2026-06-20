@@ -25,22 +25,16 @@ apiClient.interceptors.request.use(
 
 // 3. Setup Response Interceptor untuk menangani Auto-Refresh 401
 setupAxiosInterceptors(apiClient);
-let interceptorsInitialized = false;
-export const setupApiInterceptors = async () => {
-  if (interceptorsInitialized) return;
-  interceptorsInitialized = true;
-};
 
 export default apiClient;
 
 // 4. (Opsional) Helper khusus untuk GET biasa jika tidak mau pakai async/await di store
 export const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  // Setup interceptors on first API call
-  await setupApiInterceptors();
 
   const token = getAuthToken();
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string> || {}),
   };
   if (token) {

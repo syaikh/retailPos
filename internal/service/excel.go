@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/png"
+	"log"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -27,6 +30,7 @@ type DashboardExportParams struct {
 	PrevStart   time.Time
 	PrevEnd     time.Time
 	IsHourly    bool
+	ChartImage  []byte
 }
 
 func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params DashboardExportParams) ([]byte, error) {
@@ -71,8 +75,10 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		currentData = toChartData(currentHourly)
 		previousData = toChartData(previousHourly)
 	} else {
+		comparisonEnd := params.EndDate.AddDate(0, 0, 1)
+		comparisonPrevEnd := params.PrevEnd.AddDate(0, 0, 1)
 		var err error
-		comparison, err = s.saleRepo.GetPeriodComparison(ctx, params.StartDate, params.EndDate, params.PrevStart, params.PrevEnd)
+		comparison, err = s.saleRepo.GetPeriodComparison(ctx, params.StartDate, comparisonEnd, params.PrevStart, comparisonPrevEnd)
 		if err != nil {
 			return nil, fmt.Errorf("get period comparison: %w", err)
 		}
@@ -139,15 +145,25 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		f.SetCellStyle(dashboard, col+"4", col+"4", headerStyle)
 	}
 
-	kpiRows := []struct {
+	type kpiRow struct {
 		label    string
 		current  int
 		previous int
-	}{
+	}
+
+	kpiRows := []kpiRow{
 		{"Revenue (RP)", comparison.CurrentRevenue, comparison.PreviousRevenue},
 		{"Orders", comparison.CurrentOrders, comparison.PreviousOrders},
 		{"Avg Order Value (RP)", comparison.CurrentAOV, comparison.PreviousAOV},
-		{"Revenue per Day (RP)", comparison.RevenuePerDay, comparison.PreviousRevenuePerDay},
+	}
+
+	if params.IsHourly {
+		kpiRows = append(kpiRows, kpiRow{"Peak Revenue Hour (RP)", comparison.PeakRevenueHour, comparison.PreviousPeakRevenue})
+	} else if params.PeriodLabel == "yearly" {
+		kpiRows = append(kpiRows, kpiRow{"Peak Revenue Month (RP)", comparison.PeakRevenueMonth, comparison.PreviousPeakRevenueMonth})
+		kpiRows = append(kpiRows, kpiRow{"Avg. Revenue / Month (RP)", comparison.RevenuePerDay * 30, comparison.PreviousRevenuePerDay * 30})
+	} else {
+		kpiRows = append(kpiRows, kpiRow{"Revenue per Day (RP)", comparison.RevenuePerDay, comparison.PreviousRevenuePerDay})
 	}
 
 	for i, k := range kpiRows {
@@ -167,7 +183,7 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	}
 
 	// Best / Worst period
-	bwRow := 10
+	bwRow := 5 + len(kpiRows) + 1
 	if len(currentData) > 0 {
 		best := currentData[0]
 		worst := currentData[0]
@@ -193,23 +209,31 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	}
 
 	// Chart image
-	chartRow := 13
-	if len(currentData) > 0 {
-		chartPNG, err := renderRevenueComparisonChartMultiline(currentData, previousData)
-		if err != nil {
-			return nil, fmt.Errorf("render chart: %w", err)
-		}
-		if err := f.AddPictureFromBytes(dashboard, fmt.Sprintf("A%d", chartRow), &excelize.Picture{
-			Extension: ".png",
-			File:      chartPNG,
-			Format: &excelize.GraphicOptions{
-				OffsetX: 10,
-				OffsetY: 10,
-				ScaleX:  1.0,
-				ScaleY:  1.0,
-			},
-		}); err != nil {
-			return nil, fmt.Errorf("add chart picture: %w", err)
+	chartRow := bwRow + 3
+	if len(params.ChartImage) > 0 {
+		if len(params.ChartImage) < 8 || string(params.ChartImage[:8]) != "\x89PNG\r\n\x1a\n" {
+			log.Printf("WARN: chart image invalid PNG header: len=%d, first8=%x", len(params.ChartImage), params.ChartImage[:min(8, len(params.ChartImage))])
+		} else {
+			// Try decoding with Go's image/png for diagnostics
+			_, _, err := image.Decode(bytes.NewReader(params.ChartImage))
+			if err != nil {
+				log.Printf("WARN: Go image.Decode failed: %v", err)
+			} else {
+				log.Printf("INFO: Go image.Decode succeeded")
+			}
+			// Try excelize's AddPictureFromBytes
+			if err := f.AddPictureFromBytes(dashboard, fmt.Sprintf("A%d", chartRow), &excelize.Picture{
+				Extension: ".png",
+				File:      params.ChartImage,
+				Format: &excelize.GraphicOptions{
+					OffsetX: 10,
+					OffsetY: 10,
+					ScaleX:  1.0,
+					ScaleY:  1.0,
+				},
+			}); err != nil {
+				log.Printf("WARN: add chart picture failed: %v", err)
+			}
 		}
 	}
 
@@ -242,21 +266,26 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			f.SetCellValue(summary, fmt.Sprintf("B%d", row), dp.Total)
 			totalCur += dp.Total
 			totalOrders += dp.Orders
+			var chg float64
+			hasChg := false
 			if hasPrevious && i < len(previousHourly) {
 				f.SetCellValue(summary, fmt.Sprintf("C%d", row), previousHourly[i].Total)
 				totalPrev += previousHourly[i].Total
-				chg := calcChangeFloat(dp.Total, previousHourly[i].Total)
+				chg = calcChangeFloat(dp.Total, previousHourly[i].Total)
 				f.SetCellValue(summary, fmt.Sprintf("D%d", row), chg)
+				hasChg = true
+			}
+			f.SetCellValue(summary, "E"+fmt.Sprintf("%d", row), dp.Orders)
+			if i%2 == 1 {
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), altStyle)
+			}
+			if hasChg {
 				if chg >= 0 {
 					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctPosStyle)
 				} else {
 					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctNegStyle)
 				}
-			}
-			f.SetCellValue(summary, "E"+fmt.Sprintf("%d", row), dp.Orders)
-			if i%2 == 1 {
-				lastCol, _ := excelize.ColumnNumberToName(len(summaryHeaders))
-				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("%s%d", lastCol, row), altStyle)
 			}
 		}
 	} else {
@@ -265,20 +294,25 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			f.SetCellValue(summary, fmt.Sprintf("A%d", row), dp.Date)
 			f.SetCellValue(summary, fmt.Sprintf("B%d", row), dp.Total)
 			totalCur += dp.Total
+			var chg float64
+			hasChg := false
 			if hasPrevious && i < len(previousData) {
 				f.SetCellValue(summary, fmt.Sprintf("C%d", row), previousData[i].Total)
 				totalPrev += previousData[i].Total
-				chg := calcChangeFloat(dp.Total, previousData[i].Total)
+				chg = calcChangeFloat(dp.Total, previousData[i].Total)
 				f.SetCellValue(summary, fmt.Sprintf("D%d", row), chg)
+				hasChg = true
+			}
+			if i%2 == 1 {
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), altStyle)
+			}
+			if hasChg {
 				if chg >= 0 {
 					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctPosStyle)
 				} else {
 					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctNegStyle)
 				}
-			}
-			if i%2 == 1 {
-				lastCol, _ := excelize.ColumnNumberToName(len(summaryHeaders))
-				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("%s%d", lastCol, row), altStyle)
 			}
 		}
 	}
@@ -318,17 +352,6 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		return nil, fmt.Errorf("write excel: %w", err)
 	}
 	return buf.Bytes(), nil
-}
-
-func calcPercentChange(current, previous int) string {
-	if previous == 0 {
-		if current > 0 {
-			return "+100%"
-		}
-		return "0%"
-	}
-	change := float64(current-previous) / float64(previous) * 100
-	return fmt.Sprintf("%+.1f%%", change)
 }
 
 func calcChangeFloat(current, previous int) float64 {

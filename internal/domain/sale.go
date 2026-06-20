@@ -10,6 +10,8 @@ type PeriodComparison struct {
 	PreviousAOV           int `json:"previous_aov"`
 	RevenuePerDay         int `json:"revenue_per_day"`
 	PreviousRevenuePerDay int `json:"previous_revenue_per_day"`
-	PeakRevenueHour       int `json:"peak_revenue_hour"`       // Peak hour revenue for current period
-	PreviousPeakRevenue   int `json:"previous_peak_revenue"`   // Peak hour revenue for previous period
+	PeakRevenueHour          int `json:"peak_revenue_hour"`           // Peak hour revenue for current period
+	PreviousPeakRevenue      int `json:"previous_peak_revenue"`       // Peak hour revenue for previous period
+	PeakRevenueMonth         int `json:"peak_revenue_month"`          // Peak month revenue for current period
+	PreviousPeakRevenueMonth int `json:"previous_peak_revenue_month"` // Peak month revenue for previous period
 }

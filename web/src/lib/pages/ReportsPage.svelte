@@ -33,6 +33,8 @@ let kpiData = $state({
   previousRevenuePerDay: 0,
   peakRevenueHour: null,
   previousPeakRevenue: null,
+  peakRevenueMonth: null,
+  previousPeakRevenueMonth: null,
   percentChange: 0,
   comparisonType: 'zero',
   isPartial: false,
@@ -1095,6 +1097,9 @@ let endDate = $state('');
 let chartEndDate = $state('');
 let prevStart = $state('');
 let prevEnd = $state('');
+let exportPeriod = $state('');
+let exportMode = $state('');
+let exportDate = $state('');
 
 async function fetchSalesWithRange(start, end) {
   try {
@@ -1118,28 +1123,25 @@ async function fetchSalesWithRange(start, end) {
 // Real-time uses "realtime" mode for today-vs-yesterday comparison
   // 30days uses "30days" mode for 30-day comparison
   // daily, yesterday use "completed" mode for same day/week comparison
-  // yearly: use "completed" for current year (incomplete), "todate" for completed years
+  // yearly always uses todate mode (year-to-date vs same period last year)
   const comparisonMode = activePeriodType === 'realtime' ? 'realtime' :
     activePeriodType === 'daily' ? 'completed' :
     activePeriodType === 'yesterday' ? 'completed' :
-    activePeriodType === 'yearly' && selectedYearlyRange
-      ? (selectedYearlyRange.start.year === parseInt(getTodayInJakarta().split('-')[0]) ? 'completed' : 'todate')
-      : activePeriodType === '30days' ? '30days' : 'todate';
+    activePeriodType === 'yearly' ? 'todate' :
+    activePeriodType === '30days' ? '30days' : 'todate';
 
   // Chart endpoint uses full month range for monthly view to get daily aggregation
   // We need to use the original end date from the calendar for chart data
   let _chartEndDate = end;
   if (activePeriodType === 'monthly' && selectedMonthlyRange) {
-    // For monthly view, use the full month end from calendar selection
     const calendarEnd = selectedMonthlyRange.end;
     _chartEndDate = `${calendarEnd.year}-${String(calendarEnd.month).padStart(2, '0')}-${String(calendarEnd.day).padStart(2, '0')}`;
-  }
-  if (activePeriodType === 'weekly') {
-    // Extend chart end by 1 day so backend doesn't use hourly aggregation (start != end)
-    const endParts = _chartEndDate.split('-').map(Number);
-    const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
-    const nextDate = new Date(endDate.getTime() + 86400000);
-    _chartEndDate = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDate.getUTCDate()).padStart(2, '0')}`;
+    // Cap current month to yesterday to avoid showing future dates
+    const todayJakarta = getTodayInJakarta().split('-').map(Number);
+    const start = selectedMonthlyRange.start;
+    if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+      _chartEndDate = getDateNDaysAgoInJakarta(1);
+    }
   }
   if (activePeriodType === 'yearly' && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
@@ -1187,20 +1189,24 @@ async function fetchSalesWithRange(start, end) {
     prevEnd = `${prevEndObj.getUTCFullYear()}-${String(prevEndObj.getUTCMonth() + 1).padStart(2, '0')}-${String(prevEndObj.getUTCDate()).padStart(2, '0')}`;
   } else if (activePeriodType === 'monthly' && selectedMonthlyRange) {
     const startM = selectedMonthlyRange.start;
-    const endM = selectedMonthlyRange.end;
     const prevMonth = startM.month === 1 ? 12 : startM.month - 1;
     const prevYear = startM.month === 1 ? startM.year - 1 : startM.year;
-    const prevEndMonth = endM.month === 1 ? 12 : endM.month - 1;
-    const prevEndYear = endM.month === 1 ? endM.year - 1 : endM.year;
-    const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+    const _chartEndParts = _chartEndDate.split('-').map(Number);
+    const prevEndDay = _chartEndParts[2];
+    const prevEndMonth = prevMonth;
+    const prevEndYear = prevYear;
     prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
-    prevEnd = `${prevEndYear}-${String(prevEndMonth).padStart(2, '0')}-${String(daysInPrevMonth).padStart(2, '0')}`;
+    prevEnd = `${prevEndYear}-${String(prevEndMonth).padStart(2, '0')}-${String(prevEndDay).padStart(2, '0')}`;
   } else if (activePeriodType === 'yearly' && selectedYearlyRange) {
     const year = selectedYearlyRange.start.year;
     prevStart = `${year - 1}-01-01`;
     prevEnd = `${year - 1}-12-31`;
   }
 
+  // Store export params for Excel export (backend uses same calculation as comparison API)
+  exportPeriod = backendPeriodType;
+  exportMode = comparisonMode;
+  exportDate = comparisonDate;
   // Store the final chart end date for export use
   chartEndDate = _chartEndDate;
   const chartUrl = `${chartEndpoint}?startDate=${start}&endDate=${_chartEndDate}${prevStart ? `&prevStart=${prevStart}&prevEnd=${prevEnd}` : ''}`;
@@ -1279,6 +1285,8 @@ async function fetchSalesWithRange(start, end) {
         previousRevenuePerDay: comparison.previous_revenue_per_day,
         peakRevenueHour: comparison.peak_revenue_hour || peakChartValue,
         previousPeakRevenue: comparison.previous_peak_revenue,
+        peakRevenueMonth: comparison.peak_revenue_month,
+        previousPeakRevenueMonth: comparison.previous_peak_revenue_month,
         percentChange,
         comparisonType,
         isPartial: meta.is_partial,
@@ -1299,14 +1307,25 @@ async function fetchSales() {
 
   async function exportToExcel() {
     try {
-      const params = new URLSearchParams();
-      if (startDate) params.set('startDate', startDate);
-      if (chartEndDate) params.set('endDate', chartEndDate);
-      if (prevStart) params.set('prevStart', prevStart);
-      if (prevEnd) params.set('prevEnd', prevEnd);
-      params.set('period', selectedPeriodType);
+      const formData = new FormData();
+      if (exportPeriod) formData.set('period', exportPeriod);
+      if (exportMode) formData.set('mode', exportMode);
+      if (exportDate) formData.set('date', exportDate);
+      if (chartCanvas) {
+        const temp = document.createElement('canvas');
+        temp.width = chartCanvas.width;
+        temp.height = chartCanvas.height;
+        const tCtx = temp.getContext('2d');
+        tCtx.fillStyle = '#111827';
+        tCtx.fillRect(0, 0, temp.width, temp.height);
+        tCtx.drawImage(chartCanvas, 0, 0);
+        formData.set('chartData', temp.toDataURL('image/png'));
+      }
 
-      const res = await apiFetch(`/api/dashboard/export?${params.toString()}`);
+      const res = await apiFetch('/api/dashboard/export', {
+        method: 'POST',
+        body: formData,
+      });
       if (!res.ok) {
         const err = await res.text();
         throw new Error(err || 'Export failed');
@@ -1354,29 +1373,57 @@ async function fetchSales() {
         yPos += 6;
       }
 
-      // Summary table
-      const summaryBody = [
-        ['Total Revenue', `Rp ${kpiData.totalRevenue.toLocaleString('id-ID')}`],
-        ['Total Orders', kpiData.totalOrders.toLocaleString('id-ID')],
-        ['Avg Order Value', `Rp ${kpiData.avgOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`],
-        ['Change', kpiData.comparisonType === 'new' ? 'NEW' : kpiData.comparisonType === 'zero' ? '±0%' : `${kpiData.percentChange >= 0 ? '+' : ''}${kpiData.percentChange.toFixed(1)}%`],
-      ];
-      if (kpiData.previousRevenue > 0) {
-        summaryBody.push(['Prev Revenue', `Rp ${kpiData.previousRevenue.toLocaleString('id-ID')}`]);
+      // Summary table (matching Excel format)
+      const fmt = (v) => `Rp ${v.toLocaleString('id-ID')}`;
+      const fmtChg = (cur, prev) => {
+        if (prev === 0) return cur > 0 ? '+100%' : '0%';
+        const chg = (cur - prev) / prev;
+        return `${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(1)}%`;
+      };
+      let summaryBody;
+      if (chartType === 'hourly') {
+        summaryBody = [
+          ['Revenue (RP)', fmt(kpiData.totalRevenue), fmt(kpiData.previousRevenue), fmtChg(kpiData.totalRevenue, kpiData.previousRevenue)],
+          ['Orders', kpiData.totalOrders.toLocaleString('id-ID'), kpiData.previousOrders.toLocaleString('id-ID'), fmtChg(kpiData.totalOrders, kpiData.previousOrders)],
+          ['Avg Order Value (RP)', fmt(kpiData.avgOrderValue), fmt(kpiData.previousAvgOrderValue), fmtChg(kpiData.avgOrderValue, kpiData.previousAvgOrderValue)],
+          ['Peak Revenue Hour (RP)', fmt(kpiData.peakRevenueHour), fmt(kpiData.previousPeakRevenue), fmtChg(kpiData.peakRevenueHour, kpiData.previousPeakRevenue)],
+        ];
+      } else if (chartType === 'yearly') {
+        summaryBody = [
+          ['Revenue (RP)', fmt(kpiData.totalRevenue), fmt(kpiData.previousRevenue), fmtChg(kpiData.totalRevenue, kpiData.previousRevenue)],
+          ['Orders', kpiData.totalOrders.toLocaleString('id-ID'), kpiData.previousOrders.toLocaleString('id-ID'), fmtChg(kpiData.totalOrders, kpiData.previousOrders)],
+          ['Avg Order Value (RP)', fmt(kpiData.avgOrderValue), fmt(kpiData.previousAvgOrderValue), fmtChg(kpiData.avgOrderValue, kpiData.previousAvgOrderValue)],
+          ['Peak Revenue Month (RP)', fmt(kpiData.peakRevenueMonth), fmt(kpiData.previousPeakRevenueMonth), fmtChg(kpiData.peakRevenueMonth, kpiData.previousPeakRevenueMonth)],
+          ['Avg. Revenue / Month (RP)', fmt(kpiData.revenuePerDay * 30), fmt(kpiData.previousRevenuePerDay * 30), fmtChg(kpiData.revenuePerDay * 30, kpiData.previousRevenuePerDay * 30)],
+        ];
+      } else {
+        summaryBody = [
+          ['Revenue (RP)', fmt(kpiData.totalRevenue), fmt(kpiData.previousRevenue), fmtChg(kpiData.totalRevenue, kpiData.previousRevenue)],
+          ['Orders', kpiData.totalOrders.toLocaleString('id-ID'), kpiData.previousOrders.toLocaleString('id-ID'), fmtChg(kpiData.totalOrders, kpiData.previousOrders)],
+          ['Avg Order Value (RP)', fmt(kpiData.avgOrderValue), fmt(kpiData.previousAvgOrderValue), fmtChg(kpiData.avgOrderValue, kpiData.previousAvgOrderValue)],
+          ['Revenue per Day (RP)', fmt(kpiData.revenuePerDay), fmt(kpiData.previousRevenuePerDay), fmtChg(kpiData.revenuePerDay, kpiData.previousRevenuePerDay)],
+        ];
       }
 
       autoTable(doc, {
         startY: yPos + 2,
-        head: [['Metric', 'Value']],
+        head: [['Metric', 'Current Period', 'Previous Period', 'Change']],
         body: summaryBody,
         theme: 'grid',
         styles: { fontSize: 9 },
       });
       yPos = doc.lastAutoTable.finalY + 8;
 
-      // Chart image via canvas.toDataURL
+      // Chart image via canvas.toDataURL (dark background)
       if (chartCanvas && chartData.length > 0) {
-        const imgData = chartCanvas.toDataURL('image/png');
+        const temp = document.createElement('canvas');
+        temp.width = chartCanvas.width;
+        temp.height = chartCanvas.height;
+        const tCtx = temp.getContext('2d');
+        tCtx.fillStyle = '#111827';
+        tCtx.fillRect(0, 0, temp.width, temp.height);
+        tCtx.drawImage(chartCanvas, 0, 0);
+        const imgData = temp.toDataURL('image/png');
         const imgWidth = pageWidth - margin * 2;
         const imgHeight = (chartCanvas.height / chartCanvas.width) * imgWidth;
         const maxImgHeight = 90;
@@ -1917,14 +1964,27 @@ onValueChange={(val) => {
           </div>
           <div class="flex items-baseline gap-1 mt-1">
             <span class="text-lg font-bold text-text-primary">
-              {formatCurrencyShort(kpiData.peakRevenueHour !== null ? kpiData.peakRevenueHour : kpiData.revenuePerDay)}
+              {formatCurrencyShort(
+                chartType === 'hourly' ? kpiData.peakRevenueHour :
+                chartType === 'yearly' ? kpiData.peakRevenueMonth :
+                kpiData.revenuePerDay
+              )}
             </span>
           </div>
-          {#if kpiData.previousPeakRevenue !== null && kpiData.previousPeakRevenue > 0}
+          {#if chartType === 'yearly' && kpiData.revenuePerDay > 0}
+            <div class="text-xs text-text-muted mt-1">
+              Avg. / Month: {formatCurrencyShort(kpiData.revenuePerDay * 30)}
+            </div>
+          {/if}
+          {#if chartType === 'hourly' && kpiData.previousPeakRevenue !== null && kpiData.previousPeakRevenue > 0}
             <div class="text-xs text-text-secondary mt-1 font-medium">
               vs {formatCurrencyShort(kpiData.previousPeakRevenue)}
             </div>
-          {:else if kpiData.previousRevenuePerDay > 0 && chartType !== 'hourly'}
+          {:else if chartType === 'yearly' && kpiData.previousPeakRevenueMonth > 0}
+            <div class="text-xs text-text-secondary mt-1 font-medium">
+              vs {formatCurrencyShort(kpiData.previousPeakRevenueMonth)}
+            </div>
+          {:else if kpiData.previousRevenuePerDay > 0}
             <div class="text-xs text-text-secondary mt-1 font-medium">
               vs {formatCurrencyShort(kpiData.previousRevenuePerDay)}
             </div>

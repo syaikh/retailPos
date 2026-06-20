@@ -127,7 +127,7 @@ func main() {
 		protected.GET("/dashboard/chart/weekly", middleware.RequirePermission("report:read"), h.GetSalesWeeklyReport)
 		protected.GET("/dashboard/chart/monthly", middleware.RequirePermission("report:read"), h.GetSalesMonthlyReport)
 		protected.GET("/dashboard/comparison", middleware.RequirePermission("report:read"), h.GetPeriodComparison)
-		protected.GET("/dashboard/export", middleware.RequirePermission("report:read"), h.ExportDashboard)
+		protected.POST("/dashboard/export", middleware.RequirePermission("report:read"), h.ExportDashboard)
 
 		protected.GET("/admin/users", middleware.RequirePermission("user:read"), h.ListUsers)
 		protected.POST("/admin/users", middleware.RequirePermission("user:create"), h.CreateUser)
