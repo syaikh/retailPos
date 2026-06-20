@@ -56,7 +56,16 @@
    let selectedCustomerLabel = $derived(selectedCustomerId ? (customers.find(c => c.id === selectedCustomerId)?.name || '') : 'Walk-in / General');
 
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
+  const taxAmount = $derived(cart.reduce((sum, item) => {
+    const rate = item.tax_rate || 0;
+    if (rate <= 0) return sum;
+    const lineTotal = item.price * item.quantity;
+    const dpp = Math.round(lineTotal * 100 / (100 + rate));
+    return sum + (lineTotal - dpp);
+  }, 0));
+  const taxDisplay = $derived(taxAmount); 
   const totalAmount = $derived(subtotal);
+  const dppDisplay = $derived(subtotal - taxAmount);
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
   const quickCashPresets = [50000, 100000, 150000, 200000];
@@ -231,6 +240,7 @@
     }
     if (!sale || !sale.items || sale.items.length === 0) return;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+    const taxAmount = sale.tax || 0;
     printReceiptStore.set({
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
@@ -240,6 +250,8 @@
         unit_price: item.unit_price,
       })),
       total_amount: sale.total_amount,
+      subtotal_dpp: sale.total_amount - taxAmount,
+      tax: taxAmount,
       paymentMethod: sale.payment_method || paymentMethod,
       cashReceived: sale.cash_received || cashReceived,
       changeDue: sale.change_due || changeDue,
@@ -276,6 +288,7 @@
     processCheckout().then(() => {
       if (lastSale && lastSale.items) {
         const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+        const taxAmount = lastSale.tax || 0;
         printReceiptStore.set({
           invoice_number: lastSale.invoice_number,
           created_at: lastSale.created_at,
@@ -285,6 +298,8 @@
             unit_price: item.unit_price,
           })),
           total_amount: lastSale.total_amount,
+          subtotal_dpp: lastSale.total_amount - taxAmount,
+          tax: taxAmount,
           paymentMethod: paymentMethod,
           cashReceived: cashReceived,
           changeDue: changeDue,
@@ -643,6 +658,16 @@
         {/if}
 
         <div class="border-t border-border p-4 space-y-3 bg-bg-secondary shrink-0">
+          {#if taxAmount > 0}
+            <div class="flex justify-between text-xs text-text-muted">
+              <span>DPP</span>
+              <span>{dppDisplay.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between text-xs text-text-muted">
+              <span>PPN 11%</span>
+              <span>{taxAmount.toLocaleString('id-ID')}</span>
+            </div>
+          {/if}
           <div class="flex justify-between font-bold text-text-primary">
             <span>Total</span>
             <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
@@ -732,6 +757,12 @@
       </div>
 
       <div class="mb-6 text-center">
+        {#if taxAmount > 0}
+          <div class="flex justify-center gap-6 text-xs text-text-muted mb-2">
+            <span>DPP: {dppDisplay.toLocaleString('id-ID')}</span>
+            <span>PPN 11%: {taxAmount.toLocaleString('id-ID')}</span>
+          </div>
+        {/if}
         <p class="text-sm text-text-muted mb-1 font-medium">Total Tagihan</p>
         <p class="text-4xl font-extrabold text-purple-400">
           {totalAmount.toLocaleString('id-ID')}

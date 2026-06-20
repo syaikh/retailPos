@@ -131,9 +131,10 @@ func (tdb *TestDB) setupSchema(t *testing.T) {
    		"database/migrations/012_cleanup_permissions.sql",
    		"database/migrations/013_add_permissions.sql",
    		"database/migrations/014_split_stock_to_product_stock.sql",
-   		"database/migrations/015_payment_methods.sql",
-   		"database/migrations/016_customers.sql",
-    }
+		"database/migrations/015_payment_methods.sql",
+		"database/migrations/016_customers.sql",
+		"database/migrations/018_sale_items_tax.sql",
+	}
 
  	for _, migrationFile := range migrationFiles {
  		migrationPath := filepath.Join(projectRoot, migrationFile)

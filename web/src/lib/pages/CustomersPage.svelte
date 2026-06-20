@@ -14,6 +14,7 @@
   const canCreate = $derived(userPermissions.includes('customer:create'));
   const canUpdate = $derived(userPermissions.includes('customer:update'));
   const canDelete = $derived(userPermissions.includes('customer:delete'));
+  const canRead = $derived(userPermissions.includes('customer:read'));
 
   let customers = $state<any[]>([]);
   let loading = $state(false);
@@ -23,7 +24,77 @@
   let searchQuery = $state('');
   let statusFilter = $state('all');
 
-  // let showStatusDropdown = $state(false);
+  let selectedIds = $state(new Set<number>());
+  let showBulkStatusModal = $state(false);
+  let bulkStatusTargetIsActive = $state(true);
+  let isBulkUpdating = $state(false);
+  let showBulkDeleteModal = $state(false);
+  let isBulkDeleting = $state(false);
+
+  let allSelected = $derived(customers.length > 0 && customers.every(c => selectedIds.has(c.id)));
+  let someSelected = $derived(selectedIds.size > 0 && !allSelected);
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(customers.map(c => c.id));
+    }
+  }
+
+  function toggleSelect(id: number) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) { next.delete(id); } else { next.add(id); }
+    selectedIds = next;
+  }
+
+  function clearSelection() {
+    selectedIds = new Set();
+  }
+
+  async function handleBulkStatusUpdate() {
+    isBulkUpdating = true;
+    const eligibleIds = customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).map(c => c.id);
+    const skippedCount = selectedIds.size - eligibleIds.length;
+    if (eligibleIds.length === 0) {
+      toast.warning(`All selected customer(s) already ${bulkStatusTargetIsActive ? 'Active' : 'Deactivated'}`);
+      isBulkUpdating = false;
+      showBulkStatusModal = false;
+      return;
+    }
+    try {
+      await apiClient.post('/customers/bulk/status', { ids: eligibleIds, is_active: bulkStatusTargetIsActive });
+      toast.success(`${bulkStatusTargetIsActive ? 'Activated' : 'Deactivated'} ${eligibleIds.length} customer(s)`);
+      if (skippedCount > 0) {
+        toast.warning(`${skippedCount} customer(s) already ${bulkStatusTargetIsActive ? 'Active' : 'Deactivated'}`);
+      }
+      selectedIds = new Set();
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to update customer status');
+    } finally {
+      isBulkUpdating = false;
+      showBulkStatusModal = false;
+    }
+  }
+
+  async function handleBulkDelete() {
+    isBulkDeleting = true;
+    try {
+      const ids = Array.from(selectedIds);
+      await apiClient.post('/customers/bulk/delete', { ids });
+      toast.success(`Deleted ${ids.length} customer(s)`);
+      selectedIds = new Set();
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to delete customers');
+    } finally {
+      isBulkDeleting = false;
+      showBulkDeleteModal = false;
+    }
+  }
+
+  let showStatusDropdown = $state(false);
   let editingId = $state<number | null>(null);
   let editName = $state('');
   let editPhone = $state('');
@@ -103,6 +174,7 @@
   }
 
   async function load(newOffset = offset, newLimit = limit) {
+    selectedIds = new Set();
     loading = true;
     try {
       offset = newOffset;
@@ -126,7 +198,6 @@
 
   function handleSearchInput() {
     if (!searchQuery) {
-      currentPage = 1;
       load(0, limit);
       return;
     }
@@ -314,7 +385,10 @@
     <table class="min-w-full text-sm table-fixed">
       <thead class="bg-muted/50">
         <tr>
-          <th class="text-left p-4 font-semibold w-[30%]">
+          <th class="p-4 font-semibold w-12">
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} />
+          </th>
+          <th class="text-left p-4 font-semibold w-[26%]">
             <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
               NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
@@ -341,7 +415,7 @@
         {#if loading}
           {#each { length: 5 } as _, i}
             <tr class="border-t border-border">
-              <td class="px-4 py-3" colspan={5}>
+              <td class="px-4 py-3" colspan={6}>
                 <div class="flex items-center gap-3">
                   <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
                   <div class="flex-1 space-y-2">
@@ -354,7 +428,7 @@
           {/each}
         {:else if customers.length === 0}
           <tr class="border-t border-border">
-            <td colspan={5}>
+            <td colspan={6}>
               <div class="px-4 py-16 text-center">
                 <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
                   <Search size={32} class="text-text-muted" />
@@ -401,6 +475,9 @@
                   </tr>
                 {:else}
                   <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+                    <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} />
+                    </td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
@@ -438,6 +515,23 @@
             {/if}
           </tbody>
         </table>
+
+        {#if selectedIds.size > 0}
+          <div class="px-4 py-2.5 bg-primary/5 border-t border-primary/20 flex items-center gap-3">
+            <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
+            <div class="flex items-center gap-2 ml-auto">
+              {#if canUpdate}
+                <button class="btn btn-secondary text-xs px-3 py-1.5 h-auto" onclick={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}>
+                  Change Status
+                </button>
+              {/if}
+              {#if canDelete}
+                <button class="btn btn-danger-subtle text-xs px-3 py-1.5 h-auto" onclick={() => showBulkDeleteModal = true}>Delete</button>
+              {/if}
+              <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
+            </div>
+          </div>
+        {/if}
 
         {#if !loading && customers.length > 0}
           <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
@@ -523,6 +617,57 @@
         <Loader2 size={14} class="animate-spin mr-1" /> Deactivating...
       {:else}
         <Trash2 size={14} class="mr-1" /> Deactivate
+      {/if}
+    </button>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={showBulkStatusModal} title="Bulk Update Status" size="sm">
+  <div class="py-2">
+    <p class="text-text-primary font-semibold mb-3">
+      Set selected customers to <span class="text-primary-light">{bulkStatusTargetIsActive ? 'Active' : 'Inactive'}</span>
+    </p>
+    <p class="text-sm text-text-secondary mb-4">
+      {customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).length} of {selectedIds.size} customer(s) will be updated.
+    </p>
+    <div class="flex flex-wrap gap-2 justify-center">
+      <button
+        class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTargetIsActive ? 'bg-success-subtle border-success text-success-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+        onclick={() => bulkStatusTargetIsActive = true}
+      >Activate</button>
+      <button
+        class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {!bulkStatusTargetIsActive ? 'bg-danger-subtle border-danger text-danger-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+        onclick={() => bulkStatusTargetIsActive = false}
+      >Deactivate</button>
+    </div>
+  </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</button>
+    <button class="btn btn-primary px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
+      {#if isBulkUpdating}
+        <Loader2 size={14} class="animate-spin mr-1" /> Updating...
+      {:else}
+        Update
+      {/if}
+    </button>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={showBulkDeleteModal} title="Delete Customers" size="sm">
+  <div class="text-center py-2">
+    <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
+      <Trash2 size={24} class="text-danger" />
+    </div>
+    <p class="text-text-primary font-semibold mb-1">Delete {selectedIds.size} customer(s)?</p>
+    <p class="text-text-muted text-sm">This will permanently remove them from the active customer list. Their transaction history will be preserved.</p>
+  </div>
+  {#snippet footer()}
+    <button class="btn btn-secondary px-5" disabled={isBulkDeleting} onclick={() => showBulkDeleteModal = false}>Cancel</button>
+    <button class="btn btn-danger px-5" disabled={isBulkDeleting} onclick={handleBulkDelete}>
+      {#if isBulkDeleting}
+        <Loader2 size={14} class="animate-spin mr-1" /> Deleting...
+      {:else}
+        Delete
       {/if}
     </button>
   {/snippet}

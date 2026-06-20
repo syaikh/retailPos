@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -25,11 +26,21 @@ func mustLoadJakarta() *time.Location {
 
 func insertSaleTest(t *testing.T, pool *pgxpool.Pool, invoice string, storeID *int, total int, when time.Time) {
 	t.Helper()
+	// Product ID 1 (Indomie Goreng) has tax_class_id = 1 (PPN 11%).
+	dpp := int(math.Round(float64(total) * 100.0 / 111.0))
+	tax := total - dpp
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO sales (invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', $9)
-	`, invoice, 1, storeID, total, 0, 0, total, "cash", when)
+	`, invoice, 1, storeID, dpp, 0, tax, total, "cash", when)
 	require.NoError(t, err, "insert sale %q", invoice)
+
+	// Insert sale item with DPP/tax columns
+	_, err = pool.Exec(context.Background(), `
+		INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+		SELECT id, 1, 1, $1, $1, $2, $3 FROM sales WHERE invoice_number = $4
+	`, total, dpp, tax, invoice)
+	require.NoError(t, err, "insert sale item for %q", invoice)
 }
 
 // TestExcelExport_ValuesMatchWeb verifies that the Excel export produces the

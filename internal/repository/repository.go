@@ -132,4 +132,6 @@ type CustomerRepository interface {
 	UpdateCustomer(ctx context.Context, customer *domain.Customer, id int) error
 	DeleteCustomer(ctx context.Context, id int) error
 	GetByPhone(ctx context.Context, phone string) (*domain.Customer, error)
+	BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool) error
+	BulkDeleteCustomers(ctx context.Context, ids []int) error
 }

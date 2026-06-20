@@ -115,6 +115,8 @@ export interface SaleItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  dpp_amount?: number;
+  tax_amount?: number;
 }
 
 export interface Sale {

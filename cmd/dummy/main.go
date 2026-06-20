@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -343,9 +344,10 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 
 // ProductInfo holds product data for sales generation
 type ProductInfo struct {
-	ID       int
-	Price    int
-	Category string
+	ID         int
+	Price      int
+	Category   string
+	TaxClassID *int
 }
 
 // truncateTransactionalData removes all business data while preserving admin data
@@ -383,7 +385,7 @@ func truncateTransactionalData(ctx context.Context, db *sql.DB) error {
 // getExistingProducts retrieves all existing products with their info
 func getExistingProducts(ctx context.Context, db *sql.DB) []ProductInfo {
 	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.price, c.name as category_name
+		SELECT p.id, p.price, c.name as category_name, p.tax_class_id
 		FROM products p
 		JOIN categories c ON p.category_id = c.id
 		WHERE p.status = 'active'
@@ -397,9 +399,14 @@ func getExistingProducts(ctx context.Context, db *sql.DB) []ProductInfo {
 	var products []ProductInfo
 	for rows.Next() {
 		var p ProductInfo
-		err := rows.Scan(&p.ID, &p.Price, &p.Category)
+		var taxClassID sql.NullInt64
+		err := rows.Scan(&p.ID, &p.Price, &p.Category, &taxClassID)
 		if err != nil {
 			continue
+		}
+		if taxClassID.Valid {
+			v := int(taxClassID.Int64)
+			p.TaxClassID = &v
 		}
 		products = append(products, p)
 	}
@@ -558,8 +565,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -611,10 +618,12 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 			fmt.Printf("Warning: worker %d failed to insert product_stock for product %d: %v\n", job.workerID, i, err)
 		}
 
+		taxClassID := 1
 		product := ProductInfo{
-			ID:       id,
-			Price:    price,
-			Category: catName,
+			ID:         id,
+			Price:      price,
+			Category:   catName,
+			TaxClassID: &taxClassID,
 		}
 
 		batch = append(batch, product)
@@ -783,8 +792,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	}
 
 	saleStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
-		 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`)
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
+		 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
@@ -794,7 +803,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	defer saleStmt.Close()
 
 	itemStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
+		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
@@ -828,8 +837,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			numItems := generateItemCount()
 			saleProducts := selectProductsForSale(products, numItems)
 
-			// Calculate total and build items
-			var totalAmount int
+			// Calculate total and build items with DPP/tax
+			const defaultRate = 11.0
+			var totalAmount, totalDPP, totalTax int
 			items := make([]SaleItemRecord, 0, numItems)
 			for _, productID := range saleProducts {
 				product := productMap[productID]
@@ -837,6 +847,17 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				unitPrice := product.Price
 				subtotal := unitPrice * quantity
 				totalAmount += subtotal
+
+				var dpp, tax int
+				if product.TaxClassID != nil {
+					dpp = int(math.Round(float64(subtotal) * 100.0 / (100.0 + defaultRate)))
+					tax = subtotal - dpp
+				} else {
+					dpp = subtotal
+					tax = 0
+				}
+				totalDPP += dpp
+				totalTax += tax
 
 				items = append(items, SaleItemRecord{
 					SaleID:    0, // Will be filled after sale insert
@@ -853,14 +874,23 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 			// Insert sale
 			var saleID int
-			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalAmount, createdAt).Scan(&saleID)
+			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalDPP, totalTax, totalAmount, createdAt).Scan(&saleID)
 			if err != nil {
 				continue
 			}
 
 			// Insert sale items
 			for _, item := range items {
-				if _, err := itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal); err != nil {
+				product := productMap[item.ProductID]
+				var dpp, tax int
+				if product.TaxClassID != nil {
+					dpp = int(math.Round(float64(item.Subtotal) * 100.0 / (100.0 + defaultRate)))
+					tax = item.Subtotal - dpp
+				} else {
+					dpp = item.Subtotal
+					tax = 0
+				}
+				if _, err := itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal, dpp, tax); err != nil {
 					log.Printf("failed to insert sale item: %v", err)
 				}
 			}
@@ -877,10 +907,10 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, total_amount, created_at)
-					 VALUES ($1, $2, $3, $4, 'completed', $5, $5, $6) RETURNING id`)
+					`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
+					 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
 				itemStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)`)
+					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
 
 				batchSize = 0
 			}

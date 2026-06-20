@@ -26,6 +26,7 @@ SELECT
     p.status, p.store_id, p.brand_id, b.name as brand_name,
     p.unit_of_measure_id, u.name as unit_of_measure,
     p.weight_grams, p.description,
+    p.tax_class_id, tc.rate_percent as tax_rate,
     p.created_at, p.updated_at
 FROM products p
 LEFT JOIN categories c ON p.category_id = c.id
@@ -37,6 +38,7 @@ LEFT JOIN LATERAL (
     ORDER BY (warehouse_id IS NULL AND store_id IS NULL) DESC
     LIMIT 1
 ) ps ON true
+LEFT JOIN tax_classes tc ON tc.id = p.tax_class_id
 WHERE p.deleted_at IS NULL;
 
 INSERT INTO product_stock (product_id, quantity, created_at, updated_at)

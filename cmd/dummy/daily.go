@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
@@ -54,6 +55,8 @@ type dailySaleItem struct {
 	Quantity   int
 	UnitPrice  int
 	Subtotal   int
+	DPPAmount  int
+	TaxAmount  int
 }
 
 type dailySaleRecord struct {
@@ -520,13 +523,29 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		}
 	}()
 
+	// Compute DPP and tax (default 11% PPN for products with tax_class_id)
+	const defaultRate = 11.0
+	var totalDPP, totalTax int
+	for _, item := range sale.Items {
+		rate := 0.0
+		// In daily.go we don't have product tax info readily available,
+		// so default to 11% for all items (matching most seeded products)
+		rate = defaultRate
+		dpp := int(math.Round(float64(item.Subtotal) * 100.0 / (100.0 + rate)))
+		tax := item.Subtotal - dpp
+		item.DPPAmount = dpp
+		item.TaxAmount = tax
+		totalDPP += dpp
+		totalTax += tax
+	}
+
 	var saleID int
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO sales
-			(invoice_number, cashier_id, customer_id, store_id, subtotal, total_amount, payment_method, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)
+			(invoice_number, cashier_id, customer_id, store_id, subtotal, tax, total_amount, payment_method, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', $9)
 		 RETURNING id
-	`, sale.Invoice, sale.CashierID, sale.CustomerID, sale.StoreID, sale.TotalAmount, sale.TotalAmount,
+	`, sale.Invoice, sale.CashierID, sale.CustomerID, sale.StoreID, totalDPP, totalTax, sale.TotalAmount,
 		sale.PaymentMethod, sale.CreatedAt).Scan(&saleID)
 	if err != nil {
 		return fmt.Errorf("insert sale: %w", err)
@@ -534,9 +553,9 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 
 	for _, item := range sale.Items {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
+			`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal, item.DPPAmount, item.TaxAmount,
 		); err != nil {
 			return fmt.Errorf("insert item: %w", err)
 		}

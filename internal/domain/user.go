@@ -82,6 +82,8 @@ type SaleItem struct {
 	Quantity  int `json:"quantity"`
 	UnitPrice int `json:"unit_price"`
 	Subtotal  int `json:"subtotal"`
+	DPPAmount int `json:"dpp_amount"`
+	TaxAmount int `json:"tax_amount"`
 }
 
 type SaleExportRow struct {

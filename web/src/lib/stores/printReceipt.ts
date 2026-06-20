@@ -9,6 +9,8 @@ export interface ReceiptData {
     unit_price: number;
   }>;
   total_amount: number;
+  subtotal_dpp?: number;
+  tax?: number;
   paymentMethod: string;
   cashReceived: number;
   changeDue: number;

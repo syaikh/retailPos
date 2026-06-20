@@ -283,6 +283,7 @@
 
   function printTransactionReceipt() {
     if (!selectedTransaction || !selectedTransaction.items) return;
+    const taxAmount = selectedTransaction.tax || 0;
     printReceiptStore.set({
       invoice_number: selectedTransaction.invoice_number,
       created_at: selectedTransaction.created_at,
@@ -292,6 +293,8 @@
         unit_price: item.unit_price,
       })),
       total_amount: selectedTransaction.total_amount,
+      subtotal_dpp: selectedTransaction.total_amount - taxAmount,
+      tax: taxAmount,
       paymentMethod: selectedTransaction.payment_method || '—',
       cashReceived: selectedTransaction.cash_received || selectedTransaction.total_amount,
       changeDue: selectedTransaction.change_due || 0,
@@ -334,8 +337,17 @@
       });
 
       const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(12);
-      doc.text(`Total: Rp ${(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}`, 20, finalY);
+      const taxAmt = selectedTransaction.tax || 0;
+      if (taxAmt > 0) {
+        doc.setFontSize(10);
+        doc.text(`Subtotal (DPP): Rp ${((selectedTransaction.total_amount || 0) - taxAmt).toLocaleString('id-ID')}`, 20, finalY);
+        doc.text(`PPN 11%: Rp ${taxAmt.toLocaleString('id-ID')}`, 20, finalY + 6);
+        doc.setFontSize(12);
+        doc.text(`Total: Rp ${(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}`, 20, finalY + 14);
+      } else {
+        doc.setFontSize(12);
+        doc.text(`Total: Rp ${(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}`, 20, finalY);
+      }
 
       doc.save(`invoice-${selectedTransaction.invoice_number}.pdf`);
       toast.success('Invoice downloaded');
@@ -777,7 +789,17 @@
               </table>
             </div>
             <div class="bg-surface-subtle/50 border-t border-border">
-              <div class="flex justify-between items-center py-3 px-4">
+              {#if selectedTransaction.tax && selectedTransaction.tax > 0}
+                <div class="flex justify-between items-center py-2 px-4 text-sm">
+                  <span class="text-text-muted">Subtotal (DPP)</span>
+                  <span class="text-text-secondary">{((selectedTransaction.total_amount || 0) - selectedTransaction.tax).toLocaleString('id-ID')}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 px-4 text-sm border-t border-border/50">
+                  <span class="text-text-muted">PPN 11%</span>
+                  <span class="text-text-secondary">{(selectedTransaction.tax || 0).toLocaleString('id-ID')}</span>
+                </div>
+              {/if}
+              <div class="flex justify-between items-center py-3 px-4 border-t border-border/50">
                 <span class="font-bold text-text-primary">TOTAL</span>
                 <span class="font-bold text-lg text-text-primary">Rp {(selectedTransaction.total_amount || 0).toLocaleString('id-ID')}</span>
               </div>

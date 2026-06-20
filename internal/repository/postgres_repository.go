@@ -392,12 +392,15 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 	var p domain.Product
 	var barcode sql.NullString
 	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+	var taxClassIDVal sql.NullInt64
+	var taxRateVal sql.NullFloat64
 	var categoryName, brandName, unitOfMeasure, description sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
 		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
 		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
 		       v.created_at, v.updated_at
 		FROM v_products_full v
 		WHERE v.id = $1`
@@ -410,6 +413,7 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
+		&taxClassIDVal, &taxRateVal,
 		&createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -453,6 +457,14 @@ func (r *postgresRepository) GetProductByID(ctx context.Context, id int, storeID
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
 	}
+	if taxClassIDVal.Valid {
+		v := int(taxClassIDVal.Int64)
+		p.TaxClassID = &v
+	}
+	if taxRateVal.Valid {
+		v := taxRateVal.Float64
+		p.TaxRate = &v
+	}
 	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
@@ -463,12 +475,15 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	var p domain.Product
 	var barcode sql.NullString
 	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+	var taxClassIDVal sql.NullInt64
+	var taxRateVal sql.NullFloat64
 	var categoryName, brandName, unitOfMeasure, description sql.NullString
 	var createdAt, updatedAt time.Time
 
 	query := `
 		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
 		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
 		       v.created_at, v.updated_at
 		FROM v_products_full v
 		WHERE v.sku = $1`
@@ -481,6 +496,7 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
+		&taxClassIDVal, &taxRateVal,
 		&createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -523,6 +539,14 @@ func (r *postgresRepository) GetProductBySKU(ctx context.Context, sku string, st
 	if storeIDVal.Valid {
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
+	}
+	if taxClassIDVal.Valid {
+		v := int(taxClassIDVal.Int64)
+		p.TaxClassID = &v
+	}
+	if taxRateVal.Valid {
+		v := taxRateVal.Float64
+		p.TaxRate = &v
 	}
 	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
@@ -575,6 +599,7 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 
 	query2 := `SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status, v.store_id, 
 		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
 		       v.created_at, v.updated_at 
 		FROM v_products_full v 
 		WHERE 1=1`
@@ -630,11 +655,14 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		var p domain.Product
 		var barcodeVal sql.NullString
 		var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+		var taxClassIDVal sql.NullInt64
+		var taxRateVal sql.NullFloat64
 		var categoryName, brandName, unitOfMeasure, descriptionVal sql.NullString
 		var createdAt, updatedAt time.Time
 
 		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
+			&taxClassIDVal, &taxRateVal,
 			&createdAt, &updatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan product: %w", err)
@@ -669,6 +697,14 @@ func (r *postgresRepository) GetAllProducts(ctx context.Context, limit, offset i
 		}
 		if descriptionVal.Valid {
 			p.Description = &descriptionVal.String
+		}
+		if taxClassIDVal.Valid {
+			v := int(taxClassIDVal.Int64)
+			p.TaxClassID = &v
+		}
+		if taxRateVal.Valid {
+			v := taxRateVal.Float64
+			p.TaxRate = &v
 		}
 		if storeIDVal.Valid {
 			v := int(storeIDVal.Int64)
@@ -1196,9 +1232,9 @@ func (r *postgresRepository) CreateSale(ctx context.Context, tx pgx.Tx, sale *do
 	for i := range items {
 		// 1. Insert sale item
 		_, err = tx.Exec(ctx, `
-			INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-			VALUES ($1, $2, $3, $4, $5)
-		`, sale.ID, items[i].ProductID, items[i].Quantity, items[i].UnitPrice, items[i].Subtotal)
+			INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, sale.ID, items[i].ProductID, items[i].Quantity, items[i].UnitPrice, items[i].Subtotal, items[i].DPPAmount, items[i].TaxAmount)
 		if err != nil {
 			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
 		}
@@ -1273,7 +1309,7 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 
 	// Load sale items
 	itemRows, err := r.db.Query(ctx, `
-			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal, si.dpp_amount, si.tax_amount
 			FROM sale_items si
 			JOIN products p ON si.product_id = p.id
 			WHERE si.sale_id = $1
@@ -1283,7 +1319,7 @@ func (r *postgresRepository) GetSaleByID(ctx context.Context, id int) (*domain.S
 	} else {
 		for itemRows.Next() {
 			var item domain.SaleItem
-			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal, &item.DPPAmount, &item.TaxAmount); scanErr != nil {
 				log.Printf("Warning: failed to scan item row: %v", scanErr)
 				continue
 			}
@@ -2438,6 +2474,22 @@ func (r *postgresRepository) UpdateCustomer(ctx context.Context, customer *domai
 
 func (r *postgresRepository) DeleteCustomer(ctx context.Context, id int) error {
 	_, err := r.db.Exec(ctx, `UPDATE customers SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	return err
+}
+
+func (r *postgresRepository) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE customers SET is_active = $1, updated_at = NOW()
+		WHERE id = ANY($2) AND is_walk_in = false
+	`, isActive, ids)
+	return err
+}
+
+func (r *postgresRepository) BulkDeleteCustomers(ctx context.Context, ids []int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE customers SET is_active = false, updated_at = NOW()
+		WHERE id = ANY($1) AND is_walk_in = false
+	`, ids)
 	return err
 }
 

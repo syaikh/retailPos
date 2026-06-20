@@ -148,11 +148,13 @@ func main() {
 
 		protected.POST("/inventory/adjust", middleware.RequirePermission("inventory:adjust"), h.AdjustStock)
 
-		protected.GET("/customers", middleware.RequirePermission("customer:read"), h.GetCustomers)
-		protected.GET("/customers/:id", middleware.RequirePermission("customer:read"), h.GetCustomerByID)
-		protected.POST("/customers", middleware.RequirePermission("customer:create"), h.CreateCustomer)
-		protected.PUT("/customers/:id", middleware.RequirePermission("customer:update"), h.UpdateCustomer)
-		protected.DELETE("/customers/:id", middleware.RequirePermission("customer:delete"), h.DeleteCustomer)
+	protected.GET("/customers", middleware.RequirePermission("customer:read"), h.GetCustomers)
+	protected.GET("/customers/:id", middleware.RequirePermission("customer:read"), h.GetCustomerByID)
+	protected.POST("/customers", middleware.RequirePermission("customer:create"), h.CreateCustomer)
+	protected.PUT("/customers/:id", middleware.RequirePermission("customer:update"), h.UpdateCustomer)
+	protected.DELETE("/customers/:id", middleware.RequirePermission("customer:delete"), h.DeleteCustomer)
+	protected.POST("/customers/bulk/status", middleware.RequirePermission("customer:update"), h.BulkUpdateCustomerStatus)
+	protected.POST("/customers/bulk/delete", middleware.RequirePermission("customer:delete"), h.BulkDeleteCustomers)
 
 		protected.GET("/audit-logs", middleware.RequirePermission("audit:read"), h.ListAuditLogs)
 		protected.GET("/audit-logs/export", middleware.RequirePermission("audit:read"), h.ExportAuditLogs)

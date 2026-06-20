@@ -1,6 +1,7 @@
 package service
 
 import (
+	"math"
 	"testing"
 
 	"retail-pos-system/internal/domain"
@@ -15,11 +16,7 @@ func TestErrInsufficientStock(t *testing.T) {
 
 // TestSalesService_ValidateStock tests stock validation logic
 func TestSalesService_ValidateStock(t *testing.T) {
-	// Test case: insufficient stock should return error
-	// This tests the validation logic in CreateSale
 	t.Run("insufficient stock returns error", func(t *testing.T) {
-		// The CreateSale method validates stock before transaction
-		// If product.Stock < item.Quantity, ErrInsufficientStock is returned
 		err := ErrInsufficientStock
 		assert.Equal(t, "insufficient stock", err.Error())
 	})
@@ -41,7 +38,6 @@ func TestSalesService_StockCheckLogic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Simulate the stock check logic from CreateSale
 			hasStock := tt.stock >= tt.quantity
 			if tt.shouldError {
 				assert.False(t, hasStock, "should detect insufficient stock")
@@ -62,7 +58,6 @@ func TestSalesService_CreateSaleItemCalculation(t *testing.T) {
 	var totalSubtotal int
 	for _, item := range items {
 		totalSubtotal += item.Subtotal
-		// Verify calculation
 		assert.Equal(t, item.Quantity*item.UnitPrice, item.Subtotal)
 	}
 
@@ -74,9 +69,9 @@ func TestSaleStruct(t *testing.T) {
 	sale := domain.Sale{
 		InvoiceNumber: "INV-001",
 		CashierID:     1,
-		Subtotal:      10000,
+		Subtotal:      9009,
 		Discount:      0,
-		Tax:           0,
+		Tax:           991,
 		TotalAmount:   10000,
 		PaymentMethod: "Cash",
 		Status:        "completed",
@@ -85,6 +80,8 @@ func TestSaleStruct(t *testing.T) {
 	assert.Equal(t, "INV-001", sale.InvoiceNumber)
 	assert.Equal(t, 1, sale.CashierID)
 	assert.Equal(t, 10000, sale.TotalAmount)
+	assert.Equal(t, 9009, sale.Subtotal)
+	assert.Equal(t, 991, sale.Tax)
 }
 
 // TestSaleItemSubtotal tests SaleItem subtotal calculation
@@ -96,6 +93,38 @@ func TestSaleItemSubtotal(t *testing.T) {
 		Subtotal:  10000,
 	}
 
-	// Verify subtotal formula
 	assert.Equal(t, item.Quantity*item.UnitPrice, item.Subtotal)
+}
+
+// TestTaxExtraction verifies DPP and PPN extraction from tax-inclusive prices
+func TestTaxExtraction(t *testing.T) {
+	tests := []struct {
+		name       string
+		lineTotal  int
+		rate       float64
+		wantDPP    int
+		wantTax    int
+	}{
+		{"11% on 5000", 5000, 11.0, 4505, 495},
+		{"11% on 10000", 10000, 11.0, 9009, 991},
+		{"11% on 1262000", 1262000, 11.0, 1136937, 125063},
+		{"0% on 5000", 5000, 0.0, 5000, 0},
+		{"11% on 25000", 25000, 11.0, 22523, 2477},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var dpp, tax int
+			if tt.rate > 0 {
+				dpp = int(math.Round(float64(tt.lineTotal) * 100.0 / (100.0 + tt.rate)))
+				tax = tt.lineTotal - dpp
+			} else {
+				dpp = tt.lineTotal
+				tax = 0
+			}
+			assert.Equal(t, tt.wantDPP, dpp, "DPP should match expected")
+			assert.Equal(t, tt.wantTax, tax, "Tax should match expected")
+			assert.Equal(t, tt.lineTotal, dpp+tax, "DPP + Tax should equal line total")
+		})
+	}
 }

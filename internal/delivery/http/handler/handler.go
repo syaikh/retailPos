@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/mail"
 	"os"
@@ -512,15 +513,39 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		storeID = req.StoreID
 	}
 
+	// Compute DPP (tax base) and PPN tax amount per item
+	totalDPP := 0
+	totalTax := 0
+	for i := range req.Items {
+		rate := 0.0
+		prod, err := h.productRepo.GetProductByID(getCtx(c), req.Items[i].ProductID, storeID)
+		if err == nil && prod != nil && prod.TaxRate != nil {
+			rate = *prod.TaxRate
+		}
+		lineTotal := req.Items[i].Subtotal
+		var dpp, tax int
+		if rate > 0 {
+			dpp = int(math.Round(float64(lineTotal) * 100.0 / (100.0 + rate)))
+			tax = lineTotal - dpp
+		} else {
+			dpp = lineTotal
+			tax = 0
+		}
+		req.Items[i].DPPAmount = dpp
+		req.Items[i].TaxAmount = tax
+		totalDPP += dpp
+		totalTax += tax
+	}
+
 	sale := &domain.Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     userID,
 		CustomerID:    req.CustomerID,
 		StoreID:       storeID,
-		Subtotal:      req.Subtotal,
+		Subtotal:      totalDPP,
 		Discount:      req.Discount,
-		Tax:           req.Tax,
-		TotalAmount:   req.TotalAmount,
+		Tax:           totalTax,
+		TotalAmount:   totalDPP + totalTax,
 		PaymentMethod: req.PaymentMethod,
 		Status:        "completed",
 	}
@@ -2425,6 +2450,51 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 		return
 	}
 	h.logAudit(c, "delete", "customer", id, existing, nil)
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+type bulkStatusRequest struct {
+	IDs      []int `json:"ids" binding:"required"`
+	IsActive bool  `json:"is_active"`
+}
+
+func (h *Handler) BulkUpdateCustomerStatus(c *gin.Context) {
+	var req bulkStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no customer IDs provided"})
+		return
+	}
+	if err := h.customerRepo.BulkUpdateCustomersStatus(getCtx(c), req.IDs, req.IsActive); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to bulk update customer status"})
+		return
+	}
+	h.logAudit(c, "bulk_update", "customer", 0, nil, gin.H{"ids": req.IDs, "is_active": req.IsActive})
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+}
+
+type bulkDeleteRequest struct {
+	IDs []int `json:"ids" binding:"required"`
+}
+
+func (h *Handler) BulkDeleteCustomers(c *gin.Context) {
+	var req bulkDeleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no customer IDs provided"})
+		return
+	}
+	if err := h.customerRepo.BulkDeleteCustomers(getCtx(c), req.IDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to bulk delete customers"})
+		return
+	}
+	h.logAudit(c, "bulk_delete", "customer", 0, nil, gin.H{"ids": req.IDs})
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 

@@ -217,6 +217,17 @@ function getComponent(path) {
       </div>
     {/each}
     <div class="thermal-divider"></div>
+    {#if $printReceipt.subtotal_dpp != null && $printReceipt.tax != null && $printReceipt.tax > 0}
+      <div class="thermal-row">
+        <span class="thermal-label">DPP</span>
+        <span class="thermal-value">{$printReceipt.subtotal_dpp.toLocaleString('id-ID')}</span>
+      </div>
+      <div class="thermal-row">
+        <span class="thermal-label">PPN 11%</span>
+        <span class="thermal-value">{$printReceipt.tax.toLocaleString('id-ID')}</span>
+      </div>
+      <div class="thermal-divider-thin"></div>
+    {/if}
     <div class="thermal-item thermal-item-total">
       <span>TOTAL</span>
       <span>{$printReceipt.total_amount.toLocaleString('id-ID')}</span>
