@@ -327,6 +327,12 @@ func (r *postgresRepository) DeleteRole(ctx context.Context, id int) error {
 	return err
 }
 
+func (r *postgresRepository) CountUsersByRole(ctx context.Context, roleID int) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE role_id = $1", roleID).Scan(&count)
+	return count, err
+}
+
 func (r *postgresRepository) GetRolePermissions(ctx context.Context, roleID int) ([]domain.Permission, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT p.id, p.code, p.name, p.created_at

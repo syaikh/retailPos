@@ -34,6 +34,9 @@
   let filterStatus = $state('all');
   let showRoleDropdown = $state(false);
   let showStatusDropdown = $state(false);
+  let showFormRoleDropdown = $state(false);
+  let formRoleButtonEl = $state(null);
+  let dropdownStyle = $state({});
 
   let userRole = $derived(
     $auth.user?.role?.name ||
@@ -67,6 +70,24 @@
 
   let roleLabel = $derived(filterRole === 'all' ? 'All Roles' : roles.find(r => String(r.id) === filterRole)?.name || filterRole);
   let statusLabel = $derived(filterStatus === 'all' ? 'All Status' : filterStatus === 'true' ? 'Active' : 'Inactive');
+  let selectedRoleName = $derived(roles.find(r => r.id === form.role_id)?.name || 'Select Role');
+
+  function toggleFormRoleDropdown() {
+    if (showFormRoleDropdown) {
+      showFormRoleDropdown = false;
+      return;
+    }
+    if (formRoleButtonEl) {
+      const rect = formRoleButtonEl.getBoundingClientRect();
+      dropdownStyle = {
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+      };
+    }
+    showFormRoleDropdown = true;
+  }
 
   let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
 
@@ -126,10 +147,11 @@
   const handleClickOutside = (e) => {
     if (showRoleDropdown && !e.target.closest('.role-filter-container')) showRoleDropdown = false;
     if (showStatusDropdown && !e.target.closest('.status-filter-container')) showStatusDropdown = false;
+    if (showFormRoleDropdown && !e.target.closest('.form-role-dropdown-container')) showFormRoleDropdown = false;
   };
 
   const handleEsc = (e) => {
-    if (e.key === 'Escape') { showRoleDropdown = false; showStatusDropdown = false; }
+    if (e.key === 'Escape') { showRoleDropdown = false; showStatusDropdown = false; showFormRoleDropdown = false; }
   };
 
   onMount(async () => {
@@ -559,16 +581,32 @@
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label for="usr-role" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+        <div class="relative form-role-dropdown-container">
+          <label class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
             <Shield size={14} class="text-text-muted" />
             Role
           </label>
-          <select id="usr-role" class="select" bind:value={form.role_id}>
-            {#each roles as role}
-              <option value={role.id}>{role.name}</option>
-            {/each}
-          </select>
+          <button
+            type="button"
+            bind:this={formRoleButtonEl}
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {form.role_id ? 'text-text-primary' : 'text-text-muted'}"
+            onclick={toggleFormRoleDropdown}
+          >
+            <span class="flex-1 text-left truncate">{selectedRoleName}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showFormRoleDropdown}
+            <div class="fixed inset-0 z-[60]" role="presentation" onclick={() => showFormRoleDropdown = false} onkeydown={() => {}}></div>
+            <div style={dropdownStyle} class="z-[61] bg-surface-default border border-border rounded-lg shadow-xl p-1.5 max-h-48 overflow-y-auto">
+              {#each roles as role}
+                <button
+                  type="button"
+                  class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {form.role_id === role.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => { form.role_id = role.id; showFormRoleDropdown = false; }}
+                >{role.name}</button>
+              {/each}
+            </div>
+          {/if}
         </div>
         <div class="flex items-end pb-2">
           <label class="flex items-center gap-3 cursor-pointer select-none group">

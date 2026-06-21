@@ -645,7 +645,7 @@
   <div class="text-center py-2">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4"><Trash2 size={24} class="text-danger" /></div>
     <p class="text-text-primary font-semibold mb-1">Delete role "{selectedRole?.name}"?</p>
-    <p class="text-text-muted text-sm">Users with this role will lose their assigned permissions. This action cannot be undone.</p>
+    <p class="text-text-muted text-sm">This action cannot be undone. Make sure no users are currently assigned to this role before deleting.</p>
   </div>
   {#snippet footer()}<button class="btn btn-secondary" onclick={() => { showDeleteModal = false; selectedRole = null; }}>Cancel</button><button class="btn btn-danger" onclick={confirmDelete}>Delete</button>{/snippet}
 </Modal>

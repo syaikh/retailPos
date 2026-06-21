@@ -1455,6 +1455,19 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		return
 	}
 
+	// Prevent deleting roles that are still assigned to users
+	userCount, err := h.roleRepo.CountUsersByRole(getCtx(c), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check role assignments"})
+		return
+	}
+	if userCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": fmt.Sprintf("Cannot delete role: %d user(s) are currently assigned. Reassign them first.", userCount),
+		})
+		return
+	}
+
 	if err := h.roleRepo.DeleteRole(getCtx(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete role"})
 		return

@@ -28,6 +28,7 @@ type RoleRepository interface {
 	CreateRole(ctx context.Context, role *domain.Role) error
 	UpdateRole(ctx context.Context, role *domain.Role) error
 	DeleteRole(ctx context.Context, id int) error
+	CountUsersByRole(ctx context.Context, roleID int) (int, error)
 }
 
 type CategoryRepository interface {
