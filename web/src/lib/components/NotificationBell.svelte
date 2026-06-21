@@ -122,7 +122,7 @@
   </button>
 
   {#if open}
-    <div class="absolute right-0 top-full mt-2 z-50" onclick={(e) => e.stopPropagation()} transition:fly={{ y: -8, duration: 200 }}>
+    <div class="absolute right-0 top-full mt-2 z-50" onclick={(e) => e.stopPropagation()} role="none" onkeydown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }} transition:fly={{ y: -8, duration: 200 }}>
       <div class="card-glass p-2 w-80 max-h-96 flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-2 py-1.5 border-b border-border/50">

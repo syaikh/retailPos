@@ -643,7 +643,7 @@
           <ChevronDown size={14} class="text-text-muted shrink-0" />
         </button>
         {#if showStatusDropdown}
-          <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]" onclick={(e) => e.stopPropagation()}>
+          <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]" onclick={(e) => e.stopPropagation()} role="none" onkeydown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }}>
             <button
               class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
               onclick={() => { filterStatus = 'all'; showStatusDropdown = false; offset = 0; fetchProducts(0, limit); }}
