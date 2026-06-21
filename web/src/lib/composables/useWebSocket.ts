@@ -34,7 +34,7 @@ class WebSocketService {
       this.ws.onmessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
-          this.emit(data.type || 'message', data);
+          this.emit(data.type || 'message', data.payload || data);
         } catch (e) {
           console.error('WS parse error:', e);
         }
