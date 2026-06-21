@@ -35,8 +35,6 @@
   let showRoleDropdown = $state(false);
   let showStatusDropdown = $state(false);
   let showFormRoleDropdown = $state(false);
-  let formRoleButtonEl = $state(null);
-  let dropdownStyle = $state({});
 
   let userRole = $derived(
     $auth.user?.role?.name ||
@@ -72,21 +70,35 @@
   let statusLabel = $derived(filterStatus === 'all' ? 'All Status' : filterStatus === 'true' ? 'Active' : 'Inactive');
   let selectedRoleName = $derived(roles.find(r => r.id === form.role_id)?.name || 'Select Role');
 
-  function toggleFormRoleDropdown() {
+  let dropdownStyle = $state('');
+
+  function toggleFormRoleDropdown(e) {
     if (showFormRoleDropdown) {
       showFormRoleDropdown = false;
+      dropdownStyle = '';
       return;
     }
-    if (formRoleButtonEl) {
-      const rect = formRoleButtonEl.getBoundingClientRect();
-      dropdownStyle = {
-        position: 'fixed',
-        top: `${rect.bottom + 4}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-      };
+    const btn = e.target.closest('button');
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      dropdownStyle = `position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:${rect.width}px;`;
     }
     showFormRoleDropdown = true;
+  }
+
+  function handleFormKeydown(e) {
+    if (e.key === 'Escape' && showFormRoleDropdown) {
+      showFormRoleDropdown = false;
+      dropdownStyle = '';
+      e.stopPropagation();
+    }
+  }
+
+  function handleFormClick(e) {
+    if (showFormRoleDropdown && !e.target.closest('.form-role-dropdown-container')) {
+      showFormRoleDropdown = false;
+      dropdownStyle = '';
+    }
   }
 
   let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
@@ -147,11 +159,20 @@
   const handleClickOutside = (e) => {
     if (showRoleDropdown && !e.target.closest('.role-filter-container')) showRoleDropdown = false;
     if (showStatusDropdown && !e.target.closest('.status-filter-container')) showStatusDropdown = false;
-    if (showFormRoleDropdown && !e.target.closest('.form-role-dropdown-container')) showFormRoleDropdown = false;
+    if (showFormRoleDropdown && !e.target.closest('.form-role-dropdown-container')) { showFormRoleDropdown = false; dropdownStyle = ''; }
   };
 
   const handleEsc = (e) => {
-    if (e.key === 'Escape') { showRoleDropdown = false; showStatusDropdown = false; showFormRoleDropdown = false; }
+    if (e.key === 'Escape') {
+      if (showFormRoleDropdown) {
+        showFormRoleDropdown = false;
+        dropdownStyle = '';
+        e.stopPropagation();
+        return;
+      }
+      showRoleDropdown = false;
+      showStatusDropdown = false;
+    }
   };
 
   onMount(async () => {
@@ -562,7 +583,7 @@
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add New User' : 'Edit User'} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6">
+  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6" onkeydown={handleFormKeydown} onclick={handleFormClick}>
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -586,27 +607,31 @@
             <Shield size={14} class="text-text-muted" />
             Role
           </label>
-          <button
-            type="button"
-            bind:this={formRoleButtonEl}
-            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {form.role_id ? 'text-text-primary' : 'text-text-muted'}"
-            onclick={toggleFormRoleDropdown}
-          >
-            <span class="flex-1 text-left truncate">{selectedRoleName}</span>
-            <ChevronDown size={14} class="text-text-muted shrink-0" />
-          </button>
-          {#if showFormRoleDropdown}
-            <div class="fixed inset-0 z-[60]" role="presentation" onclick={() => showFormRoleDropdown = false} onkeydown={() => {}}></div>
-            <div style={dropdownStyle} class="z-[61] bg-surface-default border border-border rounded-lg shadow-xl p-1.5 max-h-48 overflow-y-auto">
-              {#each roles as role}
-                <button
-                  type="button"
-                  class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {form.role_id === role.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-                  onclick={() => { form.role_id = role.id; showFormRoleDropdown = false; }}
-                >{role.name}</button>
-              {/each}
-            </div>
-          {/if}
+          <div class="form-role-dropdown-container">
+            <button
+              type="button"
+              class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {form.role_id ? 'text-text-primary' : 'text-text-muted'}"
+              onclick={toggleFormRoleDropdown}
+            >
+              <span class="flex-1 text-left truncate">{selectedRoleName}</span>
+              <ChevronDown size={14} class="text-text-muted shrink-0" />
+            </button>
+            {#if showFormRoleDropdown}
+              <div style={dropdownStyle} class="z-[100] bg-surface-default border border-border rounded-lg shadow-xl">
+                <div class="p-1.5 max-h-64 overflow-y-auto">
+                  <div class="grid grid-cols-2 gap-1">
+                    {#each roles as role}
+                      <button
+                        type="button"
+                        class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {form.role_id === role.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                        onclick={() => { form.role_id = role.id; showFormRoleDropdown = false; }}
+                      >{role.name}</button>
+                    {/each}
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </div>
         </div>
         <div class="flex items-end pb-2">
           <label class="flex items-center gap-3 cursor-pointer select-none group">
