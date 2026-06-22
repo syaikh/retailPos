@@ -88,21 +88,6 @@
     showFormRoleDropdown = true;
   }
 
-  function handleFormKeydown(e) {
-    if (e.key === 'Escape' && showFormRoleDropdown) {
-      showFormRoleDropdown = false;
-      dropdownStyle = '';
-      e.stopPropagation();
-    }
-  }
-
-  function handleFormClick(e) {
-    if (showFormRoleDropdown && !e.target.closest('.form-role-dropdown-container')) {
-      showFormRoleDropdown = false;
-      dropdownStyle = '';
-    }
-  }
-
   let isFiltered = $derived(filterRole !== 'all' || filterStatus !== 'all' || sortBy !== 'username' || sortDir !== 'asc');
 
   let activeChips = $derived.by(() => {
@@ -425,6 +410,7 @@
                 <button
                   class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
                   onclick={() => clearFilter(chip.type)}
+                  aria-label="Hapus filter"
                 >
                   <X size={12} />
                 </button>
@@ -448,18 +434,18 @@
           <thead class="bg-muted/50">
              <tr>
                  <th class="text-left p-4 font-semibold" style="width: 30%;">
-                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('username')}>
+                  <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('username')}>
                     USER {#if sortBy === 'username'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
                 <th class="text-left p-4 font-semibold w-40">
-                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('role_id')}>
+                  <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('role_id')}>
                     ROLE {#if sortBy === 'role_id'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
                 <th class="text-left p-4 font-semibold w-28">STATUS</th>
                 <th class="text-left p-4 font-semibold w-44">
-                  <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('last_login')}>
+                  <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('last_login')}>
                     LAST LOGIN {#if sortBy === 'last_login'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                   </button>
                 </th>
@@ -551,6 +537,7 @@
                         size="icon"
                         class="text-text-muted hover:text-primary-light"
                         title="Edit"
+                        aria-label="Edit"
                         onclick={() => openEdit(user)}
                         disabled={user.role_id === 1 && !canEditSuperadmin}
                       >
@@ -562,6 +549,7 @@
                         class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                         onclick={() => { selectedUser = user; showDeleteModal = true; }}
                         title="Delete"
+                        aria-label="Delete"
                         disabled={user.id === currentUserID || user.role_id === 1}
                       >
                         <Trash2 size={14} />
@@ -590,7 +578,7 @@
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add New User' : 'Edit User'} size="md">
-  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6" onkeydown={handleFormKeydown} onclick={handleFormClick}>
+  <form onsubmit={(e) => { e.preventDefault(); saveUser(); }} class="space-y-6">
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>

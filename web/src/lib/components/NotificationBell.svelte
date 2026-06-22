@@ -127,7 +127,7 @@
             Notifications {unread > 0 ? `(${unread})` : ''}
           </span>
           {#if items.length > 0 && unread > 0}
-            <button
+<button type="button" 
               class="text-[10px] font-medium text-primary-light hover:text-primary transition-colors"
               onclick={handleMarkAllRead}
             >
@@ -145,7 +145,7 @@
             </div>
           {:else}
             {#each items as n (n.id)}
-              <button
+  <button type="button" 
                 class="w-full text-left flex items-start gap-2.5 px-2 py-2.5 rounded-lg transition-colors hover:bg-surface-hover/50 {n.read ? 'opacity-60' : ''}"
                 onclick={() => handleNotificationClick(n)}
               >

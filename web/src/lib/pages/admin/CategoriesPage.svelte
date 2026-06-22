@@ -275,22 +275,22 @@ let canView = $derived($auth.user != null);
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 40%;">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
                 CATEGORY NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-48">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
                 SLUG {#if sortBy === 'slug'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-right p-4 font-semibold w-20">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('product_count')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('product_count')}>
                 PRODUCTS {#if sortBy === 'product_count'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-36">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
                 CREATED {#if sortBy === 'created_at'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
@@ -331,6 +331,7 @@ let canView = $derived($auth.user != null);
                       size="icon"
                       class="text-text-muted hover:text-primary-light"
                       title="Edit"
+                      aria-label="Edit"
                       onclick={() => openEdit(cat)}
                     >
                       <Pencil size={14} />
@@ -340,10 +341,11 @@ let canView = $derived($auth.user != null);
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="{cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
+                      class={cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}
                       onclick={() => openDelete(cat)}
                       disabled={cat.product_count > 0}
                       title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
+                      aria-label={cat.product_count > 0 ? 'Tidak bisa dihapus' : 'Hapus'}
                     >
                       <Trash2 size={14} />
                     </Button>

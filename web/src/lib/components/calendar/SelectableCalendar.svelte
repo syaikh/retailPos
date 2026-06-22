@@ -263,7 +263,7 @@ onclick={(e) => { e.stopPropagation(); const next = displayMonth.add({ months: 1
         No selectable dates in this month.<br/>Click ‹ to view previous months.
       </div>
     {:else}
-      <div class="grid grid-cols-7 gap-0.5" role="group" onmouseleave={handleMouseLeave}>
+      <div class="grid grid-cols-7 gap-0.5" role="group" aria-label="Date grid" onmouseleave={handleMouseLeave}>
         {#each monthDates as date}
           {@const todayFlag = isToday(date)}
           {@const disabledFlag = isDateDisabled(date)}

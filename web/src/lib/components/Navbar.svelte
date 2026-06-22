@@ -24,7 +24,7 @@
   </div>
 
     <div class="user-profile flex items-center gap-4">
-      <button class="notif-btn relative bg-transparent text-slate-400 hover:text-white p-2 rounded-lg transition-colors">
+      <button type="button" class="notif-btn relative bg-transparent text-slate-400 hover:text-white p-2 rounded-lg transition-colors" aria-label="Notifications">
         <Bell size={20} />
         <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-800"></span>
       </button>

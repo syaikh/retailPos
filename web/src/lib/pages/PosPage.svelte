@@ -497,6 +497,7 @@
                           <button
                             class="p-0.5 hover:text-primary transition-colors"
                             title="Salin SKU"
+                            aria-label="Salin SKU"
                             onclick={() => copyToClipboard(product.sku, `sku_${product.id}`)}
                           >
                             {#if showCopySuccess?.has(`sku_${product.id}`)}
@@ -510,9 +511,10 @@
                           <span class="flex items-center gap-1 ml-4">
                              {product.barcode}
 
-           <button
+            <button
                               class="p-0.5 hover:text-primary transition-colors"
                               title="Salin barcode"
+                              aria-label="Salin barcode"
                               onclick={() => copyToClipboard(product.barcode, `barcode_${product.id}`)}
                             >
                               {#if showCopySuccess?.has(`barcode_${product.id}`)}
@@ -573,7 +575,7 @@
           {#if cart.length > 0}
             <div class="flex items-center gap-1">
               <kbd class="px-1 py-0.5 text-[10px] font-medium text-danger/60 bg-danger-subtle/30 rounded border border-danger/20 select-none">ALT+DEL</kbd>
-              <Button onclick={clearCart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]">
+              <Button onclick={clearCart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]" aria-label="Clear cart">
                 <X size={14} />
               </Button>
             </div>
@@ -757,6 +759,7 @@
           onclick={closeCheckoutModal}
           class="w-9 h-9 flex items-center justify-center rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
           title="Tutup [F3 / Esc]"
+          aria-label="Tutup"
         >
           <X size={20} />
         </button>
@@ -897,10 +900,10 @@
 {#if showCustomerModal}
   <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }}>
     <div class="absolute inset-0 bg-black/60" onclick={() => (showCustomerModal = false)} role="presentation"></div>
-    <div class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5">
+    <div class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold text-text-primary">Select Customer</h2>
-        <button onclick={() => (showCustomerModal = false)} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Close customer selection">
+        <h2 id="customer-modal-heading" class="text-lg font-bold text-text-primary">Select Customer</h2>
+        <button type="button" onclick={() => (showCustomerModal = false)} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Close customer selection">
           <X size={18} />
         </button>
       </div>
@@ -909,11 +912,11 @@
         <p class="text-sm text-text-muted mb-2">Searching...</p>
       {/if}
       <div class="max-h-80 overflow-y-auto space-y-1">
-        <button class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = null; showCustomerModal = false; }}>
+        <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = null; showCustomerModal = false; }}>
           <span class="text-sm font-medium">Walk-in / General</span>
         </button>
         {#each customerResults as c}
-          <button class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = c.id; showCustomerModal = false; customerSearch = ''; }}>
+          <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { selectedCustomerId = c.id; showCustomerModal = false; customerSearch = ''; }}>
             <div class="text-sm font-medium">{c.name}</div>
             <div class="text-xs text-text-muted">{c.phone || 'no phone'} {c.email ? `· ${c.email}` : ''}</div>
           </button>

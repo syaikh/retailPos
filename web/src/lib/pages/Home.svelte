@@ -162,7 +162,7 @@
     <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {#each modules as mod, index}
-        <button
+<button type="button" 
           onclick={() => goto(mod.href)}
           class="card-glass hover:-translate-y-1 transition-all p-5 text-left group bg-linear-to-br {mod.gradient} border-border cursor-pointer animate-slide-up"
           style="animation-delay: {index * 100 + 500}ms"

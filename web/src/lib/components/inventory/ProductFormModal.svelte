@@ -103,6 +103,7 @@
               onclick={() => { modalCategorySearch = ''; form.category = ''; }}
               class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
               title="Clear"
+              aria-label="Clear"
             >
               <X size={14} />
             </button>

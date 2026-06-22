@@ -459,13 +459,13 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold" style="width: 35%;">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('name')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('name')}>
                   ROLE {#if sortField === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">TYPE</th>
               <th class="text-left p-4 font-semibold w-20">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('permissions')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('permissions')}>
                   PERMISSIONS {#if sortField === 'permissions'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
@@ -476,7 +476,7 @@
             <tbody>
               {#each paginatedRoles() as role (role.id)}
                 {@const rolePerms = getRolePermissions(role)}
-                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" onclick={() => openRoleDrawer(role)} onkeydown={(e) => { if (e.key === 'Enter') openRoleDrawer(role); }} tabindex="0">
+                <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" onclick={() => openRoleDrawer(role)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRoleDrawer(role); } }} tabindex="0" role="button">
                   <td class="p-4">
                     <div class="flex items-center gap-2.5 min-w-0">
                       <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={14} class="text-primary-light" /></div>
@@ -506,15 +506,15 @@
                             tabindex="-1"
                           >
                             {#if canEdit}
-                              <button onclick={() => { openActionRoleId = null; closeAll(); openEdit(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
+                              <button type="button" onclick={() => { openActionRoleId = null; closeAll(); openEdit(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
                                 <Pencil size={14} /> Edit
                               </button>
-                              <button onclick={() => { openActionRoleId = null; closeAll(); openDuplicate(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
+                              <button type="button" onclick={() => { openActionRoleId = null; closeAll(); openDuplicate(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
                                 <Copy size={14} /> Duplicate
                               </button>
                             {/if}
                             {#if canDelete && !role.is_system}
-                              <button onclick={() => { openActionRoleId = null; selectedRole = role; showDeleteModal = true; }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem">
+                              <button type="button" onclick={() => { openActionRoleId = null; selectedRole = role; showDeleteModal = true; }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem">
                                 <Trash2 size={14} /> Delete
                               </button>
                             {/if}
@@ -660,13 +660,13 @@
   <div
     class="fixed inset-y-0 right-0 w-[520px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col transition-transform duration-300 ease-out"
     transition:fly={{ x: 520, duration: 300, easing: t => t * (2 - t) }}
-    role="dialog" aria-modal="true" tabindex="-1"
+    role="dialog" aria-modal="true" aria-labelledby="role-detail-heading" tabindex="-1"
     onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeRoleDrawer(); } }}
   >
     <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
-        <h2 class="text-lg font-bold text-text-primary">{selectedRole.name}</h2>
+        <h2 id="role-detail-heading" class="text-lg font-bold text-text-primary">{selectedRole.name}</h2>
         {#if selectedRole.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}
       </div>
       <button

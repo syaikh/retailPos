@@ -752,6 +752,7 @@
             }}
             aria-haspopup="menu"
             aria-expanded={showExportDropdown}
+            aria-controls="export-dropdown-audit"
           >
             <Download size={15} />
             Export
@@ -762,10 +763,12 @@
           </Button>
           {#if showExportDropdown}
             <div
+              id="export-dropdown-audit"
               class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
               onclick={(e) => e.stopPropagation()}
               onkeydown={(e) => e.stopPropagation()}
               role="menu"
+              aria-orientation="vertical"
               tabindex="-1"
               transition:fly={{ y: -8, duration: 200 }}
             >
@@ -887,6 +890,9 @@
                   <tr
                     class="h-10 px-4 leading-none border-t border-border/70 hover:bg-surface-hover/50 transition-colors cursor-pointer"
                     onclick={() => openDrawer(log)}
+                    tabindex="0"
+                    role="button"
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(log); } }}
                   >
                      <td class="py-2 align-middle">
                        <span class="text-text-primary font-medium text-sm leading-snug">{ts.date}</span>
@@ -939,14 +945,14 @@
 {#if drawerOpen && selectedLog}
   {@const changes = getChanges(selectedLog)}
   <button type="button" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onclick={closeDrawer} aria-label="Close drawer"></button>
-  <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in">
+  <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in" role="dialog" aria-modal="true" aria-label="Audit Log Details">
     <!-- Header -->
     <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
       <div class="flex items-center gap-3">
         <ActionBadge action={selectedLog.action} />
         <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
       </div>
-      <button class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDrawer}>
+      <button type="button" class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={closeDrawer} aria-label="Close drawer">
         <X size={18} />
       </button>
     </div>

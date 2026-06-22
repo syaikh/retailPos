@@ -386,25 +386,25 @@
       <thead class="bg-muted/50">
         <tr>
           <th class="p-4 font-semibold w-12">
-            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} />
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
           </th>
           <th class="text-left p-4 font-semibold w-[26%]">
-            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
               NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[18%]">
-            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
+            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
               PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[26%]">
-            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
+            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
               EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
           <th class="text-left p-4 font-semibold w-[14%]">
-            <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
+            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
               STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
             </button>
           </th>
@@ -451,11 +451,11 @@
                         <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
                           {getInitials(editName)}
                         </div>
-                        <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} />
+                        <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} aria-label="Edit name" />
                       </div>
                     </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} /></td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} /></td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} aria-label="Edit phone" /></td>
+                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} aria-label="Edit email" /></td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       <label class="flex items-center gap-2 text-xs">
                         <input type="checkbox" bind:checked={editActive} />
@@ -464,10 +464,10 @@
                     </td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       <div class="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save">
+                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save" aria-label="Save">
                           <Check size={14} />
                         </Button>
-                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel">
+                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel" aria-label="Cancel">
                           <X size={14} />
                         </Button>
                       </div>
@@ -476,7 +476,7 @@
                 {:else}
                   <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
                     <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} />
+                      <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label="Select {c.name}" />
                     </td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       <div class="flex items-center gap-3">
@@ -498,12 +498,12 @@
                     <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
                       <div class="flex items-center justify-center gap-1">
                         {#if canUpdate}
-                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit">
+                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit" aria-label="Edit">
                             <Pencil size={14} />
                           </Button>
                         {/if}
                         {#if canDelete && c.is_active !== false}
-                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate">
+                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate" aria-label="Deactivate">
                             <Trash2 size={14} />
                           </Button>
                         {/if}
@@ -528,7 +528,7 @@
               {#if canDelete}
                 <Button variant="danger" class="text-xs px-3 py-1.5 h-auto" onclick={() => showBulkDeleteModal = true}>Delete</Button>
               {/if}
-              <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
+              <button type="button" class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
             </div>
           </div>
         {/if}

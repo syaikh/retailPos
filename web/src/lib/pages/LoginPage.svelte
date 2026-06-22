@@ -124,8 +124,7 @@
               disabled={loading}
               autocomplete="current-password"
             />
-            <button
-              type="button"
+<button type="button"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
               onclick={() => showPassword = !showPassword}
               aria-label={showPassword ? 'Hide password' : 'Show password'}

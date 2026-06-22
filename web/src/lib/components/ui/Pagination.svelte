@@ -88,8 +88,9 @@
 <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-border-subtle">
   <!-- Rows per page -->
   <div class="flex items-center gap-3 text-sm text-text-secondary">
-    <span>Rows per page:</span>
+    <label for="rows-per-page">Rows per page:</label>
     <select 
+      id="rows-per-page"
       class="bg-surface-default border border-border-strong rounded-xl px-2 py-1 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-default cursor-pointer"
       value={limit}
       onchange={handleLimitChange}

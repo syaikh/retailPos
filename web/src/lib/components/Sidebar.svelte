@@ -164,7 +164,7 @@
   <!-- Nav -->
   <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar" aria-label="Main navigation">
     {#each visibleNavItems as item}
-      <button
+<button type="button" 
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-current={isActive(item.href) ? 'page' : undefined}
@@ -188,7 +188,7 @@
         {#if !collapsed}
           <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Master Data</p>
         {/if}
-        <button
+  <button type="button" 
           onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
           class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
           aria-expanded={masterDataExpanded}
@@ -206,7 +206,7 @@
         {#if masterDataExpanded && !collapsed}
           <div id="sidebar-section-master-data" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
             {#each visibleMasterDataSubItems as subItem}
-              <button
+        <button type="button" 
                 onclick={(e) => { createRipple(e, e.currentTarget); navigate(subItem.href); }}
                 class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9' : 'sidebar-item w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9'}
                 aria-current={isActive(subItem.href) ? 'page' : undefined}
@@ -226,7 +226,7 @@
       {#if !collapsed}
         <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Administration</p>
       {/if}
-      <button
+<button type="button" 
         onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) adminExpanded = !adminExpanded; else navigate('/admin/users'); }}
         class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-expanded={adminExpanded}
@@ -244,7 +244,7 @@
       {#if adminExpanded && !collapsed}
         <div id="sidebar-section-admin" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
           {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
-            <button
+      <button type="button" 
               onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
               class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9' : 'sidebar-item w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9'}
               aria-current={isActive(item.href) ? 'page' : undefined}
@@ -271,7 +271,7 @@
           <p class="text-xs font-semibold text-text-primary truncate">{username}</p>
           <p class="text-[10px] text-text-muted capitalize truncate">{role}</p>
         </div>
-        <button
+  <button type="button" 
           onclick={handleLogout}
           class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-all duration-200 group"
           title="Logout"
@@ -283,7 +283,7 @@
     </div>
 
     {#if collapsed}
-      <button
+<button type="button" 
         onclick={handleLogout}
         class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle px-3 py-2.5"
         title="Logout"

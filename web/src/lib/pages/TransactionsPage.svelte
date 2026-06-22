@@ -645,24 +645,24 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('invoice_number')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('invoice_number')}>
                   INVOICE {#if sortBy === 'invoice_number'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-left p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('created_at')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('created_at')}>
                   DATE {#if sortBy === 'created_at'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-left p-4 font-semibold w-[30%]">CUSTOMER</th>
               <th class="text-left p-4 font-semibold">ITEMS</th>
               <th class="text-left p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('payment_method')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => toggleSort('payment_method')}>
                   PAYMENT {#if sortBy === 'payment_method'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
               <th class="text-right p-4 font-semibold">
-                <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => toggleSort('total_amount')}>
+                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => toggleSort('total_amount')}>
                   TOTAL (RP) {#if sortBy === 'total_amount'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
                 </button>
               </th>
@@ -673,8 +673,9 @@
               <tr
                 class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
                 onclick={() => openTransactionDetails(sale)}
-                onkeydown={(e) => { if (e.key === 'Enter') openTransactionDetails(sale); }}
+                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTransactionDetails(sale); } }}
                 tabindex="0"
+                role="button"
               >
                   <td class="p-4">
                     <span class="text-sm font-medium text-text-primary">
@@ -721,12 +722,12 @@
   <div
     class="fixed inset-y-0 right-0 w-[520px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col"
     transition:fly={{ x: 520, duration: 300, easing: t => t * (2 - t) }}
-    role="dialog" aria-modal="true" tabindex="-1"
+    role="dialog" aria-modal="true" aria-labelledby="transaction-details-heading" tabindex="-1"
     onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeTransactionDrawer(); } }}
   >
     <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
       <div class="flex items-center gap-3">
-        <h2 class="text-lg font-bold text-text-primary">Transaction Details</h2>
+        <h2 id="transaction-details-heading" class="text-lg font-bold text-text-primary">Transaction Details</h2>
         <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {statusVariant(selectedTransaction.status) === 'success' ? 'bg-success/20 text-success' : statusVariant(selectedTransaction.status) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}">
           {selectedTransaction.status || 'completed'}
         </span>

@@ -1558,6 +1558,7 @@ async function fetchSales() {
         onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
         aria-haspopup="menu"
         aria-expanded={dropdownOpen}
+        aria-controls="period-dropdown-menu"
       >
         <CalendarDays size={15} />
         {getPeriodDescription()}
@@ -1569,8 +1570,10 @@ async function fetchSales() {
 
       {#if dropdownOpen}
         <div
+          id="period-dropdown-menu"
           class="absolute left-0 top-full mt-2 card-glass p-2 z-50 min-w-[28rem] flex gap-2"
           role="menu"
+          aria-orientation="vertical"
           tabindex="-1"
           transition:fly={{ y: -8, duration: 200 }}
         >
@@ -1583,8 +1586,8 @@ async function fetchSales() {
                 </div>
               {:else}
                 {@const isCalendarOption = ['daily', 'weekly', 'monthly', 'yearly'].includes(option.value)}
-                <button
-                  type="button"
+              <button type="button"
+                  role="menuitem"
                   class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
                   onclick={() => { if (!isCalendarOption) setPeriod(option.value); }}
                   onmouseenter={() => hoveredOption = option}
@@ -1832,6 +1835,7 @@ onValueChange={(val) => {
         onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
         aria-haspopup="menu"
         aria-expanded={showExportDropdown}
+        aria-controls="export-dropdown-reports"
       >
         <Download size={15} />
         Export
@@ -1842,10 +1846,12 @@ onValueChange={(val) => {
       </Button>
       {#if showExportDropdown}
         <div 
+          id="export-dropdown-reports"
           class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5" 
           onclick={(e) => e.stopPropagation()} 
           onkeydown={(e) => e.stopPropagation()} 
           role="menu"
+          aria-orientation="vertical"
           tabindex="-1"
           transition:fly={{ y: -8, duration: 200 }}
         >
@@ -1873,7 +1879,7 @@ onValueChange={(val) => {
 <!-- Chart -->
    <div class="card p-5">
      <div class="flex items-center justify-between mb-4">
-       <h3 class="text-sm font-semibold text-text-primary">
+       <h2 class="text-sm font-semibold text-text-primary">
          Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
          {#if kpiData.isPartial && activePeriodType === 'weekly'}
            <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
@@ -1884,8 +1890,8 @@ onValueChange={(val) => {
              Ongoing Month
            </span>
   {/if}
-       </h3>
-     </div>
+        </h2>
+      </div>
 
     <!-- Comparison Period Info Bar (applies to all KPI cards below) -->
     {#if !loading && (kpiData.previousRevenue > 0 || kpiData.previousOrders > 0 || kpiData.comparisonType !== 'zero')}
@@ -2073,41 +2079,37 @@ onValueChange={(val) => {
         <table class="w-full text-xs text-left border-collapse">
           <thead>
             <tr class="border-b border-border/50">
-              <th
-                class="py-2 px-3 font-medium text-text-secondary cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
-                onclick={() => toggleSort('period')}
-              >
-                {tablePeriodHeading}
-                {#if sortColumn === 'period'}
-                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
-                {/if}
+              <th class="py-2 px-3 font-medium text-text-secondary select-none whitespace-nowrap">
+                <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors" onclick={() => toggleSort('period')}>
+                  {tablePeriodHeading}
+                  {#if sortColumn === 'period'}
+                    <span>{sortAsc ? '▲' : '▼'}</span>
+                  {/if}
+                </button>
               </th>
-              <th
-                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
-                onclick={() => toggleSort('revenue')}
-              >
-                Revenue (Rp)
-                {#if sortColumn === 'revenue'}
-                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
-                {/if}
+              <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
+                <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => toggleSort('revenue')}>
+                  Revenue (Rp)
+                  {#if sortColumn === 'revenue'}
+                    <span>{sortAsc ? '▲' : '▼'}</span>
+                  {/if}
+                </button>
               </th>
-              <th
-                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
-                onclick={() => toggleSort('prev')}
-              >
-                Prev Period (Rp)
-                {#if sortColumn === 'prev'}
-                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
-                {/if}
+              <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
+                <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => toggleSort('prev')}>
+                  Prev Period (Rp)
+                  {#if sortColumn === 'prev'}
+                    <span>{sortAsc ? '▲' : '▼'}</span>
+                  {/if}
+                </button>
               </th>
-              <th
-                class="py-2 px-3 font-medium text-text-secondary !text-right cursor-pointer hover:text-text-primary select-none whitespace-nowrap"
-                onclick={() => toggleSort('change')}
-              >
-                Change
-                {#if sortColumn === 'change'}
-                  <span class="ml-1">{sortAsc ? '▲' : '▼'}</span>
-                {/if}
+              <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
+                <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => toggleSort('change')}>
+                  Change
+                  {#if sortColumn === 'change'}
+                    <span>{sortAsc ? '▲' : '▼'}</span>
+                  {/if}
+                </button>
               </th>
               {#if sortedRows.some(r => r.orderCount !== null)}
                 <th class="py-2 px-3 font-medium text-text-secondary text-right whitespace-nowrap">

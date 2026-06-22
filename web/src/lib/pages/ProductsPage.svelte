@@ -697,6 +697,7 @@
               <button
                 class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
                 onclick={() => clearFilter(chip.type)}
+                aria-label="Hapus filter"
               >
                 <X size={12} />
               </button>
@@ -757,25 +758,25 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="p-4 font-semibold w-12">
-              <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} />
+              <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all products" />
             </th>
             <th class="text-left p-4 font-semibold" style="width: 40%;">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
                 PRODUCT NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="text-left p-4 font-semibold w-44">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('category')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('category')}>
                 CATEGORY {#if sortBy === 'category'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="p-4 font-semibold w-32">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('price')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('price')}>
                 PRICE {#if sortBy === 'price'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
             <th class="p-4 font-semibold w-24">
-              <button class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('stock')}>
+              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('stock')}>
                 STOCK {#if sortBy === 'stock'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
@@ -788,16 +789,19 @@
             <tr
               class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer"
               onclick={() => openProductDetails(product)}
+              tabindex="0"
+              role="button"
+               onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductDetails(product); } }}
             >
               <td class="p-4 w-12" onclick={(e) => e.stopPropagation()}>
-                <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} />
+                <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} aria-label="Select {product.name}" />
               </td>
               <td class="p-4 pr-6" style="width: 40%;">
                 <div class="font-medium truncate" title={product.name}>{product.name}</div>
                 <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
                   <span class="flex items-center gap-1">
-                    <button class="text-left hover:text-primary transition-colors truncate max-w-[120px]" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>{product.sku}</button>
-                    <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
+                    <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[120px]" title="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>{product.sku}</button>
+                    <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" aria-label="Salin SKU" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.sku, `sku_${product.id}`); }}>
                       {#if showCopySuccess?.has(`sku_${product.id}`)}
                         <span class="text-xs text-primary font-bold leading-none">✓</span>
                       {:else}
@@ -807,8 +811,8 @@
                   </span>
                   {#if product.barcode}
                     <span class="flex items-center gap-1 ml-4">
-                      <button class="text-left hover:text-primary transition-colors truncate max-w-[140px]" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>{product.barcode}</button>
-                      <button class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
+                      <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[140px]" title="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>{product.barcode}</button>
+                      <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" aria-label="Salin barcode" onclick={(e) => { e.stopPropagation(); copyToClipboard(product.barcode, `barcode_${product.id}`); }}>
                         {#if showCopySuccess?.has(`barcode_${product.id}`)}
                           <span class="text-xs text-primary font-bold leading-none">✓</span>
                         {:else}
@@ -872,7 +876,7 @@
             <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
             <div class="flex items-center gap-2 ml-auto">
               <Button variant="secondary" class="text-xs px-3 py-1.5 h-auto" onclick={() => showBulkStatusModal = true}>Change Status</Button>
-              <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
+              <button type="button" class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
             </div>
           </div>
         {/if}
@@ -953,12 +957,12 @@
     <div
       class="fixed inset-y-0 right-0 w-[480px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col transition-transform duration-300 ease-out"
       transition:fly={{ x: 480, duration: 300, easing: t => t * (2 - t) }}
-      role="dialog" aria-modal="true" tabindex="-1"
+      role="dialog" aria-modal="true" aria-labelledby="product-detail-heading" tabindex="-1"
       onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); showDetailDrawer = false; } }}
     >
     <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
       <div class="flex items-center gap-3">
-        <h2 class="text-lg font-bold text-text-primary">Detail Produk</h2>
+        <h2 id="product-detail-heading" class="text-lg font-bold text-text-primary">Detail Produk</h2>
         <Badge variant={status_.variant} size="sm">{status_.label}</Badge>
       </div>
       <button
@@ -976,7 +980,7 @@
         <span class="flex items-center gap-1 min-w-0">
           <span class="text-[11px] font-semibold tracking-widest text-text-muted/60">SKU</span>
           <span class="text-text-secondary font-mono text-sm max-w-[130px] truncate">{selectedProduct.sku || '-'}</span>
-          <button class="p-0.5 rounded transition-colors" title="Salin SKU" onclick={() => copyToClipboard(selectedProduct.sku, 'sku')}>
+          <button type="button" class="p-0.5 rounded transition-colors" title="Salin SKU" aria-label="Salin SKU" onclick={() => copyToClipboard(selectedProduct.sku, 'sku')}>
             {#if showCopySuccess?.has('sku')}
               <span class="text-sm text-primary font-semibold">✓</span>
             {:else}
@@ -988,7 +992,7 @@
           <span class="flex items-center gap-1 ml-1">
             <span class="text-[11px] font-semibold tracking-widest text-text-muted/60">Barcode</span>
             <span class="text-text-secondary font-mono text-sm max-w-[150px] truncate">{selectedProduct.barcode}</span>
-            <button class="p-0.5 rounded transition-colors" title="Salin barcode" onclick={() => copyToClipboard(selectedProduct.barcode!, 'barcode')}>
+            <button type="button" class="p-0.5 rounded transition-colors" title="Salin barcode" aria-label="Salin barcode" onclick={() => copyToClipboard(selectedProduct.barcode!, 'barcode')}>
               {#if showCopySuccess?.has('barcode')}
                 <span class="text-sm text-primary font-semibold">✓</span>
               {:else}
