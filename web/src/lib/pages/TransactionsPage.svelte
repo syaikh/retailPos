@@ -5,7 +5,7 @@
   import { getAuthToken } from '$lib/stores/auth';
   import { toast } from '$lib/stores/toast';
   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta, formatJakartaDateStr } from '$lib/utils/jakartaTime';
   import { debounce } from '$lib/utils/debounce';
   import Button from '$lib/components/ui/Button.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
@@ -49,6 +49,7 @@
   let sortDir = $state('DESC');
 
   let showDatePicker = $state(false);
+  let selectedDateRange = $state('last30d');
 
   const datePresets = [
     { label: 'Today', days: 0 },
@@ -62,27 +63,20 @@
   const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + '-01-01');
 
   const dateRangeLabel = $derived.by(() => {
-    const today = getTodayInJakarta();
+    if (selectedDateRange === 'custom') {
+      return `Custom: ${formatJakartaDateStr(startDate)} – ${formatJakartaDateStr(endDate)}`;
+    }
     const preset = datePresets.find(p => {
-      if (p.label === 'Yesterday') {
-        return startDate === getDateNDaysAgoInJakarta(1) && endDate === startDate;
-      }
+      if (p.label === 'Yesterday') return selectedDateRange === 'yesterday';
       if (typeof p.days === 'number') {
-        return startDate === getDateNDaysAgoInJakarta(p.days) && endDate === today;
+        if (p.days === 0) return selectedDateRange === 'today';
+        return selectedDateRange === `last${p.days}d`;
       }
-      if (p.days === 'month') {
-        const parts = today.split('-').map(Number);
-        const firstDate = `${parts[0]}-${String(parts[1]).padStart(2, '0')}-01`;
-        return startDate === firstDate && endDate === today;
-      }
-      if (p.days === 'year') {
-        return startDate === today.slice(0, 4) + '-01-01' && endDate === today;
-      }
+      if (p.days === 'month') return selectedDateRange === 'thisMonth';
+      if (p.days === 'year') return selectedDateRange === 'thisYear';
       return false;
     });
-    if (preset) return preset.label;
-    if (startDate === endDate) return startDate;
-    return `${startDate} – ${endDate}`;
+    return preset?.label || 'Last 30 Days';
   });
 
   const isFiltered = $derived(
@@ -162,17 +156,21 @@
       const today = getTodayInJakarta();
       startDate = today.slice(0, 4) + '-01-01';
       endDate = today;
+      selectedDateRange = 'thisYear';
     } else if (days === 'month') {
       const todayJakarta = getTodayInJakarta();
       const parts = todayJakarta.split('-').map(Number);
       startDate = `${parts[0]}-${String(parts[1]).padStart(2, '0')}-01`;
       endDate = todayJakarta;
+      selectedDateRange = 'thisMonth';
     } else if (days <= 1) {
       startDate = getDateNDaysAgoInJakarta(days);
       endDate = startDate;
+      selectedDateRange = days === 0 ? 'today' : 'yesterday';
     } else {
       startDate = getDateNDaysAgoInJakarta(days);
       endDate = getTodayInJakarta();
+      selectedDateRange = `last${days}d`;
     }
     showDatePicker = false;
     offset = 0;
@@ -407,6 +405,13 @@
     showExportDropdown = false;
   }
 
+  function applyCustomRange() {
+    selectedDateRange = 'custom';
+    showDatePicker = false;
+    offset = 0;
+    fetchSales(false);
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       showTransactionDrawer = false;
@@ -480,7 +485,7 @@
                 <Button
                   variant="primary"
                   size="xs"
-                  onclick={() => { showDatePicker = false; offset = 0; fetchSales(false); }}
+                  onclick={applyCustomRange}
                 >
                   Apply
                 </Button>

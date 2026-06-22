@@ -5,7 +5,7 @@
   import { toast } from '$lib/stores/toast';
   import { debounce } from '$lib/utils/debounce';
   import { auth, getAuthToken } from '$lib/stores/auth';
-  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS, formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS, formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, formatJakartaDateStr } from '$lib/utils/jakartaTime';
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -132,13 +132,13 @@
 
   const dateRangeLabel = $derived.by(() => {
     if (selectedDateRange === 'custom') {
-      return `${customStartDate} – ${customEndDate}`;
+      return `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}`;
     }
     return dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 24 Hours';
   });
 
-  let customStartDate = $state('');
-  let customEndDate = $state('');
+  let customStartDate = $state(getDateNDaysAgoInJakarta(1));
+  let customEndDate = $state(getTodayInJakarta());
 
   let resourceLabel = $derived(resourceFilters.find(f => f.id === selectedResource)?.label || 'All');
   let actionLabel = $derived(availableActionFilters.find(f => f.id === selectedAction)?.label || 'All Actions');
@@ -205,6 +205,27 @@
     selectedDateRange = rangeId;
     showDatePicker = false;
     offset = 0;
+    if (rangeId !== 'custom') {
+      const today = getTodayInJakarta();
+      switch (rangeId) {
+        case '24h':
+          customStartDate = getDateNDaysAgoInJakarta(1);
+          customEndDate = today;
+          break;
+        case '7d':
+          customStartDate = getDateNDaysAgoInJakarta(7);
+          customEndDate = today;
+          break;
+        case '30d':
+          customStartDate = getDateNDaysAgoInJakarta(30);
+          customEndDate = today;
+          break;
+        case '90d':
+          customStartDate = getDateNDaysAgoInJakarta(90);
+          customEndDate = today;
+          break;
+      }
+    }
     fetchLogs();
   }
 
@@ -276,7 +297,7 @@
     }
     if (selectedDateRange !== '24h') {
       if (selectedDateRange === 'custom') {
-        filters.push({ type: 'date', label: `${customStartDate} to ${customEndDate}` });
+        filters.push({ type: 'date', label: `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}` });
       } else {
         const dr = dateRanges.find((d) => d.id === selectedDateRange);
         if (dr) filters.push({ type: 'date', label: dr.label });
@@ -288,7 +309,11 @@
   function clearFilter(type) {
     if (type === 'entity') selectedResource = 'all';
     if (type === 'action') selectedAction = 'all';
-    if (type === 'date') selectedDateRange = '24h';
+    if (type === 'date') {
+      selectedDateRange = '24h';
+      customStartDate = getDateNDaysAgoInJakarta(1);
+      customEndDate = getTodayInJakarta();
+    }
     offset = 0;
     fetchLogs();
   }
@@ -297,6 +322,8 @@
     selectedResource = 'all';
     selectedAction = 'all';
     selectedDateRange = '24h';
+    customStartDate = getDateNDaysAgoInJakarta(1);
+    customEndDate = getTodayInJakarta();
     searchQuery = '';
     offset = 0;
     fetchLogs();
@@ -306,6 +333,8 @@
     selectedResource = 'all';
     selectedAction = 'all';
     selectedDateRange = '24h';
+    customStartDate = getDateNDaysAgoInJakarta(1);
+    customEndDate = getTodayInJakarta();
     searchQuery = '';
     offset = 0;
     fetchLogs();
@@ -818,7 +847,7 @@
               </div>
             {/each}
             <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-primary bg-surface-default/50 border border-border/50 rounded-full transition-colors"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-text-primary bg-primary-subtle/40 border border-primary-subtle/50 rounded-full transition-colors hover:bg-primary-subtle/60"
               onclick={clearAllFilters}
             >
               Clear all

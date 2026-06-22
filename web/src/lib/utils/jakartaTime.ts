@@ -256,6 +256,22 @@ export function getCurrentJakartaDateDisplay(): { day: number; month: string; ye
   };
 }
 
+/**
+ * Format a YYYY-MM-DD Jakarta date string (e.g. "2026-01-25") to DD Mon YYYY
+ * (e.g. "25 Jan 2026").
+ */
+export function formatJakartaDateStr(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!y || !m || !d) return dateStr;
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
 export function getCompletedDaysInCurrentWeek(): number {
   const dayOfWeek = getJakartaDayOfWeek();
   // If today is Monday (1), no completed days yet (Mon to yesterday = none)
