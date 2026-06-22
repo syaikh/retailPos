@@ -6,7 +6,9 @@
   import { auth } from '$lib/stores/auth';
   import { formatDateInJakarta, formatTimeInJakarta } from '$lib/utils/jakartaTime';
 
+  import Button from '$lib/components/ui/Button.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -403,13 +405,14 @@
           {/if}
         </div>
         {#if canCreate}
-        <button
+        <Button
           onclick={openAdd}
-          class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5"
+          variant="primary"
+          class="shrink-0 shadow-glow-primary-sm px-5"
         >
           <Plus size={18} />
           Add User
-        </button>
+        </Button>
         {/if}
       </div>
       <div class="filter-chips-wrapper" class:is-open={activeChips.length > 0}>
@@ -543,22 +546,26 @@
                     </td>
                    <td class="p-4 text-center">
                      <div class="flex items-center justify-center gap-2">
-                      <button
-                        class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="text-text-muted hover:text-primary-light"
                         title="Edit"
                         onclick={() => openEdit(user)}
                         disabled={user.role_id === 1 && !canEditSuperadmin}
                       >
                         <Pencil size={14} />
-                      </button>
-                      <button
-                        class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle"
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                         onclick={() => { selectedUser = user; showDeleteModal = true; }}
                         title="Delete"
                         disabled={user.id === currentUserID || user.role_id === 1}
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -591,13 +598,13 @@
             <User size={14} class="text-text-muted" />
             Username
           </label>
-          <input id="usr-username" type="text" placeholder="johndoe" class="input" bind:value={form.username} required minlength="3" maxlength="50" pattern="[a-zA-Z0-9]+" title="3-50 alphanumeric characters only (will be converted to lowercase)" />
+          <Input id="usr-username" type="text" placeholder="johndoe" bind:value={form.username} required minlength="3" maxlength="50" pattern="[a-zA-Z0-9]+" title="3-50 alphanumeric characters only (will be converted to lowercase)" />
         </div>
         <div>
           <label for="usr-email" class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
             Email Address
           </label>
-          <input id="usr-email" type="email" placeholder="john@example.com" class="input" bind:value={form.email} required />
+          <Input id="usr-email" type="email" placeholder="john@example.com" bind:value={form.email} required />
         </div>
       </div>
 
@@ -650,7 +657,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           {modalMode === 'add' ? 'Password' : 'New Password (optional)'}
         </label>
-        <input id="usr-password" type="password" placeholder="••••••••" class="input" bind:value={form.password} required={modalMode === 'add'} minlength="6" />
+        <Input id="usr-password" type="password" placeholder="••••••••" bind:value={form.password} required={modalMode === 'add'} minlength="6" />
         {#if modalMode === 'edit'}
           <p class="text-xs text-text-muted mt-1.5">Leave blank to keep current password</p>
         {/if}
@@ -658,14 +665,14 @@
     </div>
   </form>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Cancel</button>
-    <button class="btn btn-primary min-w-32" onclick={saveUser} disabled={saving || (modalMode === 'add' && usernameHasInvalidChars)}>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Cancel</Button>
+    <Button variant="primary" class="min-w-32" onclick={saveUser} disabled={saving || (modalMode === 'add' && usernameHasInvalidChars)}>
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> Saving...
       {:else}
         {modalMode === 'add' ? 'Create User' : 'Save Changes'}
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -678,8 +685,8 @@
     <p class="text-text-muted text-sm">This will permanently remove the account and all associated access.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger" onclick={confirmDelete}>Delete</button>
+    <Button variant="secondary" onclick={() => showDeleteModal = false}>Cancel</Button>
+    <Button variant="danger" onclick={confirmDelete}>Delete</Button>
   {/snippet}
 </Modal>
 

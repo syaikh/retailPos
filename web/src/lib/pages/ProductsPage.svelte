@@ -7,6 +7,7 @@
   import { useWebSocket } from '$lib/composables/useWebSocket';
   import { formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
 
+  import Button from '$lib/components/ui/Button.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import CategoryFilterModal from '$lib/components/ui/CategoryFilterModal.svelte';
@@ -669,7 +670,7 @@
         <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
         <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
       </button>
-      <button
+      <Button
         onclick={() => {
           if (!canManageInventory) return;
           modalMode = 'add';
@@ -677,12 +678,13 @@
           showModal = true;
         }}
         disabled={!canManageInventory}
-        class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+        variant="primary"
+        class="shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
         title={canManageInventory ? 'Add product' : 'Requires inventory role'}
       >
         <Plus size={18} />
         Add Product
-      </button>
+      </Button>
     </div>
 
     <div class="filter-chips-wrapper" class:is-open={activeChips.length > 0}>
@@ -869,7 +871,7 @@
           <div class="px-4 py-2.5 bg-primary/5 border-t border-primary/20 flex items-center gap-3">
             <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
             <div class="flex items-center gap-2 ml-auto">
-              <button class="btn btn-secondary text-xs px-3 py-1.5 h-auto" onclick={() => showBulkStatusModal = true}>Change Status</button>
+              <Button variant="secondary" class="text-xs px-3 py-1.5 h-auto" onclick={() => showBulkStatusModal = true}>Change Status</Button>
               <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
             </div>
           </div>
@@ -908,10 +910,10 @@
     <p class="text-text-muted text-sm">This action cannot be undone and will remove the product from the catalog.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger px-5" disabled={isDeleting} onclick={() => handleDelete()}>
+    <Button variant="secondary" class="px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</Button>
+    <Button variant="danger" class="px-5" disabled={isDeleting} onclick={() => handleDelete()}>
       {isDeleting ? 'Deleting...' : 'Delete'}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -939,10 +941,10 @@
     </div>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</button>
-    <button class="btn btn-primary px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
+    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</Button>
+    <Button variant="primary" class="px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
       {isBulkUpdating ? 'Updating...' : 'Update'}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -1127,15 +1129,17 @@
       <div class="absolute bottom-0 left-0 right-0 p-4 bg-surface-default border-t border-border/50">
         <div class="flex items-center gap-3">
           {#if (isSuperAdmin() || isAdmin()) && selectedProduct?.stock === 0}
-            <button
-              class="flex-1 btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold text-text-secondary border border-border hover:border-danger hover:text-danger hover:bg-danger-subtle transition-all duration-200"
+            <Button
+              variant="secondary"
+              class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-text-secondary border border-border hover:border-danger hover:text-danger hover:bg-danger-subtle transition-all duration-200"
               onclick={() => { showDetailDrawer = false; showDeleteModal = true; }}
             >
               <Trash2 size={15} class="mr-1.5" />Hapus Produk
-            </button>
+            </Button>
           {/if}
-          <button
-            class="flex-1 btn btn-primary rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm transition-all duration-200"
+          <Button
+            variant="primary"
+            class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm transition-all duration-200"
             onclick={() => {
               showDetailDrawer = false;
               modalMode = 'edit';
@@ -1154,7 +1158,7 @@
             }}
           >
             <Pencil size={15} class="mr-1.5" />Edit Produk
-          </button>
+          </Button>
         </div>
       </div>
     {/if}

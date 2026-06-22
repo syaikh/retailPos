@@ -7,8 +7,10 @@
   import { printReceipt as printReceiptStore } from '$lib/stores/printReceipt';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
   import { debounce } from '$lib/utils/debounce';
+  import Button from '$lib/components/ui/Button.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import { Printer, Download, FileSpreadsheet, Banknote, X, CalendarDays, ChevronDown } from 'lucide-svelte';
@@ -447,51 +449,55 @@
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <div class="relative">
-          <button
-            class="btn btn-secondary flex items-center gap-2 min-w-44 date-picker-trigger"
+          <Button
+            variant="secondary"
+            class="flex items-center gap-2 min-w-44 date-picker-trigger"
             onclick={() => showDatePicker = !showDatePicker}
           >
             <CalendarDays size={16} class="text-text-secondary shrink-0" />
             <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
             <ChevronDown size={14} class="opacity-60 shrink-0" />
-          </button>
+          </Button>
           {#if showDatePicker}
             <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64 date-picker-container">
               <div class="flex flex-wrap gap-1 mb-3">
                 {#each datePresets as preset}
-                  <button
-                    class="btn btn-ghost btn-xs"
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onclick={() => applyDatePreset(preset.days)}
                   >
                     {preset.label}
-                  </button>
+                  </Button>
                 {/each}
               </div>
               <div class="flex items-center gap-2 text-xs">
-                <input type="date" bind:value={startDate} class="input input-sm w-full" min={currentYearStart} max={endDate} />
+                <Input type="date" bind:value={startDate} class="w-full" min={currentYearStart} max={endDate} />
                 <span class="text-text-muted">—</span>
-                <input type="date" bind:value={endDate} class="input input-sm w-full" min={startDate} max={getTodayInJakarta()} />
+                <Input type="date" bind:value={endDate} class="w-full" min={startDate} max={getTodayInJakarta()} />
               </div>
               <div class="flex justify-end mt-2">
-                <button
-                  class="btn btn-primary btn-xs"
+                <Button
+                  variant="primary"
+                  size="xs"
                   onclick={() => { showDatePicker = false; offset = 0; fetchSales(false); }}
                 >
                   Apply
-                </button>
+                </Button>
               </div>
             </div>
           {/if}
         </div>
         <div class="relative export-dropdown-container">
-          <button
-            class="btn btn-primary flex items-center gap-2 transition-all duration-300"
+          <Button
+            variant="primary"
+            class="flex items-center gap-2 transition-all duration-300"
             onclick={() => showExportDropdown = !showExportDropdown}
           >
             <Download size={15} />
             Export
             <ChevronDown size={14} class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" />
-          </button>
+          </Button>
           {#if showExportDropdown}
             <div
               class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5"
@@ -527,8 +533,9 @@
       <div class="flex flex-wrap items-end gap-3">
         <div class="relative payment-dropdown-container">
           <p class="text-xs font-medium text-text-secondary mb-1.5">Payment</p>
-          <button
-            class="btn btn-secondary flex items-center gap-2 min-w-44"
+          <Button
+            variant="secondary"
+            class="flex items-center gap-2 min-w-44"
             onclick={() => showPaymentDropdown = !showPaymentDropdown}
           >
             <span class="text-sm truncate flex-1 text-left text-text-secondary">
@@ -537,7 +544,7 @@
                 : 'All methods'}
             </span>
             <ChevronDown size={14} class="opacity-60 shrink-0" />
-          </button>
+          </Button>
           {#if showPaymentDropdown}
             <div class="absolute left-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-2 min-w-44 max-h-56 overflow-y-auto">
               {#each paymentMethodOptions as pm}
@@ -565,24 +572,24 @@
 
         <div class="w-44">
           <p class="text-xs font-medium text-text-secondary mb-1.5">Min Total Trx (Rp)</p>
-          <input
+          <Input
             type="text"
             inputmode="numeric"
             value={minDisplay}
             placeholder="0"
-            class="input py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
+            class="py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
             oninput={handleMinInput}
           />
         </div>
 
         <div class="w-44">
           <p class="text-xs font-medium text-text-secondary mb-1.5">Max Total Trx (Rp)</p>
-          <input
+          <Input
             type="text"
             inputmode="numeric"
             value={maxDisplay}
             placeholder="∞"
-            class="input py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
+            class="py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
             oninput={handleMaxInput}
           />
         </div>
@@ -596,17 +603,17 @@
         <div class="flex-1 min-w-0"></div>
 
         <div class="flex items-end gap-2">
-          <button class="btn btn-secondary" disabled={!isFiltered} onclick={resetFilters}>
+          <Button variant="secondary" disabled={!isFiltered} onclick={resetFilters}>
             Reset
-          </button>
+          </Button>
           {#if hasPendingChanges}
-            <button class="btn btn-secondary" onclick={cancelFilters}>
+            <Button variant="secondary" onclick={cancelFilters}>
               Cancel
-            </button>
+            </Button>
           {/if}
-          <button class="btn btn-primary" disabled={!hasPendingChanges || !!amountError} onclick={applyFilters}>
+          <Button variant="primary" disabled={!hasPendingChanges || !!amountError} onclick={applyFilters}>
             Apply
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -811,17 +818,17 @@
 
     <div class="absolute bottom-0 left-0 right-0 p-4 bg-surface-default border-t border-border/50">
       <div class="grid grid-cols-[auto_1fr_1fr] gap-3">
-        <button class="btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={closeTransactionDrawer}>
+        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap" onclick={closeTransactionDrawer}>
           Close
-        </button>
-        <button class="btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={printTransactionReceipt}>
+        </Button>
+        <Button variant="secondary" class="rounded-xl px-4 h-11 text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap" onclick={printTransactionReceipt}>
           <Printer size={15} class="mr-1.5" />
           Print Receipt
-        </button>
-        <button class="btn btn-primary rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={downloadInvoice}>
+        </Button>
+        <Button variant="primary" class="rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm flex items-center gap-1.5 whitespace-nowrap" onclick={downloadInvoice}>
           <Download size={15} class="mr-1.5" />
           Download Invoice
-        </button>
+        </Button>
       </div>
     </div>
   </div>

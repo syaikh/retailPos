@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from '$lib/components/ui/Button.svelte';
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import { Bell } from 'lucide-svelte';
@@ -108,18 +109,14 @@
 </script>
 
 <div bind:this={container} class="relative">
-  <button
-    class="btn-icon btn-ghost relative text-text-muted hover:text-text-primary"
-    onclick={handleClick}
-    aria-label="Notifications"
-  >
+  <Button variant="ghost" size="icon" class="relative text-text-muted hover:text-text-primary" onclick={handleClick} aria-label="Notifications">
     <Bell size={18} />
     {#if unread > 0}
       <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-danger text-white text-[10px] font-bold rounded-full px-1 leading-none shadow-glow-danger">
         {unread > 99 ? '99+' : unread}
       </span>
     {/if}
-  </button>
+  </Button>
 
   {#if open}
     <div class="absolute right-0 top-full mt-2 z-50" onclick={(e) => e.stopPropagation()} role="none" onkeydown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }} transition:fly={{ y: -8, duration: 200 }}>

@@ -318,158 +318,27 @@
 
 /* Custom Components & Utilities (Tailwind 4 Style) */
 
-@utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg-default disabled:opacity-40 disabled:cursor-not-allowed select-none;
-}
-
-@utility btn-primary {
-  @apply bg-primary-default text-white hover:bg-primary-hover focus:ring-primary-default shadow-glow-primary-sm hover:shadow-glow-primary active:scale-[0.97];
-}
-
-@utility btn-secondary {
-  @apply bg-surface-default text-text-primary border border-border-strong hover:bg-surface-hover focus:ring-primary-default active:scale-[0.97];
-}
-
-@utility btn-success {
-  @apply bg-success-default text-white hover:bg-emerald-600 focus:ring-success-default shadow-glow-success active:scale-[0.97];
-}
-
-@utility btn-danger {
-  @apply bg-danger-default text-white hover:bg-rose-600 focus:ring-danger-default shadow-glow-danger active:scale-[0.97];
-}
-
-@utility btn-ghost {
-  @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-surface-default focus:ring-primary-default active:scale-[0.97];
-}
-
-@utility btn-sm {
-  @apply px-3 py-1.5 text-xs rounded-lg;
-}
-
-@utility btn-icon {
-  @apply p-2 rounded-lg aspect-square;
-}
-
-@utility card {
+.card {
   @apply bg-surface-default border border-border-default rounded-2xl shadow-card;
 }
 
-@utility card-hover {
+.card-hover {
   @apply transition-all duration-300 hover:border-border-strong hover:shadow-card-hover hover:-translate-y-0.5;
-  /* Composition via plain CSS instead of @apply card to avoid recursive dependency issues in some v4 versions */
   background-color: var(--color-surface-default);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-card);
 }
 
-@utility card-glass {
+.card-glass {
   @apply bg-surface-default/70 backdrop-blur-xl border border-border-default rounded-2xl shadow-card;
 }
 
-@utility input {
-  @apply w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 disabled:cursor-not-allowed disabled:opacity-40 transition-colors duration-200;
-}
-
-@utility select {
-  @apply cursor-pointer appearance-none bg-no-repeat;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-position: right 0.75rem center;
-  padding-right: 2.5rem;
-  color-scheme: dark;
-  color: var(--color-text-primary);
-  option {
-    background-color: var(--color-surface-default);
-    color: var(--color-text-primary);
-  }
-}
-
-@utility badge {
-  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold;
-}
-
-@utility badge-primary {
-  @apply bg-primary-subtle text-primary-light border border-primary-default/20;
-}
-
-@utility badge-success {
-  @apply bg-success-subtle text-success-light border border-success-default/20;
-}
-
-@utility badge-warning {
-  @apply bg-warning-subtle text-warning-light border border-warning-default/20;
-}
-
-@utility badge-danger {
-  @apply bg-danger-subtle text-danger-light border border-danger-default/20;
-}
-
-@utility badge-muted {
-  @apply bg-surface-default text-text-muted border border-border-default;
-}
-
-@utility skeleton {
-  background: linear-gradient(90deg,
-      var(--color-surface-default) 0%,
-      var(--color-surface-hover) 40%,
-      var(--color-surface-default) 80%);
-  background-size: 600px 100%;
-  @apply animate-shimmer rounded-lg;
-}
-
-@utility sidebar-item {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text-secondary border border-transparent transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:text-text-primary hover:shadow-glow-primary-sm;
-}
-
-@utility sidebar-item-active {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-primary-light transition-all duration-200 cursor-pointer select-none bg-primary-subtle backdrop-blur-xl border border-primary-default/20 shadow-glow-primary hover:bg-primary-default/20 hover:text-white hover:border-primary-default/30 active:scale-[0.965] active:-translate-y-px;
-  position: relative;
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 25%;
-    bottom: 25%;
-    width: 3.5px;
-    background: var(--color-primary-light);
-    border-radius: 0 4px 4px 0;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  &:hover::before {
-    top: 15%;
-    bottom: 15%;
-  }
-}
-
-@utility sidebar-parent-active {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer select-none hover:bg-surface-hover/50 hover:shadow-glow-primary-sm;
-  color: var(--color-primary-light);
-  position: relative;
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 35%;
-    bottom: 35%;
-    width: 2.5px;
-    background: var(--color-primary-light);
-    border-radius: 0 3px 3px 0;
-    opacity: 0.5;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  &:hover::before {
-    opacity: 0.8;
-    top: 30%;
-    bottom: 30%;
-  }
-}
-
-@utility gradient-text {
+.gradient-text {
   @apply bg-linear-to-r from-primary-light to-accent-light bg-clip-text text-transparent;
 }
 
-@utility gradient-bg-primary {
+.gradient-bg-primary {
   @apply bg-linear-to-br from-primary to-primary-hover;
 }
 
@@ -494,19 +363,3 @@ tbody tr {
   @apply transition-colors duration-150 hover:bg-surface-default/60;
 }
 
-/* Sidebar ripple effect (tactile click feedback) */
-.sidebar-ripple {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(139, 92, 246, 0.3);
-  transform: scale(0);
-  animation: sidebar-ripple-anim 0.6s linear;
-  pointer-events: none;
-}
-
-@keyframes sidebar-ripple-anim {
-  to {
-    transform: scale(4);
-    opacity: 0;
-  }
-}

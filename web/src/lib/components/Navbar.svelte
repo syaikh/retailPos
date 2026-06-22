@@ -1,4 +1,5 @@
 <script>
+  import Button from '$lib/components/ui/Button.svelte';
   import { auth } from '$lib/stores/auth';
   import { logout } from '$lib/api/auth';
   import { 
@@ -25,7 +26,7 @@
     <div class="user-profile flex items-center gap-4">
       <button class="notif-btn relative bg-transparent text-slate-400 hover:text-white p-2 rounded-lg transition-colors">
         <Bell size={20} />
-        <span class="badge absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-800"></span>
+        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-800"></span>
       </button>
 
       <div class="divider w-px h-8 bg-slate-700"></div>
@@ -41,11 +42,8 @@
         <ChevronDown size={16} class="chevron text-slate-400" />
       </div>
 
-      <button
-        onclick={handleLogout}
-        class="btn btn-sm btn-outline ml-3"
-      >
+      <Button variant="ghost" size="sm" onclick={handleLogout} class="ml-3">
         Logout
-      </button>
+      </Button>
     </div>
 </header>

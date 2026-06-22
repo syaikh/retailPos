@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$lib/api/client';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import { Pencil, Trash2, Check, X, Plus, Search, UserPlus, Loader2 } from 'lucide-svelte';
@@ -8,6 +10,7 @@
   import { toast } from '$lib/stores/toast';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import { debounce } from '$lib/utils/debounce';
 
   const userPermissions = $derived($auth.user?.permissions || []);
@@ -370,13 +373,10 @@
         </button>
       </div>
       {#if canCreate}
-        <button
-          onclick={() => { resetForm(); showCreateModal = true; }}
-          class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5"
-        >
+        <Button onclick={() => { resetForm(); showCreateModal = true; }} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
           <Plus size={18} />
           Add Customer
-        </button>
+        </Button>
       {/if}
     </div>
   </div>
@@ -464,12 +464,12 @@
                     </td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       <div class="flex items-center gap-1">
-                        <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save">
+                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save">
                           <Check size={14} />
-                        </button>
-                        <button class="btn-icon btn-ghost text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel">
+                        </Button>
+                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel">
                           <X size={14} />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -490,22 +490,22 @@
                     <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden">
                       {#if c.is_active !== false}
-                        <span class="badge badge-success text-xs">Active</span>
+                        <Badge variant="success" size="sm">Active</Badge>
                       {:else}
-                        <span class="badge badge-danger text-xs">Inactive</span>
+                        <Badge variant="danger" size="sm">Inactive</Badge>
                       {/if}
                     </td>
                     <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
                       <div class="flex items-center justify-center gap-1">
                         {#if canUpdate}
-                          <button class="btn-icon btn-ghost text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit">
+                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit">
                             <Pencil size={14} />
-                          </button>
+                          </Button>
                         {/if}
                         {#if canDelete && c.is_active !== false}
-                          <button class="btn-icon btn-ghost text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate">
+                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate">
                             <Trash2 size={14} />
-                          </button>
+                          </Button>
                         {/if}
                       </div>
                     </td>
@@ -521,12 +521,12 @@
             <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
             <div class="flex items-center gap-2 ml-auto">
               {#if canUpdate}
-                <button class="btn btn-secondary text-xs px-3 py-1.5 h-auto" onclick={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}>
+                <Button variant="secondary" class="text-xs px-3 py-1.5 h-auto" onclick={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}>
                   Change Status
-                </button>
+                </Button>
               {/if}
               {#if canDelete}
-                <button class="btn btn-danger-subtle text-xs px-3 py-1.5 h-auto" onclick={() => showBulkDeleteModal = true}>Delete</button>
+                <Button variant="danger" class="text-xs px-3 py-1.5 h-auto" onclick={() => showBulkDeleteModal = true}>Delete</Button>
               {/if}
               <button class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
             </div>
@@ -545,10 +545,9 @@
   <div class="space-y-4">
     <div class="space-y-1">
       <label for="customer-name" class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
-      <input
+      <Input
         id="customer-name"
-        class="input"
-        class:border-danger={fieldErrors.name}
+        class={fieldErrors.name ? 'border-danger' : ''}
         placeholder="e.g. John Doe"
         bind:value={formName}
       />
@@ -559,10 +558,9 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
         <label for="customer-phone" class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
-        <input
+        <Input
           id="customer-phone"
-          class="input"
-          class:border-danger={fieldErrors.phone}
+          class={fieldErrors.phone ? 'border-danger' : ''}
           placeholder="e.g. 08123456789"
           bind:value={formPhone}
         />
@@ -572,10 +570,9 @@
       </div>
       <div class="space-y-1">
         <label for="customer-email" class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
-        <input
+        <Input
           id="customer-email"
-          class="input"
-          class:border-danger={fieldErrors.email}
+          class={fieldErrors.email ? 'border-danger' : ''}
           placeholder="e.g. john@example.com"
           bind:value={formEmail}
         />
@@ -586,23 +583,24 @@
     </div>
     <div class="space-y-1">
       <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>
-      <textarea
+      <Input
+        tag="textarea"
         id="customer-note"
-        class="input min-h-[60px] resize-none"
+        class="min-h-[60px] resize-none"
         placeholder="Optional notes about this customer"
         bind:value={formNote}
-      ></textarea>
+      />
     </div>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" onclick={() => showCreateModal = false}>Cancel</button>
-    <button class="btn btn-primary px-5" disabled={creating} onclick={createCustomer}>
+    <Button variant="secondary" class="px-5" onclick={() => showCreateModal = false}>Cancel</Button>
+    <Button variant="primary" class="px-5" disabled={creating} onclick={createCustomer}>
       {#if creating}
         <Loader2 size={14} class="animate-spin mr-1" /> Creating...
       {:else}
         <UserPlus size={14} class="mr-1" /> Create Customer
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -611,14 +609,14 @@
     Are you sure you want to deactivate <strong class="text-text-primary">{deactivateTarget?.name}</strong>? This will hide them from active listings but preserve their history.
   </p>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" onclick={() => { showDeactivateModal = false; deactivateTarget = null; }}>Cancel</button>
-    <button class="btn btn-danger px-5" disabled={deactivating} onclick={confirmDeactivate}>
+    <Button variant="secondary" class="px-5" onclick={() => { showDeactivateModal = false; deactivateTarget = null; }}>Cancel</Button>
+    <Button variant="danger" class="px-5" disabled={deactivating} onclick={confirmDeactivate}>
       {#if deactivating}
         <Loader2 size={14} class="animate-spin mr-1" /> Deactivating...
       {:else}
         <Trash2 size={14} class="mr-1" /> Deactivate
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -642,14 +640,14 @@
     </div>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</button>
-    <button class="btn btn-primary px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
+    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</Button>
+    <Button variant="primary" class="px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
       {#if isBulkUpdating}
         <Loader2 size={14} class="animate-spin mr-1" /> Updating...
       {:else}
         Update
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -662,13 +660,13 @@
     <p class="text-text-muted text-sm">This will permanently remove them from the active customer list. Their transaction history will be preserved.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" disabled={isBulkDeleting} onclick={() => showBulkDeleteModal = false}>Cancel</button>
-    <button class="btn btn-danger px-5" disabled={isBulkDeleting} onclick={handleBulkDelete}>
+    <Button variant="secondary" class="px-5" disabled={isBulkDeleting} onclick={() => showBulkDeleteModal = false}>Cancel</Button>
+    <Button variant="danger" class="px-5" disabled={isBulkDeleting} onclick={handleBulkDelete}>
       {#if isBulkDeleting}
         <Loader2 size={14} class="animate-spin mr-1" /> Deleting...
       {:else}
         Delete
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>

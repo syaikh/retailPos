@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import { Loader2 } from 'lucide-svelte';
 
@@ -34,11 +36,10 @@
     {/if}
     <div>
       <label for="adjust-qty" class="block text-sm font-medium text-text-secondary mb-2">Quantity Change</label>
-      <input
+      <Input
         id="adjust-qty"
         type="number"
         bind:value={stockAdjustForm.quantity_change}
-        class="input"
         placeholder="e.g., +10 or -5"
         required
       />
@@ -46,21 +47,20 @@
     </div>
     <div>
       <label for="adjust-notes" class="block text-sm font-medium text-text-secondary mb-2">Notes <span class="text-destructive">*</span></label>
-      <input
+      <Input
         id="adjust-notes"
         type="text"
         bind:value={stockAdjustForm.notes}
-        class="input"
         placeholder="Reason for adjustment (required)"
         required
       />
     </div>
   </form>
   {#snippet footer()}
-    <button class="btn btn-secondary px-5" disabled={adjustingStock} onclick={onCancel}>Cancel</button>
-    <button class="btn btn-primary px-5" disabled={adjustingStock} onclick={onSubmit}>
+    <Button variant="secondary" class="px-5" disabled={adjustingStock} onclick={onCancel}>Cancel</Button>
+    <Button variant="primary" class="px-5" disabled={adjustingStock} onclick={onSubmit}>
       {#if adjustingStock}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       Adjust Stock
-    </button>
+    </Button>
   {/snippet}
 </Modal>

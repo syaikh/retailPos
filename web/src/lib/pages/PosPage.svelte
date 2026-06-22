@@ -8,6 +8,9 @@
    import { getTodayInJakarta } from '$lib/utils/jakartaTime';
    import type { Sale, SaleItem, Customer } from '$lib/types';
 
+   import Button from '$lib/components/ui/Button.svelte';
+   import Input from '$lib/components/ui/Input.svelte';
+   import Skeleton from '$lib/components/ui/Skeleton.svelte';
    import SearchBar from '$lib/components/ui/SearchBar.svelte';
    import Badge from '$lib/components/ui/Badge.svelte';
    import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -455,10 +458,10 @@
           <div class="flex-1 overflow-y-auto">
             {#each { length: 8 } as _}
               <div class="flex items-center gap-4 px-4 py-3 border-b border-border">
-                <div class="skeleton h-4 w-40"></div>
-                <div class="skeleton h-4 w-20 ml-auto"></div>
-                <div class="skeleton h-4 w-16"></div>
-                <div class="skeleton h-7 w-14 rounded-xl"></div>
+                <Skeleton width="w-40" height="h-4" />
+                <Skeleton width="w-20" height="h-4" class="ml-auto" />
+                <Skeleton width="w-16" height="h-4" />
+                <Skeleton width="w-14" height="h-7" rounded="rounded-xl" />
               </div>
             {/each}
           </div>
@@ -535,13 +538,14 @@
                       {product.price?.toLocaleString('id-ID')}
                     </td>
                     <td class="p-4 text-right w-20">
-                      <button
-                        class="btn btn-primary btn-sm"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onclick={() => addToCart(product)}
                         disabled={product.stock === 0}
                       >
                         <Plus size={14} /> Add
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 {/each}
@@ -563,15 +567,15 @@
             <ShoppingCart size={18} class="text-primary-light" />
             <span class="font-semibold text-text-primary">Cart</span>
             {#if totalItems > 0}
-              <span class="badge badge-primary">{totalItems}</span>
+              <Badge variant="primary" size="sm">{totalItems}</Badge>
             {/if}
           </div>
           {#if cart.length > 0}
             <div class="flex items-center gap-1">
               <kbd class="px-1 py-0.5 text-[10px] font-medium text-danger/60 bg-danger-subtle/30 rounded border border-danger/20 select-none">ALT+DEL</kbd>
-              <button onclick={clearCart} class="btn btn-ghost btn-icon btn-sm text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]">
+              <Button onclick={clearCart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]">
                 <X size={14} />
-              </button>
+              </Button>
             </div>
           {/if}
         </div>
@@ -690,14 +694,15 @@
 
            <div>
              <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
-             <button class="btn btn-secondary w-full justify-between" onclick={() => (showCustomerModal = true)}>
-               <span class="truncate">{selectedCustomerLabel}</span>
-               <Search size={14} />
-             </button>
+             <Button variant="secondary" class="w-full justify-between" onclick={() => (showCustomerModal = true)}>
+                <span class="truncate">{selectedCustomerLabel}</span>
+                <Search size={14} />
+              </Button>
            </div>
 
-           <button
-             class="btn btn-success w-full py-3"
+           <Button
+             variant="success"
+             class="w-full py-3"
              onclick={openCheckoutModal}
             disabled={checkingOut || cart.length === 0}
           >
@@ -708,10 +713,11 @@
               <Wallet size={16} />
               Bayar [F4] · Rp {totalAmount.toLocaleString('id-ID')}
             {/if}
-          </button>
+          </Button>
 
-           <button
-             class="btn btn-ghost w-full py-2 mt-2"
+           <Button
+             variant="ghost"
+             class="w-full py-2 mt-2"
              onclick={printReceipt}
              disabled={!lastSale || !lastSale.invoice_number}
            >
@@ -721,7 +727,7 @@
              {:else}
                Print Last Receipt
              {/if}
-           </button>
+           </Button>
         </div>
       </div>
     </div>
@@ -784,10 +790,10 @@
 
       <div class="mb-4">
         <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
-        <button class="btn btn-secondary w-full justify-between text-sm" onclick={() => { showCheckoutModal = false; showCustomerModal = true; }}>
+        <Button variant="secondary" class="w-full justify-between text-sm" onclick={() => { showCheckoutModal = false; showCustomerModal = true; }}>
           <span class="truncate">{selectedCustomerLabel}</span>
           <Search size={14} />
-        </button>
+        </Button>
       </div>
 
       {#if paymentMethod === 'Cash'}
@@ -800,7 +806,7 @@
             type="text"
             inputmode="numeric"
             bind:value={cashReceived}
-            class="input text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
         </div>
@@ -843,7 +849,7 @@
             type="text"
             inputmode="numeric"
             bind:value={cashReceived}
-            class="input text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
         </div>
@@ -867,20 +873,22 @@
       {/if}
 
       <div class="flex gap-3 mt-6">
-        <button
-          class="btn btn-secondary flex-1"
+        <Button
+          variant="secondary"
+          class="flex-1"
           onclick={closeCheckoutModal}
         >
           Batal [F3]
-        </button>
-        <button
-          class="btn btn-success flex-1"
+        </Button>
+        <Button
+          variant="success"
+          class="flex-1"
           disabled={cart.length === 0 || changeDue < 0}
           onclick={finalizeSale}
         >
           <Check size={16} />
           Selesai &amp; Cetak [Enter]
-        </button>
+        </Button>
       </div>
     </div>
   </div>
@@ -896,7 +904,7 @@
           <X size={18} />
         </button>
       </div>
-      <input class="input w-full mb-3" placeholder="Search by phone or name..." bind:value={customerSearch} />
+      <Input class="w-full mb-3" placeholder="Search by phone or name..." bind:value={customerSearch} />
       {#if customerSearching}
         <p class="text-sm text-text-muted mb-2">Searching...</p>
       {/if}

@@ -5,8 +5,10 @@
   import { toast } from '$lib/stores/toast';
   import { auth } from '$lib/stores/auth';
 
+  import Button from '$lib/components/ui/Button.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -379,12 +381,12 @@
         </div>
         {#if canEdit}
           <div class="flex items-center gap-2 shrink-0">
-            <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={() => { fetchData(); closeAll(); }} disabled={loading}>
+            <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={() => { fetchData(); closeAll(); }} disabled={loading}>
               <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
-            </button>
-            <button class="btn btn-primary shadow-glow-primary-sm px-5 h-10" onclick={openAdd}>
+            </Button>
+            <Button variant="primary" class="shadow-glow-primary-sm px-5 h-10" onclick={openAdd}>
               <Plus size={16} class="mr-1.5" /> Create Role
-            </button>
+            </Button>
           </div>
         {/if}
       </div>
@@ -400,7 +402,7 @@
             <p class="text-sm font-medium text-danger-light">{loadError}</p>
             <p class="text-xs text-text-muted mt-0.5">Check your connection and try again.</p>
           </div>
-          <button class="btn btn-secondary text-sm px-3 py-1.5" onclick={fetchData}>Retry</button>
+          <Button variant="secondary" class="text-sm px-3 py-1.5" onclick={fetchData}>Retry</Button>
         </div>
       </div>
     {/if}
@@ -444,9 +446,9 @@
         </p>
         {#if canEdit}
           {#if roleSearchDebounced || filterType !== 'all'}
-            <button class="btn btn-secondary mt-4 text-sm" onclick={clearFilters}>Clear Filters</button>
+            <Button variant="secondary" class="mt-4 text-sm" onclick={clearFilters}>Clear Filters</Button>
           {:else}
-            <button class="btn btn-primary mt-4 text-sm shadow-glow-primary-sm" onclick={openAdd}><Plus size={14} class="mr-1" /> Create First Role</button>
+            <Button variant="primary" class="mt-4 text-sm shadow-glow-primary-sm" onclick={openAdd}><Plus size={14} class="mr-1" /> Create First Role</Button>
           {/if}
         {/if}
       </div>
@@ -545,12 +547,12 @@
     {#if modalStep === 1}
       <div>
         <label for="role-name" class="block text-sm font-medium text-text-secondary mb-1.5">Role Name <span class="text-danger-light">*</span></label>
-        <input id="role-name" type="text" placeholder="e.g. manager" class="input" class:border-danger={nameErrorText} bind:value={form.name} onblur={() => nameTouched = true} aria-invalid={!!nameErrorText} aria-describedby={nameErrorText ? 'role-name-error' : undefined} />
+        <Input id="role-name" type="text" placeholder="e.g. manager" class={nameErrorText ? 'border-danger' : ''} bind:value={form.name} onblur={() => nameTouched = true} aria-invalid={!!nameErrorText} aria-describedby={nameErrorText ? 'role-name-error' : undefined} />
         {#if nameErrorText}<p id="role-name-error" class="text-xs text-danger mt-1.5" role="alert">{nameErrorText}</p>{/if}
       </div>
       <div>
         <label for="role-desc" class="block text-sm font-medium text-text-secondary mb-1.5">Description</label>
-        <input id="role-desc" type="text" placeholder="Short description of this role" class="input" bind:value={form.description} />
+        <Input id="role-desc" type="text" placeholder="Short description of this role" bind:value={form.description} />
         <p class="text-xs text-text-muted mt-1">Optional. Helps identify the role's purpose.</p>
       </div>
     {:else}
@@ -614,15 +616,15 @@
   </div>
   {#snippet footer()}
     <div class="flex items-center justify-between w-full">
-      <div>{#if modalStep === 2}<button class="btn btn-ghost text-sm" onclick={() => modalStep = 1} disabled={saving}>← Back</button>{/if}</div>
+      <div>{#if modalStep === 2}<Button variant="ghost" size="sm" onclick={() => modalStep = 1} disabled={saving}>← Back</Button>{/if}</div>
       <div class="flex items-center gap-2">
-        <button class="btn btn-secondary" onclick={requestClose} disabled={saving}>Cancel</button>
+        <Button variant="secondary" onclick={requestClose} disabled={saving}>Cancel</Button>
         {#if modalStep === 1}
-          <button class="btn btn-primary min-w-28" onclick={proceedToPermissions} disabled={!form.name.trim()}>Next →</button>
+          <Button variant="primary" class="min-w-28" onclick={proceedToPermissions} disabled={!form.name.trim()}>Next →</Button>
         {:else}
-          <button class="btn btn-primary min-w-32" onclick={saveRole} disabled={saving || !!nameErrorText} aria-busy={saving}>
+          <Button variant="primary" class="min-w-32" onclick={saveRole} disabled={saving || !!nameErrorText} aria-busy={saving}>
             {#if saving}<Loader2 size={16} class="animate-spin" /> Saving...{:else}{modalMode === 'add' ? 'Create Role' : 'Save Changes'}{/if}
-          </button>
+          </Button>
         {/if}
       </div>
     </div>
@@ -637,7 +639,7 @@
     <p class="text-text-primary font-semibold mb-1">You have unsaved changes</p>
     <p class="text-text-muted text-sm">Your permission selections will be lost if you close without saving.</p>
   </div>
-  {#snippet footer()}<button class="btn btn-secondary" onclick={cancelDiscard}>Keep Editing</button><button class="btn btn-danger" onclick={confirmDiscard}>Discard</button>{/snippet}
+  {#snippet footer()}<Button variant="secondary" onclick={cancelDiscard}>Keep Editing</Button><Button variant="danger" onclick={confirmDiscard}>Discard</Button>{/snippet}
 </Modal>
 
 <!-- Delete Confirmation -->
@@ -647,7 +649,7 @@
     <p class="text-text-primary font-semibold mb-1">Delete role "{selectedRole?.name}"?</p>
     <p class="text-text-muted text-sm">This action cannot be undone. Make sure no users are currently assigned to this role before deleting.</p>
   </div>
-  {#snippet footer()}<button class="btn btn-secondary" onclick={() => { showDeleteModal = false; selectedRole = null; }}>Cancel</button><button class="btn btn-danger" onclick={confirmDelete}>Delete</button>{/snippet}
+  {#snippet footer()}<Button variant="secondary" onclick={() => { showDeleteModal = false; selectedRole = null; }}>Cancel</Button><Button variant="danger" onclick={confirmDelete}>Delete</Button>{/snippet}
 </Modal>
 
 <!-- Role Detail Drawer -->
@@ -715,26 +717,29 @@
       <div class="absolute bottom-0 left-0 right-0 p-4 bg-surface-default border-t border-border/50">
         <div class="flex items-center gap-3">
           {#if canEdit}
-            <button
-              class="flex-1 btn btn-secondary rounded-xl px-4 h-11 text-sm font-semibold text-text-secondary border border-border hover:border-primary hover:text-primary hover:bg-primary-subtle transition-all duration-200"
+            <Button
+              variant="secondary"
+              class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-text-secondary border border-border hover:border-primary hover:text-primary hover:bg-primary-subtle transition-all duration-200"
               onclick={() => { showRoleDrawer = false; closeAll(); openDuplicate(selectedRole); }}
             >
               <Copy size={15} class="mr-1.5" />Duplicate
-            </button>
-            <button
-              class="flex-1 btn btn-primary rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm transition-all duration-200"
+            </Button>
+            <Button
+              variant="primary"
+              class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm transition-all duration-200"
               onclick={() => { showRoleDrawer = false; closeAll(); openEdit(selectedRole); }}
             >
               <Pencil size={15} class="mr-1.5" />Edit
-            </button>
+            </Button>
           {/if}
           {#if canDelete && !selectedRole.is_system}
-            <button
-              class="btn btn-danger rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-200"
+            <Button
+              variant="danger"
+              class="rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-200"
               onclick={() => { showRoleDrawer = false; showDeleteModal = true; }}
             >
               <Trash2 size={15} class="mr-1.5" />Delete
-            </button>
+            </Button>
           {/if}
         </div>
       </div>

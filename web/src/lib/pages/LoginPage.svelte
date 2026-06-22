@@ -1,4 +1,6 @@
 <script>
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import { goto } from '$lib/router';
   import { login } from '$lib/api/auth';
   import { auth } from '$lib/stores/auth';
@@ -99,11 +101,11 @@
       <form onsubmit={handleLogin} class="space-y-5">
         <div>
           <label for="username" class="block text-sm font-medium text-text-secondary mb-2">Username</label>
-          <input
+          <Input
             id="username"
             type="text"
             placeholder="Enter your username"
-            class="input bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
+            class="bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
             bind:value={username}
             disabled={loading}
             autocomplete="username"
@@ -113,11 +115,11 @@
         <div>
           <label for="password" class="block text-sm font-medium text-text-secondary mb-2">Password</label>
           <div class="relative">
-            <input
+            <Input
               id="password"
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
-              class="input pr-11 bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
+              class="pr-11 bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
               bind:value={password}
               disabled={loading}
               autocomplete="current-password"
@@ -144,18 +146,14 @@
           </div>
         {/if}
 
-        <button
-          type="submit"
-          class="btn btn-primary w-full py-3.5 text-base mt-2 shadow-glow-primary hover:-translate-y-0.5 active:scale-95 transition-all"
-          disabled={loading}
-        >
+        <Button variant="primary" type="submit" class="w-full py-3.5 text-base mt-2 shadow-glow-primary hover:-translate-y-0.5 active:scale-95 transition-all" disabled={loading}>
           {#if loading}
             <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             Signing in…
           {:else}
             Sign In
           {/if}
-        </button>
+        </Button>
       </form>
 
       <p class="text-xs text-text-muted text-center mt-8">

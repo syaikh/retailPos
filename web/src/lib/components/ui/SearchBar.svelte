@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '$lib/components/ui/Input.svelte';
   import { Search, X, Loader2 } from 'lucide-svelte';
 
   let {
@@ -40,13 +41,13 @@
 
 <div class="relative {className}" role="search">
   <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none shrink-0" />
-  <input
+  <Input
     type="text"
     {placeholder}
     bind:value
     onkeydown={handleKeydown}
     oninput={() => oninput?.()}
-    class="input pl-10 pr-10 w-full {inputClass}"
+    class="pl-10 pr-10 w-full {inputClass}"
     bind:this={inputEl}
     {id}
     autocomplete="off"

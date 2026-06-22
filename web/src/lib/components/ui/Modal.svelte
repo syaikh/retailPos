@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from '$lib/components/ui/Button.svelte';
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
@@ -102,22 +103,14 @@
       {#if title}
         <div class="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 class="text-base font-semibold text-text-primary">{title}</h2>
-          <button
-            onclick={() => open = false}
-            class="btn-icon btn-ghost text-text-muted hover:text-text-primary"
-            aria-label="Close modal"
-          >
+          <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={() => open = false} aria-label="Close modal">
             <X size={18} />
-          </button>
+          </Button>
         </div>
       {:else}
-        <button
-          onclick={() => open = false}
-          class="btn-icon btn-ghost text-text-muted hover:text-text-primary absolute top-4 right-4"
-          aria-label="Close modal"
-        >
+        <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary absolute top-4 right-4" onclick={() => open = false} aria-label="Close modal">
           <X size={18} />
-        </button>
+        </Button>
       {/if}
 
       <!-- Body -->

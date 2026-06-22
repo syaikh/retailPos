@@ -166,7 +166,7 @@
     {#each visibleNavItems as item}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
-        class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-current={isActive(item.href) ? 'page' : undefined}
         aria-label={collapsed ? item.label : undefined}
         title={collapsed ? item.label : ''}
@@ -190,7 +190,7 @@
         {/if}
         <button
           onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
-          class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+          class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
           aria-expanded={masterDataExpanded}
           aria-controls="sidebar-section-master-data"
           aria-label={collapsed ? 'Master Data' : undefined}
@@ -208,7 +208,7 @@
             {#each visibleMasterDataSubItems as subItem}
               <button
                 onclick={(e) => { createRipple(e, e.currentTarget); navigate(subItem.href); }}
-                class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+                class={isActive(subItem.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9' : 'sidebar-item w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9'}
                 aria-current={isActive(subItem.href) ? 'page' : undefined}
               >
                 <subItem.icon size={16} class="shrink-0" />
@@ -228,7 +228,7 @@
       {/if}
       <button
         onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) adminExpanded = !adminExpanded; else navigate('/admin/users'); }}
-        class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden' : 'sidebar-item w-full text-left relative overflow-hidden'}
+        class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-expanded={adminExpanded}
         aria-controls="sidebar-section-admin"
         aria-label={collapsed ? 'Administration' : undefined}
@@ -246,7 +246,7 @@
           {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
             <button
               onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
-              class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden pl-9' : 'sidebar-item w-full text-left relative overflow-hidden pl-9'}
+              class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9' : 'sidebar-item w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9'}
               aria-current={isActive(item.href) ? 'page' : undefined}
             >
               <item.icon size={16} class="shrink-0" />
@@ -285,7 +285,7 @@
     {#if collapsed}
       <button
         onclick={handleLogout}
-        class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle"
+        class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle px-3 py-2.5"
         title="Logout"
         aria-label="Logout"
       >
@@ -296,7 +296,7 @@
     <!-- Collapse toggle -->
     <button
       onclick={() => collapsed = !collapsed}
-      class="sidebar-item w-full justify-center text-text-muted"
+      class="sidebar-item w-full justify-center text-text-muted px-3 py-2.5"
       title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     >
@@ -309,3 +309,128 @@
     </button>
   </div>
 </aside>
+
+<style>
+  :global(.sidebar-item) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    border: 1px solid transparent;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    user-select: none;
+  }
+  :global(.sidebar-item:hover) {
+    background-color: color-mix(in srgb, var(--color-surface-hover) 50%, transparent);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-glow-primary-sm);
+  }
+
+  :global(.sidebar-item-active) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: var(--color-primary-light);
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--color-primary-subtle);
+    backdrop-filter: blur(24px);
+    border: 1px solid color-mix(in srgb, var(--color-primary-default) 20%, transparent);
+    box-shadow: var(--shadow-glow-primary);
+    position: relative;
+  }
+  :global(.sidebar-item-active:hover) {
+    background-color: color-mix(in srgb, var(--color-primary-default) 20%, transparent);
+    color: white;
+    border-color: color-mix(in srgb, var(--color-primary-default) 30%, transparent);
+  }
+  :global(.sidebar-item-active:active) {
+    transform: scale(0.965) translateY(-1px);
+  }
+
+  :global(.sidebar-item-active::before) {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 25%;
+    bottom: 25%;
+    width: 3.5px;
+    background: var(--color-primary-light);
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :global(.sidebar-item-active:hover::before) {
+    top: 15%;
+    bottom: 15%;
+  }
+
+  :global(.sidebar-parent-active) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    user-select: none;
+    color: var(--color-primary-light);
+    position: relative;
+  }
+  :global(.sidebar-parent-active:hover) {
+    background-color: color-mix(in srgb, var(--color-surface-hover) 50%, transparent);
+    box-shadow: var(--shadow-glow-primary-sm);
+  }
+
+  :global(.sidebar-parent-active::before) {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 35%;
+    bottom: 35%;
+    width: 2.5px;
+    background: var(--color-primary-light);
+    border-radius: 0 3px 3px 0;
+    opacity: 0.5;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :global(.sidebar-parent-active:hover::before) {
+    opacity: 0.8;
+    top: 30%;
+    bottom: 30%;
+  }
+
+  :global(.sidebar-ripple) {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(139, 92, 246, 0.3);
+    transform: scale(0);
+    animation: sidebar-ripple-anim 0.6s linear;
+    pointer-events: none;
+  }
+
+  @keyframes sidebar-ripple-anim {
+    to {
+      transform: scale(4);
+      opacity: 0;
+    }
+  }
+</style>

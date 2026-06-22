@@ -8,8 +8,10 @@
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS, formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta } from '$lib/utils/jakartaTime';
 
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
   import ActionBadge from '$lib/components/ui/ActionBadge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   import SearchBar from '$lib/components/ui/SearchBar.svelte';
   import {
     Search, ScrollText, RefreshCw, X, Download,
@@ -652,38 +654,41 @@
         </div>
 
         <div class="relative shrink-0 date-picker-container">
-          <button
-            class="date-picker-trigger btn btn-secondary flex items-center gap-2 min-w-44"
+          <Button
+            variant="secondary"
+            class="date-picker-trigger flex items-center gap-2 min-w-44"
             onclick={() => showDatePicker = !showDatePicker}
           >
             <CalendarDays size={16} class="text-text-secondary shrink-0" />
             <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
             <ChevronDown size={14} class="opacity-60 shrink-0" />
-          </button>
+          </Button>
           {#if showDatePicker}
             <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64">
               <div class="flex flex-wrap gap-1 mb-3">
                 {#each datePresets as preset}
-                  <button
-                    class="btn btn-ghost btn-xs"
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onclick={() => applyDatePreset(preset.rangeId)}
                   >
                     {preset.label}
-                  </button>
+                  </Button>
                 {/each}
               </div>
               <div class="flex items-center gap-2 text-xs">
-                <input type="date" bind:value={customStartDate} class="input input-sm w-full" min={ninetyDaysAgo} max={customEndDate || today} />
+                <Input type="date" bind:value={customStartDate} class="w-full" min={ninetyDaysAgo} max={customEndDate || today} />
                 <span class="text-text-muted">—</span>
-                <input type="date" bind:value={customEndDate} class="input input-sm w-full" min={customStartDate || ninetyDaysAgo} max={today} />
+                <Input type="date" bind:value={customEndDate} class="w-full" min={customStartDate || ninetyDaysAgo} max={today} />
               </div>
               <div class="flex justify-end mt-2">
-                <button
-                  class="btn btn-primary btn-xs"
+                <Button
+                  variant="primary"
+                  size="xs"
                   onclick={applyCustomDateRange}
                 >
                   Apply
-                </button>
+                </Button>
               </div>
             </div>
           {/if}
@@ -733,13 +738,14 @@
           {/if}
         </div>
 
-        <button title="Refresh" class="btn btn-secondary px-3 h-10" onclick={fetchLogs}>
+        <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={fetchLogs}>
           <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
-        </button>
+        </Button>
         <!-- Export Dropdown -->
         <div class="relative export-dropdown">
-          <button
-            class="btn btn-primary flex items-center gap-2 transition-all duration-300 h-10"
+          <Button
+            variant="primary"
+            class="flex items-center gap-2 transition-all duration-300 h-10"
             onclick={(e) => {
               e.stopPropagation();
               showExportDropdown = !showExportDropdown;
@@ -753,7 +759,7 @@
               size={14}
               class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
             />
-          </button>
+          </Button>
           {#if showExportDropdown}
             <div
               class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
@@ -859,7 +865,7 @@
           <p class="text-text-muted text-sm mt-1 max-w-sm">
             Try adjusting your filters or search terms to find what you're looking for.
           </p>
-          <button class="btn btn-secondary mt-6" onclick={clearAllFilters}> Clear Filters </button>
+          <Button variant="secondary" class="mt-6" onclick={clearAllFilters}> Clear Filters </Button>
         </div>
       {:else}
         <div class="card p-0 overflow-hidden">

@@ -3,6 +3,7 @@
   import { fly } from 'svelte/transition';
   import { apiFetch } from '$lib/api/client';
   import { toast } from '$lib/stores/toast';
+import Button from '$lib/components/ui/Button.svelte';
 import { chart } from '$lib/actions/chart';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaDayOfWeek } from '$lib/utils/jakartaTime';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -1551,8 +1552,9 @@ async function fetchSales() {
     
     <!-- Unified Period Dropdown Trigger -->
     <div class="relative">
-      <button
-        class="btn btn-secondary flex items-center gap-2"
+      <Button
+        variant="secondary"
+        class="flex items-center gap-2"
         onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
         aria-haspopup="menu"
         aria-expanded={dropdownOpen}
@@ -1563,7 +1565,7 @@ async function fetchSales() {
           size={14}
           class="transition-transform duration-300 {dropdownOpen ? 'rotate-180' : ''}"
         />
-      </button>
+      </Button>
 
       {#if dropdownOpen}
         <div
@@ -1824,8 +1826,9 @@ onValueChange={(val) => {
     
     <!-- Export Dropdown -->
     <div class="ml-auto relative">
-      <button
-        class="btn btn-primary flex items-center gap-2 transition-all duration-300"
+      <Button
+        variant="primary"
+        class="flex items-center gap-2 transition-all duration-300"
         onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
         aria-haspopup="menu"
         aria-expanded={showExportDropdown}
@@ -1836,7 +1839,7 @@ onValueChange={(val) => {
           size={14} 
           class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" 
         />
-      </button>
+      </Button>
       {#if showExportDropdown}
         <div 
           class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5" 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cn } from '$lib/utils/cn';
   import type { Snippet } from 'svelte';
 
   let {
@@ -13,7 +14,9 @@
     children: Snippet;
   } = $props();
 
-  const variants = {
+  const base = 'inline-flex items-center gap-1.5 rounded-full font-semibold';
+
+  const variants: Record<string, string> = {
     default: 'bg-info-subtle text-info-light shadow-[0_0_12px_rgba(14,165,233,0.15)]',
     success: 'bg-success-subtle text-success-light shadow-[0_0_12px_rgba(16,185,129,0.15)]',
     warning: 'bg-warning-subtle text-warning-light shadow-[0_0_12px_rgba(245,158,11,0.15)]',
@@ -23,12 +26,12 @@
     muted: 'bg-surface-default text-text-muted border border-border-default'
   };
 
-  const sizes = {
+  const sizes: Record<string, string> = {
     sm: 'px-2 py-0.5 text-xs',
     md: 'px-3 py-1 text-sm'
   };
 </script>
 
-<span class="{variants[variant]} {sizes[size]} {className} rounded-full font-medium">
+<span class={cn(base, variants[variant], sizes[size], className)}>
   {@render children()}
 </span>

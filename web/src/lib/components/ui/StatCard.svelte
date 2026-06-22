@@ -1,4 +1,7 @@
 <script>
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+
   let {
     label,
     value,
@@ -26,8 +29,8 @@
 
     <div class="flex-1 min-w-0 text-left">
       {#if loading}
-        <div class="skeleton h-12 w-56 mb-2"></div>
-        <div class="skeleton h-6 w-44"></div>
+        <Skeleton width="w-56" height="h-12" class="mb-2" />
+        <Skeleton width="w-44" height="h-6" />
       {:else}
         <p class="text-4xl font-bold text-text-primary leading-none truncate transition-all duration-300 {valueClass}">{value}</p>
         {#if displayTrend && trend !== null}
@@ -41,9 +44,9 @@
       {/if}
 
       {#if trend !== null && !displayTrend}
-        <span class="inline-flex items-center text-sm font-semibold px-3 py-1 rounded-full mt-2 border border-border/70 {trendUp ? 'badge-success' : trendDown ? 'badge-danger' : 'badge-muted'}">
+        <Badge variant={trendUp ? 'success' : trendDown ? 'danger' : 'muted'} size="md" class="mt-2 border">
           {trendUp ? '↑' : trendDown ? '↓' : '—'} {trend ? Math.abs(trend) : 0}%
-        </span>
+        </Badge>
       {/if}
     </div>
   </div>

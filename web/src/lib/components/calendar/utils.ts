@@ -1,6 +1,6 @@
 import { type DateValue, CalendarDate } from "@internationalized/date";
-
-export const cn = (...args: any[]) => args.filter(Boolean).join(" ");
+import { cn } from "$lib/utils/cn";
+export { cn };
 
 export type Theme = {
   bg?: string;

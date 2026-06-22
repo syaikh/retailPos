@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from '$lib/components/ui/Button.svelte';
   import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-svelte';
 
   let { 
@@ -103,24 +104,12 @@
 
   <!-- Navigation -->
   <div class="flex items-center gap-1">
-    <button
-      class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
-      onclick={() => goToPage(1)}
-      disabled={!canPrev}
-      title="First Page"
-      aria-label="First page"
-    >
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(1)} disabled={!canPrev} title="First Page" aria-label="First page">
       <ChevronsLeft size={18} />
-    </button>
-    <button
-      class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
-      onclick={() => goToPage(currentPage - 1)}
-      disabled={!canPrev}
-      title="Previous"
-      aria-label="Previous page"
-    >
+    </Button>
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage - 1)} disabled={!canPrev} title="Previous" aria-label="Previous page">
       <ChevronLeft size={18} />
-    </button>
+    </Button>
     
     {#if editing}
       <label for="page-input" class="sr-only">Go to page</label>
@@ -148,23 +137,11 @@
       </button>
     {/if}
 
-    <button
-      class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
-      onclick={() => goToPage(currentPage + 1)}
-      disabled={!canNext}
-      title="Next"
-      aria-label="Next page"
-    >
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage + 1)} disabled={!canNext} title="Next" aria-label="Next page">
       <ChevronRight size={18} />
-    </button>
-    <button
-      class="btn-icon btn-ghost p-1.5 disabled:opacity-30"
-      onclick={() => goToPage(totalPages)}
-      disabled={!canNext}
-      title="Last Page"
-      aria-label="Last page"
-    >
+    </Button>
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(totalPages)} disabled={!canNext} title="Last Page" aria-label="Last page">
       <ChevronsRight size={18} />
-    </button>
+    </Button>
   </div>
 </div>

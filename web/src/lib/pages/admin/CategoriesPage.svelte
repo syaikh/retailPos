@@ -6,6 +6,8 @@
   import { auth } from '$lib/stores/auth';
   import { formatDateInJakarta } from '$lib/utils/jakartaTime';
 
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Pagination from '$lib/components/ui/Pagination.svelte';
@@ -224,10 +226,10 @@ let canView = $derived($auth.user != null);
         <SearchBar bind:value={searchQuery} placeholder="Search by name or slug..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <button class="btn btn-primary shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
           <Plus size={18} />
           Tambah Kategori
-        </button>
+        </Button>
       {/if}
     </div>
   </div>
@@ -324,23 +326,27 @@ let canView = $derived($auth.user != null);
               <td class="p-4 w-20">
                 <div class="flex items-center justify-center gap-2">
                   {#if canEdit}
-                    <button
-                      class="btn-icon btn-ghost text-text-muted hover:text-primary-light"
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="text-text-muted hover:text-primary-light"
                       title="Edit"
                       onclick={() => openEdit(cat)}
                     >
                       <Pencil size={14} />
-                    </button>
+                    </Button>
                   {/if}
                   {#if canDelete}
-                    <button
-                      class="btn-icon btn-ghost {cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="{cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}"
                       onclick={() => openDelete(cat)}
                       disabled={cat.product_count > 0}
                       title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </Button>
                   {/if}
                   {#if !canEdit && !canDelete}
                     <span class="text-xs text-text-muted">—</span>
@@ -366,11 +372,11 @@ let canView = $derived($auth.user != null);
   <form onsubmit={(e) => { e.preventDefault(); saveCategory(); }} class="space-y-4">
     <div>
       <label for="cat-name" class="block text-sm font-medium text-text-secondary mb-2">Nama Kategori <span class="text-danger">*</span></label>
-      <input id="cat-name" type="text" placeholder="Contoh: Makanan Bayi" class="input" bind:value={form.name} required />
+      <Input id="cat-name" type="text" placeholder="Contoh: Makanan Bayi" bind:value={form.name} required />
     </div>
     <div>
       <label for="cat-desc" class="block text-sm font-medium text-text-secondary mb-2">Deskripsi <span class="text-text-muted text-xs">(opsional)</span></label>
-      <textarea id="cat-desc" placeholder="Deskripsi singkat kategori…" class="input min-h-[80px] resize-y" bind:value={form.description}></textarea>
+      <Input tag="textarea" id="cat-desc" placeholder="Deskripsi singkat kategori…" class="min-h-[80px] resize-y" bind:value={form.description} />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
@@ -388,14 +394,14 @@ let canView = $derived($auth.user != null);
     {/if}
   </form>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showModal = false} disabled={saving}>Batal</button>
-    <button class="btn btn-primary min-w-32" onclick={saveCategory} disabled={saving}>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="primary" class="min-w-32" onclick={saveCategory} disabled={saving}>
       {#if saving}
         <Loader2 size={16} class="animate-spin" /> Menyimpan...
       {:else}
         {modalMode === 'add' ? 'Tambah Kategori' : 'Simpan Perubahan'}
       {/if}
-    </button>
+    </Button>
   {/snippet}
 </Modal>
 
@@ -409,7 +415,7 @@ let canView = $derived($auth.user != null);
     <p class="text-text-muted text-sm">Kategori ini akan dihapus secara permanen dan tidak dapat dikembalikan.</p>
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary" onclick={() => showDeleteModal = false}>Batal</button>
-    <button class="btn btn-danger" onclick={confirmDelete}>Hapus</button>
+    <Button variant="secondary" onclick={() => showDeleteModal = false}>Batal</Button>
+    <Button variant="danger" onclick={confirmDelete}>Hapus</Button>
   {/snippet}
 </Modal>
