@@ -112,9 +112,13 @@ func main() {
 		protected.DELETE("/products/:id", middleware.RequirePermission("product:delete"), h.DeleteProduct)
 		protected.POST("/products/bulk/status", middleware.RequirePermission("product:update"), h.BulkUpdateProductStatus)
 
-		protected.POST("/brands", h.CreateBrand)
-		protected.PUT("/brands/:id", h.UpdateBrand)
-		protected.DELETE("/brands/:id", h.DeleteBrand)
+		protected.POST("/brands", middleware.RequirePermission("product:create"), h.CreateBrand)
+		protected.PUT("/brands/:id", middleware.RequirePermission("product:update"), h.UpdateBrand)
+		protected.DELETE("/brands/:id", middleware.RequirePermission("product:delete"), h.DeleteBrand)
+
+		protected.POST("/units-of-measure", middleware.RequirePermission("product:create"), h.CreateUnitOfMeasure)
+		protected.PUT("/units-of-measure/:id", middleware.RequirePermission("product:update"), h.UpdateUnitOfMeasure)
+		protected.DELETE("/units-of-measure/:id", middleware.RequirePermission("product:delete"), h.DeleteUnitOfMeasure)
 
 		protected.POST("/sales", middleware.RequirePermission("sale:create"), h.CreateSale)
 		protected.GET("/sales", middleware.RequirePermission("sale:read"), h.GetSalesHistory)

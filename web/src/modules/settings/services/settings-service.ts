@@ -1,5 +1,5 @@
 import { apiFetch } from '$shared/api/http-client';
-import type { MasterCategory, CreateCategoryPayload, UpdateCategoryPayload } from '../types';
+import type { MasterCategory, MasterBrand, MasterUnitOfMeasure, CreateCategoryPayload, UpdateCategoryPayload, CreateBrandPayload, UpdateBrandPayload, CreateUnitOfMeasurePayload, UpdateUnitOfMeasurePayload } from '../types';
 
 export interface CategoryListParams {
   limit: number;
@@ -49,5 +49,67 @@ export async function updateCategory(id: number, payload: UpdateCategoryPayload)
 
 export async function deleteCategory(id: number): Promise<boolean> {
   const r = await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+// Brands
+export async function getBrands(): Promise<MasterBrand[]> {
+  const r = await apiFetch('/api/brands');
+  if (r.ok) {
+    const data = await r.json();
+    return data.data || [];
+  }
+  return [];
+}
+
+export async function createBrand(payload: CreateBrandPayload): Promise<boolean> {
+  const r = await apiFetch('/api/brands', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return r.ok;
+}
+
+export async function updateBrand(id: number, payload: UpdateBrandPayload): Promise<boolean> {
+  const r = await apiFetch(`/api/brands/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return r.ok;
+}
+
+export async function deleteBrand(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/brands/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+// Units of Measure
+export async function getUnitsOfMeasure(): Promise<MasterUnitOfMeasure[]> {
+  const r = await apiFetch('/api/units-of-measure');
+  if (r.ok) {
+    const data = await r.json();
+    return data.data || [];
+  }
+  return [];
+}
+
+export async function createUnitOfMeasure(payload: CreateUnitOfMeasurePayload): Promise<boolean> {
+  const r = await apiFetch('/api/units-of-measure', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return r.ok;
+}
+
+export async function updateUnitOfMeasure(id: number, payload: UpdateUnitOfMeasurePayload): Promise<boolean> {
+  const r = await apiFetch(`/api/units-of-measure/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return r.ok;
+}
+
+export async function deleteUnitOfMeasure(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/units-of-measure/${id}`, { method: 'DELETE' });
   return r.ok;
 }

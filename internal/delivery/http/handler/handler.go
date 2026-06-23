@@ -2234,6 +2234,43 @@ func (h *Handler) GetUnitsOfMeasure(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": uoms})
 }
 
+func (h *Handler) CreateUnitOfMeasure(c *gin.Context) {
+	var uom domain.UnitOfMeasure
+	if err := c.ShouldBindJSON(&uom); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if err := h.productRepo.CreateUnitOfMeasure(getCtx(c), &uom); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create unit of measure"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": uom})
+}
+
+func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var uom domain.UnitOfMeasure
+	if err := c.ShouldBindJSON(&uom); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	uom.ID = id
+	if err := h.productRepo.UpdateUnitOfMeasure(getCtx(c), &uom); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update unit of measure"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": uom})
+}
+
+func (h *Handler) DeleteUnitOfMeasure(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if err := h.productRepo.DeleteUnitOfMeasure(getCtx(c), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete unit of measure"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
 func (h *Handler) GetStockThresholds(c *gin.Context) {
 	cfg := config.Load()
 	c.JSON(http.StatusOK, gin.H{

@@ -82,6 +82,9 @@ type ProductRepository interface {
 	GetUnitOfMeasureByID(ctx context.Context, id int) (*domain.UnitOfMeasure, error)
 	GetAllUnitsOfMeasure(ctx context.Context) ([]domain.UnitOfMeasure, error)
 	GetUnitOfMeasureIDByCode(ctx context.Context, code string) (int, error)
+	CreateUnitOfMeasure(ctx context.Context, uom *domain.UnitOfMeasure) error
+	UpdateUnitOfMeasure(ctx context.Context, uom *domain.UnitOfMeasure) error
+	DeleteUnitOfMeasure(ctx context.Context, id int) error
 	
 	// Warehouse operations
 	GetWarehouseByID(ctx context.Context, id int) (*domain.Warehouse, error)

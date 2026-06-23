@@ -2122,6 +2122,33 @@ func (r *postgresRepository) GetUnitOfMeasureIDByCode(ctx context.Context, code 
 	return id, err
 }
 
+func (r *postgresRepository) CreateUnitOfMeasure(ctx context.Context, uom *domain.UnitOfMeasure) error {
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO units_of_measure (code, name, description, is_active) 
+		VALUES ($1, $2, $3, $4) 
+		RETURNING id, created_at
+	`, uom.Code, uom.Name, uom.Description, uom.IsActive).Scan(&uom.ID, &createdAt)
+	if err != nil {
+		return err
+	}
+	uom.CreatedAt = createdAt.Format(time.RFC3339)
+	return nil
+}
+
+func (r *postgresRepository) UpdateUnitOfMeasure(ctx context.Context, uom *domain.UnitOfMeasure) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE units_of_measure SET code = $1, name = $2, description = $3, is_active = $4
+		WHERE id = $5
+	`, uom.Code, uom.Name, uom.Description, uom.IsActive, uom.ID)
+	return err
+}
+
+func (r *postgresRepository) DeleteUnitOfMeasure(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM units_of_measure WHERE id = $1", id)
+	return err
+}
+
 // Warehouse operations
 func (r *postgresRepository) GetWarehouseByID(ctx context.Context, id int) (*domain.Warehouse, error) {
 	var w domain.Warehouse

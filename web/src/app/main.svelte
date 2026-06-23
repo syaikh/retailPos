@@ -17,6 +17,8 @@
   import RolesPage from '$modules/admin/components/RolesPage.svelte';
   import AuditLogsPage from '$modules/admin/components/AuditLogsPage.svelte';
   import CategoriesPage from '$modules/settings/components/CategoriesPage.svelte';
+  import BrandsPage from '$modules/settings/components/BrandsPage.svelte';
+  import UnitsOfMeasurePage from '$modules/settings/components/UnitsOfMeasurePage.svelte';
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
 
@@ -38,6 +40,8 @@
     '/admin/roles':        'Role Management',
     '/admin/audit-logs':   'Audit Logs',
     '/admin/categories':   'Category Management',
+    '/admin/brands':       'Brand Management',
+    '/admin/units-of-measure': 'Unit of Measure Management',
   };
 
   function getComponent(path) {
@@ -54,6 +58,8 @@
       case '/admin/roles':         return RolesPage;
       case '/admin/audit-logs':    return AuditLogsPage;
       case '/admin/categories':    return CategoriesPage;
+      case '/admin/brands':        return BrandsPage;
+      case '/admin/units-of-measure': return UnitsOfMeasurePage;
       default:                     return Home;
     }
   }
