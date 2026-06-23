@@ -15,16 +15,12 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
     expect(src).toContain("import apiClient from '$shared/api/http-client'");
   });
 
-  it('imports auth store and getAuthToken', () => {
-    expect(src).toContain("import { useAuthStore, getAuthToken } from '$modules/auth'");
+  it('imports auth store', () => {
+    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports Jakarta time utilities', () => {
-    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS, formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime'");
-  });
-
-  it('imports ActionBadge shared UI component', () => {
-    expect(src).toContain("import { ActionBadge, Button, Input, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+  it('imports Jakarta time utilities (remaining)', () => {
+    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'");
   });
 
   it('uses $state for items, pagination, filters, and request tracking', () => {
@@ -44,13 +40,47 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
     expect(src).toContain('function closeDrawer()');
   });
 
-  it('has fetchLogs, exportToCsv, exportToExcel functions', () => {
+  it('has fetchLogs function', () => {
     expect(src).toContain('async function fetchLogs()');
-    expect(src).toContain('function exportToCsv');
-    expect(src).toContain('function exportToExcel');
   });
 
-  it('renders Pagination component', () => {
-    expect(src).toContain('<Pagination');
+  it('has handlePageChange function', () => {
+    expect(src).toContain('function handlePageChange(newOffset, newLimit)');
+  });
+
+  it('imports the three extracted child components', () => {
+    expect(src).toContain("import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte'");
+    expect(src).toContain("import AuditLogsTable from './AuditLogsTable.svelte'");
+    expect(src).toContain("import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte'");
+  });
+
+  it('renders AuditLogsFilterToolbar', () => {
+    expect(src).toContain('<AuditLogsFilterToolbar');
+  });
+
+  it('renders AuditLogsTable', () => {
+    expect(src).toContain('<AuditLogsTable');
+  });
+
+  it('renders AuditLogDetailsDrawer', () => {
+    expect(src).toContain('<AuditLogDetailsDrawer');
+  });
+
+  it('does NOT contain extracted filter constants', () => {
+    expect(src).not.toContain('const actionsMap');
+  });
+
+  it('does NOT contain extracted table template', () => {
+    expect(src).not.toContain('class="empty-state-icon"');
+  });
+
+  it('does NOT contain extracted drawer template', () => {
+    expect(src).not.toContain('getDiffDescription');
+  });
+
+  it('does NOT contain extracted export functions', () => {
+    expect(src).not.toContain('function exportToCsv');
+    expect(src).not.toContain('function exportToExcel');
+    expect(src).not.toContain('function buildExportUrl');
   });
 });

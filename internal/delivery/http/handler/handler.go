@@ -1600,7 +1600,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			r := i + 2
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
-				t = parsed.Format("2006-01-02 15:04:05")
+				t = parsed.In(config.Load().Timezone).Format("2006-01-02 15:04:05")
 			}
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), t)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), log.Username)
@@ -1635,7 +1635,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
-				t = parsed.Format("2006-01-02 15:04:05")
+				t = parsed.In(config.Load().Timezone).Format("2006-01-02 15:04:05")
 			}
 			_ = writer.Write([]string{
 				t,

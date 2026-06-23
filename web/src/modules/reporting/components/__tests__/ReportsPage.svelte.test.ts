@@ -15,27 +15,26 @@ describe('ReportsPage.svelte source-structure guards', () => {
     expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
   });
 
-  it('imports Jakarta time utilities', () => {
-    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaDayOfWeek } from '$shared/utils/jakartaTime'");
+  it('imports extracted child components', () => {
+    expect(src).toContain("import PeriodSelector from './PeriodSelector.svelte'");
+    expect(src).toContain("import KPICards from './KPICards.svelte'");
+    expect(src).toContain("import ChartArea from './ChartArea.svelte'");
+    expect(src).toContain("import BestWorstBadges from './BestWorstBadges.svelte'");
+    expect(src).toContain("import DataTable from './DataTable.svelte'");
   });
 
-  it('imports calendar components', () => {
-    expect(src).toContain("import { SelectableCalendar, MonthlyCalendar, YearCalendar }");
+  it('uses child components in template', () => {
+    expect(src).toContain('<PeriodSelector');
+    expect(src).toContain('<KPICards');
+    expect(src).toContain('<ChartArea');
+    expect(src).toContain('<BestWorstBadges');
+    expect(src).toContain('<DataTable');
   });
 
-  it('imports @internationalized/date for CalendarDate', () => {
-    expect(src).toContain("import { CalendarDate } from '@internationalized/date'");
-  });
-
-  it('imports chart action', () => {
-    expect(src).toContain("import { chart } from '$shared/actions/chart'");
-  });
-
-  it('uses $state for chart data, KPI data, period type', () => {
+  it('uses $state for chart data, KPI data', () => {
     expect(src).toContain('let chartData = $state');
     expect(src).toContain('let prevChartData = $state');
     expect(src).toContain('let kpiData = $state');
-    expect(src).toContain('let selectedPeriodType = $state');
   });
 
   it('defines KPI data structure', () => {
@@ -46,16 +45,51 @@ describe('ReportsPage.svelte source-structure guards', () => {
     expect(src).toContain('comparisonType');
   });
 
-  it('uses $derived for date constraints', () => {
-    expect(src).toContain('let yesterdayDate = $derived');
-  });
-
-  it('has fetchSalesWithRange and fetchSales functions', () => {
+  it('has fetchSalesWithRange function', () => {
     expect(src).toContain('async function fetchSalesWithRange');
-    expect(src).toContain('async function fetchSales');
   });
 
   it('has fetchAvailableYears function', () => {
     expect(src).toContain('async function fetchAvailableYears');
+  });
+
+  it('has export functions', () => {
+    expect(src).toContain('async function exportToExcel');
+    expect(src).toContain('async function exportToPDF');
+  });
+
+  it('has toggleSort function', () => {
+    expect(src).toContain('function toggleSort');
+  });
+
+  it('has chartConfig derived', () => {
+    expect(src).toContain('let chartConfig = $derived');
+  });
+
+  it('has best/worst period derivations', () => {
+    expect(src).toContain('let bestPeriod = $derived');
+    expect(src).toContain('let worstPeriod = $derived');
+  });
+
+  it('has tableRows and sortedRows derivations', () => {
+    expect(src).toContain('let tableRows = $derived');
+    expect(src).toContain('let sortedRows = $derived');
+  });
+
+  it('has chart tooltip UTC date pattern', () => {
+    const match = src.match(/T00:00:00[^Z]/);
+    if (match) {
+      expect(match[0]).toContain('T00:00:00Z');
+    }
+  });
+
+  it('does NOT import calendar components directly', () => {
+    expect(src).not.toContain("SelectableCalendar");
+    expect(src).not.toContain("MonthlyCalendar");
+    expect(src).not.toContain("YearCalendar");
+  });
+
+  it('does NOT import svelte:window', () => {
+    expect(src).not.toContain('<svelte:window');
   });
 });

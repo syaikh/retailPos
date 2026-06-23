@@ -1,0 +1,523 @@
+<script>
+  import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { Button } from '$shared/ui';
+  import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$modules/reporting/components/calendar';
+  import { CalendarDate } from '@internationalized/date';
+  import {
+    BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, Clock
+  } from 'lucide-svelte';
+  import { formatDate, getFirstOfMonthNAgoInJakarta } from '$modules/reporting/lib/reporting-utils';
+  import { getTodayInJakarta, getDateNDaysAgoInJakarta, getJakartaDayOfWeek } from '$shared/utils/jakartaTime';
+
+  let {
+    selectedPeriodType = $bindable('realtime'),
+    activePeriodType = $bindable('realtime'),
+    dropdownOpen = $bindable(false),
+    hoveredOption = $bindable(null),
+    selectedDailyDate = $bindable(null),
+    selectedWeeklyRange = $bindable(null),
+    selectedMonthlyRange = $bindable(null),
+    selectedYearlyRange = $bindable(null),
+    dailySelectionMade = $bindable(false),
+    weeklySelectionMade = $bindable(false),
+    monthlySelectionMade = $bindable(false),
+    yearlySelectionMade = $bindable(false),
+    availableYears = [],
+    showExportDropdown = $bindable(false),
+    currentTimeHour = '00:00',
+    timezoneString = 'GMT+07',
+    onfetchsaleswithrange = (start, end) => {},
+    onexportexcel = () => {},
+    onexportpdf = () => {},
+  } = $props();
+
+  let yesterdayDate = $derived(
+    new CalendarDate(
+      parseInt(getDateNDaysAgoInJakarta(1).split('-')[0]),
+      parseInt(getDateNDaysAgoInJakarta(1).split('-')[1]),
+      parseInt(getDateNDaysAgoInJakarta(1).split('-')[2])
+    )
+  );
+
+  let selectedYear = $state(parseInt(getTodayInJakarta().split('-')[0]));
+
+  const periodOptions = [
+    { value: 'realtime', label: 'Real-time', icon: Clock, description: 'Hourly revenue from 00:00 until now' },
+    { value: 'yesterday', label: 'Yesterday', icon: CalendarDays, description: 'Hourly revenue for the full previous day' },
+    { value: '7days', label: '7 Days', icon: CalendarDays, description: 'Daily revenue for the last 7 days' },
+    { value: '30days', label: '30 Days', icon: CalendarDays, description: 'Daily revenue for the last 30 days' },
+    { type: 'separator', label: 'Daily' },
+    { value: 'daily', label: 'Daily', icon: CalendarDays, description: 'Select a specific date for hourly revenue' },
+    { type: 'separator', label: 'Extended' },
+    { value: 'weekly', label: 'Weekly', icon: CalendarDays, description: 'Weekly revenue - select a week' },
+    { value: 'monthly', label: 'Monthly', icon: CalendarDays, description: 'Monthly revenue - select a month' },
+    { value: 'yearly', label: 'Yearly', icon: CalendarDays, description: 'Yearly revenue - select a year' },
+  ];
+
+  function getPeriodDateRange(periodType) {
+    const today = getTodayInJakarta();
+    const daysAgo = getDateNDaysAgoInJakarta;
+
+    switch (periodType) {
+      case 'realtime':
+        return { start: today, end: today };
+      case 'yesterday':
+        return { start: daysAgo(1), end: daysAgo(1) };
+      case '7days':
+        return { start: daysAgo(7), end: daysAgo(1) };
+      case '30days':
+        return { start: daysAgo(30), end: daysAgo(1) };
+      case 'daily': {
+        if (!dailySelectionMade || !selectedDailyDate) {
+          return { start: today, end: today };
+        }
+        const d = selectedDailyDate.start ?? selectedDailyDate;
+        const y = d.year;
+        const m = String(d.month).padStart(2, '0');
+        const day = String(d.day).padStart(2, '0');
+        const dateStr = `${y}-${m}-${day}`;
+        return { start: dateStr, end: dateStr };
+      }
+      case 'weekly':
+        if (weeklySelectionMade && selectedWeeklyRange) {
+          const start = selectedWeeklyRange.start;
+          const end = selectedWeeklyRange.end;
+          let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+          const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+          const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
+          if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
+            endStr = `${yesterday[0]}-${String(yesterday[1]).padStart(2, '0')}-${String(yesterday[2]).padStart(2, '0')}`;
+          }
+          return {
+            start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+            end: endStr
+          };
+        }
+        {
+          const dayOfWeek = getJakartaDayOfWeek();
+          const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          const monday = getDateNDaysAgoInJakarta(mondayOffset);
+          const yesterday = getDateNDaysAgoInJakarta(1);
+          return { start: monday, end: yesterday };
+        }
+      case 'monthly':
+        if (monthlySelectionMade && selectedMonthlyRange) {
+          const start = selectedMonthlyRange.start;
+          const end = selectedMonthlyRange.end;
+          let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+          const todayJakarta = getTodayInJakarta().split('-').map(Number);
+          if (start.year === todayJakarta[0] && start.month === todayJakarta[1]) {
+            const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+            endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+          }
+          return {
+            start: `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+            end: endStr
+          };
+        }
+        const todayForMonthly = getTodayInJakarta().split('-').map(Number);
+        const lastMonthStart = getFirstOfMonthNAgoInJakarta(1);
+        const lastMonthEnd = getDateNDaysAgoInJakarta(1);
+        return { start: lastMonthStart, end: lastMonthEnd };
+      case 'yearly':
+        if (yearlySelectionMade && selectedYearlyRange) {
+          const start = selectedYearlyRange.start;
+          let endMonth = 12;
+          let endDay = 31;
+          const todayJakarta = getTodayInJakarta().split('-').map(Number);
+          const currentYear = todayJakarta[0];
+          const currentMonth = todayJakarta[1];
+          if (start.year === currentYear) {
+            if (currentMonth === 1) {
+              return { start: `${start.year}-01-01`, end: `${start.year}-01-01` };
+            }
+            endMonth = currentMonth - 1;
+            const lastDayOfPrevMonth = new Date(currentYear, currentMonth - 1, 0).getDate();
+            endDay = lastDayOfPrevMonth;
+          }
+          return {
+            start: `${start.year}-01-01`,
+            end: `${start.year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
+          };
+        }
+        return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31` };
+      default:
+        return { start: daysAgo(8), end: daysAgo(1) };
+    }
+  }
+
+  function getPeriodDescription() {
+    const range = getPeriodDateRange(selectedPeriodType);
+    const start = formatDate(range.start);
+    const end = formatDate(range.end);
+
+    switch (selectedPeriodType) {
+      case 'realtime':
+        return `Real-time (00:00 - ${currentTimeHour})`;
+      case 'yesterday':
+        return `Yesterday · ${start}`;
+      case '7days':
+        return `7 Days · ${start} - ${end}`;
+      case '30days':
+        return `30 Days · ${start} - ${end}`;
+      case 'daily':
+        return `Daily · ${start}`;
+      case 'weekly':
+        return `Weekly · ${start} - ${end}`;
+      case 'monthly':
+        return `Monthly · ${start} - ${end}`;
+      case 'yearly':
+        return `Yearly · ${start} - ${end}`;
+      default:
+        return `${start} - ${end}`;
+    }
+  }
+
+  function setPeriod(periodType) {
+    if (periodType === 'daily' || periodType === 'monthly' || periodType === 'yearly') {
+      return;
+    }
+
+    if (periodType === 'weekly') {
+      selectedPeriodType = 'weekly';
+      activePeriodType = 'weekly';
+      dropdownOpen = false;
+      weeklySelectionMade = false;
+      const range = getPeriodDateRange('weekly');
+      const [sy, sm, sd] = range.start.split('-').map(Number);
+      const [ey, em, ed] = range.end.split('-').map(Number);
+      selectedWeeklyRange = {
+        start: new CalendarDate(sy, sm, sd),
+        end: new CalendarDate(ey, em, ed)
+      };
+      weeklySelectionMade = true;
+      onfetchsaleswithrange(range.start, range.end);
+      return;
+    }
+
+    selectedPeriodType = periodType;
+    activePeriodType = periodType;
+    dropdownOpen = false;
+    const range = getPeriodDateRange(periodType);
+    onfetchsaleswithrange(range.start, range.end);
+  }
+
+  onMount(() => {
+    setPeriod(selectedPeriodType);
+  });
+</script>
+
+<svelte:window
+  onclick={(e) => {
+    const path = e.composedPath?.() || [];
+    const inDropdown = path.some(el => {
+      const classList = el?.classList;
+      return classList && (classList.contains('card-glass') ||
+                          el.closest?.('.card-glass') !== null);
+    });
+    if (!inDropdown) {
+      if (showExportDropdown) showExportDropdown = false;
+      if (dropdownOpen) dropdownOpen = false;
+    }
+  }}
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && showExportDropdown) showExportDropdown = false;
+    if (e.key === 'Escape' && dropdownOpen) dropdownOpen = false;
+  }}
+/>
+
+<div class="card p-4 flex flex-wrap items-center gap-4">
+  <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
+    <BarChart3 size={16} class="text-white" />
+    Period
+  </div>
+
+  <div class="relative">
+    <Button
+      variant="secondary"
+      class="flex items-center gap-2"
+      onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
+      aria-haspopup="menu"
+      aria-expanded={dropdownOpen}
+      aria-controls="period-dropdown-menu"
+    >
+      <CalendarDays size={15} />
+      {getPeriodDescription()}
+      <ChevronDown
+        size={14}
+        class="transition-transform duration-300 {dropdownOpen ? 'rotate-180' : ''}"
+      />
+    </Button>
+
+    {#if dropdownOpen}
+      <div
+        id="period-dropdown-menu"
+        class="absolute left-0 top-full mt-2 card-glass p-2 z-50 min-w-[28rem] flex gap-2"
+        role="menu"
+        aria-orientation="vertical"
+        tabindex="-1"
+        transition:fly={{ y: -8, duration: 200 }}
+      >
+        <div class="flex flex-col gap-1 min-w-32">
+          {#each periodOptions as option}
+            {#if option.type === 'separator'}
+              <div class="px-3 py-1 text-xs font-semibold text-text-muted uppercase tracking-wide">
+                {option.label}
+              </div>
+            {:else}
+              {@const isCalendarOption = ['daily', 'weekly', 'monthly', 'yearly'].includes(option.value)}
+              <button type="button"
+                role="menuitem"
+                class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors {selectedPeriodType === option.value ? 'bg-primary/20 text-primary-light' : 'text-text-secondary hover:bg-surface-hover'}"
+                onclick={() => { if (!isCalendarOption) setPeriod(option.value); }}
+                onmouseenter={() => hoveredOption = option}
+              >
+                <option.icon size={14} />
+                {option.label}
+              </button>
+            {/if}
+          {/each}
+        </div>
+
+        <div class="flex-1 min-w-80 border-l border-border/50 pl-2">
+          <div class="text-xs text-text-secondary mb-2">Details</div>
+
+          {#if hoveredOption?.value === 'realtime'}
+            <div class="text-sm text-text-primary mb-2">Real-time Revenue</div>
+            <div class="text-xs text-text-muted">Shows hourly revenue from 00:00 until now</div>
+          {:else if hoveredOption?.value === 'yesterday'}
+            <div class="text-sm text-text-primary mb-2">Yesterday Revenue</div>
+            <div class="text-xs text-text-muted">Shows hourly revenue for the full previous day</div>
+          {:else if hoveredOption?.value === '7days'}
+            <div class="text-sm text-text-primary mb-2">7 Days Revenue</div>
+            <div class="text-xs text-text-muted">Shows daily revenue for the last 7 days until yesterday</div>
+          {:else if hoveredOption?.value === '30days'}
+            <div class="text-sm text-text-primary mb-2">30 Days Revenue</div>
+            <div class="text-xs text-text-muted">Shows daily revenue for the last 30 days until yesterday</div>
+          {:else if hoveredOption?.value === 'daily'}
+            <div class="text-sm text-text-primary mb-2">
+              <span class="block text-xs text-text-muted mb-2">Select Date</span>
+              <SelectableCalendar
+                mode="day"
+                bind:value={selectedDailyDate}
+                minValue={new CalendarDate(2023, 6, 16)}
+                maxValue={yesterdayDate}
+                theme={{
+                  bg: 'transparent',
+                  text: '#e2e8f0',
+                  muted: '#64748b',
+                  border: '#334155',
+                  hover: '#334155',
+                  selected: '#7c3aed',
+                  selectedText: '#ffffff',
+                  todayBorder: '#0ea5e9',
+                  radius: '8px'
+                }}
+                onValueChange={(val) => {
+                  if (val) {
+                    selectedDailyDate = val;
+                    const d = val.start || val;
+                    const y = d.year;
+                    const m = String(d.month).padStart(2, '0');
+                    const day = String(d.day).padStart(2, '0');
+                    const dateStr = `${y}-${m}-${day}`;
+                    dailySelectionMade = true;
+                    activePeriodType = 'daily';
+                    selectedPeriodType = 'daily';
+                    dropdownOpen = false;
+                    onfetchsaleswithrange(dateStr, dateStr);
+                  }
+                }}
+              />
+            </div>
+            <div class="text-xs text-text-muted">Shows hourly revenue for the selected date</div>
+          {:else if hoveredOption?.value === 'weekly'}
+            <div class="text-sm text-text-primary mb-2">
+              <span class="block text-xs text-text-muted mb-2">Select Week</span>
+              <SelectableCalendar
+                mode="week"
+                bind:value={selectedWeeklyRange}
+                minValue={new CalendarDate(2023, 6, 16)}
+                maxValue={yesterdayDate}
+                theme={{
+                  bg: 'transparent',
+                  text: '#e2e8f0',
+                  muted: '#64748b',
+                  border: '#334155',
+                  hover: '#334155',
+                  selected: '#7c3aed',
+                  selectedText: '#ffffff',
+                  radius: '8px'
+                }}
+                onValueChange={(val) => {
+                  if (val) {
+                    selectedWeeklyRange = val;
+                    weeklySelectionMade = true;
+                    const start = val.start;
+                    const end = val.end;
+                    let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                    const yesterday = getDateNDaysAgoInJakarta(1).split('-').map(Number);
+                    const yesterdayDate = new CalendarDate(yesterday[0], yesterday[1], yesterday[2]);
+                    if (end.compare(yesterdayDate) > 0 && start.compare(yesterdayDate) <= 0) {
+                      endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                    }
+                    activePeriodType = 'weekly';
+                    selectedPeriodType = 'weekly';
+                    dropdownOpen = false;
+                    onfetchsaleswithrange(
+                      `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`,
+                      endStr
+                    );
+                  }
+                }}
+              />
+            </div>
+            <div class="text-xs text-text-muted">Shows daily revenue for the selected week</div>
+          {:else if hoveredOption?.value === 'monthly'}
+            <div class="text-sm text-text-primary mb-2">
+              <span class="block text-xs text-text-muted mb-2">Select Month</span>
+              <MonthlyCalendar
+                bind:value={selectedMonthlyRange}
+                minValue={new CalendarDate(2023, 6, 1)}
+                maxValue={yesterdayDate}
+                theme={{
+                  bg: 'transparent',
+                  text: '#e2e8f0',
+                  muted: '#64748b',
+                  border: '#334155',
+                  hover: '#334155',
+                  selected: '#7c3aed',
+                  selectedText: '#ffffff',
+                  radius: '8px'
+                }}
+                onValueChange={(val) => {
+                  if (val) {
+                    selectedMonthlyRange = val;
+                    monthlySelectionMade = true;
+                    const start = val.start;
+                    const end = val.end;
+                    const startStr = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+                    let endStr = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+                    const todayJakarta = getTodayInJakarta().split('-').map(Number);
+                    const isCurrentMonth = start.year === todayJakarta[0] && start.month === todayJakarta[1];
+                    if (isCurrentMonth) {
+                      const yesterday = getDateNDaysAgoInJakarta(1).split('-');
+                      endStr = `${yesterday[0]}-${yesterday[1]}-${yesterday[2]}`;
+                    }
+                    activePeriodType = 'monthly';
+                    selectedPeriodType = 'monthly';
+                    dropdownOpen = false;
+                    onfetchsaleswithrange(startStr, endStr);
+                  }
+                }}
+              />
+            </div>
+            <div class="text-xs text-text-muted">Shows daily revenue for the selected month</div>
+          {:else if hoveredOption?.value === 'yearly'}
+            <div class="text-sm text-text-primary mb-2">
+              <span class="block text-xs text-text-muted mb-2">Select Year</span>
+              <YearCalendar
+                bind:value={selectedYearlyRange}
+                minValue={availableYears.length > 0 ? new CalendarDate(Math.min(...availableYears), 1, 1) : new CalendarDate(2023, 6, 16)}
+                maxValue={yesterdayDate}
+                {availableYears}
+                theme={{
+                  bg: 'transparent',
+                  text: '#e2e8f0',
+                  muted: '#64748b',
+                  border: '#334155',
+                  hover: '#334155',
+                  selected: '#7c3aed',
+                  selectedText: '#ffffff',
+                  radius: '8px'
+                }}
+                onValueChange={(val) => {
+                  if (val) {
+                    selectedYearlyRange = val;
+                    yearlySelectionMade = true;
+                    const year = val.start.year;
+                    const todayJakarta = getTodayInJakarta();
+                    const todayParts = todayJakarta.split('-').map(Number);
+                    const currentYear = todayParts[0];
+                    const currentMonth = todayParts[1];
+                    let endMonth = 12;
+                    let endDay = 31;
+                    if (year === currentYear) {
+                      if (currentMonth === 1) {
+                        activePeriodType = 'yearly';
+                        selectedPeriodType = 'yearly';
+                        dropdownOpen = false;
+                        onfetchsaleswithrange(`${year}-01-01`, `${year}-01-01`);
+                        return;
+                      }
+                      endMonth = currentMonth - 1;
+                      const lastDayOfPrevMonth = new Date(year, currentMonth - 1, 0).getDate();
+                      endDay = lastDayOfPrevMonth;
+                    }
+                    activePeriodType = 'yearly';
+                    selectedPeriodType = 'yearly';
+                    dropdownOpen = false;
+                    onfetchsaleswithrange(`${year}-01-01`, `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`);
+                  }
+                }}
+              />
+            </div>
+            <div class="text-xs text-text-muted">Shows monthly revenue for the selected year</div>
+          {/if}
+
+          <div class="text-xs text-text-muted mt-2">
+            Timezone: {timezoneString}
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <div class="ml-auto relative">
+    <Button
+      variant="primary"
+      class="flex items-center gap-2 transition-all duration-300"
+      onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
+      aria-haspopup="menu"
+      aria-expanded={showExportDropdown}
+      aria-controls="export-dropdown-reports"
+    >
+      <Download size={15} />
+      Export
+      <ChevronDown
+        size={14}
+        class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
+      />
+    </Button>
+    {#if showExportDropdown}
+      <div
+        id="export-dropdown-reports"
+        class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        role="menu"
+        aria-orientation="vertical"
+        tabindex="-1"
+        transition:fly={{ y: -8, duration: 200 }}
+      >
+        <button
+          class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+          role="menuitem"
+          onclick={() => { showExportDropdown = false; onexportexcel(); }}
+        >
+          <FileSpreadsheet size={16} class="text-success-light" />
+          Export to Excel
+        </button>
+        <button
+          class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
+          role="menuitem"
+          onclick={() => { showExportDropdown = false; onexportpdf(); }}
+        >
+          <Download size={16} class="text-danger-light" />
+          Export to PDF
+        </button>
+      </div>
+    {/if}
+  </div>
+</div>

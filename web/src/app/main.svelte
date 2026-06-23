@@ -35,6 +35,7 @@
     '/reports':            'Reports',
     '/transactions':       'Transaction History',
     '/customers':          'Customers',
+    '/categories':          'Category Management',
     '/admin':              'Administration',
     '/admin/users':        'User Management',
     '/admin/roles':        'Role Management',
@@ -53,6 +54,7 @@
       case '/reports':             return ReportsPage;
       case '/transactions':        return TransactionsPage;
       case '/customers':           return CustomersPage;
+      case '/categories':          return CategoriesPage;
       case '/admin':               return UsersPage;
       case '/admin/users':         return UsersPage;
       case '/admin/roles':         return RolesPage;

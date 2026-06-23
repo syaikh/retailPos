@@ -156,4 +156,69 @@ describe('reporting-utils', () => {
       expect(getShiftDays('yearly')).toBe(0);
     });
   });
+
+  describe('getFirstOfMonthNAgoInJakarta', () => {
+    it('returns YYYY-MM-01 format for current month', async () => {
+      const { getFirstOfMonthNAgoInJakarta } = await import('../reporting-utils');
+      const result = getFirstOfMonthNAgoInJakarta(0);
+      expect(result).toMatch(/^\d{4}-\d{2}-01$/);
+    });
+
+    it('returns first of previous month', async () => {
+      const { getFirstOfMonthNAgoInJakarta, formatDate } = await import('../reporting-utils');
+      const result = getFirstOfMonthNAgoInJakarta(1);
+      expect(result).toMatch(/^\d{4}-\d{2}-01$/);
+      const currentFirst = getFirstOfMonthNAgoInJakarta(0);
+      expect(result).not.toBe(currentFirst);
+    });
+  });
+
+  describe('formatDate', () => {
+    it('returns empty string for falsy input', async () => {
+      const { formatDate } = await import('../reporting-utils');
+      expect(formatDate('')).toBe('');
+      expect(formatDate(undefined)).toBe('');
+    });
+
+    it('formats date string correctly', async () => {
+      const { formatDate } = await import('../reporting-utils');
+      const result = formatDate('2026-06-15');
+      expect(result).toContain('Jun');
+      expect(result).toContain('2026');
+      expect(result).toContain('15');
+    });
+  });
+
+  describe('getPeriodLabel', () => {
+    it('returns empty string for null', async () => {
+      const { getPeriodLabel } = await import('../reporting-utils');
+      expect(getPeriodLabel(null)).toBe('');
+    });
+
+    it('formats hourly items', async () => {
+      const { getPeriodLabel } = await import('../reporting-utils');
+      expect(getPeriodLabel({ hour: 3 })).toBe('03:00');
+      expect(getPeriodLabel({ hour: 14 })).toBe('14:00');
+    });
+
+    it('formats daily items', async () => {
+      const { getPeriodLabel } = await import('../reporting-utils');
+      const result = getPeriodLabel({ date: '2026-06-15' });
+      expect(result).toContain('Jun');
+      expect(result).toContain('15');
+    });
+
+    it('formats monthly items', async () => {
+      const { getPeriodLabel } = await import('../reporting-utils');
+      const result = getPeriodLabel({ month_start: '2026-06-01' });
+      expect(result).toContain('Jun');
+      expect(result).toContain('2026');
+    });
+
+    it('renders correct date regardless of browser timezone', async () => {
+      const { getPeriodLabel } = await import('../reporting-utils');
+      const result = getPeriodLabel({ date: '2026-01-01' });
+      expect(result).toBe('Jan 1');
+    });
+  });
 });

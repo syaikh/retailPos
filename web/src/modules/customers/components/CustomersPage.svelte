@@ -1,12 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import apiClient from '$shared/api/http-client';
-  import { Badge, Button, SearchBar, Skeleton } from '$shared/ui';
-  import { Pencil, Trash2, Check, X, Plus, Search, UserPlus, Loader2 } from 'lucide-svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Input, Modal, Pagination } from '$shared/ui';
+  import { Pagination } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
+  import CreateCustomerModal from './CreateCustomerModal.svelte';
+  import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
+  import BulkStatusModal from './BulkStatusModal.svelte';
+  import BulkDeleteModal from './BulkDeleteModal.svelte';
+  import CustomerToolbar from './CustomerToolbar.svelte';
+  import CustomerTable from './CustomerTable.svelte';
+  import BulkActionBar from './BulkActionBar.svelte';
 
   const authStore = useAuthStore();
 
@@ -30,23 +35,6 @@
   let isBulkUpdating = $state(false);
   let showBulkDeleteModal = $state(false);
   let isBulkDeleting = $state(false);
-
-  let allSelected = $derived(customers.length > 0 && customers.every(c => selectedIds.has(c.id)));
-  let someSelected = $derived(selectedIds.size > 0 && !allSelected);
-
-  function toggleSelectAll() {
-    if (allSelected) {
-      selectedIds = new Set();
-    } else {
-      selectedIds = new Set(customers.map(c => c.id));
-    }
-  }
-
-  function toggleSelect(id: number) {
-    const next = new Set(selectedIds);
-    if (next.has(id)) { next.delete(id); } else { next.add(id); }
-    selectedIds = next;
-  }
 
   function clearSelection() {
     selectedIds = new Set();
@@ -94,7 +82,6 @@
     }
   }
 
-  let showStatusDropdown = $state(false);
   let editingId = $state<number | null>(null);
   let editName = $state('');
   let editPhone = $state('');
@@ -237,15 +224,6 @@
     });
   }
 
-  function getInitials(name: string): string {
-    if (!name) return '?';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-    }
-    return parts[0].charAt(0).toUpperCase();
-  }
-
   async function createCustomer() {
     if (!validateForm()) return;
     creating = true;
@@ -325,345 +303,93 @@
     }
   }
 
-  const handleClickOutside = (e) => {
-    if (showStatusDropdown && !e.target.closest('.status-filter-container')) showStatusDropdown = false;
-  };
-  const handleEsc = (e) => {
-    if (e.key === 'Escape') showStatusDropdown = false;
-  };
-
   onMount(() => {
     load();
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEsc);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEsc);
-    };
   });
 </script>
 
 <div class="space-y-4">
-  <div class="border border-border rounded-xl p-4 space-y-3 bg-bg-card">
-    <div class="flex items-center gap-3">
-      <div class="flex-1">
-        <SearchBar bind:value={searchQuery} placeholder="Search by name, phone, or email..." oninput={handleSearchInput} />
-      </div>
-      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'all'; handleStatusFilterChange(); }}
-        >
-          All
-        </button>
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'active'; handleStatusFilterChange(); }}
-        >
-          Active
-        </button>
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'inactive'; handleStatusFilterChange(); }}
-        >
-          Inactive
-        </button>
-      </div>
-      {#if canCreate}
-        <Button onclick={() => { resetForm(); showCreateModal = true; }} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
-          <Plus size={18} />
-          Add Customer
-        </Button>
-      {/if}
-    </div>
-  </div>
+  <CustomerToolbar
+    bind:searchQuery
+    bind:statusFilter
+    {canCreate}
+    onsearch={handleSearchInput}
+    onstatuschange={handleStatusFilterChange}
+    oncreate={() => { resetForm(); showCreateModal = true; }}
+  />
 
   <div class="card overflow-hidden">
-    <table class="min-w-full text-sm table-fixed">
-      <thead class="bg-muted/50">
-        <tr>
-          <th class="p-4 font-semibold w-12">
-            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
-          </th>
-          <th class="text-left p-4 font-semibold w-[26%]">
-            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-              NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-            </button>
-          </th>
-          <th class="text-left p-4 font-semibold w-[18%]">
-            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('phone')}>
-              PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-            </button>
-          </th>
-          <th class="text-left p-4 font-semibold w-[26%]">
-            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('email')}>
-              EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-            </button>
-          </th>
-          <th class="text-left p-4 font-semibold w-[14%]">
-            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('status')}>
-              STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-            </button>
-          </th>
-          <th class="text-center p-4 font-semibold w-20">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#if loading}
-          {#each { length: 5 } as _, i}
-            <tr class="border-t border-border">
-              <td class="px-4 py-3" colspan={6}>
-                <div class="flex items-center gap-3">
-                  <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
-                  <div class="flex-1 space-y-2">
-                    <Skeleton width="w-3/5" height="h-4" />
-                    <Skeleton width="w-2/5" height="h-4" />
-                  </div>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        {:else if customers.length === 0}
-          <tr class="border-t border-border">
-            <td colspan={6}>
-              <div class="px-4 py-16 text-center">
-                <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
-                  <Search size={32} class="text-text-muted" />
-                </div>
-                <p class="text-text-primary font-semibold mt-4">
-                  {searchQuery ? 'No customers found' : 'No customers yet'}
-                </p>
-                <p class="text-text-muted text-sm mt-1">
-                  {searchQuery ? `No customers matching "${searchQuery}"` : 'Start by adding your first customer'}
-                </p>
-              </div>
-            </td>
-          </tr>
-            {:else}
-              {#each customers as c}
-                {#if editingId === c.id}
-                  <tr class="border-t border-border bg-primary-subtle/10">
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">
-                      <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {getInitials(editName)}
-                        </div>
-                        <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} aria-label="Edit name" />
-                      </div>
-                    </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} aria-label="Edit phone" /></td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} aria-label="Edit email" /></td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">
-                      <label class="flex items-center gap-2 text-xs">
-                        <input type="checkbox" bind:checked={editActive} />
-                        {editActive ? 'Active' : 'Inactive'}
-                      </label>
-                    </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">
-                      <div class="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => saveEdit(c.id)} title="Save" aria-label="Save">
-                          <Check size={14} />
-                        </Button>
-                        <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger transition-all active:scale-90" onclick={cancelEdit} title="Cancel" aria-label="Cancel">
-                          <X size={14} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                {:else}
-                  <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-                    <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label="Select {c.name}" />
-                    </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">
-                      <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
-                          {getInitials(c.name)}
-                        </div>
-                        <span class="truncate">{c.name}</span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden">
-                      {#if c.is_active !== false}
-                        <Badge variant="success" size="sm">Active</Badge>
-                      {:else}
-                        <Badge variant="danger" size="sm">Inactive</Badge>
-                      {/if}
-                    </td>
-                    <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
-                      <div class="flex items-center justify-center gap-1">
-                        {#if canUpdate}
-                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => startEdit(c)} title="Edit" aria-label="Edit">
-                            <Pencil size={14} />
-                          </Button>
-                        {/if}
-                        {#if canDelete && c.is_active !== false}
-                          <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => deactivateCustomer(c)} title="Deactivate" aria-label="Deactivate">
-                            <Trash2 size={14} />
-                          </Button>
-                        {/if}
-                      </div>
-                    </td>
-                  </tr>
-                {/if}
-              {/each}
-            {/if}
-          </tbody>
-        </table>
+    <CustomerTable
+      {customers}
+      {loading}
+      {searchQuery}
+      {canUpdate}
+      {canDelete}
+      bind:selectedIds
+      bind:editingId
+      bind:editName
+      bind:editPhone
+      bind:editEmail
+      bind:editActive
+      bind:sortBy
+      bind:sortDir
+      onsort={handleSort}
+      onedit={startEdit}
+      oncanceledit={cancelEdit}
+      onsaveedit={saveEdit}
+      ondeactivate={deactivateCustomer}
+    />
 
-        {#if selectedIds.size > 0}
-          <div class="px-4 py-2.5 bg-primary/5 border-t border-primary/20 flex items-center gap-3">
-            <span class="text-sm font-semibold text-text-primary">{selectedIds.size} selected</span>
-            <div class="flex items-center gap-2 ml-auto">
-              {#if canUpdate}
-                <Button variant="secondary" class="text-xs px-3 py-1.5 h-auto" onclick={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}>
-                  Change Status
-                </Button>
-              {/if}
-              {#if canDelete}
-                <Button variant="danger" class="text-xs px-3 py-1.5 h-auto" onclick={() => showBulkDeleteModal = true}>Delete</Button>
-              {/if}
-              <button type="button" class="text-xs px-3 py-1.5 h-auto text-text-muted hover:text-text-secondary transition-colors font-medium" onclick={clearSelection}>Clear</button>
-            </div>
-          </div>
-        {/if}
+    <BulkActionBar
+      selectedCount={selectedIds.size}
+      {canUpdate}
+      {canDelete}
+      onstatus={() => { bulkStatusTargetIsActive = customers.some(c => selectedIds.has(c.id) && c.is_active === false); showBulkStatusModal = true; }}
+      ondelete={() => showBulkDeleteModal = true}
+      onclear={clearSelection}
+    />
 
-        {#if !loading && customers.length > 0}
-          <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-            <Pagination {total} {limit} {offset} onPageChange={load} />
-          </div>
-        {/if}
+    {#if !loading && customers.length > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination {total} {limit} {offset} onPageChange={load} />
       </div>
-    </div>
-
-<Modal bind:open={showCreateModal} title="Add Customer" size="md">
-  <div class="space-y-4">
-    <div class="space-y-1">
-      <label for="customer-name" class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
-      <Input
-        id="customer-name"
-        class={fieldErrors.name ? 'border-danger' : ''}
-        placeholder="e.g. John Doe"
-        bind:value={formName}
-      />
-      {#if fieldErrors.name}
-        <p class="text-danger text-xs mt-0.5">{fieldErrors.name}</p>
-      {/if}
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1">
-        <label for="customer-phone" class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
-        <Input
-          id="customer-phone"
-          class={fieldErrors.phone ? 'border-danger' : ''}
-          placeholder="e.g. 08123456789"
-          bind:value={formPhone}
-        />
-        {#if fieldErrors.phone}
-          <p class="text-danger text-xs mt-0.5">{fieldErrors.phone}</p>
-        {/if}
-      </div>
-      <div class="space-y-1">
-        <label for="customer-email" class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
-        <Input
-          id="customer-email"
-          class={fieldErrors.email ? 'border-danger' : ''}
-          placeholder="e.g. john@example.com"
-          bind:value={formEmail}
-        />
-        {#if fieldErrors.email}
-          <p class="text-danger text-xs mt-0.5">{fieldErrors.email}</p>
-        {/if}
-      </div>
-    </div>
-    <div class="space-y-1">
-      <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>
-      <Input
-        tag="textarea"
-        id="customer-note"
-        class="min-h-[60px] resize-none"
-        placeholder="Optional notes about this customer"
-        bind:value={formNote}
-      />
-    </div>
+    {/if}
   </div>
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => showCreateModal = false}>Cancel</Button>
-    <Button variant="primary" class="px-5" disabled={creating} onclick={createCustomer}>
-      {#if creating}
-        <Loader2 size={14} class="animate-spin mr-1" /> Creating...
-      {:else}
-        <UserPlus size={14} class="mr-1" /> Create Customer
-      {/if}
-    </Button>
-  {/snippet}
-</Modal>
+</div>
 
-  <Modal bind:open={showDeactivateModal} title="Deactivate Customer" size="sm">
-  <p class="text-sm text-text-secondary">
-    Are you sure you want to deactivate <strong class="text-text-primary">{deactivateTarget?.name}</strong>? This will hide them from active listings but preserve their history.
-  </p>
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => { showDeactivateModal = false; deactivateTarget = null; }}>Cancel</Button>
-    <Button variant="danger" class="px-5" disabled={deactivating} onclick={confirmDeactivate}>
-      {#if deactivating}
-        <Loader2 size={14} class="animate-spin mr-1" /> Deactivating...
-      {:else}
-        <Trash2 size={14} class="mr-1" /> Deactivate
-      {/if}
-    </Button>
-  {/snippet}
-</Modal>
+<CreateCustomerModal
+  bind:open={showCreateModal}
+  bind:formName
+  bind:formPhone
+  bind:formEmail
+  bind:formNote
+  bind:fieldErrors
+  bind:creating
+  oncreate={createCustomer}
+/>
 
-<Modal bind:open={showBulkStatusModal} title="Bulk Update Status" size="sm">
-  <div class="py-2">
-    <p class="text-text-primary font-semibold mb-3">
-      Set selected customers to <span class="text-primary-light">{bulkStatusTargetIsActive ? 'Active' : 'Inactive'}</span>
-    </p>
-    <p class="text-sm text-text-secondary mb-4">
-      {customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).length} of {selectedIds.size} customer(s) will be updated.
-    </p>
-    <div class="flex flex-wrap gap-2 justify-center">
-      <button
-        class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTargetIsActive ? 'bg-success-subtle border-success text-success-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-        onclick={() => bulkStatusTargetIsActive = true}
-      >Activate</button>
-      <button
-        class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {!bulkStatusTargetIsActive ? 'bg-danger-subtle border-danger text-danger-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-        onclick={() => bulkStatusTargetIsActive = false}
-      >Deactivate</button>
-    </div>
-  </div>
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</Button>
-    <Button variant="primary" class="px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
-      {#if isBulkUpdating}
-        <Loader2 size={14} class="animate-spin mr-1" /> Updating...
-      {:else}
-        Update
-      {/if}
-    </Button>
-  {/snippet}
-</Modal>
+<DeactivateCustomerModal
+  bind:open={showDeactivateModal}
+  targetName={deactivateTarget?.name ?? ''}
+  bind:deactivating
+  oncancel={() => { showDeactivateModal = false; deactivateTarget = null; }}
+  onconfirm={confirmDeactivate}
+/>
 
-<Modal bind:open={showBulkDeleteModal} title="Delete Customers" size="sm">
-  <div class="text-center py-2">
-    <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
-      <Trash2 size={24} class="text-danger" />
-    </div>
-    <p class="text-text-primary font-semibold mb-1">Delete {selectedIds.size} customer(s)?</p>
-    <p class="text-text-muted text-sm">This will permanently remove them from the active customer list. Their transaction history will be preserved.</p>
-  </div>
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isBulkDeleting} onclick={() => showBulkDeleteModal = false}>Cancel</Button>
-    <Button variant="danger" class="px-5" disabled={isBulkDeleting} onclick={handleBulkDelete}>
-      {#if isBulkDeleting}
-        <Loader2 size={14} class="animate-spin mr-1" /> Deleting...
-      {:else}
-        Delete
-      {/if}
-    </Button>
-  {/snippet}
-</Modal>
+<BulkStatusModal
+  bind:open={showBulkStatusModal}
+  selectedCount={selectedIds.size}
+  affectedCount={customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).length}
+  bind:isActive={bulkStatusTargetIsActive}
+  bind:updating={isBulkUpdating}
+  oncancel={() => showBulkStatusModal = false}
+  onconfirm={handleBulkStatusUpdate}
+/>
+
+<BulkDeleteModal
+  bind:open={showBulkDeleteModal}
+  count={selectedIds.size}
+  bind:deleting={isBulkDeleting}
+  oncancel={() => showBulkDeleteModal = false}
+  onconfirm={handleBulkDelete}
+/>

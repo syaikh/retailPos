@@ -23,6 +23,10 @@ describe('RolesPage.svelte source-structure guards', () => {
     expect(src).toContain("import { Badge, Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
   });
 
+  it('imports RoleDetailDrawer component', () => {
+    expect(src).toContain("import RoleDetailDrawer from './RoleDetailDrawer.svelte'");
+  });
+
   it('uses $state for roles, permissions, modals, pagination', () => {
     expect(src).toContain('let roles = $state([])');
     expect(src).toContain('let permissions = $state([])');

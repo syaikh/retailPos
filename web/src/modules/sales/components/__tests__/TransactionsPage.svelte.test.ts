@@ -11,24 +11,24 @@ function getSource(): string {
 describe('TransactionsPage.svelte source-structure guards', () => {
   const src = getSource();
 
+  it('imports extracted child components', () => {
+    expect(src).toContain("import TransactionFilters from './TransactionFilters.svelte'");
+    expect(src).toContain("import TransactionTable from './TransactionTable.svelte'");
+    expect(src).toContain("import TransactionDrawer from './TransactionDrawer.svelte'");
+  });
+
+  it('renders child components in template', () => {
+    expect(src).toContain('<TransactionFilters');
+    expect(src).toContain('<TransactionTable');
+    expect(src).toContain('<TransactionDrawer');
+  });
+
   it('imports apiFetch instead of apiClient', () => {
     expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
   });
 
-  it('imports auth token helper', () => {
-    expect(src).toContain("import { getAuthToken } from '$modules/auth'");
-  });
-
-  it('imports printReceipt store', () => {
-    expect(src).toContain("import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte'");
-  });
-
   it('imports Jakarta time utilities', () => {
-    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatDateTimeInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime'");
-  });
-
-  it('imports shared UI components', () => {
-    expect(src).toContain("import { Badge, Button, Input, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime'");
   });
 
   it('uses $state for salesData, pagination, search, date range', () => {
@@ -47,19 +47,38 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('let sliderMax');
   });
 
-  it('uses $derived for dateRangeLabel, isFiltered, hasPendingChanges', () => {
-    expect(src).toContain('const dateRangeLabel = $derived');
-    expect(src).toContain('const isFiltered = $derived');
-    expect(src).toContain('const hasPendingChanges = $derived');
+  it('has fetchSales function', () => {
+    expect(src).toContain('async function fetchSales');
   });
 
-  it('has applyFilters and export functions', () => {
-    expect(src).toContain('function applyFilters');
-    expect(src).toContain('function exportCsv');
-    expect(src).toContain('function exportExcel');
+  it('has toggleSort and handlePageChange', () => {
+    expect(src).toContain('function toggleSort');
+    expect(src).toContain('function handlePageChange');
   });
 
-  it('renders Pagination component', () => {
-    expect(src).toContain('<Pagination');
+  it('has openTransactionDetails and closeTransactionDrawer', () => {
+    expect(src).toContain('function openTransactionDetails');
+    expect(src).toContain('function closeTransactionDrawer');
+  });
+
+  it('has handleKeydown and handleWindowClick', () => {
+    expect(src).toContain('function handleKeydown');
+    expect(src).toContain('function handleWindowClick');
+  });
+
+  it('has sanitizeSearch function', () => {
+    expect(src).toContain('function sanitizeSearch');
+  });
+
+  it('imports debounce', () => {
+    expect(src).toContain("import { debounce } from '$shared/utils/debounce'");
+  });
+
+  it('has onMount lifecycle', () => {
+    expect(src).toContain('onMount(');
+  });
+
+  it('has SLIDER_MAX_BOUND constant', () => {
+    expect(src).toContain('SLIDER_MAX_BOUND');
   });
 });

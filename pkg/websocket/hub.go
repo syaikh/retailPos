@@ -12,9 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"retail-pos-system/internal/auth"
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/domain"
 	"golang.org/x/time/rate"
 )
+
+var jakartaLoc = config.Load().Timezone
 
 const (
 	writeWait      = 10 * time.Second
@@ -259,7 +262,7 @@ func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
 
 func (h *Hub) Broadcast(event Event) {
 	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now()
+		event.Timestamp = time.Now().In(jakartaLoc)
 	}
 	select {
 	case h.broadcast <- event:
@@ -280,7 +283,7 @@ func (h *Hub) broadcastUserCount() {
 	})
 	event := Event{
 		Type:      EventUserOnline,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().In(jakartaLoc),
 		Payload:   payload,
 	}
 	data, _ := json.Marshal(event)

@@ -46,10 +46,8 @@ describe('UsersPage.svelte source-structure guards', () => {
     expect(src).toContain('Access Denied');
   });
 
-  it('gates Add User button behind canCreate', () => {
-    const addBtnIdx = src.indexOf('Add User');
-    const context = src.slice(Math.max(0, addBtnIdx - 200), addBtnIdx + 200);
-    expect(context).toContain('canCreate');
+  it('passes canCreate to UserToolbar', () => {
+    expect(src).toContain('{canCreate}');
   });
 
   it('gates table action buttons behind canEdit/canDelete', () => {
@@ -63,8 +61,9 @@ describe('UsersPage.svelte source-structure guards', () => {
     expect(src).toContain('authStore.user?.id');
   });
 
-  it('delete button is disabled for self and for superadmin users', () => {
-    expect(src).toContain('user.id === currentUserID || user.role_id === 1');
+  it('passes currentUserID and canEditSuperadmin to UserTable', () => {
+    expect(src).toContain('{currentUserID}');
+    expect(src).toContain('{canEditSuperadmin}');
   });
 
   it('confirmDelete rejects self-deletion', () => {
@@ -73,16 +72,14 @@ describe('UsersPage.svelte source-structure guards', () => {
   });
 
   // ── Staff role handling ──────────────────────────────────────────────────────
-  it('roleVariant handles staff role (falls through to muted)', () => {
-    expect(src).toContain("roleName === 'superadmin'");
-    expect(src).toContain("roleName === 'admin'");
-    expect(src).toContain("return 'muted'");
+  it('renders UserTable component', () => {
+    expect(src).toContain('<UserTable');
   });
 
-  // ── SearchBar component ──────────────────────────────────────────────────────
-  it('search input uses reusable SearchBar component', () => {
-    expect(src).toContain("SearchBar");
-    expect(src).toContain('bind:value={searchQuery}');
+  // ── Sub-component usage ─────────────────────────────────────────────────────
+  it('renders UserToolbar component', () => {
+    expect(src).toContain('<UserToolbar');
+    expect(src).toContain('bind:searchQuery');
   });
 
   // ── API consistency ──────────────────────────────────────────────────────────
@@ -105,9 +102,8 @@ describe('UsersPage.svelte source-structure guards', () => {
   });
 
   // ── last_login rendering ─────────────────────────────────────────────────────
-  it('renders last_login column with Never fallback', () => {
-    expect(src).toContain('LAST LOGIN');
-    expect(src).toContain("user.last_login");
-    expect(src).toContain('Never');
+  it('passes sortBy, sortDir to UserTable for last_login sorting', () => {
+    expect(src).toContain('bind:sortBy');
+    expect(src).toContain('bind:sortDir');
   });
 });

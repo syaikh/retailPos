@@ -19,9 +19,18 @@ describe('CustomersPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports shared UI components', () => {
-    expect(src).toContain("import { Badge, Button, SearchBar, Skeleton } from '$shared/ui'");
-    expect(src).toContain("import { Input, Modal, Pagination } from '$shared/ui'");
+  it('imports Pagination from shared/ui', () => {
+    expect(src).toContain("import { Pagination } from '$shared/ui'");
+  });
+
+  it('imports extracted modal and table components', () => {
+    expect(src).toContain("import CreateCustomerModal from './CreateCustomerModal.svelte'");
+    expect(src).toContain("import DeactivateCustomerModal from './DeactivateCustomerModal.svelte'");
+    expect(src).toContain("import BulkStatusModal from './BulkStatusModal.svelte'");
+    expect(src).toContain("import BulkDeleteModal from './BulkDeleteModal.svelte'");
+    expect(src).toContain("import CustomerToolbar from './CustomerToolbar.svelte'");
+    expect(src).toContain("import CustomerTable from './CustomerTable.svelte'");
+    expect(src).toContain("import BulkActionBar from './BulkActionBar.svelte'");
   });
 
   it('uses $state for customers, loading, pagination', () => {
@@ -38,10 +47,10 @@ describe('CustomersPage.svelte source-structure guards', () => {
     expect(src).toContain("const canRead = $derived(userPermissions.includes('customer:read'))");
   });
 
-  it('has bulk selection and operations (toggleSelectAll, handleBulkStatusUpdate, handleBulkDelete)', () => {
-    expect(src).toContain('function toggleSelectAll');
+  it('has bulk operations (handleBulkStatusUpdate, handleBulkDelete, clearSelection)', () => {
     expect(src).toContain('async function handleBulkStatusUpdate');
     expect(src).toContain('async function handleBulkDelete');
+    expect(src).toContain('function clearSelection');
   });
 
   it('has load, createCustomer, saveEdit functions', () => {

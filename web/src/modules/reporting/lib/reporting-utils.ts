@@ -28,23 +28,20 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
   if (item.hour !== undefined) return `${String(item.hour).padStart(2, '0')}:00`;
   if (item.date) {
     const d = new Date(item.date + 'T00:00:00Z');
-    return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   }
   if (item.month_start) {
     const d = new Date(item.month_start + 'T00:00:00Z');
-    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    return d.toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
   }
   return item.label || '';
 }
 
 export function getFirstOfMonthNAgoInJakarta(n: number): string {
   const today = getTodayInJakarta().split('-').map(Number);
-  let year = today[0];
-  let month = today[1] - n;
-  if (month <= 0) {
-    month += 12;
-    year -= 1;
-  }
+  const totalMonths = (today[0] * 12 + today[1] - 1) - n;
+  const year = Math.floor(totalMonths / 12);
+  const month = (totalMonths % 12) + 1;
   return `${year}-${String(month).padStart(2, '0')}-01`;
 }
 

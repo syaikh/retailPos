@@ -99,6 +99,17 @@ describe('pos-service', () => {
     expect(result).toBeNull();
   });
 
+  it('getLastSale uses Jakarta-aware endDate', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: [] } });
+
+    const { getLastSale } = await import('../pos-service');
+    await getLastSale();
+
+    const url = mockGet.mock.calls[0][0];
+    expect(url).toMatch(/endDate=\d{4}-\d{2}-\d{2}$/);
+    expect(url).not.toContain('endDate=undefined');
+  });
+
   it('getLastSale handles single object response', async () => {
     mockGet.mockResolvedValueOnce({ data: { id: 1, invoice_number: 'INV-001' } });
 

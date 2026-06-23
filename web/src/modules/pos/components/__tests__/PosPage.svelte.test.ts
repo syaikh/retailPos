@@ -27,8 +27,16 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports shared UI components', () => {
-    expect(src).toContain("import { Badge, Button, Input, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+  it('imports ShoppingCart from lucide-svelte for paymentOptions', () => {
+    expect(src).toContain("import { ShoppingCart } from 'lucide-svelte'");
+  });
+
+  it('imports extracted child components', () => {
+    expect(src).toContain("import ProductSearchPanel from './ProductSearchPanel.svelte'");
+    expect(src).toContain("import PosProductTable from './PosProductTable.svelte'");
+    expect(src).toContain("import CartPanel from './CartPanel.svelte'");
+    expect(src).toContain("import CheckoutModal from './CheckoutModal.svelte'");
+    expect(src).toContain("import CustomerSelectModal from './CustomerSelectModal.svelte'");
   });
 
   it('uses $state for cart, products, search state', () => {
@@ -67,7 +75,11 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('let selectedCustomerId');
   });
 
-  it('renders pagination', () => {
-    expect(src).toContain('<Pagination');
+  it('renders child component tags', () => {
+    expect(src).toContain('<ProductSearchPanel');
+    expect(src).toContain('<PosProductTable');
+    expect(src).toContain('<CartPanel');
+    expect(src).toContain('<CheckoutModal');
+    expect(src).toContain('<CustomerSelectModal');
   });
 });
