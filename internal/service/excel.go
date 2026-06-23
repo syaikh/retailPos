@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/png"
 	"log"
+	"strconv"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -14,6 +15,22 @@ import (
 
 	"github.com/xuri/excelize/v2"
 )
+
+func formatCurrency(n int) string {
+	if n == 0 {
+		return "Rp 0"
+	}
+	var result string
+	s := strconv.FormatInt(int64(n), 10)
+	length := len(s)
+	for i, c := range s {
+		if i > 0 && (length-i)%3 == 0 {
+			result += "."
+		}
+		result += string(c)
+	}
+	return "Rp " + result
+}
 
 type ExcelService struct {
 	saleRepo repository.SaleRepository
@@ -200,20 +217,24 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 
 		bwFont := &excelize.Font{Size: 11, Color: "000000"}
 		bwStyle, _ := f.NewStyle(&excelize.Style{Font: bwFont})
-		f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow), "Best:")
+		f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow), "Best")
 		f.SetCellStyle(dashboard, fmt.Sprintf("A%d", bwRow), fmt.Sprintf("A%d", bwRow), bwStyle)
-		f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("%s — Rp %d", best.Date, best.Total))
+		f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
 		f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), bwStyle)
+		f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow), formatCurrency(best.Total))
+		f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow), fmt.Sprintf("C%d", bwRow), bwStyle)
 		if worst.Total > 0 && worst.Date != best.Date {
-			f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow+1), "Worst:")
+			f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow+1), "Worst")
 			f.SetCellStyle(dashboard, fmt.Sprintf("A%d", bwRow+1), fmt.Sprintf("A%d", bwRow+1), bwStyle)
-			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("%s — Rp %d", worst.Date, worst.Total))
+			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
 			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), bwStyle)
+			f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), formatCurrency(worst.Total))
+			f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), bwStyle)
 			if params.IsHourly {
 				noteFont := &excelize.Font{Size: 9, Color: "000000", Italic: true}
 				noteStyle, _ := f.NewStyle(&excelize.Style{Font: noteFont})
-				f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), "(zero-revenue hours excluded)")
-				f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), noteStyle)
+				f.SetCellValue(dashboard, fmt.Sprintf("D%d", bwRow+1), "(zero-revenue hours excluded)")
+				f.SetCellStyle(dashboard, fmt.Sprintf("D%d", bwRow+1), fmt.Sprintf("D%d", bwRow+1), noteStyle)
 			}
 		}
 	}
