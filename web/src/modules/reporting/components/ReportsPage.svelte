@@ -1077,10 +1077,10 @@
         doc.setFontSize(9);
         doc.text(`Worst ${bestWorstHeading}: ${getPeriodLabel(worstPeriod)} — Rp ${(worstPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
         if (chartType === 'hourly') {
-          doc.setFontSize(7);
-          doc.setTextColor(156, 163, 175);
+          doc.setFontSize(8);
+          doc.setFont('Helvetica', 'italic');
           doc.text('(zero-revenue hours excluded)', margin, yPos + 3);
-          doc.setTextColor(0, 0, 0);
+          doc.setFont('Helvetica', 'normal');
           yPos += 8;
         } else {
           yPos += 5;

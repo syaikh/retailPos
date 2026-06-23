@@ -1243,7 +1243,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 		default:
 			ranges = GetComparisonRanges(PeriodType(periodType), refDate, mode == "completed")
 			periodLabel = periodType
-			isHourly = false
+			isHourly = periodType == "daily"
 		}
 
 		var params service.DashboardExportParams
