@@ -8,6 +8,7 @@
     bestWorstHeading = 'Period',
     tableRows = [],
     showDataTable = $bindable(false),
+    isHourly = false,
   } = $props();
 </script>
 
@@ -22,11 +23,14 @@
       </div>
     {/if}
     {#if worstPeriod && worstPeriod.total !== bestPeriod?.total}
-      <div class="flex items-center gap-1.5 text-xs bg-danger/10 text-danger-light px-2.5 py-1.5 rounded-full border border-danger/20">
+      <div class="flex items-center gap-1.5 text-xs bg-danger/10 text-danger-light px-2.5 py-1.5 rounded-full border border-danger/20" title="Zero-revenue hours are excluded">
         <TrendingDown size={12} />
         <span class="font-medium">Worst {bestWorstHeading}:</span>
         <span>{getPeriodLabel(worstPeriod)}</span>
         <span class="font-semibold">{formatCurrencyShort(worstPeriod.total || 0)}</span>
+        {#if isHourly}
+          <span class="text-text-muted/60 italic ml-1">(excl. zero-revenue hours)</span>
+        {/if}
       </div>
     {/if}
     {#if tableRows.length > 0}

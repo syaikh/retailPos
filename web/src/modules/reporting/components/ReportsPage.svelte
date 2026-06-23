@@ -1076,7 +1076,15 @@
       if (worstPeriod && worstPeriod.total !== bestPeriod?.total) {
         doc.setFontSize(9);
         doc.text(`Worst ${bestWorstHeading}: ${getPeriodLabel(worstPeriod)} — Rp ${(worstPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
-        yPos += 5;
+        if (chartType === 'hourly') {
+          doc.setFontSize(7);
+          doc.setTextColor(156, 163, 175);
+          doc.text('(zero-revenue hours excluded)', margin, yPos + 3);
+          doc.setTextColor(0, 0, 0);
+          yPos += 8;
+        } else {
+          yPos += 5;
+        }
       }
 
       doc.addPage();
@@ -1209,6 +1217,7 @@
       {bestWorstHeading}
       {tableRows}
       bind:showDataTable
+      isHourly={chartType === 'hourly'}
     />
 
     <ChartArea bind:chartCanvas {chartConfig} {loading} {chartData} />

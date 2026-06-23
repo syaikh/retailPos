@@ -205,6 +205,12 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		if worst.Total > 0 && worst.Date != best.Date {
 			f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow+1), fmt.Sprintf("Worst: %s — Rp %d", worst.Date, worst.Total))
 			f.SetCellStyle(dashboard, fmt.Sprintf("A%d", bwRow+1), fmt.Sprintf("A%d", bwRow+1), bwStyle)
+			if params.IsHourly {
+				noteFont := &excelize.Font{Size: 9, Color: "9CA3AF"}
+				noteStyle, _ := f.NewStyle(&excelize.Style{Font: noteFont})
+				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), "(zero-revenue hours excluded)")
+				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), noteStyle)
+			}
 		}
 	}
 
