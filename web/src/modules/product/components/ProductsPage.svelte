@@ -564,21 +564,32 @@
     });
   }
 
-  onMount(async () => {
+  onMount(() => {
     isInitialMount = true;
-    await Promise.all([
-      fetchCategories(), fetchBrands(), fetchTaxClasses(), fetchUnitsOfMeasure(), fetchThresholds()
-    ]);
-    await fetchProducts(0, limit);
-    isInitialMount = false;
 
-    ws.on('product_updated', (data) => {
+    (async () => {
+      try {
+        await Promise.all([
+          fetchCategories(), fetchBrands(), fetchTaxClasses(), fetchUnitsOfMeasure(), fetchThresholds()
+        ]);
+        await fetchProducts(0, limit);
+      } catch {
+        console.error('Failed to initialize product page data');
+      }
+      isInitialMount = false;
+    })();
+
+    const unsubProduct = ws.on('product_updated', (data) => {
       const product = products.find(p => p.id === data.id);
       if (product) {
         product.stock = data.stock;
         product.price = data.price;
       }
     });
+
+    return () => {
+      unsubProduct();
+    };
   });
 
   function handleClickOutside(e: MouseEvent) {

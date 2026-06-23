@@ -8,12 +8,15 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Record<string, ((data: unknown) => void)[]> = {};
+  private disconnectRequested = false;
 
   connect(token: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return;
     }
 
+    this.disconnectRequested = false;
+    this.reconnectAttempts = 0;
     this.status.set('connecting');
     
     try {
@@ -44,9 +47,10 @@ class WebSocketService {
         this.status.set('disconnected');
         this.emit('disconnection', { status: 'disconnected' });
 
+        if (this.disconnectRequested) return;
+
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          // Attempt to silently refresh the token before reconnecting
           await refreshTokenSilently();
           const freshToken = sessionStorage.getItem('access_token') || token;
           this.reconnectTimeout = setTimeout(() => this.connect(freshToken), 2000 * this.reconnectAttempts);
@@ -64,8 +68,10 @@ class WebSocketService {
   }
 
   disconnect() {
+    this.disconnectRequested = true;
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
     if (this.ws) {
       this.ws.close();

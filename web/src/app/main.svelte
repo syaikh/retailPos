@@ -107,6 +107,7 @@
     }
 
     initWebSocket();
+    subscribe(handleRoute);
 
     if (path === '/login') {
       Component = Home;
@@ -116,10 +117,12 @@
     } else {
       if (path === '/inventory') {
         goto('/inventory/products');
+        isInitializing = false;
         return;
       }
       if (path === '/inventory/stock') {
         goto('/inventory/products');
+        isInitializing = false;
         return;
       }
 
@@ -129,7 +132,6 @@
     }
 
     isInitializing = false;
-    subscribe(handleRoute);
     handleRoute(getPath());
   }
 

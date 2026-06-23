@@ -207,7 +207,7 @@ const authStore = useAuthStore();
         store_id: (authStore.user as any)?.store_id || null,
         subtotal,
         discount: 0,
-        tax: 0,
+        tax: taxAmount,
         total_amount: totalAmount,
         payment_method: paymentMethod,
         customer_id: selectedCustomerId,
@@ -241,7 +241,7 @@ const authStore = useAuthStore();
     }
     if (!sale || !sale.items || sale.items.length === 0) return;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
-    const taxAmount = sale.tax || 0;
+    const saleTaxAmount = sale.tax || 0;
     printReceiptStore.set({
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
@@ -251,8 +251,8 @@ const authStore = useAuthStore();
         unit_price: item.unit_price,
       })),
       total_amount: sale.total_amount,
-      subtotal_dpp: sale.total_amount - taxAmount,
-      tax: taxAmount,
+      subtotal_dpp: sale.total_amount - saleTaxAmount,
+      tax: saleTaxAmount,
       paymentMethod: sale.payment_method || paymentMethod,
       cashReceived: sale.cash_received || cashReceived,
       changeDue: sale.change_due || changeDue,
