@@ -428,9 +428,10 @@
   }
 
   function resetForm() {
+    const defaultTaxId = taxClasses.find(tc => tc.name === 'PPN 11%')?.id ?? null;
     form = {
       name: '', sku: '', barcode: '', category: '', price: 0, cost: 0, stock: 0,
-      brand_id: null, description: '', unit_of_measure_id: null, tax_class_id: null,
+      brand_id: null, description: '', unit_of_measure_id: null, tax_class_id: defaultTaxId,
       weight_grams: null, status: 'draft'
     };
     modalCategorySearch = '';
