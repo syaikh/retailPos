@@ -6,21 +6,12 @@
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
   import { fade } from 'svelte/transition';
 
-  import LoginPage from '$modules/auth/components/LoginPage.svelte';
-  import Home from '$modules/dashboard/components/Home.svelte';
-  import PosPage from '$modules/pos/components/PosPage.svelte';
-  import ProductsPage from '$modules/product/components/ProductsPage.svelte';
-  import ReportsPage from '$modules/reporting/components/ReportsPage.svelte';
-  import TransactionsPage from '$modules/sales/components/TransactionsPage.svelte';
-  import CustomersPage from '$modules/customers/components/CustomersPage.svelte';
-  import UsersPage from '$modules/admin/components/UsersPage.svelte';
-  import RolesPage from '$modules/admin/components/RolesPage.svelte';
-  import AuditLogsPage from '$modules/admin/components/AuditLogsPage.svelte';
-  import CategoriesPage from '$modules/settings/components/CategoriesPage.svelte';
-  import BrandsPage from '$modules/settings/components/BrandsPage.svelte';
-  import UnitsOfMeasurePage from '$modules/settings/components/UnitsOfMeasurePage.svelte';
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
+
+  // Always-needed pages (loaded eagerly)
+  import LoginPage from '$modules/auth/components/LoginPage.svelte';
+  import Home from '$modules/dashboard/components/Home.svelte';
 
   let Component = $state(LoginPage);
   let currentPath = $state(getPath());
@@ -45,25 +36,32 @@
     '/admin/units-of-measure': 'Unit of Measure Management',
   };
 
-  function getComponent(path) {
-    switch (path) {
-      case '/login':               return LoginPage;
-      case '/pos':                 return PosPage;
-      case '/inventory':           return ProductsPage;
-      case '/inventory/products':  return ProductsPage;
-      case '/reports':             return ReportsPage;
-      case '/transactions':        return TransactionsPage;
-      case '/customers':           return CustomersPage;
-      case '/categories':          return CategoriesPage;
-      case '/admin':               return UsersPage;
-      case '/admin/users':         return UsersPage;
-      case '/admin/roles':         return RolesPage;
-      case '/admin/audit-logs':    return AuditLogsPage;
-      case '/admin/categories':    return CategoriesPage;
-      case '/admin/brands':        return BrandsPage;
-      case '/admin/units-of-measure': return UnitsOfMeasurePage;
-      default:                     return Home;
-    }
+  const pageModules = {
+    '/pos':                 () => import('$modules/pos/components/PosPage.svelte'),
+    '/inventory':           () => import('$modules/product/components/ProductsPage.svelte'),
+    '/inventory/products':  () => import('$modules/product/components/ProductsPage.svelte'),
+    '/reports':             () => import('$modules/reporting/components/ReportsPage.svelte'),
+    '/transactions':        () => import('$modules/sales/components/TransactionsPage.svelte'),
+    '/customers':           () => import('$modules/customers/components/CustomersPage.svelte'),
+    '/categories':          () => import('$modules/settings/components/CategoriesPage.svelte'),
+    '/admin':               () => import('$modules/admin/components/UsersPage.svelte'),
+    '/admin/users':         () => import('$modules/admin/components/UsersPage.svelte'),
+    '/admin/roles':         () => import('$modules/admin/components/RolesPage.svelte'),
+    '/admin/audit-logs':    () => import('$modules/admin/components/AuditLogsPage.svelte'),
+    '/admin/categories':    () => import('$modules/settings/components/CategoriesPage.svelte'),
+    '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
+    '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
+  };
+
+  let loadId = 0;
+
+  async function getComponent(path) {
+    const loader = pageModules[path];
+    if (!loader) return Home;
+    const id = ++loadId;
+    const mod = await loader();
+    if (id !== loadId) return;
+    return mod.default;
   }
 
   function updateTitle(path) {
@@ -71,7 +69,7 @@
     document.title = `${page} — RetailPOS`;
   }
 
-  function handleRoute(path) {
+  async function handleRoute(path) {
     const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
 
@@ -91,7 +89,8 @@
 
     currentPath = path;
     isInitializing = false;
-    Component = getComponent(path);
+    const comp = await getComponent(path);
+    if (comp) Component = comp;
     updateTitle(path);
   }
 
@@ -135,7 +134,8 @@
       }
 
       currentPath = path;
-      Component = getComponent(path);
+      const comp = await getComponent(path);
+      if (comp) Component = comp;
       updateTitle(path);
     }
 
