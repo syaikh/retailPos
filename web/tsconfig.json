@@ -12,8 +12,12 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "$lib": ["src/lib"],
-      "$lib/*": ["src/lib/*"]
+      "$modules": ["src/modules"],
+      "$modules/*": ["src/modules/*"],
+      "$shared": ["src/shared"],
+      "$shared/*": ["src/shared/*"],
+      "$app": ["src/app"],
+      "$app/*": ["src/app/*"]
     }
   },
   "include": ["src/**/*"],

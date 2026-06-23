@@ -1,0 +1,20 @@
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  role?: { id: number; name: string } | string;
+  store_id?: number;
+  is_active?: boolean;
+  last_login?: string;
+  created_at?: string;
+  updated_at?: string;
+  permissions?: string[];
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  loading: boolean;
+}
+
+export type LoginResult = { access_token: string; refresh_token: string; user: User } | false;

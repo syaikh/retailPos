@@ -16,7 +16,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '$lib': fileURLToPath(new URL('./src/lib', import.meta.url))
+      '$modules':  fileURLToPath(new URL('./src/modules', import.meta.url)),
+      '$shared':   fileURLToPath(new URL('./src/shared', import.meta.url)),
+      '$app':      fileURLToPath(new URL('./src/app', import.meta.url)),
     }
   },
   server: {

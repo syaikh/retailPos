@@ -1,9 +1,9 @@
 import './app.css';
-import App from './lib/App.svelte';
+import App from './app/main.svelte';
 import { mount } from 'svelte';
 
 // Import apiClient untuk Auto-Refresh Token
-import apiClient from './lib/api/client';
+import apiClient from './shared/api/http-client';
 
 // Suppress known Chrome extension errors (Receiving end does not exist)
 window.addEventListener('unhandledrejection', (event) => {
