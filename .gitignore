@@ -78,7 +78,7 @@ coverage.html
 coverage.xml
 
 # Test results and screenshots
-test-results/
+test-results*
 playwright-report/
 
 # Local development files
