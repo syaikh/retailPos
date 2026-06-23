@@ -498,10 +498,6 @@
     }
   }
 
-  $effect(() => {
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  });
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} />

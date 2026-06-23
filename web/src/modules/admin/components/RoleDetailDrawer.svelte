@@ -31,6 +31,9 @@
     return Object.entries(grouped);
   }
 
+  let rolePerms = $derived(getRolePermissions(selectedRole));
+  let grouped = $derived(getGroupedPermissions(rolePerms));
+
   const groupMeta = {
     'user': { label: 'User & Role', icon: Users },
     'product': { label: 'Product', icon: Shield },
@@ -74,9 +77,6 @@
       <X size={18} />
     </button>
   </div>
-
-  {@const rolePerms = getRolePermissions(selectedRole)}
-  {@const grouped = getGroupedPermissions(rolePerms)}
 
   <div class="flex-1 overflow-y-auto px-6 py-4 pb-28 space-y-4">
     {#if selectedRole.description}

@@ -6,7 +6,7 @@
   import { useAuthStore } from '$modules/auth';
 
   import { Badge, Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
-  import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
 
   const authStore = useAuthStore();
 
