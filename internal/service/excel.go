@@ -249,6 +249,41 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			}
 		}
 
+		// For yearly, aggregate daily data into monthly for best/worst
+		if params.PeriodLabel == "yearly" {
+			monthlyTotals := make(map[string]int)
+			for _, dp := range currentData {
+				if len(dp.Date) >= 7 {
+					monthlyTotals[dp.Date[:7]] += dp.Total
+				}
+			}
+			months := make([]string, 0, len(monthlyTotals))
+			for m := range monthlyTotals {
+				months = append(months, m)
+			}
+			sort.Strings(months)
+			monthlyData := make([]repository.ChartDataPoint, 0, len(months))
+			for _, m := range months {
+				monthlyData = append(monthlyData, repository.ChartDataPoint{Date: m, Total: monthlyTotals[m]})
+			}
+			if len(monthlyData) > 0 {
+				currentData = monthlyData
+			}
+			// Recompute best/worst from monthly data
+			best = monthlyData[0]
+			worst = monthlyData[0]
+			for _, dp := range monthlyData {
+				if dp.Total > best.Total {
+					best = dp
+				}
+			}
+			for _, dp := range monthlyData {
+				if (worst.Total == 0 && dp.Total > 0) || (dp.Total < worst.Total && dp.Total > 0) {
+					worst = dp
+				}
+			}
+		}
+
 		bwFont := &excelize.Font{Size: 11, Color: "000000"}
 		bwStyle, _ := f.NewStyle(&excelize.Style{Font: bwFont})
 		f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow), "Best")
@@ -396,10 +431,16 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 				currentMonthMap[dp.Date[:7]] += dp.Total
 			}
 		}
-		previousMonthMap := make(map[string]int)
+		// Match previous period by month number (e.g., Jan current vs Jan previous)
+		previousByMonthNum := make(map[int]int)
 		for _, dp := range previousData {
 			if len(dp.Date) >= 7 {
-				previousMonthMap[dp.Date[:7]] += dp.Total
+				parts := dp.Date[:7] // "2025-01"
+				monthNum := 0
+				fmt.Sscanf(parts[5:], "%d", &monthNum)
+				if monthNum > 0 {
+					previousByMonthNum[monthNum] += dp.Total
+				}
 			}
 		}
 		months := make([]string, 0, len(currentMonthMap))
@@ -424,9 +465,12 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), numberStyle)
 			totalCur += curTotal
 
+			var monthNum int
+			fmt.Sscanf(m[5:], "%d", &monthNum)
+
 			var chg float64
 			hasChg := false
-			if prevTotal, ok := previousMonthMap[m]; ok && hasPrevious && prevTotal > 0 {
+			if prevTotal, ok := previousByMonthNum[monthNum]; ok && hasPrevious && prevTotal > 0 {
 				f.SetCellValue(summary, fmt.Sprintf("C%d", row), prevTotal)
 				f.SetCellStyle(summary, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), numberStyle)
 				totalPrev += prevTotal
