@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/png"
 	"log"
+	"sort"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -160,6 +161,20 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		CustomNumFmt: &dateFmt,
 	})
 
+	monthFmt := "mmm-yyyy"
+	monthBwStyle, _ := f.NewStyle(&excelize.Style{
+		Font:         &excelize.Font{Size: 11, Color: "000000"},
+		CustomNumFmt: &monthFmt,
+	})
+	yearMonthFmt := "yyyy-mm"
+	yearMonthStyle, _ := f.NewStyle(&excelize.Style{
+		CustomNumFmt: &yearMonthFmt,
+	})
+	altYearMonthStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:         excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F9FAFB"}},
+		CustomNumFmt: &yearMonthFmt,
+	})
+
 	// ===== Sheet 1: Dashboard =====
 	dashboard := "Dashboard"
 	f.SetSheetName("Sheet1", dashboard)
@@ -248,7 +263,11 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			} else {
 				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
 			}
-			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), dateBwStyle)
+			bwDateStyle := dateBwStyle
+			if params.PeriodLabel == "yearly" {
+				bwDateStyle = monthBwStyle
+			}
+			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), bwDateStyle)
 		}
 		f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow), best.Total)
 		f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow), fmt.Sprintf("C%d", bwRow), numberStyle)
@@ -265,7 +284,11 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 				} else {
 					f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
 				}
-				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), dateBwStyle)
+				bwDateStyle := dateBwStyle
+				if params.PeriodLabel == "yearly" {
+					bwDateStyle = monthBwStyle
+				}
+				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), bwDateStyle)
 			}
 			f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), worst.Total)
 			f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), numberStyle)
@@ -328,8 +351,10 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	}
 
 	var totalCur, totalPrev, totalOrders int
+	var dataRowCount int
 
 	if len(currentHourly) > 0 {
+		dataRowCount = len(currentHourly)
 		for i, dp := range currentHourly {
 			row := i + 2
 			hourSerial := parseHourToExcelSerial(dp.Date)
@@ -363,7 +388,66 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 				}
 			}
 		}
+	} else if params.PeriodLabel == "yearly" {
+		// Aggregate daily data into monthly
+		currentMonthMap := make(map[string]int)
+		for _, dp := range currentData {
+			if len(dp.Date) >= 7 {
+				currentMonthMap[dp.Date[:7]] += dp.Total
+			}
+		}
+		previousMonthMap := make(map[string]int)
+		for _, dp := range previousData {
+			if len(dp.Date) >= 7 {
+				previousMonthMap[dp.Date[:7]] += dp.Total
+			}
+		}
+		months := make([]string, 0, len(currentMonthMap))
+		for m := range currentMonthMap {
+			months = append(months, m)
+		}
+		sort.Strings(months)
+
+		dataRowCount = len(months)
+		totalPrev = 0
+		for i, m := range months {
+			row := i + 2
+			if t, err := time.Parse("2006-01", m); err == nil {
+				f.SetCellValue(summary, fmt.Sprintf("A%d", row), t)
+			} else {
+				f.SetCellValue(summary, fmt.Sprintf("A%d", row), m)
+			}
+			f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), yearMonthStyle)
+
+			curTotal := currentMonthMap[m]
+			f.SetCellValue(summary, fmt.Sprintf("B%d", row), curTotal)
+			f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), numberStyle)
+			totalCur += curTotal
+
+			var chg float64
+			hasChg := false
+			if prevTotal, ok := previousMonthMap[m]; ok && hasPrevious && prevTotal > 0 {
+				f.SetCellValue(summary, fmt.Sprintf("C%d", row), prevTotal)
+				f.SetCellStyle(summary, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), numberStyle)
+				totalPrev += prevTotal
+				chg = calcChangeFloat(curTotal, prevTotal)
+				f.SetCellValue(summary, fmt.Sprintf("D%d", row), chg)
+				hasChg = true
+			}
+			if i%2 == 1 {
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), altYearMonthStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("C%d", row), altNumberStyle)
+			}
+			if hasChg {
+				if chg >= 0 {
+					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctPosStyle)
+				} else {
+					f.SetCellStyle(summary, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), pctNegStyle)
+				}
+			}
+		}
 	} else {
+		dataRowCount = len(currentData)
 		for i, dp := range currentData {
 			row := i + 2
 			if t, err := time.Parse("2006-01-02", dp.Date); err == nil {
@@ -401,7 +485,7 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	}
 
 	// Total row
-	totalRow := len(currentData) + 2
+	totalRow := dataRowCount + 2
 	totalChg := calcChangeFloat(totalCur, totalPrev)
 	f.SetCellValue(summary, fmt.Sprintf("A%d", totalRow), "TOTAL")
 	f.SetCellValue(summary, fmt.Sprintf("B%d", totalRow), totalCur)

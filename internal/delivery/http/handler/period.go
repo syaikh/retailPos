@@ -65,7 +65,7 @@ func GetComparisonRanges(
 	pr.DaysInPeriod = int(pr.CurrentEnd.Sub(pr.CurrentStart).Hours() / 24)
 	// For weekly: isPartial if not last day of week (Mon-Sat), matching monthly pattern
 	// For other periods in completed mode: use existing logic
-	pr.IsPartial = isPeriodIncomplete(periodType, refDate) && (periodType == PeriodWeekly || completedMode)
+	pr.IsPartial = isPeriodIncomplete(periodType, refDate) && (periodType == PeriodWeekly || periodType == PeriodMonthly || completedMode)
 
 	return pr
 }

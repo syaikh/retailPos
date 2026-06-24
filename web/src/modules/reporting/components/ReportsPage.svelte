@@ -916,6 +916,16 @@
           isPartial: meta.is_partial,
           periodInfo: meta
         };
+
+        if (activePeriodType === 'monthly' && !meta.is_partial) {
+          prevChartData = [];
+          kpiData.previousRevenue = 0;
+          kpiData.previousOrders = 0;
+          kpiData.previousAvgOrderValue = 0;
+          kpiData.previousRevenuePerDay = 0;
+          kpiData.previousPeakRevenue = null;
+          kpiData.previousPeakRevenueMonth = null;
+        }
       }
     } catch (error) {
       toast.error('Failed to load sales data');
