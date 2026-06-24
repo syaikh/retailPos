@@ -147,6 +147,19 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		CustomNumFmt: &pctFmt,
 	})
 
+	dateFmt := "yyyy-mm-dd"
+	dateBwStyle, _ := f.NewStyle(&excelize.Style{
+		Font:         &excelize.Font{Size: 11, Color: "000000"},
+		CustomNumFmt: &dateFmt,
+	})
+	dateNumberStyle, _ := f.NewStyle(&excelize.Style{
+		CustomNumFmt: &dateFmt,
+	})
+	altDateNumberStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:         excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F9FAFB"}},
+		CustomNumFmt: &dateFmt,
+	})
+
 	// ===== Sheet 1: Dashboard =====
 	dashboard := "Dashboard"
 	f.SetSheetName("Sheet1", dashboard)
@@ -230,8 +243,12 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), bestSerial)
 			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), timeStyle)
 		} else {
-			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
-			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), bwStyle)
+			if t, err := time.Parse("2006-01-02", best.Date); err == nil {
+				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), t)
+			} else {
+				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
+			}
+			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), dateBwStyle)
 		}
 		f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow), best.Total)
 		f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow), fmt.Sprintf("C%d", bwRow), numberStyle)
@@ -243,8 +260,12 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worstSerial)
 				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), timeStyle)
 			} else {
-				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
-				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), bwStyle)
+				if t, err := time.Parse("2006-01-02", worst.Date); err == nil {
+					f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), t)
+				} else {
+					f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
+				}
+				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), dateBwStyle)
 			}
 			f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), worst.Total)
 			f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), numberStyle)
@@ -345,7 +366,12 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	} else {
 		for i, dp := range currentData {
 			row := i + 2
-			f.SetCellValue(summary, fmt.Sprintf("A%d", row), dp.Date)
+			if t, err := time.Parse("2006-01-02", dp.Date); err == nil {
+				f.SetCellValue(summary, fmt.Sprintf("A%d", row), t)
+			} else {
+				f.SetCellValue(summary, fmt.Sprintf("A%d", row), dp.Date)
+			}
+			f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), dateNumberStyle)
 			f.SetCellValue(summary, fmt.Sprintf("B%d", row), dp.Total)
 			f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), numberStyle)
 			totalCur += dp.Total
@@ -360,7 +386,7 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 				hasChg = true
 			}
 			if i%2 == 1 {
-				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), altDateNumberStyle)
 				f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("C%d", row), altNumberStyle)
 				f.SetCellStyle(summary, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), altStyle)
 			}
