@@ -823,7 +823,8 @@
         const prevMonth = startM.month === 1 ? 12 : startM.month - 1;
         const prevYear = startM.month === 1 ? startM.year - 1 : startM.year;
         const _chartEndParts = _chartEndDate.split('-').map(Number);
-        const prevEndDay = _chartEndParts[2];
+        const lastDayOfPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+        const prevEndDay = Math.min(_chartEndParts[2], lastDayOfPrevMonth);
         const prevEndMonth = prevMonth;
         const prevEndYear = prevYear;
         prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
