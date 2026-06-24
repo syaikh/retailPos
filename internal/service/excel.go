@@ -7,7 +7,6 @@ import (
 	"image"
 	_ "image/png"
 	"log"
-	"strconv"
 	"time"
 
 	"retail-pos-system/internal/domain"
@@ -16,20 +15,12 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func formatCurrency(n int) string {
-	if n == 0 {
-		return "Rp 0"
+func parseHourToExcelSerial(hourStr string) float64 {
+	var h int
+	if _, err := fmt.Sscanf(hourStr, "%02d:00", &h); err != nil {
+		return 0
 	}
-	var result string
-	s := strconv.FormatInt(int64(n), 10)
-	length := len(s)
-	for i, c := range s {
-		if i > 0 && (length-i)%3 == 0 {
-			result += "."
-		}
-		result += string(c)
-	}
-	return "Rp " + result
+	return float64(h) / 24.0
 }
 
 type ExcelService struct {
@@ -110,6 +101,7 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	endStr := params.EndDate.Format("2006-01-02")
 
 	numFmt := "#,##0"
+	timeFmt := "hh:mm"
 	pctFmt := "+0.0%;-0.0%"
 
 	titleFont := &excelize.Font{Bold: true, Size: 16, Color: "1F2937"}
@@ -128,9 +120,23 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	altStyle, _ := f.NewStyle(&excelize.Style{
 		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F9FAFB"}},
 	})
+	altTimeStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:         excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F9FAFB"}},
+		CustomNumFmt: &timeFmt,
+	})
+	altNumberStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:         excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F9FAFB"}},
+		CustomNumFmt: &numFmt,
+	})
 	kpiValueStyle, _ := f.NewStyle(&excelize.Style{
 		Font:         valueFont,
 		CustomNumFmt: &numFmt,
+	})
+	numberStyle, _ := f.NewStyle(&excelize.Style{
+		CustomNumFmt: &numFmt,
+	})
+	timeStyle, _ := f.NewStyle(&excelize.Style{
+		CustomNumFmt: &timeFmt,
 	})
 	pctPosStyle, _ := f.NewStyle(&excelize.Style{
 		Font:         positiveFont,
@@ -175,7 +181,7 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	}
 
 	if params.IsHourly {
-		kpiRows = append(kpiRows, kpiRow{"Peak Revenue Hour (RP)", comparison.PeakRevenueHour, comparison.PreviousPeakRevenue})
+		kpiRows = append(kpiRows, kpiRow{"Peak Revenue Hour", comparison.PeakRevenueHour, comparison.PreviousPeakRevenue})
 	} else if params.PeriodLabel == "yearly" {
 		kpiRows = append(kpiRows, kpiRow{"Peak Revenue Month (RP)", comparison.PeakRevenueMonth, comparison.PreviousPeakRevenueMonth})
 		kpiRows = append(kpiRows, kpiRow{"Avg. Revenue / Month (RP)", comparison.RevenuePerDay * 30, comparison.PreviousRevenuePerDay * 30})
@@ -219,17 +225,29 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 		bwStyle, _ := f.NewStyle(&excelize.Style{Font: bwFont})
 		f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow), "Best")
 		f.SetCellStyle(dashboard, fmt.Sprintf("A%d", bwRow), fmt.Sprintf("A%d", bwRow), bwStyle)
-		f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
-		f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), bwStyle)
-		f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow), formatCurrency(best.Total))
-		f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow), fmt.Sprintf("C%d", bwRow), bwStyle)
+		if params.IsHourly {
+			bestSerial := parseHourToExcelSerial(best.Date)
+			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), bestSerial)
+			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), timeStyle)
+		} else {
+			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow), best.Date)
+			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow), fmt.Sprintf("B%d", bwRow), bwStyle)
+		}
+		f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow), best.Total)
+		f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow), fmt.Sprintf("C%d", bwRow), numberStyle)
 		if worst.Total > 0 && worst.Date != best.Date {
 			f.SetCellValue(dashboard, fmt.Sprintf("A%d", bwRow+1), "Worst")
 			f.SetCellStyle(dashboard, fmt.Sprintf("A%d", bwRow+1), fmt.Sprintf("A%d", bwRow+1), bwStyle)
-			f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
-			f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), bwStyle)
-			f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), formatCurrency(worst.Total))
-			f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), bwStyle)
+			if params.IsHourly {
+				worstSerial := parseHourToExcelSerial(worst.Date)
+				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worstSerial)
+				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), timeStyle)
+			} else {
+				f.SetCellValue(dashboard, fmt.Sprintf("B%d", bwRow+1), worst.Date)
+				f.SetCellStyle(dashboard, fmt.Sprintf("B%d", bwRow+1), fmt.Sprintf("B%d", bwRow+1), bwStyle)
+			}
+			f.SetCellValue(dashboard, fmt.Sprintf("C%d", bwRow+1), worst.Total)
+			f.SetCellStyle(dashboard, fmt.Sprintf("C%d", bwRow+1), fmt.Sprintf("C%d", bwRow+1), numberStyle)
 			if params.IsHourly {
 				noteFont := &excelize.Font{Size: 9, Color: "000000", Italic: true}
 				noteStyle, _ := f.NewStyle(&excelize.Style{Font: noteFont})
@@ -293,14 +311,18 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	if len(currentHourly) > 0 {
 		for i, dp := range currentHourly {
 			row := i + 2
-			f.SetCellValue(summary, fmt.Sprintf("A%d", row), dp.Date)
+			hourSerial := parseHourToExcelSerial(dp.Date)
+			f.SetCellValue(summary, fmt.Sprintf("A%d", row), hourSerial)
+			f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), timeStyle)
 			f.SetCellValue(summary, fmt.Sprintf("B%d", row), dp.Total)
+			f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), numberStyle)
 			totalCur += dp.Total
 			totalOrders += dp.Orders
 			var chg float64
 			hasChg := false
 			if hasPrevious && i < len(previousHourly) {
 				f.SetCellValue(summary, fmt.Sprintf("C%d", row), previousHourly[i].Total)
+				f.SetCellStyle(summary, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), numberStyle)
 				totalPrev += previousHourly[i].Total
 				chg = calcChangeFloat(dp.Total, previousHourly[i].Total)
 				f.SetCellValue(summary, fmt.Sprintf("D%d", row), chg)
@@ -308,7 +330,8 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			}
 			f.SetCellValue(summary, "E"+fmt.Sprintf("%d", row), dp.Orders)
 			if i%2 == 1 {
-				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), altTimeStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("C%d", row), altNumberStyle)
 				f.SetCellStyle(summary, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), altStyle)
 			}
 			if hasChg {
@@ -324,18 +347,21 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 			row := i + 2
 			f.SetCellValue(summary, fmt.Sprintf("A%d", row), dp.Date)
 			f.SetCellValue(summary, fmt.Sprintf("B%d", row), dp.Total)
+			f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), numberStyle)
 			totalCur += dp.Total
 			var chg float64
 			hasChg := false
 			if hasPrevious && i < len(previousData) {
 				f.SetCellValue(summary, fmt.Sprintf("C%d", row), previousData[i].Total)
+				f.SetCellStyle(summary, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), numberStyle)
 				totalPrev += previousData[i].Total
 				chg = calcChangeFloat(dp.Total, previousData[i].Total)
 				f.SetCellValue(summary, fmt.Sprintf("D%d", row), chg)
 				hasChg = true
 			}
 			if i%2 == 1 {
-				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), altStyle)
+				f.SetCellStyle(summary, fmt.Sprintf("B%d", row), fmt.Sprintf("C%d", row), altNumberStyle)
 				f.SetCellStyle(summary, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), altStyle)
 			}
 			if hasChg {
@@ -353,8 +379,10 @@ func (s *ExcelService) GenerateDashboardExport(ctx context.Context, params Dashb
 	totalChg := calcChangeFloat(totalCur, totalPrev)
 	f.SetCellValue(summary, fmt.Sprintf("A%d", totalRow), "TOTAL")
 	f.SetCellValue(summary, fmt.Sprintf("B%d", totalRow), totalCur)
+	f.SetCellStyle(summary, fmt.Sprintf("B%d", totalRow), fmt.Sprintf("B%d", totalRow), numberStyle)
 	if totalPrev > 0 {
 		f.SetCellValue(summary, fmt.Sprintf("C%d", totalRow), totalPrev)
+		f.SetCellStyle(summary, fmt.Sprintf("C%d", totalRow), fmt.Sprintf("C%d", totalRow), numberStyle)
 	}
 	f.SetCellValue(summary, fmt.Sprintf("D%d", totalRow), totalChg)
 	if totalChg >= 0 {

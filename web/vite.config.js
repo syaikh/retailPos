@@ -10,6 +10,10 @@ const frontendPort = Number(process.env.FRONTEND_PORT) || 5173;
 const backendPort = Number(process.env.BACKEND_PORT) || 9095;
 
 export default defineConfig({
+  define: {
+    __FRONTEND_PORT__: JSON.stringify(frontendPort),
+    __BACKEND_PORT__: JSON.stringify(backendPort)
+  },
   plugins: [
     tailwindcss(),
     svelte()
@@ -23,6 +27,9 @@ export default defineConfig({
   },
   server: {
     port: frontendPort,
+    hmr: {
+      port: frontendPort
+    },
     proxy: {
       '/api': {
         target: `http://localhost:${backendPort}`,

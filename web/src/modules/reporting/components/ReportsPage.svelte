@@ -756,6 +756,7 @@
 
       const backendPeriodType = activePeriodType === 'realtime' || activePeriodType === 'yesterday' || activePeriodType === 'daily'
         ? 'daily'
+        : activePeriodType === '7days' ? '7days'
         : activePeriodType === 'weekly' ? 'weekly'
         : activePeriodType === 'monthly' ? 'monthly'
         : activePeriodType === 'yearly' ? 'yearly'

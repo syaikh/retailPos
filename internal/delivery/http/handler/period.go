@@ -11,6 +11,7 @@ type PeriodType string
 
 const (
   PeriodDaily   PeriodType = "daily"
+  Period7Days   PeriodType = "7days"
   PeriodWeekly  PeriodType = "weekly"
   PeriodMonthly PeriodType = "monthly"
   PeriodYearly  PeriodType = "yearly"
@@ -49,6 +50,8 @@ func GetComparisonRanges(
 	switch periodType {
 	case PeriodDaily:
 		pr = getDailyRanges(refDate, completedMode)
+	case Period7Days:
+		pr = get7DaysRanges(refDate, completedMode)
 	case PeriodWeekly:
 		pr = getWeeklyRanges(refDate, completedMode)
 	case PeriodMonthly:
@@ -87,6 +90,33 @@ func getDailyRanges(refDate time.Time, completedMode bool) PeriodRange {
 		CurrentEnd:    refDate.AddDate(0, 0, 1),  // refDate + 1 day (exclusive)
 		PreviousStart: refDate.AddDate(0, 0, -13), // 13 days before refDate
 		PreviousEnd:   refDate.AddDate(0, 0, -6),   // 7 days before refDate (exclusive)
+	}
+}
+
+// get7DaysRanges calculates 7-day comparison period
+func get7DaysRanges(refDate time.Time, completedMode bool) PeriodRange {
+	if completedMode {
+		// Completed 7-day period (e.g., last full week Mon-Sun): compare to previous week
+		// Align to Monday-start week
+		weekday := refDate.Weekday()
+		daysSinceMonday := int(weekday - time.Monday)
+		if weekday == time.Sunday {
+			daysSinceMonday = 6
+		}
+		weekStart := refDate.AddDate(0, 0, -daysSinceMonday)
+		return PeriodRange{
+			CurrentStart:  weekStart.AddDate(0, 0, -7),
+			CurrentEnd:    weekStart,
+			PreviousStart: weekStart.AddDate(0, 0, -14),
+			PreviousEnd:   weekStart.AddDate(0, 0, -7),
+		}
+	}
+	// To-date: 7 days ending at refDate vs previous 7 days
+	return PeriodRange{
+		CurrentStart:  refDate.AddDate(0, 0, -6),
+		CurrentEnd:    refDate.AddDate(0, 0, 1),
+		PreviousStart: refDate.AddDate(0, 0, -13),
+		PreviousEnd:   refDate.AddDate(0, 0, -6),
 	}
 }
 
