@@ -243,10 +243,12 @@
       const prevByDate = {};
       prevChartData.forEach(p => { if (p.date) prevByDate[p.date] = p.total; });
       const dayOffset = computeDayOffset();
+      const safeOffset = isNaN(dayOffset) ? 0 : dayOffset;
       return chartData.map(d => {
         if (!d.date) return null;
         const currentDate = new Date(d.date + 'T00:00:00Z');
-        const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
+        if (isNaN(currentDate.getTime())) return null;
+        const expectedPrev = new Date(currentDate.getTime() - safeOffset * 86400000);
         const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
         const prevTotal = prevByDate[expectedPrevStr];
         const hasPrev = prevTotal !== undefined;
@@ -357,7 +359,7 @@
       prevChartData.forEach(d => { prevByHour[parseInt(d.date)] = d.total; });
       labels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
       values = hours.map(h => dataByHour[h] || 0);
-      prevValues = hours.map(h => prevByHour[h] !== undefined ? prevByHour[h] : null);
+      prevValues = hours.map(h => prevByHour[h] !== undefined ? prevByHour[h] : 0);
     } else if (chartType === 'daily') {
       currentChartType = 'line';
       if (activePeriodType === 'monthly') {
@@ -394,7 +396,7 @@
             dateStrings.push(dateStr);
             if (dateStr <= yesterday) {
               const prevItem = prevSorted[prevIdx];
-              const hasPrev = prevItem && prevItem.total > 0;
+              const hasPrev = prevItem !== undefined;
               prevDateStrings.push(prevItem ? prevItem.date : '');
               values.push(dataMap[dateStr] || 0);
               prevValues.push(hasPrev ? prevItem.total : null);
@@ -470,6 +472,7 @@
         if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
           const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
           dayOffset = Math.round(diffMs / 86400000);
+          if (isNaN(dayOffset)) dayOffset = 0;
         }
         labels = [];
         values = [];
@@ -486,6 +489,14 @@
             return;
           }
           const currentDate = new Date(d.date);
+          if (isNaN(currentDate.getTime())) {
+            labels.push(String(i + 1));
+            dateStrings.push('');
+            prevDateStrings.push('');
+            values.push(d.total);
+            prevValues.push(null);
+            return;
+          }
           const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' });
           const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
           const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
@@ -531,7 +542,7 @@
           const currentDate = new Date(chartYear, m - 1, 1);
           const currentLabel = currentDate.toLocaleString('en-US', { month: 'short' }) + ' ' + chartYear;
           const prevDate = new Date(prevYear, m - 1, 1);
-          const hasPrevData = prevByMonth[m] !== undefined && prevByMonth[m] > 0;
+          const hasPrevData = prevByMonth[m] !== undefined;
           const prevLabel = hasPrevData
             ? prevDate.toLocaleString('en-US', { month: 'short' }) + ' ' + prevYear
             : 'No Data';
@@ -752,6 +763,8 @@
   async function fetchSalesWithRange(start, end) {
     try {
       loading = true;
+      chartData = [];
+      prevChartData = [];
       startDate = start;
       endDate = end;
 
