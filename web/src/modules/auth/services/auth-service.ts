@@ -99,18 +99,16 @@ function getAuthHeaders(): Record<string, string> {
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await authApi.post('/validate', {}, { headers: getAuthHeaders() });
-    return response.status === 200;
+    await authApi.post('/validate', {}, { headers: getAuthHeaders() });
+    return true;
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       const newToken = await refreshAccessToken();
-      if (!newToken) {
-        return false;
-      }
+      if (!newToken) return false;
       try {
-        const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
-        return response.status === 200;
-      } catch (_err) {
+        await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
+        return true;
+      } catch {
         return false;
       }
     }
@@ -119,40 +117,45 @@ export async function checkAuth(): Promise<boolean> {
 }
 
 export async function restoreSession(): Promise<{ success: boolean; user?: User }> {
+  let accessToken: string | null;
   try {
-    const accessToken = sessionStorage.getItem('access_token');
+    accessToken = sessionStorage.getItem('access_token');
     if (!accessToken) {
       return { success: false };
     }
+  } catch {
+    return { success: false };
+  }
 
-    try {
-      const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (response.status === 200 && response.data.user) {
-        const user = response.data.user as User;
-        if (response.data.permissions) {
-          user.permissions = response.data.permissions;
-        }
-        return { success: true, user };
+  const getHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
+
+  try {
+    const response = await authApi.post('/validate', {}, { headers: getHeaders() });
+    if (response.data.user) {
+      const user = response.data.user as User;
+      if (response.data.permissions) {
+        user.permissions = response.data.permissions;
       }
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 401) {
-        const newToken = await refreshTokenSilently();
-        if (!newToken) {
-          return { success: false };
-        }
-        const response = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
-        if (response.status === 200 && response.data.user) {
-          const user = response.data.user as User;
-          if (response.data.permissions) {
-            user.permissions = response.data.permissions;
+      return { success: true, user };
+    }
+    return { success: false };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      const newToken = await refreshTokenSilently();
+      if (!newToken) return { success: false };
+      try {
+        const retry = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
+        if (retry.data.user) {
+          const user = retry.data.user as User;
+          if (retry.data.permissions) {
+            user.permissions = retry.data.permissions;
           }
           return { success: true, user };
         }
+      } catch {
+        // fallthrough
       }
     }
-
-    return { success: false };
-  } catch (err) {
     return { success: false };
   }
 }
@@ -160,17 +163,12 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
 export async function login(username: string, password: string): Promise<{ access_token: string; refresh_token: string; user: User } | false> {
   try {
     const response = await authApi.post('/login', { username, password });
-
-    if (response.status === 200) {
-      const data = response.data;
-      if (data.access_token) {
-        sessionStorage.setItem('access_token', data.access_token);
-      }
-      return data;
-    } else {
-      return false;
+    const data = response.data;
+    if (data.access_token) {
+      sessionStorage.setItem('access_token', data.access_token);
     }
-  } catch (err) {
+    return data;
+  } catch {
     return false;
   }
 }

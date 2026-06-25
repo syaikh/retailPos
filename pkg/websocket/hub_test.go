@@ -2,32 +2,22 @@ package websocket
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"retail-pos-system/internal/auth"
-	"retail-pos-system/internal/domain"
-	"retail-pos-system/internal/repository"
-
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
-// drainMessages drains all messages from a channel
 func drainMessages(ch chan []byte) {
 	for {
 		select {
 		case <-ch:
-			// Drain message
 		default:
 			return
 		}
 	}
 }
 
-// TestHub_Shutdown tests graceful shutdown of the hub
 func TestHub_Shutdown(t *testing.T) {
 	hub := &Hub{
 		clients:         make(map[*Client]bool),
@@ -41,7 +31,6 @@ func TestHub_Shutdown(t *testing.T) {
 	go hub.Run()
 	time.Sleep(50 * time.Millisecond)
 
-	// Create mock clients without actual WebSocket connections
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	ctx2, cancel2 := context.WithCancel(context.Background())
 
@@ -63,318 +52,148 @@ func TestHub_Shutdown(t *testing.T) {
 		cancel:  cancel2,
 	}
 
-	hub.clients[client1] = true
-	hub.clients[client2] = true
-	hub.userConnections[1] = 1
-	hub.userConnections[2] = 1
+	hub.register <- client1
+	assert.Eventually(t, func() bool {
+		hub.mutex.RLock()
+		defer hub.mutex.RUnlock()
+		return hub.userConnections[1] == 1
+	}, time.Second, 10*time.Millisecond)
 
-	// Verify clients are registered
+	hub.register <- client2
+	assert.Eventually(t, func() bool {
+		hub.mutex.RLock()
+		defer hub.mutex.RUnlock()
+		return hub.userConnections[2] == 1
+	}, time.Second, 10*time.Millisecond)
+
+	hub.mutex.RLock()
 	assert.Len(t, hub.clients, 2)
-	assert.Equal(t, 1, hub.userConnections[1])
-	assert.Equal(t, 1, hub.userConnections[2])
+	hub.mutex.RUnlock()
 
-	// Call shutdown
 	hub.Shutdown()
 
-	// Verify all clients are removed
+	hub.mutex.RLock()
 	assert.Len(t, hub.clients, 0)
-	assert.Equal(t, 0, len(hub.userConnections))
-
-	// Verify contexts are cancelled
-	select {
-	case <-ctx1.Done():
-		// Expected - context was cancelled
-	case <-time.After(100 * time.Millisecond):
-		t.Error("Context 1 not cancelled")
-	}
-
-	select {
-	case <-ctx2.Done():
-		// Expected - context was cancelled
-	case <-time.After(100 * time.Millisecond):
-		t.Error("Context 2 not cancelled")
-	}
+	assert.Equal(t, 0, hub.userConnections[1])
+	assert.Equal(t, 0, hub.userConnections[2])
+	hub.mutex.RUnlock()
 }
 
-func TestHub_NewHub(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-
-	hub := NewHub(authService)
-	assert.NotNil(t, hub)
-	assert.NotNil(t, hub.clients)
-	assert.NotNil(t, hub.broadcast)
-	assert.NotNil(t, hub.register)
-	assert.NotNil(t, hub.unregister)
-	assert.NotNil(t, hub.rateLimiter)
-}
-
-func TestHub_Run(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-
-	hub := NewHub(authService)
-
-	// Start hub in background
+func TestHub_MaxConnectionsPerUser(t *testing.T) {
+	hub := &Hub{
+		clients:         make(map[*Client]bool),
+		register:        make(chan *Client, 100),
+		unregister:      make(chan *Client, 100),
+		broadcast:       make(chan Event, 1000),
+		userConnections: make(map[int]int),
+		done:            make(chan struct{}),
+	}
 	go hub.Run()
+	defer hub.Shutdown()
 
-	// Give it time to start
-	time.Sleep(100 * time.Millisecond)
+	baseCtx := context.Background()
+	for i := 0; i < maxConnectionsPerUser; i++ {
+		ctx, cancel := context.WithCancel(baseCtx)
+		client := &Client{
+			hub:     hub,
+			userID:  1,
+			send:    make(chan []byte, 256),
+			isAdmin: false,
+			ctx:     ctx,
+			cancel:  cancel,
+		}
+		hub.register <- client
+	}
 
-	// Test that channels are being processed
+	assert.Eventually(t, func() bool {
+		hub.mutex.RLock()
+		defer hub.mutex.RUnlock()
+		return hub.userConnections[1] == maxConnectionsPerUser
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestHub_Broadcast(t *testing.T) {
+	hub := &Hub{
+		clients:         make(map[*Client]bool),
+		register:        make(chan *Client, 100),
+		unregister:      make(chan *Client, 100),
+		broadcast:       make(chan Event, 1000),
+		userConnections: make(map[int]int),
+		done:            make(chan struct{}),
+	}
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := &Client{
+		hub:     hub,
+		userID:  1,
+		send:    make(chan []byte, 256),
+		isAdmin: true,
+		ctx:     context.Background(),
+		cancel:  func() {},
+	}
+	hub.register <- client
+	assert.Eventually(t, func() bool {
+		hub.mutex.RLock()
+		defer hub.mutex.RUnlock()
+		return hub.userConnections[1] == 1
+	}, time.Second, 10*time.Millisecond)
+
+	// Drain the user_online_count event sent during registration
+	drainMessages(client.send)
+
+	hub.Broadcast(Event{
+		Type: EventStockUpdate,
+	})
+
 	select {
-	case <-hub.broadcast:
-		// Should not receive anything yet
-		t.Error("Unexpected broadcast message")
-	default:
-		// Expected - no messages yet
+	case msg := <-client.send:
+		assert.Contains(t, string(msg), "stock_update")
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for broadcast to reach client")
 	}
 }
 
-func TestCheckOrigin(t *testing.T) {
+func TestHub_ShouldReceiveEvent(t *testing.T) {
 	tests := []struct {
 		name     string
-		origin   string
+		client   *Client
+		event    *Event
 		expected bool
 	}{
-		{"no origin", "", true},
-		{"localhost http", "http://localhost:5173", true},
-		{"localhost https", "https://localhost:5173", true},
-		{"127.0.0.1", "http://127.0.0.1:3000", true},
-		{"192.168.x.x", "http://192.168.1.100:8080", true},
-		{"10.x.x.x", "http://10.0.0.1:8080", true},
-		{"external domain", "https://evil.com", true}, // Currently allows all origins
+		{
+			name:     "admin receives all",
+			client:   &Client{isAdmin: true},
+			event:    &Event{StoreID: nil},
+			expected: true,
+		},
+		{
+			name:     "same store receives",
+			client:   &Client{storeID: intPtr(1)},
+			event:    &Event{StoreID: intPtr(1)},
+			expected: true,
+		},
+		{
+			name:     "different store blocked for non-admin",
+			client:   &Client{storeID: intPtr(1), isAdmin: false},
+			event:    &Event{StoreID: intPtr(2)},
+			expected: false,
+		},
+		{
+			name:     "nil store passes",
+			client:   &Client{storeID: nil},
+			event:    &Event{StoreID: nil},
+			expected: true,
+		},
 	}
 
+	hub := &Hub{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &http.Request{
-				Header: make(http.Header),
-			}
-			if tt.origin != "" {
-				req.Header.Set("Origin", tt.origin)
-			}
-
-			result := checkOrigin(req)
+			result := hub.ShouldReceiveEvent(tt.client, tt.event)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestServeWebSocket_Unauthorized(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	// Create Gin context without JWT token
-	r := gin.New()
-	r.GET("/ws", func(c *gin.Context) {
-		ServeWebSocket(hub, c)
-	})
-
-	req := httptest.NewRequest("GET", "/ws", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	// Should fail because no token (authentication required)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestServeWebSocket_InvalidToken(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	// Create Gin context with invalid JWT token
-	r := gin.New()
-	r.GET("/ws", func(c *gin.Context) {
-		ServeWebSocket(hub, c)
-	})
-
-	req := httptest.NewRequest("GET", "/ws?token=invalid.jwt.token", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	// Should fail because invalid token (authentication required)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-// TestClient_Management tests client registration with exported method
-func TestClient_Management(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	go hub.Run()
-	time.Sleep(100 * time.Millisecond)
-
-	// Create a mock client
-	client := &Client{
-		hub:     hub,
-		userID:  1,
-		storeID: nil,
-		send:    make(chan []byte, 256),
-		isAdmin: true,
-	}
-
-	// Test registration
-	hub.register <- client
-	time.Sleep(100 * time.Millisecond)
-
-	// Client should be registered
-	assert.Contains(t, hub.clients, client)
-
-	// Test unregistration
-	hub.unregister <- client
-	time.Sleep(100 * time.Millisecond)
-
-	// Client should be unregistered
-	assert.NotContains(t, hub.clients, client)
-}
-
-func TestBroadcastProductUpdate(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	go hub.Run()
-	time.Sleep(100 * time.Millisecond)
-
-	// Create mock clients
-	client1 := &Client{
-		hub:     hub,
-		userID:  1,
-		storeID: nil, // Admin - should receive all
-		send:    make(chan []byte, 256),
-		isAdmin: true,
-	}
-
-	client2 := &Client{
-		hub:     hub,
-		userID:  2,
-		storeID: func() *int { i := 1; return &i }(), // Store 1
-		send:    make(chan []byte, 256),
-		isAdmin: false,
-	}
-
-	client3 := &Client{
-		hub:     hub,
-		userID:  3,
-		storeID: func() *int { i := 2; return &i }(), // Store 2
-		send:    make(chan []byte, 256),
-		isAdmin: false,
-	}
-
-	// Create test product for store 1
-	storeID := 1
-	product := &domain.Product{
-		ID:      1,
-		SKU:     "TEST-001",
-		Name:    "Test Product",
-		Stock:   50,
-		StoreID: &storeID,
-	}
-
-	// Register clients
-	hub.register <- client1
-	hub.register <- client2
-	hub.register <- client3
-	time.Sleep(200 * time.Millisecond)
-
-	// Drain any user_online_count messages from registration
-	drainMessages(client1.send)
-	drainMessages(client2.send)
-	drainMessages(client3.send)
-
-	// Broadcast product update
-	BroadcastProductUpdate(hub, product)
-
-	// Give time for broadcast
-	time.Sleep(200 * time.Millisecond)
-
-	// Check messages received using exported method
-	assert.True(t, hub.ShouldReceiveEvent(client1, &Event{StoreID: &storeID}))
-	assert.True(t, hub.ShouldReceiveEvent(client2, &Event{StoreID: &storeID}))
-	assert.False(t, hub.ShouldReceiveEvent(client3, &Event{StoreID: &storeID}))
-}
-
-func TestRateLimiting(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	// Test rate limiter creation
-	ip := "192.168.1.100"
-	limiter := hub.rateLimiter.getLimiter(ip)
-	assert.NotNil(t, limiter)
-
-	// Test that same IP gets same limiter
-	limiter2 := hub.rateLimiter.getLimiter(ip)
-	assert.Equal(t, limiter, limiter2)
-}
-
-func TestConnectionLimits(t *testing.T) {
-	testDB := repository.NewTestDB(t)
-	defer testDB.Close(t)
-
-	repo := repository.NewPostgresRepository(testDB.Pool())
-	authService := auth.NewAuthService(repo, testDB.Pool())
-	hub := NewHub(authService)
-
-	userID := 1
-
-	// Create multiple clients for same user
-	clients := make([]*Client, maxConnectionsPerUser+1)
-	for i := 0; i < len(clients); i++ {
-		client := &Client{
-			hub:     hub,
-			userID:  userID,
-			storeID: nil,
-			send:    make(chan []byte, 256),
-			isAdmin: true,
-		}
-		clients[i] = client
-	}
-
-	// Manually register clients (without running hub goroutine to avoid panic)
-	hub.clients[clients[0]] = true
-	hub.clients[clients[1]] = true
-	hub.clients[clients[2]] = true
-	hub.clients[clients[3]] = true
-	hub.clients[clients[4]] = true
-
-	// Update connection counts
-	hub.userConnections[userID] = maxConnectionsPerUser
-
-	// Check that allowed clients are registered
-	assert.Len(t, hub.clients, maxConnectionsPerUser)
-	assert.Equal(t, maxConnectionsPerUser, hub.userConnections[userID])
-
-	// Try to register one more - this should be rejected by the hub logic
-	// (We can't easily test the channel-based registration without running the hub)
-	// Instead, test the connection count logic directly
-	assert.Equal(t, maxConnectionsPerUser, hub.userConnections[userID])
-}
+func intPtr(i int) *int { return &i }

@@ -286,7 +286,11 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		fmt.Printf("   Found %d existing categories\n", len(categoryIDs))
 	}
 
-	// 3. Inject products
+	// 3. Ensure tax classes exist
+	ensureTaxClasses(ctx, db)
+	fmt.Println("   ✅ Tax classes ready")
+
+	// 4. Inject products
 	var productData []ProductInfo
 	if numProducts > 0 {
 		fmt.Printf("📦 Injecting %d products...\n", numProducts)
@@ -302,7 +306,7 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		fmt.Printf("   Found %d existing products\n", len(productData))
 	}
 
-	// 4. Get users for cashier assignment (needed for sales)
+	// 5. Get users for cashier assignment (needed for sales)
 	var userIDs []int
 	if len(productData) > 0 {
 		userIDs = getIDs(ctx, db, "users")
@@ -311,27 +315,27 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		}
 	}
 
-	// 5. Inject dummy customers (50-100) — must happen BEFORE sales so we can link them
+	// 6. Inject dummy customers (50-100) — must happen BEFORE sales so we can link them
 	fmt.Printf("👥 Injecting dummy customers...\n")
 	if err := injectCustomers(ctx, db, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject customers: %w", err)
 	}
 	fmt.Printf("   ✅ Customers injected\n")
 
-	// 6. Load customer IDs for sales assignment
+	// 7. Load customer IDs for sales assignment
 	customerIDs := getIDs(ctx, db, "customers")
 	if len(customerIDs) == 0 {
 		return fmt.Errorf("no customers found after injection")
 	}
 
-	// 7. Load walk-in customer ID
+	// 8. Load walk-in customer ID
 	var walkInCustomerID int
 	err = db.QueryRowContext(ctx, "SELECT id FROM customers WHERE is_walk_in = true LIMIT 1").Scan(&walkInCustomerID)
 	if err != nil {
 		return fmt.Errorf("no walk-in customer found: %w", err)
 	}
 
-	// 8. Inject sales transactions (10-20 per day across all days)
+	// 9. Inject sales transactions (10-20 per day across all days)
 	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
 
 	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, walkInCustomerID, startDate, endDate); err != nil {
@@ -451,6 +455,19 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 	}
 
 	return existingIDs
+}
+
+func ensureTaxClasses(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO tax_classes (id, name, rate_percent, description, is_active, created_at)
+		VALUES
+		(1, 'PPN 11%', 11.00, 'Pajak Pertambahan Nilai standar 11%', true, NOW()),
+		(2, 'PPN 0%', 0.00, 'Tidak dikenakan PPN', true, NOW()),
+		(3, 'Non PPN', 0.00, 'Produk tidak kena PPN', true, NOW())
+		ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure tax classes: %v\n", err)
+	}
 }
 
 // productWorkerJob represents a job for a worker in the concurrent product injection pool
@@ -1153,14 +1170,14 @@ func generateItemCount() int {
 }
 
 func selectProductsForSale(products []ProductInfo, count int) []int {
+	if len(products) == 0 {
+		return nil
+	}
 	selected := make([]int, 0, count)
-
-	// Simple random selection (can be improved later)
 	for i := 0; i < count; i++ {
 		selectedProduct := products[rand.Intn(len(products))]
 		selected = append(selected, selectedProduct.ID)
 	}
-
 	return selected
 }
 
