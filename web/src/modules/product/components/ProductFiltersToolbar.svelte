@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
+  import { Button, SearchBar, ExportImportButtons } from '$shared/ui';
   import { Plus, SlidersHorizontal, ChevronDown, AlertTriangle, X } from 'lucide-svelte';
 
   let {
@@ -9,11 +9,14 @@
     filterStatus = $bindable('all'),
     lowStockOnly = $bindable(false),
     canManageInventory = false,
+    canCreate = false,
     onsearch = () => {},
     onfiltercategory = () => {},
     onrefresh = () => {},
     onclearall = () => {},
     onadd = () => {},
+    onExport = (_format: 'csv' | 'xlsx') => {},
+    onImport = () => {},
   }: {
     searchQuery?: string;
     selectedCategories?: string[];
@@ -21,11 +24,14 @@
     filterStatus?: string;
     lowStockOnly?: boolean;
     canManageInventory?: boolean;
+    canCreate?: boolean;
     onsearch?: () => void;
     onfiltercategory?: () => void;
     onrefresh?: () => void;
     onclearall?: () => void;
     onadd?: () => void;
+    onExport?: (format: 'csv' | 'xlsx') => void;
+    onImport?: () => void;
   } = $props();
 
   let showStatusDropdown = $state(false);
@@ -118,6 +124,7 @@
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
     </button>
+    <ExportImportButtons canExportImport={canCreate} {onExport} {onImport} />
     <Button
       onclick={onadd}
       disabled={!canManageInventory}

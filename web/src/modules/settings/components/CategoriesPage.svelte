@@ -8,8 +8,9 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, ImportModal, ExportImportButtons } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
+  import { exportCategories, importCategories } from '../services/settings-service';
 
   let loading = $state(true);
   let categories = $state([]);
@@ -87,6 +88,16 @@ let canView = $derived(authStore.user != null);
       }
     })
   );
+
+  let showImportModal = $state(false);
+
+  function handleExport(format) {
+    exportCategories(format);
+  }
+
+  async function handleImport(file) {
+    return await importCategories(file);
+  }
 
   async function fetchCategories(isSearch = false) {
     // Note: Authorization checked via API response (403), not frontend
@@ -223,10 +234,17 @@ let canView = $derived(authStore.user != null);
         <SearchBar bind:value={searchQuery} placeholder="Search by name or slug..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Kategori
-        </Button>
+        <div class="flex items-center gap-2">
+          <ExportImportButtons
+            canExportImport={true}
+            onExport={handleExport}
+            onImport={() => showImportModal = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Kategori
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -403,6 +421,13 @@ let canView = $derived(authStore.user != null);
     </Button>
   {/snippet}
 </Modal>
+
+<ImportModal
+  bind:show={showImportModal}
+  title="Import Categories"
+  templateHeaders={['Name', 'Slug', 'Description', 'IsActive']}
+  onImport={handleImport}
+/>
 
 <!-- Delete Confirm Modal -->
 <Modal bind:open={showDeleteModal} title="Hapus Kategori" size="sm">

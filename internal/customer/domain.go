@@ -35,3 +35,13 @@ type CustomerUpdateRequest struct {
 	Note     *string `json:"note,omitempty"`
 	IsActive *bool   `json:"is_active,omitempty"`
 }
+
+type CustomerImportRow struct {
+	Row      int
+	Name     string
+	Phone    string
+	Email    string
+	Address  string
+	Note     string
+	IsActive bool
+}

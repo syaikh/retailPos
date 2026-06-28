@@ -4,12 +4,11 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
-  import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
+  import { getBrands, createBrand, updateBrand, deleteBrand, exportBrands, importBrands } from '$modules/settings/services/settings-service';
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton } from '$shared/ui';
-  import { SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, ImportModal, ExportImportButtons, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -70,6 +69,16 @@
   const debouncedSearchFetch = debounce(() => {
     fetchBrands();
   }, 400);
+
+  let showImportModal = $state(false);
+
+  function handleExport(format) {
+    exportBrands(format);
+  }
+
+  async function handleImport(file) {
+    return await importBrands(file);
+  }
 
   function openAdd() {
     modalMode = 'add';
@@ -150,10 +159,17 @@
         <SearchBar bind:value={searchQuery} placeholder="Search by name..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Brand
-        </Button>
+        <div class="flex items-center gap-2">
+          <ExportImportButtons
+            canExportImport={true}
+            onExport={handleExport}
+            onImport={() => showImportModal = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Brand
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -294,6 +310,13 @@
     </Button>
   {/snippet}
 </Modal>
+
+<ImportModal
+  bind:show={showImportModal}
+  title="Import Brands"
+  templateHeaders={['Name', 'Description', 'IsActive']}
+  onImport={handleImport}
+/>
 
 <Modal bind:open={showDeleteModal} title="Hapus Brand" size="sm">
   <div class="text-center py-2">

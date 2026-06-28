@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
+  import { Button, SearchBar, ExportImportButtons } from '$shared/ui';
   import { Plus } from 'lucide-svelte';
 
   let {
@@ -9,6 +9,8 @@
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
+    onExport = (_format: 'csv' | 'xlsx') => {},
+    onImport = () => {},
   }: {
     searchQuery?: string;
     statusFilter?: string;
@@ -16,6 +18,8 @@
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
+    onExport?: (format: 'csv' | 'xlsx') => void;
+    onImport?: () => void;
   } = $props();
 </script>
 
@@ -45,6 +49,7 @@
       </button>
     </div>
     {#if canCreate}
+      <ExportImportButtons canExportImport={canCreate} {onExport} {onImport} />
       <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
         <Plus size={18} />
         Add Customer

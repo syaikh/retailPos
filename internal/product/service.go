@@ -2,9 +2,11 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/importutil"
 )
 
 type EventBus interface {
@@ -112,6 +114,18 @@ func (s *Service) DeleteBrand(ctx context.Context, id int) error {
 	}
 	return s.eventBus.Publish(ctx, "brand.deleted", id)
 }
+func (s *Service) GetAllBrandsForExport(ctx context.Context) ([]Brand, error) {
+	return s.repo.GetAllBrandsForExport(ctx)
+}
+func (s *Service) ImportBrands(ctx context.Context, records []BrandImportRow) importutil.ImportResult {
+	return s.repo.BulkUpsertBrands(ctx, records)
+}
+func (s *Service) GetAllUnitsOfMeasureForExport(ctx context.Context) ([]UnitOfMeasure, error) {
+	return s.repo.GetAllUnitsOfMeasureForExport(ctx)
+}
+func (s *Service) ImportUnitsOfMeasure(ctx context.Context, records []UnitOfMeasureImportRow) importutil.ImportResult {
+	return s.repo.BulkUpsertUnitsOfMeasure(ctx, records)
+}
 func (s *Service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) { return s.repo.GetTaxClassByID(ctx, id) }
 func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) { return s.repo.GetAllTaxClasses(ctx) }
 func (s *Service) GetUnitOfMeasureByID(ctx context.Context, id int) (*UnitOfMeasure, error) { return s.repo.GetUnitOfMeasureByID(ctx, id) }
@@ -140,6 +154,126 @@ func (s *Service) DeleteUnitOfMeasure(ctx context.Context, id int) error {
 }
 func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) { return s.repo.GetWarehouseByID(ctx, id) }
 func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) { return s.repo.GetAllWarehouses(ctx, nil) }
+
+func (s *Service) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
+	return s.repo.GetAllProductsForExport(ctx)
+}
+
+func (s *Service) ImportProducts(ctx context.Context, records []ProductImportRow) importutil.ImportResult {
+	result := importutil.ImportResult{Errors: []string{}}
+
+	for _, rec := range records {
+		if rec.SKU == "" {
+			result.AddError(rec.Row, "SKU is required")
+			continue
+		}
+		if rec.Name == "" {
+			result.AddError(rec.Row, "Name is required")
+			continue
+		}
+		if rec.Price <= 0 {
+			result.AddError(rec.Row, "Price must be greater than 0")
+			continue
+		}
+		if rec.Stock < 0 {
+			result.AddError(rec.Row, "Stock must not be negative")
+			continue
+		}
+		status := rec.Status
+		if status == "" {
+			status = "active"
+		}
+		validStatuses := map[string]bool{"active": true, "inactive": true, "draft": true, "archived": true}
+		if !validStatuses[status] {
+			result.AddError(rec.Row, "Status must be one of: active, inactive, draft, archived")
+			continue
+		}
+
+		var categoryID *int
+		if rec.Category != "" {
+			id, err := s.resolveCategoryID(ctx, rec.Category)
+			if err != nil {
+				result.AddError(rec.Row, fmt.Sprintf("category error: %v", err))
+				continue
+			}
+			categoryID = &id
+		}
+
+		var brandID *int
+		if rec.Brand != "" {
+			id, err := s.resolveBrandID(ctx, rec.Brand)
+			if err != nil {
+				result.AddError(rec.Row, fmt.Sprintf("brand error: %v", err))
+				continue
+			}
+			brandID = &id
+		}
+
+		var uomID *int
+		if rec.UnitOfMeasure != "" {
+			id, err := s.resolveUnitOfMeasureID(ctx, rec.UnitOfMeasure)
+			if err != nil {
+				result.AddError(rec.Row, fmt.Sprintf("unit of measure error: %v", err))
+				continue
+			}
+			uomID = &id
+		}
+
+		inserted, err := s.repo.BulkUpsertProduct(ctx, ProductImportPayload{
+			SKU:           rec.SKU,
+			Name:          rec.Name,
+			Barcode:       strPtr(rec.Barcode),
+			CategoryID:    categoryID,
+			BrandID:       brandID,
+			Price:         rec.Price,
+			Cost:          rec.Cost,
+			Stock:         rec.Stock,
+			Status:        status,
+			UnitOfMeasureID: uomID,
+			WeightGrams:   intPtr(rec.WeightGrams),
+			Description:   strPtr(rec.Description),
+		})
+
+		if err != nil {
+			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
+			continue
+		}
+
+		if inserted {
+			result.Inserted++
+		} else {
+			result.Updated++
+		}
+	}
+
+	return result
+}
+
+func (s *Service) resolveCategoryID(ctx context.Context, name string) (int, error) {
+	return s.repo.GetOrCreateCategoryIDByName(ctx, name)
+}
+
+func (s *Service) resolveBrandID(ctx context.Context, name string) (int, error) {
+	return s.repo.GetOrCreateBrandIDByName(ctx, name)
+}
+
+func (s *Service) resolveUnitOfMeasureID(ctx context.Context, code string) (int, error) {
+	return s.repo.GetOrCreateUnitOfMeasureIDByCode(ctx, code)
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func intPtr(i int) *int {
+	if i == 0 {
+		return nil
+	}
+	return &i
+}
 
 func ptr(i int) *int {
 	if i == 0 { return nil }

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/importutil"
 )
 
 type EventBus interface {
@@ -84,4 +85,12 @@ func (s *Service) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isAc
 
 func (s *Service) BulkDeleteCustomers(ctx context.Context, ids []int) error {
 	return s.repo.BulkDeleteCustomers(ctx, ids)
+}
+
+func (s *Service) GetAllCustomersForExport(ctx context.Context) ([]Customer, error) {
+	return s.repo.GetAllCustomersForExport(ctx)
+}
+
+func (s *Service) ImportCustomers(ctx context.Context, records []CustomerImportRow) importutil.ImportResult {
+	return s.repo.BulkUpsertCustomers(ctx, records)
 }

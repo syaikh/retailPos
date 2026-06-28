@@ -4,12 +4,11 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
-  import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure } from '$modules/settings/services/settings-service';
+  import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure, exportUnitsOfMeasure, importUnitsOfMeasure } from '$modules/settings/services/settings-service';
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton } from '$shared/ui';
-  import { SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, ImportModal, ExportImportButtons, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Ruler, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -73,6 +72,16 @@
   const debouncedSearchFetch = debounce(() => {
     fetchUoms();
   }, 400);
+
+  let showImportModal = $state(false);
+
+  function handleExport(format) {
+    exportUnitsOfMeasure(format);
+  }
+
+  async function handleImport(file) {
+    return await importUnitsOfMeasure(file);
+  }
 
   function openAdd() {
     modalMode = 'add';
@@ -163,10 +172,17 @@
         <SearchBar bind:value={searchQuery} placeholder="Search by name or code..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Unit
-        </Button>
+        <div class="flex items-center gap-2">
+          <ExportImportButtons
+            canExportImport={true}
+            onExport={handleExport}
+            onImport={() => showImportModal = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Unit
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -319,6 +335,13 @@
     </Button>
   {/snippet}
 </Modal>
+
+<ImportModal
+  bind:show={showImportModal}
+  title="Import Units of Measure"
+  templateHeaders={['Code', 'Name', 'Description', 'IsActive']}
+  onImport={handleImport}
+/>
 
 <Modal bind:open={showDeleteModal} title="Hapus Unit" size="sm">
   <div class="text-center py-2">

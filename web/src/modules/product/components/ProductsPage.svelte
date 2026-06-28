@@ -5,7 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
-  import { Button, Modal, Pagination } from '$shared/ui';
+  import { Button, Modal, Pagination, ImportModal } from '$shared/ui';
   import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
@@ -16,6 +16,7 @@
   import ProductBulkActions from './ProductBulkActions.svelte';
   import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
+  import { exportProducts, importProducts } from '../services/product-service';
 
   const authStore = useAuthStore();
 
@@ -64,6 +65,15 @@
   let showBulkStatusModal = $state(false);
   let bulkStatusTarget = $state('active');
   let isBulkUpdating = $state(false);
+  let showImportModal = $state(false);
+
+  function handleExport(format: 'csv' | 'xlsx') {
+    exportProducts(format);
+  }
+
+  async function handleImport(file: File) {
+    return await importProducts(file);
+  }
 
   function clearSelection() {
     selectedIds = new Set();
@@ -405,8 +415,10 @@
     return true;
   }
 
+  let userRoleName = $derived(getUserRoleName());
   let isSuperAdmin = $derived(() => getUserRoleName() === 'superadmin');
   let isAdmin = $derived(() => getUserRoleName() === 'admin');
+  let canCreate = $derived(['superadmin', 'admin'].includes(userRoleName));
   let isSensitive = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
   let isFullAudit = $derived(() => ['superadmin', 'admin'].includes(getUserRoleName()));
   let canEdit = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
@@ -505,7 +517,7 @@
   onApply={(cats) => { offset = 0; fetchProducts(0, limit); }}
 />
 
-<div class="space-y-6">
+<div class="space-y-5">
   <ProductFiltersToolbar
     bind:searchQuery
     bind:selectedCategories
@@ -513,6 +525,7 @@
     bind:filterStatus
     bind:lowStockOnly
     {canManageInventory}
+    {canCreate}
     onsearch={handleSearchInput}
     onfiltercategory={() => showCategoryFilterModal = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
@@ -523,6 +536,8 @@
       resetForm();
       showModal = true;
     }}
+    onExport={handleExport}
+    onImport={() => showImportModal = true}
   />
 
   <div class="card overflow-hidden">
@@ -670,5 +685,12 @@
     showModal = true;
   }}
   ondelete={() => { showDetailDrawer = false; showDeleteModal = true; }}
+/>
+
+<ImportModal
+  bind:show={showImportModal}
+  title="Import Products"
+  templateHeaders={['SKU', 'Name', 'Barcode', 'Category', 'Brand', 'Price', 'Cost', 'Stock', 'Status', 'UnitOfMeasure', 'WeightGrams', 'Description']}
+  onImport={handleImport}
 />
 

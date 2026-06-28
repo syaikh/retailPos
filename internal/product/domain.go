@@ -51,6 +51,52 @@ type UnitOfMeasure struct {
 	CreatedAt   string `json:"created_at,omitempty"`
 }
 
+type BrandImportRow struct {
+	Row         int
+	Name        string
+	Description string
+	IsActive    bool
+}
+
+type UnitOfMeasureImportRow struct {
+	Row         int
+	Code        string
+	Name        string
+	Description string
+	IsActive    bool
+}
+
+type ProductImportRow struct {
+	Row           int
+	SKU           string
+	Name          string
+	Barcode       string
+	Category      string
+	Brand         string
+	Price         int
+	Cost          int
+	Stock         int
+	Status        string
+	UnitOfMeasure string
+	WeightGrams   int
+	Description   string
+}
+
+type ProductImportPayload struct {
+	SKU             string
+	Name            string
+	Barcode         *string
+	CategoryID      *int
+	BrandID         *int
+	Price           int
+	Cost            int
+	Stock           int
+	Status          string
+	UnitOfMeasureID *int
+	WeightGrams     *int
+	Description     *string
+}
+
 type Warehouse struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`

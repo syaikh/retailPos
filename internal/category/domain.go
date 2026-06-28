@@ -21,3 +21,11 @@ type CategoryUpdateRequest struct {
 	Description string `json:"description"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
+
+type CategoryImportRow struct {
+	Row         int
+	Name        string
+	Slug        string
+	Description string
+	IsActive    bool
+}

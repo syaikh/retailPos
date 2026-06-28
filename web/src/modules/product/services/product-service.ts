@@ -74,6 +74,18 @@ export async function getStockThresholds(): Promise<StockThreshold> {
   }
 }
 
+export async function exportProducts(format: 'csv' | 'xlsx'): Promise<void> {
+  const token = sessionStorage.getItem('access_token');
+  window.open(`/api/products/export?format=${format}&token=${token}`, '_blank');
+}
+
+export async function importProducts(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const r = await apiClient.post('/products/import', formData);
+  return r.data;
+}
+
 export async function adjustStock(productId: number, quantityChange: number, notes: string): Promise<void> {
   await apiClient.post('/inventory/adjust', {
     product_id: productId,

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"retail-pos-system/internal/importutil"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -705,6 +707,63 @@ func (r *Repository) GetBrandIDByName(ctx context.Context, name string) (int, er
 	return id, err
 }
 
+func (r *Repository) GetAllBrandsForExport(ctx context.Context) ([]Brand, error) {
+	rows, err := r.db.Query(ctx, "SELECT id, name, COALESCE(description,''), is_active, created_at, updated_at FROM brands ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var brands []Brand
+	for rows.Next() {
+		var b Brand
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		b.CreatedAt = createdAt.Format(time.RFC3339)
+		brands = append(brands, b)
+	}
+	return brands, nil
+}
+
+func (r *Repository) BulkUpsertBrands(ctx context.Context, records []BrandImportRow) importutil.ImportResult {
+	result := importutil.ImportResult{Errors: []string{}}
+
+	for _, rec := range records {
+		if rec.Name == "" {
+			result.AddError(rec.Row, "Name is required")
+			continue
+		}
+
+		var existingID int
+		err := r.db.QueryRow(ctx, "SELECT id FROM brands WHERE name = $1", rec.Name).Scan(&existingID)
+		isUpdate := err == nil
+
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO brands (name, description, is_active)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (name) DO UPDATE SET
+				description = EXCLUDED.description,
+				is_active = EXCLUDED.is_active,
+				updated_at = NOW()
+		`, rec.Name, rec.Description, rec.IsActive)
+
+		if err != nil {
+			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
+			continue
+		}
+
+		if isUpdate {
+			result.Updated++
+		} else {
+			result.Inserted++
+		}
+	}
+
+	return result
+}
+
 // Tax class operations
 func (r *Repository) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) {
 	var tc TaxClass
@@ -816,6 +875,67 @@ func (r *Repository) DeleteUnitOfMeasure(ctx context.Context, id int) error {
 	return err
 }
 
+func (r *Repository) GetAllUnitsOfMeasureForExport(ctx context.Context) ([]UnitOfMeasure, error) {
+	rows, err := r.db.Query(ctx, "SELECT id, code, name, COALESCE(description,''), is_active, created_at FROM units_of_measure ORDER BY code")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var uoms []UnitOfMeasure
+	for rows.Next() {
+		var uom UnitOfMeasure
+		var createdAt time.Time
+		if err := rows.Scan(&uom.ID, &uom.Code, &uom.Name, &uom.Description, &uom.IsActive, &createdAt); err != nil {
+			return nil, err
+		}
+		uom.CreatedAt = createdAt.Format(time.RFC3339)
+		uoms = append(uoms, uom)
+	}
+	return uoms, nil
+}
+
+func (r *Repository) BulkUpsertUnitsOfMeasure(ctx context.Context, records []UnitOfMeasureImportRow) importutil.ImportResult {
+	result := importutil.ImportResult{Errors: []string{}}
+
+	for _, rec := range records {
+		if rec.Code == "" {
+			result.AddError(rec.Row, "Code is required")
+			continue
+		}
+		if rec.Name == "" {
+			result.AddError(rec.Row, "Name is required")
+			continue
+		}
+
+		var existingID int
+		err := r.db.QueryRow(ctx, "SELECT id FROM units_of_measure WHERE code = $1", rec.Code).Scan(&existingID)
+		isUpdate := err == nil
+
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO units_of_measure (code, name, description, is_active)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (code) DO UPDATE SET
+				name = EXCLUDED.name,
+				description = EXCLUDED.description,
+				is_active = EXCLUDED.is_active
+		`, rec.Code, rec.Name, rec.Description, rec.IsActive)
+
+		if err != nil {
+			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
+			continue
+		}
+
+		if isUpdate {
+			result.Updated++
+		} else {
+			result.Inserted++
+		}
+	}
+
+	return result
+}
+
 // Warehouse operations
 func (r *Repository) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
 	var w Warehouse
@@ -868,4 +988,216 @@ func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Ware
 		warehouses = append(warehouses, w)
 	}
 	return warehouses, nil
+}
+
+func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
+		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
+		       v.created_at, v.updated_at
+		FROM v_products_full v
+		ORDER BY v.name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		var barcodeVal sql.NullString
+		var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+		var taxClassIDVal sql.NullInt64
+		var taxRateVal sql.NullFloat64
+		var categoryName, brandName, unitOfMeasure, descriptionVal sql.NullString
+		var createdAt, updatedAt time.Time
+
+		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
+			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
+			&taxClassIDVal, &taxRateVal,
+			&createdAt, &updatedAt)
+		if err != nil {
+			return nil, err
+		}
+		if barcodeVal.Valid {
+			p.Barcode = &barcodeVal.String
+		}
+		if categoryIDVal.Valid {
+			v := int(categoryIDVal.Int64)
+			p.CategoryID = &v
+		}
+		if categoryName.Valid {
+			p.CategoryName = &categoryName.String
+		}
+		if brandIDVal.Valid {
+			v := int(brandIDVal.Int64)
+			p.BrandID = &v
+		}
+		if brandName.Valid {
+			p.BrandName = &brandName.String
+		}
+		if unitOfMeasureIDVal.Valid {
+			v := int(unitOfMeasureIDVal.Int64)
+			p.UnitOfMeasureID = &v
+		}
+		if unitOfMeasure.Valid {
+			p.UnitOfMeasure = &unitOfMeasure.String
+		}
+		if weightGramsVal.Valid {
+			v := int(weightGramsVal.Int64)
+			p.WeightGrams = &v
+		}
+		if descriptionVal.Valid {
+			p.Description = &descriptionVal.String
+		}
+		if taxClassIDVal.Valid {
+			v := int(taxClassIDVal.Int64)
+			p.TaxClassID = &v
+		}
+		if taxRateVal.Valid {
+			v := taxRateVal.Float64
+			p.TaxRate = &v
+		}
+		if storeIDVal.Valid {
+			v := int(storeIDVal.Int64)
+			p.StoreID = &v
+		}
+		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		products = append(products, p)
+	}
+	return products, nil
+}
+
+func (r *Repository) GetOrCreateCategoryIDByName(ctx context.Context, name string) (int, error) {
+	var id int
+	err := r.db.QueryRow(ctx, "SELECT id FROM categories WHERE name = $1 AND is_active = true", name).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
+	slug := strings.ToLower(strings.TrimSpace(name))
+	slug = strings.ReplaceAll(slug, " ", "-")
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO categories (name, slug, description, is_active)
+		VALUES ($1, $2, '', true)
+		RETURNING id
+	`, name, slug).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to auto-create category: %w", err)
+	}
+	return id, nil
+}
+
+func (r *Repository) GetOrCreateBrandIDByName(ctx context.Context, name string) (int, error) {
+	id, err := r.GetBrandIDByName(ctx, name)
+	if err == nil {
+		return id, nil
+	}
+	var brandID int
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO brands (name, description, is_active)
+		VALUES ($1, '', true)
+		RETURNING id
+	`, name).Scan(&brandID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to auto-create brand: %w", err)
+	}
+	return brandID, nil
+}
+
+func (r *Repository) GetOrCreateUnitOfMeasureIDByCode(ctx context.Context, code string) (int, error) {
+	id, err := r.GetUnitOfMeasureIDByCode(ctx, code)
+	if err == nil {
+		return id, nil
+	}
+	var uomID int
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO units_of_measure (code, name, description, is_active)
+		VALUES ($1, $1, '', true)
+		RETURNING id
+	`, code).Scan(&uomID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to auto-create unit of measure: %w", err)
+	}
+	return uomID, nil
+}
+
+func (r *Repository) BulkUpsertProduct(ctx context.Context, p ProductImportPayload) (inserted bool, err error) {
+	var existingID int
+	err = r.db.QueryRow(ctx, "SELECT id FROM products WHERE sku = $1 AND deleted_at IS NULL", p.SKU).Scan(&existingID)
+	isUpdate := err == nil
+
+	var barcode interface{}
+	if p.Barcode != nil {
+		barcode = *p.Barcode
+	} else {
+		barcode = nil
+	}
+	var categoryID interface{}
+	if p.CategoryID != nil {
+		categoryID = *p.CategoryID
+	} else {
+		categoryID = nil
+	}
+	var brandID interface{}
+	if p.BrandID != nil {
+		brandID = *p.BrandID
+	} else {
+		brandID = nil
+	}
+	var uomID interface{}
+	if p.UnitOfMeasureID != nil {
+		uomID = *p.UnitOfMeasureID
+	} else {
+		uomID = nil
+	}
+	var weightGrams interface{}
+	if p.WeightGrams != nil {
+		weightGrams = *p.WeightGrams
+	} else {
+		weightGrams = nil
+	}
+	var description interface{}
+	if p.Description != nil {
+		description = *p.Description
+	} else {
+		description = nil
+	}
+
+	if isUpdate {
+		_, err = r.db.Exec(ctx, `
+			UPDATE products SET name = $1, barcode = $2, category_id = $3, brand_id = $4,
+			       price = $5, cost = $6, status = $7, unit_of_measure_id = $8,
+			       weight_grams = $9, description = $10, updated_at = NOW()
+			WHERE id = $11 AND deleted_at IS NULL
+		`, p.Name, barcode, categoryID, brandID, p.Price, p.Cost, p.Status, uomID,
+			weightGrams, description, existingID)
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	var createdTime time.Time
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
+		                    brand_id, description, weight_grams, unit_of_measure_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id, created_at
+	`, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
+		brandID, description, weightGrams, uomID).Scan(&existingID, &createdTime)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)
+	`, existingID, p.Stock)
+	if err != nil {
+		return false, fmt.Errorf("failed to initialize stock: %w", err)
+	}
+
+	return true, nil
 }

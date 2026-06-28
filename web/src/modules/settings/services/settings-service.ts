@@ -113,3 +113,55 @@ export async function deleteUnitOfMeasure(id: number): Promise<boolean> {
   const r = await apiFetch(`/api/units-of-measure/${id}`, { method: 'DELETE' });
   return r.ok;
 }
+
+// Export & Import
+function getToken(): string {
+  return sessionStorage.getItem('access_token') || '';
+}
+
+function downloadExport(url: string, filename: string) {
+  const token = getToken();
+  window.open(`${url}&token=${token}`, '_blank');
+}
+
+export async function exportCategories(format: 'csv' | 'xlsx'): Promise<void> {
+  downloadExport(`/api/categories/export?format=${format}`, `categories-${format}`);
+}
+
+export async function importCategories(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const r = await apiFetch('/api/categories/import', {
+    method: 'POST',
+    body: formData,
+  });
+  return r.ok ? r.json() : r.json().then(e => Promise.reject(e));
+}
+
+export async function exportBrands(format: 'csv' | 'xlsx'): Promise<void> {
+  downloadExport(`/api/brands/export?format=${format}`, `brands-${format}`);
+}
+
+export async function importBrands(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const r = await apiFetch('/api/brands/import', {
+    method: 'POST',
+    body: formData,
+  });
+  return r.ok ? r.json() : r.json().then(e => Promise.reject(e));
+}
+
+export async function exportUnitsOfMeasure(format: 'csv' | 'xlsx'): Promise<void> {
+  downloadExport(`/api/units-of-measure/export?format=${format}`, `uom-${format}`);
+}
+
+export async function importUnitsOfMeasure(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const r = await apiFetch('/api/units-of-measure/import', {
+    method: 'POST',
+    body: formData,
+  });
+  return r.ok ? r.json() : r.json().then(e => Promise.reject(e));
+}

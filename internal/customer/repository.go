@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"retail-pos-system/internal/importutil"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -146,4 +148,75 @@ func (r *Repository) BulkDeleteCustomers(ctx context.Context, ids []int) error {
 		WHERE id = ANY($1) AND is_walk_in = false
 	`, ids)
 	return err
+}
+
+func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
+		FROM customers WHERE is_walk_in = false
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var customers []Customer
+	for rows.Next() {
+		var c Customer
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		c.CreatedAt = createdAt.Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.Format(time.RFC3339)
+		customers = append(customers, c)
+	}
+	return customers, nil
+}
+
+func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []CustomerImportRow) importutil.ImportResult {
+	result := importutil.ImportResult{Errors: []string{}}
+
+	for _, rec := range records {
+		if rec.Name == "" {
+			result.AddError(rec.Row, "Name is required")
+			continue
+		}
+
+		var existingID int
+		err := r.db.QueryRow(ctx, "SELECT id FROM customers WHERE phone = $1 AND is_walk_in = false", rec.Phone).Scan(&existingID)
+		isUpdate := err == nil
+
+		if isUpdate {
+			_, err = r.db.Exec(ctx, `
+				UPDATE customers SET name = $1, email = $2, address = $3, note = $4, is_active = $5, updated_at = NOW()
+				WHERE id = $6
+			`, rec.Name, strPtr(rec.Email), strPtr(rec.Address), strPtr(rec.Note), rec.IsActive, existingID)
+			if err != nil {
+				result.AddError(rec.Row, fmt.Sprintf("failed to update: %v", err))
+				continue
+			}
+			result.Updated++
+		} else {
+			_, err = r.db.Exec(ctx, `
+				INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in)
+				VALUES ($1, $2, $3, $4, $5, $6, false)
+			`, rec.Name, strPtr(rec.Phone), strPtr(rec.Email), strPtr(rec.Address), strPtr(rec.Note), rec.IsActive)
+			if err != nil {
+				result.AddError(rec.Row, fmt.Sprintf("failed to insert: %v", err))
+				continue
+			}
+			result.Inserted++
+		}
+	}
+
+	return result
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

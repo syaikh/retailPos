@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"retail-pos-system/internal/importutil"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -242,6 +244,76 @@ func (r *Repository) HasActiveProducts(ctx context.Context, categoryID int) (boo
 		)
 	`, categoryID).Scan(&exists)
 	return exists, err
+}
+
+// GetAllCategoriesForExport returns all categories without pagination
+func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, COALESCE(slug,''), COALESCE(description,''), is_active, created_at
+		FROM categories
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []Category
+	for rows.Next() {
+		var c Category
+		var createdAt time.Time
+		err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+// BulkUpsertCategories inserts or updates categories in batch
+func (r *Repository) BulkUpsertCategories(ctx context.Context, records []CategoryImportRow) importutil.ImportResult {
+	result := importutil.ImportResult{Errors: []string{}}
+
+	for _, rec := range records {
+		if rec.Name == "" {
+			result.AddError(rec.Row, "Name is required")
+			continue
+		}
+
+		slug := rec.Slug
+		if slug == "" {
+			slug = generateSlug(rec.Name)
+		}
+
+		var existingID int
+		err := r.db.QueryRow(ctx, "SELECT id FROM categories WHERE name = $1", rec.Name).Scan(&existingID)
+		isUpdate := err == nil
+
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO categories (name, slug, description, is_active)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (name) DO UPDATE SET
+				slug = EXCLUDED.slug,
+				description = EXCLUDED.description,
+				is_active = EXCLUDED.is_active,
+				updated_at = NOW()
+		`, rec.Name, slug, rec.Description, rec.IsActive)
+
+		if err != nil {
+			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
+			continue
+		}
+
+		if isUpdate {
+			result.Updated++
+		} else {
+			result.Inserted++
+		}
+	}
+
+	return result
 }
 
 // generateSlug creates a URL-friendly slug from a name
