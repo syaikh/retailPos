@@ -19,5 +19,8 @@
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.59.1"
+  },
+  "dependencies": {
+    "opencode-codebase-index": "^0.12.0"
   }
 }

@@ -1,0 +1,272 @@
+package user
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	ErrInvalidCredentials = errors.New("invalid username or password")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrTokenExpired       = errors.New("token has expired")
+)
+
+type EventBus interface {
+	Publish(ctx context.Context, topic string, event interface{}) error
+}
+
+type AuthService struct {
+	dbPool     *pgxpool.Pool
+	repo       *Repository
+	eventBus   EventBus
+	jwtSecret  string
+	accessTTL  time.Duration
+	refreshTTL time.Duration
+}
+
+type AuthClaims struct {
+	ID          int      `json:"id"`
+	Username    string   `json:"username"`
+	RoleID      int      `json:"role_id"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
+	StoreID     *int     `json:"store_id,omitempty"`
+	jwt.RegisteredClaims
+}
+
+func NewAuthService(repo *Repository, eventBus EventBus) *AuthService {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "your-secret-key-change-in-production"
+	}
+	return &AuthService{
+		dbPool:     repo.db,
+		repo:       repo,
+		eventBus:   eventBus,
+		jwtSecret:  secret,
+		accessTTL:  15 * time.Minute,
+		refreshTTL: 7 * 24 * time.Hour,
+	}
+}
+
+func (s *AuthService) Login(ctx context.Context, username, password string) (*LoginResponse, error) {
+	user, err := s.repo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+	if !user.IsActive {
+		return nil, errors.New("user account is inactive")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	if err := s.repo.UpdateLastLogin(ctx, user.ID); err != nil {
+		log.Printf("warning: failed to update last_login for user %d: %v", user.ID, err)
+	}
+
+	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role permissions: %w", err)
+	}
+	perms := make([]string, len(permissions))
+	for i, p := range permissions {
+		perms[i] = p.Code
+	}
+
+	accessToken, err := s.generateToken(user, perms, s.accessTTL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+	refreshToken, err := s.generateRefreshToken(user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+	if err := s.storeRefreshToken(ctx, user.ID, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	}
+
+	if err := s.eventBus.Publish(ctx, "auth.login", map[string]interface{}{
+		"user_id":  user.ID,
+		"username": user.Username,
+	}); err != nil {
+		log.Printf("warning: failed to publish auth.login event: %v", err)
+	}
+
+	user.Password = ""
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		User:         *user,
+	}, nil
+}
+
+func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, error) {
+	claims, err := s.parseRefreshToken(oldRefreshToken)
+	if err != nil {
+		return "", err
+	}
+
+	exists, err := s.refreshTokenExists(ctx, claims.ID, oldRefreshToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to verify refresh token: %w", err)
+	}
+	if !exists {
+		return "", errors.New("invalid refresh token")
+	}
+
+	user, err := s.repo.GetByID(claims.ID)
+	if err != nil {
+		return "", ErrUserNotFound
+	}
+
+	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get role permissions: %w", err)
+	}
+	perms := make([]string, len(permissions))
+	for i, p := range permissions {
+		perms[i] = p.Code
+	}
+
+	newAccessToken, err := s.generateToken(user, perms, s.accessTTL)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate new access token: %w", err)
+	}
+
+	if err := s.eventBus.Publish(ctx, "auth.token_refreshed", map[string]interface{}{
+		"user_id":  claims.ID,
+		"username": claims.Username,
+	}); err != nil {
+		log.Printf("warning: failed to publish auth.token_refreshed event: %v", err)
+	}
+
+	return newAccessToken, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, userID int, refreshToken string) error {
+	if err := s.deleteRefreshToken(ctx, userID, refreshToken); err != nil {
+		return err
+	}
+	if err := s.eventBus.Publish(ctx, "auth.logout", map[string]interface{}{
+		"user_id": userID,
+	}); err != nil {
+		log.Printf("warning: failed to publish auth.logout event: %v", err)
+	}
+	return nil
+}
+
+func (s *AuthService) ValidateToken(tokenString string) (*AuthClaims, error) {
+	return s.parseToken(tokenString)
+}
+
+func (s *AuthService) HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+	return string(bytes), nil
+}
+
+func (s *AuthService) generateToken(user *User, permissions []string, ttl time.Duration) (string, error) {
+	claims := AuthClaims{
+		ID:          user.ID,
+		Username:    user.Username,
+		RoleID:      user.RoleID,
+		Role:        user.Role.Name,
+		Permissions: permissions,
+		StoreID:     user.StoreID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "retail-pos-system",
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.jwtSecret))
+}
+
+func (s *AuthService) generateRefreshToken(user *User) (string, error) {
+	claims := AuthClaims{
+		ID:       user.ID,
+		Username: user.Username,
+		RoleID:   user.RoleID,
+		Role:     user.Role.Name,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "retail-pos-system-refresh",
+			ID:        uuid.New().String(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.jwtSecret + "-refresh"))
+}
+
+func (s *AuthService) parseToken(tokenString string) (*AuthClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &AuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(s.jwtSecret), nil
+	})
+	if err != nil {
+		var ve interface{ Errors() uint32 }
+		if errors.As(err, &ve) {
+			if ve.Errors()&1 != 0 {
+				return nil, ErrTokenExpired
+			}
+		}
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+	if claims, ok := token.Claims.(*AuthClaims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, errors.New("invalid token")
+}
+
+func (s *AuthService) parseRefreshToken(tokenString string) (*AuthClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &AuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(s.jwtSecret + "-refresh"), nil
+	})
+	if err != nil {
+		var ve interface{ Errors() uint32 }
+		if errors.As(err, &ve) {
+			if ve.Errors()&1 != 0 {
+				return nil, ErrTokenExpired
+			}
+		}
+		return nil, fmt.Errorf("failed to parse refresh token: %w", err)
+	}
+	if claims, ok := token.Claims.(*AuthClaims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, errors.New("invalid refresh token")
+}
+
+func (s *AuthService) storeRefreshToken(ctx context.Context, userID int, token string) error {
+	_, err := s.dbPool.Exec(ctx, `
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, NOW() + INTERVAL '7 days')
+	`, userID, token)
+	return err
+}
+
+func (s *AuthService) refreshTokenExists(ctx context.Context, userID int, token string) (bool, error) {
+	var exists bool
+	err := s.dbPool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW())
+	`, userID, token).Scan(&exists)
+	return exists, err
+}
+
+func (s *AuthService) deleteRefreshToken(ctx context.Context, userID int, token string) error {
+	_, err := s.dbPool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, token)
+	return err
+}

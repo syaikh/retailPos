@@ -87,6 +87,11 @@
       return;
     }
 
+    if (hasValidToken && !wsInitialized) {
+      wsInitialized = true;
+      initWebSocket();
+    }
+
     currentPath = path;
     isInitializing = false;
     const comp = await getComponent(path);
@@ -94,11 +99,15 @@
     updateTitle(path);
   }
 
+  let wsInitialized = false;
+
   async function initializeRoute(path) {
     await initAuth();
     const authStore = useAuthStore();
+    console.log('[main] initAuth complete | isAuthenticated:', authStore.isAuthenticated, '| path:', path);
 
     if (!authStore.isAuthenticated) {
+      console.log('[main] Not authenticated, redirecting to login');
       if (path !== '/login') {
         Component = LoginPage;
         currentPath = '/login';
@@ -113,6 +122,8 @@
       return;
     }
 
+    console.log('[main] Authenticated, calling initWebSocket');
+    wsInitialized = true;
     initWebSocket();
     subscribe(handleRoute);
 

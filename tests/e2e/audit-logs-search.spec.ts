@@ -1,5 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { TEST_USERS, API_BASE, waitForAPI, authHeader } from './fixtures';
+
+async function ensureSectionExpanded(page: Page, name: string) {
+  const btn = page.locator('aside').locator('button').filter({ hasText: name });
+  const expanded = await btn.getAttribute('aria-expanded');
+  if (expanded !== 'true') {
+    await btn.click();
+    await page.waitForTimeout(300);
+  }
+}
 
 test.describe('Audit Logs Search', () => {
   let authToken: string;
@@ -20,6 +29,7 @@ test.describe('Audit Logs Search', () => {
     expect(authToken).toBeTruthy();
 
     // Navigate to Audit Logs page
+    await ensureSectionExpanded(page, 'Administration');
     await page.click('button:has-text("Audit Logs")');
     await expect(page.locator('h1:text("Audit Logs")')).toBeVisible({ timeout: 10000 });
   });
@@ -46,10 +56,10 @@ test.describe('Audit Logs Search', () => {
   });
 
   test('should show search input and filter controls', async ({ page }) => {
-    await expect(page.locator('input[placeholder="Search logs..."]')).toBeVisible();
-    await expect(page.locator('#date-dropdown-container')).toBeVisible();
-    const selects = page.locator('select');
-    await expect(selects).toHaveCount(3);
+    await expect(page.locator('input[placeholder="Search by actor, role, action, entity, or IP..."]')).toBeVisible();
+    await expect(page.locator('.date-picker-container')).toBeVisible();
+    await expect(page.locator('#resource-dropdown-container')).toBeVisible();
+    await expect(page.locator('#action-dropdown-container')).toBeVisible();
   });
 
   // ─── Search correctness via direct API verification ─────────────────
@@ -175,11 +185,11 @@ test.describe('Audit Logs Search', () => {
 
   test('typing in search bar filters results in the UI', async ({ page }) => {
     // Clear any existing search
-    await page.fill('input[placeholder="Search logs..."]', '');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', '');
     await page.waitForTimeout(1500);
 
     // Type "login" in the search bar
-    await page.fill('input[placeholder="Search logs..."]', 'login');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', 'login');
     await page.waitForTimeout(2000);
 
     // Pagination should show results (not 0)
@@ -190,10 +200,10 @@ test.describe('Audit Logs Search', () => {
   });
 
   test('searching nonexistent term in UI shows empty state', async ({ page }) => {
-    await page.fill('input[placeholder="Search logs..."]', '');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', '');
     await page.waitForTimeout(1500);
 
-    await page.fill('input[placeholder="Search logs..."]', 'zzzznonexistent999zzz');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', 'zzzznonexistent999zzz');
     await page.waitForTimeout(2500);
 
     const emptyState = page.locator('text=No audit logs found');
@@ -206,11 +216,11 @@ test.describe('Audit Logs Search', () => {
 
   test('clearing search in UI restores results', async ({ page }) => {
     // Search for something with no results
-    await page.fill('input[placeholder="Search logs..."]', 'zzzznonexistent999zzz');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', 'zzzznonexistent999zzz');
     await page.waitForTimeout(2500);
 
     // Clear the search
-    await page.fill('input[placeholder="Search logs..."]', '');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', '');
     await page.waitForTimeout(2000);
 
     // Should see results again
@@ -222,11 +232,11 @@ test.describe('Audit Logs Search', () => {
   // ─── Resource filter dropdown ───────────────────────────────────────
 
   test('filtering by resource "auth" shows only auth rows in UI', async ({ page }) => {
-    const resourceSelect = page.locator('select').first();
-    await resourceSelect.selectOption('auth');
+    await page.locator('#resource-dropdown-container button').click();
+    await page.waitForTimeout(300);
+    await page.locator('#resource-dropdown-container button:has-text("Auth")').click();
     await page.waitForTimeout(1500);
 
-    // All visible resource cells should say "auth"
     const resourceCells = await page.locator('td:nth-child(3)').allTextContents();
     expect(resourceCells.length).toBeGreaterThan(0);
     for (const cell of resourceCells) {
@@ -237,8 +247,9 @@ test.describe('Audit Logs Search', () => {
   // ─── Action filter dropdown ─────────────────────────────────────────
 
   test('filtering by action "login" shows only login rows in UI', async ({ page }) => {
-    const actionSelect = page.locator('select').nth(1);
-    await actionSelect.selectOption('login');
+    await page.locator('#action-dropdown-container button').click();
+    await page.waitForTimeout(300);
+    await page.locator('#action-dropdown-container button:has-text("Login")').click();
     await page.waitForTimeout(1500);
 
     const actionCells = await page.locator('td:nth-child(4)').allTextContents();
@@ -251,8 +262,8 @@ test.describe('Audit Logs Search', () => {
   // ─── Date range filter ──────────────────────────────────────────────
 
   test('changing date range filter works without errors', async ({ page }) => {
-    await page.click('#date-dropdown-container button');
-    await expect(page.locator('#date-dropdown-container button + div')).toBeVisible();
+    await page.locator('.date-picker-container button.date-picker-trigger').click();
+    await expect(page.locator('button:has-text("Last 7 Days")')).toBeVisible();
 
     await page.click('button:has-text("Last 7 Days")');
     await page.waitForTimeout(1500);
@@ -292,7 +303,7 @@ test.describe('Audit Logs Search', () => {
       }
     });
 
-    await page.fill('input[placeholder="Search logs..."]', 'logg');
+    await page.fill('input[placeholder="Search by actor, role, action, entity, or IP..."]', 'logg');
     await page.waitForTimeout(2500);
 
     const errorToast = page.locator('text=Failed to load audit logs');

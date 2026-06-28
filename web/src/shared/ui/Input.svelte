@@ -7,17 +7,20 @@
     class: className = '',
     value = $bindable(''),
     children,
+    oninput: externalOninput,
     ...rest
   }: {
     tag?: 'input' | 'select' | 'textarea';
     class?: string;
     value?: string;
     children?: Snippet;
+    oninput?: (e: Event) => void;
     [key: string]: any;
   } = $props();
 
   function handleInput(e: Event) {
     value = (e.target as HTMLInputElement | HTMLSelectElement).value;
+    externalOninput?.(e);
   }
 </script>
 
