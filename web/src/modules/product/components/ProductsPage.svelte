@@ -107,8 +107,9 @@
 
   function clearAllFilters() {
     filterStatus = 'all';
-    selectedCategories = ['All'];
     lowStockOnly = false;
+    previousCategories = ['All'];
+    selectedCategories = ['All'];
     offset = 0;
     fetchProducts(0, limit);
   }
@@ -514,7 +515,6 @@
   bind:open={showCategoryFilterModal}
   bind:selectedCategories
   {categories}
-  onApply={(cats) => { offset = 0; fetchProducts(0, limit); }}
 />
 
 <div class="space-y-5">

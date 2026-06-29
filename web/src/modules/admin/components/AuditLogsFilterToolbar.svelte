@@ -111,6 +111,45 @@
   const today = getTodayInJakarta();
   const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
 
+  let editStartDate = $state('');
+  let editEndDate = $state('');
+
+  const canApplyCustom = $derived(
+    editStartDate.length > 0 && editEndDate.length > 0 && (editStartDate !== customStartDate || editEndDate !== customEndDate)
+  );
+
+  function toggleDatePicker() {
+    if (showDatePicker) {
+      cancelCustomDateRange();
+    } else {
+      editStartDate = customStartDate;
+      editEndDate = customEndDate;
+      showDatePicker = true;
+    }
+  }
+
+  function applyCustomDateRange() {
+    if (!canApplyCustom) return;
+    customStartDate = editStartDate;
+    customEndDate = editEndDate;
+    selectedDateRange = 'custom';
+    showDatePicker = false;
+  }
+
+  function cancelCustomDateRange() {
+    editStartDate = '';
+    editEndDate = '';
+    showDatePicker = false;
+  }
+
+  function handleDatePickerKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      cancelCustomDateRange();
+    } else if (e.key === 'Enter' && canApplyCustom) {
+      applyCustomDateRange();
+    }
+  }
+
   function jakartaDateToUTC(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
@@ -202,16 +241,6 @@
           break;
       }
     }
-  }
-
-  function applyCustomDateRange() {
-    if (!customStartDate || !customEndDate) return;
-    showDatePicker = false;
-    selectedDateRange = 'custom';
-  }
-
-  function clearDateFilter() {
-    selectedDateRange = '24h';
   }
 
   function clearFilter(type) {
@@ -319,36 +348,55 @@
       <Button
         variant="secondary"
         class="date-picker-trigger flex items-center gap-2 min-w-44"
-        onclick={() => showDatePicker = !showDatePicker}
+        onclick={toggleDatePicker}
       >
         <CalendarDays size={16} class="text-text-secondary shrink-0" />
         <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
         <ChevronDown size={14} class="opacity-60 shrink-0" />
       </Button>
       {#if showDatePicker}
-        <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64">
-          <div class="flex flex-wrap gap-1 mb-3">
-            {#each datePresets as preset}
-              <Button
-                variant="ghost"
-                size="xs"
-                onclick={() => applyDatePreset(preset.rangeId)}
-              >
-                {preset.label}
-              </Button>
-            {/each}
+        <div
+          class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
+          onkeydown={handleDatePickerKeydown}
+        >
+          <div class="p-4 space-y-4">
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <div class="flex flex-wrap gap-1.5">
+                {#each datePresets as preset}
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onclick={() => applyDatePreset(preset.rangeId)}
+                  >
+                    {preset.label}
+                  </Button>
+                {/each}
+              </div>
+            </div>
+
+            <hr class="border-border" />
+
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <div class="flex gap-3">
+                <div class="flex-1">
+                  <label class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <Input type="date" bind:value={editStartDate} class="w-full" min={ninetyDaysAgo} max={editEndDate || today} />
+                </div>
+                <div class="flex-1">
+                  <label class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <Input type="date" bind:value={editEndDate} class="w-full" min={editStartDate || ninetyDaysAgo} max={today} />
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-xs">
-            <Input type="date" bind:value={customStartDate} class="w-full" min={ninetyDaysAgo} max={customEndDate || today} />
-            <span class="text-text-muted">—</span>
-            <Input type="date" bind:value={customEndDate} class="w-full" min={customStartDate || ninetyDaysAgo} max={today} />
-          </div>
-          <div class="flex justify-end mt-2">
-            <Button
-              variant="primary"
-              size="xs"
-              onclick={applyCustomDateRange}
-            >
+
+          <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
+            <Button variant="ghost" size="sm" onclick={cancelCustomDateRange}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomDateRange}>
               Apply
             </Button>
           </div>
