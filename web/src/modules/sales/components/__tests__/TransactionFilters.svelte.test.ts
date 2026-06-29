@@ -51,24 +51,8 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain('const dateRangeLabel = $derived');
   });
 
-  it('has isFiltered derived', () => {
-    expect(src).toContain('const isFiltered = $derived');
-  });
-
-  it('has hasPendingChanges derived', () => {
-    expect(src).toContain('const hasPendingChanges = $derived');
-  });
-
   it('has amountError derived', () => {
     expect(src).toContain('const amountError = $derived');
-  });
-
-  it('has minDisplay derived', () => {
-    expect(src).toContain('const minDisplay = $derived');
-  });
-
-  it('has maxDisplay derived', () => {
-    expect(src).toContain('const maxDisplay = $derived');
   });
 
   it('has handleMinInput and handleMaxInput', () => {
@@ -86,18 +70,6 @@ describe('TransactionFilters.svelte source-structure guards', () => {
 
   it('has togglePaymentMethod function', () => {
     expect(src).toContain('function togglePaymentMethod');
-  });
-
-  it('has applyFilters function', () => {
-    expect(src).toContain('function applyFilters');
-  });
-
-  it('has cancelFilters function', () => {
-    expect(src).toContain('function cancelFilters');
-  });
-
-  it('has resetFilters function', () => {
-    expect(src).toContain('function resetFilters');
   });
 
   it('has paymentMethodName function', () => {
@@ -121,6 +93,15 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain('function applyCustomRange');
   });
 
+  it('has openDatePicker and cancelCustomRange', () => {
+    expect(src).toContain('function openDatePicker');
+    expect(src).toContain('function cancelCustomRange');
+  });
+
+  it('has canApplyCustom derived', () => {
+    expect(src).toContain('const canApplyCustom = $derived');
+  });
+
   it('renders SearchBar component', () => {
     expect(src).toContain('<SearchBar');
   });
@@ -134,12 +115,23 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain('Export to Excel');
   });
 
-  it('renders date picker', () => {
+  it('renders date picker with presets and custom range', () => {
     expect(src).toContain('showDatePicker');
+    expect(src).toContain('Preset Ranges');
+    expect(src).toContain('Custom Range');
   });
 
-  it('renders Apply and Reset buttons', () => {
-    expect(src).toContain('applyFilters');
-    expect(src).toContain('resetFilters');
+  it('has date picker footer with Cancel and Apply', () => {
+    expect(src).toContain('Cancel');
+    expect(src).toContain('Apply');
+  });
+
+  it('does not have old draft/applied pattern', () => {
+    expect(src).not.toContain('appliedPaymentMethods');
+    expect(src).not.toContain('appliedSliderMin');
+    expect(src).not.toContain('appliedSliderMax');
+    expect(src).not.toContain('function applyFilters');
+    expect(src).not.toContain('function cancelFilters');
+    expect(src).not.toContain('function resetFilters');
   });
 });

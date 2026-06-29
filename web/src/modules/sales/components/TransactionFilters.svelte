@@ -24,21 +24,14 @@
     showDatePicker = $bindable(false),
     sliderMin = $bindable<number | null>(null),
     sliderMax = $bindable<number | null>(null),
-    appliedPaymentMethods = $bindable<string[]>([]),
-    appliedSliderMin = $bindable<number | null>(null),
-    appliedSliderMax = $bindable<number | null>(null),
-    loading = false,
-    isSearching = $bindable(false),
     selectedDateRange = $bindable('last30d'),
     paymentMethodOptions = [] as { code: string; name: string }[],
-    onsearch = () => {},
-    onapplyfilters = () => {},
-    oncancelfilters = () => {},
-    onresetfilters = () => {},
-    onapplydaterange = () => {},
     onexportcsv = () => {},
     onexportxlsx = () => {},
   } = $props();
+
+  let editStartDate = $state('');
+  let editEndDate = $state('');
 
   const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + '-01-01');
 
@@ -59,20 +52,6 @@
     return preset?.label || 'Last 30 Days';
   });
 
-  const isFiltered = $derived(
-    appliedPaymentMethods.length > 0 ||
-    (appliedSliderMin !== null && appliedSliderMin > 0) ||
-    (appliedSliderMax !== null && appliedSliderMax < SLIDER_MAX_BOUND)
-  );
-
-  const hasPendingChanges = $derived(
-    (sliderMin ?? 0) !== (appliedSliderMin ?? 0) ||
-    (sliderMax ?? SLIDER_MAX_BOUND) !== (appliedSliderMax ?? SLIDER_MAX_BOUND) ||
-    selectedPaymentMethods.length !== appliedPaymentMethods.length ||
-    (selectedPaymentMethods.length > 0 && selectedPaymentMethods.some(c => !appliedPaymentMethods.includes(c))) ||
-    (appliedPaymentMethods.length > 0 && appliedPaymentMethods.some(c => !selectedPaymentMethods.includes(c)))
-  );
-
   const amountError = $derived.by(() => {
     if (sliderMin !== null && sliderMin < 0) return 'Min cannot be negative';
     if (sliderMin !== null && sliderMin > SLIDER_MAX_BOUND) return `Min exceeds max (${SLIDER_MAX_BOUND.toLocaleString('id-ID')})`;
@@ -84,6 +63,10 @@
 
   const minDisplay = $derived(sliderMin !== null ? sliderMin.toLocaleString('id-ID') : '');
   const maxDisplay = $derived(sliderMax !== null ? sliderMax.toLocaleString('id-ID') : '');
+
+  const canApplyCustom = $derived(
+    editStartDate.length > 0 && editEndDate.length > 0 && (editStartDate !== startDate || editEndDate !== endDate)
+  );
 
   function handleMinInput(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -135,7 +118,26 @@
       selectedDateRange = `last${days}d`;
     }
     showDatePicker = false;
-    onapplydaterange();
+  }
+
+  function openDatePicker() {
+    editStartDate = startDate;
+    editEndDate = endDate;
+    showDatePicker = true;
+  }
+
+  function applyCustomRange() {
+    if (!canApplyCustom) return;
+    startDate = editStartDate;
+    endDate = editEndDate;
+    selectedDateRange = 'custom';
+    showDatePicker = false;
+  }
+
+  function cancelCustomRange() {
+    editStartDate = '';
+    editEndDate = '';
+    showDatePicker = false;
   }
 
   function togglePaymentMethod(code: string) {
@@ -144,30 +146,6 @@
     } else {
       selectedPaymentMethods = [...selectedPaymentMethods, code];
     }
-  }
-
-  function applyFilters() {
-    appliedPaymentMethods = [...selectedPaymentMethods];
-    appliedSliderMin = sliderMin;
-    appliedSliderMax = sliderMax;
-    onapplyfilters();
-  }
-
-  function cancelFilters() {
-    selectedPaymentMethods = [...appliedPaymentMethods];
-    sliderMin = appliedSliderMin;
-    sliderMax = appliedSliderMax;
-    oncancelfilters();
-  }
-
-  function resetFilters() {
-    selectedPaymentMethods = [];
-    sliderMin = null;
-    sliderMax = null;
-    appliedPaymentMethods = [];
-    appliedSliderMin = null;
-    appliedSliderMax = null;
-    onresetfilters();
   }
 
   function paymentMethodName(code: string): string {
@@ -181,14 +159,14 @@
       endDate,
       search: sanitizeSearch(searchQuery),
     });
-    if (appliedPaymentMethods.length > 0) {
-      params.set('paymentMethods', appliedPaymentMethods.join(','));
+    if (selectedPaymentMethods.length > 0) {
+      params.set('paymentMethods', selectedPaymentMethods.join(','));
     }
-    if (appliedSliderMin !== null && appliedSliderMin > 0) {
-      params.set('minTotal', appliedSliderMin.toString());
+    if (sliderMin !== null && sliderMin > 0) {
+      params.set('minTotal', sliderMin.toString());
     }
-    if (appliedSliderMax !== null && appliedSliderMax < SLIDER_MAX_BOUND) {
-      params.set('maxTotal', appliedSliderMax.toString());
+    if (sliderMax !== null && sliderMax < SLIDER_MAX_BOUND) {
+      params.set('maxTotal', sliderMax.toString());
     }
     return `/api/sales/export?${params.toString()}`;
   }
@@ -221,168 +199,164 @@
     onexportxlsx();
   }
 
-  function applyCustomRange() {
-    selectedDateRange = 'custom';
-    showDatePicker = false;
-    onapplydaterange();
+  function handleDatePickerKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      cancelCustomRange();
+    } else if (e.key === 'Enter' && canApplyCustom) {
+      applyCustomRange();
+    }
   }
 </script>
 
-<div class="card p-4 space-y-3">
-  <div class="flex items-center justify-between gap-4">
-    <div class="min-w-0 flex-1">
-      <SearchBar bind:value={searchQuery} placeholder="Search by invoice, product, or customer..." oninput={onsearch} loading={isSearching} />
+<div class="card p-3">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="min-w-0 flex-[2_1_200px]">
+      <SearchBar bind:value={searchQuery} placeholder="Search by invoice, product, or customer..." />
     </div>
-    <div class="flex items-center gap-2 shrink-0">
-      <div class="relative">
+
+    <Dropdown menu={false} placement="bottom-start">
+      {#snippet trigger({ toggle })}
         <Button
           variant="secondary"
-          class="flex items-center gap-2 min-w-44 date-picker-trigger"
-          onclick={() => showDatePicker = !showDatePicker}
+          class="flex items-center gap-2 min-w-40 h-[38px]"
+          onclick={toggle}
         >
-          <CalendarDays size={16} class="text-text-secondary shrink-0" />
-          <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
+          <span class="text-sm truncate flex-1 text-left text-text-secondary">
+            {selectedPaymentMethods.length > 0
+              ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
+              : 'All methods'}
+          </span>
           <ChevronDown size={14} class="opacity-60 shrink-0" />
         </Button>
-        {#if showDatePicker}
-          <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64 date-picker-container">
-            <div class="flex flex-wrap gap-1 mb-3">
-              {#each datePresets as preset}
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onclick={() => applyDatePreset(preset.days)}
-                >
-                  {preset.label}
-                </Button>
-              {/each}
-            </div>
-            <div class="flex items-center gap-2 text-xs">
-              <Input type="date" bind:value={startDate} class="w-full" min={currentYearStart} max={endDate} />
-              <span class="text-text-muted">—</span>
-              <Input type="date" bind:value={endDate} class="w-full" min={startDate} max={getTodayInJakarta()} />
-            </div>
-            <div class="flex justify-end mt-2">
-              <Button
-                variant="primary"
-                size="xs"
-                onclick={applyCustomRange}
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-        {/if}
-      </div>
-      <Dropdown items={[
-        { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
-        { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
-      ]}>
-        {#snippet trigger({ toggle })}
-          <Button
-            variant="primary"
-            class="flex items-center gap-2 transition-all duration-300"
-            onclick={toggle}
-          >
-            <Download size={15} />
-            Export
-            <ChevronDown size={14} class="transition-transform duration-300" />
-          </Button>
-        {/snippet}
-      </Dropdown>
-    </div>
-  </div>
-
-  <div class="pt-1">
-    <div class="flex flex-wrap items-end gap-3">
-      <div>
-        <p class="text-xs font-medium text-text-secondary mb-1.5">Payment</p>
-        <Dropdown menu={false} placement="bottom-start">
-          {#snippet trigger({ toggle })}
-            <Button
-              variant="secondary"
-              class="flex items-center gap-2 min-w-44"
-              onclick={toggle}
+      {/snippet}
+      {#snippet content({ close })}
+        <div class="p-2 min-w-44 max-h-56 overflow-y-auto">
+          {#each paymentMethodOptions as pm}
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={selectedPaymentMethods.includes(pm.code)}
+                onchange={() => togglePaymentMethod(pm.code)}
+                class="accent-primary"
+              />
+              {pm.name}
+            </label>
+          {/each}
+          {#if selectedPaymentMethods.length > 0}
+            <button
+              class="w-full text-left px-2 py-1.5 mt-1 text-xs text-primary hover:bg-surface-hover rounded"
+              onclick={() => { selectedPaymentMethods = []; close(); }}
             >
-              <span class="text-sm truncate flex-1 text-left text-text-secondary">
-                {selectedPaymentMethods.length > 0
-                  ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
-                  : 'All methods'}
-              </span>
-              <ChevronDown size={14} class="opacity-60 shrink-0" />
-            </Button>
-          {/snippet}
-          {#snippet content({ close })}
-            <div class="p-2 min-w-44 max-h-56 overflow-y-auto">
-              {#each paymentMethodOptions as pm}
-                <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
-                  <input
-                    type="checkbox"
-                    checked={selectedPaymentMethods.includes(pm.code)}
-                    onchange={() => togglePaymentMethod(pm.code)}
-                    class="accent-primary"
-                  />
-                  {pm.name}
-                </label>
-              {/each}
-              {#if selectedPaymentMethods.length > 0}
-                <button
-                  class="w-full text-left px-2 py-1.5 mt-1 text-xs text-primary hover:bg-surface-hover rounded"
-                  onclick={() => { selectedPaymentMethods = []; }}
-                >
-                  Clear selection
-                </button>
-              {/if}
-            </div>
-          {/snippet}
-        </Dropdown>
-      </div>
+              Clear selection
+            </button>
+          {/if}
+        </div>
+      {/snippet}
+    </Dropdown>
 
-      <div class="w-44">
-        <p class="text-xs font-medium text-text-secondary mb-1.5">Min Total Trx (Rp)</p>
-        <Input
+    <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1 bg-surface-default border border-border rounded-lg px-2.5 h-[38px] {amountError ? 'border-danger' : ''}">
+        <span class="text-xs text-text-muted font-medium shrink-0">Rp</span>
+        <input
           type="text"
           inputmode="numeric"
           value={minDisplay}
-          placeholder="0"
-          class="py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
+          placeholder="Min"
+          class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMinInput}
+          onblur={handleMinInput}
         />
-      </div>
-
-      <div class="w-44">
-        <p class="text-xs font-medium text-text-secondary mb-1.5">Max Total Trx (Rp)</p>
-        <Input
+        <span class="text-text-muted text-xs shrink-0">—</span>
+        <input
           type="text"
           inputmode="numeric"
           value={maxDisplay}
-          placeholder="∞"
-          class="py-2 w-full text-right {amountError ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}"
+          placeholder="Max"
+          class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMaxInput}
+          onblur={handleMaxInput}
         />
       </div>
-
       {#if amountError}
-        <div class="flex items-end h-[42px]">
-          <p class="text-xs text-danger">{amountError}</p>
+        <span class="text-xs text-danger whitespace-nowrap">{amountError}</span>
+      {/if}
+    </div>
+
+    <div class="relative shrink-0">
+      <Button
+        variant="secondary"
+        class="flex items-center gap-2 min-w-40 h-[38px] date-picker-trigger"
+        onclick={openDatePicker}
+      >
+        <CalendarDays size={16} class="text-text-secondary shrink-0" />
+        <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
+        <ChevronDown size={14} class="opacity-60 shrink-0" />
+      </Button>
+      {#if showDatePicker}
+        <div
+          class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
+          onkeydown={handleDatePickerKeydown}
+        >
+          <div class="p-4 space-y-4">
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <div class="flex flex-wrap gap-1.5">
+                {#each datePresets as preset}
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onclick={() => applyDatePreset(preset.days)}
+                  >
+                    {preset.label}
+                  </Button>
+                {/each}
+              </div>
+            </div>
+
+            <hr class="border-border" />
+
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <div class="flex gap-3">
+                <div class="flex-1">
+                  <label class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <Input type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
+                </div>
+                <div class="flex-1">
+                  <label class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <Input type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
+            <Button variant="ghost" size="sm" onclick={cancelCustomRange}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomRange}>
+              Apply
+            </Button>
+          </div>
         </div>
       {/if}
-
-      <div class="flex-1 min-w-0"></div>
-
-      <div class="flex items-end gap-2">
-        <Button variant="secondary" disabled={!isFiltered} onclick={resetFilters}>
-          Reset
-        </Button>
-        {#if hasPendingChanges}
-          <Button variant="secondary" onclick={cancelFilters}>
-            Cancel
-          </Button>
-        {/if}
-        <Button variant="primary" disabled={!hasPendingChanges || !!amountError} onclick={applyFilters}>
-          Apply
-        </Button>
-      </div>
     </div>
+
+    <Dropdown items={[
+      { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
+      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <Button
+          variant="primary"
+          class="flex items-center gap-2 h-[38px]"
+          onclick={toggle}
+        >
+          <Download size={15} />
+          Export
+          <ChevronDown size={14} class="transition-transform duration-300" />
+        </Button>
+      {/snippet}
+    </Dropdown>
   </div>
 </div>

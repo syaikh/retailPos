@@ -4,7 +4,7 @@ import type { Sale, SaleFilters } from '../types';
 
 const SLIDER_MAX_BOUND = 50000000;
 
-export async function getSalesHistory(filters: SaleFilters): Promise<{ data: Sale[]; total: number }> {
+export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal): Promise<{ data: Sale[]; total: number }> {
   const params = new URLSearchParams({
     startDate: filters.startDate,
     endDate: filters.endDate,
@@ -23,12 +23,25 @@ export async function getSalesHistory(filters: SaleFilters): Promise<{ data: Sal
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
     params.set('maxTotal', filters.maxTotal.toString());
   }
-  const res = await apiFetch(`/api/sales?${params.toString()}`);
+  const res = await apiFetch(`/api/sales?${params.toString()}`, { signal });
   if (res.ok) {
     const data = await res.json();
     return { data: data.data || [], total: data.total || 0 };
   }
   return { data: [], total: 0 };
+}
+
+export async function getPaymentMethods(signal?: AbortSignal): Promise<{ code: string; name: string }[]> {
+  try {
+    const res = await apiFetch('/api/payment-methods', { signal });
+    if (res.ok) {
+      const data = await res.json();
+      return (data.data || data || []).filter((m: any) => m.is_active !== false);
+    }
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getSaleById(id: number): Promise<Sale | null> {

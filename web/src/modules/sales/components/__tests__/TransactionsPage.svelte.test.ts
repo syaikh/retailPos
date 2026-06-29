@@ -23,32 +23,22 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('<TransactionDrawer');
   });
 
-  it('imports apiFetch instead of apiClient', () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
-  });
-
   it('imports Jakarta time utilities', () => {
     expect(src).toContain("import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime'");
   });
 
-  it('uses $state for salesData, pagination, search, date range', () => {
-    expect(src).toContain('let salesData = $state([])');
-    expect(src).toContain('let total = $state(0)');
-    expect(src).toContain('let searchQuery = $state');
-    expect(src).toContain('let startDate = $state');
-    expect(src).toContain('let endDate = $state');
+  it('imports useSalesStore from store', () => {
+    expect(src).toContain("import { useSalesStore } from '../stores/sales-store.svelte'");
   });
 
-  it('uses draft/applied filter pattern for payments and amount range', () => {
-    expect(src).toContain('let appliedPaymentMethods');
-    expect(src).toContain('let appliedSliderMin');
-    expect(src).toContain('let appliedSliderMax');
-    expect(src).toContain('let sliderMin');
-    expect(src).toContain('let sliderMax');
+  it('imports createQueryManager', () => {
+    expect(src).toContain("import { createQueryManager } from '../lib/query-manager'");
   });
 
-  it('has fetchSales function', () => {
-    expect(src).toContain('async function fetchSales');
+  it('initializes store with default dates', () => {
+    expect(src).toContain('store.startDate = ');
+    expect(src).toContain('store.endDate = ');
+    expect(src).toContain("store.dateRange = 'last30d'");
   });
 
   it('has toggleSort and handlePageChange', () => {
@@ -61,24 +51,29 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain('function closeTransactionDrawer');
   });
 
-  it('has handleKeydown and handleWindowClick', () => {
+  it('has handleKeydown', () => {
     expect(src).toContain('function handleKeydown');
-    expect(src).toContain('function handleWindowClick');
-  });
-
-  it('has sanitizeSearch function', () => {
-    expect(src).toContain('function sanitizeSearch');
-  });
-
-  it('imports debounce', () => {
-    expect(src).toContain("import { debounce } from '$shared/utils/debounce'");
   });
 
   it('has onMount lifecycle', () => {
     expect(src).toContain('onMount(');
   });
 
-  it('has SLIDER_MAX_BOUND constant', () => {
-    expect(src).toContain('SLIDER_MAX_BOUND');
+  it('has $effect for filter watching', () => {
+    expect(src).toContain('$effect(() => {');
+  });
+
+  it('creates query manager', () => {
+    expect(src).toContain('const qm = createQueryManager');
+  });
+
+  it('calls store.loadPaymentMethods in onMount', () => {
+    expect(src).toContain('store.loadPaymentMethods()');
+  });
+
+  it('binds filter props to store values', () => {
+    expect(src).toContain("bind:searchQuery={store.searchQuery}");
+    expect(src).toContain("bind:startDate={store.startDate}");
+    expect(src).toContain('bind:showDatePicker');
   });
 });

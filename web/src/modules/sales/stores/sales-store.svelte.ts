@@ -1,35 +1,26 @@
-import { getSalesHistory } from '../services/sales-service';
-import type { Sale, SaleFilters } from '../types';
+import { getSalesHistory, getPaymentMethods } from '../services/sales-service';
+import type { Sale, SaleFilters, FilterState } from '../types';
 
 let salesData = $state<Sale[]>([]);
 let total = $state(0);
 let loading = $state(true);
-let limit = $state(20);
-let offset = $state(0);
+
 let searchQuery = $state('');
+let paymentMethods = $state<string[]>([]);
+let minTotal = $state<number | null>(null);
+let maxTotal = $state<number | null>(null);
+let dateRange = $state('last30d');
+let startDate = $state('');
+let endDate = $state('');
+let page = $state(0);
+let pageSize = $state(20);
 let sortBy = $state('created_at');
 let sortDir = $state('DESC');
+
+let paymentMethodOptions = $state<{ code: string; name: string }[]>([]);
 let initialized = false;
 
 export function useSalesStore() {
-  async function load(filters: SaleFilters) {
-    loading = true;
-    try {
-      const result = await getSalesHistory(filters);
-      salesData = result.data;
-      total = result.total;
-      limit = filters.limit;
-      offset = filters.offset;
-      sortBy = filters.sortBy || 'created_at';
-      sortDir = filters.sortDir || 'DESC';
-    } catch {
-      salesData = [];
-      total = 0;
-    } finally {
-      loading = false;
-    }
-  }
-
   if (!initialized) {
     initialized = true;
   }
@@ -38,12 +29,93 @@ export function useSalesStore() {
     get salesData() { return salesData; },
     get total() { return total; },
     get loading() { return loading; },
-    get limit() { return limit; },
-    get offset() { return offset; },
+    set loading(v: boolean) { loading = v; },
     get searchQuery() { return searchQuery; },
     set searchQuery(v: string) { searchQuery = v; },
+    get paymentMethods() { return paymentMethods; },
+    set paymentMethods(v: string[]) { paymentMethods = v; },
+    get minTotal() { return minTotal; },
+    set minTotal(v: number | null) { minTotal = v; },
+    get maxTotal() { return maxTotal; },
+    set maxTotal(v: number | null) { maxTotal = v; },
+    get dateRange() { return dateRange; },
+    set dateRange(v: string) { dateRange = v; },
+    get startDate() { return startDate; },
+    set startDate(v: string) { startDate = v; },
+    get endDate() { return endDate; },
+    set endDate(v: string) { endDate = v; },
+    get page() { return page; },
+    set page(v: number) { page = v; },
+    get pageSize() { return pageSize; },
+    set pageSize(v: number) { pageSize = v; },
+    get limit() { return pageSize; },
+    set limit(v: number) { pageSize = v; },
+    get offset() { return page * pageSize; },
+    set offset(v: number) { page = Math.floor(v / pageSize); },
     get sortBy() { return sortBy; },
+    set sortBy(v: string) { sortBy = v; },
     get sortDir() { return sortDir; },
-    load,
+    set sortDir(v: string) { sortDir = v; },
+    get paymentMethodOptions() { return paymentMethodOptions; },
+    set paymentMethodOptions(v: { code: string; name: string }[]) { paymentMethodOptions = v; },
+
+    get currentFilters(): SaleFilters {
+      return {
+        startDate,
+        endDate,
+        limit: pageSize,
+        offset: page * pageSize,
+        search: searchQuery || undefined,
+        sortBy,
+        sortDir,
+        paymentMethods: paymentMethods.length > 0 ? paymentMethods : undefined,
+        minTotal: minTotal !== null && minTotal > 0 ? minTotal : undefined,
+        maxTotal: maxTotal !== null && maxTotal < 50000000 ? maxTotal : undefined,
+        dateRange,
+      };
+    },
+
+    get filterState(): FilterState {
+      return {
+        searchQuery,
+        paymentMethods,
+        minTotal,
+        maxTotal,
+        dateRange,
+        startDate,
+        endDate,
+        page,
+        pageSize,
+        sortBy,
+        sortDir,
+      };
+    },
+
+    async load(filters: SaleFilters, signal?: AbortSignal) {
+      loading = true;
+      try {
+        const result = await getSalesHistory(filters, signal);
+        if (signal?.aborted) return;
+        salesData = result.data;
+        total = result.total;
+      } catch {
+        if (signal?.aborted) return;
+        salesData = [];
+        total = 0;
+      } finally {
+        if (signal?.aborted) return;
+        loading = false;
+      }
+    },
+
+    async loadPaymentMethods(signal?: AbortSignal) {
+      try {
+        const methods = await getPaymentMethods(signal);
+        if (signal?.aborted) return;
+        paymentMethodOptions = methods;
+      } catch {
+        if (signal?.aborted) return;
+      }
+    },
   };
 }
