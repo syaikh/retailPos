@@ -11,8 +11,8 @@ function getSource(): string {
 describe('CustomerToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button, SearchBar from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar } from '$shared/ui'");
+  it('imports Button, SearchBar, ExportImportButtons from shared/ui', () => {
+    expect(src).toContain("import { Button, SearchBar, ExportImportButtons } from '$shared/ui'");
   });
 
   it('uses $bindable for searchQuery and statusFilter', () => {

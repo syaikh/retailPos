@@ -20,7 +20,7 @@ describe('RolesPage.svelte source-structure guards', () => {
   });
 
   it('imports shared UI components', () => {
-    expect(src).toContain("import { Badge, Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
   });
 
   it('imports RoleDetailDrawer component', () => {
@@ -44,9 +44,12 @@ describe('RolesPage.svelte source-structure guards', () => {
     expect(src).toContain('let modalStep = $state(1)');
   });
 
-  it('has expanded detail row and action dropdown state', () => {
+  it('has expanded detail row', () => {
     expect(src).toContain('let expandedRoleId = $state(null)');
-    expect(src).toContain('let openActionRoleId = $state(null)');
+  });
+
+  it('has action dropdown via Dropdown component', () => {
+    expect(src).toContain('<Dropdown');
   });
 
   it('has fetchData, openAdd, openEdit, saveRole functions', () => {

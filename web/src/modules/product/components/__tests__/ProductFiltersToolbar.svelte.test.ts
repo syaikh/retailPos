@@ -11,8 +11,8 @@ function getSource(): string {
 describe('ProductFiltersToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button, SearchBar from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar } from '$shared/ui'");
+  it('imports Button, SearchBar, Dropdown from shared/ui', () => {
+    expect(src).toContain("import { Button, SearchBar, ExportImportButtons, Dropdown } from '$shared/ui'");
   });
 
   it('uses $bindable for searchQuery, selectedCategories, filterStatus, lowStockOnly', () => {
@@ -26,9 +26,9 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
     expect(src).toContain('= $props()');
   });
 
-  it('has status dropdown and category filter button', () => {
-    expect(src).toContain('showStatusDropdown = $state');
-    expect(src).toContain('status-filter-container');
+  it('has status dropdown via Dropdown component and category filter button', () => {
+    expect(src).toContain('<Dropdown');
+    expect(src).toContain('placement="bottom-start"');
   });
 
   it('renders filter chips section', () => {

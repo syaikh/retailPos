@@ -24,7 +24,7 @@ describe('TransactionFilters.svelte source-structure guards', () => {
   });
 
   it('imports SearchBar and Input', () => {
-    expect(src).toContain("import { Button, Input, SearchBar } from '$shared/ui'");
+    expect(src).toContain("import { Button, Input, SearchBar, Dropdown } from '$shared/ui'");
   });
 
   it('imports lucide icons', () => {
@@ -125,12 +125,13 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain('<SearchBar');
   });
 
-  it('renders payment dropdown', () => {
-    expect(src).toContain('showPaymentDropdown');
+  it('renders payment dropdown via Dropdown', () => {
+    expect(src).toContain('<Dropdown');
   });
 
-  it('renders export dropdown', () => {
-    expect(src).toContain('showExportDropdown');
+  it('renders export via Dropdown', () => {
+    expect(src).toContain('Export to CSV');
+    expect(src).toContain('Export to Excel');
   });
 
   it('renders date picker', () => {

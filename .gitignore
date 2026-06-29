@@ -94,3 +94,5 @@ session-*.md
 !.github/ISSUE_TEMPLATE/feature_request.md
 !CONTRIBUTING.md
 !deploy/PRODUCTION-DEPLOYMENT.md
+.opencode/
+watch_*

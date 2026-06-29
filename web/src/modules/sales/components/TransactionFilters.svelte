@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { fly } from 'svelte/transition';
-  import { Button, Input, SearchBar } from '$shared/ui';
+  import { Button, Input, SearchBar, Dropdown } from '$shared/ui';
   import { CalendarDays, ChevronDown, Download, FileSpreadsheet } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
@@ -23,8 +22,6 @@
     endDate = $bindable(),
     selectedPaymentMethods = $bindable<string[]>([]),
     showDatePicker = $bindable(false),
-    showPaymentDropdown = $bindable(false),
-    showExportDropdown = $bindable(false),
     sliderMin = $bindable<number | null>(null),
     sliderMax = $bindable<number | null>(null),
     appliedPaymentMethods = $bindable<string[]>([]),
@@ -216,13 +213,11 @@
 
   function exportCsv() {
     downloadExport('csv');
-    showExportDropdown = false;
     onexportcsv();
   }
 
   function exportExcel() {
     downloadExport('xlsx');
-    showExportDropdown = false;
     onexportxlsx();
   }
 
@@ -279,86 +274,68 @@
           </div>
         {/if}
       </div>
-      <div class="relative export-dropdown-container">
-        <Button
-          variant="primary"
-          class="flex items-center gap-2 transition-all duration-300"
-          onclick={() => showExportDropdown = !showExportDropdown}
-        >
-          <Download size={15} />
-          Export
-          <ChevronDown size={14} class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}" />
-        </Button>
-        {#if showExportDropdown}
-          <div
-            class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5"
-            onclick={(e) => e.stopPropagation()}
-            onkeydown={(e) => e.stopPropagation()}
-            role="menu"
-            tabindex="-1"
-            transition:fly={{ y: -8, duration: 200 }}
+      <Dropdown items={[
+        { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
+        { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
+      ]}>
+        {#snippet trigger({ toggle })}
+          <Button
+            variant="primary"
+            class="flex items-center gap-2 transition-all duration-300"
+            onclick={toggle}
           >
-            <button
-              class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-              role="menuitem"
-              onclick={() => { showExportDropdown = false; exportCsv(); }}
-            >
-              <FileSpreadsheet size={16} class="text-success-light" />
-              Export to CSV
-            </button>
-            <button
-              class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-              role="menuitem"
-              onclick={() => { showExportDropdown = false; exportExcel(); }}
-            >
-              <FileSpreadsheet size={16} class="text-info-light" />
-              Export to Excel
-            </button>
-          </div>
-        {/if}
-      </div>
+            <Download size={15} />
+            Export
+            <ChevronDown size={14} class="transition-transform duration-300" />
+          </Button>
+        {/snippet}
+      </Dropdown>
     </div>
   </div>
 
   <div class="pt-1">
     <div class="flex flex-wrap items-end gap-3">
-      <div class="relative payment-dropdown-container">
+      <div>
         <p class="text-xs font-medium text-text-secondary mb-1.5">Payment</p>
-        <Button
-          variant="secondary"
-          class="flex items-center gap-2 min-w-44"
-          onclick={() => showPaymentDropdown = !showPaymentDropdown}
-        >
-          <span class="text-sm truncate flex-1 text-left text-text-secondary">
-            {selectedPaymentMethods.length > 0
-              ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
-              : 'All methods'}
-          </span>
-          <ChevronDown size={14} class="opacity-60 shrink-0" />
-        </Button>
-        {#if showPaymentDropdown}
-          <div class="absolute left-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-2 min-w-44 max-h-56 overflow-y-auto">
-            {#each paymentMethodOptions as pm}
-              <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={selectedPaymentMethods.includes(pm.code)}
-                  onchange={() => togglePaymentMethod(pm.code)}
-                  class="accent-primary"
-                />
-                {pm.name}
-              </label>
-            {/each}
-            {#if selectedPaymentMethods.length > 0}
-              <button
-                class="w-full text-left px-2 py-1.5 mt-1 text-xs text-primary hover:bg-surface-hover rounded"
-                onclick={() => { selectedPaymentMethods = []; }}
-              >
-                Clear selection
-              </button>
-            {/if}
-          </div>
-        {/if}
+        <Dropdown menu={false} placement="bottom-start">
+          {#snippet trigger({ toggle })}
+            <Button
+              variant="secondary"
+              class="flex items-center gap-2 min-w-44"
+              onclick={toggle}
+            >
+              <span class="text-sm truncate flex-1 text-left text-text-secondary">
+                {selectedPaymentMethods.length > 0
+                  ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
+                  : 'All methods'}
+              </span>
+              <ChevronDown size={14} class="opacity-60 shrink-0" />
+            </Button>
+          {/snippet}
+          {#snippet content({ close })}
+            <div class="p-2 min-w-44 max-h-56 overflow-y-auto">
+              {#each paymentMethodOptions as pm}
+                <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={selectedPaymentMethods.includes(pm.code)}
+                    onchange={() => togglePaymentMethod(pm.code)}
+                    class="accent-primary"
+                  />
+                  {pm.name}
+                </label>
+              {/each}
+              {#if selectedPaymentMethods.length > 0}
+                <button
+                  class="w-full text-left px-2 py-1.5 mt-1 text-xs text-primary hover:bg-surface-hover rounded"
+                  onclick={() => { selectedPaymentMethods = []; }}
+                >
+                  Clear selection
+                </button>
+              {/if}
+            </div>
+          {/snippet}
+        </Dropdown>
       </div>
 
       <div class="w-44">

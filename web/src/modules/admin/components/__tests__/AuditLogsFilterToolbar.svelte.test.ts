@@ -11,8 +11,8 @@ function getSource(): string {
 describe('AuditLogsFilterToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button, Input, SearchBar from shared/ui', () => {
-    expect(src).toContain("import { Button, Input, SearchBar } from '$shared/ui'");
+  it('imports Button, Input, SearchBar, Dropdown from shared/ui', () => {
+    expect(src).toContain("import { Button, Input, SearchBar, Dropdown } from '$shared/ui'");
   });
 
   it('uses $bindable for filter props', () => {
@@ -26,14 +26,12 @@ describe('AuditLogsFilterToolbar.svelte source-structure guards', () => {
     expect(src).toContain('= $props()');
   });
 
-  it('has date picker and resource/action dropdowns', () => {
+  it('has date picker and resource/action dropdowns via Dropdown', () => {
     expect(src).toContain('date-picker-container');
-    expect(src).toContain('resource-dropdown-container');
-    expect(src).toContain('action-dropdown-container');
+    expect(src).toContain('<Dropdown');
   });
 
-  it('has export dropdown with CSV and Excel options', () => {
-    expect(src).toContain('export-dropdown');
+  it('has export with CSV and Excel options via Dropdown', () => {
     expect(src).toContain('Export to CSV');
     expect(src).toContain('Export to Excel');
   });

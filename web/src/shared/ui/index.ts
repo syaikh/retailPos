@@ -16,3 +16,4 @@ export { default as StatCard } from './StatCard.svelte';
 export { default as Toast } from './Toast.svelte';
 export { default as ExportImportButtons } from './ExportImportButtons.svelte';
 export { default as ImportModal } from './ImportModal.svelte';
+export { default as Dropdown } from './Dropdown.svelte';

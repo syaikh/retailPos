@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { Button, Input, SearchBar } from '$shared/ui';
+  import { Button, Input, SearchBar, Dropdown } from '$shared/ui';
   import { Search, RefreshCw, X, Download, FileSpreadsheet, CalendarDays, ChevronDown, List, Tag } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { fly } from 'svelte/transition';
 
   let {
     searchQuery = $bindable(''),
@@ -12,9 +11,6 @@
     selectedResource = $bindable('all'),
     selectedDateRange = $bindable('24h'),
     showDatePicker = $bindable(false),
-    showResourceDropdown = $bindable(false),
-    showActionDropdown = $bindable(false),
-    showExportDropdown = $bindable(false),
     customStartDate = $bindable(getDateNDaysAgoInJakarta(1)),
     customEndDate = $bindable(getTodayInJakarta()),
     loading = false,
@@ -27,9 +23,6 @@
     selectedResource?: string;
     selectedDateRange?: string;
     showDatePicker?: boolean;
-    showResourceDropdown?: boolean;
-    showActionDropdown?: boolean;
-    showExportDropdown?: boolean;
     customStartDate?: string;
     customEndDate?: string;
     loading?: boolean;
@@ -302,7 +295,6 @@
     a.download = `audit-logs-${today}.${format === 'csv' ? 'csv' : 'xlsx'}`;
     a.click();
     URL.revokeObjectURL(url);
-    showExportDropdown = false;
     toast.success(`Audit logs exported to ${format.toUpperCase()}`);
   }
 
@@ -364,109 +356,69 @@
       {/if}
     </div>
 
-    <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;" id="resource-dropdown-container">
-      <button
-        class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-        onclick={() => showResourceDropdown = !showResourceDropdown}
-      >
-        <span class="flex-1 text-left truncate">{resourceLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showResourceDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
-          {#each resourceFilters as f}
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { selectedResource = f.id; selectedAction = 'all'; showResourceDropdown = false; }}
-            >
-              {f.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <Dropdown placement="bottom-start">
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-32 rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{resourceLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+      {#snippet content({ close })}
+        {#each resourceFilters as f}
+          <button
+            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => { selectedResource = f.id; selectedAction = 'all'; close(); }}
+          >
+            {f.label}
+          </button>
+        {/each}
+      {/snippet}
+    </Dropdown>
 
-    <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;" id="action-dropdown-container">
-      <button
-        class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-        onclick={() => showActionDropdown = !showActionDropdown}
-      >
-        <span class="flex-1 text-left truncate">{actionLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showActionDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
-          {#each availableActionFilters as f}
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { selectedAction = f.id; showActionDropdown = false; }}
-            >
-              {f.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <Dropdown placement="bottom-start">
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-[140px] rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{actionLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+      {#snippet content({ close })}
+        {#each availableActionFilters as f}
+          <button
+            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => { selectedAction = f.id; close(); }}
+          >
+            {f.label}
+          </button>
+        {/each}
+      {/snippet}
+    </Dropdown>
 
     <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={onrefresh}>
       <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
     </Button>
-    <!-- Export Dropdown -->
-    <div class="relative export-dropdown">
-      <Button
-        variant="primary"
-        class="flex items-center gap-2 transition-all duration-300 h-10"
-        onclick={(e) => {
-          e.stopPropagation();
-          showExportDropdown = !showExportDropdown;
-        }}
-        aria-haspopup="menu"
-        aria-expanded={showExportDropdown}
-        aria-controls="export-dropdown-audit"
-      >
-        <Download size={15} />
-        Export
-        <ChevronDown
-          size={14}
-          class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
-        />
-      </Button>
-      {#if showExportDropdown}
-        <div
-          id="export-dropdown-audit"
-          class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          role="menu"
-          aria-orientation="vertical"
-          tabindex="-1"
-          transition:fly={{ y: -8, duration: 200 }}
+    <Dropdown items={[
+      { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportToCsv },
+      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportToExcel },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <Button
+          variant="primary"
+          class="flex items-center gap-2 transition-all duration-300 h-10"
+          onclick={toggle}
         >
-          <button
-            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-            role="menuitem"
-            onclick={() => {
-              showExportDropdown = false;
-              exportToCsv();
-            }}
-          >
-            <FileSpreadsheet size={16} class="text-success-light" />
-            Export to CSV
-          </button>
-          <button
-            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-            role="menuitem"
-            onclick={() => {
-              showExportDropdown = false;
-              exportToExcel();
-            }}
-          >
-            <FileSpreadsheet size={16} class="text-info-light" />
-            Export to Excel
-          </button>
-        </div>
-      {/if}
-    </div>
+          <Download size={15} />
+          Export
+          <ChevronDown size={14} class="transition-transform duration-300" />
+        </Button>
+      {/snippet}
+    </Dropdown>
   </div>
 
   <div class="filter-chips-wrapper" class:is-open={activeFilters.length > 0}>

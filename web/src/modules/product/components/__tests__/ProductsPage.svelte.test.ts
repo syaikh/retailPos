@@ -32,7 +32,7 @@ describe('ProductsPage.svelte source-structure guards', () => {
   });
 
   it('imports shared UI components', () => {
-    expect(src).toContain("import { Button, Modal, Pagination } from '$shared/ui'");
+    expect(src).toContain("import { Button, Modal, Pagination, ImportModal } from '$shared/ui'");
   });
 
   it('uses $state for products, loading, pagination state', () => {

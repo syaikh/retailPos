@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
-  import { Button } from '$shared/ui';
+  import { Button, Dropdown } from '$shared/ui';
   import { SelectableCalendar, MonthlyCalendar, YearCalendar } from '$modules/reporting/components/calendar';
   import { CalendarDate } from '@internationalized/date';
   import {
@@ -24,7 +24,6 @@
     monthlySelectionMade = $bindable(false),
     yearlySelectionMade = $bindable(false),
     availableYears = [],
-    showExportDropdown = $bindable(false),
     currentTimeHour = '00:00',
     timezoneString = 'GMT+07',
     onfetchsaleswithrange = (start, end) => {},
@@ -214,15 +213,13 @@
     const inDropdown = path.some(el => {
       const classList = el?.classList;
       return classList && (classList.contains('card-glass') ||
-                          el.closest?.('.card-glass') !== null);
+                           el.closest?.('.card-glass') !== null);
     });
     if (!inDropdown) {
-      if (showExportDropdown) showExportDropdown = false;
       if (dropdownOpen) dropdownOpen = false;
     }
   }}
   onkeydown={(e) => {
-    if (e.key === 'Escape' && showExportDropdown) showExportDropdown = false;
     if (e.key === 'Escape' && dropdownOpen) dropdownOpen = false;
   }}
 />
@@ -474,50 +471,22 @@
     {/if}
   </div>
 
-  <div class="ml-auto relative">
-    <Button
-      variant="primary"
-      class="flex items-center gap-2 transition-all duration-300"
-      onclick={(e) => { e.stopPropagation(); showExportDropdown = !showExportDropdown; }}
-      aria-haspopup="menu"
-      aria-expanded={showExportDropdown}
-      aria-controls="export-dropdown-reports"
-    >
-      <Download size={15} />
-      Export
-      <ChevronDown
-        size={14}
-        class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
-      />
-    </Button>
-    {#if showExportDropdown}
-      <div
-        id="export-dropdown-reports"
-        class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5"
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => e.stopPropagation()}
-        role="menu"
-        aria-orientation="vertical"
-        tabindex="-1"
-        transition:fly={{ y: -8, duration: 200 }}
-      >
-        <button
-          class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-          role="menuitem"
-          onclick={() => { showExportDropdown = false; onexportexcel(); }}
+  <div class="ml-auto">
+    <Dropdown items={[
+      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: onexportexcel },
+      { label: 'Export to PDF', icon: Download, iconClass: 'text-danger-light', onclick: onexportpdf },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <Button
+          variant="primary"
+          class="flex items-center gap-2 transition-all duration-300"
+          onclick={toggle}
         >
-          <FileSpreadsheet size={16} class="text-success-light" />
-          Export to Excel
-        </button>
-        <button
-          class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-          role="menuitem"
-          onclick={() => { showExportDropdown = false; onexportpdf(); }}
-        >
-          <Download size={16} class="text-danger-light" />
-          Export to PDF
-        </button>
-      </div>
-    {/if}
+          <Download size={15} />
+          Export
+          <ChevronDown size={14} class="transition-transform duration-300" />
+        </Button>
+      {/snippet}
+    </Dropdown>
   </div>
 </div>

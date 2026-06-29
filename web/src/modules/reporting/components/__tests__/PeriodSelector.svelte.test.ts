@@ -36,8 +36,8 @@ describe('PeriodSelector.svelte source-structure guards', () => {
     expect(src).toContain("import { fly } from 'svelte/transition'");
   });
 
-  it('imports Button from $shared/ui', () => {
-    expect(src).toContain("import { Button } from '$shared/ui'");
+  it('imports Button, Dropdown from $shared/ui', () => {
+    expect(src).toContain("import { Button, Dropdown } from '$shared/ui'");
   });
 
   it('has getPeriodDescription function', () => {

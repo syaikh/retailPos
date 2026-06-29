@@ -24,8 +24,7 @@
 
   let paymentMethodOptions: { code: string; name: string }[] = $state([]);
   let selectedPaymentMethods: string[] = $state([]);
-  let showPaymentDropdown = $state(false);
-  let showExportDropdown = $state(false);
+
 
   const SLIDER_MAX_BOUND = 50000000;
 
@@ -119,8 +118,6 @@
     if (e.key === 'Escape') {
       showTransactionDrawer = false;
       showDatePicker = false;
-      showPaymentDropdown = false;
-      showExportDropdown = false;
     }
   }
 
@@ -128,12 +125,6 @@
     const target = e.target as HTMLElement;
     if (showDatePicker && !target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) {
       showDatePicker = false;
-    }
-    if (showPaymentDropdown && !target.closest('.payment-dropdown-container')) {
-      showPaymentDropdown = false;
-    }
-    if (showExportDropdown && !target.closest('.export-dropdown-container')) {
-      showExportDropdown = false;
     }
   }
 
@@ -161,8 +152,6 @@
     bind:endDate
     bind:selectedPaymentMethods
     bind:showDatePicker
-    bind:showPaymentDropdown
-    bind:showExportDropdown
     bind:sliderMin
     bind:sliderMax
     bind:appliedPaymentMethods

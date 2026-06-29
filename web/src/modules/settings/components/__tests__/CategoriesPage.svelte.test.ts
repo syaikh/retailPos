@@ -24,7 +24,7 @@ describe('CategoriesPage.svelte source-structure guards', () => {
   });
 
   it('imports shared UI components', () => {
-    expect(src).toContain("import { Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Button, Input, Modal, Pagination, SearchBar, Skeleton, ImportModal, ExportImportButtons } from '$shared/ui'");
   });
 
   it('uses $state for categories, loading, pagination', () => {
