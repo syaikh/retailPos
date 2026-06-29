@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -58,6 +59,7 @@ func setupInventoryRouter() *gin.Engine {
 
 func TestHandler_AdjustStock(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	ctx := context.Background()
 	insertTestUser(t, ctx, 1)
 	r := setupInventoryRouter()

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -68,6 +69,7 @@ func setupSaleRouter() *gin.Engine {
 
 func TestHandler_GetSalesHistory(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupSaleRouter()
 
 	t.Run("returns empty list when no sales match", func(t *testing.T) {
@@ -124,6 +126,7 @@ func TestHandler_GetSalesHistory(t *testing.T) {
 
 func TestHandler_CreateSale(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupSaleRouter()
 
 	t.Run("success", func(t *testing.T) {
@@ -183,6 +186,7 @@ func TestHandler_CreateSale(t *testing.T) {
 
 func TestHandler_GetSaleByID(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupSaleRouter()
 
 	repo := NewRepository(dbPool)
@@ -224,6 +228,7 @@ func TestHandler_GetSaleByID(t *testing.T) {
 
 func TestHandler_ExportSales(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupSaleRouter()
 
 	t.Run("exports CSV", func(t *testing.T) {

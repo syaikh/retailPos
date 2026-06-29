@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -46,7 +48,7 @@ type AuthClaims struct {
 func NewAuthService(repo *Repository, eventBus EventBus) *AuthService {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "your-secret-key-change-in-production"
+		panic("FATAL: JWT_SECRET environment variable is required.")
 	}
 	return &AuthService{
 		dbPool:     repo.db,
@@ -110,28 +112,28 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 	}, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, error) {
 	claims, err := s.parseRefreshToken(oldRefreshToken)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	exists, err := s.refreshTokenExists(ctx, claims.ID, oldRefreshToken)
 	if err != nil {
-		return "", fmt.Errorf("failed to verify refresh token: %w", err)
+		return "", "", fmt.Errorf("failed to verify refresh token: %w", err)
 	}
 	if !exists {
-		return "", errors.New("invalid refresh token")
+		return "", "", errors.New("invalid refresh token")
 	}
 
 	user, err := s.repo.GetByID(claims.ID)
 	if err != nil {
-		return "", ErrUserNotFound
+		return "", "", ErrUserNotFound
 	}
 
 	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get role permissions: %w", err)
+		return "", "", fmt.Errorf("failed to get role permissions: %w", err)
 	}
 	perms := make([]string, len(permissions))
 	for i, p := range permissions {
@@ -140,7 +142,20 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 
 	newAccessToken, err := s.generateToken(user, perms, s.accessTTL)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate new access token: %w", err)
+		return "", "", fmt.Errorf("failed to generate new access token: %w", err)
+	}
+
+	if err := s.deleteRefreshToken(ctx, claims.ID, oldRefreshToken); err != nil {
+		return "", "", fmt.Errorf("failed to invalidate old refresh token: %w", err)
+	}
+
+	newRefreshToken, err := s.generateRefreshToken(user)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate new refresh token: %w", err)
+	}
+
+	if err := s.storeRefreshToken(ctx, user.ID, newRefreshToken); err != nil {
+		return "", "", fmt.Errorf("failed to store new refresh token: %w", err)
 	}
 
 	if err := s.eventBus.Publish(ctx, "auth.token_refreshed", map[string]interface{}{
@@ -150,7 +165,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		log.Printf("warning: failed to publish auth.token_refreshed event: %v", err)
 	}
 
-	return newAccessToken, nil
+	return newAccessToken, newRefreshToken, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID int, refreshToken string) error {
@@ -250,23 +265,31 @@ func (s *AuthService) parseRefreshToken(tokenString string) (*AuthClaims, error)
 	return nil, errors.New("invalid refresh token")
 }
 
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
 func (s *AuthService) storeRefreshToken(ctx context.Context, userID int, token string) error {
+	tokenHash := hashToken(token)
 	_, err := s.dbPool.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
 		VALUES ($1, $2, NOW() + INTERVAL '7 days')
-	`, userID, token)
+	`, userID, tokenHash)
 	return err
 }
 
 func (s *AuthService) refreshTokenExists(ctx context.Context, userID int, token string) (bool, error) {
+	tokenHash := hashToken(token)
 	var exists bool
 	err := s.dbPool.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW())
-	`, userID, token).Scan(&exists)
+	`, userID, tokenHash).Scan(&exists)
 	return exists, err
 }
 
 func (s *AuthService) deleteRefreshToken(ctx context.Context, userID int, token string) error {
-	_, err := s.dbPool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, token)
+	tokenHash := hashToken(token)
+	_, err := s.dbPool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, tokenHash)
 	return err
 }

@@ -9,6 +9,7 @@ import (
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/importutil"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
@@ -181,13 +182,13 @@ func (h *Handler) ExportCategories(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"Name", "Slug", "Description", "IsActive"})
+		_ = shared.WriteCSVRow(writer, []string{"Name", "Slug", "Description", "IsActive"})
 		for _, cat := range categories {
 			isActive := "false"
 			if cat.IsActive {
 				isActive = "true"
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				cat.Name,
 				cat.Slug,
 				cat.Description,

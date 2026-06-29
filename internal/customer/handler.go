@@ -10,6 +10,7 @@ import (
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/importutil"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
@@ -118,7 +119,7 @@ func (h *Handler) ExportCustomers(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"Name", "Phone", "Email", "Address", "Note", "IsActive"})
+		_ = shared.WriteCSVRow(writer, []string{"Name", "Phone", "Email", "Address", "Note", "IsActive"})
 		for _, cust := range customers {
 			phone := ""
 			if cust.Phone != nil {
@@ -140,7 +141,7 @@ func (h *Handler) ExportCustomers(c *gin.Context) {
 			if cust.IsActive {
 				isActive = "true"
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				cust.Name,
 				phone,
 				email,

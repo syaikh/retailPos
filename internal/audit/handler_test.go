@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -57,6 +58,7 @@ func setupAuditRouter() *gin.Engine {
 
 func TestHandler_ListAuditLogs(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)
@@ -151,6 +153,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 func TestHandler_ExportAuditLogs(t *testing.T) {
 	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)

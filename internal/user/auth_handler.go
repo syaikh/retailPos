@@ -58,12 +58,17 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := h.svc.RefreshToken(context.Background(), token)
+	accessToken, newRefreshToken, err := h.svc.RefreshToken(context.Background(), token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"access_token": accessToken})
+
+	domain := os.Getenv("COOKIE_DOMAIN")
+	secure := os.Getenv("COOKIE_SECURE") == "true"
+	c.SetCookie("refresh_token", newRefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
+
+	c.JSON(http.StatusOK, gin.H{"access_token": accessToken, "refresh_token": newRefreshToken})
 }
 
 func (h *AuthHandler) ValidateSession(c *gin.Context) {

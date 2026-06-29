@@ -261,9 +261,9 @@ func (h *Handler) exportCSV(c *gin.Context, rows []SaleExportRow) {
 	c.Header("Content-Disposition", "attachment; filename=sales_export.csv")
 
 	w := csv.NewWriter(c.Writer)
-	w.Write([]string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
+	shared.WriteCSVRow(w, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
 	for _, row := range rows {
-		w.Write([]string{
+		shared.WriteCSVRow(w, []string{
 			row.InvoiceNumber,
 			row.CreatedAt,
 			row.CustomerName,

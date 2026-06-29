@@ -39,8 +39,6 @@ func NewAuditListener(svc AuditLogCreator) eventbus.Listener {
 			username := middleware.UsernameFromContext(ctx)
 			role := middleware.RoleFromContext(ctx)
 
-			ctx = context.Background()
-
 			action, entityType, entityID, oldV, newV := extractEventData(event)
 			if action == "" {
 				return nil

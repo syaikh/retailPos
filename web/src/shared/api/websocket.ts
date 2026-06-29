@@ -30,14 +30,12 @@ class WebSocketService {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const backendPort = String(__BACKEND_PORT__) || '9095';
       const backendHost = `${window.location.hostname}:${backendPort}`;
-      const wsUrl = `${protocol}//${backendHost}/ws?token=${encodeURIComponent(token || '')}`;
-
-      console.log('[WebSocket] Connecting to:', wsUrl, '| pageOrigin:', window.location.origin);
+      const wsUrl = `${protocol}//${backendHost}/ws`;
 
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('[WebSocket] Connected successfully');
+        this.ws?.send(JSON.stringify({ type: 'auth', token }));
         this.status.set('connected');
         this.reconnectAttempts = 0;
         this.emit('connection', { status: 'connected' });

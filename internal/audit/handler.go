@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
@@ -151,13 +152,13 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
+		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 				t = parsed.In(cfg.Timezone).Format("2006-01-02 15:04:05")
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				t,
 				log.Username,
 				log.Role,

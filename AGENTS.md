@@ -10,6 +10,10 @@ All database connection parameters are defined in `.env.example` for the develop
 - `DB_PASSWORD=admin123`
 - `DB_NAME=retail_pos`
 
+### Required Environment Variables
+The following environment variables are **required** — the server will panic at startup if missing:
+- `JWT_SECRET` — 256-bit random secret for JWT signing. Generate with: `openssl rand -hex 32`
+
 Copy `.env.example` to `.env` and adjust values as needed for your local setup.
 
 ## Timezone Handling
@@ -35,11 +39,15 @@ Never auto-commit on each change. User will request commits explicitly when read
 
 ## Running Tests
 
-Tests require PostgreSQL connection. Use env vars to point to dev DB:
+Tests require PostgreSQL connection and `JWT_SECRET`. Use env vars to point to dev DB:
 
 ```bash
-TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 DB_USER=pos DB_PASSWORD=admin123 go test -v ./...
+TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only go test -p 1 -count=1 ./...
 ```
+
+**Important:** All packages connect to the same PostgreSQL database. `go test` runs test binaries in parallel by default (`-p` defaults to `GOMAXPROCS`), causing deadlocks between concurrent `TRUNCATE` and `INSERT` ops across packages. Use `-p 1` to force sequential execution.
+
+The failure in `TestE2E_ValidateSession` (`cmd/server/e2e_test.go`) is pre-existing — the handler returns `"user"` key but the test expects `"data"`. Not caused by recent changes.
 
 ## Building
 

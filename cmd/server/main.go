@@ -56,6 +56,14 @@ func (a *productLookupAdapter) GetProductByID(ctx context.Context, id int) (stri
 	return p.SKU, p.Name, p.Stock, p.StoreID, nil
 }
 
+type productPriceAdapter struct {
+	repo *product.Repository
+}
+
+func (a *productPriceAdapter) GetProductPrice(ctx context.Context, productID int) (int, error) {
+	return a.repo.GetProductPrice(ctx, productID)
+}
+
 func main() {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
@@ -102,6 +110,7 @@ func main() {
 	authSvc := user.NewAuthService(userRepo, bus)
 	productSvc := product.NewService(productRepo, categoryRepo, bus)
 	saleSvc := sale.NewService(saleRepo, bus)
+	saleSvc.SetPriceStore(&productPriceAdapter{repo: productRepo})
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo, bus)
 	categorySvc := category.NewService(categoryRepo, bus)
@@ -132,11 +141,13 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.CORSOrigin},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	router.Use(middleware.SecurityHeadersMiddleware([]string{cfg.CORSOrigin}))
+	router.Use(middleware.RateLimitMiddleware())
 
 	authMiddleware := middleware.NewModularAuthMiddleware(authSvc)
 	permMiddleware := middleware.RequirePermission
@@ -151,6 +162,7 @@ func main() {
 	authH.RegisterRoutes(router.Group("/api"), authMiddleware, permMiddleware)
 	protected := router.Group("/api")
 	protected.Use(authMiddleware)
+	protected.Use(middleware.CSRFMiddleware())
 	{
 		productH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		saleH.RegisterRoutes(protected, authMiddleware, permMiddleware)

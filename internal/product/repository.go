@@ -45,6 +45,15 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) GetProductPrice(ctx context.Context, id int) (int, error) {
+	var price int
+	err := r.db.QueryRow(ctx, "SELECT price FROM products WHERE id = $1", id).Scan(&price)
+	if err != nil {
+		return 0, fmt.Errorf("get product price: %w", err)
+	}
+	return price, nil
+}
+
 // ==================== PRODUCT ====================
 
 func (r *Repository) GetProductByID(ctx context.Context, id int, storeID *int) (*Product, error) {
@@ -293,9 +302,11 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		args2 = append(args2, status)
 		argIdx2++
 	}
-	if sortBy != "" {
+	allowedSortBy := map[string]bool{"v.id": true, "v.name": true, "v.sku": true, "v.barcode": true, "v.price": true, "v.status": true, "v.created_at": true, "v.updated_at": true, "v.stock": true, "category_name": true, "brand_name": true}
+	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	if sortBy != "" && allowedSortBy[sortBy] {
 		query2 += fmt.Sprintf(" ORDER BY %s", sortBy)
-		if sortDir != "" {
+		if sortDir != "" && allowedSortDir[sortDir] {
 			query2 += " " + sortDir
 		}
 	} else {

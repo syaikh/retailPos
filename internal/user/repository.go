@@ -178,10 +178,16 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		args2 = append(args2, *isActive)
 		argIdx2++
 	}
-	textSortColumns := map[string]bool{"username": true, "email": true}
-	sortExpr := sortBy
-	if textSortColumns[sortBy] {
-		sortExpr = "LOWER(" + sortBy + ")"
+	allowedSortBy := map[string]string{"id": "id", "username": "LOWER(username)", "email": "LOWER(email)", "role_id": "role_id", "is_active": "is_active", "created_at": "created_at", "updated_at": "updated_at", "last_login": "last_login"}
+	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
+	var sortExpr string
+	if col, ok := allowedSortBy[sortBy]; ok {
+		sortExpr = col
+	} else {
+		sortExpr = "id"
+	}
+	if sortDir == "" || !allowedSortDir[sortDir] {
+		sortDir = "DESC"
 	}
 	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortExpr, sortDir, argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)

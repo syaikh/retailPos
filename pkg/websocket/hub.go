@@ -5,18 +5,23 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"retail-pos-system/internal/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"golang.org/x/time/rate"
 )
 
-var jakartaLoc = config.Load().Timezone
+func getJakartaLoc() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
 
 const (
 	writeWait              = 10 * time.Second
@@ -40,7 +45,7 @@ func checkOrigin(r *http.Request) bool {
 		strings.HasPrefix(origin, "http://10.") {
 		return true
 	}
-	allowedOrigin := config.Load().CORSOrigin
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
 	if allowedOrigin != "" && origin == allowedOrigin {
 		return true
 	}
@@ -287,7 +292,7 @@ func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
 
 func (h *Hub) Broadcast(event Event) {
 	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now().In(jakartaLoc)
+		event.Timestamp = time.Now().In(getJakartaLoc())
 	}
 	select {
 	case h.broadcast <- event:
@@ -312,7 +317,7 @@ func (h *Hub) broadcastUserCount() {
 	})
 	event := Event{
 		Type:      EventUserOnline,
-		Timestamp: time.Now().In(jakartaLoc),
+		Timestamp: time.Now().In(getJakartaLoc()),
 		Payload:   payload,
 	}
 	data, _ := json.Marshal(event)
@@ -325,6 +330,11 @@ func (h *Hub) broadcastUserCount() {
 	}
 }
 
+type authMessage struct {
+	Type  string `json:"type"`
+	Token string `json:"token"`
+}
+
 func ServeWebSocket(hub *Hub, c *gin.Context) {
 	clientIP := c.ClientIP()
 
@@ -332,25 +342,6 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many connection attempts"})
 		return
 	}
-
-	tokenString := c.Query("token")
-	if tokenString == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token required"})
-		return
-	}
-
-	claims, err := hub.authService.ValidateToken(tokenString)
-	if err != nil {
-		prefix := tokenString
-		if len(prefix) > 20 {
-			prefix = prefix[:20]
-		}
-		log.Printf("[WebSocket] Auth failed from %s: %v | token_prefix=%s", clientIP, err, prefix)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-		return
-	}
-
-	log.Printf("[WebSocket] Auth OK: user=%d role=%s store=%v from %s", claims.ID, claims.Role, claims.StoreID, clientIP)
 
 	if !strings.Contains(c.Request.Host, "localhost") && c.Request.Header.Get("X-Forwarded-Proto") != "https" {
 		log.Printf("Warning: WebSocket connection not using HTTPS from IP %s", clientIP)
@@ -361,6 +352,35 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		log.Printf("WebSocket upgrade error from %s: %v", clientIP, err)
 		return
 	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		log.Printf("WebSocket set auth deadline error: %v", err)
+		conn.Close()
+		return
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		log.Printf("[WebSocket] Auth message read error from %s: %v", clientIP, err)
+		conn.Close()
+		return
+	}
+
+	var authMsg authMessage
+	if err := json.Unmarshal(msg, &authMsg); err != nil || authMsg.Type != "auth" || authMsg.Token == "" {
+		log.Printf("[WebSocket] Invalid auth message format from %s", clientIP)
+		conn.Close()
+		return
+	}
+
+	claims, err := hub.authService.ValidateToken(authMsg.Token)
+	if err != nil {
+		log.Printf("[WebSocket] Auth failed from %s: %v", clientIP, err)
+		conn.Close()
+		return
+	}
+
+	log.Printf("[WebSocket] Auth OK: user=%d role=%s store=%v from %s", claims.ID, claims.Role, claims.StoreID, clientIP)
 
 	var storeID *int
 	if claims.StoreID != nil {

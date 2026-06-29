@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -45,9 +44,6 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		ctx = setCtxValue(ctx, CtxKeyUsername, claims.Username)
 		ctx = setCtxValue(ctx, CtxKeyRole, claims.Role)
 		c.Request = c.Request.WithContext(ctx)
-
-		c.Header("X-User-ID", fmt.Sprintf("%d", claims.ID))
-		c.Header("X-User-Role", claims.Role)
 
 		c.Next()
 	}

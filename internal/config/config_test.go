@@ -10,14 +10,15 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	os.Unsetenv("ENV")
 	os.Unsetenv("CORS_ORIGIN")
-	os.Unsetenv("JWT_SECRET")
+	os.Setenv("JWT_SECRET", "test-secret")
 	os.Unsetenv("STOCK_WARNING_THRESHOLD")
 	os.Unsetenv("STOCK_CRITICAL_THRESHOLD")
+	defer os.Unsetenv("JWT_SECRET")
 
 	cfg := Load()
 	assert.Equal(t, "development", cfg.Env)
 	assert.Equal(t, "http://localhost:5173", cfg.CORSOrigin)
-	assert.Equal(t, "your-secret-key-change-in-production", cfg.JWTSecret)
+	assert.Equal(t, "test-secret", cfg.JWTSecret)
 	assert.Equal(t, 10, cfg.StockWarningThreshold)
 	assert.Equal(t, 5, cfg.StockCriticalThreshold)
 	assert.Equal(t, "Asia/Jakarta", cfg.Timezone.String())

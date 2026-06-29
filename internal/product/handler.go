@@ -10,6 +10,7 @@ import (
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/importutil"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
@@ -344,13 +345,13 @@ func (h *Handler) ExportBrands(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"Name", "Description", "IsActive"})
+		_ = shared.WriteCSVRow(writer, []string{"Name", "Description", "IsActive"})
 		for _, brand := range brands {
 			isActive := "false"
 			if brand.IsActive {
 				isActive = "true"
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				brand.Name,
 				brand.Description,
 				isActive,
@@ -547,13 +548,13 @@ func (h *Handler) ExportUnitsOfMeasure(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"Code", "Name", "Description", "IsActive"})
+		_ = shared.WriteCSVRow(writer, []string{"Code", "Name", "Description", "IsActive"})
 		for _, uom := range units {
 			isActive := "false"
 			if uom.IsActive {
 				isActive = "true"
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				uom.Code,
 				uom.Name,
 				uom.Description,
@@ -712,7 +713,7 @@ func (h *Handler) ExportProducts(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = writer.Write([]string{"SKU", "Name", "Barcode", "Category", "Brand", "Price", "Cost", "Stock", "Status", "UnitOfMeasure", "WeightGrams", "Description"})
+		_ = shared.WriteCSVRow(writer, []string{"SKU", "Name", "Barcode", "Category", "Brand", "Price", "Cost", "Stock", "Status", "UnitOfMeasure", "WeightGrams", "Description"})
 		for _, p := range products {
 			barcode := ""
 			if p.Barcode != nil {
@@ -738,7 +739,7 @@ func (h *Handler) ExportProducts(c *gin.Context) {
 			if p.Description != nil {
 				desc = *p.Description
 			}
-			_ = writer.Write([]string{
+			_ = shared.WriteCSVRow(writer, []string{
 				p.SKU,
 				p.Name,
 				barcode,

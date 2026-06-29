@@ -7,18 +7,28 @@ import (
 )
 
 var ErrInsufficientStock = errors.New("insufficient stock")
+var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
 
 type EventBus interface {
 	Publish(ctx context.Context, topic string, event interface{}) error
 }
 
+type ProductPriceGetter interface {
+	GetProductPrice(ctx context.Context, productID int) (int, error)
+}
+
 type Service struct {
-	repo     *Repository
-	eventBus EventBus
+	repo       *Repository
+	eventBus   EventBus
+	priceStore ProductPriceGetter
 }
 
 func NewService(repo *Repository, eventBus EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
+}
+
+func (s *Service) SetPriceStore(ps ProductPriceGetter) {
+	s.priceStore = ps
 }
 
 func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error {
@@ -28,7 +38,11 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 	}
 	defer tx.Rollback(ctx)
 
-	for _, item := range items {
+	for i, item := range items {
+		if item.Quantity <= 0 {
+			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
+		}
+
 		var stock int
 		err := tx.QueryRow(ctx, `SELECT COALESCE(quantity, 0) FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, item.ProductID).Scan(&stock)
 		if err != nil {
@@ -36,6 +50,30 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		}
 		if stock < item.Quantity {
 			return ErrInsufficientStock
+		}
+
+		if s.priceStore != nil {
+			serverPrice, err := s.priceStore.GetProductPrice(ctx, item.ProductID)
+			if err != nil {
+				return fmt.Errorf("lookup price for product %d: %w", item.ProductID, err)
+			}
+			clientUnitPrice := item.UnitPrice
+			if clientUnitPrice != serverPrice {
+				return fmt.Errorf("%w: product %d, server=%d, client=%d", ErrPriceMismatch, item.ProductID, serverPrice, clientUnitPrice)
+			}
+			items[i].UnitPrice = serverPrice
+			items[i].Subtotal = serverPrice * item.Quantity
+		}
+	}
+
+	if s.priceStore != nil {
+		sale.Subtotal = 0
+		for _, item := range items {
+			sale.Subtotal += item.Subtotal
+		}
+		sale.TotalAmount = sale.Subtotal - sale.Discount
+		if sale.TotalAmount < 0 {
+			sale.TotalAmount = 0
 		}
 	}
 
