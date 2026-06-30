@@ -176,7 +176,7 @@
                 </span>
               {/if}
               {#if item.icon}
-                <svelte:component this={item.icon} size={14} class={item.iconClass || ''} />
+                <item.icon size={14} class={item.iconClass || ''} />
               {/if}
               <span class="flex-1 text-left truncate">{item.label}</span>
             </button>

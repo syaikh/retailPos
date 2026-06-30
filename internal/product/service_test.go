@@ -122,7 +122,7 @@ func TestProductService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("GetAllProducts", func(t *testing.T) {
-		products, total, err := svc.GetAllProducts(ctx, 10, 0, sku, "", "", "", "", nil, nil, nil, nil)
+		products, total, err := svc.GetAllProducts(ctx, 10, 0, sku, "", "", "", "", nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(products), 1)

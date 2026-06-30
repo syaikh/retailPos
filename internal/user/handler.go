@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -87,7 +86,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		isActive = &b
 	}
 
-	users, total, err := h.svc.GetAllUsers(context.Background(), limit, offset, search, sortBy, sortDir, roleID, isActive)
+	users, total, err := h.svc.GetAllUsers(c.Request.Context(), limit, offset, search, sortBy, sortDir, roleID, isActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -108,7 +107,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	existing, err := h.svc.GetUserByUsername(context.Background(), req.Username)
+	existing, err := h.svc.GetUserByUsername(c.Request.Context(), req.Username)
 	if err == nil && existing != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
 		return
@@ -134,7 +133,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		IsActive: isActive,
 	}
 
-	if err := h.svc.CreateUser(context.Background(), user); err != nil {
+	if err := h.svc.CreateUser(c.Request.Context(), user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -155,7 +154,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	existing, err := h.svc.GetUserByID(context.Background(), id)
+	existing, err := h.svc.GetUserByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
@@ -168,7 +167,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			return
 		}
 		if newUsername != existing.Username {
-			dup, err := h.svc.GetUserByUsername(context.Background(), newUsername)
+			dup, err := h.svc.GetUserByUsername(c.Request.Context(), newUsername)
 			if err == nil && dup != nil {
 				c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
 				return
@@ -197,7 +196,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		existing.IsActive = *req.IsActive
 	}
 
-	if err := h.svc.UpdateUser(context.Background(), existing); err != nil {
+	if err := h.svc.UpdateUser(c.Request.Context(), existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -211,7 +210,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
-	if err := h.svc.DeleteUser(context.Background(), id); err != nil {
+	if err := h.svc.DeleteUser(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -219,7 +218,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 }
 
 func (h *Handler) ListRoles(c *gin.Context) {
-	roles, err := h.svc.GetAllRoles(context.Background())
+	roles, err := h.svc.GetAllRoles(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -237,7 +236,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		Name:        req.Name,
 		Description: req.Description,
 	}
-	if err := h.svc.CreateRole(context.Background(), role); err != nil {
+	if err := h.svc.CreateRole(c.Request.Context(), role); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -255,7 +254,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	existing, err := h.svc.GetRoleByID(context.Background(), id)
+	existing, err := h.svc.GetRoleByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
 		return
@@ -266,7 +265,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 	if req.Description != nil {
 		existing.Description = *req.Description
 	}
-	if err := h.svc.UpdateRole(context.Background(), existing); err != nil {
+	if err := h.svc.UpdateRole(c.Request.Context(), existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -284,11 +283,11 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.svc.UpdateRolePermissions(context.Background(), id, req.PermissionIDs); err != nil {
+	if err := h.svc.UpdateRolePermissions(c.Request.Context(), id, req.PermissionIDs); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	role, err := h.svc.GetRoleByID(context.Background(), id)
+	role, err := h.svc.GetRoleByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -302,7 +301,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role id"})
 		return
 	}
-	count, err := h.svc.CountUsersByRole(context.Background(), id)
+	count, err := h.svc.CountUsersByRole(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -311,7 +310,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete role: users are assigned to this role"})
 		return
 	}
-	if err := h.svc.DeleteRole(context.Background(), id); err != nil {
+	if err := h.svc.DeleteRole(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -319,7 +318,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 }
 
 func (h *Handler) ListPermissions(c *gin.Context) {
-	permissions, err := h.svc.GetAllPermissions(context.Background())
+	permissions, err := h.svc.GetAllPermissions(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -53,6 +53,8 @@ func NewAuditListener(svc AuditLogCreator) eventbus.Listener {
 				EntityID:   entityID,
 				OldValues:  oldV,
 				NewValues:  newV,
+				IPAddress:  middleware.IPAddressFromContext(ctx),
+				UserAgent:  middleware.UserAgentFromContext(ctx),
 			}
 
 			alog.Description = GenerateAuditDescription(alog)

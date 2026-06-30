@@ -7,8 +7,8 @@ test.describe('Units of Measure Management', () => {
     await page.fill('#password', 'admin123');
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-    await page.goto('http://localhost:5173/admin/units-of-measure');
-    await expect(page).toHaveURL(/\/admin\/units-of-measure/);
+    await page.goto('http://localhost:5173/units-of-measure');
+    await expect(page).toHaveURL(/\/units-of-measure/);
     await expect(page.locator('text=CODE')).toBeVisible({ timeout: 10000 });
   });
 

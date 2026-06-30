@@ -294,6 +294,7 @@
       </Button>
       {#if showDatePicker}
         <div
+          role="dialog"
           class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
           onkeydown={handleDatePickerKeydown}
         >
@@ -319,12 +320,12 @@
               <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label class="block text-xs text-text-secondary mb-1">Start Date</label>
-                  <Input type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
+                  <label for="txn-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <Input id="txn-start-date" type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
                 </div>
                 <div class="flex-1">
-                  <label class="block text-xs text-text-secondary mb-1">End Date</label>
-                  <Input type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
+                  <label for="txn-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <Input id="txn-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
                 </div>
               </div>
             </div>

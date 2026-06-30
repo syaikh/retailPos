@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +33,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.svc.Login(context.Background(), req.Username, req.Password)
+	ctx := c.Request.Context()
+	ctx = context.WithValue(ctx, shared.CtxKeyIPAddress, shared.GetIPAddress(c))
+	ctx = context.WithValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
+	resp, err := h.svc.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -58,7 +63,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	accessToken, newRefreshToken, err := h.svc.RefreshToken(context.Background(), token)
+	accessToken, newRefreshToken, err := h.svc.RefreshToken(c.Request.Context(), token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -119,7 +124,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	if refreshToken != "" {
-		if err := h.svc.Logout(context.Background(), id, refreshToken); err != nil {
+		if err := h.svc.Logout(c.Request.Context(), id, refreshToken); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}

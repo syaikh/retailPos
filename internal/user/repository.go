@@ -287,7 +287,15 @@ func (r *Repository) GetRoleByID(ctx context.Context, id int) (*Role, error) {
 }
 
 func (r *Repository) GetAllRoles(ctx context.Context) ([]Role, error) {
-	rows, err := r.db.Query(ctx, "SELECT id, name, description, is_system, created_at FROM roles ORDER BY name")
+	rows, err := r.db.Query(ctx, `
+		SELECT r.id, r.name, r.description, r.is_system, r.created_at,
+		       COALESCE(ARRAY_AGG(p.code) FILTER (WHERE p.code IS NOT NULL), '{}') AS permissions
+		FROM roles r
+		LEFT JOIN role_permissions rp ON rp.role_id = r.id
+		LEFT JOIN permissions p ON p.id = rp.permission_id
+		GROUP BY r.id, r.name, r.description, r.is_system, r.created_at
+		ORDER BY r.name
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -298,12 +306,12 @@ func (r *Repository) GetAllRoles(ctx context.Context) ([]Role, error) {
 		var rl Role
 		var isSystem bool
 		var createdAt time.Time
-		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Description, &isSystem, &createdAt); err != nil {
+		if err := rows.Scan(&rl.ID, &rl.Name, &rl.Description, &isSystem, &createdAt, &rl.Permissions); err != nil {
 			return nil, err
 		}
- 		rl.IsSystem = isSystem
- 		rl.CreatedAt = createdAt
- 		roles = append(roles, rl)
+		rl.IsSystem = isSystem
+		rl.CreatedAt = createdAt
+		roles = append(roles, rl)
 	}
 	return roles, nil
 }

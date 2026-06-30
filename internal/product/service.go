@@ -35,7 +35,7 @@ func (s *Service) GetProductBySKU(ctx context.Context, sku string, storeID int) 
 	return s.repo.GetProductBySKU(ctx, sku, ptr(storeID))
 }
 
-func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category, brand string, storeID *int, isActive *bool, minPrice, maxPrice *float64) ([]Product, int, error) {
+func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category, brand string, storeID *int, isActive *bool, minPrice, maxPrice *float64, maxStock *int) ([]Product, int, error) {
 	status := ""
 	if isActive != nil {
 		if *isActive { status = "active" } else { status = "inactive" }
@@ -55,7 +55,7 @@ func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search,
 			categoryIDs = append(categoryIDs, id)
 		}
 	}
-	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, nil, storeID, status)
+	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, maxStock, storeID, status)
 }
 
 func (s *Service) CreateProduct(ctx context.Context, product *Product) error {

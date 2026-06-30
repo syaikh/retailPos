@@ -71,7 +71,7 @@ Never auto-commit. Changes must be committed manually.
 
 Flags:
 - `-products=N` - Number of products (4500-5000, random if 0)
-- `-days=N` - Days to generate (180-1095, will prompt interactively if 0)
+- `-days=N` - Days to generate (0 = interactive prompt)
 - `-categories=N` - Number of categories (65-80, random if 0)
 - `-truncate=false` - Skip truncating existing data
 

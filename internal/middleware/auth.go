@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/user"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,8 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		ctx = setCtxValue(ctx, CtxKeyUserID, claims.ID)
 		ctx = setCtxValue(ctx, CtxKeyUsername, claims.Username)
 		ctx = setCtxValue(ctx, CtxKeyRole, claims.Role)
+		ctx = setCtxValue(ctx, shared.CtxKeyIPAddress, shared.GetIPAddress(c))
+		ctx = setCtxValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()

@@ -356,6 +356,7 @@
       </Button>
       {#if showDatePicker}
         <div
+          role="dialog"
           class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
           onkeydown={handleDatePickerKeydown}
         >
@@ -381,12 +382,12 @@
               <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label class="block text-xs text-text-secondary mb-1">Start Date</label>
-                  <Input type="date" bind:value={editStartDate} class="w-full" min={ninetyDaysAgo} max={editEndDate || today} />
+                  <label for="audit-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <Input id="audit-start-date" type="date" bind:value={editStartDate} class="w-full" min={ninetyDaysAgo} max={editEndDate || today} />
                 </div>
                 <div class="flex-1">
-                  <label class="block text-xs text-text-secondary mb-1">End Date</label>
-                  <Input type="date" bind:value={editEndDate} class="w-full" min={editStartDate || ninetyDaysAgo} max={today} />
+                  <label for="audit-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <Input id="audit-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || ninetyDaysAgo} max={today} />
                 </div>
               </div>
             </div>

@@ -469,9 +469,8 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 
 	period := PeriodType(c.DefaultQuery("period", "daily"))
 	mode := c.DefaultQuery("mode", "realtime")
-	dateStr := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
-
 	jakartaLoc := config.Load().Timezone
+	dateStr := c.DefaultQuery("date", time.Now().In(jakartaLoc).Format("2006-01-02"))
 	refDate, err := time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date"})
@@ -515,9 +514,8 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	chartDataStr := c.PostForm("chartData")
 	period := c.PostForm("period")
 	mode := c.PostForm("mode")
-	dateStr := c.DefaultPostForm("date", time.Now().Format("2006-01-02"))
-
 	jakartaLoc := config.Load().Timezone
+	dateStr := c.DefaultPostForm("date", time.Now().In(jakartaLoc).Format("2006-01-02"))
 	refDate, err := time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date"})

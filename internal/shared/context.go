@@ -6,6 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type CtxKey string
+
+const (
+	CtxKeyIPAddress CtxKey = "ipAddress"
+	CtxKeyUserAgent CtxKey = "userAgent"
+)
+
 func GetUserID(c *gin.Context) int {
 	userID, exists := c.Get("userID")
 	if !exists {

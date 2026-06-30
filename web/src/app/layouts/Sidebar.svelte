@@ -35,8 +35,8 @@
     currentPath.startsWith('/inventory/products') ||
     currentPath.startsWith('/categories') ||
     currentPath.startsWith('/customers') ||
-    currentPath.startsWith('/admin/brands') ||
-    currentPath.startsWith('/admin/units-of-measure')
+    currentPath.startsWith('/brands') ||
+    currentPath.startsWith('/units-of-measure')
   );
 
   $effect(() => {
@@ -61,8 +61,8 @@
   const masterDataSubItems = [
     { label: 'Products',   href: '/inventory/products', icon: Package },
     { label: 'Categories', href: '/categories',          icon: Tag },
-    { label: 'Brands',     href: '/admin/brands',        icon: Building2 },
-    { label: 'Units',      href: '/admin/units-of-measure', icon: Ruler },
+    { label: 'Brands',     href: '/brands',        icon: Building2 },
+    { label: 'Units',      href: '/units-of-measure', icon: Ruler },
     { label: 'Customers',  href: '/customers',           icon: User },
   ];
 
@@ -75,8 +75,8 @@
   const managerMasterDataSubItems = [
     { label: 'Products',   href: '/inventory/products', icon: Package },
     { label: 'Categories', href: '/categories',          icon: Tag },
-    { label: 'Brands',     href: '/admin/brands',        icon: Building2 },
-    { label: 'Units',      href: '/admin/units-of-measure', icon: Ruler },
+    { label: 'Brands',     href: '/brands',        icon: Building2 },
+    { label: 'Units',      href: '/units-of-measure', icon: Ruler },
     { label: 'Customers',  href: '/customers',           icon: User },
   ];
 

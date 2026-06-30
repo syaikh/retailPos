@@ -32,6 +32,8 @@
     '/admin/roles':        'Role Management',
     '/admin/audit-logs':   'Audit Logs',
     '/admin/categories':   'Category Management',
+    '/brands':             'Brand Management',
+    '/units-of-measure':   'Unit of Measure Management',
     '/admin/brands':       'Brand Management',
     '/admin/units-of-measure': 'Unit of Measure Management',
   };
@@ -49,6 +51,8 @@
     '/admin/roles':         () => import('$modules/admin/components/RolesPage.svelte'),
     '/admin/audit-logs':    () => import('$modules/admin/components/AuditLogsPage.svelte'),
     '/admin/categories':    () => import('$modules/settings/components/CategoriesPage.svelte'),
+    '/brands':              () => import('$modules/settings/components/BrandsPage.svelte'),
+    '/units-of-measure':    () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
     '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
     '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
   };
@@ -73,16 +77,18 @@
     const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
 
-    if (path !== '/login' && !hasValidToken) {
+    if (!hasValidToken) {
       Component = LoginPage;
       currentPath = '/login';
-      window.history.replaceState({}, '', '/login');
+      if (path !== '/login') {
+        window.history.replaceState({}, '', '/login');
+      }
       isInitializing = false;
       updateTitle('/login');
       return;
     }
 
-    if (path === '/login' && hasValidToken) {
+    if (path === '/login') {
       goto('/');
       return;
     }
@@ -92,10 +98,10 @@
       initWebSocket();
     }
 
-    currentPath = path;
-    isInitializing = false;
     const comp = await getComponent(path);
     if (comp) Component = comp;
+    currentPath = path;
+    isInitializing = false;
     updateTitle(path);
   }
 
@@ -151,7 +157,6 @@
     }
 
     isInitializing = false;
-    handleRoute(getPath());
   }
 
   const initialPath = getPath();

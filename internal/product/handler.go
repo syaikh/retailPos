@@ -84,9 +84,16 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
+	var maxStock *int
+	if ms := c.Query("maxStock"); ms != "" {
+		if val, err := strconv.Atoi(ms); err == nil && val >= 0 {
+			maxStock = &val
+		}
+	}
+
 	storeID := h.getStoreID(c)
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, brand, storeID, isActive, minPrice, maxPrice)
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, brand, storeID, isActive, minPrice, maxPrice, maxStock)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return

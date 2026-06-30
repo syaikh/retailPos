@@ -7,8 +7,8 @@ test.describe('Brands Management', () => {
     await page.fill('#password', 'admin123');
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-    await page.goto('http://localhost:5173/admin/brands');
-    await expect(page).toHaveURL(/\/admin\/brands/);
+    await page.goto('http://localhost:5173/brands');
+    await expect(page).toHaveURL(/\/brands/);
     await expect(page.locator('text=BRAND NAME')).toBeVisible({ timeout: 10000 });
   });
 
