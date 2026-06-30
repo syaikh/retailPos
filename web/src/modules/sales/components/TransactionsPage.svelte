@@ -97,6 +97,7 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       showTransactionDrawer = false;
+      showDatePicker = false;
     }
   }
 

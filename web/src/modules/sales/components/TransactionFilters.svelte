@@ -76,6 +76,26 @@
     }
   });
 
+  $effect(() => {
+    if (!showDatePicker) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) {
+        showDatePicker = false;
+      }
+    };
+
+    const frame = requestAnimationFrame(() => {
+      document.addEventListener('click', handleClickOutside, true);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('click', handleClickOutside, true);
+    };
+  });
+
   function handleMinInput(e: Event) {
     const input = e.target as HTMLInputElement;
     const digits = input.value.replace(/\D/g, '');
