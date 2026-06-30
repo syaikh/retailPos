@@ -178,7 +178,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		args2 = append(args2, *isActive)
 		argIdx2++
 	}
-	allowedSortBy := map[string]string{"id": "id", "username": "LOWER(username)", "email": "LOWER(email)", "role_id": "role_id", "is_active": "is_active", "created_at": "created_at", "updated_at": "updated_at", "last_login": "last_login"}
+	allowedSortBy := map[string]string{"id": "id", "username": "LOWER(username)", "email": "LOWER(email)", "role_id": "(SELECT name FROM roles WHERE id = users.role_id)", "is_active": "is_active", "created_at": "created_at", "updated_at": "updated_at", "last_login": "last_login"}
 	allowedSortDir := map[string]bool{"asc": true, "desc": true}
 	var sortExpr string
 	if col, ok := allowedSortBy[sortBy]; ok {
