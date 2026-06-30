@@ -17,14 +17,24 @@ type CategoryRepo interface {
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
 }
 
+type BrandRepo interface {
+	GetIDByName(ctx context.Context, name string) (int, error)
+}
+
+type UOMRepo interface {
+	GetIDByCode(ctx context.Context, code string) (int, error)
+}
+
 type Service struct {
 	repo        *Repository
 	categoryRepo CategoryRepo
+	brandRepo   BrandRepo
+	uomRepo     UOMRepo
 	eventBus    EventBus
 }
 
-func NewService(repo *Repository, categoryRepo CategoryRepo, eventBus EventBus) *Service {
-	return &Service{repo: repo, categoryRepo: categoryRepo, eventBus: eventBus}
+func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus EventBus) *Service {
+	return &Service{repo: repo, categoryRepo: categoryRepo, brandRepo: brandRepo, uomRepo: uomRepo, eventBus: eventBus}
 }
 
 func (s *Service) GetProductByID(ctx context.Context, id, storeID int) (*Product, error) {
@@ -89,68 +99,8 @@ func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActi
 }
 
 func (s *Service) GetNextSKU(ctx context.Context) (string, error) { return s.repo.GetNextSKU(ctx) }
-func (s *Service) GetBrandByID(ctx context.Context, id int) (*Brand, error) { return s.repo.GetBrandByID(ctx, id) }
-func (s *Service) GetAllBrands(ctx context.Context) ([]Brand, error) { return s.repo.GetAllBrands(ctx) }
-func (s *Service) CreateBrand(ctx context.Context, brand *Brand) error {
-	if err := s.repo.CreateBrand(ctx, brand); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "brand.created", brand)
-}
-func (s *Service) UpdateBrand(ctx context.Context, brand *Brand) error {
-	old, err := s.repo.GetBrandByID(ctx, brand.ID)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.UpdateBrand(ctx, brand); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "brand.updated", eventbus.UpdatePayload{Old: old, New: brand})
-}
-func (s *Service) DeleteBrand(ctx context.Context, id int) error {
-	if err := s.repo.DeleteBrand(ctx, id); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "brand.deleted", id)
-}
-func (s *Service) GetAllBrandsForExport(ctx context.Context) ([]Brand, error) {
-	return s.repo.GetAllBrandsForExport(ctx)
-}
-func (s *Service) ImportBrands(ctx context.Context, records []BrandImportRow) importutil.ImportResult {
-	return s.repo.BulkUpsertBrands(ctx, records)
-}
-func (s *Service) GetAllUnitsOfMeasureForExport(ctx context.Context) ([]UnitOfMeasure, error) {
-	return s.repo.GetAllUnitsOfMeasureForExport(ctx)
-}
-func (s *Service) ImportUnitsOfMeasure(ctx context.Context, records []UnitOfMeasureImportRow) importutil.ImportResult {
-	return s.repo.BulkUpsertUnitsOfMeasure(ctx, records)
-}
 func (s *Service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) { return s.repo.GetTaxClassByID(ctx, id) }
 func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) { return s.repo.GetAllTaxClasses(ctx) }
-func (s *Service) GetUnitOfMeasureByID(ctx context.Context, id int) (*UnitOfMeasure, error) { return s.repo.GetUnitOfMeasureByID(ctx, id) }
-func (s *Service) GetAllUnitsOfMeasure(ctx context.Context) ([]UnitOfMeasure, error) { return s.repo.GetAllUnitsOfMeasure(ctx) }
-func (s *Service) CreateUnitOfMeasure(ctx context.Context, uom *UnitOfMeasure) error {
-	if err := s.repo.CreateUnitOfMeasure(ctx, uom); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "uom.created", uom)
-}
-func (s *Service) UpdateUnitOfMeasure(ctx context.Context, uom *UnitOfMeasure) error {
-	old, err := s.repo.GetUnitOfMeasureByID(ctx, uom.ID)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.UpdateUnitOfMeasure(ctx, uom); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "uom.updated", eventbus.UpdatePayload{Old: old, New: uom})
-}
-func (s *Service) DeleteUnitOfMeasure(ctx context.Context, id int) error {
-	if err := s.repo.DeleteUnitOfMeasure(ctx, id); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "uom.deleted", id)
-}
 func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) { return s.repo.GetWarehouseByID(ctx, id) }
 func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) { return s.repo.GetAllWarehouses(ctx, nil) }
 
@@ -249,15 +199,15 @@ func (s *Service) ImportProducts(ctx context.Context, records []ProductImportRow
 }
 
 func (s *Service) resolveCategoryID(ctx context.Context, name string) (int, error) {
-	return s.repo.GetOrCreateCategoryIDByName(ctx, name)
+	return s.categoryRepo.GetCategoryIDByName(ctx, name)
 }
 
 func (s *Service) resolveBrandID(ctx context.Context, name string) (int, error) {
-	return s.repo.GetOrCreateBrandIDByName(ctx, name)
+	return s.brandRepo.GetIDByName(ctx, name)
 }
 
 func (s *Service) resolveUnitOfMeasureID(ctx context.Context, code string) (int, error) {
-	return s.repo.GetOrCreateUnitOfMeasureIDByCode(ctx, code)
+	return s.uomRepo.GetIDByCode(ctx, code)
 }
 
 func strPtr(s string) *string {

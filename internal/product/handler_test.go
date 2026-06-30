@@ -48,13 +48,11 @@ func setupProductRouter() *gin.Engine {
 	bus := eventbus.New()
 	go bus.Run()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	h := NewHandler(svc)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
-	h.RegisterBrandRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
-	h.RegisterUOMRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
 	return r
 }
 
@@ -206,144 +204,6 @@ func TestHandler_DeleteProduct(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("DELETE", "/products/"+strconv.Itoa(p.ID), nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-}
-
-func TestHandler_CreateBrand(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	t.Run("success", func(t *testing.T) {
-		body := `{"name":"Brand Handler Test","description":"test description","is_active":true}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/brands", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp struct {
-			Data Brand `json:"data"`
-		}
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
-		require.NoError(t, err)
-		assert.Equal(t, "Brand Handler Test", resp.Data.Name)
-		assert.Greater(t, resp.Data.ID, 0)
-	})
-
-	t.Run("invalid json", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/brands", strings.NewReader("{invalid"))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
-func TestHandler_UpdateBrand(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	b := &Brand{Name: "Before Brand", Description: "Before", IsActive: true}
-	require.NoError(t, repo.CreateBrand(ctx, b))
-
-	t.Run("success", func(t *testing.T) {
-		body := `{"name":"After Brand","description":"After","is_active":true}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/brands/"+strconv.Itoa(b.ID), strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-}
-
-func TestHandler_DeleteBrand(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	b := &Brand{Name: "To Delete Brand", IsActive: true}
-	require.NoError(t, repo.CreateBrand(ctx, b))
-
-	t.Run("success", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/brands/"+strconv.Itoa(b.ID), nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-}
-
-func TestHandler_CreateUnitOfMeasure(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	t.Run("success", func(t *testing.T) {
-		body := `{"code":"HDLUM","name":"Handler UOM","is_active":true}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/units-of-measure", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp struct {
-			Data UnitOfMeasure `json:"data"`
-		}
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
-		require.NoError(t, err)
-		assert.Equal(t, "Handler UOM", resp.Data.Name)
-		assert.Greater(t, resp.Data.ID, 0)
-	})
-
-	t.Run("invalid json", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/units-of-measure", strings.NewReader("{invalid"))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
-func TestHandler_UpdateUnitOfMeasure(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	u := &UnitOfMeasure{Code: "HDLUMU", Name: "Before UOM", IsActive: true}
-	require.NoError(t, repo.CreateUnitOfMeasure(ctx, u))
-
-	t.Run("success", func(t *testing.T) {
-		body := `{"code":"HDLUMU","name":"After UOM","is_active":true}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/units-of-measure/"+strconv.Itoa(u.ID), strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-}
-
-func TestHandler_DeleteUnitOfMeasure(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupProductRouter()
-
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	u := &UnitOfMeasure{Code: "HDLUMD", Name: "To Delete UOM", IsActive: true}
-	require.NoError(t, repo.CreateUnitOfMeasure(ctx, u))
-
-	t.Run("success", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/units-of-measure/"+strconv.Itoa(u.ID), nil)
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

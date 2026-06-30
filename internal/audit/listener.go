@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/eventbus"
@@ -13,6 +14,7 @@ import (
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 )
 
@@ -87,10 +89,10 @@ func extractEventData(event eventbus.Event) (action, entityType string, entityID
 	case *user.User:
 		return extractFromEventType(string(event.Type), "user", e.ID, toJSONMap(e))
 
-	case *product.Brand:
+	case *brand.Brand:
 		return extractFromEventType(string(event.Type), "brand", e.ID, toJSONMap(e))
 
-	case *product.UnitOfMeasure:
+	case *uom.UnitOfMeasure:
 		return extractFromEventType(string(event.Type), "uom", e.ID, toJSONMap(e))
 
 	case *user.Role:
@@ -135,9 +137,9 @@ func extractEntityInfo(v interface{}) (entityType string, entityID int, ok bool)
 		return "user", e.ID, true
 	case *user.Role:
 		return "role", e.ID, true
-	case *product.Brand:
+	case *brand.Brand:
 		return "brand", e.ID, true
-	case *product.UnitOfMeasure:
+	case *uom.UnitOfMeasure:
 		return "uom", e.ID, true
 	case *sale.Sale:
 		return "sale", e.ID, true

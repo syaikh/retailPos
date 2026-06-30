@@ -20,7 +20,7 @@ func TestProductService_CreatePublishesEvent(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	published := make(chan struct{}, 1)
@@ -56,7 +56,7 @@ func TestProductService_UpdatePublishesEvent(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	published := make(chan struct{}, 1)
@@ -95,7 +95,7 @@ func TestProductService_ReadOperations(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	sku := "SVC-READ-001"
@@ -135,7 +135,7 @@ func TestProductService_DeletePublishesEvent(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	published := make(chan struct{}, 1)
@@ -173,7 +173,7 @@ func TestProductService_BulkUpdate(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	p := &Product{
@@ -200,33 +200,13 @@ func TestProductService_SubResourceMethods(t *testing.T) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, nil, bus)
+	svc := NewService(repo, nil, nil, nil, bus)
 	ctx := context.Background()
 
 	t.Run("GetNextSKU", func(t *testing.T) {
 		sku, err := svc.GetNextSKU(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, sku, "SKU-")
-	})
-
-	t.Run("Brand operations", func(t *testing.T) {
-		b := &Brand{Name: "Svc Brand", IsActive: true}
-		err := svc.CreateBrand(ctx, b)
-		require.NoError(t, err)
-		require.Greater(t, b.ID, 0)
-
-		got, err := svc.GetBrandByID(ctx, b.ID)
-		require.NoError(t, err)
-		assert.Equal(t, b.Name, got.Name)
-
-		list, err := svc.GetAllBrands(ctx)
-		require.NoError(t, err)
-		assert.NotNil(t, list)
-
-		b.Name = "Svc Brand Updated"
-		require.NoError(t, svc.UpdateBrand(ctx, b))
-
-		require.NoError(t, svc.DeleteBrand(ctx, b.ID))
 	})
 
 	t.Run("Tax class operations", func(t *testing.T) {
@@ -238,25 +218,6 @@ func TestProductService_SubResourceMethods(t *testing.T) {
 		list, err := svc.GetAllTaxClasses(ctx)
 		require.NoError(t, err)
 		assert.NotNil(t, list)
-	})
-
-	t.Run("UOM operations", func(t *testing.T) {
-		u := &UnitOfMeasure{Code: "SVCM", Name: "Svc UOM", IsActive: true}
-		err := svc.CreateUnitOfMeasure(ctx, u)
-		require.NoError(t, err)
-
-		got, err := svc.GetUnitOfMeasureByID(ctx, u.ID)
-		require.NoError(t, err)
-		assert.Equal(t, u.Code, got.Code)
-
-		list, err := svc.GetAllUnitsOfMeasure(ctx)
-		require.NoError(t, err)
-		assert.NotNil(t, list)
-
-		u.Name = "Updated UOM"
-		require.NoError(t, svc.UpdateUnitOfMeasure(ctx, u))
-
-		require.NoError(t, svc.DeleteUnitOfMeasure(ctx, u.ID))
 	})
 
 	t.Run("Warehouse operations", func(t *testing.T) {

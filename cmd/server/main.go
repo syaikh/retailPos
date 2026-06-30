@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/customer"
@@ -19,6 +20,7 @@ import (
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 	"retail-pos-system/pkg/websocket"
 
@@ -103,17 +105,21 @@ func main() {
 	bus.Subscribe(inventory.NewStockDeductListener(inventoryRepo))
 	customerRepo := customer.NewRepository(dbPool)
 	categoryRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
 	auditRepo := audit.NewRepository(dbPool)
 	reportRepo := report.NewRepository(dbPool)
 
 	userSvc := user.NewService(userRepo, bus)
 	authSvc := user.NewAuthService(userRepo, bus)
-	productSvc := product.NewService(productRepo, categoryRepo, bus)
+	productSvc := product.NewService(productRepo, categoryRepo, brandRepo, uomRepo, bus)
 	saleSvc := sale.NewService(saleRepo, bus)
 	saleSvc.SetPriceStore(&productPriceAdapter{repo: productRepo})
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo, bus)
 	categorySvc := category.NewService(categoryRepo, bus)
+	brandSvc := brand.NewService(brandRepo, bus)
+	uomSvc := uom.NewService(uomRepo, bus)
 	auditSvc := audit.NewService(auditRepo, bus)
 	bus.Subscribe(audit.NewAuditListener(auditSvc))
 	reportSvc := report.NewService(reportRepo, bus)
@@ -125,6 +131,8 @@ func main() {
 	inventoryH := inventory.NewHandler(inventorySvc)
 	customerH := customer.NewHandler(customerSvc)
 	categoryH := category.NewHandler(categorySvc)
+	brandH := brand.NewHandler(brandSvc)
+	uomH := uom.NewHandler(uomSvc)
 	auditH := audit.NewHandler(auditSvc)
 	reportH := report.NewHandler(reportSvc)
 
@@ -158,6 +166,8 @@ func main() {
 
 	saleH.RegisterPaymentMethodsPublicRoutes(router.Group("/api"))
 	productH.RegisterPublicRoutes(router.Group("/api"))
+	brandH.RegisterPublicRoutes(router.Group("/api"))
+	uomH.RegisterPublicRoutes(router.Group("/api"))
 
 	authH.RegisterRoutes(router.Group("/api"), authMiddleware, permMiddleware)
 	protected := router.Group("/api")
@@ -172,8 +182,8 @@ func main() {
 		userH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		auditH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		reportH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		productH.RegisterBrandRoutes(protected, authMiddleware, permMiddleware)
-		productH.RegisterUOMRoutes(protected, authMiddleware, permMiddleware)
+		brandH.RegisterRoutes(protected, authMiddleware, permMiddleware)
+		uomH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

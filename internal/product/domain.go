@@ -25,14 +25,6 @@ type Product struct {
 	UpdatedAt          string   `json:"updated_at,omitempty"`
 }
 
-type Brand struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	IsActive    bool   `json:"is_active"`
-	CreatedAt   string `json:"created_at,omitempty"`
-}
-
 type TaxClass struct {
 	ID          int     `json:"id"`
 	Name        string  `json:"name"`
@@ -40,30 +32,6 @@ type TaxClass struct {
 	Description string  `json:"description,omitempty"`
 	IsActive    bool    `json:"is_active"`
 	CreatedAt   string  `json:"created_at,omitempty"`
-}
-
-type UnitOfMeasure struct {
-	ID          int    `json:"id"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	IsActive    bool   `json:"is_active"`
-	CreatedAt   string `json:"created_at,omitempty"`
-}
-
-type BrandImportRow struct {
-	Row         int
-	Name        string
-	Description string
-	IsActive    bool
-}
-
-type UnitOfMeasureImportRow struct {
-	Row         int
-	Code        string
-	Name        string
-	Description string
-	IsActive    bool
 }
 
 type ProductImportRow struct {

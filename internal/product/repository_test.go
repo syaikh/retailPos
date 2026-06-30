@@ -150,59 +150,6 @@ func TestProductRepository_NextSKU(t *testing.T) {
 	assert.Contains(t, sku, "SKU-")
 }
 
-func TestProductRepository_BrandCRUD(t *testing.T) {
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-
-	t.Run("Create and get brand", func(t *testing.T) {
-		b := &Brand{Name: "Test Brand", Description: "A test brand", IsActive: true}
-		err := repo.CreateBrand(ctx, b)
-		require.NoError(t, err)
-		require.Greater(t, b.ID, 0)
-
-		got, err := repo.GetBrandByID(ctx, b.ID)
-		require.NoError(t, err)
-		assert.Equal(t, b.Name, got.Name)
-	})
-
-	t.Run("Get brand not found", func(t *testing.T) {
-		_, err := repo.GetBrandByID(ctx, -1)
-		assert.ErrorContains(t, err, "brand not found")
-	})
-
-	t.Run("List all brands", func(t *testing.T) {
-		brands, err := repo.GetAllBrands(ctx)
-		require.NoError(t, err)
-		assert.NotNil(t, brands)
-	})
-
-	t.Run("Update brand", func(t *testing.T) {
-		b := &Brand{Name: "Update Brand", Description: "Before", IsActive: true}
-		require.NoError(t, repo.CreateBrand(ctx, b))
-
-		b.Name = "Updated Brand"
-		b.IsActive = false
-		err := repo.UpdateBrand(ctx, b)
-		require.NoError(t, err)
-
-		got, err := repo.GetBrandByID(ctx, b.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "Updated Brand", got.Name)
-		assert.False(t, got.IsActive)
-	})
-
-	t.Run("Delete brand", func(t *testing.T) {
-		b := &Brand{Name: "Delete Brand", IsActive: true}
-		require.NoError(t, repo.CreateBrand(ctx, b))
-
-		err := repo.DeleteBrand(ctx, b.ID)
-		require.NoError(t, err)
-
-		_, err = repo.GetBrandByID(ctx, b.ID)
-		assert.Error(t, err)
-	})
-}
-
 func TestProductRepository_TaxClassRead(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
@@ -218,57 +165,6 @@ func TestProductRepository_TaxClassRead(t *testing.T) {
 		list, err := repo.GetAllTaxClasses(ctx)
 		require.NoError(t, err)
 		assert.NotNil(t, list)
-	})
-}
-
-func TestProductRepository_UOMCRUD(t *testing.T) {
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-
-	t.Run("Create and get UOM", func(t *testing.T) {
-		u := &UnitOfMeasure{Code: "XUNIT", Name: "Test Unit", IsActive: true}
-		err := repo.CreateUnitOfMeasure(ctx, u)
-		require.NoError(t, err)
-		require.Greater(t, u.ID, 0)
-
-		got, err := repo.GetUnitOfMeasureByID(ctx, u.ID)
-		require.NoError(t, err)
-		assert.Equal(t, u.Code, got.Code)
-	})
-
-	t.Run("Get UOM by code", func(t *testing.T) {
-		id, err := repo.GetUnitOfMeasureIDByCode(ctx, "XUNIT")
-		require.NoError(t, err)
-		assert.Greater(t, id, 0)
-	})
-
-	t.Run("Get UOM not found", func(t *testing.T) {
-		_, err := repo.GetUnitOfMeasureByID(ctx, -1)
-		assert.ErrorContains(t, err, "unit of measure not found")
-	})
-
-	t.Run("Update UOM", func(t *testing.T) {
-		u := &UnitOfMeasure{Code: "YUPD", Name: "Before Update", IsActive: true}
-		require.NoError(t, repo.CreateUnitOfMeasure(ctx, u))
-
-		u.Name = "After Update"
-		err := repo.UpdateUnitOfMeasure(ctx, u)
-		require.NoError(t, err)
-
-		got, err := repo.GetUnitOfMeasureByID(ctx, u.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "After Update", got.Name)
-	})
-
-	t.Run("Delete UOM", func(t *testing.T) {
-		u := &UnitOfMeasure{Code: "ZDEL", Name: "Delete Me", IsActive: true}
-		require.NoError(t, repo.CreateUnitOfMeasure(ctx, u))
-
-		err := repo.DeleteUnitOfMeasure(ctx, u.ID)
-		require.NoError(t, err)
-
-		_, err = repo.GetUnitOfMeasureByID(ctx, u.ID)
-		assert.Error(t, err)
 	})
 }
 
