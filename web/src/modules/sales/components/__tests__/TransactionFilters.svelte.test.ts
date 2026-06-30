@@ -28,7 +28,7 @@ describe('TransactionFilters.svelte source-structure guards', () => {
   });
 
   it('imports lucide icons', () => {
-    expect(src).toContain("import { CalendarDays, ChevronDown, Download, FileSpreadsheet } from 'lucide-svelte'");
+    expect(src).toContain("import { CalendarDays, ChevronDown, Download, FileSpreadsheet, X } from 'lucide-svelte'");
   });
 
   it('imports getAuthToken', () => {
@@ -68,8 +68,8 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain('function applyDatePreset');
   });
 
-  it('has togglePaymentMethod function', () => {
-    expect(src).toContain('function togglePaymentMethod');
+  it('has togglePendingPaymentMethod function', () => {
+    expect(src).toContain('function togglePendingPaymentMethod');
   });
 
   it('has paymentMethodName function', () => {

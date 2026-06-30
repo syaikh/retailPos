@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Input, SearchBar, Dropdown } from '$shared/ui';
-  import { CalendarDays, ChevronDown, Download, FileSpreadsheet } from 'lucide-svelte';
+  import { CalendarDays, ChevronDown, Download, FileSpreadsheet, X } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
@@ -32,6 +32,8 @@
 
   let editStartDate = $state('');
   let editEndDate = $state('');
+  let dropdownOpen = $state(false);
+  let pendingPaymentMethods = $state<string[]>([]);
 
   const currentYearStart = $derived(getTodayInJakarta().slice(0, 4) + '-01-01');
 
@@ -67,6 +69,12 @@
   const canApplyCustom = $derived(
     editStartDate.length > 0 && editEndDate.length > 0 && (editStartDate !== startDate || editEndDate !== endDate)
   );
+
+  $effect(() => {
+    if (dropdownOpen) {
+      pendingPaymentMethods = [...selectedPaymentMethods];
+    }
+  });
 
   function handleMinInput(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -148,11 +156,11 @@
     showDatePicker = false;
   }
 
-  function togglePaymentMethod(code: string) {
-    if (selectedPaymentMethods.includes(code)) {
-      selectedPaymentMethods = selectedPaymentMethods.filter(c => c !== code);
+  function togglePendingPaymentMethod(code: string) {
+    if (pendingPaymentMethods.includes(code)) {
+      pendingPaymentMethods = pendingPaymentMethods.filter(c => c !== code);
     } else {
-      selectedPaymentMethods = [...selectedPaymentMethods, code];
+      pendingPaymentMethods = [...pendingPaymentMethods, code];
     }
   }
 
@@ -222,7 +230,7 @@
       <SearchBar bind:value={searchQuery} placeholder="Search by invoice, product, or customer..." />
     </div>
 
-    <Dropdown menu={false} placement="bottom-start">
+    <Dropdown menu={false} placement="bottom-start" bind:open={dropdownOpen}>
       {#snippet trigger({ toggle })}
         <Button
           variant="secondary"
@@ -238,26 +246,34 @@
         </Button>
       {/snippet}
       {#snippet content({ close })}
-        <div class="p-2 min-w-44 max-h-56 overflow-y-auto">
-          {#each paymentMethodOptions as pm}
-            <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
-              <input
-                type="checkbox"
-                checked={selectedPaymentMethods.includes(pm.code)}
-                onchange={() => togglePaymentMethod(pm.code)}
-                class="accent-primary"
-              />
-              {pm.name}
-            </label>
-          {/each}
-          {#if selectedPaymentMethods.length > 0}
+        <div class="p-2 min-w-44">
+          <div class="max-h-56 overflow-y-auto">
+            {#each paymentMethodOptions as pm}
+              <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={pendingPaymentMethods.includes(pm.code)}
+                  onchange={() => togglePendingPaymentMethod(pm.code)}
+                  class="accent-primary"
+                />
+                {pm.name}
+              </label>
+            {/each}
+          </div>
+          <div class="flex items-center gap-2 px-0 pt-2 mt-2 border-t border-border">
             <button
-              class="w-full text-left px-2 py-1.5 mt-1 text-xs text-primary hover:bg-surface-hover rounded"
-              onclick={() => { selectedPaymentMethods = []; close(); }}
+              class="flex-1 px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-surface-hover rounded"
+              onclick={() => { selectedPaymentMethods = []; pendingPaymentMethods = []; close(); }}
             >
-              Clear selection
+              Clear
             </button>
-          {/if}
+            <button
+              class="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-default hover:bg-primary-hover rounded"
+              onclick={() => { selectedPaymentMethods = pendingPaymentMethods; close(); }}
+            >
+              Apply
+            </button>
+          </div>
         </div>
       {/snippet}
     </Dropdown>
@@ -284,6 +300,14 @@
           oninput={handleMaxInput}
           onblur={handleMaxBlur}
         />
+        <button
+          class="p-1 -mr-1.5 text-text-muted hover:text-danger hover:bg-danger-subtle rounded transition-colors {sliderMin !== null || sliderMax !== null ? '' : 'invisible'}"
+          onclick={() => { sliderMin = null; sliderMax = null; }}
+          title="Reset filter jumlah"
+          aria-label="Reset filter jumlah"
+        >
+          <X size={14} />
+        </button>
       </div>
     </div>
 
