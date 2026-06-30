@@ -79,8 +79,8 @@ export function createQueryManager(config: QueryManagerConfig): QueryManager {
     pendingFilters = filters;
 
     if (!previousFiltersJson) {
+      previousFiltersJson = ' ';
       doFetch(filters);
-      previousFiltersJson = JSON.stringify(filters);
       return;
     }
 

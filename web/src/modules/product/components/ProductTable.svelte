@@ -85,11 +85,13 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12"></th>
-        <th class="text-left p-4 font-semibold" style="width: 34%;">PRODUCT NAME</th>
-        <th class="text-left p-4 font-semibold w-44">CATEGORY</th>
-        <th class="p-4 font-semibold w-32 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
+        <th class="text-left p-4 font-semibold" style="width: 28%;">PRODUCT NAME</th>
+        <th class="text-left p-4 font-semibold w-52">CATEGORY</th>
+        <th class="text-left p-4 font-semibold w-28">BRAND</th>
+        <th class="text-left p-4 font-semibold w-24">UOM</th>
+        <th class="p-4 font-semibold w-28 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
         <th class="p-4 font-semibold w-20 text-right"><span class="flex items-center justify-end gap-1">STOCK</span></th>
-        <th class="text-left p-4 font-semibold w-24">STATUS</th>
+        <th class="text-left p-4 font-semibold w-20">STATUS</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
     </thead>
@@ -98,11 +100,13 @@
         <tr class="border-t border-border">
           <td class="p-4 w-12"><Skeleton class="h-4 w-4" /></td>
           <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
-          <td class="p-4 w-60"><Skeleton class="h-4 w-3/4" /></td>
-          <td class="p-4 text-right w-36"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
-          <td class="p-4 text-right w-24"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
-          <td class="p-4 w-24"><Skeleton class="h-6 w-20 rounded-full" /></td>
-          <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
+          <td class="p-4 w-52"><Skeleton class="h-4 w-3/4" /></td>
+          <td class="p-4 w-28"><Skeleton class="h-4 w-2/3" /></td>
+          <td class="p-4 w-24"><Skeleton class="h-4 w-1/2" /></td>
+          <td class="p-4 text-right w-28"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
+          <td class="p-4 text-right w-20"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
+          <td class="p-4 w-20"><Skeleton class="h-6 w-16 rounded-full" /></td>
+          <td class="p-4 w-10"><Skeleton class="h-4 w-8" /></td>
         </tr>
       {/each}
     </tbody>
@@ -127,22 +131,24 @@
             PRODUCT NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </button>
         </th>
-        <th class="text-left p-4 font-semibold w-44">
+        <th class="text-left p-4 font-semibold w-52">
           <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('category')}>
             CATEGORY {#if sortBy === 'category'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </button>
         </th>
-        <th class="p-4 font-semibold w-32">
+        <th class="text-left p-4 font-semibold w-28">BRAND</th>
+        <th class="text-left p-4 font-semibold w-24">UOM</th>
+        <th class="p-4 font-semibold w-28">
           <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => onsort('price')}>
             PRICE {#if sortBy === 'price'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </button>
         </th>
-        <th class="p-4 font-semibold w-24">
+        <th class="p-4 font-semibold w-20">
           <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => onsort('stock')}>
             STOCK {#if sortBy === 'stock'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
           </button>
         </th>
-        <th class="text-left p-4 font-semibold w-24">STATUS</th>
+        <th class="text-left p-4 font-semibold w-20">STATUS</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
     </thead>
@@ -185,9 +191,11 @@
               {/if}
             </div>
           </td>
-          <td class="p-4 w-60">{product.category_name || '-'}</td>
-          <td class="p-4 text-right w-36 font-semibold">{product.price?.toLocaleString('id-ID')}</td>
-          <td class="p-4 text-right w-24">
+          <td class="p-4 w-52">{product.category_name || '-'}</td>
+          <td class="p-4 w-28 truncate" title={product.brand_name || ''}>{product.brand_name || '-'}</td>
+          <td class="p-4 w-24">{product.unit_of_measure || '-'}</td>
+          <td class="p-4 text-right w-28 font-semibold">{product.price?.toLocaleString('id-ID')}</td>
+          <td class="p-4 text-right w-20">
             {#if product.stock === 0}
               <Badge variant="destructive" size="sm">Out of Stock</Badge>
             {:else if product.stock <= criticalThreshold}

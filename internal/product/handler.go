@@ -66,10 +66,13 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	category := c.Query("category")
 	brand := c.Query("brand")
 
+	status := c.Query("status")
 	var isActive *bool
-	if s := c.Query("isActive"); s != "" {
-		v := strings.EqualFold(s, "true") || s == "1"
-		isActive = &v
+	if status == "" {
+		if s := c.Query("isActive"); s != "" {
+			v := strings.EqualFold(s, "true") || s == "1"
+			isActive = &v
+		}
 	}
 
 	var minPrice, maxPrice *float64
@@ -93,7 +96,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	storeID := h.getStoreID(c)
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, brand, storeID, isActive, minPrice, maxPrice, maxStock)
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, brand, storeID, isActive, minPrice, maxPrice, maxStock, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return

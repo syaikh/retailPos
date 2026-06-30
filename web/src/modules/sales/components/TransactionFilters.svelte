@@ -79,6 +79,10 @@
     }
   }
 
+  function handleMinBlur() {
+    if (amountError) toast.error(amountError);
+  }
+
   function handleMaxInput(e: Event) {
     const input = e.target as HTMLInputElement;
     const digits = input.value.replace(/\D/g, '');
@@ -88,6 +92,10 @@
       input.value = formatted;
       input.setSelectionRange(formatted.length, formatted.length);
     }
+  }
+
+  function handleMaxBlur() {
+    if (amountError) toast.error(amountError);
   }
 
   function sanitizeSearch(q: string): string {
@@ -155,18 +163,18 @@
   function buildExportUrl(format: string): string {
     const params = new URLSearchParams({
       format,
-      startDate,
-      endDate,
+      start_date: startDate,
+      end_date: endDate,
       search: sanitizeSearch(searchQuery),
     });
     if (selectedPaymentMethods.length > 0) {
-      params.set('paymentMethods', selectedPaymentMethods.join(','));
+      params.set('payment_methods', selectedPaymentMethods.join(','));
     }
     if (sliderMin !== null && sliderMin > 0) {
-      params.set('minTotal', sliderMin.toString());
+      params.set('min_total', sliderMin.toString());
     }
     if (sliderMax !== null && sliderMax < SLIDER_MAX_BOUND) {
-      params.set('maxTotal', sliderMax.toString());
+      params.set('max_total', sliderMax.toString());
     }
     return `/api/sales/export?${params.toString()}`;
   }
@@ -264,7 +272,7 @@
           placeholder="Min"
           class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMinInput}
-          onblur={handleMinInput}
+          onblur={handleMinBlur}
         />
         <span class="text-text-muted text-xs shrink-0">—</span>
         <input
@@ -274,12 +282,9 @@
           placeholder="Max"
           class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMaxInput}
-          onblur={handleMaxInput}
+          onblur={handleMaxBlur}
         />
       </div>
-      {#if amountError}
-        <span class="text-xs text-danger whitespace-nowrap">{amountError}</span>
-      {/if}
     </div>
 
     <div class="relative shrink-0">

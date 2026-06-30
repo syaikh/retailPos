@@ -297,7 +297,11 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ensureUnitsOfMeasure(ctx, db)
 	fmt.Println("   ✅ Units of measure ready")
 
-	// 3d. Clean up test/dummy roles
+	// 3d. Ensure payment methods exist
+	ensurePaymentMethods(ctx, db)
+	fmt.Println("   ✅ Payment methods ready")
+
+	// 3e. Clean up test/dummy roles
 	cleanupTestRoles(ctx, db)
 	fmt.Println("   ✅ Test/dummy roles cleaned up")
 
@@ -510,8 +514,8 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 			catName := categories[i]
 			var id int
 			err := db.QueryRowContext(ctx,
-				"INSERT INTO categories (name, description, is_active) VALUES ($1, $2, true) RETURNING id",
-				catName, fmt.Sprintf("Auto-generated category for %s products", catName),
+				"INSERT INTO categories (name, slug, description, is_active) VALUES ($1, $2, $3, true) RETURNING id",
+				catName, generateSlug(catName), fmt.Sprintf("Auto-generated category for %s products", catName),
 			).Scan(&id)
 
 			if err != nil {
@@ -523,6 +527,27 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 	}
 
 	return existingIDs
+}
+
+// generateSlug creates a URL-friendly slug from a name
+func generateSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	replacements := []struct{ from, to string }{
+		{" ", "-"}, {"'", ""}, {`"`, ""}, {"&", "and"}, {"/", "-"},
+		{"+", "plus"}, {"=", "equals"}, {"?", ""}, {"!", ""}, {"@", "at"},
+		{"#", "number"}, {"%", "percent"}, {"(", ""}, {")", ""},
+	}
+	for _, r := range replacements {
+		slug = strings.ReplaceAll(slug, r.from, r.to)
+	}
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 120 {
+		slug = slug[:120]
+	}
+	return slug
 }
 
 func ensureTaxClasses(ctx context.Context, db *sql.DB) {
@@ -550,6 +575,21 @@ func ensureBrands(ctx context.Context, db *sql.DB) {
 		ON CONFLICT (id) DO NOTHING`)
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure brands: %v\n", err)
+	}
+}
+
+func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO payment_methods (code, name, is_active, requires_reference, sort_order, created_at)
+		VALUES
+		('CASH', 'Cash', true, false, 1, NOW()),
+		('CARD', 'Card', true, true, 2, NOW()),
+		('E_WALLET', 'E-Wallet', true, true, 3, NOW()),
+		('TRANSFER', 'Transfer', true, true, 4, NOW()),
+		('QRIS', 'QRIS', true, false, 5, NOW())
+		ON CONFLICT (code) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure payment methods: %v\n", err)
 	}
 }
 
@@ -690,8 +730,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8, $9, $10) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -732,7 +772,9 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		createdAt := time.Now().In(jakartaTZ).AddDate(0, 0, -randomDays)
 
 		var id int
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, createdAt).Scan(&id)
+		brandID := rand.Intn(5) + 1
+		uomID := rand.Intn(8) + 1
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
@@ -786,7 +828,7 @@ type workerJob struct {
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
 	numWorkers := 4 // Concurrent workers for performance
 
-	now := time.Now().In(jakartaTZ)
+	ref := time.Now().In(jakartaTZ)
 	productMap := make(map[int]ProductInfo)
 	for _, p := range products {
 		productMap[p.ID] = p
@@ -862,7 +904,7 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 		go func(job workerJob) {
 			defer wg.Done()
 
-			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, now, salesCreated)
+			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, ref, salesCreated)
 			fmt.Printf("   ✅ Worker %d completed: %d sales\n", job.workerID, workerSales)
 		}(job)
 	}
@@ -908,7 +950,7 @@ type SaleItemRecord struct {
 }
 
 // processWorkerJob handles a single worker's portion of the work with optimized batch transactions
-func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, now time.Time, progress chan<- int) int {
+func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, ref time.Time, progress chan<- int) int {
 	invoiceCounter := 0
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -947,7 +989,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 		for s := 0; s < salesForDay; s++ {
 			invoiceNum := job.startInvoice + invoiceCounter
-			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), invoiceNum)
+			invoice := fmt.Sprintf("INV-%d-%06d", ref.Year(), invoiceNum)
 			invoiceCounter++
 
 			cashierID := randElemInt(userIDs)
@@ -957,7 +999,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				customerID = job.walkInCustomerID
 			}
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
-			createdAt := randomTime24Hour(dayDate, now)
+			createdAt := randomTime24Hour(dayDate, ref)
 
 			numItems := generateItemCount()
 			saleProducts := selectProductsForSale(products, numItems)
@@ -1064,8 +1106,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 }
 
 // randomTime24Hour generates random time spread across 24 hours for 24/7 open store
-func randomTime24Hour(dayDate, now time.Time) time.Time {
-	isToday := dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day()
+func randomTime24Hour(dayDate, ref time.Time) time.Time {
+	isToday := dayDate.Year() == ref.Year() && dayDate.Month() == ref.Month() && dayDate.Day() == ref.Day()
 
 	// Weighted hour distribution for 24/7 store
 	// Higher weight for typical business hours (09-21), but still allow all hours
@@ -1084,8 +1126,8 @@ func randomTime24Hour(dayDate, now time.Time) time.Time {
 	hour := weightedPickInt(hourWeights)
 	var minute int
 	if isToday {
-		currentHour := now.In(jakartaTZ).Hour()
-		currentMinute := now.Minute()
+		currentHour := ref.In(jakartaTZ).Hour()
+		currentMinute := ref.Minute()
 		if hour > currentHour || (hour == currentHour && currentMinute < 5) {
 			hour = currentHour
 		}
@@ -1428,11 +1470,11 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	}
 
 	userID := userIDs[0]
-	now := time.Now().In(jakartaTZ)
+	ref := endDate.In(jakartaTZ)
 
 	// Login events for first few users
 	for i := 0; i < len(userIDs) && i < 3; i++ {
-		loginTime := now.Add(-time.Duration(rand.Intn(48)) * time.Hour)
+		loginTime := ref.Add(-time.Duration(rand.Intn(48)) * time.Hour)
 		addRow(userIDs[i], "superadmin", "login", "auth", nil, "User logged in", loginTime)
 		logoutTime := loginTime.Add(time.Duration(8+rand.Intn(4)) * time.Hour)
 		addRow(userIDs[i], "superadmin", "logout", "auth", nil, "User logged out", logoutTime)
@@ -1442,27 +1484,27 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 	for _, catID := range categoryIDs {
 		addRow(userID, "superadmin", "create", "category", &catID,
 			fmt.Sprintf("Created category #%d", catID),
-			now.Add(-time.Duration(rand.Intn(72))*time.Hour))
+			ref.Add(-time.Duration(rand.Intn(72))*time.Hour))
 	}
 
 	// Brand creation
 	brandID := 1
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Indofood", now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Indofood", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 	brandID = 2
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Sosro", now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Sosro", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 	brandID = 3
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Wings", now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Wings", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 	brandID = 4
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Unilever", now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Unilever", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 	brandID = 5
-	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Lokal", now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Lokal", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 
 	// Tax class creation
 	for id, name := range map[int]string{1: "PPN 11%", 2: "PPN 0%", 3: "Non PPN"} {
 		v := id
 		addRow(userID, "superadmin", "create", "tax_class", &v,
 			fmt.Sprintf("Created tax class: %s", name),
-			now.Add(-time.Duration(rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
 	}
 
 	// UOM creation
@@ -1470,7 +1512,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		v := id
 		addRow(userID, "superadmin", "create", "uom", &v,
 			fmt.Sprintf("Created unit of measure: %s", name),
-			now.Add(-time.Duration(rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
 	}
 
 	// Product creation entries (sample: one per 100 products, plus last)
@@ -1489,13 +1531,13 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		pid := productIDs[i]
 		addRow(userID, "superadmin", "create", "product", &pid,
 			fmt.Sprintf("Created product #%d (batch %d)", pid, i/100+1),
-			now.Add(-time.Duration(48+rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(48+rand.Intn(48))*time.Hour))
 	}
 	if len(productIDs) > 0 {
 		lastPID := productIDs[len(productIDs)-1]
 		addRow(userID, "superadmin", "create", "product", &lastPID,
 			fmt.Sprintf("Created product #%d", lastPID),
-			now.Add(-time.Duration(rand.Intn(24))*time.Hour))
+			ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
 	}
 
 	// Customer creation entries (sample: one per 10 customers)
@@ -1514,7 +1556,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		cid := customerIDs[i]
 		addRow(userID, "superadmin", "create", "customer", &cid,
 			fmt.Sprintf("Created customer #%d", cid),
-			now.Add(-time.Duration(72+rand.Intn(48))*time.Hour))
+			ref.Add(-time.Duration(72+rand.Intn(48))*time.Hour))
 	}
 
 	// Sale creation entries (sample: one per 50 sales)
@@ -1537,7 +1579,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		sid := saleIDs[i]
 		addRow(cashierID, "cashier", "create", "sale", &sid,
 			fmt.Sprintf("Created sale #%d", sid),
-			now.Add(-time.Duration(rand.Intn(72))*time.Hour))
+			ref.Add(-time.Duration(rand.Intn(72))*time.Hour))
 	}
 
 	if len(rows) == 0 {
@@ -1619,7 +1661,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}
 	defer stmt.Close()
 
-	now := time.Now().In(jakartaTZ)
+	ref := time.Now().In(jakartaTZ)
 
 	// Insert a walk-in/general customer first
 	walkInID := 0
@@ -1627,7 +1669,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
 		 VALUES ('Walk-in / General', '', '', true, true, $1)
 		 RETURNING id`,
-		now,
+		ref,
 	).Scan(&walkInID)
 	if err != nil {
 		return fmt.Errorf("insert walk-in customer: %w", err)
@@ -1640,8 +1682,8 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", rand.Intn(10000000000)))
 		email := fmt.Sprintf("%s.%s@email.com", strings.ToLower(first), strings.ToLower(last))
 
-		daysAgo := rand.Intn(int(now.Sub(startDate).Hours()/24)) + 1
-		createdAt := now.AddDate(0, 0, -daysAgo)
+		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
+		createdAt := ref.AddDate(0, 0, -daysAgo)
 
 		if _, err := stmt.ExecContext(ctx, name, phone, email, createdAt); err != nil {
 			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)

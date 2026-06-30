@@ -24,13 +24,13 @@
       { label: 'Export XLSX', onclick: () => handleExport('xlsx') },
     ]}>
       {#snippet trigger({ toggle })}
-        <Button variant="secondary" class="shrink-0 px-3 text-xs" onclick={toggle}>
+        <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
           <Download size={14} />
           Export
         </Button>
       {/snippet}
     </Dropdown>
-    <Button variant="secondary" class="shrink-0 px-3 text-xs" onclick={onImport}>
+    <Button variant="secondary" class="shrink-0 px-3" onclick={onImport}>
       <Upload size={14} />
       Import
     </Button>
