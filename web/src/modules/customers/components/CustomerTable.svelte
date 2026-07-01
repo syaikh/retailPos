@@ -13,6 +13,8 @@
     editName = $bindable(''),
     editPhone = $bindable(''),
     editEmail = $bindable(''),
+    editAddress = $bindable(''),
+    editNote = $bindable(''),
     editActive = $bindable(true),
     sortBy = $bindable('name'),
     sortDir = $bindable('asc'),
@@ -34,6 +36,8 @@
     editName: string;
     editPhone: string;
     editEmail: string;
+    editAddress: string;
+    editNote: string;
     editActive: boolean;
     sortBy: string;
     sortDir: string;
@@ -81,22 +85,24 @@
       <th class="p-4 font-semibold w-12">
         <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
       </th>
-      <th class="text-left p-4 font-semibold w-[26%]">
+      <th class="text-left p-4 font-semibold w-[20%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('name')}>
           NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[18%]">
+      <th class="text-left p-4 font-semibold w-[12%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('phone')}>
           PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[26%]">
+      <th class="text-left p-4 font-semibold w-[16%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('email')}>
           EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[14%]">
+      <th class="text-left p-4 font-semibold w-[16%]">ADDRESS</th>
+      <th class="text-left p-4 font-semibold w-[14%]">NOTE</th>
+      <th class="text-left p-4 font-semibold w-[12%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('status')}>
           STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
@@ -108,7 +114,7 @@
     {#if loading}
       {#each { length: 5 } as _, i}
         <tr class="border-t border-border">
-          <td class="px-4 py-3" colspan={6}>
+          <td class="px-4 py-3" colspan={8}>
             <div class="flex items-center gap-3">
               <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
               <div class="flex-1 space-y-2">
@@ -121,7 +127,7 @@
       {/each}
     {:else if customers.length === 0}
       <tr class="border-t border-border">
-        <td colspan={6}>
+        <td colspan={8}>
           <div class="px-4 py-16 text-center">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Search size={32} class="text-text-muted" />
@@ -139,6 +145,7 @@
       {#each customers as c}
         {#if editingId === c.id}
           <tr class="border-t border-border bg-primary-subtle/10">
+            <td class="px-4 py-1.5 h-12 w-12"></td>
             <td class="px-4 py-1.5 h-12 overflow-hidden">
               <div class="flex items-center gap-2">
                 <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -149,6 +156,8 @@
             </td>
             <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} aria-label="Edit phone" /></td>
             <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} aria-label="Edit email" /></td>
+            <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editAddress} aria-label="Edit address" /></td>
+            <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editNote} aria-label="Edit note" /></td>
             <td class="px-4 py-1.5 h-12 overflow-hidden">
               <label class="flex items-center gap-2 text-xs">
                 <input type="checkbox" bind:checked={editActive} />
@@ -181,6 +190,20 @@
             </td>
             <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
             <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
+            <td class="px-4 py-1.5 h-12 overflow-hidden">
+              {#if c.address}
+                <span class="truncate block">{c.address}</span>
+              {:else}
+                <span class="text-text-muted">—</span>
+              {/if}
+            </td>
+            <td class="px-4 py-1.5 h-12 overflow-hidden">
+              {#if c.note}
+                <span class="truncate block">{c.note}</span>
+              {:else}
+                <span class="text-text-muted">—</span>
+              {/if}
+            </td>
             <td class="px-4 py-1.5 h-12 overflow-hidden">
               {#if c.is_active !== false}
                 <Badge variant="success" size="sm">Active</Badge>

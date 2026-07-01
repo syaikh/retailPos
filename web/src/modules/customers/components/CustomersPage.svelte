@@ -86,6 +86,7 @@
   let editName = $state('');
   let editPhone = $state('');
   let editEmail = $state('');
+  let editAddress = $state('');
   let editNote = $state('');
   let editActive = $state(true);
 
@@ -97,8 +98,9 @@
   let formName = $state('');
   let formPhone = $state('');
   let formEmail = $state('');
+  let formAddress = $state('');
   let formNote = $state('');
-  let fieldErrors = $state({ name: '', phone: '', email: '', note: '' });
+  let fieldErrors = $state({ name: '', phone: '', email: '', address: '', note: '' });
 
   let deactivateTarget = $state<any>(null);
   let showDeactivateModal = $state(false);
@@ -115,7 +117,7 @@
   }
 
   function validateForm(): boolean {
-    const errors = { name: '', phone: '', email: '', note: '' };
+    const errors = { name: '', phone: '', email: '', address: '', note: '' };
     let valid = true;
 
     if (!formName.trim()) {
@@ -150,8 +152,9 @@
     formName = '';
     formPhone = '';
     formEmail = '';
+    formAddress = '';
     formNote = '';
-    fieldErrors = { name: '', phone: '', email: '', note: '' };
+    fieldErrors = { name: '', phone: '', email: '', address: '', note: '' };
   }
 
   function getStatusFilterParams(): string | undefined {
@@ -168,7 +171,7 @@
       limit = newLimit;
       const params: any = { limit, offset, search: searchQuery || undefined };
       const activeParam = getStatusFilterParams();
-      if (activeParam !== undefined) params.isActive = activeParam;
+      if (activeParam !== undefined) params.is_active = activeParam;
       const r = await apiClient.get('/customers', { params });
       customers = r.data.data || [];
       total = r.data.total || 0;
@@ -232,6 +235,7 @@
         name: formName.trim(),
         phone: formPhone.trim(),
         email: formEmail.trim(),
+        address: formAddress.trim() || undefined,
         note: formNote.trim() || undefined,
       });
       toast.success(`Customer "${formName.trim()}" created successfully`);
@@ -251,6 +255,7 @@
     editName = c.name || '';
     editPhone = c.phone || '';
     editEmail = c.email || '';
+    editAddress = c.address || '';
     editNote = c.note || '';
     editActive = c.is_active !== false;
   }
@@ -270,6 +275,7 @@
         name: editName.trim(),
         phone: editPhone.trim() || undefined,
         email: editEmail.trim() || undefined,
+        address: editAddress.trim() || undefined,
         note: editNote.trim() || undefined,
         is_active: editActive,
       });
@@ -340,6 +346,8 @@
       bind:editName
       bind:editPhone
       bind:editEmail
+      bind:editAddress
+      bind:editNote
       bind:editActive
       bind:sortBy
       bind:sortDir
@@ -372,6 +380,7 @@
   bind:formName
   bind:formPhone
   bind:formEmail
+  bind:formAddress
   bind:formNote
   bind:fieldErrors
   bind:creating

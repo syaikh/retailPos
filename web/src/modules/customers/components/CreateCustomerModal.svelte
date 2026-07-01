@@ -7,8 +7,9 @@
     formName = $bindable(''),
     formPhone = $bindable(''),
     formEmail = $bindable(''),
+    formAddress = $bindable(''),
     formNote = $bindable(''),
-    fieldErrors = $bindable({ name: '', phone: '', email: '', note: '' }),
+    fieldErrors = $bindable({ name: '', phone: '', email: '', address: '', note: '' }),
     creating = $bindable(false),
     oncreate = () => {},
   }: {
@@ -16,8 +17,9 @@
     formName?: string;
     formPhone?: string;
     formEmail?: string;
+    formAddress?: string;
     formNote?: string;
-    fieldErrors?: { name: string; phone: string; email: string; note: string };
+    fieldErrors?: { name: string; phone: string; email: string; address: string; note: string };
     creating?: boolean;
     oncreate?: () => void;
   } = $props();
@@ -62,6 +64,14 @@
           <p class="text-danger text-xs mt-0.5">{fieldErrors.email}</p>
         {/if}
       </div>
+    </div>
+    <div class="space-y-1">
+      <label for="customer-address" class="text-xs font-semibold text-text-secondary">Address</label>
+      <Input
+        id="customer-address"
+        placeholder="e.g. 123 Main St"
+        bind:value={formAddress}
+      />
     </div>
     <div class="space-y-1">
       <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>
