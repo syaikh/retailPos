@@ -286,7 +286,7 @@ func TestHandler_GetProgress(t *testing.T) {
 	require.NoError(t, err)
 
 	_ = progEng.SetStatus(ctx, jobID, progress.StatusImporting)
-	_ = progEng.UpdateProgress(ctx, jobID, 5, 10, 0)
+	_ = progEng.UpdateProgress(ctx, jobID, 5, 10, 0, 0, 0)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/progress/%d", jobID), nil)
@@ -606,7 +606,7 @@ func TestHandler_GetProgress_JSONStructure(t *testing.T) {
 	require.NoError(t, err)
 
 	_ = progEng.SetStatus(ctx, jobID, progress.StatusCompleted)
-	_ = progEng.UpdateProgress(ctx, jobID, 10, 10, 2)
+	_ = progEng.UpdateProgress(ctx, jobID, 10, 10, 2, 0, 0)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/progress/%d", jobID), nil)

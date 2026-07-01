@@ -48,7 +48,7 @@ func TestProgressCalculation(t *testing.T) {
 	e := NewEngine(store)
 
 	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
-	_ = e.UpdateProgress(context.Background(), id, 25, 100, 0)
+	_ = e.UpdateProgress(context.Background(), id, 25, 100, 0, 10, 15)
 
 	p, _ := e.GetProgress(context.Background(), id)
 	if p.ProgressPct != 25 {
@@ -113,8 +113,8 @@ func TestMultipleJobs(t *testing.T) {
 		t.Fatalf("expected sequential ids: %d then %d", id1, id2)
 	}
 
-	_ = e.UpdateProgress(context.Background(), id1, 10, 100, 0)
-	_ = e.UpdateProgress(context.Background(), id2, 50, 200, 2)
+	_ = e.UpdateProgress(context.Background(), id1, 10, 100, 0, 0, 0)
+	_ = e.UpdateProgress(context.Background(), id2, 50, 200, 2, 0, 0)
 
 	p1, _ := e.GetProgress(context.Background(), id1)
 	p2, _ := e.GetProgress(context.Background(), id2)

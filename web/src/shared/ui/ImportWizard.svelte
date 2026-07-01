@@ -77,9 +77,11 @@
         job_id: result.job_id,
         status: result.status,
         progress_pct: 0,
-        total_rows: result.total_rows,
+        total_rows: preview.total_rows,
         processed: 0,
-        errors: result.errors,
+        inserted: 0,
+        updated: 0,
+        errors: preview.error_count,
         started_at: new Date().toISOString(),
         duration_ms: 0,
       };

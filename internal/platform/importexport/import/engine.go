@@ -135,7 +135,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 			updateEntities = append(updateEntities, entity)
 		}
 		processed := len(insertEntities) + len(updateEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount, len(insertEntities), len(updateEntities))
 	}
 
 	if e.isCancelled(ctx, jobID) {
@@ -149,7 +149,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	if len(insertEntities) > 0 {
 		n, err := repo.Insert(ctx, insertEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors, n, totalUpdate)
 		if err != nil {
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
 			return
@@ -158,7 +158,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	if len(updateEntities) > 0 {
 		n, err := repo.Update(ctx, updateEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors, totalInsert, n)
 		if err != nil {
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
 			return
@@ -166,7 +166,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 	}
 
 	processed := totalInsert + totalUpdate
-	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errors)
+	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errors, totalInsert, totalUpdate)
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCompleted)
 }
 
@@ -187,7 +187,7 @@ func (e *Engine) Execute(ctx context.Context, token string) (*importexport.Impor
 	}
 
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
-	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount)
+	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount, 0, 0)
 
 	e.executeImport(ctx, jobID, state, adapter)
 
@@ -228,7 +228,7 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 	}
 
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
-	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount)
+	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount, 0, 0)
 
 	go func() {
 		e.executeImport(context.Background(), jobID, state, adapter)
