@@ -129,7 +129,7 @@ func (e *Engine) Execute(ctx context.Context, token string) (*importexport.Impor
 		if pr.Status == "error" {
 			continue
 		}
-		rowIdx := pr.RowNumber - 1
+		rowIdx := pr.RowNumber - 2
 		if rowIdx < 0 || rowIdx >= len(state.Rows) {
 			continue
 		}
