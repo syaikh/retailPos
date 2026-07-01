@@ -4,7 +4,7 @@ import type { PreviewResult, ImportResult, ImportProgress, ModuleInfo, ExportFor
 const BASE = '/import-export';
 
 function getToken(): string {
-  return localStorage.getItem('auth_token') || '';
+  return sessionStorage.getItem('access_token') || '';
 }
 
 export async function getModules(): Promise<ModuleInfo[]> {

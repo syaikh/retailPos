@@ -53,6 +53,7 @@ func setupUOMRouter() *gin.Engine {
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	h.RegisterPublicRoutes(r.Group("/"))
 	return r
 }
 
