@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -79,7 +78,6 @@ var (
 	dailyMax        int
 	dailyCashierID  int
 	dailyStoreID    int
-	dailyNoAudit    bool
 )
 
 func registerDailyFlags() {
@@ -96,8 +94,6 @@ func registerDailyFlags() {
 		"Force a specific cashier user ID (0 = random)")
 	flag.IntVar(&dailyStoreID, "daily.store-id", 0,
 		"Force a specific store ID (0 = random)")
-	flag.BoolVar(&dailyNoAudit, "daily.no-audit", false,
-		"Skip writing audit_logs entries (default: false)")
 }
 
 // ---------- public entry point ----------
@@ -573,7 +569,7 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		if n, _ := res.RowsAffected(); n == 0 {
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO product_stock (product_id, quantity, updated_at)
-				VALUES ($1, GREATEST(0, -$2), NOW())
+				VALUES ($1, GREATEST(0, 0-$2), NOW())
 			`, item.ProductID, item.Quantity)
 			if err != nil {
 				return fmt.Errorf("insert stock row for product %d: %w", item.ProductID, err)
@@ -589,27 +585,6 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 			fmt.Sprintf("Sale %s", sale.Invoice), sale.CreatedAt,
 		); err != nil {
 			return fmt.Errorf("insert inventory movement: %w", err)
-		}
-	}
-
-	// 4. Record audit log (inside transaction — atomic with the sale)
-	if !dailyNoAudit {
-		ip := randomPrivateIP()
-		desc := fmt.Sprintf("Created sale #%d", saleID)
-		nv := map[string]interface{}{
-			"invoice_number": sale.Invoice,
-			"cashier_id":     sale.CashierID,
-			"customer_id":    sale.CustomerID,
-			"total_amount":   sale.TotalAmount,
-			"payment_method": sale.PaymentMethod,
-			"status":         "completed",
-		}
-		nvJSON, _ := json.Marshal(nv)
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, description, created_at)
-			VALUES ($1, $2, 'create', 'sale', $3, NULL, $4::jsonb, $5, $6, $7)
-		`, sale.CashierID, "cashier", saleID, string(nvJSON), ip, desc, sale.CreatedAt); err != nil {
-			return fmt.Errorf("insert audit log: %w", err)
 		}
 	}
 
