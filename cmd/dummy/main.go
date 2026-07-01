@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -959,8 +960,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	}
 
 	saleStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
-		 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+		 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
@@ -978,6 +979,51 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		return 0
 	}
 	defer itemStmt.Close()
+
+	stockStmt, err := tx.PrepareContext(ctx, `
+		UPDATE product_stock
+		SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
+		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer stockStmt.Close()
+
+	stockInsertStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO product_stock (product_id, quantity, updated_at)
+		VALUES ($1, GREATEST(0, -$2), NOW())`)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer stockInsertStmt.Close()
+
+	movementStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+		VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer movementStmt.Close()
+
+	auditStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, description, created_at)
+		VALUES ($1, 'cashier', 'create', 'sale', $2, NULL, $3::jsonb, $4, $5, $6)`)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer auditStmt.Close()
 
 	salesCreated := 0
 	batchSize := 0
@@ -1046,7 +1092,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				continue
 			}
 
-			// Insert sale items
+			// Insert sale items, update stock, record movements
 			for _, item := range items {
 				product := productMap[item.ProductID]
 				var dpp, tax int
@@ -1060,6 +1106,40 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				if _, err := itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal, dpp, tax); err != nil {
 					log.Printf("failed to insert sale item: %v", err)
 				}
+
+				// Decrement product stock
+				res, err := stockStmt.ExecContext(ctx, item.Quantity, item.ProductID)
+				if err != nil {
+					log.Printf("failed to update stock for product %d: %v", item.ProductID, err)
+				} else if n, _ := res.RowsAffected(); n == 0 {
+					if _, err := stockInsertStmt.ExecContext(ctx, item.ProductID, item.Quantity); err != nil {
+						log.Printf("failed to insert stock row for product %d: %v", item.ProductID, err)
+					}
+				}
+
+				// Record inventory movement
+				if _, err := movementStmt.ExecContext(ctx, item.ProductID, -item.Quantity, saleID, cashierID, fmt.Sprintf("Sale %s", invoice), createdAt); err != nil {
+					log.Printf("failed to insert inventory movement: %v", err)
+				}
+			}
+
+			// Record audit log
+			ip := randomPrivateIP()
+			nv := map[string]interface{}{
+				"invoice_number": invoice,
+				"cashier_id":     cashierID,
+				"customer_id":    customerID,
+				"total_amount":   totalAmount,
+				"payment_method": paymentMethod,
+				"status":         "completed",
+			}
+			nvJSON, err := json.Marshal(nv)
+			if err != nil {
+				log.Printf("failed to marshal audit log JSON: %v", err)
+				continue
+			}
+			if _, err := auditStmt.ExecContext(ctx, cashierID, saleID, string(nvJSON), ip, fmt.Sprintf("Created sale #%d", saleID), createdAt); err != nil {
+				log.Printf("failed to insert audit log: %v", err)
 			}
 
 			salesCreated++
@@ -1068,16 +1148,33 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			if batchSize >= 50 {
 				saleStmt.Close()
 				itemStmt.Close()
+				stockStmt.Close()
+				stockInsertStmt.Close()
+				movementStmt.Close()
+				auditStmt.Close()
 				if err := tx.Commit(); err != nil {
 					log.Printf("failed to commit batch: %v", err)
 				}
 
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
-					 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
+					`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+					 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
 				itemStmt, _ = tx.PrepareContext(ctx,
 					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+				stockStmt, _ = tx.PrepareContext(ctx, `
+					UPDATE product_stock
+					SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
+					WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
+				stockInsertStmt, _ = tx.PrepareContext(ctx, `
+					INSERT INTO product_stock (product_id, quantity, updated_at)
+					VALUES ($1, GREATEST(0, -$2), NOW())`)
+				movementStmt, _ = tx.PrepareContext(ctx, `
+					INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+					VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
+				auditStmt, _ = tx.PrepareContext(ctx, `
+					INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, description, created_at)
+					VALUES ($1, 'cashier', 'create', 'sale', $2, NULL, $3::jsonb, $4, $5, $6)`)
 
 				batchSize = 0
 			}
@@ -1093,6 +1190,10 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt.Close()
 	itemStmt.Close()
+	stockStmt.Close()
+	stockInsertStmt.Close()
+	movementStmt.Close()
+	auditStmt.Close()
 	if err := tx.Commit(); err != nil {
 		log.Printf("failed to commit final batch: %v", err)
 	}
@@ -1557,29 +1658,6 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		addRow(userID, "superadmin", "create", "customer", &cid,
 			fmt.Sprintf("Created customer #%d", cid),
 			ref.Add(-time.Duration(72+rand.Intn(48))*time.Hour))
-	}
-
-	// Sale creation entries (sample: one per 50 sales)
-	var saleIDs []int
-	saleRows, err := db.QueryContext(ctx, "SELECT id FROM sales ORDER BY id")
-	if err == nil {
-		for saleRows.Next() {
-			var sid int
-			if err := saleRows.Scan(&sid); err == nil {
-				saleIDs = append(saleIDs, sid)
-			}
-		}
-		saleRows.Close()
-	}
-	cashierID := userID
-	if len(userIDs) > 1 {
-		cashierID = userIDs[1]
-	}
-	for i := 0; i < len(saleIDs); i += 50 {
-		sid := saleIDs[i]
-		addRow(cashierID, "cashier", "create", "sale", &sid,
-			fmt.Sprintf("Created sale #%d", sid),
-			ref.Add(-time.Duration(rand.Intn(72))*time.Hour))
 	}
 
 	if len(rows) == 0 {
