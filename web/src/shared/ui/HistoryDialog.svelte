@@ -74,9 +74,10 @@
     {:else}
       <div class="space-y-2 max-h-[400px] overflow-y-auto">
         {#each jobs as job}
+          {@const Icon = statusIcon(job.status)}
           <div class="flex items-center justify-between p-3 bg-surface-subtle rounded-lg">
             <div class="flex items-center gap-3">
-              <svelte:component this={statusIcon(job.status)} size={18} class={statusColor(job.status)} />
+              <Icon size={18} class={statusColor(job.status)} />
               <div>
                 <p class="text-sm text-text-primary font-medium capitalize">{job.status}</p>
                 <p class="text-xs text-text-muted flex items-center gap-1">

@@ -342,8 +342,10 @@
         <ChevronDown size={14} class="opacity-60 shrink-0" />
       </Button>
       {#if showDatePicker}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <div
           role="dialog"
+          tabindex="0"
           class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
           onkeydown={handleDatePickerKeydown}
         >
