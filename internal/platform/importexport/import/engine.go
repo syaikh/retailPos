@@ -103,6 +103,73 @@ func (e *Engine) DeletePreview(token string) {
 	delete(e.previews, token)
 }
 
+func (e *Engine) isCancelled(ctx context.Context, jobID int64) bool {
+	cancelled, err := e.progressEng.IsCancelRequested(ctx, jobID)
+	return err == nil && cancelled
+}
+
+func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewState, adapter importexport.Adapter) {
+	repo := adapter.Repository()
+
+	var insertEntities, updateEntities []interface{}
+	for _, pr := range state.Result.Rows {
+		if pr.Status == "error" {
+			continue
+		}
+		rowIdx := pr.RowNumber - 2
+		if rowIdx < 0 || rowIdx >= len(state.Rows) {
+			continue
+		}
+		if e.isCancelled(ctx, jobID) {
+			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
+			return
+		}
+		entity, err := adapter.MapToEntity(ctx, state.Schema, state.Rows[rowIdx])
+		if err != nil {
+			continue
+		}
+		switch pr.Status {
+		case "insert":
+			insertEntities = append(insertEntities, entity)
+		case "update":
+			updateEntities = append(updateEntities, entity)
+		}
+		processed := len(insertEntities) + len(updateEntities)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount)
+	}
+
+	if e.isCancelled(ctx, jobID) {
+		_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
+		return
+	}
+
+	totalInsert := len(insertEntities)
+	totalUpdate := len(updateEntities)
+	errors := state.Result.ErrorCount
+
+	if len(insertEntities) > 0 {
+		n, err := repo.Insert(ctx, insertEntities)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors)
+		if err != nil {
+			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+			return
+		}
+	}
+
+	if len(updateEntities) > 0 {
+		n, err := repo.Update(ctx, updateEntities)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors)
+		if err != nil {
+			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+			return
+		}
+	}
+
+	processed := totalInsert + totalUpdate
+	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errors)
+	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCompleted)
+}
+
 func (e *Engine) Execute(ctx context.Context, token string) (*importexport.ImportResult, error) {
 	state := e.GetPreview(token)
 	if state == nil {
@@ -122,86 +189,51 @@ func (e *Engine) Execute(ctx context.Context, token string) (*importexport.Impor
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
 	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount)
 
-	repo := adapter.Repository()
-
-	var insertEntities, updateEntities []interface{}
-	for _, pr := range state.Result.Rows {
-		if pr.Status == "error" {
-			continue
-		}
-		rowIdx := pr.RowNumber - 2
-		if rowIdx < 0 || rowIdx >= len(state.Rows) {
-			continue
-		}
-		entity, err := adapter.MapToEntity(ctx, state.Schema, state.Rows[rowIdx])
-		if err != nil {
-			continue
-		}
-		switch pr.Status {
-		case "insert":
-			insertEntities = append(insertEntities, entity)
-		case "update":
-			updateEntities = append(updateEntities, entity)
-		}
-	}
-
-	totalInsert := len(insertEntities)
-	totalUpdate := len(updateEntities)
-	processed := totalInsert + totalUpdate
-	errors := state.Result.ErrorCount
-
-	if len(insertEntities) > 0 {
-		n, err := repo.Insert(ctx, insertEntities)
-		if err != nil {
-			_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors)
-			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
-			return &importexport.ImportResult{
-				JobID:       jobID,
-				Module:      state.Module,
-				Status:      string(progress.StatusFailed),
-				TotalRows:   state.Result.TotalRows,
-				Inserted:    n,
-				Updated:     0,
-				Skipped:     totalUpdate,
-				Errors:      errors,
-				ErrorReport: fmt.Sprintf("insert: %v", err),
-			}, nil
-		}
-		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors)
-	}
-
-	if len(updateEntities) > 0 {
-		n, err := repo.Update(ctx, updateEntities)
-		if err != nil {
-			_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors)
-			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
-			return &importexport.ImportResult{
-				JobID:       jobID,
-				Module:      state.Module,
-				Status:      string(progress.StatusFailed),
-				TotalRows:   state.Result.TotalRows,
-				Inserted:    totalInsert,
-				Updated:     n,
-				Errors:      errors,
-				ErrorReport: fmt.Sprintf("update: %v", err),
-			}, nil
-		}
-		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors)
-	}
-
-	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errors)
-	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCompleted)
+	e.executeImport(ctx, jobID, state, adapter)
 
 	e.DeletePreview(token)
+
+	p, err := e.progressEng.GetProgress(ctx, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("get progress: %w", err)
+	}
 
 	return &importexport.ImportResult{
 		JobID:     jobID,
 		Module:    state.Module,
-		Status:    string(progress.StatusCompleted),
-		TotalRows: state.Result.TotalRows,
-		Inserted:  totalInsert,
-		Updated:   totalUpdate,
-		Skipped:   state.Result.TotalRows - processed - errors,
-		Errors:    errors,
+		Status:    string(p.Status),
+		TotalRows: p.TotalRows,
+		Inserted:  p.Processed - state.Result.ErrorCount,
+		Updated:   0,
+		Skipped:   0,
+		Errors:    p.Errors,
+		DurationMs: p.DurationMs,
 	}, nil
+}
+
+func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID int) (int64, error) {
+	state := e.GetPreview(token)
+	if state == nil {
+		return 0, fmt.Errorf("preview state not found for token %q", token)
+	}
+
+	adapter, err := e.adapterReg.Get(state.Module)
+	if err != nil {
+		return 0, fmt.Errorf("adapter: %w", err)
+	}
+
+	jobID, err := e.progressEng.CreateJob(ctx, state.Module, state.Schema.SchemaVersion, state.FileName, userID, storeID)
+	if err != nil {
+		return 0, fmt.Errorf("create job: %w", err)
+	}
+
+	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
+	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount)
+
+	go func() {
+		e.executeImport(context.Background(), jobID, state, adapter)
+		e.DeletePreview(token)
+	}()
+
+	return jobID, nil
 }

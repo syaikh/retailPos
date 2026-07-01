@@ -924,3 +924,219 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ProductImportPaylo
 
 	return true, nil
 }
+
+func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductImportPayload) (int, error) {
+	if len(payloads) == 0 {
+		return 0, nil
+	}
+
+	skus := make([]string, len(payloads))
+	for i, p := range payloads {
+		skus[i] = p.SKU
+	}
+
+	existingMap := make(map[string]int, len(payloads))
+	rows, err := r.db.Query(ctx, "SELECT id, sku FROM products WHERE sku = ANY($1) AND deleted_at IS NULL", skus)
+	if err != nil {
+		return 0, fmt.Errorf("batch lookup: %w", err)
+	}
+	for rows.Next() {
+		var id int
+		var sku string
+		if err := rows.Scan(&id, &sku); err == nil {
+			existingMap[sku] = id
+		}
+	}
+	rows.Close()
+
+	var newPayloads []ProductImportPayload
+	for _, p := range payloads {
+		if _, exists := existingMap[p.SKU]; !exists {
+			newPayloads = append(newPayloads, p)
+		}
+	}
+
+	if len(newPayloads) == 0 {
+		return 0, nil
+	}
+
+	valueStrings := make([]string, 0, len(newPayloads))
+	valueArgs := make([]interface{}, 0, len(newPayloads)*12)
+	for _, p := range newPayloads {
+		offset := len(valueArgs)
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12))
+
+		var barcode interface{}
+		if p.Barcode != nil {
+			barcode = *p.Barcode
+		}
+		var categoryID interface{}
+		if p.CategoryID != nil {
+			categoryID = *p.CategoryID
+		}
+		var brandID interface{}
+		if p.BrandID != nil {
+			brandID = *p.BrandID
+		}
+		var uomID interface{}
+		if p.UnitOfMeasureID != nil {
+			uomID = *p.UnitOfMeasureID
+		}
+		var weightGrams interface{}
+		if p.WeightGrams != nil {
+			weightGrams = *p.WeightGrams
+		}
+		var description interface{}
+		if p.Description != nil {
+			description = *p.Description
+		}
+
+		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
+			brandID, description, weightGrams, uomID)
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
+		                     brand_id, description, weight_grams, unit_of_measure_id)
+		VALUES %s
+		RETURNING id
+	`, strings.Join(valueStrings, ", "))
+
+	var newIDs []int
+	rows, err = r.db.Query(ctx, query, valueArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("batch insert: %w", err)
+	}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err == nil {
+			newIDs = append(newIDs, id)
+		}
+	}
+	rows.Close()
+
+	if len(newIDs) > 0 {
+		stockStrings := make([]string, 0, len(newIDs))
+		stockArgs := make([]interface{}, 0, len(newIDs)*2)
+		for i, id := range newIDs {
+			offset := len(stockArgs)
+			stockStrings = append(stockStrings, fmt.Sprintf("($%d, $%d)", offset+1, offset+2))
+			stockArgs = append(stockArgs, id, newPayloads[i].Stock)
+		}
+		stockQuery := fmt.Sprintf(`
+			INSERT INTO product_stock (product_id, quantity)
+			VALUES %s
+			ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity
+		`, strings.Join(stockStrings, ", "))
+		_, err = r.db.Exec(ctx, stockQuery, stockArgs...)
+		if err != nil {
+			return len(newIDs), fmt.Errorf("batch insert stock: %w", err)
+		}
+	}
+
+	return len(newIDs), nil
+}
+
+func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductImportPayload) (int, error) {
+	if len(payloads) == 0 {
+		return 0, nil
+	}
+
+	skus := make([]string, len(payloads))
+	for i, p := range payloads {
+		skus[i] = p.SKU
+	}
+
+	existingMap := make(map[string]int, len(payloads))
+	rows, err := r.db.Query(ctx, "SELECT id, sku FROM products WHERE sku = ANY($1) AND deleted_at IS NULL", skus)
+	if err != nil {
+		return 0, fmt.Errorf("batch lookup: %w", err)
+	}
+	for rows.Next() {
+		var id int
+		var sku string
+		if err := rows.Scan(&id, &sku); err == nil {
+			existingMap[sku] = id
+		}
+	}
+	rows.Close()
+
+	type updateItem struct {
+		id      int
+		payload ProductImportPayload
+	}
+	var updates []updateItem
+	for _, p := range payloads {
+		if id, ok := existingMap[p.SKU]; ok {
+			updates = append(updates, updateItem{id: id, payload: p})
+		}
+	}
+
+	if len(updates) == 0 {
+		return 0, nil
+	}
+
+	valueStrings := make([]string, 0, len(updates))
+	valueArgs := make([]interface{}, 0, len(updates)*11)
+	for _, d := range updates {
+		offset := len(valueArgs)
+		p := d.payload
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11))
+
+		var barcode interface{}
+		if p.Barcode != nil {
+			barcode = *p.Barcode
+		}
+		var categoryID interface{}
+		if p.CategoryID != nil {
+			categoryID = *p.CategoryID
+		}
+		var brandID interface{}
+		if p.BrandID != nil {
+			brandID = *p.BrandID
+		}
+		var uomID interface{}
+		if p.UnitOfMeasureID != nil {
+			uomID = *p.UnitOfMeasureID
+		}
+		var weightGrams interface{}
+		if p.WeightGrams != nil {
+			weightGrams = *p.WeightGrams
+		}
+		var description interface{}
+		if p.Description != nil {
+			description = *p.Description
+		}
+
+		valueArgs = append(valueArgs, p.Name, barcode, categoryID, brandID, p.Price, p.Cost, p.Status,
+			uomID, weightGrams, description, d.id)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE products SET
+			name = data.name,
+			barcode = data.barcode,
+			category_id = data.category_id,
+			brand_id = data.brand_id,
+			price = data.price,
+			cost = data.cost,
+			status = data.status,
+			unit_of_measure_id = data.uom_id,
+			weight_grams = data.weight_grams,
+			description = data.description,
+			updated_at = NOW()
+		FROM (VALUES %s) AS data(name text, barcode text, category_id int, brand_id int,
+		                         price int, cost int, status text, uom_id int,
+		                         weight_grams int, description text, id int)
+		WHERE products.id = data.id
+	`, strings.Join(valueStrings, ", "))
+
+	_, err = r.db.Exec(ctx, query, valueArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("batch update: %w", err)
+	}
+
+	return len(updates), nil
+}

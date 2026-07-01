@@ -165,13 +165,16 @@ func (h *Handler) Confirm(c *gin.Context) {
 		return
 	}
 
-	result, err := h.importEng.Execute(c.Request.Context(), token)
+	userID, _ := c.Get("userID")
+	userIDInt, _ := userID.(int)
+
+	jobID, err := h.importEng.StartImport(c.Request.Context(), token, userIDInt, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, gin.H{"job_id": jobID, "status": "importing"})
 }
 
 func (h *Handler) GetProgress(c *gin.Context) {
@@ -206,9 +209,7 @@ func (h *Handler) CancelImport(c *gin.Context) {
 		return
 	}
 
-	_ = h.progressEng.SetStatus(c.Request.Context(), req.JobID, progress.StatusCancelled)
-
-	c.JSON(http.StatusOK, gin.H{"status": "cancelled"})
+	c.JSON(http.StatusOK, gin.H{"status": "cancellation requested"})
 }
 
 func (h *Handler) Export(c *gin.Context) {

@@ -3,6 +3,7 @@ package uom
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -117,7 +118,12 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]UnitOfMeasure, erro
 
 func (r *Repository) BulkUpsert(ctx context.Context, records []UOMImportRow) ImportResult {
 	result := ImportResult{Errors: []string{}}
+	if len(records) == 0 {
+		return result
+	}
 
+	valueStrings := make([]string, 0, len(records))
+	valueArgs := make([]interface{}, 0, len(records)*4)
 	for _, rec := range records {
 		if rec.Code == "" {
 			result.AddError(rec.Row, "Code is required")
@@ -127,29 +133,40 @@ func (r *Repository) BulkUpsert(ctx context.Context, records []UOMImportRow) Imp
 			result.AddError(rec.Row, "Name is required")
 			continue
 		}
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d)", len(valueArgs)+1, len(valueArgs)+2, len(valueArgs)+3, len(valueArgs)+4))
+		valueArgs = append(valueArgs, rec.Code, rec.Name, rec.Description, rec.IsActive)
+	}
 
-		var existingID int
-		err := r.db.QueryRow(ctx, "SELECT id FROM units_of_measure WHERE code = $1", rec.Code).Scan(&existingID)
-		isUpdate := err == nil
+	if len(valueStrings) == 0 {
+		return result
+	}
 
-		_, err = r.db.Exec(ctx, `
-			INSERT INTO units_of_measure (code, name, description, is_active)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (code) DO UPDATE SET
-				name = EXCLUDED.name,
-				description = EXCLUDED.description,
-				is_active = EXCLUDED.is_active
-		`, rec.Code, rec.Name, rec.Description, rec.IsActive)
+	query := fmt.Sprintf(`
+		INSERT INTO units_of_measure (code, name, description, is_active)
+		VALUES %s
+		ON CONFLICT (code) DO UPDATE SET
+			name = EXCLUDED.name,
+			description = EXCLUDED.description,
+			is_active = EXCLUDED.is_active
+		RETURNING (xmax = 0) AS is_insert
+	`, strings.Join(valueStrings, ", "))
 
-		if err != nil {
-			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
+	rows, err := r.db.Query(ctx, query, valueArgs...)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("batch upsert failed: %v", err))
+		return result
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var isInsert bool
+		if err := rows.Scan(&isInsert); err != nil {
 			continue
 		}
-
-		if isUpdate {
-			result.Updated++
-		} else {
+		if isInsert {
 			result.Inserted++
+		} else {
+			result.Updated++
 		}
 	}
 

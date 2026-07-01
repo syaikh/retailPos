@@ -109,41 +109,29 @@ type productRepoAdapter struct {
 }
 
 func (r *productRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	count := 0
+	payloads := make([]ProductImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(ProductImportRow)
 		payload, err := r.resolveReferences(ctx, row)
 		if err != nil {
-			return count, err
+			return len(payloads), err
 		}
-		inserted, err := r.repo.BulkUpsertProduct(ctx, *payload)
-		if err != nil {
-			return count, err
-		}
-		if inserted {
-			count++
-		}
+		payloads = append(payloads, *payload)
 	}
-	return count, nil
+	return r.repo.BulkInsertProducts(ctx, payloads)
 }
 
 func (r *productRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	count := 0
+	payloads := make([]ProductImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(ProductImportRow)
 		payload, err := r.resolveReferences(ctx, row)
 		if err != nil {
-			return count, err
+			return len(payloads), err
 		}
-		inserted, err := r.repo.BulkUpsertProduct(ctx, *payload)
-		if err != nil {
-			return count, err
-		}
-		if !inserted {
-			count++
-		}
+		payloads = append(payloads, *payload)
 	}
-	return count, nil
+	return r.repo.BulkUpdateProducts(ctx, payloads)
 }
 
 func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductImportRow) (*ProductImportPayload, error) {

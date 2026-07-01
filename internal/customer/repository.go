@@ -3,6 +3,7 @@ package customer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -185,37 +186,101 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, 
 
 func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []CustomerImportRow) ImportResult {
 	result := ImportResult{Errors: []string{}}
+	if len(records) == 0 {
+		return result
+	}
 
+	validRecords := make([]CustomerImportRow, 0, len(records))
 	for _, rec := range records {
 		if rec.Name == "" {
 			result.AddError(rec.Row, "Name is required")
 			continue
 		}
+		validRecords = append(validRecords, rec)
+	}
+	if len(validRecords) == 0 {
+		return result
+	}
 
-		var existingID int
-		err := r.db.QueryRow(ctx, "SELECT id FROM customers WHERE phone = $1 AND is_walk_in = false", rec.Phone).Scan(&existingID)
-		isUpdate := err == nil
+	phones := make([]string, len(validRecords))
+	for i, rec := range validRecords {
+		phones[i] = rec.Phone
+	}
 
-		if isUpdate {
-			_, err = r.db.Exec(ctx, `
-				UPDATE customers SET name = $1, email = $2, address = $3, note = $4, is_active = $5, updated_at = NOW()
-				WHERE id = $6
-			`, rec.Name, strPtr(rec.Email), strPtr(rec.Address), strPtr(rec.Note), rec.IsActive, existingID)
-			if err != nil {
-				result.AddError(rec.Row, fmt.Sprintf("failed to update: %v", err))
-				continue
+	existingMap := make(map[string]int, len(validRecords))
+	rows, err := r.db.Query(ctx, "SELECT id, phone FROM customers WHERE phone = ANY($1) AND is_walk_in = false", phones)
+	if err == nil {
+		for rows.Next() {
+			var id int
+			var phone string
+			if err := rows.Scan(&id, &phone); err == nil {
+				existingMap[phone] = id
 			}
-			result.Updated++
+		}
+		rows.Close()
+	}
+
+	var updateIDs []int
+	var updateRecords []CustomerImportRow
+	var insertRecords []CustomerImportRow
+
+	for _, rec := range validRecords {
+		if id, ok := existingMap[rec.Phone]; ok {
+			updateIDs = append(updateIDs, id)
+			updateRecords = append(updateRecords, rec)
 		} else {
-			_, err = r.db.Exec(ctx, `
-				INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in)
-				VALUES ($1, $2, $3, $4, $5, $6, false)
-			`, rec.Name, strPtr(rec.Phone), strPtr(rec.Email), strPtr(rec.Address), strPtr(rec.Note), rec.IsActive)
-			if err != nil {
-				result.AddError(rec.Row, fmt.Sprintf("failed to insert: %v", err))
-				continue
-			}
-			result.Inserted++
+			insertRecords = append(insertRecords, rec)
+		}
+	}
+
+	if len(updateRecords) > 0 {
+		valueStrings := make([]string, 0, len(updateRecords))
+		valueArgs := make([]interface{}, 0, len(updateRecords)*6)
+		for i, rec := range updateRecords {
+			offset := len(valueArgs)
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6))
+			valueArgs = append(valueArgs, rec.Name, rec.Email, rec.Address, rec.Note, rec.IsActive, updateIDs[i])
+		}
+
+		query := fmt.Sprintf(`
+			UPDATE customers SET
+				name = data.name,
+				email = NULLIF(data.email, ''),
+				address = NULLIF(data.address, ''),
+				note = NULLIF(data.note, ''),
+				is_active = data.is_active,
+				updated_at = NOW()
+			FROM (VALUES %s) AS data(name text, email text, address text, note text, is_active boolean, id int)
+			WHERE customers.id = data.id
+		`, strings.Join(valueStrings, ", "))
+
+		_, err := r.db.Exec(ctx, query, valueArgs...)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("batch update failed: %v", err))
+		} else {
+			result.Updated = len(updateRecords)
+		}
+	}
+
+	if len(insertRecords) > 0 {
+		valueStrings := make([]string, 0, len(insertRecords))
+		valueArgs := make([]interface{}, 0, len(insertRecords)*6)
+		for _, rec := range insertRecords {
+			offset := len(valueArgs)
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, NULLIF($%d, ''), NULLIF($%d, ''), NULLIF($%d, ''), $%d, false)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6))
+			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive)
+		}
+
+		query := fmt.Sprintf(`
+			INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in)
+			VALUES %s
+		`, strings.Join(valueStrings, ", "))
+
+		_, err := r.db.Exec(ctx, query, valueArgs...)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("batch insert failed: %v", err))
+		} else {
+			result.Inserted = len(insertRecords)
 		}
 	}
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -211,7 +212,7 @@ func TestHandler_Preview_NoFile(t *testing.T) {
 }
 
 func TestHandler_Confirm(t *testing.T) {
-	_, r, _ := setupTestHandler()
+	_, r, progEng := setupTestHandler()
 
 	csv := "Code,Name\nA1,Widget\nA2,Gadget\n"
 	body := new(bytes.Buffer)
@@ -240,8 +241,21 @@ func TestHandler_Confirm(t *testing.T) {
 	var result map[string]interface{}
 	err := json.Unmarshal(w2.Body.Bytes(), &result)
 	require.NoError(t, err)
-	assert.Equal(t, "completed", result["status"])
-	assert.Equal(t, float64(2), result["inserted"])
+	jobID := int64(result["job_id"].(float64))
+	assert.Equal(t, "importing", result["status"])
+
+	ctx := context.Background()
+	var p *progress.Progress
+	for i := 0; i < 50; i++ {
+		p, err = progEng.GetProgress(ctx, jobID)
+		require.NoError(t, err)
+		if p.Status != progress.StatusImporting {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, progress.StatusCompleted, p.Status)
+	assert.Equal(t, 2, p.TotalRows)
 }
 
 func TestHandler_Confirm_NoToken(t *testing.T) {
@@ -323,11 +337,15 @@ func TestHandler_CancelImport(t *testing.T) {
 	var result map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &result)
 	require.NoError(t, err)
-	assert.Equal(t, "cancelled", result["status"])
+	assert.Equal(t, "cancellation requested", result["status"])
+
+	cancelled, err := progEng.IsCancelRequested(ctx, jobID)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
 
 	p, err := progEng.GetProgress(ctx, jobID)
 	require.NoError(t, err)
-	assert.Equal(t, progress.StatusCancelled, p.Status)
+	assert.Equal(t, progress.StatusQueued, p.Status)
 }
 
 func TestHandler_CancelImport_NotFound(t *testing.T) {
