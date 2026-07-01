@@ -3,8 +3,7 @@ package validators
 import (
 	"context"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type TemplateValidator struct{}
@@ -13,7 +12,7 @@ func (v *TemplateValidator) Name() string {
 	return "template"
 }
 
-func (v *TemplateValidator) Validate(_ context.Context, s schema.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexport.ReferenceItem) []importexport.ValidationError {
+func (v *TemplateValidator) Validate(_ context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -24,7 +23,7 @@ func (v *TemplateValidator) Validate(_ context.Context, s schema.ModuleSchema, r
 		colSet[n] = true
 	}
 
-	var errs []importexport.ValidationError
+	var errs []importexportshared.ValidationError
 
 	for _, c := range s.Columns {
 		if !c.Template {
@@ -32,9 +31,9 @@ func (v *TemplateValidator) Validate(_ context.Context, s schema.ModuleSchema, r
 		}
 		if !colSet[c.Name] && !colSet[c.Label] {
 			if c.Required {
-				errs = append(errs, importexport.ValidationError{
+				errs = append(errs, importexportshared.ValidationError{
 					Row: -1, Reason: "required column not found",
-					Field: c.Name, Stage: importexport.StageTemplate,
+					Field: c.Name, Stage: importexportshared.StageTemplate,
 				})
 			}
 		}

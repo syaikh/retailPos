@@ -4,20 +4,19 @@ import (
 	"context"
 	"testing"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
-var testSchema = schema.ModuleSchema{
+var testSchema = importexportshared.ModuleSchema{
 	ModuleName:   "test",
 	BusinessKeys: []string{"Code"},
-	Columns: []schema.ColumnSchema{
-		{Name: "Code", Type: schema.ColString, Label: "Code", Required: true, MaxLength: schema.IntPtr(10), Template: true},
-		{Name: "Name", Type: schema.ColString, Label: "Name", Required: true, MaxLength: schema.IntPtr(50), Template: true},
-		{Name: "Price", Type: schema.ColNumber, Label: "Price", Required: false, MinValue: schema.Float64Ptr(0), Template: true},
-		{Name: "Active", Type: schema.ColBoolean, Label: "Active", Required: false, Template: true},
-		{Name: "Brand", Type: schema.ColReference, Label: "Brand", Required: false, Reference: "brands", Template: true},
-		{Name: "Date", Type: schema.ColDate, Label: "Date", Required: false, Template: true},
+	Columns: []importexportshared.ColumnSchema{
+		{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, MaxLength: importexportshared.IntPtr(10), Template: true},
+		{Name: "Name", Type: importexportshared.ColString, Label: "Name", Required: true, MaxLength: importexportshared.IntPtr(50), Template: true},
+		{Name: "Price", Type: importexportshared.ColNumber, Label: "Price", Required: false, MinValue: importexportshared.Float64Ptr(0), Template: true},
+		{Name: "Active", Type: importexportshared.ColBoolean, Label: "Active", Required: false, Template: true},
+		{Name: "Brand", Type: importexportshared.ColReference, Label: "Brand", Required: false, Reference: "brands", Template: true},
+		{Name: "Date", Type: importexportshared.ColDate, Label: "Date", Required: false, Template: true},
 	},
 }
 
@@ -63,7 +62,7 @@ func TestTypeValidator_NumberOverMax(t *testing.T) {
 	v := &TypeValidator{}
 	rows := []map[string]interface{}{{"Price": "100", "Code": "x"}}
 	s := testSchema
-	s.Columns[2].MaxValue = schema.Float64Ptr(50)
+	s.Columns[2].MaxValue = importexportshared.Float64Ptr(50)
 	errs := v.Validate(ctx(), s, rows, nil)
 	if len(errs) == 0 {
 		t.Fatal("expected error for price over max")
@@ -127,8 +126,8 @@ func TestTypeValidator_InvalidDate(t *testing.T) {
 func TestTypeValidator_AllowedValues(t *testing.T) {
 	v := &TypeValidator{}
 	s := testSchema
-	s.Columns = append(s.Columns, schema.ColumnSchema{
-		Name: "Status", Type: schema.ColString, AllowedValues: []string{"active", "inactive"},
+	s.Columns = append(s.Columns, importexportshared.ColumnSchema{
+		Name: "Status", Type: importexportshared.ColString, AllowedValues: []string{"active", "inactive"},
 	})
 
 	t.Run("valid", func(t *testing.T) {
@@ -170,7 +169,7 @@ func TestRequiredValidator(t *testing.T) {
 
 func TestReferenceValidator(t *testing.T) {
 	v := &ReferenceValidator{}
-	brandRefs := map[string][]importexport.ReferenceItem{
+	brandRefs := map[string][]importexportshared.ReferenceItem{
 		"brands": {{Key: "Nike"}, {Key: "Adidas"}},
 	}
 

@@ -3,8 +3,7 @@ package validation
 import (
 	"context"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport/validation/validators"
 )
 
@@ -29,8 +28,8 @@ func (p *Pipeline) Add(v Validator) {
 	p.validators = append(p.validators, v)
 }
 
-func (p *Pipeline) Run(ctx context.Context, s schema.ModuleSchema, rows []map[string]interface{}, refs map[string][]importexport.ReferenceItem) []importexport.ValidationError {
-	var allErrors []importexport.ValidationError
+func (p *Pipeline) Run(ctx context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, refs map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
+	var allErrors []importexportshared.ValidationError
 	for _, v := range p.validators {
 		errs := v.Validate(ctx, s, rows, refs)
 		allErrors = append(allErrors, errs...)

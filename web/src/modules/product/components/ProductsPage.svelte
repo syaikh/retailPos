@@ -5,7 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
-  import { Button, Modal, Pagination, ImportWizard } from '$shared/ui';
+  import { Button, Modal, Pagination, ImportWizard, HistoryDialog } from '$shared/ui';
   import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
@@ -65,6 +65,7 @@
   let bulkStatusTarget = $state('active');
   let isBulkUpdating = $state(false);
   let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
 
   function handleImportComplete() {
     fetchProducts(offset, limit);
@@ -533,6 +534,7 @@
       showModal = true;
     }}
     onImport={() => showImportWizard = true}
+    onHistory={() => showHistoryDialog = true}
   />
 
   <div class="card overflow-hidden">
@@ -687,5 +689,11 @@
   module="products"
   displayName="Products"
   onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="products"
+  displayName="Products"
 />
 

@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type TypeValidator struct{}
@@ -17,8 +16,8 @@ func (v *TypeValidator) Name() string {
 	return "type"
 }
 
-func (v *TypeValidator) Validate(_ context.Context, s schema.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexport.ReferenceItem) []importexport.ValidationError {
-	var errs []importexport.ValidationError
+func (v *TypeValidator) Validate(_ context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
+	var errs []importexportshared.ValidationError
 
 	for i, row := range rows {
 		rowNum := i + 2
@@ -39,13 +38,13 @@ func (v *TypeValidator) Validate(_ context.Context, s schema.ModuleSchema, rows 
 			strVal := fmt.Sprintf("%v", val)
 
 			switch col.Type {
-			case schema.ColString:
+			case importexportshared.ColString:
 				if col.MaxLength != nil && len(strVal) > *col.MaxLength {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason:     fmt.Sprintf("exceeds max length of %d", *col.MaxLength),
 						Suggestion: fmt.Sprintf("truncate to %d characters", *col.MaxLength),
-						Stage:      importexport.StageType,
+						Stage:      importexportshared.StageType,
 					})
 				}
 				if col.AllowedValues != nil {
@@ -57,55 +56,55 @@ func (v *TypeValidator) Validate(_ context.Context, s schema.ModuleSchema, rows 
 						}
 					}
 					if !found {
-						errs = append(errs, importexport.ValidationError{
+						errs = append(errs, importexportshared.ValidationError{
 							Row: rowNum, Field: col.Name, Value: strVal,
 							Reason:     "value is not in allowed list",
 							Suggestion: fmt.Sprintf("allowed values: %s", strings.Join(col.AllowedValues, ", ")),
-							Stage:      importexport.StageType,
+							Stage:      importexportshared.StageType,
 						})
 					}
 				}
 
-			case schema.ColNumber:
+			case importexportshared.ColNumber:
 				num, err := strconv.ParseFloat(strVal, 64)
 				if err != nil {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason: "must be a number",
-						Stage:  importexport.StageType,
+						Stage:  importexportshared.StageType,
 					})
 					continue
 				}
 				if col.MinValue != nil && num < *col.MinValue {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason: fmt.Sprintf("minimum value is %v", *col.MinValue),
-						Stage:  importexport.StageType,
+						Stage:  importexportshared.StageType,
 					})
 				}
 				if col.MaxValue != nil && num > *col.MaxValue {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason: fmt.Sprintf("maximum value is %v", *col.MaxValue),
-						Stage:  importexport.StageType,
+						Stage:  importexportshared.StageType,
 					})
 				}
 
-			case schema.ColBoolean:
+			case importexportshared.ColBoolean:
 				if !isValidBool(strVal) {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason: "must be a boolean (true/false/yes/no/1/0)",
-						Stage:  importexport.StageType,
+						Stage:  importexportshared.StageType,
 					})
 				}
 
-			case schema.ColDate:
+			case importexportshared.ColDate:
 				if !isValidDateStr(strVal) {
-					errs = append(errs, importexport.ValidationError{
+					errs = append(errs, importexportshared.ValidationError{
 						Row: rowNum, Field: col.Name, Value: strVal,
 						Reason: "must be a valid date (YYYY-MM-DD)",
-						Stage:  importexport.StageType,
+						Stage:  importexportshared.StageType,
 					})
 				}
 			}

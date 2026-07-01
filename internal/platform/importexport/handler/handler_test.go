@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	importer "retail-pos-system/internal/platform/importexport/import"
@@ -65,7 +66,7 @@ func (m *mockTestRepo) ExportData(_ context.Context, _ schema.ModuleSchema) ([]m
 	return m.exportData, nil
 }
 
-func (m *mockTestRepo) LoadReferences(_ context.Context, _ schema.ModuleSchema) (map[string][]importexport.ReferenceItem, error) {
+func (m *mockTestRepo) LoadReferences(_ context.Context, _ schema.ModuleSchema) (map[string][]importexportshared.ReferenceItem, error) {
 	return nil, nil
 }
 
@@ -75,7 +76,7 @@ type mockTestAdapter struct {
 
 func (m *mockTestAdapter) ModuleName() string { return "categories" }
 
-func (m *mockTestAdapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexport.ValidationError {
+func (m *mockTestAdapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexportshared.ValidationError {
 	return nil
 }
 
@@ -83,7 +84,7 @@ func (m *mockTestAdapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, 
 	return row, nil
 }
 
-func (m *mockTestAdapter) Repository() importexport.RepositoryActions {
+func (m *mockTestAdapter) Repository() importexportshared.RepositoryActions {
 	return m.repo
 }
 
@@ -690,4 +691,4 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
-var _ = importexport.ValidationError{}
+var _ = importexportshared.ValidationError{}

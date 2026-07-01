@@ -1,31 +1,13 @@
 package importexport
 
-type ErrorStage string
-
-const (
-	StageTemplate  ErrorStage = "template"
-	StageType      ErrorStage = "type"
-	StageReference ErrorStage = "reference"
-	StageBusiness  ErrorStage = "business_rule"
-	StageDatabase  ErrorStage = "database"
-	StageUnknown   ErrorStage = "unexpected"
-)
-
-type ValidationError struct {
-	Row        int        `json:"row"`
-	Field      string     `json:"field,omitempty"`
-	Value      string     `json:"value,omitempty"`
-	Reason     string     `json:"reason"`
-	Suggestion string     `json:"suggestion,omitempty"`
-	Stage      ErrorStage `json:"stage"`
-}
+import importexportshared "retail-pos-system/internal/shared/importexport"
 
 type ImportError struct {
-	JobID      int64      `json:"job_id"`
-	Row        int        `json:"row"`
-	Field      string     `json:"field,omitempty"`
-	Value      string     `json:"value,omitempty"`
-	Reason     string     `json:"reason"`
-	Suggestion string     `json:"suggestion,omitempty"`
-	Stage      ErrorStage `json:"stage"`
+	JobID      int64                    `json:"job_id"`
+	Row        int                      `json:"row"`
+	Field      string                   `json:"field,omitempty"`
+	Value      string                   `json:"value,omitempty"`
+	Reason     string                   `json:"reason"`
+	Suggestion string                   `json:"suggestion,omitempty"`
+	Stage      importexportshared.ErrorStage `json:"stage"`
 }

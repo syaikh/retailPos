@@ -1,16 +1,13 @@
 package importexport
 
-type ReferenceItem struct {
-	Key   string
-	Value interface{}
-}
+import importexportshared "retail-pos-system/internal/shared/importexport"
 
 type PreviewRow struct {
-	RowNumber int            `json:"row_number"`
-	Status    string         `json:"status"`
-	OldValues map[string]interface{} `json:"old_values,omitempty"`
-	NewValues map[string]interface{} `json:"new_values"`
-	Errors    []ValidationError      `json:"errors,omitempty"`
+	RowNumber int                               `json:"row_number"`
+	Status    string                            `json:"status"`
+	OldValues map[string]interface{}            `json:"old_values,omitempty"`
+	NewValues map[string]interface{}            `json:"new_values"`
+	Errors    []importexportshared.ValidationError `json:"errors,omitempty"`
 }
 
 type PreviewResult struct {

@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type ReferenceValidator struct{}
@@ -15,14 +14,14 @@ func (v *ReferenceValidator) Name() string {
 	return "reference"
 }
 
-func (v *ReferenceValidator) Validate(_ context.Context, s schema.ModuleSchema, rows []map[string]interface{}, refs map[string][]importexport.ReferenceItem) []importexport.ValidationError {
-	var errs []importexport.ValidationError
+func (v *ReferenceValidator) Validate(_ context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, refs map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
+	var errs []importexportshared.ValidationError
 
 	for i, row := range rows {
 		rowNum := i + 2
 
 		for _, col := range s.Columns {
-			if col.Type != schema.ColReference {
+			if col.Type != importexportshared.ColReference {
 				continue
 			}
 			if col.Reference == "" {
@@ -42,10 +41,10 @@ func (v *ReferenceValidator) Validate(_ context.Context, s schema.ModuleSchema, 
 
 			refItems, exists := refs[refKey]
 			if !exists {
-				errs = append(errs, importexport.ValidationError{
+				errs = append(errs, importexportshared.ValidationError{
 					Row: rowNum, Field: col.Name, Value: strVal,
 					Reason: fmt.Sprintf("reference data %q not loaded", refKey),
-					Stage:  importexport.StageReference,
+					Stage:  importexportshared.StageReference,
 				})
 				continue
 			}
@@ -59,11 +58,11 @@ func (v *ReferenceValidator) Validate(_ context.Context, s schema.ModuleSchema, 
 			}
 
 			if !found {
-				errs = append(errs, importexport.ValidationError{
+				errs = append(errs, importexportshared.ValidationError{
 					Row: rowNum, Field: col.Name, Value: strVal,
 					Reason: fmt.Sprintf("value not found in %s", refKey),
 					Suggestion: fmt.Sprintf("create the %s first or use an existing value", refKey),
-					Stage:  importexport.StageReference,
+					Stage:  importexportshared.StageReference,
 				})
 			}
 		}

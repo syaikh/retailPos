@@ -16,6 +16,7 @@
     onclearall = () => {},
     onadd = () => {},
     onImport = () => {},
+    onHistory = () => {},
   }: {
     searchQuery?: string;
     selectedCategories?: string[];
@@ -30,6 +31,7 @@
     onclearall?: () => void;
     onadd?: () => void;
     onImport?: () => void;
+    onHistory?: () => void;
   } = $props();
 
   let statusLabel = $derived(
@@ -111,7 +113,7 @@
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
     </button>
-    <BulkActionDropdown module="products" canExport={canCreate} canImport={canCreate} {onImport} />
+    <BulkActionDropdown module="products" canExport={canCreate} canImport={canCreate} {onImport} {onHistory} />
     <Button
       onclick={onadd}
       disabled={!canManageInventory}

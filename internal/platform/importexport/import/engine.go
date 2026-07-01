@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -61,7 +62,7 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 		}, nil
 	}
 
-	refs := make(map[string][]importexport.ReferenceItem)
+	refs := make(map[string][]importexportshared.ReferenceItem)
 	if adapter, err := e.adapterReg.Get(module); err == nil {
 		if loaded, err := adapter.Repository().LoadReferences(ctx, s); err == nil {
 			refs = loaded
@@ -108,7 +109,7 @@ func (e *Engine) isCancelled(ctx context.Context, jobID int64) bool {
 	return err == nil && cancelled
 }
 
-func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewState, adapter importexport.Adapter) {
+func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewState, adapter importexportshared.Adapter) {
 	repo := adapter.Repository()
 
 	var insertEntities, updateEntities []interface{}

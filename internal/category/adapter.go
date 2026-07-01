@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type adapter struct {
 	repo *Repository
 }
 
-func NewAdapter(repo *Repository) importexport.Adapter {
+func NewAdapter(repo *Repository) importexportshared.Adapter {
 	return &adapter{repo: repo}
 }
 
@@ -21,11 +20,11 @@ func (a *adapter) ModuleName() string {
 	return "categories"
 }
 
-func (a *adapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexport.ValidationError {
+func (a *adapter) ValidateBusiness(_ context.Context, _ importexportshared.ModuleSchema, _ []map[string]interface{}) []importexportshared.ValidationError {
 	return nil
 }
 
-func (a *adapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[string]interface{}) (interface{}, error) {
+func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSchema, row map[string]interface{}) (interface{}, error) {
 	name, _ := row["Name"].(string)
 	if name == "" {
 		return nil, fmt.Errorf("Name is required")
@@ -46,7 +45,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[
 	}, nil
 }
 
-func (a *adapter) Repository() importexport.RepositoryActions {
+func (a *adapter) Repository() importexportshared.RepositoryActions {
 	return &categoryRepoAdapter{repo: a.repo}
 }
 
@@ -72,7 +71,7 @@ func (r *categoryRepoAdapter) Update(ctx context.Context, entities []interface{}
 	return result.Updated, nil
 }
 
-func (r *categoryRepoAdapter) ExportData(ctx context.Context, _ schema.ModuleSchema) ([]map[string]interface{}, error) {
+func (r *categoryRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
 	categories, err := r.repo.GetAllCategoriesForExport(ctx)
 	if err != nil {
 		return nil, err
@@ -89,7 +88,7 @@ func (r *categoryRepoAdapter) ExportData(ctx context.Context, _ schema.ModuleSch
 	return result, nil
 }
 
-func (r *categoryRepoAdapter) LoadReferences(_ context.Context, _ schema.ModuleSchema) (map[string][]importexport.ReferenceItem, error) {
+func (r *categoryRepoAdapter) LoadReferences(_ context.Context, _ importexportshared.ModuleSchema) (map[string][]importexportshared.ReferenceItem, error) {
 	return nil, nil
 }
 

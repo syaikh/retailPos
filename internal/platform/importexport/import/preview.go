@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
 )
 
-func GeneratePreview(s schema.ModuleSchema, rows []map[string]interface{}, errs []importexport.ValidationError) *importexport.PreviewResult {
+func GeneratePreview(s schema.ModuleSchema, rows []map[string]interface{}, errs []importexportshared.ValidationError) *importexport.PreviewResult {
 	errMap := buildErrorMap(errs)
 	seenKeys := make(map[string]int)
 
@@ -51,8 +52,8 @@ func GeneratePreview(s schema.ModuleSchema, rows []map[string]interface{}, errs 
 	return result
 }
 
-func buildErrorMap(errs []importexport.ValidationError) map[int][]importexport.ValidationError {
-	m := make(map[int][]importexport.ValidationError)
+func buildErrorMap(errs []importexportshared.ValidationError) map[int][]importexportshared.ValidationError {
+	m := make(map[int][]importexportshared.ValidationError)
 	for _, e := range errs {
 		m[e.Row] = append(m[e.Row], e)
 	}

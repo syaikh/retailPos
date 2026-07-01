@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type RequiredValidator struct{}
@@ -14,8 +13,8 @@ func (v *RequiredValidator) Name() string {
 	return "required"
 }
 
-func (v *RequiredValidator) Validate(_ context.Context, s schema.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexport.ReferenceItem) []importexport.ValidationError {
-	var errs []importexport.ValidationError
+func (v *RequiredValidator) Validate(_ context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
+	var errs []importexportshared.ValidationError
 
 	for i, row := range rows {
 		rowNum := i + 2
@@ -31,10 +30,10 @@ func (v *RequiredValidator) Validate(_ context.Context, s schema.ModuleSchema, r
 			}
 
 			if val == nil || fmt.Sprintf("%v", val) == "" {
-				errs = append(errs, importexport.ValidationError{
+				errs = append(errs, importexportshared.ValidationError{
 					Row: rowNum, Field: col.Name,
 					Reason: "field is required",
-					Stage:  importexport.StageTemplate,
+					Stage:  importexportshared.StageTemplate,
 				})
 			}
 		}

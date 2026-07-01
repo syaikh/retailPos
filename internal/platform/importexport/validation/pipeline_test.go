@@ -4,18 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 func TestDefaultPipeline_Run(t *testing.T) {
 	p := NewDefaultPipeline()
-	s := schema.ModuleSchema{
+	s := importexportshared.ModuleSchema{
 		ModuleName:   "test",
 		BusinessKeys: []string{"Code"},
-		Columns: []schema.ColumnSchema{
-			{Name: "Code", Type: schema.ColString, Label: "Code", Required: true, Template: true},
-			{Name: "Name", Type: schema.ColString, Label: "Name", Required: true, Template: true},
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, Template: true},
+			{Name: "Name", Type: importexportshared.ColString, Label: "Name", Required: true, Template: true},
 		},
 	}
 	rows := []map[string]interface{}{
@@ -30,12 +29,12 @@ func TestDefaultPipeline_Run(t *testing.T) {
 
 func TestDefaultPipeline_AllValid(t *testing.T) {
 	p := NewDefaultPipeline()
-	s := schema.ModuleSchema{
+	s := importexportshared.ModuleSchema{
 		ModuleName:   "test",
 		BusinessKeys: []string{"Code"},
-		Columns: []schema.ColumnSchema{
-			{Name: "Code", Type: schema.ColString, Label: "Code", Required: true, Template: true},
-			{Name: "Price", Type: schema.ColNumber, Label: "Price", Required: false, Template: true},
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, Template: true},
+			{Name: "Price", Type: importexportshared.ColNumber, Label: "Price", Required: false, Template: true},
 		},
 	}
 	rows := []map[string]interface{}{
@@ -52,7 +51,7 @@ func TestPipeline_AddCustomValidator(t *testing.T) {
 	p := NewDefaultPipeline()
 	p.Add(&mockValidator{name: "custom"})
 
-	s := schema.ModuleSchema{ModuleName: "test"}
+	s := importexportshared.ModuleSchema{ModuleName: "test"}
 	rows := []map[string]interface{}{{"x": "y"}}
 	errs := p.Run(context.Background(), s, rows, nil)
 	if len(errs) != 1 || errs[0].Reason != "custom error" {
@@ -66,6 +65,6 @@ type mockValidator struct {
 
 func (m *mockValidator) Name() string { return m.name }
 
-func (m *mockValidator) Validate(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}, _ map[string][]importexport.ReferenceItem) []importexport.ValidationError {
-	return []importexport.ValidationError{{Reason: "custom error"}}
+func (m *mockValidator) Validate(_ context.Context, _ importexportshared.ModuleSchema, _ []map[string]interface{}, _ map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
+	return []importexportshared.ValidationError{{Reason: "custom error"}}
 }

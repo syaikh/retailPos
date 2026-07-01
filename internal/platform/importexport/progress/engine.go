@@ -39,6 +39,7 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, jobID int64, status Status) error
 	UpdateProgress(ctx context.Context, jobID int64, processed, total, errors, inserted, updated int) error
 	GetProgress(ctx context.Context, jobID int64) (*Progress, error)
+	ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error)
 	RequestCancel(ctx context.Context, jobID int64) error
 	IsCancelRequested(ctx context.Context, jobID int64) (bool, error)
 }
@@ -65,6 +66,10 @@ func (e *Engine) UpdateProgress(ctx context.Context, jobID int64, processed, tot
 
 func (e *Engine) GetProgress(ctx context.Context, jobID int64) (*Progress, error) {
 	return e.repo.GetProgress(ctx, jobID)
+}
+
+func (e *Engine) ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error) {
+	return e.repo.ListJobs(ctx, module, limit)
 }
 
 func (e *Engine) RequestCancel(ctx context.Context, jobID int64) error {
@@ -178,6 +183,38 @@ func (s *InMemoryStore) GetProgress(_ context.Context, jobID int64) (*Progress, 
 		p.DurationMs = int(job.CompletedAt.Sub(job.StartedAt).Milliseconds())
 	}
 	return p, nil
+}
+
+func (s *InMemoryStore) ListJobs(_ context.Context, module string, limit int) ([]*Progress, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*Progress
+	for _, job := range s.jobs {
+		if module != "" && job.Module != module {
+			continue
+		}
+		p := &Progress{
+			JobID:       job.JobID,
+			Status:      job.Status,
+			TotalRows:   job.TotalRows,
+			Processed:   job.Processed,
+			Inserted:    job.Inserted,
+			Updated:     job.Updated,
+			Errors:      job.Errors,
+			StartedAt:   job.StartedAt.Format(time.RFC3339),
+		}
+		if job.TotalRows > 0 {
+			p.ProgressPct = (job.Processed * 100) / job.TotalRows
+		}
+		if job.CompletedAt != nil {
+			p.DurationMs = int(job.CompletedAt.Sub(job.StartedAt).Milliseconds())
+		}
+		result = append(result, p)
+	}
+	if limit > 0 && len(result) > limit {
+		result = result[:limit]
+	}
+	return result, nil
 }
 
 func (s *InMemoryStore) RequestCancel(_ context.Context, jobID int64) error {

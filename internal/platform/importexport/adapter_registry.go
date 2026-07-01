@@ -1,16 +1,20 @@
 package importexport
 
-import "fmt"
+import (
+	"fmt"
+
+	importexportshared "retail-pos-system/internal/shared/importexport"
+)
 
 type AdapterRegistry struct {
-	adapters map[string]Adapter
+	adapters map[string]importexportshared.Adapter
 }
 
 func NewAdapterRegistry() *AdapterRegistry {
-	return &AdapterRegistry{adapters: make(map[string]Adapter)}
+	return &AdapterRegistry{adapters: make(map[string]importexportshared.Adapter)}
 }
 
-func (r *AdapterRegistry) Register(a Adapter) error {
+func (r *AdapterRegistry) Register(a importexportshared.Adapter) error {
 	if a.ModuleName() == "" {
 		return fmt.Errorf("adapter module_name is required")
 	}
@@ -21,7 +25,7 @@ func (r *AdapterRegistry) Register(a Adapter) error {
 	return nil
 }
 
-func (r *AdapterRegistry) Get(module string) (Adapter, error) {
+func (r *AdapterRegistry) Get(module string) (importexportshared.Adapter, error) {
 	a, exists := r.adapters[module]
 	if !exists {
 		return nil, fmt.Errorf("no adapter registered for module %q", module)

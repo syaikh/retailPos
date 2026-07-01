@@ -15,16 +15,21 @@ import (
 )
 
 var modulePerms = map[string]string{
-	"categories:import": "category:import",
-	"categories:export": "category:export",
-	"brands:import":     "product:import",
-	"brands:export":     "product:export",
-	"uoms:import":       "product:import",
+	"categories:import":  "category:import",
+	"categories:export":  "category:export",
+	"categories:history": "category:import",
+	"brands:import":      "product:import",
+	"brands:export":      "product:export",
+	"brands:history":     "product:import",
+	"uoms:import":        "product:import",
 	"uoms:export":       "product:export",
-	"customers:import":  "customer:import",
-	"customers:export":  "customer:export",
-	"products:import":   "product:import",
-	"products:export":   "product:export",
+	"uoms:history":      "product:import",
+	"customers:import":   "customer:import",
+	"customers:export":   "customer:export",
+	"customers:history":  "customer:import",
+	"products:import":    "product:import",
+	"products:export":    "product:export",
+	"products:history":   "product:import",
 }
 
 type Handler struct {
@@ -59,6 +64,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, auth gin.HandlerFunc, perm
 		r.POST("/confirm/:module", h.requirePerm("import"), h.Confirm)
 		r.GET("/progress/:jobId", h.GetProgress)
 		r.POST("/cancel/:jobId", h.CancelImport)
+		r.GET("/history/:module", h.requirePerm("history"), h.ListImportHistory)
 		r.GET("/export/:module", h.requirePerm("export"), h.Export)
 	}
 }
@@ -210,6 +216,23 @@ func (h *Handler) CancelImport(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "cancellation requested"})
+}
+
+func (h *Handler) ListImportHistory(c *gin.Context) {
+	module := c.Param("module")
+	_, err := h.schemaReg.Get(module)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown module: %s", module)})
+		return
+	}
+
+	jobs, err := h.progressEng.ListJobs(c.Request.Context(), module, 50)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, jobs)
 }
 
 func (h *Handler) Export(c *gin.Context) {

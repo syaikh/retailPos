@@ -3,7 +3,7 @@ package importer
 import (
 	"testing"
 
-	"retail-pos-system/internal/platform/importexport"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
 )
 
@@ -61,7 +61,7 @@ func TestGeneratePreview_WithErrors(t *testing.T) {
 		{"Code": "A1"},
 		{"Code": ""},
 	}
-	errs := []importexport.ValidationError{
+	errs := []importexportshared.ValidationError{
 		{Row: 3, Field: "Code", Reason: "required"},
 	}
 	result := GeneratePreview(s, rows, errs)

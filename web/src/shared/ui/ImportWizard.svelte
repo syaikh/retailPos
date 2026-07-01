@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Modal, DropZone, PreviewTable, ValidationSummary, ProgressDialog } from '$shared/ui';
+  import { Button, Modal, DropZone, PreviewTable, ValidationSummary, ProgressDialog, ImportSummary } from '$shared/ui';
   import { Loader2, AlertCircle, Upload, CheckCircle2, ArrowLeft, ArrowRight, Download, FileSpreadsheet } from 'lucide-svelte';
   import { uploadPreview, confirmImport, getProgress, cancelImport, downloadTemplate } from '$shared/services/import-export-service';
   import type { PreviewResult, ImportProgress } from '$shared/types/import-export';
@@ -16,7 +16,7 @@
     onComplete?: () => void;
   } = $props();
 
-  type Step = 'upload' | 'preview' | 'progress';
+  type Step = 'upload' | 'preview' | 'progress' | 'summary';
 
   let step = $state<Step>('upload');
   let file = $state<File | null>(null);
@@ -25,9 +25,9 @@
   let loading = $state(false);
   let error = $state('');
 
+  let errorReport = $state('');
+
   let columns = $derived<string[]>([]);
-  let errorRows = $derived<PreviewRow[]>([]);
-  let warningRows = $derived<PreviewRow[]>([]);
   let validationErrors = $derived<import('$shared/types/import-export').ValidationError[]>([]);
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -39,6 +39,7 @@
       preview = null;
       progress = null;
       error = '';
+      errorReport = '';
     }
   });
 
@@ -93,6 +94,14 @@
     }
   }
 
+  function onProgressDone(p: ImportProgress) {
+    progress = p;
+    errorReport = p.error_report || '';
+    if (p.status === 'completed') onComplete();
+    if (pollTimer) clearInterval(pollTimer);
+    step = 'summary';
+  }
+
   $effect(() => {
     if (step === 'progress' && progress && !['completed', 'failed', 'cancelled'].includes(progress.status)) {
       pollTimer = setInterval(async () => {
@@ -100,8 +109,7 @@
           const p = await getProgress(String(progress!.job_id));
           progress = p;
           if (['completed', 'failed', 'cancelled'].includes(p.status)) {
-            if (p.status === 'completed') onComplete();
-            if (pollTimer) clearInterval(pollTimer);
+            onProgressDone(p);
           }
         } catch {
           if (pollTimer) clearInterval(pollTimer);
@@ -138,7 +146,7 @@
   }
 
   let canImport = $derived(
-    preview && preview.errorCount === 0 && preview.totalRows > 0
+    preview && preview.error_count === 0 && preview.total_rows > 0
   );
 </script>
 
@@ -200,7 +208,7 @@
 
         <PreviewTable rows={preview.rows} {columns} />
 
-        {#if !canImport && preview.errorCount > 0}
+        {#if !canImport && preview.error_count > 0}
           <div class="p-3 bg-danger-subtle/10 rounded-lg flex items-start gap-2">
             <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
             <p class="text-sm text-danger">
@@ -216,6 +224,9 @@
         onCancel={handleCancel}
         onClose={handleClose}
       />
+
+    {:else if step === 'summary'}
+      <ImportSummary progress={progress} error_report={errorReport} />
     {/if}
   </div>
 
@@ -245,6 +256,9 @@
             {/if}
           </Button>
       </div>
+
+    {:else if step === 'summary'}
+      <Button variant="primary" onclick={handleClose}>Close</Button>
     {/if}
   {/snippet}
 </Modal>

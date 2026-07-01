@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type DuplicateValidator struct{}
@@ -15,12 +14,12 @@ func (v *DuplicateValidator) Name() string {
 	return "duplicate"
 }
 
-func (v *DuplicateValidator) Validate(_ context.Context, s schema.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexport.ReferenceItem) []importexport.ValidationError {
+func (v *DuplicateValidator) Validate(_ context.Context, s importexportshared.ModuleSchema, rows []map[string]interface{}, _ map[string][]importexportshared.ReferenceItem) []importexportshared.ValidationError {
 	if len(s.BusinessKeys) == 0 {
 		return nil
 	}
 
-	var errs []importexport.ValidationError
+	var errs []importexportshared.ValidationError
 	seen := make(map[string]int)
 
 	for i, row := range rows {
@@ -32,11 +31,11 @@ func (v *DuplicateValidator) Validate(_ context.Context, s schema.ModuleSchema, 
 		}
 
 		if firstRow, exists := seen[key]; exists {
-			errs = append(errs, importexport.ValidationError{
+			errs = append(errs, importexportshared.ValidationError{
 				Row: rowNum,
 				Reason: fmt.Sprintf("duplicate %s (also appears at row %d)",
 					strings.Join(s.BusinessKeys, "+"), firstRow),
-				Stage: importexport.StageTemplate,
+				Stage: importexportshared.StageTemplate,
 			})
 		} else {
 			seen[key] = rowNum

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
+	importexportshared "retail-pos-system/internal/shared/importexport"
+
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
-	"retail-pos-system/internal/platform/importexport"
-	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/uom"
 )
 
@@ -34,7 +34,7 @@ type adapter struct {
 	uomRepo      UOMRefRepo
 }
 
-func NewAdapter(repo *Repository, categoryRepo CategoryRefRepo, brandRepo BrandRefRepo, uomRepo UOMRefRepo) importexport.Adapter {
+func NewAdapter(repo *Repository, categoryRepo CategoryRefRepo, brandRepo BrandRefRepo, uomRepo UOMRefRepo) importexportshared.Adapter {
 	return &adapter{
 		repo:         repo,
 		categoryRepo: categoryRepo,
@@ -47,11 +47,11 @@ func (a *adapter) ModuleName() string {
 	return "products"
 }
 
-func (a *adapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexport.ValidationError {
+func (a *adapter) ValidateBusiness(_ context.Context, _ importexportshared.ModuleSchema, _ []map[string]interface{}) []importexportshared.ValidationError {
 	return nil
 }
 
-func (a *adapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[string]interface{}) (interface{}, error) {
+func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSchema, row map[string]interface{}) (interface{}, error) {
 	sku, _ := row["SKU"].(string)
 	if sku == "" {
 		return nil, fmt.Errorf("SKU is required")
@@ -92,7 +92,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[
 	}, nil
 }
 
-func (a *adapter) Repository() importexport.RepositoryActions {
+func (a *adapter) Repository() importexportshared.RepositoryActions {
 	return &productRepoAdapter{
 		repo:         a.repo,
 		categoryRepo: a.categoryRepo,
@@ -183,7 +183,7 @@ func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductI
 	}, nil
 }
 
-func (r *productRepoAdapter) ExportData(ctx context.Context, _ schema.ModuleSchema) ([]map[string]interface{}, error) {
+func (r *productRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
 	products, err := r.repo.GetAllProductsForExport(ctx)
 	if err != nil {
 		return nil, err
@@ -208,8 +208,8 @@ func (r *productRepoAdapter) ExportData(ctx context.Context, _ schema.ModuleSche
 	return result, nil
 }
 
-func (r *productRepoAdapter) LoadReferences(ctx context.Context, s schema.ModuleSchema) (map[string][]importexport.ReferenceItem, error) {
-	refs := make(map[string][]importexport.ReferenceItem)
+func (r *productRepoAdapter) LoadReferences(ctx context.Context, s importexportshared.ModuleSchema) (map[string][]importexportshared.ReferenceItem, error) {
+	refs := make(map[string][]importexportshared.ReferenceItem)
 
 	for _, ref := range s.References {
 		switch ref.ReferenceModule {
@@ -219,7 +219,7 @@ func (r *productRepoAdapter) LoadReferences(ctx context.Context, s schema.Module
 				return nil, fmt.Errorf("load categories: %w", err)
 			}
 			for _, c := range categories {
-				refs["categories"] = append(refs["categories"], importexport.ReferenceItem{
+				refs["categories"] = append(refs["categories"], importexportshared.ReferenceItem{
 					Key: c.Name, Value: c.ID,
 				})
 			}
@@ -230,7 +230,7 @@ func (r *productRepoAdapter) LoadReferences(ctx context.Context, s schema.Module
 				return nil, fmt.Errorf("load brands: %w", err)
 			}
 			for _, b := range brands {
-				refs["brands"] = append(refs["brands"], importexport.ReferenceItem{
+				refs["brands"] = append(refs["brands"], importexportshared.ReferenceItem{
 					Key: b.Name, Value: b.ID,
 				})
 			}
@@ -241,7 +241,7 @@ func (r *productRepoAdapter) LoadReferences(ctx context.Context, s schema.Module
 				return nil, fmt.Errorf("load uoms: %w", err)
 			}
 			for _, u := range units {
-				refs["uoms"] = append(refs["uoms"], importexport.ReferenceItem{
+				refs["uoms"] = append(refs["uoms"], importexportshared.ReferenceItem{
 					Key: u.Code, Value: u.ID,
 				})
 			}

@@ -1,21 +1,21 @@
 package uom
 
-import "retail-pos-system/internal/platform/importexport/schema"
+import importexportshared "retail-pos-system/internal/shared/importexport"
 
-var Schema = schema.ModuleSchema{
+var Schema = importexportshared.ModuleSchema{
 	ModuleName:    "uoms",
 	DisplayName:   "Units of Measure",
 	SchemaVersion: "1.0.0",
 	Description:   "Units of measure for products",
 	PrimaryKey:    "id",
 	BusinessKeys:  []string{"Code"},
-	Columns: []schema.ColumnSchema{
-		{Name: "Code", Type: schema.ColString, Label: "Code", Required: true, MaxLength: schema.IntPtr(20), Editable: false, Exportable: true, Template: true},
-		{Name: "Name", Type: schema.ColString, Label: "Unit Name", Required: true, MaxLength: schema.IntPtr(100), Editable: true, Exportable: true, Template: true},
-		{Name: "Description", Type: schema.ColString, Label: "Description", Required: false, MaxLength: schema.IntPtr(500), Editable: true, Exportable: true, Template: true},
-		{Name: "IsActive", Type: schema.ColBoolean, Label: "Active", Required: false, Default: "true", Editable: true, Exportable: true, Template: true},
+	Columns: []importexportshared.ColumnSchema{
+		{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, MaxLength: importexportshared.IntPtr(20), Editable: false, Exportable: true, Template: true},
+		{Name: "Name", Type: importexportshared.ColString, Label: "Unit Name", Required: true, MaxLength: importexportshared.IntPtr(100), Editable: true, Exportable: true, Template: true},
+		{Name: "Description", Type: importexportshared.ColString, Label: "Description", Required: false, MaxLength: importexportshared.IntPtr(500), Editable: true, Exportable: true, Template: true},
+		{Name: "IsActive", Type: importexportshared.ColBoolean, Label: "Active", Required: false, Default: "true", Editable: true, Exportable: true, Template: true},
 	},
-	Features: schema.ModuleFeatures{
+	Features: importexportshared.ModuleFeatures{
 		ImportEnabled:   true,
 		ExportEnabled:   true,
 		TemplateEnabled: true,

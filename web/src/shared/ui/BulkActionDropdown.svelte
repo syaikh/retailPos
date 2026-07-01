@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Dropdown } from '$shared/ui';
-  import { Download, Upload, FileDown, FileSpreadsheet, FileText } from 'lucide-svelte';
+  import { Download, Upload, FileDown, FileSpreadsheet, FileText, History, ChevronDown } from 'lucide-svelte';
   import { downloadExport, downloadTemplate } from '$shared/services/import-export-service';
   import type { ExportFormat } from '$shared/types/import-export';
 
@@ -10,12 +10,14 @@
     canImport = false,
     canTemplate = true,
     onImport = () => {},
+    onHistory = () => {},
   }: {
     module?: string;
     canExport?: boolean;
     canImport?: boolean;
     canTemplate?: boolean;
     onImport?: () => void;
+    onHistory?: () => void;
   } = $props();
 
   function handleExport(format: ExportFormat) {
@@ -28,30 +30,28 @@
 </script>
 
 {#if canExport || canImport}
-  <div class="flex items-center gap-2">
-    {#if canExport}
-      <Dropdown items={[
-        { label: 'Export CSV', icon: FileText, onclick: () => handleExport('csv') },
-        { label: 'Export XLSX', icon: FileSpreadsheet, onclick: () => handleExport('xlsx') },
-        ...(canTemplate
-          ? [{ separator: 'Template' } as const,
-             { label: 'Download Template', icon: FileDown, onclick: () => handleTemplate() }]
-          : []),
-      ]}>
-        {#snippet trigger({ toggle })}
-          <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
-            <Download size={14} />
-            Export
-          </Button>
-        {/snippet}
-      </Dropdown>
-    {/if}
-
-    {#if canImport}
-      <Button variant="secondary" class="shrink-0 px-3" onclick={onImport}>
-        <Upload size={14} />
-        Import
+  <Dropdown
+    items={[
+      { label: 'Export CSV', icon: FileText, onclick: () => handleExport('csv') },
+      { label: 'Export XLSX', icon: FileSpreadsheet, onclick: () => handleExport('xlsx') },
+      ...(canTemplate
+        ? [{ divider: true }, { label: 'Download Template', icon: FileDown, onclick: () => handleTemplate() }]
+        : []),
+      ...(canImport
+        ? [{ divider: true }, { label: 'Import Data', icon: Upload, onclick: () => onImport() }]
+        : []),
+      ...(canImport
+        ? [{ divider: true }, { label: 'Import History', icon: History, onclick: () => onHistory() }]
+        : []),
+    ]}
+    placement="bottom-end"
+  >
+    {#snippet trigger({ toggle })}
+      <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
+        <Download size={14} />
+        Bulk Actions
+        <ChevronDown size={14} />
       </Button>
-    {/if}
-  </div>
+    {/snippet}
+  </Dropdown>
 {/if}
