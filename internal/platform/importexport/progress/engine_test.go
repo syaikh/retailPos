@@ -57,6 +57,12 @@ func TestProgressCalculation(t *testing.T) {
 	if p.Processed != 25 {
 		t.Fatalf("expected 25 processed, got %d", p.Processed)
 	}
+	if p.Inserted != 10 {
+		t.Fatalf("expected 10 inserted, got %d", p.Inserted)
+	}
+	if p.Updated != 15 {
+		t.Fatalf("expected 15 updated, got %d", p.Updated)
+	}
 }
 
 func TestCancelRequest(t *testing.T) {
@@ -124,5 +130,11 @@ func TestMultipleJobs(t *testing.T) {
 	}
 	if p2.ProgressPct != 25 {
 		t.Fatalf("job2: expected 25%%, got %d%%", p2.ProgressPct)
+	}
+	if p1.Inserted != 0 || p1.Updated != 0 {
+		t.Fatalf("job1: expected inserted=0 updated=0, got %d/%d", p1.Inserted, p1.Updated)
+	}
+	if p2.Inserted != 0 || p2.Updated != 0 {
+		t.Fatalf("job2: expected inserted=0 updated=0, got %d/%d", p2.Inserted, p2.Updated)
 	}
 }
