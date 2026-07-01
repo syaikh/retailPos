@@ -3,18 +3,21 @@ import type { PreviewResult, ImportResult, ImportProgress, ModuleInfo, ExportFor
 
 const BASE = '/import-export';
 
-function getToken(): string {
-  return sessionStorage.getItem('access_token') || '';
-}
-
 export async function getModules(): Promise<ModuleInfo[]> {
   const { data } = await apiClient.get(`${BASE}/modules`);
   return data;
 }
 
-export function downloadTemplate(module: string): void {
-  const token = getToken();
-  window.open(`${import.meta.env.VITE_API_URL || ''}/api${BASE}/template/${module}?token=${token}`, '_blank');
+export async function downloadTemplate(module: string): Promise<void> {
+  const response = await apiClient.get(`${BASE}/template/${module}`, { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `${module}-template.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export async function uploadPreview(module: string, file: File): Promise<PreviewResult> {
@@ -43,7 +46,20 @@ export async function cancelImport(jobId: string): Promise<void> {
   await apiClient.post(`${BASE}/cancel/${jobId}`);
 }
 
-export function downloadExport(module: string, format: ExportFormat): void {
-  const token = getToken();
-  window.open(`${import.meta.env.VITE_API_URL || ''}/api${BASE}/export/${module}?format=${format}&token=${token}`, '_blank');
+export async function downloadExport(module: string, format: ExportFormat): Promise<void> {
+  const response = await apiClient.get(`${BASE}/export/${module}`, {
+    params: { format },
+    responseType: 'blob',
+  });
+  const disposition = response.headers?.['content-disposition'] as string | undefined;
+  const match = disposition?.match(/filename="?(.+?)"?$/);
+  const filename = match?.[1] ?? `${module}-export.${format}`;
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
