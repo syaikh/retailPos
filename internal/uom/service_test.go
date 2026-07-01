@@ -148,37 +148,6 @@ func TestUOMService_ReadOperations(t *testing.T) {
 	})
 }
 
-func TestUOMService_GetAllForExport(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	units, err := svc.GetAllForExport(ctx)
-	require.NoError(t, err)
-	assert.NotNil(t, units)
-}
-
-func TestUOMService_Import(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	records := []UOMImportRow{
-		{Row: 2, Code: "SVCIMP", Name: "Svc Import UOM", IsActive: true},
-	}
-	result := svc.Import(ctx, records)
-	assert.Equal(t, 1, result.Inserted)
-	assert.Empty(t, result.Errors)
-}
-
 func TestUOMService_CreateWithIsActiveFalse(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()

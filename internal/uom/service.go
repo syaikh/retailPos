@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/importutil"
 )
 
 type EventBus interface {
@@ -80,10 +79,4 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 	return s.eventBus.Publish(ctx, "uom.deleted", id)
 }
 
-func (s *Service) GetAllForExport(ctx context.Context) ([]UnitOfMeasure, error) {
-	return s.repo.GetAllForExport(ctx)
-}
 
-func (s *Service) Import(ctx context.Context, records []UOMImportRow) importutil.ImportResult {
-	return s.repo.BulkUpsert(ctx, records)
-}

@@ -5,7 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
-  import { Button, Modal, Pagination, ImportModal } from '$shared/ui';
+  import { Button, Modal, Pagination, ImportWizard } from '$shared/ui';
   import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
@@ -16,7 +16,6 @@
   import ProductBulkActions from './ProductBulkActions.svelte';
   import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
-  import { exportProducts, importProducts } from '../services/product-service';
 
   const authStore = useAuthStore();
 
@@ -65,14 +64,11 @@
   let showBulkStatusModal = $state(false);
   let bulkStatusTarget = $state('active');
   let isBulkUpdating = $state(false);
-  let showImportModal = $state(false);
+  let showImportWizard = $state(false);
 
-  function handleExport(format: 'csv' | 'xlsx') {
-    exportProducts(format);
-  }
-
-  async function handleImport(file: File) {
-    return await importProducts(file);
+  function handleImportComplete() {
+    fetchProducts(offset, limit);
+    toast.success('Product import completed');
   }
 
   function clearSelection() {
@@ -536,8 +532,7 @@
       resetForm();
       showModal = true;
     }}
-    onExport={handleExport}
-    onImport={() => showImportModal = true}
+    onImport={() => showImportWizard = true}
   />
 
   <div class="card overflow-hidden">
@@ -687,10 +682,10 @@
   ondelete={() => { showDetailDrawer = false; showDeleteModal = true; }}
 />
 
-<ImportModal
-  bind:show={showImportModal}
-  title="Import Products"
-  templateHeaders={['SKU', 'Name', 'Barcode', 'Category', 'Brand', 'Price', 'Cost', 'Stock', 'Status', 'UnitOfMeasure', 'WeightGrams', 'Description']}
-  onImport={handleImport}
+<ImportWizard
+  bind:open={showImportWizard}
+  module="products"
+  displayName="Products"
+  onComplete={handleImportComplete}
 />
 

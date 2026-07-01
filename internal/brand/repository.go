@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"time"
 
-	"retail-pos-system/internal/importutil"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type ImportResult struct {
+	Inserted int      `json:"inserted"`
+	Updated  int      `json:"updated"`
+	Errors   []string `json:"errors"`
+}
+
+func (r *ImportResult) AddError(row int, msg string) {
+	r.Errors = append(r.Errors, fmt.Sprintf("row %d: %s", row, msg))
+}
 
 type Repository struct {
 	db *pgxpool.Pool
@@ -102,8 +110,8 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Brand, error) {
 	return brands, nil
 }
 
-func (r *Repository) BulkUpsert(ctx context.Context, records []BrandImportRow) importutil.ImportResult {
-	result := importutil.ImportResult{Errors: []string{}}
+func (r *Repository) BulkUpsert(ctx context.Context, records []BrandImportRow) ImportResult {
+	result := ImportResult{Errors: []string{}}
 
 	for _, rec := range records {
 		if rec.Name == "" {

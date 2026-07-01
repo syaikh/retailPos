@@ -7,11 +7,19 @@ import (
 	"strings"
 	"time"
 
-	"retail-pos-system/internal/importutil"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type ImportResult struct {
+	Inserted int      `json:"inserted"`
+	Updated  int      `json:"updated"`
+	Errors   []string `json:"errors"`
+}
+
+func (r *ImportResult) AddError(row int, msg string) {
+	r.Errors = append(r.Errors, fmt.Sprintf("row %d: %s", row, msg))
+}
 
 var jakartaLoc *time.Location
 
@@ -273,8 +281,8 @@ func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category,
 }
 
 // BulkUpsertCategories inserts or updates categories in batch
-func (r *Repository) BulkUpsertCategories(ctx context.Context, records []CategoryImportRow) importutil.ImportResult {
-	result := importutil.ImportResult{Errors: []string{}}
+func (r *Repository) BulkUpsertCategories(ctx context.Context, records []CategoryImportRow) ImportResult {
+	result := ImportResult{Errors: []string{}}
 
 	for _, rec := range records {
 		if rec.Name == "" {

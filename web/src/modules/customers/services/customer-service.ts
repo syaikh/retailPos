@@ -34,14 +34,3 @@ export async function bulkDelete(ids: number[]): Promise<void> {
   await apiClient.post('/customers/bulk/delete', { ids });
 }
 
-export async function exportCustomers(format: 'csv' | 'xlsx'): Promise<void> {
-  const token = sessionStorage.getItem('access_token');
-  window.open(`/api/customers/export?format=${format}&token=${token}`, '_blank');
-}
-
-export async function importCustomers(file: File): Promise<any> {
-  const formData = new FormData();
-  formData.append('file', file);
-  const r = await apiClient.post('/customers/import', formData);
-  return r.data;
-}

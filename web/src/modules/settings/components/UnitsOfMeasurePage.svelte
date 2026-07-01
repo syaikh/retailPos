@@ -4,11 +4,11 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
-  import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure, exportUnitsOfMeasure, importUnitsOfMeasure } from '$modules/settings/services/settings-service';
+  import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure } from '$modules/settings/services/settings-service';
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton, ImportModal, ExportImportButtons, SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Ruler, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -73,14 +73,11 @@
     fetchUoms();
   }, 400);
 
-  let showImportModal = $state(false);
+  let showImportWizard = $state(false);
 
-  function handleExport(format) {
-    exportUnitsOfMeasure(format);
-  }
-
-  async function handleImport(file) {
-    return await importUnitsOfMeasure(file);
+  function handleImportComplete() {
+    fetchUoms();
+    toast.success('UOM import completed');
   }
 
   function openAdd() {
@@ -173,10 +170,11 @@
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
-          <ExportImportButtons
-            canExportImport={true}
-            onExport={handleExport}
-            onImport={() => showImportModal = true}
+          <BulkActionDropdown
+            module="uoms"
+            canExport={true}
+            canImport={true}
+            onImport={() => showImportWizard = true}
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
@@ -336,11 +334,11 @@
   {/snippet}
 </Modal>
 
-<ImportModal
-  bind:show={showImportModal}
-  title="Import Units of Measure"
-  templateHeaders={['Code', 'Name', 'Description', 'IsActive']}
-  onImport={handleImport}
+<ImportWizard
+  bind:open={showImportWizard}
+  module="uoms"
+  displayName="Units of Measure"
+  onComplete={handleImportComplete}
 />
 
 <Modal bind:open={showDeleteModal} title="Hapus Unit" size="sm">

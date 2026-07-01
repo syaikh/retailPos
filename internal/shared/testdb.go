@@ -81,6 +81,7 @@ func TruncateAll(pool *pgxpool.Pool, tables ...string) error {
 
 func TruncateTestData(pool *pgxpool.Pool) error {
 	tables := []string{
+		"import_rows", "import_errors", "import_snapshots", "import_jobs",
 		"categories", "brands", "units_of_measure", "warehouses", "tax_classes",
 		"products", "product_stock",
 		"customers",

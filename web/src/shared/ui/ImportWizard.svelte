@@ -1,0 +1,248 @@
+<script lang="ts">
+  import { Button, Modal, DropZone, PreviewTable, ValidationSummary, ProgressDialog } from '$shared/ui';
+  import { Loader2, AlertCircle, Upload, CheckCircle2, ArrowLeft, ArrowRight, Download, FileSpreadsheet } from 'lucide-svelte';
+  import { uploadPreview, confirmImport, getProgress, cancelImport, downloadTemplate } from '$shared/services/import-export-service';
+  import type { PreviewResult, ImportProgress } from '$shared/types/import-export';
+
+  let {
+    open = $bindable(false),
+    module = '',
+    displayName = '',
+    onComplete = () => {},
+  }: {
+    open?: boolean;
+    module?: string;
+    displayName?: string;
+    onComplete?: () => void;
+  } = $props();
+
+  type Step = 'upload' | 'preview' | 'progress';
+
+  let step = $state<Step>('upload');
+  let file = $state<File | null>(null);
+  let preview = $state<PreviewResult | null>(null);
+  let progress = $state<ImportProgress | null>(null);
+  let loading = $state(false);
+  let error = $state('');
+
+  let columns = $derived<string[]>([]);
+  let errorRows = $derived<PreviewRow[]>([]);
+  let warningRows = $derived<PreviewRow[]>([]);
+  let validationErrors = $derived<import('$shared/types/import-export').ValidationError[]>([]);
+
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  $effect(() => {
+    if (open) {
+      step = 'upload';
+      file = null;
+      preview = null;
+      progress = null;
+      error = '';
+    }
+  });
+
+  $effect(() => {
+    if (preview) {
+      columns = preview.rows.length > 0
+        ? Object.keys(preview.rows[0].new_values || preview.rows[0].newValues)
+        : [];
+      validationErrors = preview.rows
+        .filter(r => r.status === 'error')
+        .flatMap(r => r.errors);
+    }
+  });
+
+  async function handleUpload() {
+    if (!file || !module) return;
+    loading = true;
+    error = '';
+    try {
+      preview = await uploadPreview(module, file);
+      step = 'preview';
+    } catch (err: any) {
+      error = err?.response?.data?.error || err?.message || 'Preview failed';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleConfirm() {
+    if (!module || !preview?.token) return;
+    loading = true;
+    error = '';
+    try {
+      const result = await confirmImport(module, preview.token);
+      progress = {
+        job_id: result.job_id,
+        status: result.status,
+        progress_pct: 0,
+        total_rows: result.total_rows,
+        processed: 0,
+        errors: result.errors,
+        started_at: new Date().toISOString(),
+        duration_ms: 0,
+      };
+      step = 'progress';
+    } catch (err: any) {
+      error = err?.response?.data?.error || err?.message || 'Confirm failed';
+    } finally {
+      loading = false;
+    }
+  }
+
+  $effect(() => {
+    if (step === 'progress' && progress && !['completed', 'failed', 'cancelled'].includes(progress.status)) {
+      pollTimer = setInterval(async () => {
+        try {
+          const p = await getProgress(String(progress!.job_id));
+          progress = p;
+          if (['completed', 'failed', 'cancelled'].includes(p.status)) {
+            if (p.status === 'completed') onComplete();
+            if (pollTimer) clearInterval(pollTimer);
+          }
+        } catch {
+          if (pollTimer) clearInterval(pollTimer);
+        }
+      }, 1000);
+    }
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  });
+
+  async function handleCancel() {
+    if (!progress) return;
+    try {
+      await cancelImport(String(progress.job_id));
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleClose() {
+    if (pollTimer) clearInterval(pollTimer);
+    open = false;
+  }
+
+  function handleBack() {
+    step = 'upload';
+    preview = null;
+    error = '';
+  }
+
+  function handleDownloadTemplate() {
+    if (module) downloadTemplate(module);
+  }
+
+  let canImport = $derived(
+    preview && preview.errorCount === 0 && preview.totalRows > 0
+  );
+</script>
+
+<Modal bind:open={open} title={displayName ? `Import ${displayName}` : 'Import'} size="xl">
+  <div class="space-y-4 min-h-[200px]">
+    {#if step === 'upload'}
+      <div class="space-y-4">
+        <DropZone bind:file accept=".csv,.xlsx" disabled={loading} />
+
+        <div class="flex items-center justify-between">
+          <button
+            type="button"
+            class="text-xs text-primary-light hover:underline inline-flex items-center gap-1"
+            onclick={handleDownloadTemplate}
+          >
+            <Download size={12} />
+            Download Template
+          </button>
+          {#if file}
+            <span class="text-xs text-text-muted">
+              <FileSpreadsheet size={12} class="inline mr-1" />
+              {file.name.endsWith('.csv') ? 'CSV' : 'XLSX'} file selected
+            </span>
+          {/if}
+        </div>
+
+        {#if error}
+          <div class="flex items-start gap-2 p-3 bg-danger-subtle/10 rounded-lg">
+            <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
+            <p class="text-sm text-danger">{error}</p>
+          </div>
+        {/if}
+      </div>
+
+    {:else if step === 'preview' && preview}
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 text-sm">
+            <span class="text-text-primary font-medium">Preview</span>
+            <span class="text-text-muted">{preview.total_rows} rows</span>
+            <span class="inline-flex items-center gap-1 text-emerald-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              {preview.insert_count} insert
+            </span>
+            <span class="inline-flex items-center gap-1 text-amber-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              {preview.update_count} update
+            </span>
+            {#if preview.error_count > 0}
+              <span class="inline-flex items-center gap-1 text-rose-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                {preview.error_count} error
+              </span>
+            {/if}
+          </div>
+        </div>
+
+        <ValidationSummary errors={validationErrors} />
+
+        <PreviewTable rows={preview.rows} {columns} />
+
+        {#if !canImport && preview.errorCount > 0}
+          <div class="p-3 bg-danger-subtle/10 rounded-lg flex items-start gap-2">
+            <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
+            <p class="text-sm text-danger">
+              Fix the errors above before importing. Rows with errors will be skipped.
+            </p>
+          </div>
+        {/if}
+      </div>
+
+    {:else if step === 'progress'}
+      <ProgressDialog
+        bind:progress
+        onCancel={handleCancel}
+        onClose={handleClose}
+      />
+    {/if}
+  </div>
+
+  {#snippet footer()}
+    {#if step === 'upload'}
+      <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+      <Button variant="primary" disabled={!file || loading} onclick={handleUpload}>
+        {#if loading}
+          <Loader2 size={16} class="animate-spin" /> Parsing...
+        {:else}
+          <Upload size={14} /> Preview
+        {/if}
+      </Button>
+
+    {:else if step === 'preview'}
+      <div class="flex items-center gap-3 w-full">
+        <Button variant="secondary" onclick={handleBack}>
+          <ArrowLeft size={14} /> Back
+        </Button>
+        <div class="flex-1"></div>
+        <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+          <Button variant="primary" disabled={!canImport || loading} onclick={handleConfirm}>
+            {#if loading}
+              <Loader2 size={16} class="animate-spin" /> Confirming...
+            {:else}
+              <CheckCircle2 size={14} /> Import {preview?.insert_count + preview?.update_count} Rows
+            {/if}
+          </Button>
+      </div>
+    {/if}
+  {/snippet}
+</Modal>

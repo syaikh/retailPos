@@ -188,41 +188,4 @@ func TestHandler_DeleteBrand(t *testing.T) {
 	})
 }
 
-func TestHandler_ExportBrands(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupBrandRouter()
 
-	repo := NewRepository(dbPool)
-	_ = repo.Create(context.Background(), &Brand{Name: "Handler Export Brand 1", IsActive: true})
-
-	t.Run("csv export", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/brands/export", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "text/csv")
-	})
-
-	t.Run("xlsx export", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/brands/export?format=xlsx", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "spreadsheetml")
-	})
-}
-
-func TestHandler_ImportBrands(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupBrandRouter()
-
-	t.Run("missing file", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/brands/import", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}

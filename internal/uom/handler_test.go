@@ -188,41 +188,4 @@ func TestHandler_DeleteUnitOfMeasure(t *testing.T) {
 	})
 }
 
-func TestHandler_ExportUnitsOfMeasure(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupUOMRouter()
 
-	repo := NewRepository(dbPool)
-	_ = repo.Create(context.Background(), &UnitOfMeasure{Code: "HDLEXP", Name: "Handler Export UOM", IsActive: true})
-
-	t.Run("csv export", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/units-of-measure/export", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "text/csv")
-	})
-
-	t.Run("xlsx export", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/units-of-measure/export?format=xlsx", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "spreadsheetml")
-	})
-}
-
-func TestHandler_ImportUnitsOfMeasure(t *testing.T) {
-	skipIfNoDB(t)
-	r := setupUOMRouter()
-
-	t.Run("missing file", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/units-of-measure/import", nil)
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}

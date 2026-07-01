@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/importutil"
 )
 
 type EventBus interface {
@@ -84,10 +83,4 @@ func (s *Service) HasActiveProducts(ctx context.Context, categoryID int) (bool, 
 	return s.repo.HasActiveProducts(ctx, categoryID)
 }
 
-func (s *Service) GetAllCategoriesForExport(ctx context.Context) ([]Category, error) {
-	return s.repo.GetAllCategoriesForExport(ctx)
-}
 
-func (s *Service) ImportCategories(ctx context.Context, records []CategoryImportRow) importutil.ImportResult {
-	return s.repo.BulkUpsertCategories(ctx, records)
-}

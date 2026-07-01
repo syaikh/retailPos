@@ -2,11 +2,9 @@ package product
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/importutil"
 )
 
 type EventBus interface {
@@ -104,99 +102,7 @@ func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) { re
 func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) { return s.repo.GetWarehouseByID(ctx, id) }
 func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) { return s.repo.GetAllWarehouses(ctx, nil) }
 
-func (s *Service) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
-	return s.repo.GetAllProductsForExport(ctx)
-}
 
-func (s *Service) ImportProducts(ctx context.Context, records []ProductImportRow) importutil.ImportResult {
-	result := importutil.ImportResult{Errors: []string{}}
-
-	for _, rec := range records {
-		if rec.SKU == "" {
-			result.AddError(rec.Row, "SKU is required")
-			continue
-		}
-		if rec.Name == "" {
-			result.AddError(rec.Row, "Name is required")
-			continue
-		}
-		if rec.Price <= 0 {
-			result.AddError(rec.Row, "Price must be greater than 0")
-			continue
-		}
-		if rec.Stock < 0 {
-			result.AddError(rec.Row, "Stock must not be negative")
-			continue
-		}
-		status := rec.Status
-		if status == "" {
-			status = "active"
-		}
-		validStatuses := map[string]bool{"active": true, "inactive": true, "draft": true, "archived": true}
-		if !validStatuses[status] {
-			result.AddError(rec.Row, "Status must be one of: active, inactive, draft, archived")
-			continue
-		}
-
-		var categoryID *int
-		if rec.Category != "" {
-			id, err := s.resolveCategoryID(ctx, rec.Category)
-			if err != nil {
-				result.AddError(rec.Row, fmt.Sprintf("category error: %v", err))
-				continue
-			}
-			categoryID = &id
-		}
-
-		var brandID *int
-		if rec.Brand != "" {
-			id, err := s.resolveBrandID(ctx, rec.Brand)
-			if err != nil {
-				result.AddError(rec.Row, fmt.Sprintf("brand error: %v", err))
-				continue
-			}
-			brandID = &id
-		}
-
-		var uomID *int
-		if rec.UnitOfMeasure != "" {
-			id, err := s.resolveUnitOfMeasureID(ctx, rec.UnitOfMeasure)
-			if err != nil {
-				result.AddError(rec.Row, fmt.Sprintf("unit of measure error: %v", err))
-				continue
-			}
-			uomID = &id
-		}
-
-		inserted, err := s.repo.BulkUpsertProduct(ctx, ProductImportPayload{
-			SKU:           rec.SKU,
-			Name:          rec.Name,
-			Barcode:       strPtr(rec.Barcode),
-			CategoryID:    categoryID,
-			BrandID:       brandID,
-			Price:         rec.Price,
-			Cost:          rec.Cost,
-			Stock:         rec.Stock,
-			Status:        status,
-			UnitOfMeasureID: uomID,
-			WeightGrams:   intPtr(rec.WeightGrams),
-			Description:   strPtr(rec.Description),
-		})
-
-		if err != nil {
-			result.AddError(rec.Row, fmt.Sprintf("failed to upsert: %v", err))
-			continue
-		}
-
-		if inserted {
-			result.Inserted++
-		} else {
-			result.Updated++
-		}
-	}
-
-	return result
-}
 
 func (s *Service) resolveCategoryID(ctx context.Context, name string) (int, error) {
 	return s.categoryRepo.GetCategoryIDByName(ctx, name)

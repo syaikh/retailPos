@@ -17,6 +17,14 @@ import (
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/platform/importexport"
+	"retail-pos-system/internal/platform/importexport/export"
+	ieh "retail-pos-system/internal/platform/importexport/handler"
+	importer "retail-pos-system/internal/platform/importexport/import"
+	"retail-pos-system/internal/platform/importexport/progress"
+	"retail-pos-system/internal/platform/importexport/schema"
+	"retail-pos-system/internal/platform/importexport/template"
+	"retail-pos-system/internal/platform/importexport/validation"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
@@ -136,6 +144,28 @@ func main() {
 	auditH := audit.NewHandler(auditSvc)
 	reportH := report.NewHandler(reportSvc)
 
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(category.Schema)
+	_ = schemaReg.Register(brand.Schema)
+	_ = schemaReg.Register(uom.Schema)
+	_ = schemaReg.Register(customer.Schema)
+	_ = schemaReg.Register(product.Schema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	_ = adapterReg.Register(category.NewAdapter(categoryRepo))
+	_ = adapterReg.Register(brand.NewAdapter(brandRepo))
+	_ = adapterReg.Register(uom.NewAdapter(uomRepo))
+	_ = adapterReg.Register(customer.NewAdapter(customerRepo))
+	_ = adapterReg.Register(product.NewAdapter(productRepo, categoryRepo, brandRepo, uomRepo))
+
+	valPipeline := validation.NewDefaultPipeline()
+	progStore := progress.NewInMemoryStore()
+	progEng := progress.NewEngine(progStore)
+	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+	ieH := ieh.NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+
 	hub := websocket.NewHub(&authAdapter{authSvc})
 	go hub.Run()
 	defer hub.Shutdown()
@@ -184,6 +214,7 @@ func main() {
 		reportH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		brandH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		uomH.RegisterRoutes(protected, authMiddleware, permMiddleware)
+		ieH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

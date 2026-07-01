@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar, ExportImportButtons, Dropdown } from '$shared/ui';
+  import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui';
   import { Plus, SlidersHorizontal, ChevronDown, AlertTriangle, X } from 'lucide-svelte';
 
   let {
@@ -15,7 +15,6 @@
     onrefresh = () => {},
     onclearall = () => {},
     onadd = () => {},
-    onExport = (_format: 'csv' | 'xlsx') => {},
     onImport = () => {},
   }: {
     searchQuery?: string;
@@ -30,7 +29,6 @@
     onrefresh?: () => void;
     onclearall?: () => void;
     onadd?: () => void;
-    onExport?: (format: 'csv' | 'xlsx') => void;
     onImport?: () => void;
   } = $props();
 
@@ -113,7 +111,7 @@
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
     </button>
-    <ExportImportButtons canExportImport={canCreate} {onExport} {onImport} />
+    <BulkActionDropdown module="products" canExport={canCreate} canImport={canCreate} {onImport} />
     <Button
       onclick={onadd}
       disabled={!canManageInventory}

@@ -145,37 +145,6 @@ func TestBrandService_ReadOperations(t *testing.T) {
 	})
 }
 
-func TestBrandService_GetAllForExport(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	brands, err := svc.GetAllForExport(ctx)
-	require.NoError(t, err)
-	assert.NotNil(t, brands)
-}
-
-func TestBrandService_Import(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	records := []BrandImportRow{
-		{Row: 2, Name: "SvcImportBrand", Description: "Imported", IsActive: true},
-	}
-	result := svc.Import(ctx, records)
-	assert.Equal(t, 1, result.Inserted)
-	assert.Empty(t, result.Errors)
-}
-
 func TestBrandService_CreateWithIsActiveFalse(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()

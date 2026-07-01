@@ -3,9 +3,8 @@
   import apiClient from '$shared/api/http-client';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Pagination, ImportModal } from '$shared/ui';
+  import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
-  import { exportCustomers, importCustomers } from '../services/customer-service';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
   import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
   import BulkStatusModal from './BulkStatusModal.svelte';
@@ -304,14 +303,11 @@
     }
   }
 
-  let showImportModal = $state(false);
+  let showImportWizard = $state(false);
 
-  function handleExport(format: 'csv' | 'xlsx') {
-    exportCustomers(format);
-  }
-
-  async function handleImport(file: File) {
-    return await importCustomers(file);
+  function handleImportComplete() {
+    load();
+    toast.success('Customer import completed');
   }
 
   onMount(() => {
@@ -327,8 +323,7 @@
     onsearch={handleSearchInput}
     onstatuschange={handleStatusFilterChange}
     oncreate={() => { resetForm(); showCreateModal = true; }}
-    onExport={handleExport}
-    onImport={() => showImportModal = true}
+    onImport={() => showImportWizard = true}
   />
 
   <div class="card overflow-hidden">
@@ -407,9 +402,9 @@
   onconfirm={handleBulkDelete}
 />
 
-<ImportModal
-  bind:show={showImportModal}
-  title="Import Customers"
-  templateHeaders={['Name', 'Phone', 'Email', 'Address', 'Note', 'IsActive']}
-  onImport={handleImport}
+<ImportWizard
+  bind:open={showImportWizard}
+  module="customers"
+  displayName="Customers"
+  onComplete={handleImportComplete}
 />

@@ -11,8 +11,8 @@ function getSource(): string {
 describe('ProductFiltersToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button, SearchBar, Dropdown from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar, ExportImportButtons, Dropdown } from '$shared/ui'");
+  it('imports Button, SearchBar, BulkActionDropdown, Dropdown from shared/ui', () => {
+    expect(src).toContain("import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui'");
   });
 
   it('uses $bindable for searchQuery, selectedCategories, filterStatus, lowStockOnly', () => {
