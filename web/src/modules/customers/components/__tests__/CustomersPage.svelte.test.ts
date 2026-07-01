@@ -53,15 +53,16 @@ describe('CustomersPage.svelte source-structure guards', () => {
     expect(src).toContain('function clearSelection');
   });
 
-  it('has load, createCustomer, saveEdit functions', () => {
+  it('has load, createCustomer, handleEditSave functions', () => {
     expect(src).toContain('async function load');
     expect(src).toContain('async function createCustomer');
-    expect(src).toContain('async function saveEdit');
+    expect(src).toContain('async function handleEditSave');
   });
 
-  it('has inline editing (startEdit, cancelEdit)', () => {
+  it('has edit modal functions (startEdit, handleEditSave, handleEditCancel)', () => {
     expect(src).toContain('function startEdit');
-    expect(src).toContain('function cancelEdit');
+    expect(src).toContain('async function handleEditSave');
+    expect(src).toContain('function handleEditCancel');
   });
 
   it('renders Pagination component', () => {

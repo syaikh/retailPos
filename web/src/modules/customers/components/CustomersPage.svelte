@@ -6,6 +6,7 @@
   import { Pagination, ImportWizard, HistoryDialog } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
+  import EditCustomerModal from './EditCustomerModal.svelte';
   import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
   import BulkStatusModal from './BulkStatusModal.svelte';
   import BulkDeleteModal from './BulkDeleteModal.svelte';
@@ -82,13 +83,9 @@
     }
   }
 
-  let editingId = $state<number | null>(null);
-  let editName = $state('');
-  let editPhone = $state('');
-  let editEmail = $state('');
-  let editAddress = $state('');
-  let editNote = $state('');
-  let editActive = $state(true);
+  let showEditModal = $state(false);
+  let editTarget = $state<any>(null);
+  let isSaving = $state(false);
 
   let sortBy = $state('name');
   let sortDir = $state('asc');
@@ -235,8 +232,8 @@
         name: formName.trim(),
         phone: formPhone.trim(),
         email: formEmail.trim(),
-        address: formAddress.trim() || undefined,
-        note: formNote.trim() || undefined,
+        address: formAddress.trim() || null,
+        note: formNote.trim() || null,
       });
       toast.success(`Customer "${formName.trim()}" created successfully`);
       resetForm();
@@ -251,40 +248,35 @@
   }
 
   function startEdit(c: any) {
-    editingId = c.id;
-    editName = c.name || '';
-    editPhone = c.phone || '';
-    editEmail = c.email || '';
-    editAddress = c.address || '';
-    editNote = c.note || '';
-    editActive = c.is_active !== false;
+    editTarget = c;
+    showEditModal = true;
   }
 
-  function cancelEdit() {
-    editingId = null;
-  }
-
-  async function saveEdit(id: number) {
-    if (!editName.trim()) { toast.error('Name is required'); return; }
-    if (!editPhone.trim()) { toast.error('Phone is required'); return; }
-    if (!validatePhone(editPhone.trim())) { toast.error('Invalid phone format'); return; }
-    if (!editEmail.trim()) { toast.error('Email is required'); return; }
-    if (!validateEmail(editEmail.trim())) { toast.error('Invalid email format'); return; }
+  async function handleEditSave(data: any) {
+    isSaving = true;
     try {
-      await apiClient.put(`/customers/${id}`, {
-        name: editName.trim(),
-        phone: editPhone.trim() || undefined,
-        email: editEmail.trim() || undefined,
-        address: editAddress.trim() || undefined,
-        note: editNote.trim() || undefined,
-        is_active: editActive,
+      await apiClient.put(`/customers/${data.id}`, {
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        note: data.note,
+        is_active: data.is_active,
       });
       toast.success('Customer updated successfully');
-      editingId = null;
+      showEditModal = false;
+      editTarget = null;
       await load();
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to update customer');
+    } finally {
+      isSaving = false;
     }
+  }
+
+  function handleEditCancel() {
+    showEditModal = false;
+    editTarget = null;
   }
 
   async function deactivateCustomer(c: any) {
@@ -297,7 +289,6 @@
     deactivating = true;
     try {
       await apiClient.delete(`/customers/${deactivateTarget.id}`);
-      if (editingId === deactivateTarget.id) editingId = null;
       toast.success(`Customer "${deactivateTarget.name}" deactivated`);
       showDeactivateModal = false;
       deactivateTarget = null;
@@ -342,19 +333,10 @@
       {canUpdate}
       {canDelete}
       bind:selectedIds
-      bind:editingId
-      bind:editName
-      bind:editPhone
-      bind:editEmail
-      bind:editAddress
-      bind:editNote
-      bind:editActive
       bind:sortBy
       bind:sortDir
       onsort={handleSort}
       onedit={startEdit}
-      oncanceledit={cancelEdit}
-      onsaveedit={saveEdit}
       ondeactivate={deactivateCustomer}
     />
 
@@ -385,6 +367,14 @@
   bind:fieldErrors
   bind:creating
   oncreate={createCustomer}
+/>
+
+<EditCustomerModal
+  bind:open={showEditModal}
+  customer={editTarget}
+  bind:saving={isSaving}
+  onsave={handleEditSave}
+  oncancel={handleEditCancel}
 />
 
 <DeactivateCustomerModal

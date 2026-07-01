@@ -15,13 +15,8 @@ describe('CustomerTable.svelte source-structure guards', () => {
     expect(src).toContain("import { Badge, Button, Skeleton } from '$shared/ui'");
   });
 
-  it('uses $bindable for selectedIds, editingId, editName, editPhone, editEmail, editActive, sortBy, sortDir', () => {
+  it('uses $bindable for selectedIds, sortBy, sortDir', () => {
     expect(src).toContain('selectedIds = $bindable');
-    expect(src).toContain('editingId = $bindable');
-    expect(src).toContain('editName = $bindable');
-    expect(src).toContain('editPhone = $bindable');
-    expect(src).toContain('editEmail = $bindable');
-    expect(src).toContain('editActive = $bindable');
     expect(src).toContain('sortBy = $bindable');
     expect(src).toContain('sortDir = $bindable');
   });
@@ -31,11 +26,9 @@ describe('CustomerTable.svelte source-structure guards', () => {
     expect(src).toContain('someSelected = $derived');
   });
 
-  it('has event callbacks (onsort, onedit, oncanceledit, onsaveedit, ondeactivate)', () => {
+  it('has event callbacks (onsort, onedit, ondeactivate)', () => {
     expect(src).toContain('onsort');
     expect(src).toContain('onedit');
-    expect(src).toContain('oncanceledit');
-    expect(src).toContain('onsaveedit');
     expect(src).toContain('ondeactivate');
   });
 
@@ -52,7 +45,7 @@ describe('CustomerTable.svelte source-structure guards', () => {
     expect(src).toContain('No customers yet');
   });
 
-  it('has inline editing row', () => {
-    expect(src).toContain('{#if editingId === c.id}');
+  it('does not have inline editing row', () => {
+    expect(src).not.toContain('{#if editingId === c.id}');
   });
 });

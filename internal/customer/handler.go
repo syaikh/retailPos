@@ -80,6 +80,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		Phone    string  `json:"phone"`
 		Email    string  `json:"email"`
 		Address  *string `json:"address"`
+		Note     *string `json:"note"`
 		IsActive bool    `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -92,6 +93,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		Phone:    &req.Phone,
 		Email:    &req.Email,
 		Address:  req.Address,
+		Note:     req.Note,
 		IsActive: req.IsActive,
 	}
 
@@ -114,6 +116,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		Phone    *string `json:"phone"`
 		Email    *string `json:"email"`
 		Address  *string `json:"address"`
+		Note     *string `json:"note"`
 		IsActive bool    `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -127,6 +130,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		Phone:    req.Phone,
 		Email:    req.Email,
 		Address:  req.Address,
+		Note:     req.Note,
 		IsActive: req.IsActive,
 	}
 

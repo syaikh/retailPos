@@ -1733,8 +1733,8 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
-		 VALUES ($1, $2, $3, true, false, $4)`)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
+		 VALUES ($1, $2, $3, $4, $5, true, false, $6)`)
 	if err != nil {
 		return fmt.Errorf("prepare: %w", err)
 	}
@@ -1745,13 +1745,32 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	// Insert a walk-in/general customer first
 	walkInID := 0
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
-		 VALUES ('Walk-in / General', '', '', true, true, $1)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
+		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1)
 		 RETURNING id`,
 		ref,
 	).Scan(&walkInID)
 	if err != nil {
 		return fmt.Errorf("insert walk-in customer: %w", err)
+	}
+
+	customerStreets := []string{
+		"Jl. Merdeka", "Jl. Sudirman", "Jl. Gatot Subroto", "Jl. Ahmad Yani",
+		"Jl. Diponegoro", "Jl. Pahlawan", "Jl. Anggrek", "Jl. Melati",
+		"Jl. Kenanga", "Jl. Mawar", "Jl. Flamboyan", "Jl. Cempaka",
+		"Jl. Kartini", "Jl. Sisingamangaraja", "Jl. Veteran", "Jl. Gajah Mada",
+		"Jl. Hayam Wuruk", "Jl. Juanda", "Jl. Pemuda", "Jl. Siliwangi",
+	}
+	customerCities := []string{
+		"Jakarta Pusat", "Jakarta Selatan", "Jakarta Barat", "Jakarta Timur", "Jakarta Utara",
+		"Bandung", "Surabaya", "Semarang", "Yogyakarta", "Medan",
+		"Makassar", "Palembang", "Denpasar", "Malang", "Bekasi",
+	}
+	customerNotes := []string{
+		"", "", "", "",
+		"Pelanggan tetap", "Member premium", "Rekomendasi dari teman",
+		"Pernah komplain", "Pembayaran tunai", "Pembayaran transfer",
+		"Alergi seafood", "Request packaging khusus", "Catatan: antar ke dapur",
 	}
 
 	for i := 0; i < numCustomers; i++ {
@@ -1760,11 +1779,13 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		name := fmt.Sprintf("%s %s", first, last)
 		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", rand.Intn(10000000000)))
 		email := fmt.Sprintf("%s.%s@email.com", strings.ToLower(first), strings.ToLower(last))
+		address := fmt.Sprintf("%s No. %d, %s", customerStreets[rand.Intn(len(customerStreets))], 1+rand.Intn(200), customerCities[rand.Intn(len(customerCities))])
+		note := customerNotes[rand.Intn(len(customerNotes))]
 
 		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
 		createdAt := ref.AddDate(0, 0, -daysAgo)
 
-		if _, err := stmt.ExecContext(ctx, name, phone, email, createdAt); err != nil {
+		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, createdAt); err != nil {
 			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)
 			continue
 		}

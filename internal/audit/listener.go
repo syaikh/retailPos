@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
+	"time"
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
@@ -61,7 +62,13 @@ func NewAuditListener(svc AuditLogCreator) eventbus.Listener {
 
 			alog.Description = GenerateAuditDescription(alog)
 
-			if err := svc.CreateAuditLog(ctx, alog); err != nil {
+			// Use background context for DB write — the request context (ctx) may
+			// already be cancelled since dispatch runs asynchronously (goroutine).
+			// Context values (userID, username, etc.) survive cancellation, but
+			// pgx Exec uses ctx.Done() and would fail immediately on a cancelled ctx.
+			dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := svc.CreateAuditLog(dbCtx, alog); err != nil {
 				log.Printf("[audit] failed to create log: %v", err)
 			}
 			return nil
