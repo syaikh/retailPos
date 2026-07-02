@@ -99,7 +99,12 @@ func (e *Engine) exportXLSX(w io.Writer, s schema.ModuleSchema, data []map[strin
 		for colIdx, col := range cols {
 			colLetter, _ := excelize.ColumnNumberToName(colIdx + 1)
 			cell := fmt.Sprintf("%s%d", colLetter, excelRow)
-			_ = wb.SetCellValue(sheet, cell, formatValue(col.Type, row[col.Name]))
+			val := row[col.Name]
+			if col.Type == schema.ColNumber && val != nil {
+				_ = wb.SetCellValue(sheet, cell, val)
+			} else {
+				_ = wb.SetCellValue(sheet, cell, formatValue(col.Type, val))
+			}
 		}
 	}
 
