@@ -1,23 +1,5 @@
 <script lang="ts">
-  import {
-    LayoutDashboard,
-    ShoppingCart,
-    Package,
-    BarChart3,
-    Users,
-    Shield,
-    ScrollText,
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
-    LogOut,
-    Store,
-    User,
-    Tag,
-    Database,
-    Building2,
-    Ruler,
-  } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
