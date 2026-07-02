@@ -1,0 +1,444 @@
+USER REQUIREMENTS DOCUMENT (URD)
+Sistem POS Inventory (Retail, Web-Based, Realtime)
+
+1. Pendahuluan
+1.1 Tujuan
+Dokumen ini mendefinisikan kebutuhan pengguna untuk sistem POS Inventory berbasis web yang:
+    • Mendukung transaksi kasir
+    • Mengelola stok berbasis SKU
+    • Mendukung sinkronisasi data secara real-time
+    • Terintegrasi dengan barcode scanner
+
+2. Deskripsi Sistem
+2.1 Gambaran Umum
+Sistem POS Inventory adalah aplikasi web untuk operasional retail dengan karakteristik:
+    • Produk berbasis SKU (1 SKU = 1 stok)
+    • Mendukung pengelompokan produk (opsional)
+    • Mendukung komunikasi real-time antar device
+    • Mendukung input barcode via scanner (HID keyboard)
+
+2.2 Arsitektur Sistem
+    • Frontend: Svelte (SPA)
+    • Backend: Go (REST API + WebSocket)
+    • Database: PostgreSQL
+    • Komunikasi:
+        ◦ HTTP REST (transaksi & CRUD)
+        ◦ WebSocket (real-time event)
+
+3. User Roles
+3.1 Admin
+    • Mengelola produk & group
+    • Mengelola stok
+    • Melihat laporan
+    • Mengelola user
+3.2 Kasir
+    • Melakukan transaksi
+    • Scan barcode
+    • Melihat stok & produk
+
+4. Functional Requirements
+
+4.1 Manajemen Produk (SKU-Based)
+FR-001: Admin dapat membuat produk dengan SKU/barcode unik
+FR-002: Admin dapat mengedit produk
+FR-003: Admin dapat menghapus produk
+FR-004: Sistem menyimpan:
+    • Nama produk
+    • SKU / barcode
+    • Harga
+    • Stok
+
+4.2 Product Group (Opsional)
+FR-005: Admin dapat membuat product group
+FR-006: Produk dapat dikaitkan ke group
+FR-007: Sistem menyediakan laporan per group
+
+4.3 Manajemen Stok
+FR-008: Sistem mencatat stok masuk
+FR-009: Sistem mengurangi stok saat penjualan
+FR-010: Sistem menampilkan stok terkini
+FR-011: Admin dapat melakukan penyesuaian stok
+
+4.4 Manajemen Penjualan
+FR-012: Kasir dapat membuat transaksi
+FR-013: Transaksi multi-item
+FR-014: Sistem menghitung total otomatis
+FR-015: Metode pembayaran:
+    • Tunai
+    • Non-tunai
+FR-016: Sistem menyimpan riwayat transaksi
+FR-017: Sistem mendukung retur sederhana
+
+4.5 Barcode Scanner Integration
+FR-018: Sistem harus menerima input barcode dari scanner (keyboard HID)
+FR-019: Sistem harus otomatis mencari produk berdasarkan barcode
+FR-020: Sistem harus menambahkan produk ke cart setelah scan
+FR-021: Sistem harus menampilkan error jika barcode tidak ditemukan
+
+4.6 Real-time Synchronization
+FR-022: Sistem harus mengirim event real-time saat:
+    • Transaksi terjadi
+    • Stok berubah
+    • Produk diupdate
+FR-023: Sistem harus memperbarui UI client lain secara otomatis
+FR-024: Event minimal yang didukung:
+    • stock_updated
+    • sale_created
+    • product_updated
+
+4.7 Laporan
+FR-025: Laporan penjualan harian
+FR-026: Laporan bulanan
+FR-027: Laporan stok
+FR-028: Laporan per product group
+
+4.8 User & Hak Akses
+FR-029: Login user
+FR-030: Role admin & kasir
+FR-031: Pembatasan akses fitur
+
+5. Non-Functional Requirements
+5.1 Performance
+    • ≥ 50 transaksi/menit
+    • WebSocket latency < 1 detik
+5.2 Usability
+    • Scan barcode ≤ 1 detik respon
+    • UI sederhana untuk kasir
+5.3 Security
+    • JWT authentication
+    • Password hashing
+5.4 Reliability
+    • Event real-time tidak menyebabkan inkonsistensi data
+    • Database sebagai source of truth
+5.5 Scalability
+    • Monolith awal
+    • WebSocket scalable ke multi instance di masa depan
+
+6. Assumptions & Constraints
+6.1 Assumptions
+    • Scanner menggunakan mode keyboard (HID)
+    • 1–3 device aktif
+6.2 Constraints
+    • Tidak menggunakan message broker (Kafka, RabbitMQ)
+    • Tidak menggunakan Nginx di tahap awal
+    • WebSocket hanya untuk event (bukan data berat)
+
+7. Future Enhancements
+    • Multi-store
+    • Redis Pub/Sub untuk WebSocket scaling
+    • Payment gateway integration
+    • Mobile POS
+
+8. Acceptance Criteria
+    • Scan barcode langsung masuk ke cart
+    • Stok otomatis update di semua device
+    • Transaksi sinkron antar client
+    • Tidak ada mismatch data
+
+9. Kesimpulan
+Sistem dirancang:
+    • Real-time ringan (event-based)
+    • Barcode-friendly
+    • Retail-ready (SKU-based)
+
+┌────────────────────────────┐
+│     Svelte Frontend        │
+│ (Kasir & Admin - Browser)  │
+│                            │
+│  - REST API Client         │
+│  - WebSocket Client        │
+│  - Barcode Handler         │
+└─────────────┬──────────────┘
+              │
+      ┌───────┴────────┐
+      │                │
+   HTTP REST       WebSocket
+      │                │
+      └───────┬────────┘
+              ↓
+┌────────────────────────────┐
+│        Go Backend          │
+│                            │
+│  ┌──────────────────────┐  │
+│  │ HTTP Handler         │  │
+│  │ (REST API)           │  │
+│  └─────────┬────────────┘  │
+│            ↓               │
+│  ┌──────────────────────┐  │
+│  │ Business Logic       │  │
+│  └─────────┬────────────┘  │
+│            ↓               │
+│  ┌──────────────────────┐  │
+│  │ Repository           │  │
+│  └─────────┬────────────┘  │
+│            ↓               │
+│     PostgreSQL DB          │
+│                            │
+│  ┌──────────────────────┐  │
+│  │ WebSocket Hub        │  │
+│  │ (Event Broadcast)    │  │
+│  └──────────────────────┘  │
+└────────────────────────────┘
+
+
+# LAMPIRAN A
+
+## Detail Fitur Manajemen Produk & Product Group
+
+---
+
+## A.1 Konsep Dasar
+
+Sistem menggunakan pendekatan:
+
+* **1 SKU = 1 Produk = 1 Stok**
+* **Product Group bersifat opsional**
+
+Contoh:
+
+* Produk: "Aqua 600ml"
+* Group: "Aqua"
+
+Product Group digunakan untuk:
+
+* Pengelompokan produk
+* Kemudahan pelaporan
+* Navigasi UI
+
+---
+
+## A.2 Manajemen Product Group
+
+### A.2.1 Deskripsi
+
+Product Group adalah entitas untuk mengelompokkan beberapa produk dalam satu kategori logis (misal: brand atau jenis).
+
+---
+
+### A.2.2 Field Data
+
+| Field       | Tipe     | Keterangan           |
+| ----------- | -------- | -------------------- |
+| id          | integer  | Primary key          |
+| name        | string   | Nama group           |
+| description | string   | Deskripsi (opsional) |
+| created_at  | datetime | Waktu dibuat         |
+
+---
+
+### A.2.3 Fitur
+
+* Membuat product group
+* Mengedit product group
+* Menghapus product group
+* Menampilkan daftar group
+
+---
+
+### A.2.4 Aturan Bisnis
+
+* Nama group wajib diisi
+* Satu group dapat memiliki banyak produk
+* Penghapusan group:
+
+  * Tidak diperbolehkan jika masih digunakan oleh produk
+
+---
+
+### A.2.5 API Endpoint
+
+| Method | Endpoint             | Deskripsi         |
+| ------ | -------------------- | ----------------- |
+| GET    | /product-groups      | Ambil semua group |
+| POST   | /product-groups      | Tambah group      |
+| PUT    | /product-groups/{id} | Update group      |
+| DELETE | /product-groups/{id} | Hapus group       |
+
+---
+
+## A.3 Manajemen Produk (SKU-Based)
+
+### A.3.1 Deskripsi
+
+Produk adalah unit utama dalam sistem yang memiliki:
+
+* SKU/barcode unik
+* Harga
+* Stok
+
+---
+
+### A.3.2 Field Data
+
+| Field      | Tipe     | Keterangan              |
+| ---------- | -------- | ----------------------- |
+| id         | integer  | Primary key             |
+| name       | string   | Nama produk             |
+| sku        | string   | Barcode / SKU (unik)    |
+| price      | integer  | Harga jual              |
+| stock      | integer  | Stok saat ini           |
+| group_id   | integer  | Relasi ke product group |
+| created_at | datetime | Waktu dibuat            |
+| updated_at | datetime | Waktu update            |
+| deleted_at | datetime | Soft delete             |
+
+---
+
+### A.3.3 Fitur
+
+* Tambah produk
+* Edit produk
+* Hapus produk (soft delete)
+* Lihat daftar produk
+* Pencarian berdasarkan nama atau barcode
+
+---
+
+### A.3.4 Aturan Bisnis
+
+* SKU harus unik
+* Harga tidak boleh negatif
+* Stok tidak boleh negatif
+* Produk yang sudah digunakan dalam transaksi:
+
+  * Tidak boleh dihapus permanen
+  * Menggunakan soft delete
+
+---
+
+### A.3.5 API Endpoint
+
+| Method | Endpoint                    | Deskripsi               |
+| ------ | --------------------------- | ----------------------- |
+| GET    | /products                   | Ambil semua produk      |
+| GET    | /products?barcode={barcode} | Cari produk via barcode |
+| POST   | /products                   | Tambah produk           |
+| PUT    | /products/{id}              | Update produk           |
+| DELETE | /products/{id}              | Soft delete produk      |
+
+---
+
+## A.4 Integrasi Barcode Scanner
+
+### A.4.1 Deskripsi
+
+Barcode scanner berfungsi sebagai input device yang bekerja seperti keyboard (HID).
+
+---
+
+### A.4.2 Alur Sistem
+
+1. User melakukan scan barcode
+2. Sistem menerima input seperti keyboard
+3. Frontend mengirim request ke backend
+4. Backend mengembalikan data produk
+5. Produk ditambahkan ke cart
+
+---
+
+### A.4.3 Endpoint Pendukung
+
+GET /products?barcode={barcode}
+
+---
+
+### A.4.4 Aturan
+
+* Jika barcode tidak ditemukan:
+
+  * Sistem menampilkan notifikasi error
+* Respon harus cepat (< 1 detik)
+
+---
+
+## A.5 Integrasi Real-time
+
+### A.5.1 Deskripsi
+
+Sistem menggunakan WebSocket untuk sinkronisasi data antar client.
+
+---
+
+### A.5.2 Event yang Didukung
+
+| Event Name            | Deskripsi                 |
+| --------------------- | ------------------------- |
+| product_updated       | Produk ditambahkan/diubah |
+| product_group_updated | Group berubah             |
+| stock_updated         | Stok berubah              |
+| sale_created          | Transaksi baru            |
+
+---
+
+### A.5.3 Format Event
+
+```json
+{
+  "type": "product_updated",
+  "product_id": 1
+}
+```
+
+---
+
+### A.5.4 Alur Event
+
+1. Data diubah melalui REST API
+2. Backend menyimpan ke database
+3. Backend mengirim event melalui WebSocket
+4. Client menerima event dan memperbarui UI
+
+---
+
+## A.6 Database Schema
+
+```sql
+CREATE TABLE product_groups (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  sku TEXT UNIQUE NOT NULL,
+  price INTEGER NOT NULL CHECK (price >= 0),
+  stock INTEGER NOT NULL CHECK (stock >= 0),
+  group_id INTEGER REFERENCES product_groups(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  deleted_at TIMESTAMP
+);
+```
+
+---
+
+## A.7 Edge Cases
+
+* Barcode tidak ditemukan → tampilkan notifikasi
+* Duplicate SKU → ditolak oleh sistem
+* Stok habis → tampilkan warning
+* Produk sudah digunakan → gunakan soft delete
+
+---
+
+## A.8 Best Practices
+
+* Gunakan SKU sebagai identifier utama
+* Gunakan index pada kolom SKU
+* Semua perubahan stok harus melalui backend
+* Database sebagai source of truth
+
+---
+
+## A.9 Kesimpulan
+
+Modul ini dirancang untuk:
+
+* Kesederhanaan implementasi
+* Kinerja tinggi untuk POS
+* Kemudahan pengembangan lanjutan
+
+---
