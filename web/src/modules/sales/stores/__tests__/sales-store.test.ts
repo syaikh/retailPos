@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockGetSalesHistory = vi.fn();
 
@@ -14,21 +14,18 @@ describe('sales-store', () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('returns expected API shape', async () => {
     const { useSalesStore } = await import('../sales-store.svelte');
     store = useSalesStore();
     expect(store).toHaveProperty('salesData');
     expect(store).toHaveProperty('total');
     expect(store).toHaveProperty('loading');
-    expect(store).toHaveProperty('limit');
-    expect(store).toHaveProperty('offset');
     expect(store).toHaveProperty('searchQuery');
     expect(store).toHaveProperty('sortBy');
     expect(store).toHaveProperty('sortDir');
+    expect(store).toHaveProperty('pageSize');
+    expect(store).toHaveProperty('limit');
+    expect(store).toHaveProperty('offset');
     expect(store).toHaveProperty('load');
   });
 
@@ -36,7 +33,9 @@ describe('sales-store', () => {
     mockGetSalesHistory.mockResolvedValueOnce({ data: [{ id: 1 }], total: 1 });
     const { useSalesStore } = await import('../sales-store.svelte');
     store = useSalesStore();
-    await store.load({ limit: 20, offset: 0, sortBy: 'created_at', sortDir: 'DESC' });
+    store.pageSize = 20;
+    store.page = 0;
+    await store.load({ limit: 20, offset: 0, sortBy: 'created_at', sortDir: 'DESC', startDate: '2026-01-01', endDate: '2026-06-29' });
     expect(mockGetSalesHistory).toHaveBeenCalled();
     expect(store.salesData).toHaveLength(1);
     expect(store.total).toBe(1);
@@ -47,20 +46,38 @@ describe('sales-store', () => {
     mockGetSalesHistory.mockRejectedValueOnce(new Error('Network error'));
     const { useSalesStore } = await import('../sales-store.svelte');
     store = useSalesStore();
-    await store.load({ limit: 20, offset: 0 });
+    store.pageSize = 20;
+    store.page = 0;
+    await store.load({ limit: 20, offset: 0, startDate: '2026-01-01', endDate: '2026-06-29' });
     expect(store.loading).toBe(false);
     expect(store.salesData).toEqual([]);
     expect(store.total).toBe(0);
   });
 
-  it('updates offset/limit/sort from filters', async () => {
-    mockGetSalesHistory.mockResolvedValueOnce({ data: [], total: 0 });
+  it('provides currentFilters derived from state', async () => {
     const { useSalesStore } = await import('../sales-store.svelte');
     store = useSalesStore();
-    await store.load({ limit: 50, offset: 100, sortBy: 'invoice_number', sortDir: 'ASC' });
-    expect(store.limit).toBe(50);
-    expect(store.offset).toBe(100);
-    expect(store.sortBy).toBe('invoice_number');
-    expect(store.sortDir).toBe('ASC');
+    store.startDate = '2026-01-01';
+    store.endDate = '2026-06-29';
+    store.pageSize = 50;
+    store.page = 2;
+    store.sortBy = 'invoice_number';
+    store.sortDir = 'ASC';
+    store.searchQuery = 'test';
+    const filters = store.currentFilters;
+    expect(filters.limit).toBe(50);
+    expect(filters.offset).toBe(100);
+    expect(filters.sortBy).toBe('invoice_number');
+    expect(filters.sortDir).toBe('ASC');
+    expect(filters.search).toBe('test');
+  });
+
+  it('maps limit/offset to pageSize/page', async () => {
+    const { useSalesStore } = await import('../sales-store.svelte');
+    store = useSalesStore();
+    store.limit = 50;
+    store.offset = 100;
+    expect(store.pageSize).toBe(50);
+    expect(store.page).toBe(2);
   });
 });

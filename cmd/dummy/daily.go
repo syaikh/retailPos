@@ -73,12 +73,11 @@ type dailySaleRecord struct {
 // ---------- globals set by flags ----------
 
 var (
-	dailyDateStr   string
-	dailyMin       int
-	dailyMax       int
-	dailyCashierID int
-	dailyStoreID   int
-	dailyInsertStock bool
+	dailyDateStr    string
+	dailyMin        int
+	dailyMax        int
+	dailyCashierID  int
+	dailyStoreID    int
 )
 
 func registerDailyFlags() {
@@ -95,8 +94,6 @@ func registerDailyFlags() {
 		"Force a specific cashier user ID (0 = random)")
 	flag.IntVar(&dailyStoreID, "daily.store-id", 0,
 		"Force a specific store ID (0 = random)")
-	flag.BoolVar(&dailyInsertStock, "daily.insert-stock", false,
-		"Insert inventory_movements rows for each sale (default: false)")
 }
 
 // ---------- public entry point ----------
@@ -523,15 +520,12 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		}
 	}()
 
-	// Compute DPP and tax (default 11% PPN for products with tax_class_id)
+	// Compute DPP and tax (default 11% PPN for all items)
 	const defaultRate = 11.0
 	var totalDPP, totalTax int
-	for _, item := range sale.Items {
-		rate := 0.0
-		// In daily.go we don't have product tax info readily available,
-		// so default to 11% for all items (matching most seeded products)
-		rate = defaultRate
-		dpp := int(math.Round(float64(item.Subtotal) * 100.0 / (100.0 + rate)))
+	for i := range sale.Items {
+		item := &sale.Items[i]
+		dpp := int(math.Round(float64(item.Subtotal) * 100.0 / (100.0 + defaultRate)))
 		tax := item.Subtotal - dpp
 		item.DPPAmount = dpp
 		item.TaxAmount = tax
@@ -542,8 +536,8 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 	var saleID int
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO sales
-			(invoice_number, cashier_id, customer_id, store_id, subtotal, tax, total_amount, payment_method, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', $9)
+			(invoice_number, cashier_id, customer_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, 'completed', $9)
 		 RETURNING id
 	`, sale.Invoice, sale.CashierID, sale.CustomerID, sale.StoreID, totalDPP, totalTax, sale.TotalAmount,
 		sale.PaymentMethod, sale.CreatedAt).Scan(&saleID)
@@ -551,7 +545,10 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		return fmt.Errorf("insert sale: %w", err)
 	}
 
-	for _, item := range sale.Items {
+	for i := range sale.Items {
+		item := &sale.Items[i]
+
+		// 1. Insert sale item
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -559,20 +556,41 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		); err != nil {
 			return fmt.Errorf("insert item: %w", err)
 		}
-	}
 
-	if dailyInsertStock {
-		for _, item := range sale.Items {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO inventory_movements
-					(product_id, quantity_change, type, reference_id, reference_table, user_id, created_at)
-				 VALUES ($1, $2, 'sale', $3, 'sales', $4, $5)`,
-				item.ProductID, -item.Quantity, saleID, sale.CashierID, sale.CreatedAt,
-			); err != nil {
-				return fmt.Errorf("insert inventory movement: %w", err)
+		// 2. Decrement product stock; insert row if missing
+		res, err := tx.ExecContext(ctx, `
+			UPDATE product_stock
+			SET quantity = quantity - $1, updated_at = NOW()
+			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
+		`, item.Quantity, item.ProductID)
+		if err != nil {
+			return fmt.Errorf("update stock for product %d: %w", item.ProductID, err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO product_stock (product_id, quantity, updated_at)
+				VALUES ($1, GREATEST(0, 0-$2), NOW())
+			`, item.ProductID, item.Quantity)
+			if err != nil {
+				return fmt.Errorf("insert stock row for product %d: %w", item.ProductID, err)
 			}
+		}
+
+		// 3. Record inventory movement
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO inventory_movements
+				(product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+			 VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`,
+			item.ProductID, -item.Quantity, saleID, sale.CashierID,
+			fmt.Sprintf("Sale %s", sale.Invoice), sale.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("insert inventory movement: %w", err)
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
 }

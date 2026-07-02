@@ -33,3 +33,4 @@ export async function bulkUpdateStatus(ids: number[], isActive: boolean): Promis
 export async function bulkDelete(ids: number[]): Promise<void> {
   await apiClient.post('/customers/bulk/delete', { ids });
 }
+

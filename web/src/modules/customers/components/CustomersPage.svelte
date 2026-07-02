@@ -3,9 +3,10 @@
   import apiClient from '$shared/api/http-client';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Pagination } from '$shared/ui';
+  import { Pagination, ImportWizard, HistoryDialog } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
+  import EditCustomerModal from './EditCustomerModal.svelte';
   import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
   import BulkStatusModal from './BulkStatusModal.svelte';
   import BulkDeleteModal from './BulkDeleteModal.svelte';
@@ -82,12 +83,9 @@
     }
   }
 
-  let editingId = $state<number | null>(null);
-  let editName = $state('');
-  let editPhone = $state('');
-  let editEmail = $state('');
-  let editNote = $state('');
-  let editActive = $state(true);
+  let showEditModal = $state(false);
+  let editTarget = $state<any>(null);
+  let isSaving = $state(false);
 
   let sortBy = $state('name');
   let sortDir = $state('asc');
@@ -97,8 +95,9 @@
   let formName = $state('');
   let formPhone = $state('');
   let formEmail = $state('');
+  let formAddress = $state('');
   let formNote = $state('');
-  let fieldErrors = $state({ name: '', phone: '', email: '', note: '' });
+  let fieldErrors = $state({ name: '', phone: '', email: '', address: '', note: '' });
 
   let deactivateTarget = $state<any>(null);
   let showDeactivateModal = $state(false);
@@ -115,7 +114,7 @@
   }
 
   function validateForm(): boolean {
-    const errors = { name: '', phone: '', email: '', note: '' };
+    const errors = { name: '', phone: '', email: '', address: '', note: '' };
     let valid = true;
 
     if (!formName.trim()) {
@@ -150,8 +149,9 @@
     formName = '';
     formPhone = '';
     formEmail = '';
+    formAddress = '';
     formNote = '';
-    fieldErrors = { name: '', phone: '', email: '', note: '' };
+    fieldErrors = { name: '', phone: '', email: '', address: '', note: '' };
   }
 
   function getStatusFilterParams(): string | undefined {
@@ -168,7 +168,7 @@
       limit = newLimit;
       const params: any = { limit, offset, search: searchQuery || undefined };
       const activeParam = getStatusFilterParams();
-      if (activeParam !== undefined) params.isActive = activeParam;
+      if (activeParam !== undefined) params.is_active = activeParam;
       const r = await apiClient.get('/customers', { params });
       customers = r.data.data || [];
       total = r.data.total || 0;
@@ -232,7 +232,8 @@
         name: formName.trim(),
         phone: formPhone.trim(),
         email: formEmail.trim(),
-        note: formNote.trim() || undefined,
+        address: formAddress.trim() || null,
+        note: formNote.trim() || null,
       });
       toast.success(`Customer "${formName.trim()}" created successfully`);
       resetForm();
@@ -247,38 +248,35 @@
   }
 
   function startEdit(c: any) {
-    editingId = c.id;
-    editName = c.name || '';
-    editPhone = c.phone || '';
-    editEmail = c.email || '';
-    editNote = c.note || '';
-    editActive = c.is_active !== false;
+    editTarget = c;
+    showEditModal = true;
   }
 
-  function cancelEdit() {
-    editingId = null;
-  }
-
-  async function saveEdit(id: number) {
-    if (!editName.trim()) { toast.error('Name is required'); return; }
-    if (!editPhone.trim()) { toast.error('Phone is required'); return; }
-    if (!validatePhone(editPhone.trim())) { toast.error('Invalid phone format'); return; }
-    if (!editEmail.trim()) { toast.error('Email is required'); return; }
-    if (!validateEmail(editEmail.trim())) { toast.error('Invalid email format'); return; }
+  async function handleEditSave(data: any) {
+    isSaving = true;
     try {
-      await apiClient.put(`/customers/${id}`, {
-        name: editName.trim(),
-        phone: editPhone.trim() || undefined,
-        email: editEmail.trim() || undefined,
-        note: editNote.trim() || undefined,
-        is_active: editActive,
+      await apiClient.put(`/customers/${data.id}`, {
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        note: data.note,
+        is_active: data.is_active,
       });
       toast.success('Customer updated successfully');
-      editingId = null;
+      showEditModal = false;
+      editTarget = null;
       await load();
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to update customer');
+    } finally {
+      isSaving = false;
     }
+  }
+
+  function handleEditCancel() {
+    showEditModal = false;
+    editTarget = null;
   }
 
   async function deactivateCustomer(c: any) {
@@ -291,7 +289,6 @@
     deactivating = true;
     try {
       await apiClient.delete(`/customers/${deactivateTarget.id}`);
-      if (editingId === deactivateTarget.id) editingId = null;
       toast.success(`Customer "${deactivateTarget.name}" deactivated`);
       showDeactivateModal = false;
       deactivateTarget = null;
@@ -303,12 +300,20 @@
     }
   }
 
+  let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
+
+  function handleImportComplete() {
+    load();
+    toast.success('Customer import completed');
+  }
+
   onMount(() => {
     load();
   });
 </script>
 
-<div class="space-y-4">
+<div class="space-y-5">
   <CustomerToolbar
     bind:searchQuery
     bind:statusFilter
@@ -316,6 +321,8 @@
     onsearch={handleSearchInput}
     onstatuschange={handleStatusFilterChange}
     oncreate={() => { resetForm(); showCreateModal = true; }}
+    onImport={() => showImportWizard = true}
+    onHistory={() => showHistoryDialog = true}
   />
 
   <div class="card overflow-hidden">
@@ -326,17 +333,10 @@
       {canUpdate}
       {canDelete}
       bind:selectedIds
-      bind:editingId
-      bind:editName
-      bind:editPhone
-      bind:editEmail
-      bind:editActive
       bind:sortBy
       bind:sortDir
       onsort={handleSort}
       onedit={startEdit}
-      oncanceledit={cancelEdit}
-      onsaveedit={saveEdit}
       ondeactivate={deactivateCustomer}
     />
 
@@ -362,10 +362,19 @@
   bind:formName
   bind:formPhone
   bind:formEmail
+  bind:formAddress
   bind:formNote
   bind:fieldErrors
   bind:creating
   oncreate={createCustomer}
+/>
+
+<EditCustomerModal
+  bind:open={showEditModal}
+  customer={editTarget}
+  bind:saving={isSaving}
+  onsave={handleEditSave}
+  oncancel={handleEditCancel}
 />
 
 <DeactivateCustomerModal
@@ -392,4 +401,17 @@
   bind:deleting={isBulkDeleting}
   oncancel={() => showBulkDeleteModal = false}
   onconfirm={handleBulkDelete}
+/>
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="customers"
+  displayName="Customers"
+  onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="customers"
+  displayName="Customers"
 />

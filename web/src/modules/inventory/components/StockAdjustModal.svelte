@@ -5,11 +5,9 @@
   let {
     open = $bindable(false),
     stockAdjustProduct = null as {name: string, stock: number} | null,
-    stockAdjustForm = $bindable({
-      product_id: null as number | null,
-      quantity_change: 0,
-      notes: ''
-    }),
+    productId = $bindable(null as number | null),
+    quantityChange = $bindable(0),
+    notes = $bindable(''),
     adjustingStock = false,
     onSubmit,
     onCancel,
@@ -37,7 +35,7 @@
       <Input
         id="adjust-qty"
         type="number"
-        bind:value={stockAdjustForm.quantity_change}
+        bind:value={quantityChange}
         placeholder="e.g., +10 or -5"
         required
       />
@@ -48,7 +46,7 @@
       <Input
         id="adjust-notes"
         type="text"
-        bind:value={stockAdjustForm.notes}
+        bind:value={notes}
         placeholder="Reason for adjustment (required)"
         required
       />

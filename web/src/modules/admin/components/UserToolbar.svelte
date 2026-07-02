@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
+  import { Button, SearchBar, Dropdown } from '$shared/ui';
   import { Plus, ChevronDown, SlidersHorizontal, X } from 'lucide-svelte';
 
   let {
@@ -19,9 +19,6 @@
     onadd?: () => void;
     onclearall?: () => void;
   } = $props();
-
-  let showRoleDropdown = $state(false);
-  let showStatusDropdown = $state(false);
 
   let roleLabel = $derived(filterRole === 'all' ? 'All Roles' : roles.find(r => String(r.id) === filterRole)?.name || filterRole);
   let statusLabel = $derived(filterStatus === 'all' ? 'All Status' : filterStatus === 'true' ? 'Active' : 'Inactive');
@@ -49,58 +46,48 @@
     <div class="flex-1">
       <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
     </div>
-    <div class="relative shrink-0 role-filter-container">
-      <button
-        class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterRole !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
-        style="min-width: 140px;"
-        onclick={() => showRoleDropdown = !showRoleDropdown}
-      >
-        <span class="flex-1 text-left truncate">{roleLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showRoleDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-2 min-w-[360px] max-h-64 overflow-y-auto">
-          <button
-            class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { filterRole = 'all'; showRoleDropdown = false; }}
-          >All Roles</button>
-          <div class="grid grid-cols-2 gap-1 mt-1">
-            {#each roles as role}
-              <button
-                class="text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === String(role.id) ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-                onclick={() => { filterRole = String(role.id); showRoleDropdown = false; }}
-                title={role.name}
-              >{role.name}</button>
-            {/each}
-          </div>
+    <Dropdown placement="bottom-start" menuClass="p-2 min-w-[360px] max-h-64 overflow-y-auto">
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterRole !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+          style="min-width: 140px;"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{roleLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+      {#snippet content({ close })}
+        <button
+          class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { filterRole = 'all'; close(); }}
+        >All Roles</button>
+        <div class="grid grid-cols-2 gap-1 mt-1">
+          {#each roles as role}
+            <button
+              class="text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === String(role.id) ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+              onclick={() => { filterRole = String(role.id); close(); }}
+              title={role.name}
+            >{role.name}</button>
+          {/each}
         </div>
-      {/if}
-    </div>
-    <div class="relative shrink-0 status-filter-container" style="width: 128px; min-width: 128px; max-width: 128px;">
-      <button
-        class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterStatus !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
-        onclick={() => showStatusDropdown = !showStatusDropdown}
-      >
-        <span class="flex-1 text-left truncate">{statusLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showStatusDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]">
-          <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { filterStatus = 'all'; showStatusDropdown = false; }}
-          >All Status</button>
-          <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'true' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { filterStatus = 'true'; showStatusDropdown = false; }}
-          >Active</button>
-          <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'false' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { filterStatus = 'false'; showStatusDropdown = false; }}
-          >Inactive</button>
-        </div>
-      {/if}
-    </div>
+      {/snippet}
+    </Dropdown>
+    <Dropdown placement="bottom-start" items={[
+      { label: 'All Status', checked: filterStatus === 'all', onclick: () => filterStatus = 'all' },
+      { label: 'Active', checked: filterStatus === 'true', onclick: () => filterStatus = 'true' },
+      { label: 'Inactive', checked: filterStatus === 'false', onclick: () => filterStatus = 'false' },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-32 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {filterStatus !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{statusLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+    </Dropdown>
     {#if canCreate}
       <Button onclick={onadd} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
         <Plus size={18} />

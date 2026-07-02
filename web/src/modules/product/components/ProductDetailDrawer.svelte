@@ -74,7 +74,7 @@
   let margVal = $derived(margin());
   let margPctVal = $derived(marginPct());
   let margIsLoss = $derived(margVal !== null && margVal < 0);
-  let uomLabel = $derived(selectedProduct?.unit_of_measure || selectedProduct?.unit || null);
+  let uomLabel = $derived(selectedProduct?.unit_of_measure || null);
 
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {

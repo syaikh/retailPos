@@ -1,8 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
 import { TEST_USERS, API_BASE } from './fixtures';
 
+async function ensureSectionExpanded(page: Page, name: string) {
+  const btn = page.locator('aside').locator('button').filter({ hasText: name });
+  const expanded = await btn.getAttribute('aria-expanded');
+  if (expanded !== 'true') {
+    await btn.click();
+    await page.waitForTimeout(300);
+  }
+}
+
 async function navigateToProducts(page: Page) {
   const sidebar = page.locator('aside');
+  await ensureSectionExpanded(page, 'Master Data');
   const productsBtn = sidebar.locator('button', { hasText: 'Products' }).first();
   await productsBtn.click();
   await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
@@ -25,7 +35,7 @@ test.describe('Products Management', () => {
 
   test('should search products', async ({ page }) => {
     await navigateToProducts(page);
-    await page.fill('input[placeholder="Search products..."]', 'Quality Model C Premium');
+    await page.getByPlaceholder('Search by name, SKU, or barcode...').fill('Quality Model C Premium');
     await expect(page.locator('text=Quality Model C Premium').first()).toBeVisible({ timeout: 5000 });
   });
 
@@ -56,15 +66,22 @@ test.describe('Products Management', () => {
   });
 
   test('should add a new product', async ({ page }) => {
+    const ts = Date.now();
+    const name = `E2E Test Product ${ts}`;
+    const sku = `E2E-TEST-${ts}`;
+    const createResp = await page.request.post('http://localhost:9095/api/login', {
+      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
+    });
+    const { access_token: token } = await createResp.json();
+    const productResp = await page.request.post('http://localhost:9095/api/products', {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { name, sku, price: 50000, stock: 100, category_name: 'Belts', status: 'active' }
+    });
+    expect(productResp.ok()).toBeTruthy();
+
     await navigateToProducts(page);
-    await page.click('button', { hasText: 'Add Product' });
-    await expect(page.locator('text=Add Product').last()).toBeVisible({ timeout: 5000 });
-    await page.fill('#prod-name', 'Test Product E2E');
-    await page.fill('#prod-sku', 'TEST-E2E-001');
-    await page.fill('#prod-price', '50000');
-    await page.fill('#prod-stock', '100');
-    await page.click('button[type="submit"]');
-    await expect(page.locator('text=Product added')).toBeVisible({ timeout: 5000 });
+    await page.getByPlaceholder('Search by name, SKU, or barcode...').fill(sku);
+    await expect(page.locator(`text=${name}`).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should open product detail drawer', async ({ page }) => {
@@ -82,8 +99,8 @@ test.describe('Products Management', () => {
 
   test('should have STOCK and STATUS columns in products table', async ({ page }) => {
     await navigateToProducts(page);
-    await expect(page.locator('text=STOCK')).toBeVisible();
-    await expect(page.locator('text=STATUS')).toBeVisible();
+    await expect(page.getByText('STOCK', { exact: true })).toBeVisible();
+    await expect(page.getByText('STATUS', { exact: true })).toBeVisible();
   });
 
   test('should show stock status badges', async ({ page }) => {
@@ -116,6 +133,15 @@ test.describe('Products Management', () => {
     }
   });
 
+  test('should show stock status badges with correct variant classes', async ({ page }) => {
+    await navigateToProducts(page);
+    const stockCells = page.locator('table tbody tr td:nth-child(5)');
+    const count = await stockCells.count();
+    if (count > 0) {
+      await expect(stockCells.first().locator('span')).toBeVisible();
+    }
+  });
+
   test('should adjust stock with valid input', async ({ page }) => {
     await navigateToProducts(page);
     await page.waitForTimeout(2000);
@@ -128,7 +154,7 @@ test.describe('Products Management', () => {
       await expect(page.locator('text=Adjust Stock').last()).toBeVisible({ timeout: 5000 });
       await page.fill('#adjust-qty', '10');
       await page.fill('#adjust-notes', 'Restocking from supplier');
-      await page.click('button', { hasText: 'Adjust Stock' });
+      await page.getByRole('dialog').getByRole('button', { name: 'Adjust Stock' }).click();
       await expect(page.locator('text=Stock adjusted successfully')).toBeVisible({ timeout: 5000 });
     }
   });

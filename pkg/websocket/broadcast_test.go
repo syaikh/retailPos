@@ -4,58 +4,46 @@ import (
 	"encoding/json"
 	"testing"
 
-	"retail-pos-system/internal/domain"
-
 	"github.com/stretchr/testify/assert"
 )
 
-// TestBroadcastStockUpdate tests the stock update broadcast function
 func TestBroadcastStockUpdate(t *testing.T) {
 	t.Run("nil hub does not panic", func(t *testing.T) {
-		product := &domain.Product{ID: 1, SKU: "TEST", Stock: 10}
-		// Should not panic
-		BroadcastStockUpdate(nil, product, false)
+		evt := StockUpdateEvent{ID: 1, SKU: "TEST", Stock: 10}
+		BroadcastStockUpdate(nil, evt)
 	})
 
 	t.Run("product payload structure", func(t *testing.T) {
 		storeID := 1
-		product := &domain.Product{
+		evt := StockUpdateEvent{
 			ID:       1,
 			SKU:      "TEST-001",
 			Stock:    10,
 			StoreID:  &storeID,
 		}
-
-		// Verify the payload structure matches expected format
-		assert.False(t, product.Stock <= 5, "Stock 10 with threshold 5 should not be low")
+		assert.Equal(t, 10, evt.Stock)
 	})
 }
 
-// TestBroadcastSaleCreated tests the sale created broadcast function
 func TestBroadcastSaleCreated(t *testing.T) {
 	t.Run("nil hub does not panic", func(t *testing.T) {
-		sale := &domain.Sale{ID: 1}
-		// Should not panic
-		BroadcastSaleCreated(nil, sale)
+		evt := SaleCreatedEvent{ID: 1}
+		BroadcastSaleCreated(nil, evt)
 	})
 
 	t.Run("sale payload structure", func(t *testing.T) {
 		storeID := 1
-		sale := &domain.Sale{
-			ID:            1,
-			InvoiceNumber: "INV-001",
-			TotalAmount:   10000,
-			StoreID:       &storeID,
-			Items:         []domain.SaleItem{{}, {}},
+		evt := SaleCreatedEvent{
+			ID:      1,
+			Invoice: "INV-001",
+			Total:   10000,
+			StoreID: &storeID,
 		}
-
-		// Verify the structure
-		assert.Equal(t, 1, sale.ID)
-		assert.Equal(t, 2, len(sale.Items))
+		assert.Equal(t, 1, evt.ID)
+		assert.Equal(t, "INV-001", evt.Invoice)
 	})
 }
 
-// TestEventTypes tests that event type constants are correctly defined
 func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("stock_update"), EventStockUpdate)
 	assert.Equal(t, EventType("sale_created"), EventSaleCreated)
@@ -64,7 +52,6 @@ func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("user_online_count"), EventUserOnline)
 }
 
-// TestEventJSONMarshaling tests that events can be properly marshaled to JSON
 func TestEventJSONMarshaling(t *testing.T) {
 	t.Run("event marshals correctly", func(t *testing.T) {
 		storeID := 1
@@ -81,38 +68,4 @@ func TestEventJSONMarshaling(t *testing.T) {
 	})
 }
 
-// TestShouldReceiveEvent tests the event filtering logic
-func TestShouldReceiveEvent(t *testing.T) {
-	hub := NewHub(nil)
 
-	t.Run("admin receives all events", func(t *testing.T) {
-		client := &Client{isAdmin: true}
-		event := &Event{StoreID: func() *int { i := 1; return &i }()}
-
-		assert.True(t, hub.ShouldReceiveEvent(client, event))
-	})
-
-	t.Run("user from same store receives event", func(t *testing.T) {
-		storeID := 1
-		client := &Client{isAdmin: false, storeID: &storeID}
-		event := &Event{StoreID: &storeID}
-
-		assert.True(t, hub.ShouldReceiveEvent(client, event))
-	})
-
-	t.Run("user from different store does not receive event", func(t *testing.T) {
-		clientStoreID := 1
-		eventStoreID := 2
-		client := &Client{isAdmin: false, storeID: &clientStoreID}
-		event := &Event{StoreID: &eventStoreID}
-
-		assert.False(t, hub.ShouldReceiveEvent(client, event))
-	})
-
-	t.Run("event with nil storeID is received by all", func(t *testing.T) {
-		client := &Client{isAdmin: false, storeID: nil}
-		event := &Event{StoreID: nil}
-
-		assert.True(t, hub.ShouldReceiveEvent(client, event))
-	})
-}

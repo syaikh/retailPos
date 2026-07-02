@@ -1,26 +1,28 @@
 package middleware
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"strings"
 
-	"retail-pos-system/internal/auth"
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/user"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func setCtxValue(ctx context.Context, key, val interface{}) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, key, val)
+}
+
+func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := extractToken(c)
 		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authorization token required"})
-			return
-		}
-
-		authService, ok := c.MustGet("authService").(*auth.AuthService)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "auth service not available"})
 			return
 		}
 
@@ -30,7 +32,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Store user info in context
 		c.Set("userID", claims.ID)
 		c.Set("username", claims.Username)
 		c.Set("roleID", claims.RoleID)
@@ -38,9 +39,14 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("permissions", claims.Permissions)
 		c.Set("storeID", claims.StoreID)
 
-		// Add user info to response header for debugging
-		c.Header("X-User-ID", fmt.Sprintf("%d", claims.ID))
-		c.Header("X-User-Role", claims.Role)
+		// Store user info in request context so event listeners can access it
+		ctx := c.Request.Context()
+		ctx = setCtxValue(ctx, CtxKeyUserID, claims.ID)
+		ctx = setCtxValue(ctx, CtxKeyUsername, claims.Username)
+		ctx = setCtxValue(ctx, CtxKeyRole, claims.Role)
+		ctx = setCtxValue(ctx, shared.CtxKeyIPAddress, shared.GetIPAddress(c))
+		ctx = setCtxValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}
@@ -120,7 +126,6 @@ func AdminOnly() gin.HandlerFunc {
 }
 
 func extractToken(c *gin.Context) string {
-	// Check Authorization header first
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
 		parts := strings.Split(authHeader, " ")
@@ -129,13 +134,11 @@ func extractToken(c *gin.Context) string {
 		}
 	}
 
-	// Check query parameter
 	token := c.Query("token")
 	if token != "" {
 		return token
 	}
 
-	// Check cookie
 	cookie, err := c.Cookie("access_token")
 	if err == nil && cookie != "" {
 		return cookie
@@ -181,9 +184,4 @@ func GetStoreID(c *gin.Context) *int {
 		}
 	}
 	return nil
-}
-
-func LogAccess(c *gin.Context) {
-	// Could be extended to log all accesses
-	c.Next()
 }

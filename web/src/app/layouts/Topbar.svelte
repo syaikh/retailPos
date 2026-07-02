@@ -13,26 +13,29 @@
   const breadcrumb = $derived(getBreadcrumb(currentPath));
 
   function getBreadcrumb(path: string): { label: string; href: string }[] {
-    const map: Record<string, string> = {
-      '/':                   'Dashboard',
-      '/pos':                'Point of Sale',
-      '/inventory/products': 'Products',
-      '/reports':            'Reports',
-      '/transactions':       'Transactions',
-      '/categories':         'Categories',
-      '/customers':          'Customers',
-      '/admin':              'Administration',
-      '/admin/users':        'Users',
-      '/admin/roles':        'Roles',
-      '/admin/audit-logs':   'Audit Logs',
-    };
+	const map: Record<string, string> = {
+		'/':                   'Dashboard',
+		'/pos':                'Point of Sale',
+		'/inventory/products': 'Products',
+		'/reports':            'Reports',
+		'/transactions':       'Transactions',
+		'/categories':         'Categories',
+		'/customers':          'Customers',
+		'/admin':              'Administration',
+		'/admin/users':        'Users',
+		'/admin/roles':        'Roles',
+		'/admin/audit-logs':   'Audit Logs',
+		'/brands':             'Brands',
+		'/units-of-measure':   'Units',
+	};
 
     const parts: { label: string; href: string }[] = [];
 
     if (path !== '/') {
       parts.push({ label: 'Home', href: '/' });
 
-      if (path.startsWith('/admin/')) {
+      const adminPaths = ['/admin/users', '/admin/roles', '/admin/audit-logs'];
+      if (adminPaths.includes(path)) {
         parts.push({ label: 'Administration', href: '/admin' });
       }
     }

@@ -1,0 +1,57 @@
+<script lang="ts">
+  import { Button, Dropdown } from '$shared/ui';
+  import { Download, Upload, FileDown, FileSpreadsheet, FileText, History, ChevronDown } from 'lucide-svelte';
+  import { downloadExport, downloadTemplate } from '$shared/services/import-export-service';
+  import type { ExportFormat } from '$shared/types/import-export';
+
+  let {
+    module = '',
+    canExport = false,
+    canImport = false,
+    canTemplate = true,
+    onImport = () => {},
+    onHistory = () => {},
+  }: {
+    module?: string;
+    canExport?: boolean;
+    canImport?: boolean;
+    canTemplate?: boolean;
+    onImport?: () => void;
+    onHistory?: () => void;
+  } = $props();
+
+  function handleExport(format: ExportFormat) {
+    downloadExport(module, format);
+  }
+
+  function handleTemplate() {
+    downloadTemplate(module);
+  }
+</script>
+
+{#if canExport || canImport}
+  <Dropdown
+    items={[
+      { label: 'Export CSV', icon: FileText, onclick: () => handleExport('csv') },
+      { label: 'Export XLSX', icon: FileSpreadsheet, onclick: () => handleExport('xlsx') },
+      ...(canTemplate
+        ? [{ divider: true }, { label: 'Download Template', icon: FileDown, onclick: () => handleTemplate() }]
+        : []),
+      ...(canImport
+        ? [{ divider: true }, { label: 'Import Data', icon: Upload, onclick: () => onImport() }]
+        : []),
+      ...(canImport
+        ? [{ divider: true }, { label: 'Import History', icon: History, onclick: () => onHistory() }]
+        : []),
+    ]}
+    placement="bottom-end"
+  >
+    {#snippet trigger({ toggle })}
+      <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
+        <Download size={14} />
+        Bulk Actions
+        <ChevronDown size={14} />
+      </Button>
+    {/snippet}
+  </Dropdown>
+{/if}

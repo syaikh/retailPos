@@ -210,11 +210,11 @@
 
     if (chartType === 'hourly') {
       return chartData.map(d => {
-        const prev = prevChartData.find(p => p.hour === d.hour);
+        const prev = prevChartData.find(p => p.date === d.date);
         const prevRev = prev ? prev.total : null;
         return {
           period: getPeriodLabel(d),
-          dateStr: '',
+          dateStr: d.date,
           revenue: d.total,
           prevRevenue: prevRev,
           orderCount: null
@@ -226,7 +226,7 @@
       const prevSorted = [...prevChartData].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
       return chartData.map((d, i) => {
         const prev = prevSorted[i];
-        const prevRev = prev && prev.total > 0 ? prev.total : null;
+        const prevRev = prev ? prev.total : null;
         const dateStr = d.date || '';
         const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
         return {
@@ -243,13 +243,15 @@
       const prevByDate = {};
       prevChartData.forEach(p => { if (p.date) prevByDate[p.date] = p.total; });
       const dayOffset = computeDayOffset();
+      const safeOffset = isNaN(dayOffset) ? 0 : dayOffset;
       return chartData.map(d => {
         if (!d.date) return null;
         const currentDate = new Date(d.date + 'T00:00:00Z');
-        const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
+        if (isNaN(currentDate.getTime())) return null;
+        const expectedPrev = new Date(currentDate.getTime() - safeOffset * 86400000);
         const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
         const prevTotal = prevByDate[expectedPrevStr];
-        const hasPrev = prevTotal !== undefined && prevTotal > 0;
+        const hasPrev = prevTotal !== undefined;
         return {
           period: currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' }),
           dateStr: d.date,
@@ -263,7 +265,7 @@
     const prevSorted = [...prevChartData].sort((a, b) => (a.month_start || a.date || '').localeCompare(b.month_start || b.date || ''));
     return chartData.map((d, i) => {
       const prev = prevSorted[i];
-      const prevRev = prev && prev.total > 0 ? prev.total : null;
+      const prevRev = prev ? prev.total : null;
       const dateStr = d.month_start || d.date || '';
       const date = dateStr ? new Date(dateStr + 'T00:00:00Z') : null;
       return {
@@ -349,12 +351,15 @@
 
     if (chartType === 'hourly') {
       currentChartType = 'line';
-      labels = chartData.map(d => `${String(d.hour).padStart(2, '0')}:00`);
-      values = chartData.map(d => d.total);
-      prevValues = chartData.map(d => {
-        const prev = prevChartData.find(p => p.hour === d.hour);
-        return prev ? prev.total : null;
-      });
+      const currentHour = getCurrentJakartaHour();
+      const hours = Array.from({ length: currentHour + 1 }, (_, i) => i);
+      const dataByHour = {};
+      chartData.forEach(d => { dataByHour[parseInt(d.date)] = d.total; });
+      const prevByHour = {};
+      prevChartData.forEach(d => { prevByHour[parseInt(d.date)] = d.total; });
+      labels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
+      values = hours.map(h => dataByHour[h] || 0);
+      prevValues = hours.map(h => prevByHour[h] !== undefined ? prevByHour[h] : 0);
     } else if (chartType === 'daily') {
       currentChartType = 'line';
       if (activePeriodType === 'monthly') {
@@ -391,7 +396,7 @@
             dateStrings.push(dateStr);
             if (dateStr <= yesterday) {
               const prevItem = prevSorted[prevIdx];
-              const hasPrev = prevItem && prevItem.total > 0;
+              const hasPrev = prevItem !== undefined;
               prevDateStrings.push(prevItem ? prevItem.date : '');
               values.push(dataMap[dateStr] || 0);
               prevValues.push(hasPrev ? prevItem.total : null);
@@ -439,7 +444,7 @@
             const expectedPrev = new Date(d.getTime() - dayOffset * 86400000);
             const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
             const prevTotal = prevByDate[expectedPrevStr];
-            const hasPrev = prevTotal !== undefined && prevTotal > 0;
+            const hasPrev = prevTotal !== undefined;
             const prevLabel = hasPrev
               ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
               : 'No Data';
@@ -467,6 +472,7 @@
         if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
           const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
           dayOffset = Math.round(diffMs / 86400000);
+          if (isNaN(dayOffset)) dayOffset = 0;
         }
         labels = [];
         values = [];
@@ -483,11 +489,19 @@
             return;
           }
           const currentDate = new Date(d.date);
+          if (isNaN(currentDate.getTime())) {
+            labels.push(String(i + 1));
+            dateStrings.push('');
+            prevDateStrings.push('');
+            values.push(d.total);
+            prevValues.push(null);
+            return;
+          }
           const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', day: 'numeric' });
           const expectedPrev = new Date(currentDate.getTime() - dayOffset * 86400000);
           const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
           const prevTotal = prevByDate[expectedPrevStr];
-          const hasPrev = prevTotal !== undefined && prevTotal > 0;
+          const hasPrev = prevTotal !== undefined;
           const prevLabel = hasPrev
             ? expectedPrev.toLocaleString('en-US', { month: 'short', day: 'numeric' })
             : 'No Data';
@@ -528,7 +542,7 @@
           const currentDate = new Date(chartYear, m - 1, 1);
           const currentLabel = currentDate.toLocaleString('en-US', { month: 'short' }) + ' ' + chartYear;
           const prevDate = new Date(prevYear, m - 1, 1);
-          const hasPrevData = prevByMonth[m] !== undefined && prevByMonth[m] > 0;
+          const hasPrevData = prevByMonth[m] !== undefined;
           const prevLabel = hasPrevData
             ? prevDate.toLocaleString('en-US', { month: 'short' }) + ' ' + prevYear
             : 'No Data';
@@ -600,7 +614,8 @@
             pointBorderWidth: 0,
             pointRadius: currentChartType === 'bar' ? 0 : 4,
             pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
-            tension: 0
+            tension: 0,
+            spanGaps: true
           },
           ...(hasPrevData ? [{
             label: 'Previous Period',
@@ -613,7 +628,8 @@
             pointBorderWidth: 0,
             pointRadius: currentChartType === 'bar' ? 0 : 4,
             pointHoverRadius: currentChartType === 'bar' ? 0 : 6,
-            tension: 0
+            tension: 0,
+            spanGaps: true
           }] : [])
         ]
       },
@@ -747,6 +763,8 @@
   async function fetchSalesWithRange(start, end) {
     try {
       loading = true;
+      chartData = [];
+      prevChartData = [];
       startDate = start;
       endDate = end;
 
@@ -848,18 +866,18 @@
 
       if (dualRes.ok) {
         const dualData = await dualRes.json();
-        const rawCurrent = dualData.current || dualData.data || [];
-        const rawPrevious = dualData.previous || [];
+        const rawCurrent = dualData.data?.current || dualData.current || dualData.data || [];
+        const rawPrevious = dualData.data?.previous || dualData.previous || [];
 
         if (activePeriodType === 'realtime') {
           const currentHour = getCurrentJakartaHour();
           chartData = rawCurrent.filter(item => {
-            const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
-            return hour <= currentHour;
+            const hour = parseInt(item.date);
+            return !isNaN(hour) && hour <= currentHour;
           });
           prevChartData = rawPrevious.filter(item => {
-            const hour = item.hour ?? parseInt(item.label?.split(':')[0] ?? '-1');
-            return hour <= currentHour;
+            const hour = parseInt(item.date);
+            return !isNaN(hour) && hour <= currentHour;
           });
         } else {
           chartData = rawCurrent;

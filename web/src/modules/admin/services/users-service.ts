@@ -6,9 +6,9 @@ export interface UserListParams {
   offset: number;
   search?: string;
   sort?: string;
-  dir?: string;
-  role?: string;
-  status?: string;
+  sort_dir?: string;
+  role_id?: string;
+  is_active?: string;
 }
 
 export interface UserListResponse {

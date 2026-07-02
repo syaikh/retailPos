@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
 
 export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated';
 
@@ -62,7 +63,9 @@ export function formatRelativeTime(date: Date): string {
   if (diffHour < 24) return `${diffHour}j lalu`;
   const diffDay = Math.floor(diffHour / 24);
   if (diffDay < 7) return `${diffDay}h lalu`;
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  const jakartaDate = new Date(date.getTime() + JAKARTA_OFFSET_MS);
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  return `${jakartaDate.getUTCDate()} ${months[jakartaDate.getUTCMonth()]}`;
 }
 
 export function getNotificationIcon(type: NotificationType): string {

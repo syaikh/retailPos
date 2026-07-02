@@ -36,4 +36,19 @@ export interface SaleFilters {
   paymentMethods?: string[];
   minTotal?: number;
   maxTotal?: number;
+  dateRange?: string;
+}
+
+export interface FilterState {
+  searchQuery: string;
+  paymentMethods: string[];
+  minTotal: number | null;
+  maxTotal: number | null;
+  dateRange: string;
+  startDate: string;
+  endDate: string;
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortDir: string;
 }

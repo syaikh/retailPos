@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Badge, Button, Skeleton } from '$shared/ui';
-  import { Pencil, Trash2, Check, X, Search } from 'lucide-svelte';
+  import { Pencil, Trash2, Search } from 'lucide-svelte';
 
   let {
     customers = [],
@@ -9,19 +9,12 @@
     canUpdate = false,
     canDelete = false,
     selectedIds = $bindable(new Set<number>()),
-    editingId = $bindable(null as number | null),
-    editName = $bindable(''),
-    editPhone = $bindable(''),
-    editEmail = $bindable(''),
-    editActive = $bindable(true),
     sortBy = $bindable('name'),
     sortDir = $bindable('asc'),
     onselectall = () => {},
     onselect = (id: number) => {},
     onsort = (col: string) => {},
     onedit = (c: any) => {},
-    oncanceledit = () => {},
-    onsaveedit = (id: number) => {},
     ondeactivate = (c: any) => {},
   }: {
     customers: any[];
@@ -30,19 +23,12 @@
     canUpdate: boolean;
     canDelete: boolean;
     selectedIds: Set<number>;
-    editingId: number | null;
-    editName: string;
-    editPhone: string;
-    editEmail: string;
-    editActive: boolean;
     sortBy: string;
     sortDir: string;
     onselectall?: () => void;
     onselect?: (id: number) => void;
     onsort?: (col: string) => void;
     onedit?: (c: any) => void;
-    oncanceledit?: () => void;
-    onsaveedit?: (id: number) => void;
     ondeactivate?: (c: any) => void;
   } = $props();
 
@@ -81,22 +67,24 @@
       <th class="p-4 font-semibold w-12">
         <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
       </th>
-      <th class="text-left p-4 font-semibold w-[26%]">
+      <th class="text-left p-4 font-semibold w-[20%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('name')}>
           NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[18%]">
+      <th class="text-left p-4 font-semibold w-[12%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('phone')}>
           PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[26%]">
+      <th class="text-left p-4 font-semibold w-[16%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('email')}>
           EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
       </th>
-      <th class="text-left p-4 font-semibold w-[14%]">
+      <th class="text-left p-4 font-semibold w-[16%]">ADDRESS</th>
+      <th class="text-left p-4 font-semibold w-[14%]">NOTE</th>
+      <th class="text-left p-4 font-semibold w-[12%]">
         <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('status')}>
           STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
@@ -108,7 +96,7 @@
     {#if loading}
       {#each { length: 5 } as _, i}
         <tr class="border-t border-border">
-          <td class="px-4 py-3" colspan={6}>
+          <td class="px-4 py-3" colspan={8}>
             <div class="flex items-center gap-3">
               <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
               <div class="flex-1 space-y-2">
@@ -121,7 +109,7 @@
       {/each}
     {:else if customers.length === 0}
       <tr class="border-t border-border">
-        <td colspan={6}>
+        <td colspan={8}>
           <div class="px-4 py-16 text-center">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Search size={32} class="text-text-muted" />
@@ -137,73 +125,56 @@
       </tr>
     {:else}
       {#each customers as c}
-        {#if editingId === c.id}
-          <tr class="border-t border-border bg-primary-subtle/10">
-            <td class="px-4 py-1.5 h-12 overflow-hidden">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-[10px] font-bold shrink-0">
-                  {getInitials(editName)}
-                </div>
-                <input class="flex-1 h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editName} aria-label="Edit name" />
+        <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+          <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label="Select {c.name}" />
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
+                {getInitials(c.name)}
               </div>
-            </td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editPhone} aria-label="Edit phone" /></td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden"><input class="w-full h-6 px-2.5 py-1 text-xs leading-none rounded-lg bg-bg-secondary text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-default/20 border-0" bind:value={editEmail} aria-label="Edit email" /></td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">
-              <label class="flex items-center gap-2 text-xs">
-                <input type="checkbox" bind:checked={editActive} />
-                {editActive ? 'Active' : 'Inactive'}
-              </label>
-            </td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">
-              <div class="flex items-center gap-1">
-                <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onsaveedit(c.id)} title="Save" aria-label="Save">
-                  <Check size={14} />
+              <span class="truncate">{c.name}</span>
+            </div>
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">
+            {#if c.address}
+              <span class="truncate block">{c.address}</span>
+            {:else}
+              <span class="text-text-muted">—</span>
+            {/if}
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">
+            {#if c.note}
+              <span class="truncate block">{c.note}</span>
+            {:else}
+              <span class="text-text-muted">—</span>
+            {/if}
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">
+            {#if c.is_active !== false}
+              <Badge variant="success" size="sm">Active</Badge>
+            {:else}
+              <Badge variant="danger" size="sm">Inactive</Badge>
+            {/if}
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
+            <div class="flex items-center justify-center gap-1">
+              {#if canUpdate}
+                <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onedit(c)} title="Edit" aria-label="Edit">
+                  <Pencil size={14} />
                 </Button>
-                <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger transition-all active:scale-90" onclick={oncanceledit} title="Cancel" aria-label="Cancel">
-                  <X size={14} />
-                </Button>
-              </div>
-            </td>
-          </tr>
-        {:else}
-          <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-            <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
-              <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label="Select {c.name}" />
-            </td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-primary-subtle text-primary-light flex items-center justify-center text-xs font-bold shrink-0">
-                  {getInitials(c.name)}
-                </div>
-                <span class="truncate">{c.name}</span>
-              </div>
-            </td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">{c.phone || '—'}</td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">{c.email || '—'}</td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden">
-              {#if c.is_active !== false}
-                <Badge variant="success" size="sm">Active</Badge>
-              {:else}
-                <Badge variant="danger" size="sm">Inactive</Badge>
               {/if}
-            </td>
-            <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
-              <div class="flex items-center justify-center gap-1">
-                {#if canUpdate}
-                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onedit(c)} title="Edit" aria-label="Edit">
-                    <Pencil size={14} />
-                  </Button>
-                {/if}
-                {#if canDelete && c.is_active !== false}
-                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => ondeactivate(c)} title="Deactivate" aria-label="Deactivate">
-                    <Trash2 size={14} />
-                  </Button>
-                {/if}
-              </div>
-            </td>
-          </tr>
-        {/if}
+              {#if canDelete && c.is_active !== false}
+                <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => ondeactivate(c)} title="Deactivate" aria-label="Deactivate">
+                  <Trash2 size={14} />
+                </Button>
+              {/if}
+            </div>
+          </td>
+        </tr>
       {/each}
     {/if}
   </tbody>

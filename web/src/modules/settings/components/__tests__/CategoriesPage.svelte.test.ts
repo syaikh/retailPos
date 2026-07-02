@@ -11,10 +11,6 @@ function getSource(): string {
 describe('CategoriesPage.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports apiFetch for HTTP calls', () => {
-    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
-  });
-
   it('imports auth store', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
@@ -23,8 +19,12 @@ describe('CategoriesPage.svelte source-structure guards', () => {
     expect(src).toContain("import { formatDateInJakarta } from '$shared/utils/jakartaTime'");
   });
 
+  it('imports apiFetch', () => {
+    expect(src).toContain("import { apiFetch } from '$shared/api/http-client'");
+  });
+
   it('imports shared UI components', () => {
-    expect(src).toContain("import { Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog } from '$shared/ui'");
   });
 
   it('uses $state for categories, loading, pagination', () => {

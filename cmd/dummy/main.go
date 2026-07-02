@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -205,8 +206,8 @@ func main() {
 	// --- Full bulk seeder -----------------------------------------------
 	truncateFlag := flag.Bool("truncate", true, "Truncate existing data before injection")
 	productsFlag := flag.Int("products", 0, "Number of products to generate (random if 0)")
-	daysFlag := flag.Int("days", 0, "Number of days to generate data for (150-180, random if 0)")
-	categoriesFlag := flag.Int("categories", 0, "Number of categories to ensure exist (65-80, random if 0)")
+	daysFlag := flag.Int("days", 0, "Number of days to generate data for (0 = interactive prompt)")
+	categoriesFlag := flag.Int("categories", 0, "Number of categories to ensure exist (random if 0)")
 	flag.Parse()
 
 	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag); err != nil {
@@ -218,12 +219,12 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ctx := context.Background()
 
 
-	// Validate parameters (relaxed for continuation)
-	if numProducts < 0 || numProducts > 5000 {
-		return fmt.Errorf("products count must be between 0-5000, got %d", numProducts)
+	// Validate parameters
+	if numProducts < 0 {
+		return fmt.Errorf("products count must not be negative, got %d", numProducts)
 	}
-	if numCategories < 0 || numCategories > 80 {
-		return fmt.Errorf("categories count must be between 0-80, got %d", numCategories)
+	if numCategories < 0 {
+		return fmt.Errorf("categories count must not be negative, got %d", numCategories)
 	}
 
 	// Interactive time range selection if not specified
@@ -231,17 +232,16 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		numDays = promptTimeRange()
 	}
 
-	// Convert months to days (for validation, max 3 years = 36 months)
-	if numDays < 180 || numDays > 1095 {
-		return fmt.Errorf("days must be between 180-1095 (6 months - 3 years), got %d", numDays)
+	if numDays < 0 {
+		return fmt.Errorf("days count must not be negative, got %d", numDays)
 	}
 
 	// Randomize counts if not specified (0 means random)
 	if numProducts == 0 {
-		numProducts = rand.Intn(501) + 4500 // 4500-5000
+		numProducts = rand.Intn(1001) + 4500 // 4500-5500
 	}
 	if numCategories == 0 {
-		numCategories = rand.Intn(16) + 65 // 65-80
+		numCategories = rand.Intn(36) + 65 // 65-100
 	}
 
 	// Calculate date range
@@ -265,7 +265,7 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	// 1. Truncate existing data if requested
 	if truncateData {
 		fmt.Println("🗑️  Truncating existing transactional data...")
-		if err := truncateTransactionalData(ctx, db); err != nil {
+		if err := truncateAllData(ctx, db); err != nil {
 			return fmt.Errorf("failed to truncate data: %w", err)
 		}
 		fmt.Println("✅ Data truncated successfully")
@@ -286,7 +286,27 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		fmt.Printf("   Found %d existing categories\n", len(categoryIDs))
 	}
 
-	// 3. Inject products
+	// 3. Ensure tax classes exist
+	ensureTaxClasses(ctx, db)
+	fmt.Println("   ✅ Tax classes ready")
+
+	// 3b. Ensure brands exist
+	ensureBrands(ctx, db)
+	fmt.Println("   ✅ Brands ready")
+
+	// 3c. Ensure units of measure exist
+	ensureUnitsOfMeasure(ctx, db)
+	fmt.Println("   ✅ Units of measure ready")
+
+	// 3d. Ensure payment methods exist
+	ensurePaymentMethods(ctx, db)
+	fmt.Println("   ✅ Payment methods ready")
+
+	// 3e. Clean up test/dummy roles
+	cleanupTestRoles(ctx, db)
+	fmt.Println("   ✅ Test/dummy roles cleaned up")
+
+	// 4. Inject products
 	var productData []ProductInfo
 	if numProducts > 0 {
 		fmt.Printf("📦 Injecting %d products...\n", numProducts)
@@ -302,7 +322,7 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		fmt.Printf("   Found %d existing products\n", len(productData))
 	}
 
-	// 4. Get users for cashier assignment (needed for sales)
+	// 5. Get users for cashier assignment (needed for sales)
 	var userIDs []int
 	if len(productData) > 0 {
 		userIDs = getIDs(ctx, db, "users")
@@ -311,32 +331,39 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		}
 	}
 
-	// 5. Inject dummy customers (50-100) — must happen BEFORE sales so we can link them
+	// 6. Inject dummy customers (50-100) — must happen BEFORE sales so we can link them
 	fmt.Printf("👥 Injecting dummy customers...\n")
 	if err := injectCustomers(ctx, db, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject customers: %w", err)
 	}
 	fmt.Printf("   ✅ Customers injected\n")
 
-	// 6. Load customer IDs for sales assignment
+	// 7. Load customer IDs for sales assignment
 	customerIDs := getIDs(ctx, db, "customers")
 	if len(customerIDs) == 0 {
 		return fmt.Errorf("no customers found after injection")
 	}
 
-	// 7. Load walk-in customer ID
+	// 8. Load walk-in customer ID
 	var walkInCustomerID int
 	err = db.QueryRowContext(ctx, "SELECT id FROM customers WHERE is_walk_in = true LIMIT 1").Scan(&walkInCustomerID)
 	if err != nil {
 		return fmt.Errorf("no walk-in customer found: %w", err)
 	}
 
-	// 8. Inject sales transactions (10-20 per day across all days)
+	// 9. Inject sales transactions (10-20 per day across all days)
 	fmt.Printf("💰 Injecting daily sales (10-20 per day across %d days)...\n", numDays)
 
 	if err := injectDailySales(ctx, db, userIDs, productData, customerIDs, walkInCustomerID, startDate, endDate); err != nil {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
+
+	// 10. Generate audit log entries for all created data
+	fmt.Printf("📋 Generating audit log entries...\n")
+	if err := generateAuditLogs(ctx, db, userIDs, categoryIDs, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to generate audit logs: %w", err)
+	}
+	fmt.Println("   ✅ Audit log entries generated")
 
 	fmt.Println("🎉 Dummy data injection completed successfully!")
 	return nil
@@ -350,8 +377,8 @@ type ProductInfo struct {
 	TaxClassID *int
 }
 
-// truncateTransactionalData removes all business data while preserving admin data
-func truncateTransactionalData(ctx context.Context, db *sql.DB) error {
+// truncateAllData removes all business and master data while preserving admin data (roles, permissions, users, stores)
+func truncateAllData(ctx context.Context, db *sql.DB) error {
 	// Disable triggers temporarily to avoid FK constraint issues
 	_, err := db.ExecContext(ctx, "SET session_replication_role = 'replica'")
 	if err != nil {
@@ -363,19 +390,69 @@ func truncateTransactionalData(ctx context.Context, db *sql.DB) error {
 		}
 	}()
 
+	// Save system users (system role, non-test/dummy) before truncation
+	type sysUser struct {
+		id, roleID                     int
+		username, email, passwordHash  string
+		isActive                       bool
+	}
+	var systemUsers []sysUser
+	rows, err := db.QueryContext(ctx, `
+		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.is_active
+		FROM users u
+		JOIN roles r ON r.id = u.role_id
+		WHERE r.is_system = true
+		  AND u.username NOT ILIKE '%test%'
+		  AND u.username NOT ILIKE '%user%'
+		  AND u.username NOT ILIKE '%dummy%'
+		  AND u.email NOT ILIKE '%test%'
+		  AND u.email NOT ILIKE '%dummy%'`)
+	if err == nil {
+		for rows.Next() {
+			var u sysUser
+			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &u.isActive); err == nil {
+				systemUsers = append(systemUsers, u)
+			}
+		}
+		rows.Close()
+	} else {
+		log.Printf("Warning: could not save system users: %v", err)
+	}
+
 	// Truncate tables in correct order (children first)
 	tables := []string{
 		"sale_items",
+		"product_stock",
 		"inventory_movements",
 		"sales",
 		"products",
 		"customers",
+		"payment_methods",
+		"warehouses",
+		"units_of_measure",
+		"tax_classes",
+		"brands",
+		"categories",
+		"audit_logs",
+		"refresh_tokens",
+		"users",
 	}
 
 	for _, table := range tables {
 		_, err := db.ExecContext(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
 		if err != nil {
 			return fmt.Errorf("failed to truncate %s: %w", table, err)
+		}
+	}
+
+	// Restore system users
+	for _, u := range systemUsers {
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO users (id, username, email, password_hash, role_id, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()) ON CONFLICT (id) DO NOTHING`,
+			u.id, u.username, u.email, u.passwordHash, u.roleID, u.isActive,
+		)
+		if err != nil {
+			log.Printf("Warning: failed to restore system user %d: %v", u.id, err)
 		}
 	}
 
@@ -438,8 +515,8 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 			catName := categories[i]
 			var id int
 			err := db.QueryRowContext(ctx,
-				"INSERT INTO categories (name, description, is_active) VALUES ($1, $2, true) RETURNING id",
-				catName, fmt.Sprintf("Auto-generated category for %s products", catName),
+				"INSERT INTO categories (name, slug, description, is_active) VALUES ($1, $2, $3, true) RETURNING id",
+				catName, generateSlug(catName), fmt.Sprintf("Auto-generated category for %s products", catName),
 			).Scan(&id)
 
 			if err != nil {
@@ -451,6 +528,95 @@ func ensureCategories(ctx context.Context, db *sql.DB, targetCount int) []int {
 	}
 
 	return existingIDs
+}
+
+// generateSlug creates a URL-friendly slug from a name
+func generateSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	replacements := []struct{ from, to string }{
+		{" ", "-"}, {"'", ""}, {`"`, ""}, {"&", "and"}, {"/", "-"},
+		{"+", "plus"}, {"=", "equals"}, {"?", ""}, {"!", ""}, {"@", "at"},
+		{"#", "number"}, {"%", "percent"}, {"(", ""}, {")", ""},
+	}
+	for _, r := range replacements {
+		slug = strings.ReplaceAll(slug, r.from, r.to)
+	}
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 120 {
+		slug = slug[:120]
+	}
+	return slug
+}
+
+func ensureTaxClasses(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO tax_classes (id, name, rate_percent, description, is_active, created_at)
+		VALUES
+		(1, 'PPN 11%', 11.00, 'Pajak Pertambahan Nilai standar 11%', true, NOW()),
+		(2, 'PPN 0%', 0.00, 'Tidak dikenakan PPN', true, NOW()),
+		(3, 'Non PPN', 0.00, 'Produk tidak kena PPN', true, NOW())
+		ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure tax classes: %v\n", err)
+	}
+}
+
+func ensureBrands(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO brands (id, name, description, is_active, created_at, updated_at)
+		VALUES
+		(1, 'Indofood', 'Produk makanan dari PT Indofood Sukses Makmur', true, NOW(), NOW()),
+		(2, 'Sosro', 'Minuman teh dalam kemasan', true, NOW(), NOW()),
+		(3, 'Wings', 'Snack dan makanan ringan', true, NOW(), NOW()),
+		(4, 'Unilever', 'Produk konsumsi sehari-hari', true, NOW(), NOW()),
+		(5, 'Lokal', 'Brand lokal/produk umum', true, NOW(), NOW())
+		ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure brands: %v\n", err)
+	}
+}
+
+func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO payment_methods (code, name, is_active, requires_reference, sort_order, created_at)
+		VALUES
+		('CASH', 'Cash', true, false, 1, NOW()),
+		('CARD', 'Card', true, true, 2, NOW()),
+		('E_WALLET', 'E-Wallet', true, true, 3, NOW()),
+		('TRANSFER', 'Transfer', true, true, 4, NOW()),
+		('QRIS', 'QRIS', true, false, 5, NOW())
+		ON CONFLICT (code) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure payment methods: %v\n", err)
+	}
+}
+
+func ensureUnitsOfMeasure(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO units_of_measure (id, code, name, description, is_active, created_at)
+		VALUES
+		(1, 'pcs', 'Pieces', 'Satuan individual/buah', true, NOW()),
+		(2, 'box', 'Box', 'Kemasan kotak', true, NOW()),
+		(3, 'dus', 'Dus', 'Kemasan karton/dus', true, NOW()),
+		(4, 'kg', 'Kilogram', 'Kilogram', true, NOW()),
+		(5, 'gram', 'Gram', 'Gram', true, NOW()),
+		(6, 'liter', 'Liter', 'Liter', true, NOW()),
+		(7, 'ml', 'Mililiter', 'Mililiter', true, NOW()),
+		(8, 'pack', 'Pack', 'Kemasan/pack', true, NOW())
+		ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure units of measure: %v\n", err)
+	}
+}
+
+func cleanupTestRoles(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `DELETE FROM roles WHERE (name ILIKE '%dummy%' OR name ILIKE '%test%') AND id NOT IN (SELECT DISTINCT role_id FROM users WHERE role_id IS NOT NULL)`)
+	if err != nil {
+		fmt.Printf("Warning: failed to clean up test/dummy roles: %v\n", err)
+	}
 }
 
 // productWorkerJob represents a job for a worker in the concurrent product injection pool
@@ -565,8 +731,8 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8) RETURNING id`)
+		`INSERT INTO products (sku, name, barcode, price, cost, stock, category_id, status, tax_class_id, brand_id, unit_of_measure_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 1, $8, $9, $10) RETURNING id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
@@ -607,7 +773,9 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 		createdAt := time.Now().In(jakartaTZ).AddDate(0, 0, -randomDays)
 
 		var id int
-		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, createdAt).Scan(&id)
+		brandID := rand.Intn(5) + 1
+		uomID := rand.Intn(8) + 1
+		err := stmt.QueryRowContext(ctx, sku, name, barcode, price, cost, stock, catID, brandID, uomID, createdAt).Scan(&id)
 		if err != nil {
 			fmt.Printf("Warning: worker %d failed to insert product %d: %v\n", job.workerID, i, err)
 			continue
@@ -659,9 +827,9 @@ type workerJob struct {
 
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
-	numWorkers := 4 // Concurrent workers for performance
+	numWorkers := 1 // Single worker avoids lock contention for max throughput
 
-	now := time.Now().In(jakartaTZ)
+	ref := time.Now().In(jakartaTZ)
 	productMap := make(map[int]ProductInfo)
 	for _, p := range products {
 		productMap[p.ID] = p
@@ -737,7 +905,7 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 		go func(job workerJob) {
 			defer wg.Done()
 
-			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, now, salesCreated)
+			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, ref, salesCreated)
 			fmt.Printf("   ✅ Worker %d completed: %d sales\n", job.workerID, workerSales)
 		}(job)
 	}
@@ -783,18 +951,20 @@ type SaleItemRecord struct {
 }
 
 // processWorkerJob handles a single worker's portion of the work with optimized batch transactions
-func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, now time.Time, progress chan<- int) int {
+func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, ref time.Time, progress chan<- int) int {
 	invoiceCounter := 0
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
+		log.Printf("Worker %d: begin tx: %v", job.workerID, err)
 		return 0
 	}
 
 	saleStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
-		 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+		 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
 	if err != nil {
+		log.Printf("Worker %d: prepare sale stmt: %v", job.workerID, err)
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
 		}
@@ -805,12 +975,50 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	itemStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
 	if err != nil {
+		log.Printf("Worker %d: prepare item stmt: %v", job.workerID, err)
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
 		}
 		return 0
 	}
 	defer itemStmt.Close()
+
+	stockStmt, err := tx.PrepareContext(ctx, `
+		UPDATE product_stock
+		SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
+		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
+	if err != nil {
+		log.Printf("Worker %d: prepare stock stmt: %v", job.workerID, err)
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer stockStmt.Close()
+
+	stockInsertStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO product_stock (product_id, quantity, updated_at)
+		VALUES ($1, GREATEST(0, 0-$2), NOW())`)
+	if err != nil {
+		log.Printf("Worker %d: prepare stock insert stmt: %v", job.workerID, err)
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer stockInsertStmt.Close()
+
+	movementStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+		VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
+	if err != nil {
+		log.Printf("Worker %d: prepare movement stmt: %v", job.workerID, err)
+		if rbErr := tx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback: %v", rbErr)
+		}
+		return 0
+	}
+	defer movementStmt.Close()
 
 	salesCreated := 0
 	batchSize := 0
@@ -822,7 +1030,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 		for s := 0; s < salesForDay; s++ {
 			invoiceNum := job.startInvoice + invoiceCounter
-			invoice := fmt.Sprintf("INV-%d-%06d", now.Year(), invoiceNum)
+			invoice := fmt.Sprintf("INV-%d-%06d", ref.Year(), invoiceNum)
 			invoiceCounter++
 
 			cashierID := randElemInt(userIDs)
@@ -832,7 +1040,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 				customerID = job.walkInCustomerID
 			}
 			paymentMethod := weightedRandomChoice(paymentMethods, paymentWeights)
-			createdAt := randomTime24Hour(dayDate, now)
+			createdAt := randomTime24Hour(dayDate, ref)
 
 			numItems := generateItemCount()
 			saleProducts := selectProductsForSale(products, numItems)
@@ -876,10 +1084,14 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			var saleID int
 			err := saleStmt.QueryRowContext(ctx, invoice, cashierID, customerID, paymentMethod, totalDPP, totalTax, totalAmount, createdAt).Scan(&saleID)
 			if err != nil {
+				log.Printf("Worker %d: insert sale %s: %v", job.workerID, invoice, err)
 				continue
 			}
 
-			// Insert sale items
+			// Sort items by ProductID — consistent lock order prevents deadlocks
+			sort.Slice(items, func(i, j int) bool { return items[i].ProductID < items[j].ProductID })
+
+			// Insert sale items, update stock, record movements
 			for _, item := range items {
 				product := productMap[item.ProductID]
 				var dpp, tax int
@@ -891,26 +1103,57 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 					tax = 0
 				}
 				if _, err := itemStmt.ExecContext(ctx, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal, dpp, tax); err != nil {
-					log.Printf("failed to insert sale item: %v", err)
+					log.Printf("Worker %d: insert item %s: %v", job.workerID, invoice, err)
+					continue
+				}
+
+				// Decrement product stock
+				res, err := stockStmt.ExecContext(ctx, item.Quantity, item.ProductID)
+				if err != nil {
+					log.Printf("Worker %d: update stock %s (product %d): %v", job.workerID, invoice, item.ProductID, err)
+					continue
+				}
+				if n, _ := res.RowsAffected(); n == 0 {
+					if _, err := stockInsertStmt.ExecContext(ctx, item.ProductID, item.Quantity); err != nil {
+						log.Printf("Worker %d: insert stock %s (product %d): %v", job.workerID, invoice, item.ProductID, err)
+					}
+				}
+
+				// Record inventory movement
+				if _, err := movementStmt.ExecContext(ctx, item.ProductID, -item.Quantity, saleID, cashierID, fmt.Sprintf("Sale %s", invoice), createdAt); err != nil {
+					log.Printf("Worker %d: insert movement %s: %v", job.workerID, invoice, err)
 				}
 			}
 
 			salesCreated++
 			batchSize++
 
-			if batchSize >= 50 {
+			if batchSize >= 500 {
 				saleStmt.Close()
 				itemStmt.Close()
+				stockStmt.Close()
+				stockInsertStmt.Close()
+				movementStmt.Close()
 				if err := tx.Commit(); err != nil {
 					log.Printf("failed to commit batch: %v", err)
 				}
 
 				tx, _ = db.BeginTx(ctx, nil)
 				saleStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sales (invoice_number, cashier_id, customer_id, payment_method, status, subtotal, tax, total_amount, created_at)
-					 VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8) RETURNING id`)
+					`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+					 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
 				itemStmt, _ = tx.PrepareContext(ctx,
 					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+				stockStmt, _ = tx.PrepareContext(ctx, `
+					UPDATE product_stock
+					SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
+					WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
+				stockInsertStmt, _ = tx.PrepareContext(ctx, `
+					INSERT INTO product_stock (product_id, quantity, updated_at)
+					VALUES ($1, GREATEST(0, 0-$2), NOW())`)
+				movementStmt, _ = tx.PrepareContext(ctx, `
+					INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+					VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
 
 				batchSize = 0
 			}
@@ -926,6 +1169,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt.Close()
 	itemStmt.Close()
+	stockStmt.Close()
+	stockInsertStmt.Close()
+	movementStmt.Close()
 	if err := tx.Commit(); err != nil {
 		log.Printf("failed to commit final batch: %v", err)
 	}
@@ -939,8 +1185,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 }
 
 // randomTime24Hour generates random time spread across 24 hours for 24/7 open store
-func randomTime24Hour(dayDate, now time.Time) time.Time {
-	isToday := dayDate.Year() == now.Year() && dayDate.Month() == now.Month() && dayDate.Day() == now.Day()
+func randomTime24Hour(dayDate, ref time.Time) time.Time {
+	isToday := dayDate.Year() == ref.Year() && dayDate.Month() == ref.Month() && dayDate.Day() == ref.Day()
 
 	// Weighted hour distribution for 24/7 store
 	// Higher weight for typical business hours (09-21), but still allow all hours
@@ -959,8 +1205,8 @@ func randomTime24Hour(dayDate, now time.Time) time.Time {
 	hour := weightedPickInt(hourWeights)
 	var minute int
 	if isToday {
-		currentHour := now.In(jakartaTZ).Hour()
-		currentMinute := now.Minute()
+		currentHour := ref.In(jakartaTZ).Hour()
+		currentMinute := ref.Minute()
 		if hour > currentHour || (hour == currentHour && currentMinute < 5) {
 			hour = currentHour
 		}
@@ -1153,14 +1399,14 @@ func generateItemCount() int {
 }
 
 func selectProductsForSale(products []ProductInfo, count int) []int {
+	if len(products) == 0 {
+		return nil
+	}
 	selected := make([]int, 0, count)
-
-	// Simple random selection (can be improved later)
 	for i := 0; i < count; i++ {
 		selectedProduct := products[rand.Intn(len(products))]
 		selected = append(selected, selectedProduct.ID)
 	}
-
 	return selected
 }
 
@@ -1228,19 +1474,20 @@ func promptTimeRange() int {
 	fmt.Println("  2. 1 year (365 days)")
 	fmt.Println("  3. 2 years (730 days)")
 	fmt.Println("  4. 3 years (1095 days)")
-	fmt.Println("  5. Custom (specify months)")
+	fmt.Println("  5. Custom")
+	fmt.Println("  6. Unlimited (generate all time)")
 
 	var choice int
 	for {
-		fmt.Print("\nEnter your choice (1-5): ")
+		fmt.Print("\nEnter your choice (1-6): ")
 		_, err := fmt.Fscan(reader, &choice)
-		if err == nil && choice >= 1 && choice <= 5 {
+		if err == nil && choice >= 1 && choice <= 6 {
 			break
 		}
 		if err != nil {
 			_, _ = reader.ReadString('\n') // clear buffer
 		}
-		fmt.Println("Invalid choice. Please enter 1-5.")
+		fmt.Println("Invalid choice. Please enter 1-6.")
 	}
 
 	switch choice {
@@ -1255,16 +1502,18 @@ func promptTimeRange() int {
 	case 5:
 		var months int
 		for {
-			fmt.Print("Enter number of months (6-36): ")
+			fmt.Print("Enter number of months: ")
 			_, err := fmt.Fscan(reader, &months)
-			if err == nil && months >= 6 && months <= 36 {
+			if err == nil && months >= 1 {
 				return months * 30 // approximate days
 			}
 			if err != nil {
 				_, _ = reader.ReadString('\n')
 			}
-			fmt.Println("Invalid input. Please enter a number between 6 and 36.")
+			fmt.Println("Invalid input. Please enter 6 or more.")
 		}
+	case 6:
+		return 99999 // effectively unlimited
 	}
 	return 180 // fallback
 }
@@ -1276,6 +1525,178 @@ func getDSN() string {
 		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
 	}
 	return dsn
+}
+
+// generateAuditLogs creates audit log entries matching the seeded data
+func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []int, startDate, endDate time.Time) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	rows := make([]string, 0, 500)
+	addRow := func(userID int, role, action, entityType string, entityID *int, description string, createdAt time.Time) {
+		var eid any = "NULL"
+		if entityID != nil {
+			eid = *entityID
+		}
+		ip := randomPrivateIP()
+		rows = append(rows, fmt.Sprintf(
+			"(%d, '%s', '%s', '%s', %v, NULL, NULL, '%s', NULL, '%s', '%s')",
+			userID, escapeSQL(role), escapeSQL(action), escapeSQL(entityType),
+			eid, ip, escapeSQL(description),
+			createdAt.Format("2006-01-02 15:04:05-07"),
+		))
+	}
+
+	userID := userIDs[0]
+	ref := endDate.In(jakartaTZ)
+
+	// Login events for first few users
+	for i := 0; i < len(userIDs) && i < 3; i++ {
+		loginTime := ref.Add(-time.Duration(rand.Intn(48)) * time.Hour)
+		addRow(userIDs[i], "superadmin", "login", "auth", nil, "User logged in", loginTime)
+		logoutTime := loginTime.Add(time.Duration(8+rand.Intn(4)) * time.Hour)
+		addRow(userIDs[i], "superadmin", "logout", "auth", nil, "User logged out", logoutTime)
+	}
+
+	// Category creation
+	for _, catID := range categoryIDs {
+		addRow(userID, "superadmin", "create", "category", &catID,
+			fmt.Sprintf("Created category #%d", catID),
+			ref.Add(-time.Duration(rand.Intn(72))*time.Hour))
+	}
+
+	// Brand creation
+	brandID := 1
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Indofood", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	brandID = 2
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Sosro", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	brandID = 3
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Wings", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	brandID = 4
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Unilever", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	brandID = 5
+	addRow(userID, "superadmin", "create", "brand", &brandID, "Created brand: Lokal", ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+
+	// Tax class creation
+	for id, name := range map[int]string{1: "PPN 11%", 2: "PPN 0%", 3: "Non PPN"} {
+		v := id
+		addRow(userID, "superadmin", "create", "tax_class", &v,
+			fmt.Sprintf("Created tax class: %s", name),
+			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
+	}
+
+	// UOM creation
+	for id, name := range map[int]string{1: "Pieces", 2: "Box", 3: "Dus", 4: "Kilogram", 5: "Gram", 6: "Liter", 7: "Mililiter", 8: "Pack"} {
+		v := id
+		addRow(userID, "superadmin", "create", "uom", &v,
+			fmt.Sprintf("Created unit of measure: %s", name),
+			ref.Add(-time.Duration(rand.Intn(48))*time.Hour))
+	}
+
+	// Product creation entries (sample: one per 100 products, plus last)
+	var productIDs []int
+	prodRows, err := db.QueryContext(ctx, "SELECT id FROM products ORDER BY id")
+	if err == nil {
+		for prodRows.Next() {
+			var pid int
+			if err := prodRows.Scan(&pid); err == nil {
+				productIDs = append(productIDs, pid)
+			}
+		}
+		prodRows.Close()
+	}
+	for i := 0; i < len(productIDs); i += 100 {
+		pid := productIDs[i]
+		addRow(userID, "superadmin", "create", "product", &pid,
+			fmt.Sprintf("Created product #%d (batch %d)", pid, i/100+1),
+			ref.Add(-time.Duration(48+rand.Intn(48))*time.Hour))
+	}
+	if len(productIDs) > 0 {
+		lastPID := productIDs[len(productIDs)-1]
+		addRow(userID, "superadmin", "create", "product", &lastPID,
+			fmt.Sprintf("Created product #%d", lastPID),
+			ref.Add(-time.Duration(rand.Intn(24))*time.Hour))
+	}
+
+	// Customer creation entries (sample: one per 10 customers)
+	var customerIDs []int
+	custRows, err := db.QueryContext(ctx, "SELECT id FROM customers WHERE is_walk_in = false ORDER BY id")
+	if err == nil {
+		for custRows.Next() {
+			var cid int
+			if err := custRows.Scan(&cid); err == nil {
+				customerIDs = append(customerIDs, cid)
+			}
+		}
+		custRows.Close()
+	}
+	for i := 0; i < len(customerIDs); i += 10 {
+		cid := customerIDs[i]
+		addRow(userID, "superadmin", "create", "customer", &cid,
+			fmt.Sprintf("Created customer #%d", cid),
+			ref.Add(-time.Duration(72+rand.Intn(48))*time.Hour))
+	}
+
+	// Sale creation audit logs — generated from sales table
+	saleRows, err := db.QueryContext(ctx,
+		`SELECT id, cashier_id, customer_id, invoice_number, total_amount, payment_method, created_at
+		 FROM sales ORDER BY id`)
+	if err == nil {
+		defer saleRows.Close()
+		for saleRows.Next() {
+			var sid, cid, custID, total int
+			var inv, pm string
+			var ct time.Time
+			if err := saleRows.Scan(&sid, &cid, &custID, &inv, &total, &pm, &ct); err != nil {
+				continue
+			}
+			nv := fmt.Sprintf(`{"invoice_number":"%s","cashier_id":%d,"customer_id":%d,"total_amount":%d,"payment_method":"%s","status":"completed"}`,
+				inv, cid, custID, total, pm)
+			ip := randomPrivateIP()
+			rows = append(rows, fmt.Sprintf(
+				"(%d, 'cashier', 'create', 'sale', %d, NULL, '%s'::jsonb, '%s', NULL, 'Created sale #%d', '%s')",
+				cid, sid, escapeSQL(nv), ip, sid, ct.Format("2006-01-02 15:04:05-07"),
+			))
+		}
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	// Batch insert audit logs
+	batchSize := 100
+	for i := 0; i < len(rows); i += batchSize {
+		end := i + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		batch := rows[i:end]
+		query := `INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, description, created_at) VALUES `
+		query += strings.Join(batch, ", ")
+		if _, err := db.ExecContext(ctx, query); err != nil {
+			return fmt.Errorf("failed to insert audit logs batch %d: %w", i/batchSize, err)
+		}
+	}
+
+	return nil
+}
+
+func escapeSQL(s string) string {
+	s = strings.ReplaceAll(s, "'", "''")
+	return s
+}
+
+func randomPrivateIP() string {
+	switch rand.Intn(3) {
+	case 0:
+		return fmt.Sprintf("10.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256))
+	case 1:
+		return fmt.Sprintf("172.%d.%d.%d", 16+rand.Intn(16), rand.Intn(256), rand.Intn(256))
+	default:
+		return fmt.Sprintf("192.168.%d.%d", rand.Intn(256), rand.Intn(256))
+	}
 }
 // ==================== CUSTOMER GENERATION ====================
 
@@ -1312,25 +1733,44 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
-		 VALUES ($1, $2, $3, true, false, $4)`)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
+		 VALUES ($1, $2, $3, $4, $5, true, false, $6)`)
 	if err != nil {
 		return fmt.Errorf("prepare: %w", err)
 	}
 	defer stmt.Close()
 
-	now := time.Now().In(jakartaTZ)
+	ref := time.Now().In(jakartaTZ)
 
 	// Insert a walk-in/general customer first
 	walkInID := 0
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO customers (name, phone, email, is_active, is_walk_in, created_at)
-		 VALUES ('Walk-in / General', '', '', true, true, $1)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
+		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1)
 		 RETURNING id`,
-		now,
+		ref,
 	).Scan(&walkInID)
 	if err != nil {
 		return fmt.Errorf("insert walk-in customer: %w", err)
+	}
+
+	customerStreets := []string{
+		"Jl. Merdeka", "Jl. Sudirman", "Jl. Gatot Subroto", "Jl. Ahmad Yani",
+		"Jl. Diponegoro", "Jl. Pahlawan", "Jl. Anggrek", "Jl. Melati",
+		"Jl. Kenanga", "Jl. Mawar", "Jl. Flamboyan", "Jl. Cempaka",
+		"Jl. Kartini", "Jl. Sisingamangaraja", "Jl. Veteran", "Jl. Gajah Mada",
+		"Jl. Hayam Wuruk", "Jl. Juanda", "Jl. Pemuda", "Jl. Siliwangi",
+	}
+	customerCities := []string{
+		"Jakarta Pusat", "Jakarta Selatan", "Jakarta Barat", "Jakarta Timur", "Jakarta Utara",
+		"Bandung", "Surabaya", "Semarang", "Yogyakarta", "Medan",
+		"Makassar", "Palembang", "Denpasar", "Malang", "Bekasi",
+	}
+	customerNotes := []string{
+		"", "", "", "",
+		"Pelanggan tetap", "Member premium", "Rekomendasi dari teman",
+		"Pernah komplain", "Pembayaran tunai", "Pembayaran transfer",
+		"Alergi seafood", "Request packaging khusus", "Catatan: antar ke dapur",
 	}
 
 	for i := 0; i < numCustomers; i++ {
@@ -1339,11 +1779,13 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		name := fmt.Sprintf("%s %s", first, last)
 		phone := fmt.Sprintf("08%s", fmt.Sprintf("%010d", rand.Intn(10000000000)))
 		email := fmt.Sprintf("%s.%s@email.com", strings.ToLower(first), strings.ToLower(last))
+		address := fmt.Sprintf("%s No. %d, %s", customerStreets[rand.Intn(len(customerStreets))], 1+rand.Intn(200), customerCities[rand.Intn(len(customerCities))])
+		note := customerNotes[rand.Intn(len(customerNotes))]
 
-		daysAgo := rand.Intn(int(now.Sub(startDate).Hours()/24)) + 1
-		createdAt := now.AddDate(0, 0, -daysAgo)
+		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
+		createdAt := ref.AddDate(0, 0, -daysAgo)
 
-		if _, err := stmt.ExecContext(ctx, name, phone, email, createdAt); err != nil {
+		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, createdAt); err != nil {
 			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)
 			continue
 		}

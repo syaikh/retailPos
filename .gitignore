@@ -11,6 +11,9 @@ seeder
 migrate
 server
 retail-pos-system
+retail-pos
+dummy
+backfill-audit-description
 
 # Server source directory (uncomment if you want to ignore it)
 # cmd/server/
@@ -36,6 +39,10 @@ go.work
 # Log files
 *.log
 server.log
+
+# Development artifacts
+web/loginpage.html.htm
+web/test-no-svelte.js
 
 # Database files
 *.db
@@ -86,11 +93,15 @@ playwright-report/
 session-*.md
 *.session
 
-# Documentation files (except essential ones)
+# Documentation files (except essential ones and docs/ directory)
 *.md
 !README.md
 !.github/CODE_OF_CONDUCT.md
 !.github/ISSUE_TEMPLATE/bug_report.md
 !.github/ISSUE_TEMPLATE/feature_request.md
 !CONTRIBUTING.md
+!AGENTS.md
 !deploy/PRODUCTION-DEPLOYMENT.md
+!docs/**/*.md
+.opencode/
+watch_*

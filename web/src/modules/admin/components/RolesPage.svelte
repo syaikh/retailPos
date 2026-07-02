@@ -5,7 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
 
-  import { Badge, Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
+  import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -41,9 +41,6 @@
 
   // ── Expanded detail row ──────────────────────────────────────────
   let expandedRoleId = $state(null);
-
-  // ── Action dropdown ──────────────────────────────────────────────
-  let openActionRoleId = $state(null);
 
   // ── Role detail drawer ───────────────────────────────────────────
   let showRoleDrawer = $state(false);
@@ -300,8 +297,6 @@
   function togglePermission(id) { if (form.permission_ids.includes(id)) form.permission_ids = form.permission_ids.filter(pid => pid !== id); else form.permission_ids = [...form.permission_ids, id]; }
   function handleModalKeydown(e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveRole(); } }
 
-  function closeActionDropdown() { openActionRoleId = null; }
-
   function openRoleDrawer(role) {
     selectedRole = role;
     showRoleDrawer = true;
@@ -314,25 +309,11 @@
   function handleWindowKeydown(e) {
     if (e.key === 'Escape') {
       showRoleDrawer = false;
-      openActionRoleId = null;
-      document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
-    }
-  }
-
-  function handleDocumentClick(e) {
-    if (openActionRoleId && !e.target.closest('.role-action-dropdown')) {
-      openActionRoleId = null;
     }
   }
 
   onMount(() => {
     fetchData();
-    document.addEventListener('click', handleDocumentClick);
-    document.addEventListener('close-all-dropdowns', closeActionDropdown);
-    return () => {
-      document.removeEventListener('click', handleDocumentClick);
-      document.removeEventListener('close-all-dropdowns', closeActionDropdown);
-    };
   });
 </script>
 
@@ -473,39 +454,33 @@
                   <td class="p-4">{#if role.description}<span class="text-sm text-text-primary truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">No description</span>{/if}</td>
                   <td class="p-4">
                     <div class="flex items-center justify-end">
-                      <!-- svelte-ignore a11y_no_static_element_interactions -->
-                      <div class="relative" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                        <button
-                          onclick={() => { openActionRoleId = openActionRoleId === role.id ? null : role.id; }}
-                          class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
-                          title="Actions"
-                          aria-label="Role actions"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-                        {#if openActionRoleId === role.id}
-                          <div
-                            class="role-action-dropdown absolute right-0 top-full mt-1 w-44 card-glass border border-border rounded-lg shadow-lg z-50 py-1"
-                            role="menu"
-                            aria-orientation="vertical"
-                            tabindex="-1"
+                      <Dropdown>
+                        {#snippet trigger({ toggle })}
+                          <button
+                            onclick={toggle}
+                            class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
+                            title="Actions"
+                            aria-label="Role actions"
                           >
-                            {#if canEdit}
-                              <button type="button" onclick={() => { openActionRoleId = null; closeAll(); openEdit(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
-                                <Pencil size={14} /> Edit
-                              </button>
-                              <button type="button" onclick={() => { openActionRoleId = null; closeAll(); openDuplicate(role); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
-                                <Copy size={14} /> Duplicate
-                              </button>
-                            {/if}
-                            {#if canDelete && !role.is_system}
-                              <button type="button" onclick={() => { openActionRoleId = null; selectedRole = role; showDeleteModal = true; }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem">
-                                <Trash2 size={14} /> Delete
-                              </button>
-                            {/if}
-                          </div>
-                        {/if}
-                      </div>
+                            <MoreVertical size={14} />
+                          </button>
+                        {/snippet}
+                        {#snippet content({ close })}
+                          {#if canEdit}
+                            <button type="button" onclick={() => { closeAll(); openEdit(role); close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
+                              <Pencil size={14} /> Edit
+                            </button>
+                            <button type="button" onclick={() => { closeAll(); openDuplicate(role); close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
+                              <Copy size={14} /> Duplicate
+                            </button>
+                          {/if}
+                          {#if canDelete && !role.is_system}
+                            <button type="button" onclick={() => { selectedRole = role; showDeleteModal = true; close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem">
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          {/if}
+                        {/snippet}
+                      </Dropdown>
                     </div>
                   </td>
                 </tr>

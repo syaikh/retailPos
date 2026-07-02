@@ -23,9 +23,6 @@
   let selectedResource = $state('all');
   let selectedDateRange = $state('24h');
   let showDatePicker = $state(false);
-  let showResourceDropdown = $state(false);
-  let showActionDropdown = $state(false);
-  let showExportDropdown = $state(false);
 
   let customStartDate = $state(getDateNDaysAgoInJakarta(1));
   let customEndDate = $state(getTodayInJakarta());
@@ -232,32 +229,18 @@
     limit = newLimit;
   }
 
-  // Close dropdowns on outside click / Esc
+  // Close date picker on outside click / Esc
   onMount(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (showDatePicker) {
         const target = e.target as HTMLElement;
         if (!target.closest('.date-picker-container') && !target.closest('.date-picker-trigger')) showDatePicker = false;
       }
-      const resourceContainer = document.getElementById('resource-dropdown-container');
-      if (showResourceDropdown && resourceContainer && !resourceContainer.contains(e.target as Node)) showResourceDropdown = false;
-      const actionContainer = document.getElementById('action-dropdown-container');
-      if (showActionDropdown && actionContainer && !actionContainer.contains(e.target as Node)) showActionDropdown = false;
-      if (showExportDropdown) {
-        const path = (e.composedPath?.() || []) as HTMLElement[];
-        const inExport = path.some(
-          (el) => el?.classList?.contains('export-dropdown') || el?.closest?.('.export-dropdown')
-        );
-        if (!inExport) showExportDropdown = false;
-      }
     };
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (drawerOpen) closeDrawer();
         if (showDatePicker) showDatePicker = false;
-        if (showResourceDropdown) showResourceDropdown = false;
-        if (showActionDropdown) showActionDropdown = false;
-        if (showExportDropdown) showExportDropdown = false;
       }
     };
 
@@ -284,9 +267,6 @@
       bind:selectedResource
       bind:selectedDateRange
       bind:showDatePicker
-      bind:showResourceDropdown
-      bind:showActionDropdown
-      bind:showExportDropdown
       bind:customStartDate
       bind:customEndDate
       {loading}

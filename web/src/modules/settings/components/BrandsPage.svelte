@@ -8,8 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton } from '$shared/ui';
-  import { SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -70,6 +69,9 @@
   const debouncedSearchFetch = debounce(() => {
     fetchBrands();
   }, 400);
+
+  let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
 
   function openAdd() {
     modalMode = 'add';
@@ -141,6 +143,11 @@
       selectedBrand = null;
     }
   }
+
+  function handleImportComplete() {
+    fetchBrands();
+    toast.success('Brand import completed');
+  }
 </script>
 
 <div class="space-y-5">
@@ -150,10 +157,19 @@
         <SearchBar bind:value={searchQuery} placeholder="Search by name..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Brand
-        </Button>
+        <div class="flex items-center gap-2">
+          <BulkActionDropdown
+            module="brands"
+            canExport={true}
+            canImport={true}
+            onImport={() => showImportWizard = true}
+            onHistory={() => showHistoryDialog = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Brand
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -294,6 +310,19 @@
     </Button>
   {/snippet}
 </Modal>
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="brands"
+  displayName="Brands"
+  onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="brands"
+  displayName="Brands"
+/>
 
 <Modal bind:open={showDeleteModal} title="Hapus Brand" size="sm">
   <div class="text-center py-2">

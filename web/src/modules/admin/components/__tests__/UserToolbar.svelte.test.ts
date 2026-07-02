@@ -11,8 +11,8 @@ function getSource(): string {
 describe('UserToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Button, SearchBar from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar } from '$shared/ui'");
+  it('imports Button, SearchBar, Dropdown from shared/ui', () => {
+    expect(src).toContain("import { Button, SearchBar, Dropdown } from '$shared/ui'");
   });
 
   it('uses $bindable for searchQuery, filterRole, filterStatus', () => {
@@ -25,11 +25,9 @@ describe('UserToolbar.svelte source-structure guards', () => {
     expect(src).toContain('= $props()');
   });
 
-  it('has role and status dropdowns', () => {
-    expect(src).toContain('showRoleDropdown = $state');
-    expect(src).toContain('showStatusDropdown = $state');
-    expect(src).toContain('role-filter-container');
-    expect(src).toContain('status-filter-container');
+  it('has role and status dropdowns via Dropdown component', () => {
+    expect(src).toContain('<Dropdown');
+    expect(src).toContain('placement="bottom-start"');
   });
 
   it('renders filter chips section', () => {

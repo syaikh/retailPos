@@ -30,8 +30,8 @@ describe('sales-service', () => {
 
     expect(mockFetch).toHaveBeenCalled();
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain('startDate=2026-06-01');
-    expect(url).toContain('endDate=2026-06-22');
+    expect(url).toContain('start_date=2026-06-01');
+    expect(url).toContain('end_date=2026-06-22');
     expect(url).toContain('limit=20');
     expect(url).toContain('offset=0');
     expect(result.data).toHaveLength(1);
@@ -54,7 +54,7 @@ describe('sales-service', () => {
     });
 
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain('paymentMethods=cash%2Cqris');
+    expect(url).toContain('payment_methods=cash%2Cqris');
   });
 
   it('getSalesHistory includes minTotal/maxTotal filter', async () => {
@@ -74,8 +74,8 @@ describe('sales-service', () => {
     });
 
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain('minTotal=10000');
-    expect(url).toContain('maxTotal=500000');
+    expect(url).toContain('min_total=10000');
+    expect(url).toContain('max_total=500000');
   });
 
   it('exportSales constructs export URL with auth header', async () => {

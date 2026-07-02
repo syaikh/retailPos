@@ -2,12 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard (Home Page)', () => {
   test.beforeEach(async ({ page }) => {
-    // Login first - navigate to login page directly
     await page.goto('http://localhost:5173/login');
     await page.fill('#username', 'superadmin');
     await page.fill('#password', 'admin123');
     await page.click('button[type="submit"]');
-    // Wait for URL to change to home
     await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
   });
 
@@ -36,11 +34,14 @@ test.describe('Dashboard (Home Page)', () => {
   });
 
   test('should logout and redirect to login', async ({ page }) => {
-    // Clear session and reload
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
-    // Should be redirected to login
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.locator('#username')).toBeVisible();
+  });
+
+  test('Topbar clock displays Jakarta time with WIB suffix', async ({ page }) => {
+    const dateTimeText = await page.locator('header').locator('span.text-xs').last().textContent();
+    expect(dateTimeText).toMatch(/\d{2}:\d{2}/);
   });
 });

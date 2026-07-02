@@ -54,7 +54,7 @@ func Load() *Config {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "your-secret-key-change-in-production"
+		panic("FATAL: JWT_SECRET environment variable is required. Set it to a secure random value (256-bit recommended).")
 	}
 
 	warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)

@@ -4,31 +4,44 @@ import type { Sale, SaleFilters } from '../types';
 
 const SLIDER_MAX_BOUND = 50000000;
 
-export async function getSalesHistory(filters: SaleFilters): Promise<{ data: Sale[]; total: number }> {
+export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal): Promise<{ data: Sale[]; total: number }> {
   const params = new URLSearchParams({
-    startDate: filters.startDate,
-    endDate: filters.endDate,
+    start_date: filters.startDate,
+    end_date: filters.endDate,
     limit: filters.limit.toString(),
     offset: filters.offset.toString(),
     search: filters.search || '',
-    sortBy: filters.sortBy || 'created_at',
-    sortDir: filters.sortDir || 'DESC',
+    sort_by: filters.sortBy || 'created_at',
+    sort_dir: filters.sortDir || 'DESC',
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
-    params.set('paymentMethods', filters.paymentMethods.join(','));
+    params.set('payment_methods', filters.paymentMethods.join(','));
   }
   if (filters.minTotal !== undefined && filters.minTotal > 0) {
-    params.set('minTotal', filters.minTotal.toString());
+    params.set('min_total', filters.minTotal.toString());
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
-    params.set('maxTotal', filters.maxTotal.toString());
+    params.set('max_total', filters.maxTotal.toString());
   }
-  const res = await apiFetch(`/api/sales?${params.toString()}`);
+  const res = await apiFetch(`/api/sales?${params.toString()}`, { signal });
   if (res.ok) {
     const data = await res.json();
     return { data: data.data || [], total: data.total || 0 };
   }
   return { data: [], total: 0 };
+}
+
+export async function getPaymentMethods(signal?: AbortSignal): Promise<{ code: string; name: string }[]> {
+  try {
+    const res = await apiFetch('/api/payment-methods', { signal });
+    if (res.ok) {
+      const data = await res.json();
+      return (data.data || data || []).filter((m: any) => m.is_active !== false);
+    }
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getSaleById(id: number): Promise<Sale | null> {
@@ -49,20 +62,20 @@ export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters):
 
   const params = new URLSearchParams({
     format,
-    startDate: filters.startDate,
-    endDate: filters.endDate,
+    start_date: filters.startDate,
+    end_date: filters.endDate,
     search: filters.search || '',
-    sortBy: filters.sortBy || 'created_at',
-    sortDir: filters.sortDir || 'DESC',
+    sort_by: filters.sortBy || 'created_at',
+    sort_dir: filters.sortDir || 'DESC',
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
-    params.set('paymentMethods', filters.paymentMethods.join(','));
+    params.set('payment_methods', filters.paymentMethods.join(','));
   }
   if (filters.minTotal !== undefined && filters.minTotal > 0) {
-    params.set('minTotal', filters.minTotal.toString());
+    params.set('min_total', filters.minTotal.toString());
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
-    params.set('maxTotal', filters.maxTotal.toString());
+    params.set('max_total', filters.maxTotal.toString());
   }
 
   const res = await fetch(`/api/sales/export?${params.toString()}`, {

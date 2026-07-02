@@ -1,13 +1,15 @@
 import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour, getJakartaDayOfWeek } from '$shared/utils/jakartaTime';
 
-export function formatCurrencyShort(value: number): string {
+export function formatCurrencyShort(value: number | null | undefined): string {
+  if (value == null) return 'Rp 0';
   if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
   if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
   if (value >= 1000) return 'Rp ' + (value / 1000).toFixed(0) + 'k';
   return 'Rp ' + value.toLocaleString('id-ID');
 }
 
-export function formatLargeNumber(value: number): string {
+export function formatLargeNumber(value: number | null | undefined): string {
+  if (value == null) return '0';
   if (value >= 1000000000) return (value / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
   if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
   if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
@@ -27,6 +29,9 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
   if (!item) return '';
   if (item.hour !== undefined) return `${String(item.hour).padStart(2, '0')}:00`;
   if (item.date) {
+    if (/^\d{1,2}$/.test(item.date)) {
+      return `${item.date.padStart(2, '0')}:00`;
+    }
     const d = new Date(item.date + 'T00:00:00Z');
     return d.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   }

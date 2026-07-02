@@ -5,7 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
-  import { Button, Modal, Pagination } from '$shared/ui';
+  import { Button, Modal, Pagination, ImportWizard, HistoryDialog } from '$shared/ui';
   import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
@@ -48,11 +48,9 @@
   let stockAdjustProduct = $state(null);
   let showAdjustStockModal = $state(false);
   let adjustingStock = $state(false);
-  let stockAdjustForm = $state({
-    product_id: null,
-    quantity_change: 0,
-    notes: ''
-  });
+  let adjustProductId = $state(null);
+  let adjustQuantityChange = $state(0);
+  let adjustNotes = $state('');
   let lowStockOnly = $state(false);
   let filterStatus = $state('all');
 
@@ -66,6 +64,13 @@
   let showBulkStatusModal = $state(false);
   let bulkStatusTarget = $state('active');
   let isBulkUpdating = $state(false);
+  let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
+
+  function handleImportComplete() {
+    fetchProducts(offset, limit);
+    toast.success('Product import completed');
+  }
 
   function clearSelection() {
     selectedIds = new Set();
@@ -99,8 +104,9 @@
 
   function clearAllFilters() {
     filterStatus = 'all';
-    selectedCategories = ['All'];
     lowStockOnly = false;
+    previousCategories = ['All'];
+    selectedCategories = ['All'];
     offset = 0;
     fetchProducts(0, limit);
   }
@@ -139,20 +145,18 @@
 
   function openAdjustStock(product) {
     stockAdjustProduct = product;
-    stockAdjustForm = {
-      product_id: product.id,
-      quantity_change: 0,
-      notes: ''
-    };
+    adjustProductId = product.id;
+    adjustQuantityChange = 0;
+    adjustNotes = '';
     showAdjustStockModal = true;
   }
 
   async function handleAdjustStock() {
-    if (stockAdjustForm.quantity_change === 0) {
+    if (Number(adjustQuantityChange) === 0) {
       toast.error('Quantity change must be non-zero');
       return;
     }
-    const trimmedNotes = stockAdjustForm.notes?.trim();
+    const trimmedNotes = adjustNotes?.trim();
     if (!trimmedNotes) {
       toast.error('Notes are required - please provide a reason for adjustment');
       return;
@@ -160,8 +164,8 @@
     adjustingStock = true;
     try {
       await apiClient.post('/inventory/adjust', {
-        product_id: stockAdjustForm.product_id,
-        quantity_change: stockAdjustForm.quantity_change,
+        product_id: adjustProductId,
+        quantity_change: Number(adjustQuantityChange),
         notes: trimmedNotes
       });
       toast.success('Stock adjusted successfully');
@@ -409,8 +413,10 @@
     return true;
   }
 
+  let userRoleName = $derived(getUserRoleName());
   let isSuperAdmin = $derived(() => getUserRoleName() === 'superadmin');
   let isAdmin = $derived(() => getUserRoleName() === 'admin');
+  let canCreate = $derived(['superadmin', 'admin'].includes(userRoleName));
   let isSensitive = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
   let isFullAudit = $derived(() => ['superadmin', 'admin'].includes(getUserRoleName()));
   let canEdit = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
@@ -506,10 +512,9 @@
   bind:open={showCategoryFilterModal}
   bind:selectedCategories
   {categories}
-  onApply={(cats) => { offset = 0; fetchProducts(0, limit); }}
 />
 
-<div class="space-y-6">
+<div class="space-y-5">
   <ProductFiltersToolbar
     bind:searchQuery
     bind:selectedCategories
@@ -517,6 +522,7 @@
     bind:filterStatus
     bind:lowStockOnly
     {canManageInventory}
+    {canCreate}
     onsearch={handleSearchInput}
     onfiltercategory={() => showCategoryFilterModal = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
@@ -527,6 +533,8 @@
       resetForm();
       showModal = true;
     }}
+    onImport={() => showImportWizard = true}
+    onHistory={() => showHistoryDialog = true}
   />
 
   <div class="card overflow-hidden">
@@ -614,7 +622,9 @@
 <StockAdjustModal
   bind:open={showAdjustStockModal}
   bind:stockAdjustProduct
-  bind:stockAdjustForm
+  bind:productId={adjustProductId}
+  bind:quantityChange={adjustQuantityChange}
+  bind:notes={adjustNotes}
   {adjustingStock}
   onSubmit={handleAdjustStock}
   onCancel={() => { showAdjustStockModal = false; stockAdjustProduct = null; }}
@@ -672,5 +682,18 @@
     showModal = true;
   }}
   ondelete={() => { showDetailDrawer = false; showDeleteModal = true; }}
+/>
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="products"
+  displayName="Products"
+  onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="products"
+  displayName="Products"
 />
 

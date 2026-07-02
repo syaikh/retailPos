@@ -9,6 +9,8 @@
     limit = 20,
     offset = 0,
     showCopySuccess = $bindable(null as Set<string> | null),
+    warningThreshold = 10,
+    criticalThreshold = 5,
     onaddtocart = (product: any) => {},
     oncopy = (value: string, field: string) => {},
     onpagechange = (newOffset: number) => {},
@@ -19,6 +21,8 @@
     limit: number;
     offset: number;
     showCopySuccess: Set<string> | null;
+    warningThreshold: number;
+    criticalThreshold: number;
     onaddtocart?: (product: any) => void;
     oncopy?: (value: string, field: string) => void;
     onpagechange?: (newOffset: number) => void;
@@ -99,9 +103,11 @@
             </td>
             <td class="p-4 text-center w-32">
               {#if product.stock === 0}
-                <Badge variant="destructive" size="sm">Out of stock</Badge>
-              {:else if product.stock <= 5}
-                <Badge variant="warning" size="sm">Low: {product.stock}</Badge>
+                <Badge variant="destructive" size="sm">0</Badge>
+              {:else if product.stock <= criticalThreshold}
+                <Badge variant="destructive" size="sm">{product.stock}</Badge>
+              {:else if product.stock <= warningThreshold}
+                <Badge variant="warning" size="sm">{product.stock}</Badge>
               {:else}
                 <Badge variant="success" size="sm">{product.stock}</Badge>
               {/if}

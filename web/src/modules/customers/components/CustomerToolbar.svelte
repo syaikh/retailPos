@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
+  import { Button, SearchBar, BulkActionDropdown } from '$shared/ui';
   import { Plus } from 'lucide-svelte';
 
   let {
@@ -9,6 +9,8 @@
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
+    onImport = () => {},
+    onHistory = () => {},
   }: {
     searchQuery?: string;
     statusFilter?: string;
@@ -16,6 +18,8 @@
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
+    onImport?: () => void;
+    onHistory?: () => void;
   } = $props();
 </script>
 
@@ -45,6 +49,7 @@
       </button>
     </div>
     {#if canCreate}
+      <BulkActionDropdown module="customers" canExport={canCreate} canImport={canCreate} {onImport} {onHistory} />
       <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
         <Plus size={18} />
         Add Customer

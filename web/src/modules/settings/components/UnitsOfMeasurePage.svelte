@@ -8,8 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton } from '$shared/ui';
-  import { SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Ruler, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -73,6 +72,14 @@
   const debouncedSearchFetch = debounce(() => {
     fetchUoms();
   }, 400);
+
+  let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
+
+  function handleImportComplete() {
+    fetchUoms();
+    toast.success('UOM import completed');
+  }
 
   function openAdd() {
     modalMode = 'add';
@@ -163,10 +170,19 @@
         <SearchBar bind:value={searchQuery} placeholder="Search by name or code..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Unit
-        </Button>
+        <div class="flex items-center gap-2">
+          <BulkActionDropdown
+            module="uoms"
+            canExport={true}
+            canImport={true}
+            onImport={() => showImportWizard = true}
+            onHistory={() => showHistoryDialog = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Unit
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -319,6 +335,19 @@
     </Button>
   {/snippet}
 </Modal>
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="uoms"
+  displayName="Units of Measure"
+  onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="uoms"
+  displayName="Units of Measure"
+/>
 
 <Modal bind:open={showDeleteModal} title="Hapus Unit" size="sm">
   <div class="text-center py-2">

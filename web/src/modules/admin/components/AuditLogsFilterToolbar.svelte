@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { Button, Input, SearchBar } from '$shared/ui';
+  import { Button, Input, SearchBar, Dropdown } from '$shared/ui';
   import { Search, RefreshCw, X, Download, FileSpreadsheet, CalendarDays, ChevronDown, List, Tag } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { fly } from 'svelte/transition';
 
   let {
     searchQuery = $bindable(''),
@@ -12,9 +11,6 @@
     selectedResource = $bindable('all'),
     selectedDateRange = $bindable('24h'),
     showDatePicker = $bindable(false),
-    showResourceDropdown = $bindable(false),
-    showActionDropdown = $bindable(false),
-    showExportDropdown = $bindable(false),
     customStartDate = $bindable(getDateNDaysAgoInJakarta(1)),
     customEndDate = $bindable(getTodayInJakarta()),
     loading = false,
@@ -27,9 +23,6 @@
     selectedResource?: string;
     selectedDateRange?: string;
     showDatePicker?: boolean;
-    showResourceDropdown?: boolean;
-    showActionDropdown?: boolean;
-    showExportDropdown?: boolean;
     customStartDate?: string;
     customEndDate?: string;
     loading?: boolean;
@@ -117,6 +110,45 @@
 
   const today = getTodayInJakarta();
   const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
+
+  let editStartDate = $state('');
+  let editEndDate = $state('');
+
+  const canApplyCustom = $derived(
+    editStartDate.length > 0 && editEndDate.length > 0 && (editStartDate !== customStartDate || editEndDate !== customEndDate)
+  );
+
+  function toggleDatePicker() {
+    if (showDatePicker) {
+      cancelCustomDateRange();
+    } else {
+      editStartDate = customStartDate;
+      editEndDate = customEndDate;
+      showDatePicker = true;
+    }
+  }
+
+  function applyCustomDateRange() {
+    if (!canApplyCustom) return;
+    customStartDate = editStartDate;
+    customEndDate = editEndDate;
+    selectedDateRange = 'custom';
+    showDatePicker = false;
+  }
+
+  function cancelCustomDateRange() {
+    editStartDate = '';
+    editEndDate = '';
+    showDatePicker = false;
+  }
+
+  function handleDatePickerKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      cancelCustomDateRange();
+    } else if (e.key === 'Enter' && canApplyCustom) {
+      applyCustomDateRange();
+    }
+  }
 
   function jakartaDateToUTC(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -211,16 +243,6 @@
     }
   }
 
-  function applyCustomDateRange() {
-    if (!customStartDate || !customEndDate) return;
-    showDatePicker = false;
-    selectedDateRange = 'custom';
-  }
-
-  function clearDateFilter() {
-    selectedDateRange = '24h';
-  }
-
   function clearFilter(type) {
     if (type === 'entity') selectedResource = 'all';
     if (type === 'action') selectedAction = 'all';
@@ -302,7 +324,6 @@
     a.download = `audit-logs-${today}.${format === 'csv' ? 'csv' : 'xlsx'}`;
     a.click();
     URL.revokeObjectURL(url);
-    showExportDropdown = false;
     toast.success(`Audit logs exported to ${format.toUpperCase()}`);
   }
 
@@ -327,36 +348,56 @@
       <Button
         variant="secondary"
         class="date-picker-trigger flex items-center gap-2 min-w-44"
-        onclick={() => showDatePicker = !showDatePicker}
+        onclick={toggleDatePicker}
       >
         <CalendarDays size={16} class="text-text-secondary shrink-0" />
         <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
         <ChevronDown size={14} class="opacity-60 shrink-0" />
       </Button>
       {#if showDatePicker}
-        <div class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl p-3 min-w-64">
-          <div class="flex flex-wrap gap-1 mb-3">
-            {#each datePresets as preset}
-              <Button
-                variant="ghost"
-                size="xs"
-                onclick={() => applyDatePreset(preset.rangeId)}
-              >
-                {preset.label}
-              </Button>
-            {/each}
+        <div
+          role="dialog"
+          class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
+          onkeydown={handleDatePickerKeydown}
+        >
+          <div class="p-4 space-y-4">
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <div class="flex flex-wrap gap-1.5">
+                {#each datePresets as preset}
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onclick={() => applyDatePreset(preset.rangeId)}
+                  >
+                    {preset.label}
+                  </Button>
+                {/each}
+              </div>
+            </div>
+
+            <hr class="border-border" />
+
+            <div>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <div class="flex gap-3">
+                <div class="flex-1">
+                  <label for="audit-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <Input id="audit-start-date" type="date" bind:value={editStartDate} class="w-full" min={ninetyDaysAgo} max={editEndDate || today} />
+                </div>
+                <div class="flex-1">
+                  <label for="audit-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <Input id="audit-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || ninetyDaysAgo} max={today} />
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-xs">
-            <Input type="date" bind:value={customStartDate} class="w-full" min={ninetyDaysAgo} max={customEndDate || today} />
-            <span class="text-text-muted">—</span>
-            <Input type="date" bind:value={customEndDate} class="w-full" min={customStartDate || ninetyDaysAgo} max={today} />
-          </div>
-          <div class="flex justify-end mt-2">
-            <Button
-              variant="primary"
-              size="xs"
-              onclick={applyCustomDateRange}
-            >
+
+          <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
+            <Button variant="ghost" size="sm" onclick={cancelCustomDateRange}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomDateRange}>
               Apply
             </Button>
           </div>
@@ -364,109 +405,69 @@
       {/if}
     </div>
 
-    <div class="relative shrink-0" style="width: 128px; min-width: 128px; max-width: 128px;" id="resource-dropdown-container">
-      <button
-        class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-        onclick={() => showResourceDropdown = !showResourceDropdown}
-      >
-        <span class="flex-1 text-left truncate">{resourceLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showResourceDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
-          {#each resourceFilters as f}
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { selectedResource = f.id; selectedAction = 'all'; showResourceDropdown = false; }}
-            >
-              {f.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <Dropdown placement="bottom-start">
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-32 rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{resourceLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+      {#snippet content({ close })}
+        {#each resourceFilters as f}
+          <button
+            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedResource === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => { selectedResource = f.id; selectedAction = 'all'; close(); }}
+          >
+            {f.label}
+          </button>
+        {/each}
+      {/snippet}
+    </Dropdown>
 
-    <div class="relative shrink-0" style="width: 140px; min-width: 140px; max-width: 140px;" id="action-dropdown-container">
-      <button
-        class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
-        onclick={() => showActionDropdown = !showActionDropdown}
-      >
-        <span class="flex-1 text-left truncate">{actionLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showActionDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[180px]">
-          {#each availableActionFilters as f}
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { selectedAction = f.id; showActionDropdown = false; }}
-            >
-              {f.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <Dropdown placement="bottom-start">
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 w-[140px] rounded-xl border border-border bg-surface-default text-text-secondary text-sm hover:border-border-strong hover:bg-surface-hover transition-colors"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{actionLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+      {#snippet content({ close })}
+        {#each availableActionFilters as f}
+          <button
+            class="w-full text-left px-4 py-2 text-sm transition-colors {selectedAction === f.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => { selectedAction = f.id; close(); }}
+          >
+            {f.label}
+          </button>
+        {/each}
+      {/snippet}
+    </Dropdown>
 
     <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={onrefresh}>
       <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
     </Button>
-    <!-- Export Dropdown -->
-    <div class="relative export-dropdown">
-      <Button
-        variant="primary"
-        class="flex items-center gap-2 transition-all duration-300 h-10"
-        onclick={(e) => {
-          e.stopPropagation();
-          showExportDropdown = !showExportDropdown;
-        }}
-        aria-haspopup="menu"
-        aria-expanded={showExportDropdown}
-        aria-controls="export-dropdown-audit"
-      >
-        <Download size={15} />
-        Export
-        <ChevronDown
-          size={14}
-          class="transition-transform duration-300 {showExportDropdown ? 'rotate-180' : ''}"
-        />
-      </Button>
-      {#if showExportDropdown}
-        <div
-          id="export-dropdown-audit"
-          class="absolute right-0 top-full mt-2 card-glass p-1.5 z-50 min-w-44 flex flex-col gap-0.5 export-dropdown"
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          role="menu"
-          aria-orientation="vertical"
-          tabindex="-1"
-          transition:fly={{ y: -8, duration: 200 }}
+    <Dropdown items={[
+      { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportToCsv },
+      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportToExcel },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <Button
+          variant="primary"
+          class="flex items-center gap-2 transition-all duration-300 h-10"
+          onclick={toggle}
         >
-          <button
-            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-            role="menuitem"
-            onclick={() => {
-              showExportDropdown = false;
-              exportToCsv();
-            }}
-          >
-            <FileSpreadsheet size={16} class="text-success-light" />
-            Export to CSV
-          </button>
-          <button
-            class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-xl transition-all duration-200 active:scale-[0.98] w-full text-left"
-            role="menuitem"
-            onclick={() => {
-              showExportDropdown = false;
-              exportToExcel();
-            }}
-          >
-            <FileSpreadsheet size={16} class="text-info-light" />
-            Export to Excel
-          </button>
-        </div>
-      {/if}
-    </div>
+          <Download size={15} />
+          Export
+          <ChevronDown size={14} class="transition-transform duration-300" />
+        </Button>
+      {/snippet}
+    </Dropdown>
   </div>
 
   <div class="filter-chips-wrapper" class:is-open={activeFilters.length > 0}>

@@ -4,7 +4,7 @@
 # Lokasi : project root
 # Fungsi : Seed transaksi harian untuk lingkungan development
 # Usage   : ./seed-daily-dev.sh [YYYY-MM-DD] [--min N] [--max N] [--cashier-id ID]
-#                                  [--store-id ID] [--no-stock] [--help]
+#                                  [--store-id ID] [--no-audit] [--help]
 # =============================================================================
 
 set -euo pipefail
@@ -15,8 +15,7 @@ MIN_COUNT=10
 MAX_COUNT=50
 CASHIER_ID=0
 STORE_ID=0
-INSERT_STOCK=false
-EXTRA_FLAGS=""
+NO_AUDIT=false
 
 # ── Usage ─────────────────────────────────────────────────────────────────
 show_help() {
@@ -31,14 +30,13 @@ Opsi:
   --max  N                Jumlah transaksi maksimum (default: 50)
   --cashier-id ID         Paksa ID kasir tertentu (0 = acak, default: 0)
   --store-id  ID          Paksa ID toko tertentu (0 = acak, default: 0)
-  --no-stock              Jangan tulis ke inventory_movements (default)
-  --with-stock            Tulis inventory_movements juga
+  --no-audit              Jangan tulis ke audit_logs (default: tulis)
   -h, --help              Tampilkan bantuan ini
 
 Contoh:
   ./seed-daily-dev.sh
   ./seed-daily-dev.sh 2025-01-15 --min 20 --max 40
-  ./seed-daily-dev.sh --store-id 1 --cashier-id 3 --with-stock
+  ./seed-daily-dev.sh --store-id 1 --cashier-id 3
 EOF
   exit 0
 }
@@ -71,12 +69,8 @@ while [[ $# -gt 0 ]]; do
       STORE_ID="$2"
       shift 2
       ;;
-    --no-stock)
-      EXTRA_FLAGS="$EXTRA_FLAGS -daily.insert-stock=false"
-      shift
-      ;;
-    --with-stock)
-      EXTRA_FLAGS="$EXTRA_FLAGS -daily.insert-stock=true"
+    --no-audit)
+      NO_AUDIT=true
       shift
       ;;
     --help|-h)
@@ -94,7 +88,7 @@ FLAGS="-daily.min=$MIN_COUNT -daily.max=$MAX_COUNT"
 [[ $CASHIER_ID -gt 0 ]] && FLAGS="$FLAGS -daily.cashier-id=$CASHIER_ID"
 [[ $STORE_ID   -gt 0 ]] && FLAGS="$FLAGS -daily.store-id=$STORE_ID"
 [[ -n $TARGET_DATE ]]  && FLAGS="$FLAGS -daily.date=$TARGET_DATE"
-FLAGS="$FLAGS $EXTRA_FLAGS"
+[[ $NO_AUDIT == true ]] && FLAGS="$FLAGS -daily.no-audit"
 
 # ── Info banner ─────────────────────────────────────────────────────────────
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

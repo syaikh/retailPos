@@ -8,7 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -87,6 +87,14 @@ let canView = $derived(authStore.user != null);
       }
     })
   );
+
+  let showImportWizard = $state(false);
+  let showHistoryDialog = $state(false);
+
+  function handleImportComplete() {
+    fetchCategories();
+    toast.success('Category import completed');
+  }
 
   async function fetchCategories(isSearch = false) {
     // Note: Authorization checked via API response (403), not frontend
@@ -223,10 +231,19 @@ let canView = $derived(authStore.user != null);
         <SearchBar bind:value={searchQuery} placeholder="Search by name or slug..." oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} />
-          Tambah Kategori
-        </Button>
+        <div class="flex items-center gap-2">
+          <BulkActionDropdown
+            module="categories"
+            canExport={true}
+            canImport={true}
+            onImport={() => showImportWizard = true}
+            onHistory={() => showHistoryDialog = true}
+          />
+          <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+            <Plus size={18} />
+            Tambah Kategori
+          </Button>
+        </div>
       {/if}
     </div>
   </div>
@@ -238,10 +255,10 @@ let canView = $derived(authStore.user != null);
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">CATEGORY NAME</th>
-            <th class="text-left p-4 font-semibold w-48">SLUG</th>
-            <th class="text-right p-4 font-semibold w-20">PRODUCTS</th>
-            <th class="text-left p-4 font-semibold w-36">CREATED</th>
+            <th class="text-left p-4 font-semibold" style="width: 50%;">CATEGORY NAME</th>
+            <th class="text-left p-4 font-semibold w-32">SLUG</th>
+            <th class="text-right p-4 font-semibold w-24">PRODUCTS</th>
+            <th class="text-left p-4 font-semibold w-28">CREATED</th>
             <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
           </tr>
         </thead>
@@ -249,9 +266,9 @@ let canView = $derived(authStore.user != null);
           {#each Array(5) as _}
             <tr class="border-t border-border">
               <td class="p-4 min-w-0"><Skeleton class="h-4 w-full" /></td>
-              <td class="p-4 w-48"><Skeleton class="h-4 w-3/4" /></td>
-              <td class="p-4 text-right w-20"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
-              <td class="p-4 w-36"><Skeleton class="h-4 w-2/3" /></td>
+              <td class="p-4 w-32"><Skeleton class="h-4 w-3/4" /></td>
+              <td class="p-4 text-right w-24"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
+              <td class="p-4 w-28"><Skeleton class="h-4 w-2/3" /></td>
               <td class="p-4 w-20"><Skeleton class="h-4 w-8" /></td>
             </tr>
           {/each}
@@ -271,22 +288,22 @@ let canView = $derived(authStore.user != null);
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">
+            <th class="text-left p-4 font-semibold" style="width: 50%;">
               <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
                 CATEGORY NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-48">
+            <th class="text-left p-4 font-semibold w-32">
               <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
                 SLUG {#if sortBy === 'slug'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
-            <th class="text-right p-4 font-semibold w-20">
+            <th class="text-right p-4 font-semibold w-24">
               <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('product_count')}>
                 PRODUCTS {#if sortBy === 'product_count'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
             </th>
-            <th class="text-left p-4 font-semibold w-36">
+            <th class="text-left p-4 font-semibold w-28">
               <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
                 CREATED {#if sortBy === 'created_at'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
               </button>
@@ -297,7 +314,7 @@ let canView = $derived(authStore.user != null);
         <tbody>
           {#each sortedCategories as cat (cat.id)}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-              <td class="p-4 pr-6" style="width: 40%;">
+              <td class="p-4 pr-6" style="width: 50%;">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0">
                     <Tag size={14} class="text-primary-light" />
@@ -305,19 +322,19 @@ let canView = $derived(authStore.user != null);
                   <div class="min-w-0">
                     <p class="font-medium truncate" title={cat.name}>{cat.name}</p>
                     {#if cat.description}
-                      <p class="text-xs text-text-muted truncate max-w-[200px]">{cat.description}</p>
+                      <p class="text-xs text-text-muted truncate">{cat.description}</p>
                     {/if}
                   </div>
                 </div>
               </td>
-              <td class="p-4 w-40 text-text-secondary text-sm">{cat.slug}</td>
-              <td class="p-4 text-right w-32">
+              <td class="p-4 w-32 text-text-secondary text-sm">{cat.slug}</td>
+              <td class="p-4 text-right w-24">
                 <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-semibold
                   {cat.product_count > 0 ? 'bg-primary-subtle text-primary-light' : 'bg-surface-default text-text-muted'}">
                   {cat.product_count ?? 0}
                 </span>
               </td>
-              <td class="p-4 w-36 text-text-secondary text-sm">
+              <td class="p-4 w-28 text-text-secondary text-sm">
                 {formatDate(cat.created_at)}
               </td>
               <td class="p-4 w-20">
@@ -403,6 +420,19 @@ let canView = $derived(authStore.user != null);
     </Button>
   {/snippet}
 </Modal>
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="categories"
+  displayName="Categories"
+  onComplete={handleImportComplete}
+/>
+
+<HistoryDialog
+  bind:open={showHistoryDialog}
+  module="categories"
+  displayName="Categories"
+/>
 
 <!-- Delete Confirm Modal -->
 <Modal bind:open={showDeleteModal} title="Hapus Kategori" size="sm">

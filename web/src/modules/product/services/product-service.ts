@@ -74,6 +74,7 @@ export async function getStockThresholds(): Promise<StockThreshold> {
   }
 }
 
+
 export async function adjustStock(productId: number, quantityChange: number, notes: string): Promise<void> {
   await apiClient.post('/inventory/adjust', {
     product_id: productId,

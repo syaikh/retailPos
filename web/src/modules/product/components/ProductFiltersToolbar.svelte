@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
+  import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui';
   import { Plus, SlidersHorizontal, ChevronDown, AlertTriangle, X } from 'lucide-svelte';
 
   let {
@@ -9,11 +9,14 @@
     filterStatus = $bindable('all'),
     lowStockOnly = $bindable(false),
     canManageInventory = false,
+    canCreate = false,
     onsearch = () => {},
     onfiltercategory = () => {},
     onrefresh = () => {},
     onclearall = () => {},
     onadd = () => {},
+    onImport = () => {},
+    onHistory = () => {},
   }: {
     searchQuery?: string;
     selectedCategories?: string[];
@@ -21,14 +24,15 @@
     filterStatus?: string;
     lowStockOnly?: boolean;
     canManageInventory?: boolean;
+    canCreate?: boolean;
     onsearch?: () => void;
     onfiltercategory?: () => void;
     onrefresh?: () => void;
     onclearall?: () => void;
     onadd?: () => void;
+    onImport?: () => void;
+    onHistory?: () => void;
   } = $props();
-
-  let showStatusDropdown = $state(false);
 
   let statusLabel = $derived(
     filterStatus === 'all' ? 'All Status' : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)
@@ -82,32 +86,23 @@
       </span>
       <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
     </button>
-    <div class="relative shrink-0 status-filter-container">
-      <button
-        type="button"
-        class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {filterStatus !== 'all' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
-        onclick={() => showStatusDropdown = !showStatusDropdown}
-      >
-        <span>{statusLabel}</span>
-        <ChevronDown size={14} class="text-text-muted shrink-0" />
-      </button>
-      {#if showStatusDropdown}
-        <div class="absolute left-0 top-full mt-2 z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]" onclick={(e) => e.stopPropagation()} role="none" onkeydown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }}>
-          <button
-            class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { filterStatus = 'all'; showStatusDropdown = false; onrefresh(); }}
-          >All Status</button>
-          {#each ['active', 'inactive', 'archived'] as status}
-            <button
-              class="w-full text-left px-4 py-2 text-sm transition-colors {filterStatus === status ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
-              onclick={() => { filterStatus = status; showStatusDropdown = false; onrefresh(); }}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <Dropdown placement="bottom-start" items={[
+      { label: 'All Status', checked: filterStatus === 'all', onclick: () => { filterStatus = 'all'; onrefresh(); } },
+      { label: 'Active', checked: filterStatus === 'active', onclick: () => { filterStatus = 'active'; onrefresh(); } },
+      { label: 'Inactive', checked: filterStatus === 'inactive', onclick: () => { filterStatus = 'inactive'; onrefresh(); } },
+      { label: 'Archived', checked: filterStatus === 'archived', onclick: () => { filterStatus = 'archived'; onrefresh(); } },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <button
+          type="button"
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {filterStatus !== 'all' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+          onclick={toggle}
+        >
+          <span>{statusLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+    </Dropdown>
     <button
       type="button"
       role="switch"
@@ -118,6 +113,7 @@
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
     </button>
+    <BulkActionDropdown module="products" canExport={canCreate} canImport={canCreate} {onImport} {onHistory} />
     <Button
       onclick={onadd}
       disabled={!canManageInventory}

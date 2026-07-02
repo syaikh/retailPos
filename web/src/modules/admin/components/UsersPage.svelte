@@ -70,9 +70,9 @@
   async function fetchUsers(isSearch = false) {
     try {
       if (!isSearch) loading = true;
-      const params = { limit, offset, search: searchQuery, sort: sortBy, dir: sortDir };
-      if (filterRole !== 'all') params.role = filterRole;
-      if (filterStatus !== 'all') params.status = filterStatus;
+      const params = { limit, offset, search: searchQuery, sort: sortBy, sort_dir: sortDir };
+      if (filterRole !== 'all') params.role_id = filterRole;
+      if (filterStatus !== 'all') params.is_active = filterStatus;
       const result = await getUsers(params);
       users = result.data;
       total = result.total;

@@ -5,54 +5,59 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"retail-pos-system/internal/auth"
-	"retail-pos-system/internal/config"
-	"retail-pos-system/internal/domain"
 	"golang.org/x/time/rate"
 )
 
-var jakartaLoc = config.Load().Timezone
-
-const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
-	// Security: Max connections per user
-	maxConnectionsPerUser = 5
-	// Security: Rate limit for connection attempts
-	connRateLimit = 2 // connections per second
-)
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     checkOrigin,
+func getJakartaLoc() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
 }
 
-// Security: Validate origin based on environment
+const (
+	writeWait              = 10 * time.Second
+	pongWait               = 60 * time.Second
+	pingPeriod             = (pongWait * 9) / 10
+	maxMessageSize         = 512
+	maxConnectionsPerUser  = 5
+	connRateLimit          = 2
+	rateLimiterCleanupInt  = 10 * time.Minute
+	rateLimiterIdleTTL     = 30 * time.Minute
+)
+
 func checkOrigin(r *http.Request) bool {
-	// In production, restrict to known origins
-	// For LAN deployment, same-origin or trusted hosts
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return true // No origin header (direct connection)
+		return true
 	}
-	// Allow localhost and local network for development
 	if strings.HasPrefix(origin, "http://localhost") ||
 		strings.HasPrefix(origin, "http://127.0.0.1") ||
 		strings.HasPrefix(origin, "http://192.168.") ||
 		strings.HasPrefix(origin, "http://10.") {
 		return true
 	}
-	// In production, should check against configured FRONTEND_URL
-	return true // TODO: Configure properly for production
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
+	if allowedOrigin != "" && origin == allowedOrigin {
+		return true
+	}
+	return false
+}
+
+func newUpgrader() *websocket.Upgrader {
+	return &websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     checkOrigin,
+	}
 }
 
 type EventType string
@@ -81,34 +86,62 @@ type Client struct {
 	role    string
 	storeID *int
 	isAdmin bool
-	
-	// Security: Track connection for cleanup
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// Security: Rate limiter per IP
+type TokenValidator interface {
+	ValidateToken(tokenString string) (*Claims, error)
+}
+
+type Claims struct {
+	ID       int
+	Role     string
+	StoreID  *int
+	Username string
+}
+
+type rateLimiterEntry struct {
+	limiter   *rate.Limiter
+	lastSeen  time.Time
+}
+
 type rateLimiter struct {
-	limiters map[string]*rate.Limiter
+	limiters map[string]*rateLimiterEntry
 	mu       sync.RWMutex
 }
 
 func newRateLimiter() *rateLimiter {
 	return &rateLimiter{
-		limiters: make(map[string]*rate.Limiter),
+		limiters: make(map[string]*rateLimiterEntry),
 	}
 }
 
 func (rl *rateLimiter) getLimiter(ip string) *rate.Limiter {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
-	limiter, exists := rl.limiters[ip]
+
+	entry, exists := rl.limiters[ip]
 	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Second/connRateLimit), 1)
-		rl.limiters[ip] = limiter
+		limiter := rate.NewLimiter(rate.Every(time.Second/connRateLimit), 1)
+		entry = &rateLimiterEntry{limiter: limiter, lastSeen: time.Now()}
+		rl.limiters[ip] = entry
+	} else {
+		entry.lastSeen = time.Now()
 	}
-	return limiter
+	return entry.limiter
+}
+
+func (rl *rateLimiter) cleanup() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	threshold := time.Now().Add(-rateLimiterIdleTTL)
+	for ip, entry := range rl.limiters {
+		if entry.lastSeen.Before(threshold) {
+			delete(rl.limiters, ip)
+		}
+	}
 }
 
 type Hub struct {
@@ -117,23 +150,19 @@ type Hub struct {
 	unregister      chan *Client
 	broadcast       chan Event
 	mutex           sync.RWMutex
-	
-	// Security: Track connections per user
+
 	userConnections map[int]int
 	userConnMu      sync.RWMutex
-	
-	// Security: Rate limiter
+
 	rateLimiter      *rateLimiter
-	
-	// Security: Auth service for token validation
-	authService     *auth.AuthService
-	
-	// Shutdown control
+
+	authService     TokenValidator
+
 	done    chan struct{}
 	wg      sync.WaitGroup
 }
 
-func NewHub(authService *auth.AuthService) *Hub {
+func NewHub(authService TokenValidator) *Hub {
 	return &Hub{
 		register:        make(chan *Client, 100),
 		unregister:      make(chan *Client, 100),
@@ -149,12 +178,17 @@ func NewHub(authService *auth.AuthService) *Hub {
 func (h *Hub) Run() {
 	h.wg.Add(1)
 	defer h.wg.Done()
-	
+
+	cleanupTicker := time.NewTicker(rateLimiterCleanupInt)
+	defer cleanupTicker.Stop()
+
 	for {
 		select {
+		case <-cleanupTicker.C:
+			h.rateLimiter.cleanup()
 		case <-h.done:
-			// Graceful shutdown - close all connections
 			h.mutex.Lock()
+			h.userConnMu.Lock()
 			for client := range h.clients {
 				if client.cancel != nil {
 					client.cancel()
@@ -166,34 +200,32 @@ func (h *Hub) Run() {
 				delete(h.clients, client)
 			}
 			h.userConnections = make(map[int]int)
+			h.userConnMu.Unlock()
 			h.mutex.Unlock()
 			return
 		case client := <-h.register:
 			h.mutex.Lock()
-			
-			// Security: Check max connections per user
+
 			h.userConnMu.Lock()
 			count := h.userConnections[client.userID]
 			if count >= maxConnectionsPerUser {
 				h.userConnMu.Unlock()
 				h.mutex.Unlock()
-				// Non-blocking send to avoid deadlock if writePump hasn't started yet
 				select {
 				case client.send <- []byte(`{"type":"error","payload":"Too many connections"}`):
 				default:
-					// Channel full or no receiver, just close the connection
 				}
 				client.conn.Close()
 				continue
 			}
 			h.userConnections[client.userID] = count + 1
 			h.userConnMu.Unlock()
-			
+
 			h.clients[client] = true
 			h.mutex.Unlock()
-			
+
 			h.broadcastUserCount()
-			log.Printf("WebSocket client registered. Total: %d (user_id=%d, role=%s)", 
+			log.Printf("WebSocket client registered. Total: %d (user_id=%d, role=%s)",
 				len(h.clients), client.userID, client.role)
 
 		case client := <-h.unregister:
@@ -201,8 +233,7 @@ func (h *Hub) Run() {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				
-				// Security: Decrement user connection count
+
 				h.userConnMu.Lock()
 				if count := h.userConnections[client.userID]; count > 0 {
 					h.userConnections[client.userID] = count - 1
@@ -210,7 +241,7 @@ func (h *Hub) Run() {
 				h.userConnMu.Unlock()
 			}
 			h.mutex.Unlock()
-			
+
 			if client.cancel != nil {
 				client.cancel()
 			}
@@ -218,8 +249,14 @@ func (h *Hub) Run() {
 			log.Printf("WebSocket client unregistered. Total: %d", len(h.clients))
 
 		case event := <-h.broadcast:
+			data, err := json.Marshal(event)
+			if err != nil {
+				log.Printf("Error marshaling event: %v", err)
+				continue
+			}
+
 			h.mutex.RLock()
-			var recipients []*Client
+			recipients := make([]*Client, 0, len(h.clients))
 			for client := range h.clients {
 				if h.ShouldReceiveEvent(client, &event) {
 					recipients = append(recipients, client)
@@ -227,24 +264,17 @@ func (h *Hub) Run() {
 			}
 			h.mutex.RUnlock()
 
-			data, err := json.Marshal(event)
-			if err != nil {
-				log.Printf("Error marshaling event: %v", err)
-				continue
-			}
-
 			for _, client := range recipients {
 				select {
 				case client.send <- data:
 				default:
-					// Channel full - schedule client for removal non-blocking
-					select {
-					case h.unregister <- client:
-						// Will be cleaned up in unregister handler
-					default:
-						// Unregister channel also full, just log
-						log.Printf("Warning: unregister channel full, dropping client")
-					}
+					go func(c *Client) {
+						select {
+						case h.unregister <- c:
+						default:
+							log.Printf("Warning: unregister channel full, dropping client %d", c.userID)
+						}
+					}(client)
 				}
 			}
 		}
@@ -262,7 +292,7 @@ func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
 
 func (h *Hub) Broadcast(event Event) {
 	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now().In(jakartaLoc)
+		event.Timestamp = time.Now().In(getJakartaLoc())
 	}
 	select {
 	case h.broadcast <- event:
@@ -274,6 +304,10 @@ func (h *Hub) Broadcast(event Event) {
 func (h *Hub) broadcastUserCount() {
 	h.mutex.RLock()
 	count := len(h.clients)
+	clients := make([]*Client, 0, count)
+	for client := range h.clients {
+		clients = append(clients, client)
+	}
 	h.mutex.RUnlock()
 
 	payload, _ := json.Marshal(struct {
@@ -283,56 +317,70 @@ func (h *Hub) broadcastUserCount() {
 	})
 	event := Event{
 		Type:      EventUserOnline,
-		Timestamp: time.Now().In(jakartaLoc),
+		Timestamp: time.Now().In(getJakartaLoc()),
 		Payload:   payload,
 	}
 	data, _ := json.Marshal(event)
 
-	h.mutex.RLock()
-	for client := range h.clients {
+	for _, client := range clients {
 		select {
 		case client.send <- data:
 		default:
 		}
 	}
-	h.mutex.RUnlock()
 }
 
-// Security: Enhanced WebSocket upgrade with rate limiting and better auth
+type authMessage struct {
+	Type  string `json:"type"`
+	Token string `json:"token"`
+}
+
 func ServeWebSocket(hub *Hub, c *gin.Context) {
-	// Security: Rate limit by IP
 	clientIP := c.ClientIP()
+
 	if !hub.rateLimiter.getLimiter(clientIP).Allow() {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many connection attempts"})
 		return
 	}
 
-	// Security: Get token from query param (or potentially from Sec-WebSocket-Protocol header)
-	tokenString := c.Query("token")
-	if tokenString == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token required"})
-		return
-	}
-
-	// Security: Validate token
-	claims, err := hub.authService.ValidateToken(tokenString)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-		return
-	}
-
-	// Security: In production, enforce WSS
-	if c.Request.Header.Get("X-Forwarded-Proto") != "https" {
-		// Only warn in development
+	if !strings.Contains(c.Request.Host, "localhost") && c.Request.Header.Get("X-Forwarded-Proto") != "https" {
 		log.Printf("Warning: WebSocket connection not using HTTPS from IP %s", clientIP)
 	}
 
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := newUpgrader().Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error from %s: %v", clientIP, err)
 		return
 	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		log.Printf("WebSocket set auth deadline error: %v", err)
+		conn.Close()
+		return
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		log.Printf("[WebSocket] Auth message read error from %s: %v", clientIP, err)
+		conn.Close()
+		return
+	}
+
+	var authMsg authMessage
+	if err := json.Unmarshal(msg, &authMsg); err != nil || authMsg.Type != "auth" || authMsg.Token == "" {
+		log.Printf("[WebSocket] Invalid auth message format from %s", clientIP)
+		conn.Close()
+		return
+	}
+
+	claims, err := hub.authService.ValidateToken(authMsg.Token)
+	if err != nil {
+		log.Printf("[WebSocket] Auth failed from %s: %v", clientIP, err)
+		conn.Close()
+		return
+	}
+
+	log.Printf("[WebSocket] Auth OK: user=%d role=%s store=%v from %s", claims.ID, claims.Role, claims.StoreID, clientIP)
 
 	var storeID *int
 	if claims.StoreID != nil {
@@ -354,11 +402,14 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		cancel:  cancel,
 	}
 
-	// Security: Set timeouts
 	conn.SetReadLimit(maxMessageSize)
-	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		log.Printf("WebSocket set read deadline error: %v", err)
+	}
 	conn.SetPongHandler(func(string) error {
-		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+		if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			log.Printf("WebSocket set read deadline (pong) error: %v", err)
+		}
 		return nil
 	})
 
@@ -370,31 +421,25 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 
 func (c *Client) readPump() {
 	defer func() {
-		// Non-blocking unregister to prevent deadlock if hub is busy
 		select {
 		case c.hub.unregister <- c:
-			// Successfully queued for unregistration
 		default:
-			// Unregister channel full, just close connection
 			c.conn.Close()
 		}
 	}()
-	
+
+	go func() {
+		<-c.ctx.Done()
+		c.conn.SetReadDeadline(time.Now())
+	}()
+
 	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		default:
-			// Security: Ignore all incoming messages (client->server not allowed)
-			// This prevents clients from sending arbitrary commands
-			_, _, err := c.conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WebSocket read error (user %d): %v", c.userID, err)
-				}
-				return
+		_, _, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket read error (user %d): %v", c.userID, err)
 			}
-			// Just continue - we don't process client messages
+			return
 		}
 	}
 }
@@ -405,15 +450,20 @@ func (c *Client) writePump() {
 		ticker.Stop()
 		c.conn.Close()
 	}()
-	
+
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case message, ok := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				log.Printf("WebSocket set write deadline error (user %d): %v", c.userID, err)
+				return
+			}
 			if !ok {
-				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					log.Printf("WebSocket write close message error (user %d): %v", c.userID, err)
+				}
 				return
 			}
 			w, err := c.conn.NextWriter(websocket.TextMessage)
@@ -427,7 +477,10 @@ func (c *Client) writePump() {
 				return
 			}
 		case <-ticker.C:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				log.Printf("WebSocket set write deadline (ticker) error (user %d): %v", c.userID, err)
+				return
+			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -435,101 +488,87 @@ func (c *Client) writePump() {
 	}
 }
 
-// Broadcast helper functions
-func BroadcastStockUpdate(hub *Hub, product *domain.Product, isLowStock bool) {
+type StockUpdateEvent struct {
+	ID       int  `json:"id"`
+	SKU      string `json:"sku"`
+	Stock    int    `json:"stock"`
+	LowStock bool   `json:"low_stock"`
+	StoreID  *int   `json:"-"`
+}
+
+func BroadcastStockUpdate(hub *Hub, event StockUpdateEvent) {
 	if hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(struct {
-		ID       int    `json:"id"`
-		SKU      string `json:"sku"`
-		Stock    int    `json:"stock"`
-		LowStock bool   `json:"low_stock"`
-	}{
-		ID:       product.ID,
-		SKU:      product.SKU,
-		Stock:    product.Stock,
-		LowStock: isLowStock,
-	})
-	event := Event{
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
 		Type:    EventStockUpdate,
 		Payload: payload,
-		StoreID: product.StoreID,
-	}
-	hub.Broadcast(event)
+		StoreID: event.StoreID,
+	})
 }
 
-func BroadcastSaleCreated(hub *Hub, sale *domain.Sale) {
+type SaleCreatedEvent struct {
+	ID      int    `json:"id"`
+	Invoice string `json:"invoice"`
+	Total   int    `json:"total"`
+	Items   int    `json:"items"`
+	StoreID *int   `json:"-"`
+}
+
+func BroadcastSaleCreated(hub *Hub, event SaleCreatedEvent) {
 	if hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(struct {
-		ID      int    `json:"id"`
-		Invoice string `json:"invoice"`
-		Total   int    `json:"total"`
-		Items   int    `json:"items"`
-	}{
-		ID:      sale.ID,
-		Invoice: sale.InvoiceNumber,
-		Total:   sale.TotalAmount,
-		Items:   len(sale.Items),
-	})
-	event := Event{
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
 		Type:    EventSaleCreated,
 		Payload: payload,
-		StoreID: sale.StoreID,
-	}
-	hub.Broadcast(event)
+		StoreID: event.StoreID,
+	})
 }
 
-func BroadcastProductUpdate(hub *Hub, product *domain.Product) {
+type ProductUpdateEvent struct {
+	ID      int    `json:"id"`
+	SKU     string `json:"sku"`
+	Stock   int    `json:"stock"`
+	Price   int    `json:"price"`
+	StoreID *int   `json:"-"`
+}
+
+func BroadcastProductUpdate(hub *Hub, event ProductUpdateEvent) {
 	if hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(struct {
-		ID    int    `json:"id"`
-		SKU   string `json:"sku"`
-		Stock int    `json:"stock"`
-		Price int    `json:"price"`
-	}{
-		ID:    product.ID,
-		SKU:   product.SKU,
-		Stock: product.Stock,
-		Price: product.Price,
-	})
-	event := Event{
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
 		Type:    EventProductUpdate,
 		Payload: payload,
-		StoreID: product.StoreID,
-	}
-	hub.Broadcast(event)
+		StoreID: event.StoreID,
+	})
 }
 
-func BroadcastLowStockAlert(hub *Hub, product *domain.Product) {
+type LowStockAlertEvent struct {
+	ID      int    `json:"id"`
+	SKU     string `json:"sku"`
+	Name    string `json:"name"`
+	Stock   int    `json:"stock"`
+	StoreID *int   `json:"-"`
+}
+
+func BroadcastLowStockAlert(hub *Hub, event LowStockAlertEvent) {
 	if hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(struct {
-		ID    int    `json:"id"`
-		SKU   string `json:"sku"`
-		Name  string `json:"name"`
-		Stock int    `json:"stock"`
-	}{
-		ID:    product.ID,
-		SKU:   product.SKU,
-		Name:  product.Name,
-		Stock: product.Stock,
-	})
-	event := Event{
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
 		Type:    EventLowStockAlert,
 		Payload: payload,
-		StoreID: product.StoreID,
-	}
-	hub.Broadcast(event)
+		StoreID: event.StoreID,
+	})
 }
 
-// Shutdown gracefully closes all WebSocket connections
 func (h *Hub) Shutdown() {
-	close(h.done)  // Signal the Run() loop to stop
-	h.wg.Wait()    // Wait for Run() to finish
+	close(h.done)
+	h.wg.Wait()
 }
