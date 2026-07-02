@@ -20,8 +20,8 @@ var Schema = importexportshared.ModuleSchema{
 		{Name: "Stock", Type: importexportshared.ColNumber, Label: "Stock", Required: false, MinValue: importexportshared.Float64Ptr(0), Editable: true, Exportable: false, Template: false},
 		{Name: "Status", Type: importexportshared.ColString, Label: "Status", Required: false, AllowedValues: []string{"active", "inactive", "draft", "archived"}, Default: "active", Editable: true, Exportable: true, Template: true},
 		{Name: "UnitOfMeasure", Type: importexportshared.ColReference, Label: "Unit of Measure", Required: false, Reference: "uoms", Editable: true, Exportable: true, Template: true},
-		{Name: "WeightGrams", Type: importexportshared.ColNumber, Label: "Weight (g)", Required: false, MinValue: importexportshared.Float64Ptr(0), Editable: true, Exportable: true, Template: true},
-		{Name: "Description", Type: importexportshared.ColString, Label: "Description", Required: false, MaxLength: importexportshared.IntPtr(2000), Editable: true, Exportable: true, Template: true},
+		{Name: "WeightGrams", Type: importexportshared.ColNumber, Label: "Weight (g)", Required: false, MinValue: importexportshared.Float64Ptr(0), Editable: true, Exportable: false, Template: false},
+		{Name: "Description", Type: importexportshared.ColString, Label: "Description", Required: false, MaxLength: importexportshared.IntPtr(2000), Editable: true, Exportable: false, Template: false},
 	},
 	References: []importexportshared.ReferenceDef{
 		{Column: "Category", ReferenceModule: "categories", ReferenceColumn: "Name", ReferenceLabel: "Category Name", Policy: importexportshared.RefStrict},
