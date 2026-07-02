@@ -36,6 +36,8 @@ const authStore = useAuthStore();
 
   let previousSearchQuery = '';
   let showCopySuccess = $state(null);
+  let warningThreshold = $state(10);
+  let criticalThreshold = $state(5);
 
   const paymentOptions = [
     { id: 'Cash', label: 'Cash', icon: ShoppingCart },
@@ -377,6 +379,17 @@ const authStore = useAuthStore();
     }
   }
 
+  async function fetchThresholds() {
+    try {
+      const r = await apiClient.get('/stock-thresholds');
+      warningThreshold = r.data.warning ?? 10;
+      criticalThreshold = r.data.critical ?? 5;
+    } catch {
+      warningThreshold = 10;
+      criticalThreshold = 5;
+    }
+  }
+
   function focusSearch() {
     setTimeout(() => {
       const input = document.getElementById('pos-search-input');
@@ -389,7 +402,7 @@ const authStore = useAuthStore();
 
   onMount(async () => {
     isInitialMount = true;
-    await fetchProducts(false);
+    await Promise.all([fetchProducts(false), fetchThresholds()]);
     fetchCustomers();
     isInitialMount = false;
     focusSearch();
@@ -448,6 +461,8 @@ const authStore = useAuthStore();
           {total}
           {limit}
           {offset}
+          {warningThreshold}
+          {criticalThreshold}
           bind:showCopySuccess
           onaddtocart={addToCart}
           oncopy={copyToClipboard}

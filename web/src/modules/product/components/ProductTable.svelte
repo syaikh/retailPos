@@ -197,7 +197,7 @@
           <td class="p-4 text-right w-28 font-semibold">{product.price?.toLocaleString('id-ID')}</td>
           <td class="p-4 text-right w-20">
             {#if product.stock === 0}
-              <Badge variant="destructive" size="sm">Out of Stock</Badge>
+              <Badge variant="destructive" size="sm">0</Badge>
             {:else if product.stock <= criticalThreshold}
               <Badge variant="destructive" size="sm">{product.stock}</Badge>
             {:else if product.stock <= warningThreshold}
