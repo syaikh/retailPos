@@ -46,9 +46,9 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain('aria-label="Sidebar"');
   });
 
-  it('has handleLogout function', () => {
+  it('has handleLogout function that calls logout()', () => {
     expect(src).toContain('async function handleLogout()');
-    expect(src).toContain("goto('/login')");
+    expect(src).toContain('await logout()');
   });
 
   it('has collapse toggle buttons', () => {

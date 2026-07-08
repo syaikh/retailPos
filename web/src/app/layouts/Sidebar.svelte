@@ -107,7 +107,6 @@
 
   async function handleLogout() {
     await logout();
-    goto('/login');
   }
 
   function createRipple(event: MouseEvent, el: HTMLElement) {
