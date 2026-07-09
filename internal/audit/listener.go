@@ -35,7 +35,7 @@ func NewAuditListener(svc AuditLogCreator) eventbus.Listener {
 			"auth.login", "auth.logout",
 			"brand.created", "brand.updated", "brand.deleted",
 			"uom.created", "uom.updated", "uom.deleted",
-			"inventory.stock_adjusted",
+			eventbus.StockAdjusted,
 		},
 		func(ctx context.Context, event eventbus.Event) error {
 			userID := middleware.UserIDFromContext(ctx)
