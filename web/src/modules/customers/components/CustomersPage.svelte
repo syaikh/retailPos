@@ -3,7 +3,7 @@
   import apiClient from '$shared/api/http-client';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Pagination, ImportWizard, HistoryDialog } from '$shared/ui';
+  import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
   import EditCustomerModal from './EditCustomerModal.svelte';
@@ -301,7 +301,6 @@
   }
 
   let showImportWizard = $state(false);
-  let showHistoryDialog = $state(false);
 
   function handleImportComplete() {
     load();
@@ -322,7 +321,6 @@
     onstatuschange={handleStatusFilterChange}
     oncreate={() => { resetForm(); showCreateModal = true; }}
     onImport={() => showImportWizard = true}
-    onHistory={() => showHistoryDialog = true}
   />
 
   <div class="card overflow-hidden">
@@ -410,8 +408,4 @@
   onComplete={handleImportComplete}
 />
 
-<HistoryDialog
-  bind:open={showHistoryDialog}
-  module="customers"
-  displayName="Customers"
-/>
+

@@ -1,5 +1,5 @@
 import apiClient from '$shared/api/http-client';
-import type { PreviewResult, ImportResult, ImportProgress, ModuleInfo, ExportFormat } from '$shared/types/import-export';
+import type { PreviewResult, ImportResult, ImportProgress, ModuleInfo, ExportFormat, ImportDetail, ImportRowWithErrors } from '$shared/types/import-export';
 
 const BASE = '/import-export';
 
@@ -40,6 +40,16 @@ export async function getProgress(jobId: string): Promise<ImportProgress> {
 export async function getHistory(module: string): Promise<ImportProgress[]> {
   const { data } = await apiClient.get(`${BASE}/history/${module}`);
   return data;
+}
+
+export async function getImportDetail(module: string, jobId: string): Promise<ImportDetail> {
+  const { data } = await apiClient.get(`${BASE}/history/${module}/${jobId}`);
+  return data;
+}
+
+export async function getImportRows(module: string, jobId: string): Promise<ImportRowWithErrors[]> {
+  const { data } = await apiClient.get(`${BASE}/history/${module}/${jobId}/rows`);
+  return data.rows ?? [];
 }
 
 export async function cancelImport(jobId: string): Promise<void> {

@@ -2,7 +2,16 @@
   import { Button, Dropdown } from '$shared/ui';
   import { Download, Upload, FileDown, FileSpreadsheet, FileText, History, ChevronDown } from 'lucide-svelte';
   import { downloadExport, downloadTemplate } from '$shared/services/import-export-service';
+  import { goto } from '$app/router';
   import type { ExportFormat } from '$shared/types/import-export';
+
+  const historyRoutes: Record<string, string> = {
+    categories: '/categories/import-history',
+    brands: '/brands/import-history',
+    uoms: '/units-of-measure/import-history',
+    customers: '/customers/import-history',
+    products: '/products/import-history',
+  };
 
   let {
     module = '',
@@ -10,16 +19,18 @@
     canImport = false,
     canTemplate = true,
     onImport = () => {},
-    onHistory = () => {},
   }: {
     module?: string;
     canExport?: boolean;
     canImport?: boolean;
     canTemplate?: boolean;
     onImport?: () => void;
-    onHistory?: () => void;
   } = $props();
 
+  function handleHistory() {
+    const route = historyRoutes[module];
+    if (route) goto(route);
+  }
   function handleExport(format: ExportFormat) {
     downloadExport(module, format);
   }
@@ -41,7 +52,7 @@
         ? [{ divider: true }, { label: 'Import Data', icon: Upload, onclick: () => onImport() }]
         : []),
       ...(canImport
-        ? [{ divider: true }, { label: 'Import History', icon: History, onclick: () => onHistory() }]
+        ? [{ divider: true }, { label: 'Import History', icon: History, onclick: () => handleHistory() }]
         : []),
     ]}
     placement="bottom-end"

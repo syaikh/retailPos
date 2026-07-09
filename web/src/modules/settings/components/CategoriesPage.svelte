@@ -8,7 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -89,7 +89,6 @@ let canView = $derived(authStore.user != null);
   );
 
   let showImportWizard = $state(false);
-  let showHistoryDialog = $state(false);
 
   function handleImportComplete() {
     fetchCategories();
@@ -237,7 +236,6 @@ let canView = $derived(authStore.user != null);
             canExport={true}
             canImport={true}
             onImport={() => showImportWizard = true}
-            onHistory={() => showHistoryDialog = true}
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
@@ -428,11 +426,6 @@ let canView = $derived(authStore.user != null);
   onComplete={handleImportComplete}
 />
 
-<HistoryDialog
-  bind:open={showHistoryDialog}
-  module="categories"
-  displayName="Categories"
-/>
 
 <!-- Delete Confirm Modal -->
 <Modal bind:open={showDeleteModal} title="Hapus Kategori" size="sm">

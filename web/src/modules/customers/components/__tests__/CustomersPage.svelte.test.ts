@@ -19,8 +19,8 @@ describe('CustomersPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
   });
 
-  it('imports Pagination, ImportWizard, HistoryDialog from shared/ui', () => {
-    expect(src).toContain("import { Pagination, ImportWizard, HistoryDialog } from '$shared/ui'");
+  it('imports Pagination, ImportWizard from shared/ui', () => {
+    expect(src).toContain("import { Pagination, ImportWizard } from '$shared/ui'");
   });
 
   it('imports extracted modal and table components', () => {

@@ -8,7 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, HistoryDialog, SearchBar } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar } from '$shared/ui';
   import { Plus, Pencil, Trash2, Ruler, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -74,7 +74,6 @@
   }, 400);
 
   let showImportWizard = $state(false);
-  let showHistoryDialog = $state(false);
 
   function handleImportComplete() {
     fetchUoms();
@@ -176,7 +175,6 @@
             canExport={true}
             canImport={true}
             onImport={() => showImportWizard = true}
-            onHistory={() => showHistoryDialog = true}
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
@@ -341,12 +339,6 @@
   module="uoms"
   displayName="Units of Measure"
   onComplete={handleImportComplete}
-/>
-
-<HistoryDialog
-  bind:open={showHistoryDialog}
-  module="uoms"
-  displayName="Units of Measure"
 />
 
 <Modal bind:open={showDeleteModal} title="Hapus Unit" size="sm">

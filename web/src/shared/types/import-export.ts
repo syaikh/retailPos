@@ -68,3 +68,22 @@ export interface ModuleInfo {
 }
 
 export type ExportFormat = 'csv' | 'xlsx';
+
+export interface ImportSnapshot {
+  rows_data: Record<string, string>[];
+  schema_snapshot: Record<string, string>;
+}
+
+export interface ImportDetail {
+  progress: ImportProgress;
+  snapshot: ImportSnapshot;
+}
+
+export interface ImportRowWithErrors {
+  row_number: number;
+  status: RowStatus;
+  entity_id?: number | null;
+  old_values?: Record<string, string> | null;
+  new_values?: Record<string, string> | null;
+  errors?: ValidationError[];
+}

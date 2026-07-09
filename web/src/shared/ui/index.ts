@@ -22,4 +22,3 @@ export { default as PreviewTable } from './PreviewTable.svelte';
 export { default as ValidationSummary } from './ValidationSummary.svelte';
 export { default as ProgressDialog } from './ProgressDialog.svelte';
 export { default as ImportSummary } from './ImportSummary.svelte';
-export { default as HistoryDialog } from './HistoryDialog.svelte';
