@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { TEST_USERS, API_BASE, authHeader } from './fixtures';
+import * as XLSX from 'xlsx';
 
 async function getToken(request: any, username: string = TEST_USERS.superadmin.username, password: string = TEST_USERS.superadmin.password) {
   const res = await request.post(`${API_BASE}/api/login`, {
@@ -20,6 +21,84 @@ function uniquePhone() {
 
 function uniqueCode() {
   return `U${Date.now()}`.slice(0, 10);
+}
+
+function createXLSX(headers: string[], rows: (string | number)[][]): Buffer {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+}
+
+async function xlsxRoundtrip(
+  request: any,
+  token: string,
+  module: string,
+  headers: string[],
+  rows: (string | number)[][],
+  verifyEndpoint: string,
+  verifyField: string,
+  expectedValue: string,
+) {
+  // Step 1: preview
+  const buf = createXLSX(headers, rows);
+  await new Promise(r => setTimeout(r, 300));
+  const previewRes = await request.post(`${API_BASE}/api/import-export/preview/${module}`, {
+    headers: authHeader(token),
+    multipart: {
+      file: {
+        name: `${module}.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: buf,
+      },
+    },
+  });
+  expect(previewRes.ok(), `preview failed (${previewRes.status()}): ${await previewRes.text()}`).toBeTruthy();
+  const preview = await previewRes.json();
+  expect(preview.module).toBe(module);
+  expect(preview.total_rows).toBe(rows.length);
+  if (preview.error_count > 0) {
+    console.log('Preview errors:', JSON.stringify(preview.rows?.filter((r: any) => r.errors?.length > 0)?.slice(0, 3), null, 2));
+  }
+  expect(preview.insert_count).toBe(rows.length);
+  expect(preview.token).toBeTruthy();
+
+  // Step 2: confirm
+  await new Promise(r => setTimeout(r, 300));
+  const confirmRes = await request.post(`${API_BASE}/api/import-export/confirm/${module}?token=${preview.token}`, {
+    headers: authHeader(token),
+  });
+  expect(confirmRes.ok(), `confirm failed: ${await confirmRes.text()}`).toBeTruthy();
+  const confirmBody = await confirmRes.json();
+  const jobId = confirmBody.job_id;
+
+  // Step 3: poll progress until completed
+  let status = confirmBody.status;
+  const maxPolls = 30;
+  for (let i = 0; i < maxPolls; i++) {
+    if (status === 'completed') break;
+    await new Promise(r => setTimeout(r, 500));
+    const progRes = await request.get(`${API_BASE}/api/import-export/progress/${jobId}`, {
+      headers: authHeader(token),
+    });
+    if (progRes.ok()) {
+      const prog = await progRes.json();
+      status = prog.status;
+    }
+  }
+  expect(status, 'import should complete within timeout').toBe('completed');
+
+  await new Promise(r => setTimeout(r, 300));
+
+  // Step 4: verify via API
+  const verifyRes = await request.get(`${verifyEndpoint}`, {
+    headers: authHeader(token),
+  });
+  expect(verifyRes.ok()).toBeTruthy();
+  const body = await verifyRes.json();
+  const items = body.data ?? [];
+  const found = items.some((item: any) => String(item[verifyField]) === expectedValue);
+  expect(found, `expected ${verifyField}=${expectedValue} to exist after import`).toBeTruthy();
 }
 
 // ============================================================================
@@ -326,5 +405,52 @@ test.describe('Import/Export Framework — Import Products', () => {
       },
     });
     expect(res.status()).toBe(401);
+  });
+});
+
+// ============================================================================
+// XLSX Roundtrip
+// ============================================================================
+test.describe('Import/Export Framework — XLSX Roundtrip', () => {
+  test('Categories XLSX: preview → confirm → verify', async ({ request }) => {
+    const token = await getToken(request);
+    const name = uniqueName('CatXLSX');
+    await xlsxRoundtrip(
+      request, token,
+      'categories',
+      ['Name', 'Description', 'Active'],
+      [[name, 'XLSX roundtrip test', true]],
+      `${API_BASE}/api/categories`,
+      'name',
+      name,
+    );
+  });
+
+  test('Brands XLSX: preview → confirm → verify', async ({ request }) => {
+    const token = await getToken(request);
+    const name = uniqueName('BrandXLSX');
+    await xlsxRoundtrip(
+      request, token,
+      'brands',
+      ['Name', 'Description', 'IsActive'],
+      [[name, 'XLSX roundtrip test', true]],
+      `${API_BASE}/api/brands`,
+      'name',
+      name,
+    );
+  });
+
+  test('Products XLSX: preview → confirm → verify', async ({ request }) => {
+    const token = await getToken(request);
+    const sku = `SKUXLSX${Date.now()}`;
+    await xlsxRoundtrip(
+      request, token,
+      'products',
+      ['SKU', 'Product Name', 'Barcode', 'Category', 'Brand', 'Price', 'Cost', 'Status', 'Unit of Measure'],
+      [[sku, 'XLSX Product', '', 'Accessories', 'Indofood', 15000, 10000, 'active', 'pcs']],
+      `${API_BASE}/api/products?limit=200&search=${sku}`,
+      'sku',
+      sku,
+    );
   });
 });

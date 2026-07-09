@@ -161,5 +161,9 @@ func (r *Repository) BulkUpsert(ctx context.Context, records []BrandImportRow) I
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("rows iteration: %v", err))
+	}
+
 	return result
 }
