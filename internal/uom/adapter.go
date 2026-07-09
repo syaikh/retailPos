@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
@@ -62,6 +63,9 @@ func (r *uomRepoAdapter) Insert(ctx context.Context, entities []interface{}) (in
 		rows[i] = e.(UOMImportRow)
 	}
 	result := r.repo.BulkUpsert(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Inserted, fmt.Errorf("uom import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Inserted, nil
 }
 
@@ -71,6 +75,9 @@ func (r *uomRepoAdapter) Update(ctx context.Context, entities []interface{}) (in
 		rows[i] = e.(UOMImportRow)
 	}
 	result := r.repo.BulkUpsert(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Updated, fmt.Errorf("uom import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Updated, nil
 }
 

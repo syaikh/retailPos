@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
@@ -59,6 +60,9 @@ func (r *categoryRepoAdapter) Insert(ctx context.Context, entities []interface{}
 		rows[i] = e.(CategoryImportRow)
 	}
 	result := r.repo.BulkUpsertCategories(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Inserted, fmt.Errorf("category import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Inserted, nil
 }
 
@@ -68,6 +72,9 @@ func (r *categoryRepoAdapter) Update(ctx context.Context, entities []interface{}
 		rows[i] = e.(CategoryImportRow)
 	}
 	result := r.repo.BulkUpsertCategories(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Updated, fmt.Errorf("category import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Updated, nil
 }
 

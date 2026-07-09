@@ -20,6 +20,7 @@ import (
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	ieh "retail-pos-system/internal/platform/importexport/handler"
+	"retail-pos-system/internal/platform/importexport/history"
 	importer "retail-pos-system/internal/platform/importexport/import"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -159,9 +160,10 @@ func main() {
 	_ = adapterReg.Register(product.NewAdapter(productRepo, categoryRepo, brandRepo, uomRepo))
 
 	valPipeline := validation.NewDefaultPipeline()
-	progStore := progress.NewInMemoryStore()
+	progStore := progress.NewPgRepository(dbPool)
 	progEng := progress.NewEngine(progStore)
-	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng)
+	historyStore := history.NewStore(dbPool)
+	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng, historyStore)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 	ieH := ieh.NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)

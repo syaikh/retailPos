@@ -217,6 +217,9 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 				existingMap[phone] = id
 			}
 		}
+		if err := rows.Err(); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("lookup rows iteration failed: %v", err))
+		}
 		rows.Close()
 	}
 

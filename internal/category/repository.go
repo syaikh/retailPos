@@ -335,6 +335,9 @@ func (r *Repository) BulkUpsertCategories(ctx context.Context, records []Categor
 			result.Updated++
 		}
 	}
+	if err := rows.Err(); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("rows iteration failed: %v", err))
+	}
 
 	return result
 }

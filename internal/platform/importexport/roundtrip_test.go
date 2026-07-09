@@ -70,7 +70,7 @@ func TestMain(m *testing.M) {
 
 	val := validation.NewDefaultPipeline()
 	progEng = progress.NewEngine(progress.NewInMemoryStore())
-	importEng = importer.NewEngine(schemaReg, val, adapterReg, progEng)
+	importEng = importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 	templateEng = template.NewEngine()
 	exportEng = export.NewEngine()
 

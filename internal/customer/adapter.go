@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
@@ -63,6 +64,9 @@ func (r *customerRepoAdapter) Insert(ctx context.Context, entities []interface{}
 		rows[i] = e.(CustomerImportRow)
 	}
 	result := r.repo.BulkUpsertCustomers(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Inserted, fmt.Errorf("customer import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Inserted, nil
 }
 
@@ -72,6 +76,9 @@ func (r *customerRepoAdapter) Update(ctx context.Context, entities []interface{}
 		rows[i] = e.(CustomerImportRow)
 	}
 	result := r.repo.BulkUpsertCustomers(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Updated, fmt.Errorf("customer import errors: %v", strings.Join(result.Errors, "; "))
+	}
 	return result.Updated, nil
 }
 

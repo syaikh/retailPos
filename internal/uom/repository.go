@@ -169,6 +169,9 @@ func (r *Repository) BulkUpsert(ctx context.Context, records []UOMImportRow) Imp
 			result.Updated++
 		}
 	}
+	if err := rows.Err(); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("rows iteration failed: %v", err))
+	}
 
 	return result
 }

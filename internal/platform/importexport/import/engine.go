@@ -11,6 +11,7 @@ import (
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
+	"retail-pos-system/internal/platform/importexport/history"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/validation"
@@ -30,21 +31,23 @@ type PreviewState struct {
 }
 
 type Engine struct {
-	schemaReg   *schema.Registry
-	validator   *validation.Pipeline
-	adapterReg  *importexport.AdapterRegistry
-	progressEng *progress.Engine
-	previews    map[string]*PreviewState
-	mu          sync.RWMutex
+	schemaReg    *schema.Registry
+	validator    *validation.Pipeline
+	adapterReg   *importexport.AdapterRegistry
+	progressEng  *progress.Engine
+	historyStore *history.Store
+	previews     map[string]*PreviewState
+	mu           sync.RWMutex
 }
 
-func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *importexport.AdapterRegistry, progressEng *progress.Engine) *Engine {
+func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *importexport.AdapterRegistry, progressEng *progress.Engine, historyStore *history.Store) *Engine {
 	return &Engine{
-		schemaReg:   schemaReg,
-		validator:   v,
-		adapterReg:  adapterReg,
-		progressEng: progressEng,
-		previews:    make(map[string]*PreviewState),
+		schemaReg:    schemaReg,
+		validator:    v,
+		adapterReg:   adapterReg,
+		progressEng:  progressEng,
+		historyStore: historyStore,
+		previews:     make(map[string]*PreviewState),
 	}
 }
 
@@ -129,9 +132,6 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	var insertEntities, updateEntities []interface{}
 	for _, pr := range state.Result.Rows {
-		if pr.Status == "error" {
-			continue
-		}
 		rowIdx := pr.RowNumber - 2
 		if rowIdx < 0 || rowIdx >= len(state.Rows) {
 			continue
@@ -143,16 +143,32 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if state.StoreID > 0 {
 			state.Rows[rowIdx]["_store_id"] = state.StoreID
 		}
+
+		status := pr.Status
+		if status == "error" {
+			if e.historyStore != nil {
+				for _, verr := range pr.Errors {
+					_ = e.historyStore.SaveError(ctx, jobID, verr.Row, verr.Field, verr.Value, verr.Reason, verr.Suggestion, string(verr.Stage))
+				}
+			}
+			continue
+		}
+
 		entity, err := adapter.MapToEntity(ctx, state.Schema, state.Rows[rowIdx])
 		if err != nil {
 			continue
 		}
-		switch pr.Status {
+		switch status {
 		case "insert":
 			insertEntities = append(insertEntities, entity)
 		case "update":
 			updateEntities = append(updateEntities, entity)
 		}
+
+		if e.historyStore != nil {
+			_ = e.historyStore.SaveRow(ctx, jobID, pr.RowNumber, status, nil, pr.OldValues, pr.NewValues)
+		}
+
 		processed := len(insertEntities) + len(updateEntities)
 		_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, state.Result.ErrorCount, len(insertEntities), len(updateEntities))
 	}
@@ -208,6 +224,10 @@ func (e *Engine) Execute(ctx context.Context, token string) (*importexport.Impor
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
 	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount, 0, 0)
 
+	if e.historyStore != nil {
+		_ = e.historyStore.SaveSnapshot(ctx, jobID, state.Schema, state.Rows, state.Result)
+	}
+
 	e.executeImport(ctx, jobID, state, adapter)
 
 	e.DeletePreview(token)
@@ -251,6 +271,10 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusImporting)
 	_ = e.progressEng.UpdateProgress(ctx, jobID, 0, state.Result.TotalRows, state.Result.ErrorCount, 0, 0)
+
+	if e.historyStore != nil {
+		_ = e.historyStore.SaveSnapshot(ctx, jobID, state.Schema, state.Rows, state.Result)
+	}
 
 	go func() {
 		e.executeImport(context.Background(), jobID, state, adapter)
