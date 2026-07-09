@@ -48,6 +48,7 @@ type ProductImportRow struct {
 	UnitOfMeasure string
 	WeightGrams   int
 	Description   string
+	StoreID       int
 }
 
 type ProductImportPayload struct {
@@ -63,6 +64,7 @@ type ProductImportPayload struct {
 	UnitOfMeasureID *int
 	WeightGrams     *int
 	Description     *string
+	StoreID         *int
 }
 
 type Warehouse struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 
@@ -74,6 +75,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	unitOfMeasure, _ := row["UnitOfMeasure"].(string)
 	weightGrams, _ := strconv.Atoi(fmt.Sprintf("%v", row["WeightGrams"]))
 	description, _ := row["Description"].(string)
+	storeID, _ := row["_store_id"].(int)
 
 	return ProductImportRow{
 		Row:           rowNum,
@@ -89,6 +91,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		UnitOfMeasure: unitOfMeasure,
 		WeightGrams:   weightGrams,
 		Description:   description,
+		StoreID:       storeID,
 	}, nil
 }
 
@@ -135,7 +138,7 @@ func (r *productRepoAdapter) Update(ctx context.Context, entities []interface{})
 }
 
 func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductImportRow) (*ProductImportPayload, error) {
-	status := row.Status
+	status := strings.ToLower(row.Status)
 	if status == "" {
 		status = "active"
 	}
@@ -167,6 +170,11 @@ func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductI
 		uomID = &id
 	}
 
+	var storeID *int
+	if row.StoreID > 0 {
+		storeID = &row.StoreID
+	}
+
 	return &ProductImportPayload{
 		SKU:             row.SKU,
 		Name:            row.Name,
@@ -180,6 +188,7 @@ func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductI
 		UnitOfMeasureID: uomID,
 		WeightGrams:     intPtr(row.WeightGrams),
 		Description:     strPtr(row.Description),
+		StoreID:         storeID,
 	}, nil
 }
 

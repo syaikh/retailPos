@@ -1,9 +1,11 @@
 package importer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/validation"
+
+	"github.com/xuri/excelize/v2"
 )
 
 type PreviewState struct {
@@ -50,7 +54,18 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 		return nil, fmt.Errorf("schema: %w", err)
 	}
 
-	rows, err := ParseFile(filename, file, s)
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	if strings.HasSuffix(strings.ToLower(filename), ".xlsx") {
+		if err := validateMetaSheet(bytes.NewReader(data), s); err != nil {
+			return nil, err
+		}
+	}
+
+	rows, err := ParseFile(filename, bytes.NewReader(data), s)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %w", err)
 	}
@@ -124,6 +139,9 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if e.isCancelled(ctx, jobID) {
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
 			return
+		}
+		if state.StoreID > 0 {
+			state.Rows[rowIdx]["_store_id"] = state.StoreID
 		}
 		entity, err := adapter.MapToEntity(ctx, state.Schema, state.Rows[rowIdx])
 		if err != nil {
@@ -218,6 +236,9 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 		return 0, fmt.Errorf("preview state not found for token %q", token)
 	}
 
+	state.UserID = userID
+	state.StoreID = storeID
+
 	adapter, err := e.adapterReg.Get(state.Module)
 	if err != nil {
 		return 0, fmt.Errorf("adapter: %w", err)
@@ -237,4 +258,37 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 	}()
 
 	return jobID, nil
+}
+
+func validateMetaSheet(r io.Reader, s schema.ModuleSchema) error {
+	wb, err := excelize.OpenReader(r)
+	if err != nil {
+		return nil
+	}
+	defer wb.Close()
+
+	idx, err := wb.GetSheetIndex("_Meta")
+	if err != nil || idx < 0 {
+		return nil
+	}
+
+	rows, err := wb.GetRows("_Meta")
+	if err != nil {
+		return nil
+	}
+
+	var version string
+	for _, row := range rows {
+		if len(row) >= 2 && row[0] == "SchemaVersion" {
+			version = row[1]
+			break
+		}
+	}
+	if version == "" {
+		return nil
+	}
+	if version != s.SchemaVersion {
+		return fmt.Errorf("template schema version mismatch: expected %q, got %q", s.SchemaVersion, version)
+	}
+	return nil
 }

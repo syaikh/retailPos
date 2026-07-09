@@ -8,6 +8,7 @@
     value = $bindable(''),
     children,
     oninput: externalOninput,
+    elementRef,
     ...rest
   }: {
     tag?: 'input' | 'select' | 'textarea';
@@ -15,12 +16,18 @@
     value?: string;
     children?: Snippet;
     oninput?: (e: Event) => void;
+    elementRef?: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void;
     [key: string]: any;
   } = $props();
 
   function handleInput(e: Event) {
     value = (e.target as HTMLInputElement | HTMLSelectElement).value;
     externalOninput?.(e);
+  }
+
+  function refAction(el: Element) {
+    elementRef?.(el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement);
+    return {};
   }
 </script>
 
@@ -33,6 +40,7 @@
     )}
     {value}
     oninput={handleInput}
+    use:refAction
     {...rest}
   />
 {:else}
@@ -44,6 +52,7 @@
     )}
     {value}
     oninput={handleInput}
+    use:refAction
     {...rest}
   >
     {#if tag === 'select'}

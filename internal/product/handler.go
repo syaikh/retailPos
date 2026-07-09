@@ -34,8 +34,8 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 
 func (h *Handler) getStoreID(c *gin.Context) *int {
 	if sid, exists := c.Get("storeID"); exists {
-		if v, ok := sid.(int); ok {
-			return &v
+		if v, ok := sid.(*int); ok {
+			return v
 		}
 	}
 	return nil

@@ -39,26 +39,121 @@ Importing lets you add or update many records at once by uploading a file.
 2. Open the downloaded `.xlsx` file.
 
 The template contains:
-- An **Instructions** sheet explaining each column.
+- An **Instructions** sheet explaining each column with a reference table.
 - A **Data** sheet with column headers where you fill in your records.
+- A hidden **Meta** sheet containing template metadata (module, schema version, generation timestamp).
 - **Reference sheets** (hidden) that list valid values for dropdown columns.
 
 ### Step 2: Fill Out the Template
 
 1. In the **Data** sheet, start filling in rows below the header.
-2. **Required columns** are marked with a `*` in the header. These must have a value in every row.
-3. Some columns have dropdown menus with allowed values (e.g., **Category** for products). Pick from the list.
-4. Save the file when done.
+2. **Required columns** have a yellow header. These must have a value in every row.
+3. **Reference columns** have a green header. Use the dropdown or enter an existing value.
+4. **Optional columns** have a blue header. Leave blank if not needed.
+5. Some columns have dropdown menus with allowed values (e.g., **Category** for products). Pick from the list.
+6. Save the file when done.
 
 **Rules per module:**
 
 | Module | Required | Notes |
 |---|---|---|
-| Products | SKU, Name | Category, Brand, UnitOfUse must match existing values |
+| Products | SKU, Name | Category, Brand, UnitOfMeasure must match existing values |
 | Categories | Name | Slug is auto-generated if left blank |
 | Brands | Name | — |
 | Units of Measure | Code, Name | Code must be unique |
 | Customers | Name | Phone is used to match existing customers |
+
+**Examples of filling in the template:**
+
+**Brands template** — Data sheet:
+
+| Brand Name | Description | Active |
+|---|---|---|
+| Nike | Sports footwear and apparel | true |
+| Adidas | Performance sportswear | true |
+| Samsung | Consumer electronics | true |
+
+- **Brand Name** (yellow header, required): Enter the brand name.
+- **Description** (blue header, optional): Brief description.
+- **Active** (blue header, optional, default `true`): `true` or `false`. Leave blank to keep active.
+
+---
+
+**Categories template** — Data sheet:
+
+| Category Name | Slug | Description | Active |
+|---|---|---|---|
+| Electronics | electronics | Electronic devices and accessories | true |
+| Clothing | clothing | Apparel and fashion items | true |
+| Food & Beverage | | | true |
+
+- **Category Name** (yellow, required): The category name.
+- **Slug** (blue, optional): URL-friendly identifier. Auto-generated from the name if left blank.
+- **Description** (blue, optional): Free text.
+- **Active** (blue, optional, default `true`): `true` or `false`.
+
+---
+
+**Units of Measure template** — Data sheet:
+
+| Code | Name | Description | Active |
+|---|---|---|---|
+| PCS | Pieces | Individual units | true |
+| KG | Kilogram | Weight in kilograms | true |
+| LTR | Liter | Volume in liters | true |
+| BOX | Box | Carton or box quantity | true |
+
+- **Code** (yellow, required): Short unique code (max 10 characters). Example: `PCS`, `KG`, `MTR`.
+- **Name** (yellow, required): Display name for the unit.
+- **Description** (blue, optional): Free text.
+- **Active** (blue, optional, default `true`).
+
+---
+
+**Customers template** — Data sheet:
+
+| Customer Name | Phone | Email | Address | Note | Active |
+|---|---|---|---|---|---|
+| John Doe | 081234567890 | john@example.com | Jl. Merdeka No. 10 | Regular customer | true |
+| PT Maju Jaya | 0211234567 | info@majujaya.com | | | true |
+| Sari Store | 087812345678 | | | New customer | |
+
+- **Customer Name** (yellow, required): Customer or company name.
+- **Phone** (yellow, required): Phone number. Used to match existing customers on re-import.
+- **Email** (blue, optional): Email address.
+- **Address** (blue, optional): Physical or mailing address.
+- **Note** (blue, optional): Internal notes.
+- **Active** (blue, optional, default `true`).
+
+---
+
+**Products template** — Data sheet:
+
+| SKU | Product Name | Barcode | Category | Brand | Price | Cost | Status | Unit of Measure |
+|---|---|---|---|---|---|---|---|---|
+| SKU001 | T-Shirt Cotton | 8991234567890 | Clothing | Nike | 150000 | 90000 | active | PCS |
+| SKU002 | Running Shoes | | Clothing | Adidas | 350000 | 250000 | active | PCS |
+| SKU003 | Mineral Water 600ml | | Food & Beverage | | 5000 | 3000 | active | PCS |
+
+- **SKU** (yellow, required): Unique product SKU.
+- **Product Name** (yellow, required): Product display name.
+- **Barcode** (blue, optional): Barcode number. Leave blank if no barcode.
+- **Category, Brand, Unit of Measure** (green, reference): Must match an existing record in the system. Use the dropdown or type the exact name/code.
+- **Price** (yellow, required): Selling price in whole number (IDR).
+- **Cost** (blue, optional): Purchase cost in whole number.
+- **Status** (blue, optional, default `active`): Allowed values: `active`, `inactive`, `draft`, `archived`.
+- **Unit of Measure** (green, reference): Must match an existing UOM code (e.g., `PCS`, `KG`).
+
+> **Important**: For reference columns (green headers), the value you enter must exactly match an existing record. For example, entering "nik" instead of "Nike" will fail validation. Use the dropdown in the template to pick the correct value.
+
+> **Example files**: Pre-filled example templates for all modules are available in `docs/examples/`:
+> - [`example_brands_filled.xlsx`](./examples/example_brands_filled.xlsx) — Brands with 10 sample rows
+> - [`example_categories_filled.xlsx`](./examples/example_categories_filled.xlsx) — Categories with 10 sample rows
+> - [`example_uoms_filled.xlsx`](./examples/example_uoms_filled.xlsx) — Units of Measure with 10 sample rows
+> - [`example_customers_filled.xlsx`](./examples/example_customers_filled.xlsx) — Customers with 10 sample rows
+> - [`example_products_filled.xlsx`](./examples/example_products_filled.xlsx) — Products with 10 sample rows
+>
+> Open any of these files in Excel or Google Sheets to see how data should be formatted.
 
 ### Step 3: Upload and Preview
 

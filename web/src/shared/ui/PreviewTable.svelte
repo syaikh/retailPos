@@ -24,14 +24,16 @@
   }
 
   function cellValue(row: PreviewRow, col: string): string {
+    const newVal = (row as any).new_values ?? row.newValues;
+    const oldVal = (row as any).old_values ?? row.oldValues;
     if (row.status === 'update') {
-      const oldVal = row.oldValues?.[col];
-      const newVal = row.newValues[col];
-      if (oldVal !== undefined && oldVal !== newVal) {
-        return `${oldVal} → ${newVal}`;
+      const ov = oldVal?.[col];
+      const nv = newVal[col];
+      if (ov !== undefined && ov !== nv) {
+        return `${ov} → ${nv}`;
       }
     }
-    return row.newValues[col] ?? '';
+    return newVal[col] ?? '';
   }
 </script>
 
@@ -63,7 +65,7 @@
                 </span>
               {/if}
             </td>
-            <td class="px-3 py-1.5 text-text-muted">{row.rowNumber}</td>
+            <td class="px-3 py-1.5 text-text-muted">{(row as any).row_number ?? row.rowNumber}</td>
             {#each columns as col}
               <td class="px-3 py-1.5 text-text-primary truncate max-w-48">
                 {cellValue(row, col)}

@@ -88,6 +88,16 @@ func (e *Engine) exportXLSX(w io.Writer, s schema.ModuleSchema, data []map[strin
 
 	for i, col := range cols {
 		colLetter, _ := excelize.ColumnNumberToName(i + 1)
+		if fmtID, ok := colNumberFormatID(col.Type); ok {
+			styl, _ := wb.NewStyle(&excelize.Style{NumFmt: fmtID})
+			if styl > 0 {
+				_ = wb.SetColStyle(sheet, colLetter, styl)
+			}
+		}
+	}
+
+	for i, col := range cols {
+		colLetter, _ := excelize.ColumnNumberToName(i + 1)
 		w, ok := columnWidth(col.Type)
 		if ok {
 			_ = wb.SetColWidth(sheet, colLetter, colLetter, w)
@@ -146,6 +156,15 @@ func formatValue(t schema.ColumnType, v interface{}) string {
 	}
 
 	return str
+}
+
+func colNumberFormatID(t schema.ColumnType) (int, bool) {
+	switch t {
+	case schema.ColNumber:
+		return 3, true
+	default:
+		return 0, false
+	}
 }
 
 func columnWidth(t schema.ColumnType) (float64, bool) {

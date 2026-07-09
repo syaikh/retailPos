@@ -174,7 +174,14 @@ func (h *Handler) Confirm(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	userIDInt, _ := userID.(int)
 
-	jobID, err := h.importEng.StartImport(c.Request.Context(), token, userIDInt, 0)
+	storeID := 0
+	if sid, exists := c.Get("storeID"); exists {
+		if v, ok := sid.(*int); ok && v != nil {
+			storeID = *v
+		}
+	}
+
+	jobID, err := h.importEng.StartImport(c.Request.Context(), token, userIDInt, storeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

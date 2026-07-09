@@ -37,7 +37,7 @@
 
   let container: HTMLElement;
   let triggerEl: HTMLElement;
-  let itemElements: HTMLElement[] = [];
+  let itemElements = $state<HTMLElement[]>([]);
   let focusedIndex = $state(-1);
 
   const placementClasses: Record<Placement, string> = {

@@ -5,9 +5,6 @@ import { getAuthToken, refreshAccessToken, logout, setupAxiosInterceptors } from
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({
   baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // 2. Tambahkan Request Interceptor untuk menyuntikkan token

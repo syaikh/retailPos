@@ -86,6 +86,17 @@ func parseXLSX(r io.Reader, s schema.ModuleSchema) ([]map[string]interface{}, er
 
 	rows := make([]map[string]interface{}, 0, len(all)-1)
 	for i, row := range all[1:] {
+		hasData := false
+		for _, val := range row {
+			if strings.TrimSpace(val) != "" {
+				hasData = true
+				break
+			}
+		}
+		if !hasData {
+			continue
+		}
+
 		rowMap := make(map[string]interface{}, len(headers))
 		for j, val := range row {
 			if j >= len(headers) {

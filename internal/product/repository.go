@@ -156,11 +156,11 @@ func (r *Repository) GetProductBySKU(ctx context.Context, sku string, storeID *i
 
 	args := []interface{}{sku}
 	if storeID != nil {
-		query += fmt.Sprintf(" AND p.store_id = $%d", len(args)+1)
+		query += fmt.Sprintf(" AND v.store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &p.Barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
 		&taxClassIDVal, &taxRateVal,
 		&createdAt, &updatedAt)
@@ -961,11 +961,11 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 	}
 
 	valueStrings := make([]string, 0, len(newPayloads))
-	valueArgs := make([]interface{}, 0, len(newPayloads)*12)
+	valueArgs := make([]interface{}, 0, len(newPayloads)*13)
 	for _, p := range newPayloads {
 		offset := len(valueArgs)
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12))
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13))
 
 		var barcode interface{}
 		if p.Barcode != nil {
@@ -991,14 +991,18 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 		if p.Description != nil {
 			description = *p.Description
 		}
+		var storeID interface{}
+		if p.StoreID != nil {
+			storeID = *p.StoreID
+		}
 
 		valueArgs = append(valueArgs, p.SKU, p.Name, barcode, categoryID, p.Price, p.Cost, p.Stock, p.Status,
-			brandID, description, weightGrams, uomID)
+			brandID, description, weightGrams, uomID, storeID)
 	}
 
 	query := fmt.Sprintf(`
 		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, status,
-		                     brand_id, description, weight_grams, unit_of_measure_id)
+		                     brand_id, description, weight_grams, unit_of_measure_id, store_id)
 		VALUES %s
 		RETURNING id
 	`, strings.Join(valueStrings, ", "))
@@ -1015,6 +1019,9 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return 0, fmt.Errorf("batch insert rows: %w", rows.Err())
+	}
 
 	if len(newIDs) > 0 {
 		stockStrings := make([]string, 0, len(newIDs))

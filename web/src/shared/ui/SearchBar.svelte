@@ -48,7 +48,7 @@
     onkeydown={handleKeydown}
     oninput={() => oninput?.()}
     class="pl-10 pr-10 w-full {inputClass}"
-    bind:this={inputEl}
+    elementRef={(el) => inputEl = el as HTMLInputElement}
     {id}
     autocomplete="off"
     spellcheck="false"
