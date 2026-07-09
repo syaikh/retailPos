@@ -166,7 +166,7 @@ func main() {
 	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng, historyStore)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
-	ieH := ieh.NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+	ieH := ieh.NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, historyStore)
 
 	hub := websocket.NewHub(&authAdapter{authSvc})
 	go hub.Run()

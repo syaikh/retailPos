@@ -103,7 +103,7 @@ func setupTestHandler() (*Handler, *gin.Engine, *progress.Engine) {
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
-	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 	r := gin.New()
 	auth := func(c *gin.Context) {
@@ -391,7 +391,7 @@ func TestHandler_ExportCSV(t *testing.T) {
 		exportEng := export.NewEngine()
 		templateEng := template.NewEngine()
 
-		h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+		h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 		r := gin.New()
 		auth := func(c *gin.Context) {
@@ -444,7 +444,7 @@ func TestHandler_ExportXLSX(t *testing.T) {
 		exportEng := export.NewEngine()
 		templateEng := template.NewEngine()
 
-		h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+		h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 		r := gin.New()
 		auth := func(c *gin.Context) {
@@ -511,7 +511,7 @@ func TestHandler_PermissionDenied(t *testing.T) {
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
-	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 	r := gin.New()
 	auth := func(c *gin.Context) {
@@ -576,7 +576,7 @@ func TestHandler_ListModules_Empty(t *testing.T) {
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
-	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 	r := gin.New()
 	auth := func(c *gin.Context) {
@@ -662,7 +662,7 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
-	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng)
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 
 	r := gin.New()
 	auth := func(c *gin.Context) {

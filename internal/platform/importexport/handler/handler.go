@@ -3,9 +3,12 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
+	"retail-pos-system/internal/platform/importexport/history"
 	importer "retail-pos-system/internal/platform/importexport/import"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -33,23 +36,25 @@ var modulePerms = map[string]string{
 }
 
 type Handler struct {
-	schemaReg   *schema.Registry
-	adapterReg  *importexport.AdapterRegistry
-	importEng   *importer.Engine
-	exportEng   *export.Engine
-	templateEng *template.Engine
-	progressEng *progress.Engine
-	permFunc    func(string) gin.HandlerFunc
+	schemaReg    *schema.Registry
+	adapterReg   *importexport.AdapterRegistry
+	importEng    *importer.Engine
+	exportEng    *export.Engine
+	templateEng  *template.Engine
+	progressEng  *progress.Engine
+	historyStore *history.Store
+	permFunc     func(string) gin.HandlerFunc
 }
 
-func NewHandler(schemaReg *schema.Registry, adapterReg *importexport.AdapterRegistry, importEng *importer.Engine, exportEng *export.Engine, templateEng *template.Engine, progressEng *progress.Engine) *Handler {
+func NewHandler(schemaReg *schema.Registry, adapterReg *importexport.AdapterRegistry, importEng *importer.Engine, exportEng *export.Engine, templateEng *template.Engine, progressEng *progress.Engine, historyStore *history.Store) *Handler {
 	return &Handler{
-		schemaReg:   schemaReg,
-		adapterReg:  adapterReg,
-		importEng:   importEng,
-		exportEng:   exportEng,
-		templateEng: templateEng,
-		progressEng: progressEng,
+		schemaReg:    schemaReg,
+		adapterReg:   adapterReg,
+		importEng:    importEng,
+		exportEng:    exportEng,
+		templateEng:  templateEng,
+		progressEng:  progressEng,
+		historyStore: historyStore,
 	}
 }
 
@@ -65,6 +70,8 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, auth gin.HandlerFunc, perm
 		r.GET("/progress/:jobId", h.GetProgress)
 		r.POST("/cancel/:jobId", h.CancelImport)
 		r.GET("/history/:module", h.requirePerm("history"), h.ListImportHistory)
+		r.GET("/history/:module/:jobId", h.requirePerm("history"), h.GetImportDetail)
+		r.GET("/history/:module/:jobId/rows", h.requirePerm("history"), h.GetImportRows)
 		r.GET("/export/:module", h.requirePerm("export"), h.Export)
 	}
 }
@@ -281,4 +288,75 @@ func (h *Handler) Export(c *gin.Context) {
 	if err := h.exportEng.Export(c.Writer, s, data, expFormat); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("export: %v", err)})
 	}
+}
+
+func (h *Handler) GetImportDetail(c *gin.Context) {
+	module := c.Param("module")
+	if _, err := h.schemaReg.Get(module); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown module: %s", module)})
+		return
+	}
+
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	jobProgress, err := h.progressEng.GetProgress(c.Request.Context(), jobID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.historyStore == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "history store not available"})
+		return
+	}
+
+	snapshot, err := h.historyStore.GetSnapshot(c.Request.Context(), jobID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"progress": jobProgress,
+		"snapshot": snapshot,
+	})
+}
+
+func (h *Handler) GetImportRows(c *gin.Context) {
+	module := c.Param("module")
+	if _, err := h.schemaReg.Get(module); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown module: %s", module)})
+		return
+	}
+
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	if h.historyStore == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "history store not available"})
+		return
+	}
+
+	rows, err := h.historyStore.GetRows(c.Request.Context(), jobID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"rows": rows})
 }
