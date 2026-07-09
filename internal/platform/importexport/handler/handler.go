@@ -79,6 +79,10 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, auth gin.HandlerFunc, perm
 func (h *Handler) requirePerm(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		module := c.Param("module")
+		if _, err := h.schemaReg.Get(module); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown module: %s", module)})
+			return
+		}
 		key := module + ":" + action
 		permStr, ok := modulePerms[key]
 		if !ok {

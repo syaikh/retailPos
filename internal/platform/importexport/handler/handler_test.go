@@ -199,7 +199,7 @@ func TestHandler_Preview_UnknownModule(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestHandler_Preview_NoFile(t *testing.T) {
@@ -479,7 +479,7 @@ func TestHandler_Export_UnknownModule(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/import-export/export/bogus?format=csv", nil)
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestHandler_Export_InvalidFormat(t *testing.T) {

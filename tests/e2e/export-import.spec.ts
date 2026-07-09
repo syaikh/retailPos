@@ -223,9 +223,33 @@ test.describe('Import/Export Framework — Import Brands', () => {
       headers: authHeader(token),
     });
     expect(confirmRes.ok()).toBeTruthy();
-    const result = await confirmRes.json();
-    expect(result.status).toBe('completed');
-    expect(result.inserted).toBeGreaterThanOrEqual(1);
+    const confirmBody = await confirmRes.json();
+    expect(confirmBody.job_id).toBeGreaterThan(0);
+    const jobId = confirmBody.job_id;
+
+    // Step 3: poll progress until completed
+    let status = confirmBody.status;
+    const maxPolls = 30;
+    for (let i = 0; i < maxPolls; i++) {
+      if (status === 'completed') break;
+      await new Promise(r => setTimeout(r, 500));
+      const progRes = await request.get(`${API_BASE}/api/import-export/progress/${jobId}`, {
+        headers: authHeader(token),
+      });
+      if (progRes.ok()) {
+        const prog = await progRes.json();
+        status = prog.status;
+      }
+    }
+    expect(status, 'import should complete within timeout').toBe('completed');
+
+    // Step 4: verify via progress endpoint
+    const finalRes = await request.get(`${API_BASE}/api/import-export/progress/${jobId}`, {
+      headers: authHeader(token),
+    });
+    expect(finalRes.ok()).toBeTruthy();
+    const final = await finalRes.json();
+    expect(final.inserted).toBeGreaterThanOrEqual(1);
   });
 
   test('POST /api/import-export/confirm/brands without token returns 400', async ({ request }) => {
