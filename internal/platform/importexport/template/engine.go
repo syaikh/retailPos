@@ -286,11 +286,18 @@ func (e *Engine) createDataSheet(wb *excelize.File, s schema.ModuleSchema, sheet
 
 	_ = wb.SetRowHeight(sheet, 1, 22)
 
+	textSty, _ := wb.NewStyle(&excelize.Style{
+		NumFmt: 49,
+	})
+
 	for i, col := range templateCols {
 		colLetter, _ := excelize.ColumnNumberToName(i + 1)
 		w, ok := colWidth(col.Type)
 		if ok {
 			_ = wb.SetColWidth(sheet, colLetter, colLetter, w)
+		}
+		if col.Type == schema.ColString && textSty > 0 {
+			_ = wb.SetColStyle(sheet, colLetter, textSty)
 		}
 	}
 

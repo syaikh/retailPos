@@ -205,7 +205,7 @@ After confirming an import, the progress dialog shows:
 - **Rows processed**: How many rows have been handled so far.
 - **Inserted / Updated / Errors**: Final counts when the import completes.
 
-If you close the dialog while an import is running, you can check progress later from **any page** by going to the **Import** menu again (the import continues in the background).
+If you close the dialog while an import is running, the import continues in the background. You can check its progress later via **Bulk Actions** → **Import History**, which shows all past and active imports.
 
 ---
 
@@ -244,6 +244,9 @@ To stop a running import:
 
 To view past imports:
 
-1. Click **Bulk Actions** then **Import History**.
-2. A dialog shows all past imports for that module with their status (Completed, Failed, Cancelled).
-3. Each entry shows the date, row count, and insert/update/error counts.
+1. Click **Bulk Actions** then **Import History**. You are taken to a dedicated history page for that module.
+2. The page lists all past imports with their status (Completed, Failed, Importing, Cancelled), date, row count, and insert/update/error counts.
+3. Click any job to open its detail view:
+   - **Summary** — status, timing, total rows, inserts, updates, errors.
+   - **Preview Data** — expandable table showing the original preview rows.
+   - **Row Results** — per-row breakdown with status, new values, and any validation errors.

@@ -53,6 +53,17 @@ func (r *PgRepository) UpdateStatus(ctx context.Context, jobID int64, status Sta
 	return nil
 }
 
+func (r *PgRepository) SetErrorReport(ctx context.Context, jobID int64, errorReport string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE import_jobs SET error_report_path = $1, updated_at = NOW()
+		WHERE id = $2
+	`, errorReport, jobID)
+	if err != nil {
+		return fmt.Errorf("set error report: %w", err)
+	}
+	return nil
+}
+
 func (r *PgRepository) UpdateProgress(ctx context.Context, jobID int64, processed, total, errors, inserted, updated int) error {
 	progressPct := 0
 	if total > 0 {
@@ -86,15 +97,18 @@ func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress,
 		Updated         int
 		ErrorCount      int
 		ProgressPct     int
+		ErrorReport     string
 		StartedAt       *time.Time
 		CompletedAt     *time.Time
 	}
 	err := r.db.QueryRow(ctx, `
-		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct, started_at, completed_at
+		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct,
+		       COALESCE(error_report_path, ''), started_at, completed_at
 		FROM import_jobs WHERE id = $1
 	`, jobID).Scan(
 		&job.ID, &job.Module, &job.Status, &job.TotalRows, &job.Inserted,
-		&job.Updated, &job.ErrorCount, &job.ProgressPct, &job.StartedAt, &job.CompletedAt,
+		&job.Updated, &job.ErrorCount, &job.ProgressPct, &job.ErrorReport,
+		&job.StartedAt, &job.CompletedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -112,6 +126,7 @@ func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress,
 		Inserted:    job.Inserted,
 		Updated:     job.Updated,
 		Errors:      job.ErrorCount,
+		ErrorReport: job.ErrorReport,
 	}
 	if job.StartedAt != nil {
 		p.StartedAt = job.StartedAt.Format(time.RFC3339)
@@ -124,7 +139,8 @@ func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress,
 
 func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct, started_at, completed_at
+		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct,
+		       COALESCE(error_report_path, ''), started_at, completed_at
 		FROM import_jobs
 		WHERE module = $1
 		ORDER BY created_at DESC
@@ -135,7 +151,7 @@ func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) (
 	}
 	defer rows.Close()
 
-	var result []*Progress
+	result := make([]*Progress, 0)
 	for rows.Next() {
 		var job struct {
 			ID          int64
@@ -146,12 +162,14 @@ func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) (
 			Updated     int
 			ErrorCount  int
 			ProgressPct int
+			ErrorReport string
 			StartedAt   *time.Time
 			CompletedAt *time.Time
 		}
 		if err := rows.Scan(
 			&job.ID, &job.Module, &job.Status, &job.TotalRows, &job.Inserted,
-			&job.Updated, &job.ErrorCount, &job.ProgressPct, &job.StartedAt, &job.CompletedAt,
+			&job.Updated, &job.ErrorCount, &job.ProgressPct, &job.ErrorReport,
+			&job.StartedAt, &job.CompletedAt,
 		); err != nil {
 			continue
 		}
@@ -164,6 +182,7 @@ func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) (
 			Inserted:    job.Inserted,
 			Updated:     job.Updated,
 			Errors:      job.ErrorCount,
+			ErrorReport: job.ErrorReport,
 		}
 		if job.StartedAt != nil {
 			p.StartedAt = job.StartedAt.Format(time.RFC3339)

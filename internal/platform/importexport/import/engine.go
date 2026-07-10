@@ -131,6 +131,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 	repo := adapter.Repository()
 
 	var insertEntities, updateEntities []interface{}
+	var mapErrMsgs []string
 	for _, pr := range state.Result.Rows {
 		rowIdx := pr.RowNumber - 2
 		if rowIdx < 0 || rowIdx >= len(state.Rows) {
@@ -156,6 +157,11 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 		entity, err := adapter.MapToEntity(ctx, state.Schema, state.Rows[rowIdx])
 		if err != nil {
+			msg := fmt.Sprintf("row %d: %s", pr.RowNumber, err.Error())
+			mapErrMsgs = append(mapErrMsgs, msg)
+			if e.historyStore != nil {
+				_ = e.historyStore.SaveError(ctx, jobID, pr.RowNumber, "General", "", err.Error(), "", "transform")
+			}
 			continue
 		}
 		switch status {
@@ -178,14 +184,15 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		return
 	}
 
+	errorCount := state.Result.ErrorCount + len(mapErrMsgs)
 	totalInsert := len(insertEntities)
 	totalUpdate := len(updateEntities)
-	errors := state.Result.ErrorCount
 
 	if len(insertEntities) > 0 {
 		n, err := repo.Insert(ctx, insertEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errors, n, totalUpdate)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, n, state.Result.TotalRows, errorCount, n, totalUpdate)
 		if err != nil {
+			_ = e.progressEng.SetErrorReport(ctx, jobID, fmt.Sprintf("Insert failed after %d rows: %s", n, err.Error()))
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
 			return
 		}
@@ -193,15 +200,26 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	if len(updateEntities) > 0 {
 		n, err := repo.Update(ctx, updateEntities)
-		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errors, totalInsert, n)
+		_ = e.progressEng.UpdateProgress(ctx, jobID, totalInsert+n, state.Result.TotalRows, errorCount, totalInsert, n)
 		if err != nil {
+			_ = e.progressEng.SetErrorReport(ctx, jobID, fmt.Sprintf("Update failed: %s", err.Error()))
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
 			return
 		}
 	}
 
+	if totalInsert == 0 && totalUpdate == 0 && errorCount > 0 {
+		errMsg := "No rows were imported"
+		if len(mapErrMsgs) > 0 {
+			errMsg += ": " + strings.Join(mapErrMsgs, "; ")
+		}
+		_ = e.progressEng.SetErrorReport(ctx, jobID, errMsg)
+		_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+		return
+	}
+
 	processed := totalInsert + totalUpdate
-	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errors, totalInsert, totalUpdate)
+	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errorCount, totalInsert, totalUpdate)
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCompleted)
 }
 
@@ -238,15 +256,16 @@ func (e *Engine) Execute(ctx context.Context, token string) (*importexport.Impor
 	}
 
 	return &importexport.ImportResult{
-		JobID:     jobID,
-		Module:    state.Module,
-		Status:    string(p.Status),
-		TotalRows: p.TotalRows,
-		Inserted:  p.Processed - state.Result.ErrorCount,
-		Updated:   0,
-		Skipped:   0,
-		Errors:    p.Errors,
-		DurationMs: p.DurationMs,
+		JobID:       jobID,
+		Module:      state.Module,
+		Status:      string(p.Status),
+		TotalRows:   p.TotalRows,
+		Inserted:    p.Inserted,
+		Updated:     p.Updated,
+		Skipped:     0,
+		Errors:      p.Errors,
+		ErrorReport: p.ErrorReport,
+		DurationMs:  p.DurationMs,
 	}, nil
 }
 

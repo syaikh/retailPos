@@ -69,7 +69,7 @@ func parseXLSX(r io.Reader, s schema.ModuleSchema) ([]map[string]interface{}, er
 	defer wb.Close()
 
 	sheet := wb.GetSheetName(0)
-	all, err := wb.GetRows(sheet)
+	all, err := wb.GetRows(sheet, excelize.Options{RawCellValue: true})
 	if err != nil {
 		return nil, fmt.Errorf("read xlsx sheet: %w", err)
 	}

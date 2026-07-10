@@ -39,7 +39,7 @@ export async function getProgress(jobId: string): Promise<ImportProgress> {
 
 export async function getHistory(module: string): Promise<ImportProgress[]> {
   const { data } = await apiClient.get(`${BASE}/history/${module}`);
-  return data;
+  return data ?? [];
 }
 
 export async function getImportDetail(module: string, jobId: string): Promise<ImportDetail> {

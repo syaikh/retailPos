@@ -30,6 +30,7 @@ type Progress struct {
 	Inserted    int    `json:"inserted,omitempty"`
 	Updated     int    `json:"updated,omitempty"`
 	Errors      int    `json:"errors"`
+	ErrorReport string `json:"error_report,omitempty"`
 	StartedAt   string `json:"started_at"`
 	DurationMs  int    `json:"duration_ms,omitempty"`
 }
@@ -38,6 +39,7 @@ type Repository interface {
 	CreateJob(ctx context.Context, module, schemaVersion, filename string, userID, storeID int) (int64, error)
 	UpdateStatus(ctx context.Context, jobID int64, status Status) error
 	UpdateProgress(ctx context.Context, jobID int64, processed, total, errors, inserted, updated int) error
+	SetErrorReport(ctx context.Context, jobID int64, errorReport string) error
 	GetProgress(ctx context.Context, jobID int64) (*Progress, error)
 	ListJobs(ctx context.Context, module string, limit int) ([]*Progress, error)
 	RequestCancel(ctx context.Context, jobID int64) error
@@ -62,6 +64,10 @@ func (e *Engine) SetStatus(ctx context.Context, jobID int64, status Status) erro
 
 func (e *Engine) UpdateProgress(ctx context.Context, jobID int64, processed, total, errors, inserted, updated int) error {
 	return e.repo.UpdateProgress(ctx, jobID, processed, total, errors, inserted, updated)
+}
+
+func (e *Engine) SetErrorReport(ctx context.Context, jobID int64, errorReport string) error {
+	return e.repo.SetErrorReport(ctx, jobID, errorReport)
 }
 
 func (e *Engine) GetProgress(ctx context.Context, jobID int64) (*Progress, error) {
@@ -97,6 +103,7 @@ type inMemoryJob struct {
 	Inserted        int
 	Updated         int
 	Errors          int
+	ErrorReport     string
 	StartedAt       time.Time
 	CompletedAt     *time.Time
 	UserID          int
@@ -144,6 +151,17 @@ func (s *InMemoryStore) UpdateStatus(_ context.Context, jobID int64, status Stat
 	return nil
 }
 
+func (s *InMemoryStore) SetErrorReport(_ context.Context, jobID int64, errorReport string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return fmt.Errorf("job %d not found", jobID)
+	}
+	job.ErrorReport = errorReport
+	return nil
+}
+
 func (s *InMemoryStore) UpdateProgress(_ context.Context, jobID int64, processed, total, errors, inserted, updated int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,6 +192,7 @@ func (s *InMemoryStore) GetProgress(_ context.Context, jobID int64) (*Progress, 
 		Inserted:    job.Inserted,
 		Updated:     job.Updated,
 		Errors:      job.Errors,
+		ErrorReport: job.ErrorReport,
 		StartedAt:   job.StartedAt.Format(time.RFC3339),
 	}
 	if job.TotalRows > 0 {
@@ -201,6 +220,7 @@ func (s *InMemoryStore) ListJobs(_ context.Context, module string, limit int) ([
 			Inserted:    job.Inserted,
 			Updated:     job.Updated,
 			Errors:      job.Errors,
+			ErrorReport: job.ErrorReport,
 			StartedAt:   job.StartedAt.Format(time.RFC3339),
 		}
 		if job.TotalRows > 0 {
