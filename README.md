@@ -7,8 +7,9 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 - **Point of Sale (POS)** — Transaksi penjualan dengan scanner, diskon, payment methods
 - **Inventory Management** — Tracking stok, movement, low stock alerts, multi-category filter
 - **Category Filter Modal** — Side-drawer multi-select with search, popular chips, and responsive grid
+- **Import & Export Framework** — Schema-driven reusable import/export for Products, Categories, Brands, UOMs, Customers with XLSX templates, preview, validation, reference dropdowns, and import history
 - **User Management** — RBAC (Role-Based Access Control) dengan permissions
-- **Audit Logging** — Full audit trail untuk semua aksi
+- **Audit Logging** — Full audit trail untuk semua aksi (termasuk import)
 - **Real-time Dashboard** — Statistik penjualan, revenue, analytics + live updates via WebSocket
 - **WebSocket Support** — Notifikasi real-time
 
@@ -70,24 +71,31 @@ cd web && npx playwright test
 web/
 ├── src/
 │   ├── app.css               # Global styles & Tailwind imports
+│   ├── app/
+│   │   ├── layouts/          # Topbar, sidebar, breadcrumbs
+│   │   └── pages/            # Route pages (Dashboard, POS, Inventory, etc.)
 │   ├── lib/
-│   │   ├── api/              # Axios client & auth helpers
-│   │   ├── components/ui/    # Reusable UI components (Modal, Badge, etc.)
-│   │   ├── composables/      # Svelte composables (useWebSocket, etc.)
-│   │   ├── pages/            # Page components (InventoryPage, PosPage, etc.)
+│   │   └── components/ui/    # Reusable UI components (Badge, Modal, etc.)
+│   ├── modules/              # Feature modules
+│   │   └── import-export/    # Import wizard, history page, bulk actions
+│   ├── routes/               # Route configuration
+│   ├── shared/
+│   │   ├── services/         # API services (import-export, auth, etc.)
 │   │   ├── stores/           # Svelte stores (auth, toast)
-│   │   └── utils/            # Utilities (debounce, etc.)
-│   └── index.html            # Entry point
+│   │   ├── types/            # TypeScript interfaces
+│   │   └── utils/            # Jakarta time, debounce, etc.
+│   └── main.js               # Entry point
 ├── package.json
 └── vite.config.js            # Vite + Svelte + Tailwind config
 ```
 
 **Key UI Components:**
-- `CategoryFilterModal.svelte` — Side-drawer multi-select category filter with search, popular chips, and grid layout
 - `Modal.svelte` — Reusable centered dialog with fade/fly transitions
-- `Badge.svelte` — Status badge (destructive, success, warning, default variants)
+- `Badge.svelte` — Status badge (success, danger, warning, muted, primary variants)
 - `Pagination.svelte` — Server-side pagination control
 - `Skeleton.svelte` — Loading skeleton placeholder
+- `ImportHistoryPage.svelte` — Import history list + detail views with accordion preview, row results grid
+- `BulkActionDropdown.svelte` — Dropdown for import/export/template actions
 
 ### Prerequisites for Frontend
 
@@ -99,32 +107,23 @@ npm install
 ### Frontend Folder Structure
 
 ```
-web/src/lib/
-├── api/
-│   ├── client.ts          # Axios instance with interceptors (auto-refresh token)
-│   └── auth.ts            # Auth API calls (login, refresh, logout)
-├── components/
-│   └── ui/                # Reusable UI components (Svelte 5)
-│       ├── Badge.svelte
-│       ├── Card.svelte
-│       ├── Modal.svelte
-│       ├── Pagination.svelte
-│       ├── Skeleton.svelte
-│       ├── StatCard.svelte
-│       └── CategoryFilterModal.svelte
-├── composables/
-│   └── useWebSocket.ts    # WebSocket connection hook
-├── pages/
-│   ├── InventoryPage.svelte   # Product inventory with multi-category filter
-│   ├── PosPage.svelte         # Point of Sale interface
-│   ├── DashboardPage.svelte   # Sales dashboard
-│   ├── ReportsPage.svelte     # Sales reports
-│   └── LoginPage.svelte       # Authentication
-├── stores/
-│   ├── auth.ts            # Auth state store
-│   └── toast.ts           # Toast notifications
-└── utils/
-    └── debounce.ts        # Debounce utility for search
+web/src/
+├── app/                   # App shell
+│   ├── layouts/           # Topbar, sidebar layouts
+│   └── pages/             # Top-level route pages
+├── lib/                   # Shared UI components (Svelte 5)
+│   └── components/
+│       └── ui/            # Badge, Modal, Pagination, Skeleton, etc.
+├── modules/               # Feature modules
+│   └── import-export/     # Import history page, import wizard
+├── routes/                # Page routes & navigation
+├── shared/                # Shared code
+│   ├── services/          # API service functions
+│   ├── stores/            # Auth, toast stores
+│   ├── types/             # TypeScript interfaces
+│   └── utils/             # Jakarta time, debounce, etc.
+├── app.css                # Global styles & Tailwind imports
+└── main.js                # Entry point
 ```
 
 ### Backend Development
@@ -149,16 +148,33 @@ cd web && npm run dev
 
 ### Backend Architecture
 
+Modular monolith with domain modules under `internal/`. Each module owns its handlers, service, repository, and schema:
+
 ```
 internal/
-├── domain/            # Business entities (Product, User, Sale, etc.)
-├── delivery/http/
-│   ├── handler/       # HTTP handlers (Gin routes + middleware)
-│   ├── middleware/    # Auth, CORS, logging
-│   └── router/        # Route definitions
-├── repository/        # Data access layer (interface + postgres impl)
-├── usecase/           # Business logic orchestration
-└── infrastructure/    # External services (email, websocket, etc.)
+├── audit/             # Audit logging (domain events + listener)
+├── brand/             # Brand CRUD + import adapter
+├── category/          # Category CRUD + import adapter
+├── customer/          # Customer CRUD + import adapter
+├── inventory/         # Stock tracking, adjustments, low stock
+├── middleware/        # Auth (JWT), CORS, rate limit, CSRF
+├── platform/
+│   └── importexport/  # Schema-driven import/export framework
+│       ├── export/    # CSV/XLSX export engine
+│       ├── handler/   # HTTP handlers (preview, confirm, history)
+│       ├── history/   # Import history persistence (PG store)
+│       ├── import/    # Import engine + validation pipeline
+│       ├── progress/  # Job progress tracking (PG repo)
+│       ├── schema/    # Module schema registry
+│       ├── template/  # XLSX template generator
+│       └── validation/# Row-level validation
+├── product/           # Product CRUD + import adapter
+├── report/            # Sales reports & charts
+├── sale/              # POS transaction processing
+├── shared/            # Shared types (importexport module schema)
+├── uom/               # Unit of Measure CRUD + import adapter
+├── user/              # User & auth management
+└── config/            # App configuration
 ```
 
 ### Backend Folder Structure
@@ -168,7 +184,23 @@ go/
 ├── cmd/
 │   ├── server/        # HTTP + WebSocket server entry point
 │   └── seed/          # Database seeder entry point
-├── internal/          # Core business logic (clean architecture)
+├── internal/          # Modular monolith business logic
+│   ├── brand/         #   ─ Brand module
+│   ├── category/      #   ─ Category module
+│   ├── customer/      #   ─ Customer module
+│   ├── product/       #   ─ Product module
+│   ├── uom/           #   ─ Unit of Measure module
+│   ├── sale/          #   ─ POS / Sales module
+│   ├── inventory/     #   ─ Stock module
+│   ├── user/          #   ─ User & auth module
+│   ├── audit/         #   ─ Audit trail module
+│   ├── report/        #   ─ Reports module
+│   ├── middleware/     #   ─ Shared middleware
+│   ├── eventbus/      #   ─ In-process event bus
+│   ├── config/        #   ─ App configuration
+│   ├── shared/        #   ─ Shared types & interfaces
+│   └── platform/
+│       └── importexport/   # Import/Export framework
 ├── database/
 │   ├── migrations/    # SQL migration files (up/down)
 │   └── seeds/         # Seed data SQL files
@@ -218,10 +250,15 @@ curl http://localhost:9095/api/products \
 
 ### Run Backend Tests
 
+Tests require PostgreSQL connection and `JWT_SECRET`. Use env vars to point to dev DB:
+
 ```bash
-cd cmd/server
-go test ./... -v
+TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos TEST_DB_PASSWORD=admin123 \
+DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=test-secret-for-testing-only \
+go test -p 1 -count=1 ./...
 ```
+
+> **Note:** `-p 1` forces sequential test execution to avoid deadlocks from concurrent `TRUNCATE` and `INSERT` across packages that connect to the same database.
 
 ## 🔧 Detailed Installation
 
@@ -625,25 +662,39 @@ retail-pos-system/
 │   └── dummy/           # Test utilities
 ├── web/                 # Frontend (Svelte 5 + Tailwind CSS 4)
 │   ├── src/
-│   │   ├── app.css           # Global styles & Tailwind imports
-│   │   └── lib/
-│   │       ├── api/          # Axios client & auth helpers
-│   │       ├── components/   # Svelte components (pages + ui)
-│   │       ├── composables/  # Svelte composables (useWebSocket, etc.)
-│   │       ├── pages/        # Page components (Inventory, POS, Dashboard)
-│   │       ├── stores/       # Svelte stores (auth, toast)
-│   │       └── utils/        # Utilities (debounce, etc.)
-│   └── vite.config.js        # Vite + Svelte + Tailwind config
-├── internal/            # Backend logic (clean architecture)
-│   ├── delivery/http/   # HTTP handlers
-│   ├── domain/          # Business entities
-│   ├── repository/      # Data access
-│   └── usecase/         # Business logic
+│   │   ├── app.css      # Global styles & Tailwind imports
+│   │   ├── app/         # App shell (layout, topbar, sidebar)
+│   │   ├── lib/         # Shared UI components (Badge, Modal, etc.)
+│   │   ├── modules/     # Feature modules (import-export, etc.)
+│   │   ├── routes/      # Svelte route pages
+│   │   ├── shared/      # Shared services, types, utils
+│   │   └── main.js      # App entry
+│   └── vite.config.js
+├── internal/            # Backend modular monolith
+│   ├── brand/           # Brand module
+│   ├── category/        # Category module
+│   ├── customer/        # Customer module
+│   ├── product/         # Product module
+│   ├── uom/             # Unit of Measure module
+│   ├── sale/            # Sales / POS
+│   ├── inventory/       # Stock tracking
+│   ├── user/            # User & auth
+│   ├── audit/           # Audit trail
+│   ├── report/          # Reports
+│   ├── middleware/       # Auth, CSRF, rate limit
+│   ├── eventbus/        # In-process event bus
+│   ├── config/          # Config
+│   ├── shared/          # Shared types
+│   └── platform/
+│       └── importexport/ # Import/Export framework
 ├── database/
-│   ├── migrations/      # SQL migrations
+│   ├── migrations/      # SQL migrations (001-023)
 │   └── seeds/           # Seed data (users, roles, products)
 ├── tests/
 │   └── e2e/             # Playwright E2E tests
+├── docs/
+│   ├── examples/        # Example import XLSX files
+│   └── archived-plans/  # Archived planning docs
 ├── deploy/
 │   ├── backend/         # Backend Dockerfile
 │   ├── frontend/        # Frontend Dockerfile + nginx.conf
@@ -651,10 +702,10 @@ retail-pos-system/
 │   ├── docker-compose.yml
 │   ├── retail-pos.service # systemd unit
 │   └── PRODUCTION-DEPLOYMENT.md
-├── Makefile             # Commands shortcut
-├── .env.example         # Dev environment template
-├── .env                 # Dev environment (gitignored)
-└── .kilo/               # Kilo config & session state
+├── Makefile
+├── .env.example
+├── AGENTS.md           # AI agent development guide
+└── CONTRIBUTING.md
 ```
 
 ## 🔑 Default Credentials
@@ -811,6 +862,16 @@ API endpoints are documented in code handlers. Key endpoints:
 | GET | `/api/inventory/export` | Export inventory | Yes |
 | GET | `/api/admin/users` | List users (admin) | Yes |
 | POST | `/api/admin/users` | Create user (admin) | Yes |
+| GET | `/api/import-export/modules` | List importable modules | Yes |
+| GET | `/api/import-export/template/:module` | Download import template (XLSX) | Yes |
+| POST | `/api/import-export/preview/:module` | Preview & validate import file | Yes |
+| POST | `/api/import-export/confirm/:module` | Confirm & start import | Yes |
+| GET | `/api/import-export/progress/:jobId` | Get import job progress | Yes |
+| POST | `/api/import-export/cancel/:jobId` | Cancel import job | Yes |
+| GET | `/api/import-export/history/:module` | List import history | Yes |
+| GET | `/api/import-export/history/:module/:jobId` | Import job detail + snapshot | Yes |
+| GET | `/api/import-export/history/:module/:jobId/rows` | Import row results | Yes |
+| GET | `/api/import-export/export/:module` | Export data (CSV/XLSX) | Yes |
 | GET | `/ws` | WebSocket hub | Yes (token query) |
 
 ### Product Filtering
