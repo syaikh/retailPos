@@ -3,6 +3,7 @@ package report
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"retail-pos-system/internal/config"
@@ -36,6 +37,7 @@ func (r *Repository) GetPeriodComparison(
 	ctx context.Context,
 	currentStart, currentEnd time.Time,
 	previousStart, previousEnd time.Time,
+	storeID *int,
 ) (*PeriodComparison, error) {
 
 	query := `
@@ -106,11 +108,14 @@ func (r *Repository) GetPeriodComparison(
 		     current_peak_hour cpeak_hour, previous_peak_hour ppeak_hour,
 		     current_peak_month cpeak_month, previous_peak_month ppeak_month`
 
+	args := []interface{}{currentStart, currentEnd, previousStart, previousEnd, storeID}
+	storeFilter := ` AND (store_id = $5 OR $5 IS NULL)`
+
+	// Inject storeFilter into every subquery that filters on created_at
+	query = strings.ReplaceAll(query, "AND status = 'completed'", storeFilter+" AND status = 'completed'")
+
 	var result PeriodComparison
-	err := r.db.QueryRow(ctx, query,
-		currentStart, currentEnd,
-		previousStart, previousEnd,
-	).Scan(
+	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&result.CurrentRevenue,
 		&result.CurrentOrders,
 		&result.PreviousRevenue,
@@ -146,12 +151,20 @@ func (r *Repository) GetPeriodComparison(
 func (r *Repository) GetDualChartData(
 	ctx context.Context,
 	currentStart, currentEnd, previousStart, previousEnd time.Time,
+	storeID *int,
 ) (current, previous []ChartDataPoint, err error) {
 
 	cs := currentStart.Format("2006-01-02")
 	ce := currentEnd.Format("2006-01-02")
 	ps := previousStart.Format("2006-01-02")
 	pe := previousEnd.Format("2006-01-02")
+
+	storeFilter := ""
+	args := []interface{}{cs, ce, ps, pe}
+	if storeID != nil {
+		storeFilter = " AND store_id = $5"
+		args = append(args, storeID)
+	}
 
 	query := `
 		WITH date_series AS (
@@ -162,7 +175,7 @@ func (r *Repository) GetDualChartData(
 				   COALESCE(SUM(total_amount), 0) AS revenue
 			FROM sales
 			WHERE created_at >= ($1::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($2::date + 1) AT TIME ZONE 'Asia/Jakarta')
-				AND status = 'completed'
+				AND status = 'completed'` + storeFilter + `
 			GROUP BY 1
 		),
 		previous_agg AS (
@@ -170,7 +183,7 @@ func (r *Repository) GetDualChartData(
 				   COALESCE(SUM(total_amount), 0) AS revenue
 			FROM sales
 			WHERE created_at >= ($3::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($4::date + 1) AT TIME ZONE 'Asia/Jakarta')
-				AND status = 'completed'
+				AND status = 'completed'` + storeFilter + `
 			GROUP BY 1
 		)
 		SELECT (ds.dt AT TIME ZONE 'Asia/Jakarta')::date,
@@ -181,7 +194,7 @@ func (r *Repository) GetDualChartData(
 		LEFT JOIN previous_agg p ON p.dt = (ds.dt AT TIME ZONE 'Asia/Jakarta')::date - ($1::date - $3::date)
 		ORDER BY 1`
 
-	rows, err := r.db.Query(ctx, query, cs, ce, ps, pe)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, nil, err
 	}

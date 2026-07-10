@@ -78,7 +78,6 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	sortBy := c.Query("sortBy")
 	sortDir := c.Query("sortDir")
 	category := c.Query("category")
-	brand := c.Query("brand")
 
 	status := c.Query("status")
 	var isActive *bool
@@ -86,18 +85,6 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		if s := c.Query("isActive"); s != "" {
 			v := strings.EqualFold(s, "true") || s == "1"
 			isActive = &v
-		}
-	}
-
-	var minPrice, maxPrice *float64
-	if mp := c.Query("minPrice"); mp != "" {
-		if val, err := strconv.ParseFloat(mp, 64); err == nil {
-			minPrice = &val
-		}
-	}
-	if mxp := c.Query("maxPrice"); mxp != "" {
-		if val, err := strconv.ParseFloat(mxp, 64); err == nil {
-			maxPrice = &val
 		}
 	}
 
@@ -110,7 +97,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	storeID := h.getStoreID(c)
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, brand, storeID, isActive, minPrice, maxPrice, maxStock, status)
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return
@@ -174,6 +161,7 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		return
 	}
 	product.ID = id
+	product.StoreID = h.getStoreID(c)
 
 	if err := validateProduct(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -194,8 +182,9 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteProduct(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete product"})
+	storeID := h.getStoreID(c)
+	if err := h.svc.DeleteProduct(c.Request.Context(), id, storeID); err != nil {
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -214,9 +203,14 @@ func (h *Handler) BulkUpdateProductStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no product IDs provided"})
 		return
 	}
+	if len(req.IDs) > 200 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too many product IDs (max 200)"})
+		return
+	}
 
-	if err := h.svc.BulkUpdateProductStatus(c.Request.Context(), req.IDs, req.IsActive); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update product statuses"})
+	storeID := h.getStoreID(c)
+	if err := h.svc.BulkUpdateProductStatus(c.Request.Context(), req.IDs, req.IsActive, storeID); err != nil {
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "updated", "updated_count": len(req.IDs)})

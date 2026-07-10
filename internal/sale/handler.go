@@ -99,6 +99,15 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		subtotal += item.Subtotal
 	}
 
+	if req.Discount < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "discount must not be negative"})
+		return
+	}
+	if req.Discount > subtotal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "discount must not exceed subtotal"})
+		return
+	}
+
 	sale := &Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     cashierID,

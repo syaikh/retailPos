@@ -42,7 +42,7 @@ func TestReportRepository_PeriodComparison(t *testing.T) {
 	start := now.AddDate(0, -1, 0)
 	prevStart := start.AddDate(0, -1, 0)
 
-	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start)
+	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.NotNil(t, result)
@@ -58,7 +58,7 @@ func TestReportRepository_DualChartData(t *testing.T) {
 	prevStart := currentStart.AddDate(0, 0, -7)
 	prevEnd := currentEnd.AddDate(0, 0, -7)
 
-	current, previous, err := repo.GetDualChartData(ctx, currentStart, currentEnd, prevStart, prevEnd)
+	current, previous, err := repo.GetDualChartData(ctx, currentStart, currentEnd, prevStart, prevEnd, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, current)
 	assert.NotNil(t, previous)

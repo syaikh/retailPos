@@ -36,12 +36,12 @@ func (s *Service) GetLiveDashboardStats(ctx context.Context, storeID int) (today
 	return s.repo.GetLiveDashboardStats(ctx, storeIDPtr(storeID))
 }
 
-func (s *Service) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (*PeriodComparison, error) {
-	return s.repo.GetPeriodComparison(ctx, currentStart, currentEnd, previousStart, previousEnd)
+func (s *Service) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error) {
+	return s.repo.GetPeriodComparison(ctx, currentStart, currentEnd, previousStart, previousEnd, storeID)
 }
 
-func (s *Service) GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []ChartDataPoint, err error) {
-	return s.repo.GetDualChartData(ctx, currentStart, currentEnd, previousStart, previousEnd)
+func (s *Service) GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error) {
+	return s.repo.GetDualChartData(ctx, currentStart, currentEnd, previousStart, previousEnd, storeID)
 }
 
 func (s *Service) GetAvailableYears(ctx context.Context, storeID int) ([]int, error) {

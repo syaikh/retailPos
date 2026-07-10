@@ -160,7 +160,7 @@ func (r *Repository) GetProductBySKU(ctx context.Context, sku string, storeID *i
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &p.Barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
+	err := r.db.QueryRow(ctx, query, args...).Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
 		&taxClassIDVal, &taxRateVal,
 		&createdAt, &updatedAt)

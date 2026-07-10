@@ -12,18 +12,47 @@ import (
 // IPRateLimiter naive in-memory rate limiter per IP (development only).
 // Not suitable for multi-instance production (use Redis then).
 type IPRateLimiter struct {
-	ips map[string]*rate.Limiter
-	mu  *sync.RWMutex
-	r   rate.Limit
-	b   int
+	ips      map[string]*rate.Limiter
+	mu       *sync.RWMutex
+	r        rate.Limit
+	b        int
+	stopCh   chan struct{}
+	stopped  bool
 }
 
 func NewIPRateLimiter(r rate.Limit, burst int) *IPRateLimiter {
-	return &IPRateLimiter{
-		ips: make(map[string]*rate.Limiter),
-		mu:  &sync.RWMutex{},
-		r:   r,
-		b:   burst,
+	l := &IPRateLimiter{
+		ips:    make(map[string]*rate.Limiter),
+		mu:     &sync.RWMutex{},
+		r:      r,
+		b:      burst,
+		stopCh: make(chan struct{}),
+	}
+	go l.cleanupLoop()
+	return l
+}
+
+func (l *IPRateLimiter) Stop() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.stopped {
+		l.stopped = true
+		close(l.stopCh)
+	}
+}
+
+func (l *IPRateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			l.mu.Lock()
+			l.ips = make(map[string]*rate.Limiter)
+			l.mu.Unlock()
+		case <-l.stopCh:
+			return
+		}
 	}
 }
 

@@ -54,9 +54,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", resp.RefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  resp.AccessToken,
-		"refresh_token": resp.RefreshToken,
-		"user":          resp.User,
+		"access_token": resp.AccessToken,
+		"user":         resp.User,
 	})
 }
 
@@ -81,7 +80,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", newRefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
 
-	c.JSON(http.StatusOK, gin.H{"access_token": accessToken, "refresh_token": newRefreshToken})
+	c.JSON(http.StatusOK, gin.H{"access_token": accessToken})
 }
 
 func (h *AuthHandler) ValidateSession(c *gin.Context) {

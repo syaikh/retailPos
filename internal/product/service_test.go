@@ -122,7 +122,7 @@ func TestProductService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("GetAllProducts", func(t *testing.T) {
-		products, total, err := svc.GetAllProducts(ctx, 10, 0, sku, "", "", "", "", nil, nil, nil, nil, nil, "")
+		products, total, err := svc.GetAllProducts(ctx, 10, 0, sku, "", "", "", nil, nil, nil, "")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(products), 1)
@@ -157,7 +157,7 @@ func TestProductService_DeletePublishesEvent(t *testing.T) {
 	}
 	require.NoError(t, svc.CreateProduct(ctx, p))
 
-	err := svc.DeleteProduct(ctx, p.ID)
+	err := svc.DeleteProduct(ctx, p.ID, nil)
 	require.NoError(t, err)
 
 	select {
@@ -186,7 +186,7 @@ func TestProductService_BulkUpdate(t *testing.T) {
 	}
 	require.NoError(t, svc.CreateProduct(ctx, p))
 
-	err := svc.BulkUpdateProductStatus(ctx, []int{p.ID}, false)
+	err := svc.BulkUpdateProductStatus(ctx, []int{p.ID}, false, nil)
 	require.NoError(t, err)
 
 	got, err := svc.GetProductByID(ctx, p.ID, 0)

@@ -371,7 +371,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 		}
 		prevEnd = prevEnd.Add(24 * time.Hour)
 
-		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate, prevStart, prevEnd)
+		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate, prevStart, prevEnd, storeIDPtr(sid))
 		if err != nil {
 			shared.InternalError(c, err)
 			return
@@ -483,6 +483,12 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	storeID, _ := c.Get("storeID")
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
+
 	period := PeriodType(c.DefaultQuery("period", "daily"))
 	mode := c.DefaultQuery("mode", "realtime")
 	jakartaLoc := config.Load().Timezone
@@ -506,7 +512,7 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 		pr = getComparisonRanges(period, refDate, false)
 	}
 
-	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd)
+	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd, storeIDPtr(sid))
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -547,7 +553,12 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 		pr = getComparisonRanges(periodType, refDate, false)
 	}
 
-	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd)
+	storeID, _ := c.Get("storeID")
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
+	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd, storeIDPtr(sid))
 	if err != nil {
 		shared.InternalError(c, err)
 		return

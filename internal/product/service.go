@@ -43,7 +43,7 @@ func (s *Service) GetProductBySKU(ctx context.Context, sku string, storeID int) 
 	return s.repo.GetProductBySKU(ctx, sku, ptr(storeID))
 }
 
-func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category, brand string, storeID *int, isActive *bool, minPrice, maxPrice *float64, maxStock *int, status string) ([]Product, int, error) {
+func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error) {
 	if status == "" && isActive != nil {
 		if *isActive { status = "active" } else { status = "inactive" }
 	}
@@ -83,17 +83,17 @@ func (s *Service) UpdateProduct(ctx context.Context, product *Product) error {
 	return s.eventBus.Publish(ctx, "product.updated", eventbus.UpdatePayload{Old: old, New: product})
 }
 
-func (s *Service) DeleteProduct(ctx context.Context, id int) error {
-	if err := s.repo.DeleteProduct(ctx, id, nil); err != nil {
+func (s *Service) DeleteProduct(ctx context.Context, id int, storeID *int) error {
+	if err := s.repo.DeleteProduct(ctx, id, storeID); err != nil {
 		return err
 	}
 	return s.eventBus.Publish(ctx, "product.deleted", id)
 }
 
-func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool) error {
+func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
 	status := "active"
 	if !isActive { status = "inactive" }
-	return s.repo.BulkUpdateProductStatus(ctx, ids, status, nil)
+	return s.repo.BulkUpdateProductStatus(ctx, ids, status, storeID)
 }
 
 func (s *Service) GetNextSKU(ctx context.Context) (string, error) { return s.repo.GetNextSKU(ctx) }

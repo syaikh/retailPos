@@ -118,6 +118,11 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		return fmt.Errorf("failed to upsert stock: %w", err)
 	}
 
+	_, err = tx.Exec(ctx, `UPDATE products SET stock = $1 WHERE id = $2`, newStock, productID)
+	if err != nil {
+		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
 	_, err = tx.Exec(ctx, `
 		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes)
 		VALUES ($1, $2, $3, NULL, NULL, $4, $5)

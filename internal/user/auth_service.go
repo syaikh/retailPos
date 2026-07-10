@@ -119,12 +119,22 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", err
 	}
 
-	exists, err := s.refreshTokenExists(ctx, claims.ID, oldRefreshToken)
+	tx, err := s.dbPool.Begin(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to verify refresh token: %w", err)
+		return "", "", fmt.Errorf("begin transaction: %w", err)
 	}
-	if !exists {
-		return "", "", errors.New("invalid refresh token")
+	defer tx.Rollback(ctx)
+
+	tokenHash := hashToken(oldRefreshToken)
+	var deletedID int
+	err = tx.QueryRow(ctx, `
+		DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2 RETURNING id
+	`, claims.ID, tokenHash).Scan(&deletedID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", errors.New("invalid refresh token")
+		}
+		return "", "", fmt.Errorf("failed to invalidate old refresh token: %w", err)
 	}
 
 	user, err := s.repo.GetByID(ctx, claims.ID)
@@ -146,22 +156,15 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", fmt.Errorf("failed to generate new access token: %w", err)
 	}
 
-	tx, err := s.dbPool.Begin(ctx)
-	if err != nil {
-		return "", "", fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := s.deleteRefreshTx(ctx, tx, claims.ID, oldRefreshToken); err != nil {
-		return "", "", fmt.Errorf("failed to invalidate old refresh token: %w", err)
-	}
-
 	newRefreshToken, err := s.generateRefreshToken(user)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate new refresh token: %w", err)
 	}
 
-	if err := s.storeRefreshTx(ctx, tx, user.ID, newRefreshToken); err != nil {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, NOW() + INTERVAL '7 days')
+	`, user.ID, hashToken(newRefreshToken)); err != nil {
 		return "", "", fmt.Errorf("failed to store new refresh token: %w", err)
 	}
 
