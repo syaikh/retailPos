@@ -163,7 +163,7 @@ func main() {
 	progStore := progress.NewPgRepository(dbPool)
 	progEng := progress.NewEngine(progStore)
 	historyStore := history.NewStore(dbPool)
-	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng, historyStore)
+	importEng := importer.NewEngine(schemaReg, valPipeline, adapterReg, progEng, historyStore, bus)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 	ieH := ieh.NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, historyStore)

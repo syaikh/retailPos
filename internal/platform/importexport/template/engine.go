@@ -331,6 +331,43 @@ func (e *Engine) createReferenceSheets(wb *excelize.File, s schema.ModuleSchema,
 			return fmt.Errorf("hide ref sheet %s: %w", sheet, err)
 		}
 	}
+
+	for _, col := range s.Columns {
+		if len(col.AllowedValues) == 0 {
+			continue
+		}
+		isRef := false
+		for _, ref := range s.References {
+			if ref.Column == col.Name {
+				isRef = true
+				break
+			}
+		}
+		if isRef {
+			continue
+		}
+
+		sheet := "Ref_" + col.Name
+		_, err := wb.NewSheet(sheet)
+		if err != nil {
+			return err
+		}
+
+		_ = wb.SetCellValue(sheet, "A1", col.Label)
+		_ = wb.SetCellStyle(sheet, "A1", "A1", headerSty)
+
+		for i, val := range col.AllowedValues {
+			row := i + 2
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", row), val)
+		}
+
+		_ = wb.SetColWidth(sheet, "A", "A", 30)
+
+		if err := wb.SetSheetVisible(sheet, false); err != nil {
+			return fmt.Errorf("hide ref sheet %s: %w", sheet, err)
+		}
+	}
+
 	return nil
 }
 
@@ -368,7 +405,49 @@ func (e *Engine) addDataValidation(wb *excelize.File, sheet string, s schema.Mod
 			return fmt.Errorf("data validation for %s: %w", ref.Column, err)
 		}
 	}
+
+	for _, tc := range templateCols {
+		if len(tc.AllowedValues) == 0 {
+			continue
+		}
+		isRef := false
+		for _, ref := range s.References {
+			if ref.Column == tc.Name {
+				isRef = true
+				break
+			}
+		}
+		if isRef {
+			continue
+		}
+
+		colLetter, _ := excelize.ColumnNumberToName(columnIndex(templateCols, tc.Name) + 1)
+		dvRange := fmt.Sprintf("%s2:%s1048576", colLetter, colLetter)
+		refSheet := "Ref_" + tc.Name
+
+		dv := excelize.NewDataValidation(true)
+		dv.SetSqref(dvRange)
+		dv.SetSqrefDropList(fmt.Sprintf("%s!$A$2:$A$%d", refSheet, len(tc.AllowedValues)+1))
+		dv.SetInput(fmt.Sprintf("Select %s", tc.Label),
+			fmt.Sprintf("Choose a valid %s from the dropdown", tc.Label))
+		dv.SetError(excelize.DataValidationErrorStyleStop, "Invalid Value",
+			fmt.Sprintf("Please select a valid %s", tc.Label))
+
+		if err := wb.AddDataValidation(sheet, dv); err != nil {
+			return fmt.Errorf("data validation for %s: %w", tc.Name, err)
+		}
+	}
+
 	return nil
+}
+
+func columnIndex(cols []schema.ColumnSchema, name string) int {
+	for i, c := range cols {
+		if c.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 func colWidth(t schema.ColumnType) (float64, bool) {

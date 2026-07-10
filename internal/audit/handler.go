@@ -240,6 +240,14 @@ func GenerateAuditDescription(log *AuditLog) string {
 		return displayAction
 	}
 
+	if log.NewValues != nil {
+		if m, ok := log.NewValues.(map[string]interface{}); ok {
+			if desc, ok := m["description"].(string); ok {
+				return desc
+			}
+		}
+	}
+
 	return ""
 }
 

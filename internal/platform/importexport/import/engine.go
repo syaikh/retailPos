@@ -10,6 +10,7 @@ import (
 	"time"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
+	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/history"
 	"retail-pos-system/internal/platform/importexport/progress"
@@ -18,6 +19,18 @@ import (
 
 	"github.com/xuri/excelize/v2"
 )
+
+type ImportCompletedEvent struct {
+	Module   string
+	JobID    int64
+	UserID   int
+	StoreID  int
+	Status   string
+	Inserted int
+	Updated  int
+	Errors   int
+	FileName string
+}
 
 type PreviewState struct {
 	Module   string
@@ -36,17 +49,19 @@ type Engine struct {
 	adapterReg   *importexport.AdapterRegistry
 	progressEng  *progress.Engine
 	historyStore *history.Store
+	eventBus     *eventbus.Bus
 	previews     map[string]*PreviewState
 	mu           sync.RWMutex
 }
 
-func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *importexport.AdapterRegistry, progressEng *progress.Engine, historyStore *history.Store) *Engine {
+func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *importexport.AdapterRegistry, progressEng *progress.Engine, historyStore *history.Store, eventBus *eventbus.Bus) *Engine {
 	return &Engine{
 		schemaReg:    schemaReg,
 		validator:    v,
 		adapterReg:   adapterReg,
 		progressEng:  progressEng,
 		historyStore: historyStore,
+		eventBus:     eventBus,
 		previews:     make(map[string]*PreviewState),
 	}
 }
@@ -127,6 +142,23 @@ func (e *Engine) isCancelled(ctx context.Context, jobID int64) bool {
 	return err == nil && cancelled
 }
 
+func (e *Engine) publishImportEvent(ctx context.Context, state *PreviewState, jobID int64, status string, inserted, updated, errors int) {
+	if e.eventBus == nil {
+		return
+	}
+	_ = e.eventBus.Publish(ctx, "import.completed", ImportCompletedEvent{
+		Module:   state.Module,
+		JobID:    jobID,
+		UserID:   state.UserID,
+		StoreID:  state.StoreID,
+		Status:   status,
+		Inserted: inserted,
+		Updated:  updated,
+		Errors:   errors,
+		FileName: state.FileName,
+	})
+}
+
 func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewState, adapter importexportshared.Adapter) {
 	repo := adapter.Repository()
 
@@ -139,6 +171,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		}
 		if e.isCancelled(ctx, jobID) {
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
+			e.publishImportEvent(ctx, state, jobID, "cancelled", 0, 0, 0)
 			return
 		}
 		if state.StoreID > 0 {
@@ -181,6 +214,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 
 	if e.isCancelled(ctx, jobID) {
 		_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCancelled)
+		e.publishImportEvent(ctx, state, jobID, "cancelled", 0, 0, 0)
 		return
 	}
 
@@ -194,6 +228,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if err != nil {
 			_ = e.progressEng.SetErrorReport(ctx, jobID, fmt.Sprintf("Insert failed after %d rows: %s", n, err.Error()))
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+			e.publishImportEvent(ctx, state, jobID, "failed", n, totalUpdate, errorCount)
 			return
 		}
 	}
@@ -204,6 +239,7 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		if err != nil {
 			_ = e.progressEng.SetErrorReport(ctx, jobID, fmt.Sprintf("Update failed: %s", err.Error()))
 			_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+			e.publishImportEvent(ctx, state, jobID, "failed", totalInsert, n, errorCount)
 			return
 		}
 	}
@@ -215,12 +251,14 @@ func (e *Engine) executeImport(ctx context.Context, jobID int64, state *PreviewS
 		}
 		_ = e.progressEng.SetErrorReport(ctx, jobID, errMsg)
 		_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusFailed)
+		e.publishImportEvent(ctx, state, jobID, "failed", 0, 0, errorCount)
 		return
 	}
 
 	processed := totalInsert + totalUpdate
 	_ = e.progressEng.UpdateProgress(ctx, jobID, processed, state.Result.TotalRows, errorCount, totalInsert, totalUpdate)
 	_ = e.progressEng.SetStatus(ctx, jobID, progress.StatusCompleted)
+	e.publishImportEvent(ctx, state, jobID, "completed", totalInsert, totalUpdate, errorCount)
 }
 
 func (e *Engine) Execute(ctx context.Context, token string) (*importexport.ImportResult, error) {

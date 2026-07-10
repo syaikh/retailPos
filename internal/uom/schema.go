@@ -13,7 +13,7 @@ var Schema = importexportshared.ModuleSchema{
 		{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, MaxLength: importexportshared.IntPtr(20), Editable: false, Exportable: true, Template: true},
 		{Name: "Name", Type: importexportshared.ColString, Label: "Unit Name", Required: true, MaxLength: importexportshared.IntPtr(100), Editable: true, Exportable: true, Template: true},
 		{Name: "Description", Type: importexportshared.ColString, Label: "Description", Required: false, MaxLength: importexportshared.IntPtr(500), Editable: true, Exportable: true, Template: true},
-		{Name: "IsActive", Type: importexportshared.ColBoolean, Label: "Active", Required: false, Default: "true", Editable: true, Exportable: true, Template: true},
+		{Name: "IsActive", Type: importexportshared.ColBoolean, Label: "Active", Required: false, Default: "true", AllowedValues: []string{"Yes", "No"}, Editable: true, Exportable: true, Template: true},
 	},
 	Features: importexportshared.ModuleFeatures{
 		ImportEnabled:   true,

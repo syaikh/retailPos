@@ -101,7 +101,7 @@ func (r *categoryRepoAdapter) LoadReferences(_ context.Context, _ importexportsh
 
 func parseBool(v string) bool {
 	switch v {
-	case "true", "1", "yes", "TRUE", "YES":
+	case "true", "1", "yes", "Yes", "TRUE", "YES":
 		return true
 	}
 	return false

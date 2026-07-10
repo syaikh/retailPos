@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"retail-pos-system/internal/platform/importexport/schema"
+
+	"github.com/xuri/excelize/v2"
 )
 
 var testSchema = schema.ModuleSchema{
@@ -64,6 +66,62 @@ func TestEngine_GenerateNoRefs(t *testing.T) {
 
 	if buf.Len() == 0 {
 		t.Fatal("expected non-empty xlsx output")
+	}
+}
+
+func TestEngine_GenerateStatusDropdown(t *testing.T) {
+	e := NewEngine()
+	s := schema.ModuleSchema{
+		ModuleName:    "test",
+		DisplayName:   "Test",
+		SchemaVersion: "1.0.0",
+		Columns: []schema.ColumnSchema{
+			{Name: "Name", Type: schema.ColString, Label: "Name", Required: true, Template: true},
+			{Name: "Status",
+				Type:          schema.ColString,
+				Label:         "Status",
+				Required:      false,
+				AllowedValues: []string{"active", "inactive"},
+				Template:      true,
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := e.Generate(s, nil, &buf)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	wb, err := excelize.OpenReader(&buf)
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	defer wb.Close()
+
+	hasRefStatus := false
+	for _, sheet := range wb.GetSheetList() {
+		if sheet == "Ref_Status" {
+			hasRefStatus = true
+			break
+		}
+	}
+	if !hasRefStatus {
+		t.Fatal("expected Ref_Status sheet for AllowedValues dropdown")
+	}
+
+	rows, err := wb.GetRows("Ref_Status")
+	if err != nil {
+		t.Fatalf("read Ref_Status: %v", err)
+	}
+	if len(rows) < 2 {
+		t.Fatal("expected at least header + 1 value in Ref_Status")
+	}
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows (header + 2 values), got %d", len(rows))
+	}
+	if rows[1][0] != "active" || rows[2][0] != "inactive" {
+		t.Fatalf("unexpected values: %v", rows)
 	}
 }
 

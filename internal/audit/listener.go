@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -13,11 +14,20 @@ import (
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/middleware"
+	importer "retail-pos-system/internal/platform/importexport/import"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 )
+
+var moduleSingular = map[string]string{
+	"products":   "product",
+	"categories": "category",
+	"brands":     "brand",
+	"uoms":       "uom",
+	"customers":  "customer",
+}
 
 type AuditLogCreator interface {
 	CreateAuditLog(ctx context.Context, log *AuditLog) error
@@ -36,6 +46,7 @@ func NewAuditListener(svc AuditLogCreator) eventbus.Listener {
 			"brand.created", "brand.updated", "brand.deleted",
 			"uom.created", "uom.updated", "uom.deleted",
 			eventbus.StockAdjusted,
+			"import.completed",
 		},
 		func(ctx context.Context, event eventbus.Event) error {
 			userID := middleware.UserIDFromContext(ctx)
@@ -104,6 +115,20 @@ func extractEventData(event eventbus.Event) (action, entityType string, entityID
 
 	case *user.Role:
 		return extractFromEventType(string(event.Type), "role", e.ID, toJSONMap(e))
+
+	case importer.ImportCompletedEvent:
+		entityType := moduleSingular[e.Module]
+		if entityType == "" {
+			entityType = e.Module
+		}
+		desc := fmt.Sprintf("Imported %s: %d inserted, %d updated, %d errors", e.Module, e.Inserted, e.Updated, e.Errors)
+		return e.Status, entityType, nil, nil, map[string]interface{}{
+			"description": desc,
+			"inserted":   e.Inserted,
+			"updated":    e.Updated,
+			"errors":     e.Errors,
+			"file":       e.FileName,
+		}
 
 	case int:
 		return extractFromEventType(string(event.Type), "entity", e, nil)

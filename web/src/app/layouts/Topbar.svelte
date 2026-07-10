@@ -27,6 +27,19 @@
 		'/admin/audit-logs':   'Audit Logs',
 		'/brands':             'Brands',
 		'/units-of-measure':   'Units',
+		'/categories/import-history': 'Import History',
+		'/brands/import-history':     'Import History',
+		'/units-of-measure/import-history': 'Import History',
+		'/customers/import-history':  'Import History',
+		'/products/import-history':   'Import History',
+	};
+
+	const importHistoryParents: Record<string, { label: string; href: string }> = {
+		'/categories/import-history':        { label: 'Categories', href: '/categories' },
+		'/brands/import-history':            { label: 'Brands', href: '/brands' },
+		'/units-of-measure/import-history':  { label: 'Units', href: '/units-of-measure' },
+		'/customers/import-history':         { label: 'Customers', href: '/customers' },
+		'/products/import-history':          { label: 'Products', href: '/inventory/products' },
 	};
 
     const parts: { label: string; href: string }[] = [];
@@ -37,6 +50,11 @@
       const adminPaths = ['/admin/users', '/admin/roles', '/admin/audit-logs'];
       if (adminPaths.includes(path)) {
         parts.push({ label: 'Administration', href: '/admin' });
+      }
+
+      const parent = importHistoryParents[path];
+      if (parent) {
+        parts.push(parent);
       }
     }
 

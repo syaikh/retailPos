@@ -95,7 +95,7 @@ func (r *brandRepoAdapter) LoadReferences(_ context.Context, _ importexportshare
 
 func parseBool(v string) bool {
 	switch v {
-	case "true", "1", "yes", "TRUE", "YES":
+	case "true", "1", "yes", "Yes", "TRUE", "YES":
 		return true
 	}
 	return false
