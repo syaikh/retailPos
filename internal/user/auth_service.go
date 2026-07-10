@@ -21,6 +21,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid username or password")
 	ErrUserNotFound       = errors.New("user not found")
 	ErrTokenExpired       = errors.New("token has expired")
+	ErrInvalidPassword    = errors.New("current password is incorrect")
 )
 
 type EventBus interface {
@@ -196,6 +197,36 @@ func (s *AuthService) Logout(ctx context.Context, userID int, refreshToken strin
 
 func (s *AuthService) ValidateToken(tokenString string) (*AuthClaims, error) {
 	return s.parseToken(tokenString)
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(currentPassword)); err != nil {
+		return ErrInvalidPassword
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), 14)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := s.repo.UpdatePassword(ctx, userID, string(hashed)); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	if err := s.repo.DeleteUserRefreshTokens(ctx, userID); err != nil {
+		log.Printf("warning: failed to delete refresh tokens after password change for user %d: %v", userID, err)
+	}
+
+	_ = s.eventBus.Publish(ctx, "auth.password_changed", map[string]interface{}{
+		"user_id": userID,
+	})
+
+	return nil
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {

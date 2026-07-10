@@ -430,8 +430,14 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 		description = *product.Description
 	}
 
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	var createdTime, updatedTime time.Time
-	err := r.db.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO products (sku, name, barcode, category_id, price, cost, stock, store_id, status,
 		                    brand_id, description, tax_class_id, weight_grams, unit_of_measure_id, default_discount_percent)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
@@ -445,17 +451,21 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 	product.CreatedAt = createdTime.In(jakartaLoc).Format(time.RFC3339)
 	product.UpdatedAt = updatedTime.In(jakartaLoc).Format(time.RFC3339)
 
-	_, err = r.db.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
 	`, product.ID, storeIDVal, product.Stock)
 	if err != nil {
 		return fmt.Errorf("failed to initialize product stock: %w", err)
 	}
-	_, err = r.db.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		UPDATE products SET stock = $1 WHERE id = $2
 	`, product.Stock, product.ID)
 	if err != nil {
 		return fmt.Errorf("failed to sync product stock: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
 }
@@ -524,26 +534,35 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
 	}
-	_, err := r.db.Exec(ctx, query, args...)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 
 	if storeIDVal != nil {
-		_, err = r.db.Exec(ctx, `
+		_, err = tx.Exec(ctx, `
 			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
 		`, product.ID, storeIDVal, product.Stock)
 		if err != nil {
 			return fmt.Errorf("failed to sync product stock: %w", err)
 		}
 	}
-	_, err = r.db.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		UPDATE products SET stock = $1 WHERE id = $2
 	`, product.Stock, product.ID)
 	if err != nil {
 		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
 	return nil
 }
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -173,6 +174,21 @@ func (h *Handler) Preview(c *gin.Context) {
 	if !strings.HasSuffix(filename, ".csv") && !strings.HasSuffix(filename, ".xlsx") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file format. only .csv and .xlsx files are allowed"})
 		return
+	}
+
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	if n > 0 {
+		mimeType := http.DetectContentType(buf[:n])
+		isCSV := strings.HasPrefix(mimeType, "text/") || strings.Contains(mimeType, "csv") || strings.Contains(mimeType, "text")
+		isXLSX := strings.Contains(mimeType, "officedocument") || strings.Contains(mimeType, "zip")
+		if !isCSV && !isXLSX {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "file content does not match expected format"})
+			return
+		}
+	}
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, io.SeekStart)
 	}
 
 	result, err := h.importEng.Preview(c.Request.Context(), module, header.Filename, file)

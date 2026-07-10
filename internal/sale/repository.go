@@ -336,7 +336,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	return sales, total, nil
 }
 
-func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int) ([]SaleExportRow, error) {
+func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
 		(SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
 		s.payment_method, s.total_amount
@@ -379,6 +379,10 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
 		args = append(args, *maxTotal)
 	}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
+		args = append(args, *storeID)
+	}
 	query += " ORDER BY s.created_at DESC"
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -392,7 +396,7 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		var row SaleExportRow
 		var createdAt time.Time
 		if err := rows.Scan(&row.InvoiceNumber, &createdAt, &row.CustomerName, &row.ItemCount, &row.PaymentMethod, &row.TotalAmount); err != nil {
-			continue
+			return nil, fmt.Errorf("scan sale export row: %w", err)
 		}
 		row.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		result = append(result, row)

@@ -217,7 +217,8 @@ func main() {
 
 	authH.RegisterLoginRoute(router.Group("/api"), middleware.LoginRateLimitMiddleware())
 	authH.RegisterRoutes(router.Group("/api"), authMiddleware, permMiddleware)
-	authH.RegisterRefreshRoute(router.Group("/api"), middleware.CSRFMiddleware())
+	authH.RegisterRefreshRoute(router.Group("/api"), middleware.RefreshRateLimitMiddleware(), middleware.CSRFMiddleware())
+	authH.RegisterChangePasswordRoute(router.Group("/api"), authMiddleware)
 	protected := router.Group("/api")
 	protected.Use(authMiddleware)
 	protected.Use(middleware.CSRFMiddleware())

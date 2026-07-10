@@ -189,7 +189,7 @@ func TestSaleService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("GetSalesForExport", func(t *testing.T) {
-		rows, err := svc.GetSalesForExport(ctx, "", "", "", "", nil, nil)
+		rows, err := svc.GetSalesForExport(ctx, "", "", "", "", nil, nil, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, rows)
 	})

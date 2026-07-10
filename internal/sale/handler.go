@@ -108,6 +108,14 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 
+	if req.PaymentMethod != "" {
+		pm, err := h.svc.GetPaymentMethodByCode(ctx, req.PaymentMethod)
+		if err != nil || pm == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment method"})
+			return
+		}
+	}
+
 	sale := &Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     cashierID,
@@ -262,7 +270,10 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal)
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeIDPtr)
 	if err != nil {
 		shared.InternalError(c, err)
 		return

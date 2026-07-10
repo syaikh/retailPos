@@ -245,7 +245,7 @@ func TestSaleRepository_Export(t *testing.T) {
 	prodID := insertTestProduct(t, ctx, "REPO-EXPORT-PROD", "Export Product", 12000, 50)
 	_ = createAndCommitSale(t, ctx, repo, "INV-REPO-EXPORT-001", prodID, 2, 12000, 24000, 24000, 0)
 
-	rows, err := repo.GetSalesForExport(ctx, "", "", "", "", nil, nil)
+	rows, err := repo.GetSalesForExport(ctx, "", "", "", "", nil, nil, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, rows)
 

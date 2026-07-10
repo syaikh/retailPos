@@ -209,6 +209,15 @@ func (h *Handler) BulkUpdateCustomerStatus(c *gin.Context) {
 		return
 	}
 
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no customer IDs provided"})
+		return
+	}
+	if len(req.IDs) > 200 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too many customer IDs (max 200)"})
+		return
+	}
+
 	if err := h.svc.BulkUpdateCustomersStatus(c.Request.Context(), req.IDs, req.IsActive); err != nil {
 		shared.InternalError(c, err)
 		return
@@ -222,6 +231,15 @@ func (h *Handler) BulkDeleteCustomers(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no customer IDs provided"})
+		return
+	}
+	if len(req.IDs) > 200 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too many customer IDs (max 200)"})
 		return
 	}
 

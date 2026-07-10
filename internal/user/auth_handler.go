@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"time"
@@ -24,8 +25,13 @@ func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, p
 	r.POST("/logout", auth, h.Logout)
 }
 
-func (h *AuthHandler) RegisterRefreshRoute(r *gin.RouterGroup, csrf gin.HandlerFunc) {
-	r.POST("/refresh", csrf, h.RefreshToken)
+func (h *AuthHandler) RegisterRefreshRoute(r *gin.RouterGroup, middlewares ...gin.HandlerFunc) {
+	handlers := append(middlewares, h.RefreshToken)
+	r.POST("/refresh", handlers...)
+}
+
+func (h *AuthHandler) RegisterChangePasswordRoute(r *gin.RouterGroup, auth gin.HandlerFunc) {
+	r.POST("/change-password", auth, h.ChangePassword)
 }
 
 func (h *AuthHandler) RegisterLoginRoute(r *gin.RouterGroup, loginRateLimit gin.HandlerFunc) {
@@ -118,6 +124,35 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 		},
 		"permissions": resp.Permissions,
 	})
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		NewPassword     string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password (min 6 chars) are required"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	id, ok := userID.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user session"})
+		return
+	}
+
+	if err := h.svc.ChangePassword(c.Request.Context(), id, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, ErrInvalidPassword) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "password changed"})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

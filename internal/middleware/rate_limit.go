@@ -112,3 +112,18 @@ func LoginRateLimitMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RefreshRateLimitMiddleware returns a moderate rate limiter for the refresh endpoint.
+// 10 requests per minute, burst 10 — limits rotation abuse while allowing legitimate use.
+func RefreshRateLimitMiddleware() gin.HandlerFunc {
+	limiter := NewIPRateLimiter(rate.Every(time.Minute/10), 10)
+
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		if !limiter.GetLimiter(ip).Allow() {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many refresh attempts. try again later."})
+			return
+		}
+		c.Next()
+	}
+}

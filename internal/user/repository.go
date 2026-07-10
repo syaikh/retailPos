@@ -268,6 +268,16 @@ func (r *Repository) UpdateLastLogin(ctx context.Context, userID int) error {
 	return err
 }
 
+func (r *Repository) UpdatePassword(ctx context.Context, userID int, hashedPassword string) error {
+	_, err := r.db.Exec(ctx, "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", hashedPassword, userID)
+	return err
+}
+
+func (r *Repository) DeleteUserRefreshTokens(ctx context.Context, userID int) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1", userID)
+	return err
+}
+
 // ==================== ROLE ====================
 
 func (r *Repository) GetRoleByID(ctx context.Context, id int) (*Role, error) {
