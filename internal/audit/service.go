@@ -37,6 +37,10 @@ func (s *Service) CreateAuditLog(ctx context.Context, log *AuditLog) error {
 	return s.eventBus.Publish(ctx, "audit.log_created", log)
 }
 
+func (s *Service) GetEntityTypes(ctx context.Context) ([]string, error) {
+	return s.repo.GetDistinctEntityTypes(ctx)
+}
+
 func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType, startDate, endDate string) ([]AuditLog, int, error) {
 	var start, end *time.Time
 	if startDate != "" {

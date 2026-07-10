@@ -60,6 +60,9 @@
       sale: 'Sale',
       category: 'Category',
       brand: 'Brand',
+      stock: 'Stock',
+      uom: 'Unit of Measure',
+      customer: 'Customer',
     };
     return map[entityType] || entityType;
   }

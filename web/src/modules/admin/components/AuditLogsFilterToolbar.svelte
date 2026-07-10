@@ -4,6 +4,27 @@
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
+  import { onMount } from 'svelte';
+
+  let entityTypes = $state<string[]>([]);
+
+  onMount(async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+      const res = await fetch('/api/audit-logs/entity-types', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        entityTypes = json.data || [];
+      } else {
+        toast.error('Failed to load resource filters');
+      }
+    } catch (e) {
+      toast.error('Failed to load resource filters');
+    }
+  });
 
   let {
     searchQuery = $bindable(''),
@@ -40,7 +61,14 @@
     sale: ['all', 'create', 'update', 'delete'],
     category: ['all', 'create', 'update', 'delete'],
     brand: ['all', 'create', 'update', 'delete'],
+    uom: ['all', 'create', 'update', 'delete'],
+    customer: ['all', 'create', 'update', 'delete'],
+    stock: ['all', 'update'],
   };
+
+  function getResourceActions(resource: string): string[] {
+    return actionsMap[resource] || ['all', 'create', 'update', 'delete'];
+  }
 
   const ALL_ACTIONS = [
     { id: 'all', label: 'All Actions' },
@@ -52,7 +80,7 @@
   ];
 
   let availableActionFilters = $derived(
-    selectedResource === 'all' ? ALL_ACTIONS : (actionsMap[selectedResource] || ['all']).map((id) => ALL_ACTIONS.find((a) => a.id === id) || { id, label: id })
+    selectedResource === 'all' ? ALL_ACTIONS : getResourceActions(selectedResource).map((id) => ALL_ACTIONS.find((a) => a.id === id) || { id, label: id })
   );
 
   const actionFilters = [
@@ -67,21 +95,28 @@
   function isActionDisabled(actionId: string): boolean {
     if (selectedResource === 'all') return false;
     if (actionId === 'all') return false;
-    const relevant = actionsMap[selectedResource];
-    if (!relevant) return true;
+    const relevant = getResourceActions(selectedResource);
     return !relevant.includes(actionId);
   }
 
-  const resourceFilters = [
-    { id: 'all', label: 'All Resources' },
-    { id: 'auth', label: 'Auth' },
-    { id: 'user', label: 'User' },
-    { id: 'role', label: 'Role' },
-    { id: 'product', label: 'Product' },
-    { id: 'sale', label: 'Sale' },
-    { id: 'category', label: 'Category' },
-    { id: 'brand', label: 'Brand' },
-  ];
+  const resourceLabels: Record<string, string> = {
+    auth: 'Auth',
+    user: 'User',
+    role: 'Role',
+    product: 'Product',
+    sale: 'Sale',
+    category: 'Category',
+    brand: 'Brand',
+    stock: 'Stock',
+    uom: 'UOM',
+    customer: 'Customer',
+  };
+
+  const resourceFilters = $derived(
+    entityTypes.length > 0
+      ? [{ id: 'all', label: 'All Resources' }, ...entityTypes.map((t) => ({ id: t, label: resourceLabels[t] || t.charAt(0).toUpperCase() + t.slice(1) }))]
+      : [{ id: 'all', label: 'All Resources' }]
+  );
 
   const dateRanges = [
     { id: '24h', label: 'Last 24 Hours' },

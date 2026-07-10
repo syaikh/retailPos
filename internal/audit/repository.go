@@ -33,6 +33,24 @@ func (r *Repository) CreateAuditLog(ctx context.Context, log *AuditLog) error {
 	return err
 }
 
+func (r *Repository) GetDistinctEntityTypes(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Query(ctx, `SELECT DISTINCT entity_type FROM audit_logs ORDER BY entity_type`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		types = append(types, t)
+	}
+	return types, nil
+}
+
 func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, startDate *time.Time, endDate *time.Time) ([]AuditLog, int, error) {
 	var logs []AuditLog
 	var total int

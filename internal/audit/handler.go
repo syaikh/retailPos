@@ -27,6 +27,7 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.GET("/audit-logs", auth, perm("audit:read"), h.ListAuditLogs)
 	r.GET("/audit-logs/export", auth, perm("audit:read"), h.ExportAuditLogs)
+	r.GET("/audit-logs/entity-types", auth, perm("audit:read"), h.ListEntityTypes)
 }
 
 func (h *Handler) ListAuditLogs(c *gin.Context) {
@@ -68,6 +69,18 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
+}
+
+func (h *Handler) ListEntityTypes(c *gin.Context) {
+	types, err := h.svc.GetEntityTypes(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch entity types"})
+		return
+	}
+	if types == nil {
+		types = []string{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": types})
 }
 
 func (h *Handler) ExportAuditLogs(c *gin.Context) {
