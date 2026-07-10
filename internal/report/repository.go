@@ -3,6 +3,7 @@ package report
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -142,8 +143,8 @@ func (r *Repository) GetPeriodComparison(
 		result.PreviousAOV = result.PreviousRevenue / result.PreviousOrders
 	}
 
-	result.RevenuePerDay = result.CurrentRevenue / days
-	result.PreviousRevenuePerDay = result.PreviousRevenue / days
+	result.RevenuePerDay = int(math.Round(float64(result.CurrentRevenue) / float64(days)))
+	result.PreviousRevenuePerDay = int(math.Round(float64(result.PreviousRevenue) / float64(days)))
 
 	return &result, nil
 }
@@ -528,9 +529,8 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	cfg := config.Load()
 	stockQuery := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
 	stockArgs := []interface{}{cfg.StockCriticalThreshold}
-	stockIdx := 2
 	if storeID != nil {
-		stockQuery += fmt.Sprintf(" AND store_id = $%d", stockIdx)
+		stockQuery += fmt.Sprintf(" AND store_id = $%d", len(stockArgs)+1)
 		stockArgs = append(stockArgs, *storeID)
 	}
 	var lowStockCount int64
@@ -539,16 +539,14 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	}
 	stats.LowStockCount = lowStockCount
 
+	customerArgs := []interface{}{}
 	customerQuery := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
 	if storeID != nil {
-		customerQuery += fmt.Sprintf(" AND store_id = $%d", 1)
-		if err := r.db.QueryRow(ctx, customerQuery, *storeID).Scan(&stats.ActiveCustomers); err != nil {
-			stats.ActiveCustomers = 0
-		}
-	} else {
-		if err := r.db.QueryRow(ctx, customerQuery).Scan(&stats.ActiveCustomers); err != nil {
-			stats.ActiveCustomers = 0
-		}
+		customerQuery += fmt.Sprintf(" AND store_id = $%d", len(customerArgs)+1)
+		customerArgs = append(customerArgs, *storeID)
+	}
+	if err := r.db.QueryRow(ctx, customerQuery, customerArgs...).Scan(&stats.ActiveCustomers); err != nil {
+		stats.ActiveCustomers = 0
 	}
 
 	return &stats, nil

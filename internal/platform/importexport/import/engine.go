@@ -3,6 +3,8 @@ package importer
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -19,6 +21,14 @@ import (
 
 	"github.com/xuri/excelize/v2"
 )
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand failed: %v", err))
+	}
+	return hex.EncodeToString(b)
+}
 
 type ImportCompletedEvent struct {
 	Module   string
@@ -105,7 +115,7 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 
 	preview := GeneratePreview(s, rows, errs)
 
-	token := fmt.Sprintf("pv_%s_%d_%d", module, len(rows), time.Now().UnixNano())
+	token := fmt.Sprintf("pv_%s_%x", module, randomHex(16))
 	e.StorePreview(token, &PreviewState{
 		Module:   module,
 		Schema:   s,

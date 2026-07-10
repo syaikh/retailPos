@@ -146,7 +146,7 @@ func (h *Handler) DownloadTemplate(c *gin.Context) {
 		refDataFlat[k] = vals
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-template.xlsx"`, module))
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-template.xlsx"`, sanitizeFilename(module)))
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	if err := h.templateEng.Generate(s, refDataFlat, c.Writer); err != nil {
 		shared.InternalError(c, err)
@@ -307,16 +307,26 @@ func (h *Handler) Export(c *gin.Context) {
 
 	switch expFormat {
 	case export.FormatCSV:
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, module))
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, sanitizeFilename(module)))
 		c.Header("Content-Type", "text/csv; charset=utf-8")
 	case export.FormatXLSX:
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, module))
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, sanitizeFilename(module)))
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	}
 
 	if err := h.exportEng.Export(c.Writer, s, data, expFormat); err != nil {
 		shared.InternalError(c, err)
+		return
 	}
+}
+
+func sanitizeFilename(s string) string {
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, s)
 }
 
 func (h *Handler) GetImportDetail(c *gin.Context) {

@@ -164,8 +164,8 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, NOW() + INTERVAL '7 days')
-	`, user.ID, hashToken(newRefreshToken)); err != nil {
+		VALUES ($1, $2, $3)
+	`, user.ID, hashToken(newRefreshToken), time.Now().Add(s.refreshTTL)); err != nil {
 		return "", "", fmt.Errorf("failed to store new refresh token: %w", err)
 	}
 
@@ -325,8 +325,8 @@ func (s *AuthService) storeRefreshToken(ctx context.Context, userID int, token s
 	tokenHash := hashToken(token)
 	_, err := s.dbPool.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, NOW() + INTERVAL '7 days')
-	`, userID, tokenHash)
+		VALUES ($1, $2, $3)
+	`, userID, tokenHash, time.Now().Add(s.refreshTTL))
 	return err
 }
 
@@ -355,7 +355,7 @@ func (s *AuthService) storeRefreshTx(ctx context.Context, tx pgx.Tx, userID int,
 	tokenHash := hashToken(token)
 	_, err := tx.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, NOW() + INTERVAL '7 days')
-	`, userID, tokenHash)
+		VALUES ($1, $2, $3)
+	`, userID, tokenHash, time.Now().Add(s.refreshTTL))
 	return err
 }

@@ -332,6 +332,15 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 		return
 	}
 
+	if endDate.Before(startDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
+		return
+	}
+	if startDate.AddDate(0, 0, 366).Before(endDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
+		return
+	}
+
 	if startDate.Equal(endDate) {
 		data, err := h.svc.GetHourlySales(ctx, sid, startDate)
 		if err != nil {
@@ -412,6 +421,14 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
 		return
 	}
+	if endDate.Before(startDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
+		return
+	}
+	if startDate.AddDate(0, 0, 366).Before(endDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
+		return
+	}
 	endDate = endDate.Add(24 * time.Hour)
 
 	data, err := h.svc.GetSalesWeeklyReport(ctx, sid, startDate, endDate)
@@ -446,6 +463,14 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
+		return
+	}
+	if endDate.Before(startDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
+		return
+	}
+	if startDate.AddDate(0, 0, 366).Before(endDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
 		return
 	}
 	endDate = endDate.Add(24 * time.Hour)
@@ -606,6 +631,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename=dashboard_export.xlsx")
 	if err := f.Write(c.Writer); err != nil {
 		shared.InternalError(c, err)
+		return
 	}
 }
 
