@@ -19,12 +19,14 @@ func NewStockDeductListener(repo *Repository) eventbus.Listener {
 				return nil
 			}
 
+			var lastErr error
 			for _, item := range s.Items {
 				if err := repo.AdjustStock(ctx, item.ProductID, -item.Quantity, nil, fmt.Sprintf("auto-deduct from sale #%d", s.ID)); err != nil {
 					log.Printf("[inventory] failed to adjust stock for product %d: %v", item.ProductID, err)
+					lastErr = err
 				}
 			}
-			return nil
+			return lastErr
 		},
 	)
 }

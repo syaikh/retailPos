@@ -3,12 +3,36 @@ package customer
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var jakartaLoc *time.Location
+
+func init() {
+	var err error
+	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+		jakartaLoc = time.UTC
+	}
+}
+
+func mustLoadJakarta() *time.Location {
+	if jakartaLoc == nil {
+		var err error
+		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+		if err != nil {
+			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+			jakartaLoc = time.UTC
+		}
+	}
+	return jakartaLoc
+}
 
 type ImportResult struct {
 	Inserted int      `json:"inserted"`
@@ -42,8 +66,8 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string) (*Customer, e
 		}
 		return nil, err
 	}
-	c.CreatedAt = createdAt.Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.Format(time.RFC3339)
+	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return &c, nil
 }
 
@@ -60,8 +84,8 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int) (*Customer, er
 		}
 		return nil, err
 	}
-	c.CreatedAt = createdAt.Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.Format(time.RFC3339)
+	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return &c, nil
 }
 
@@ -112,8 +136,8 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
 			return nil, 0, err
 		}
-		c.CreatedAt = createdAt.Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		customers = append(customers, c)
 	}
 	return customers, total, nil
@@ -177,8 +201,8 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, 
 		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		c.CreatedAt = createdAt.Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		customers = append(customers, c)
 	}
 	return customers, nil
@@ -238,22 +262,23 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 
 	if len(updateRecords) > 0 {
 		valueStrings := make([]string, 0, len(updateRecords))
-		valueArgs := make([]interface{}, 0, len(updateRecords)*6)
+		valueArgs := make([]interface{}, 0, len(updateRecords)*7)
 		for i, rec := range updateRecords {
 			offset := len(valueArgs)
-			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6))
-			valueArgs = append(valueArgs, rec.Name, rec.Email, rec.Address, rec.Note, rec.IsActive, updateIDs[i])
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7))
+			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive, updateIDs[i])
 		}
 
 		query := fmt.Sprintf(`
 			UPDATE customers SET
 				name = data.name,
+				phone = data.phone,
 				email = NULLIF(data.email, ''),
 				address = NULLIF(data.address, ''),
 				note = NULLIF(data.note, ''),
 				is_active = data.is_active,
 				updated_at = NOW()
-			FROM (VALUES %s) AS data(name text, email text, address text, note text, is_active boolean, id int)
+			FROM (VALUES %s) AS data(name text, phone text, email text, address text, note text, is_active boolean, id int)
 			WHERE customers.id = data.id
 		`, strings.Join(valueStrings, ", "))
 
@@ -267,15 +292,15 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 
 	if len(insertRecords) > 0 {
 		valueStrings := make([]string, 0, len(insertRecords))
-		valueArgs := make([]interface{}, 0, len(insertRecords)*6)
+		valueArgs := make([]interface{}, 0, len(insertRecords)*7)
 		for _, rec := range insertRecords {
 			offset := len(valueArgs)
-			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, NULLIF($%d, ''), NULLIF($%d, ''), NULLIF($%d, ''), $%d, false)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6))
-			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive)
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, NULLIF($%d, ''), NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d, false)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7))
+			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive, rec.TaxID)
 		}
 
 		query := fmt.Sprintf(`
-			INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in)
+			INSERT INTO customers (name, phone, email, address, note, is_active, tax_id, is_walk_in)
 			VALUES %s
 		`, strings.Join(valueStrings, ", "))
 

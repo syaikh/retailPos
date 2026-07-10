@@ -1,9 +1,12 @@
 package product
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +40,22 @@ func (h *Handler) getStoreID(c *gin.Context) *int {
 		if v, ok := sid.(*int); ok {
 			return v
 		}
+	}
+	return nil
+}
+
+func validateProduct(p *Product) error {
+	if strings.TrimSpace(p.Name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	if p.Price < 0 {
+		return fmt.Errorf("price must not be negative")
+	}
+	if p.Cost < 0 {
+		return fmt.Errorf("cost must not be negative")
+	}
+	if p.Stock < 0 {
+		return fmt.Errorf("stock must not be negative")
 	}
 	return nil
 }
@@ -130,8 +149,13 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	if err := validateProduct(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := h.svc.CreateProduct(c.Request.Context(), &product); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create product"})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": product})
@@ -151,8 +175,13 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	}
 	product.ID = id
 
+	if err := validateProduct(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := h.svc.UpdateProduct(c.Request.Context(), &product); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update product"})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": product})

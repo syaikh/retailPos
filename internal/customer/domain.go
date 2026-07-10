@@ -43,5 +43,6 @@ type CustomerImportRow struct {
 	Email    string
 	Address  string
 	Note     string
+	TaxID    string
 	IsActive bool
 }

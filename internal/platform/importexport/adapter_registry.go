@@ -2,11 +2,13 @@ package importexport
 
 import (
 	"fmt"
+	"sync"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type AdapterRegistry struct {
+	mu       sync.RWMutex
 	adapters map[string]importexportshared.Adapter
 }
 
@@ -18,6 +20,8 @@ func (r *AdapterRegistry) Register(a importexportshared.Adapter) error {
 	if a.ModuleName() == "" {
 		return fmt.Errorf("adapter module_name is required")
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if _, exists := r.adapters[a.ModuleName()]; exists {
 		return fmt.Errorf("adapter already registered for module %q", a.ModuleName())
 	}
@@ -26,6 +30,8 @@ func (r *AdapterRegistry) Register(a importexportshared.Adapter) error {
 }
 
 func (r *AdapterRegistry) Get(module string) (importexportshared.Adapter, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	a, exists := r.adapters[module]
 	if !exists {
 		return nil, fmt.Errorf("no adapter registered for module %q", module)
@@ -34,6 +40,8 @@ func (r *AdapterRegistry) Get(module string) (importexportshared.Adapter, error)
 }
 
 func (r *AdapterRegistry) Modules() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	modules := make([]string, 0, len(r.adapters))
 	for m := range r.adapters {
 		modules = append(modules, m)

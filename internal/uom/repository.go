@@ -3,12 +3,36 @@ package uom
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var jakartaLoc *time.Location
+
+func init() {
+	var err error
+	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+		jakartaLoc = time.UTC
+	}
+}
+
+func mustLoadJakarta() *time.Location {
+	if jakartaLoc == nil {
+		var err error
+		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+		if err != nil {
+			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+			jakartaLoc = time.UTC
+		}
+	}
+	return jakartaLoc
+}
 
 type ImportResult struct {
 	Inserted int      `json:"inserted"`
@@ -39,7 +63,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error
 		}
 		return nil, err
 	}
-	u.CreatedAt = createdAt.Format(time.RFC3339)
+	u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &u, nil
 }
 
@@ -57,7 +81,7 @@ func (r *Repository) GetAll(ctx context.Context) ([]UnitOfMeasure, error) {
 		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.IsActive, &createdAt); err != nil {
 			return nil, err
 		}
-		u.CreatedAt = createdAt.Format(time.RFC3339)
+		u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		units = append(units, u)
 	}
 	return units, nil
@@ -79,7 +103,7 @@ func (r *Repository) Create(ctx context.Context, uom *UnitOfMeasure) error {
 	if err != nil {
 		return err
 	}
-	uom.CreatedAt = createdAt.Format(time.RFC3339)
+	uom.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return nil
 }
 
@@ -110,7 +134,7 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]UnitOfMeasure, erro
 		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.IsActive, &createdAt); err != nil {
 			return nil, err
 		}
-		u.CreatedAt = createdAt.Format(time.RFC3339)
+		u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		units = append(units, u)
 	}
 	return units, nil

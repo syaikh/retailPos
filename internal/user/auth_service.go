@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -126,7 +127,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", errors.New("invalid refresh token")
 	}
 
-	user, err := s.repo.GetByID(claims.ID)
+	user, err := s.repo.GetByID(ctx, claims.ID)
 	if err != nil {
 		return "", "", ErrUserNotFound
 	}
@@ -145,7 +146,13 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", fmt.Errorf("failed to generate new access token: %w", err)
 	}
 
-	if err := s.deleteRefreshToken(ctx, claims.ID, oldRefreshToken); err != nil {
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := s.deleteRefreshTx(ctx, tx, claims.ID, oldRefreshToken); err != nil {
 		return "", "", fmt.Errorf("failed to invalidate old refresh token: %w", err)
 	}
 
@@ -154,8 +161,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", fmt.Errorf("failed to generate new refresh token: %w", err)
 	}
 
-	if err := s.storeRefreshToken(ctx, user.ID, newRefreshToken); err != nil {
+	if err := s.storeRefreshTx(ctx, tx, user.ID, newRefreshToken); err != nil {
 		return "", "", fmt.Errorf("failed to store new refresh token: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", "", fmt.Errorf("commit refresh token rotation: %w", err)
 	}
 
 	if err := s.eventBus.Publish(ctx, "auth.token_refreshed", map[string]interface{}{
@@ -229,6 +240,9 @@ func (s *AuthService) generateRefreshToken(user *User) (string, error) {
 
 func (s *AuthService) parseToken(tokenString string) (*AuthClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &AuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(s.jwtSecret), nil
 	})
 	if err != nil {
@@ -248,6 +262,9 @@ func (s *AuthService) parseToken(tokenString string) (*AuthClaims, error) {
 
 func (s *AuthService) parseRefreshToken(tokenString string) (*AuthClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &AuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(s.jwtSecret + "-refresh"), nil
 	})
 	if err != nil {
@@ -291,5 +308,20 @@ func (s *AuthService) refreshTokenExists(ctx context.Context, userID int, token 
 func (s *AuthService) deleteRefreshToken(ctx context.Context, userID int, token string) error {
 	tokenHash := hashToken(token)
 	_, err := s.dbPool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, tokenHash)
+	return err
+}
+
+func (s *AuthService) deleteRefreshTx(ctx context.Context, tx pgx.Tx, userID int, token string) error {
+	tokenHash := hashToken(token)
+	_, err := tx.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, tokenHash)
+	return err
+}
+
+func (s *AuthService) storeRefreshTx(ctx context.Context, tx pgx.Tx, userID int, token string) error {
+	tokenHash := hashToken(token)
+	_, err := tx.Exec(ctx, `
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, NOW() + INTERVAL '7 days')
+	`, userID, tokenHash)
 	return err
 }

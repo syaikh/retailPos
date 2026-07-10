@@ -42,9 +42,8 @@ func (b *Bus) Publish(ctx context.Context, topic string, payload interface{}) er
 		Timestamp: time.Now(),
 	}
 	b.mu.RLock()
-	closed := b.closed
-	b.mu.RUnlock()
-	if closed {
+	defer b.mu.RUnlock()
+	if b.closed {
 		return nil
 	}
 	select {
@@ -98,6 +97,10 @@ func (b *Bus) dispatch(event Event) {
 // Tidak ada event yang hilang.
 func (b *Bus) Shutdown() {
 	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return
+	}
 	b.closed = true
 	b.mu.Unlock()
 

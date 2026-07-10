@@ -193,7 +193,7 @@ func (s *InMemoryStore) GetProgress(_ context.Context, jobID int64) (*Progress, 
 		Updated:     job.Updated,
 		Errors:      job.Errors,
 		ErrorReport: job.ErrorReport,
-		StartedAt:   job.StartedAt.Format(time.RFC3339),
+		StartedAt:   job.StartedAt.In(jakartaLoc).Format(time.RFC3339),
 	}
 	if job.TotalRows > 0 {
 		p.ProgressPct = (job.Processed * 100) / job.TotalRows
@@ -221,7 +221,7 @@ func (s *InMemoryStore) ListJobs(_ context.Context, module string, limit int) ([
 			Updated:     job.Updated,
 			Errors:      job.Errors,
 			ErrorReport: job.ErrorReport,
-			StartedAt:   job.StartedAt.Format(time.RFC3339),
+			StartedAt:   job.StartedAt.In(jakartaLoc).Format(time.RFC3339),
 		}
 		if job.TotalRows > 0 {
 			p.ProgressPct = (job.Processed * 100) / job.TotalRows

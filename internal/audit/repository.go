@@ -22,14 +22,11 @@ func (r *Repository) CreateAuditLog(ctx context.Context, log *AuditLog) error {
 	if log.IPAddress != "" {
 		ipAddr = log.IPAddress
 	}
-	_, err := r.db.Exec(ctx, `
+	err := r.db.QueryRow(ctx, `
 		INSERT INTO audit_logs (user_id, role, action, entity_type, entity_id, ip_address, user_agent, old_values, new_values, description)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, log.UserID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description)
-	if err != nil {
-		return err
-	}
-	err = r.db.QueryRow(ctx, `SELECT lastval()`).Scan(&log.ID)
+		RETURNING id
+	`, log.UserID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description).Scan(&log.ID)
 	return err
 }
 
@@ -130,6 +127,9 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 			continue
 		}
 		logs = append(logs, al)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 	return logs, total, nil
 }

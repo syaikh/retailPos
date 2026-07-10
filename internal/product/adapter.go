@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -65,9 +66,9 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	barcode, _ := row["Barcode"].(string)
 	categoryName, _ := row["Category"].(string)
 	brandName, _ := row["Brand"].(string)
-	price, _ := strconv.Atoi(fmt.Sprintf("%v", row["Price"]))
-	cost, _ := strconv.Atoi(fmt.Sprintf("%v", row["Cost"]))
-	stock, _ := strconv.Atoi(fmt.Sprintf("%v", row["Stock"]))
+	price := floatToInt(row["Price"])
+	cost := floatToInt(row["Cost"])
+	stock := floatToInt(row["Stock"])
 	status := "active"
 	if v, ok := row["Status"]; ok {
 		status = fmt.Sprintf("%v", v)
@@ -175,6 +176,19 @@ func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductI
 		storeID = &row.StoreID
 	}
 
+	if strings.TrimSpace(row.Name) == "" {
+		return nil, fmt.Errorf("name is required at row %d", row.Row)
+	}
+	if row.Price < 0 {
+		return nil, fmt.Errorf("price must not be negative at row %d", row.Row)
+	}
+	if row.Cost < 0 {
+		return nil, fmt.Errorf("cost must not be negative at row %d", row.Row)
+	}
+	if row.Stock < 0 {
+		return nil, fmt.Errorf("stock must not be negative at row %d", row.Row)
+	}
+
 	return &ProductImportPayload{
 		SKU:             row.SKU,
 		Name:            row.Name,
@@ -272,4 +286,18 @@ func nilInt(i *int) interface{} {
 		return nil
 	}
 	return *i
+}
+
+func floatToInt(v interface{}) int {
+	switch val := v.(type) {
+	case float64:
+		return int(math.Round(val))
+	case int:
+		return val
+	case string:
+		n, _ := strconv.Atoi(val)
+		return n
+	default:
+		return 0
+	}
 }

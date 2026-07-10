@@ -58,8 +58,8 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
 	}
-	sale.CreatedAt = createdAt.Format(time.RFC3339)
-	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
+	sale.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	for i := range items {
 		// 1. Insert sale item
@@ -71,37 +71,7 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
 		}
 
-		// 2. Update product stock in product_stock table; insert row if missing
-		cmd, err := tx.Exec(ctx, `
-			UPDATE product_stock
-			SET quantity = quantity - $1, updated_at = NOW()
-			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
-		`, items[i].Quantity, items[i].ProductID)
-		if err != nil {
-			return fmt.Errorf("failed to update stock for product %d: %w", items[i].ProductID, err)
-		}
-		if cmd.RowsAffected() == 0 {
-			var currentQty int
-			if err := tx.QueryRow(ctx, `
-				SELECT COALESCE(quantity, 0) FROM product_stock
-				WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
-			`, items[i].ProductID).Scan(&currentQty); err != nil {
-				return fmt.Errorf("failed to query current stock for product %d: %w", items[i].ProductID, err)
-			}
-			newQty := currentQty - items[i].Quantity
-			if newQty < 0 {
-				newQty = 0
-			}
-			_, err = tx.Exec(ctx, `
-				INSERT INTO product_stock (product_id, quantity, updated_at)
-				VALUES ($1, GREATEST(0, $2), NOW())
-			`, items[i].ProductID, newQty)
-			if err != nil {
-				return fmt.Errorf("failed to insert stock row for product %d: %w", items[i].ProductID, err)
-			}
-		}
-
-		// 3. Record inventory movement
+		// 2. Record inventory movement (stock deduction handled by inventory.StockDeductListener via eventbus)
 		_, err = tx.Exec(ctx, `
 			INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -142,8 +112,8 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		v := int(storeIDFromDB.Int64)
 		sale.StoreID = &v
 	}
-	sale.CreatedAt = createdAt.Format(time.RFC3339)
-	sale.UpdatedAt = updatedAt.Format(time.RFC3339)
+	sale.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	// Load sale items
 	itemRows, err := r.db.Query(ctx, `
@@ -310,11 +280,14 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 			v := int(storeIDVal.Int64)
 			s.StoreID = &v
 		}
-		s.CreatedAt = createdAt.Format(time.RFC3339)
-		s.UpdatedAt = updatedAt.Format(time.RFC3339)
+		s.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		s.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 		sales = append(sales, s)
 		saleIDs = append(saleIDs, s.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	// Batch load all sale items in chunks to avoid PostgreSQL parameter limit
@@ -421,8 +394,11 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		if err := rows.Scan(&row.InvoiceNumber, &createdAt, &row.CustomerName, &row.ItemCount, &row.PaymentMethod, &row.TotalAmount); err != nil {
 			continue
 		}
-		row.CreatedAt = createdAt.Format(time.RFC3339)
+		row.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -432,8 +408,20 @@ func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 	year := now.Year()
 	yearStr := fmt.Sprintf("%d", year)
 
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Use advisory lock to serialize concurrent invoice number generation
+	_, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(1)`)
+	if err != nil {
+		return "", fmt.Errorf("failed to acquire lock: %w", err)
+	}
+
 	var maxSeq int
-	err := r.db.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT COALESCE(MAX(
 			CAST(SUBSTRING(invoice_number FROM '\d+$') AS INTEGER)
 		 ), 0)
@@ -444,7 +432,13 @@ func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get next invoice number: %w", err)
 	}
 
-	return fmt.Sprintf("INV-%d-%06d", year, maxSeq+1), nil
+	invoiceNumber := fmt.Sprintf("INV-%d-%06d", year, maxSeq+1)
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("failed to commit invoice number generation: %w", err)
+	}
+
+	return invoiceNumber, nil
 }
 
 // ==================== PAYMENT METHODS ====================
@@ -469,7 +463,7 @@ func (r *Repository) GetAllActive(ctx context.Context) ([]PaymentMethod, error) 
 		if err != nil {
 			return nil, err
 		}
-		m.CreatedAt = createdAt.Format(time.RFC3339)
+		m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		methods = append(methods, m)
 	}
 	return methods, nil
@@ -484,12 +478,12 @@ func (r *Repository) GetPaymentMethodByCode(ctx context.Context, code string) (*
 		WHERE code = $1
 	`, code).Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("payment method not found")
 		}
 		return nil, err
 	}
-	m.CreatedAt = createdAt.Format(time.RFC3339)
+	m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &m, nil
 }
 
@@ -502,11 +496,11 @@ func (r *Repository) GetPaymentMethodByID(ctx context.Context, id int) (*Payment
 		WHERE id = $1
 	`, id).Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("payment method not found")
 		}
 		return nil, err
 	}
-	m.CreatedAt = createdAt.Format(time.RFC3339)
+	m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &m, nil
 }

@@ -58,8 +58,16 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	userID, _ := c.Get("userID")
-	cashierID, _ := userID.(int)
+	userID, exists := c.Get("userID")
+	if !exists {
+		shared.JSONError(c, http.StatusUnauthorized, "user not authenticated")
+		return
+	}
+	cashierID, ok := userID.(int)
+	if !ok {
+		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
+		return
+	}
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
 

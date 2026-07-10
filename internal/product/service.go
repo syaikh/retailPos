@@ -57,7 +57,7 @@ func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search,
 			}
 			id, err := s.categoryRepo.GetCategoryIDByName(ctx, name)
 			if err != nil {
-				return []Product{}, 0, nil
+				return nil, 0, err
 			}
 			categoryIDs = append(categoryIDs, id)
 		}

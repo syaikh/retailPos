@@ -44,9 +44,7 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 
 // ==================== USER ====================
 
-func (r *Repository) GetByID(id int) (*User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (r *Repository) GetByID(ctx context.Context, id int) (*User, error) {
 	return r.getUserByID(ctx, id)
 }
 
@@ -67,10 +65,10 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 		}
 		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
-	u.CreatedAt = createdAt.Format(time.RFC3339)
-	u.UpdatedAt = updatedAt.Format(time.RFC3339)
+	u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	u.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	if lastLogin.Valid {
-		u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+		u.LastLogin = lastLogin.Time.In(jakartaLoc).Format(time.RFC3339)
 	}
 	if storeID.Valid {
 		v := int(storeID.Int64)
@@ -104,10 +102,10 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	u.CreatedAt = createdAt.Format(time.RFC3339)
-	u.UpdatedAt = updatedAt.Format(time.RFC3339)
+	u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	u.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	if lastLogin.Valid {
-		u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+		u.LastLogin = lastLogin.Time.In(jakartaLoc).Format(time.RFC3339)
 	}
 	if storeID.Valid {
 		v := int(storeID.Int64)
@@ -206,12 +204,12 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 
 		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 		if err != nil {
-			continue
+			return nil, 0, fmt.Errorf("failed to scan user row: %w", err)
 		}
-		u.CreatedAt = createdAt.Format(time.RFC3339)
-		u.UpdatedAt = updatedAt.Format(time.RFC3339)
+		u.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		u.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		if lastLogin.Valid {
-			u.LastLogin = lastLogin.Time.Format(time.RFC3339)
+			u.LastLogin = lastLogin.Time.In(jakartaLoc).Format(time.RFC3339)
 		}
 		if storeID.Valid {
 			v := int(storeID.Int64)
@@ -225,6 +223,9 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		}
 		users = append(users, u)
 	}
+	if rows.Err() != nil {
+		return nil, 0, fmt.Errorf("rows iteration error: %w", rows.Err())
+	}
 	return users, total, nil
 }
 
@@ -237,8 +238,8 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	if err != nil {
 		return err
 	}
-	user.CreatedAt = createdAt.Format(time.RFC3339)
-	user.UpdatedAt = updatedAt.Format(time.RFC3339)
+	user.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	user.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return nil
 }
 
@@ -335,7 +336,7 @@ func (r *Repository) DeleteRole(ctx context.Context, id int) error {
 
 func (r *Repository) CountUsersByRole(ctx context.Context, roleID int) (int, error) {
 	var count int
-	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE role_id = $1", roleID).Scan(&count)
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE role_id = $1 AND deleted_at IS NULL", roleID).Scan(&count)
 	return count, err
 }
 
@@ -358,24 +359,30 @@ func (r *Repository) GetRolePermissions(ctx context.Context, roleID int) ([]Perm
 		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &createdAt); err != nil {
 			return nil, err
 		}
-		p.CreatedAt = createdAt.Format(time.RFC3339)
+		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		perms = append(perms, p)
 	}
 	return perms, nil
 }
 
 func (r *Repository) UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM role_permissions WHERE role_id = $1", roleID)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, "DELETE FROM role_permissions WHERE role_id = $1", roleID)
 	if err != nil {
 		return err
 	}
 	for _, pid := range permissionIDs {
-		_, err = r.db.Exec(ctx, "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", roleID, pid)
+		_, err = tx.Exec(ctx, "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", roleID, pid)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) GetAllPermissions(ctx context.Context) ([]Permission, error) {
@@ -392,7 +399,7 @@ func (r *Repository) GetAllPermissions(ctx context.Context) ([]Permission, error
 		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &createdAt); err != nil {
 			return nil, err
 		}
-		p.CreatedAt = createdAt.Format(time.RFC3339)
+		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		perms = append(perms, p)
 	}
 	return perms, nil

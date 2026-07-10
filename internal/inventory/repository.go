@@ -69,10 +69,10 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 		ps.ReorderQuantity = v
 	}
 	if lastRestockedAt.Valid {
-		ps.LastRestockedAt = lastRestockedAt.Time.Format(time.RFC3339)
+		ps.LastRestockedAt = lastRestockedAt.Time.In(jakartaLoc).Format(time.RFC3339)
 	}
-	ps.CreatedAt = createdAt.Format(time.RFC3339)
-	ps.UpdatedAt = updatedAt.Format(time.RFC3339)
+	ps.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	ps.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return &ps, nil
 }
 
@@ -108,22 +108,14 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		return fmt.Errorf("insufficient stock: current %d, requested %d", currentStock, quantityChange)
 	}
 
-	cmd, err := tx.Exec(ctx, `
-		UPDATE product_stock
-		SET quantity = $2, updated_at = NOW()
-		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
+	_, err = tx.Exec(ctx, `
+		INSERT INTO product_stock (product_id, quantity, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (product_id)
+		DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
 	`, productID, newStock)
 	if err != nil {
-		return fmt.Errorf("failed to update stock: %w", err)
-	}
-	if cmd.RowsAffected() == 0 {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, quantity, updated_at)
-			VALUES ($1, $2, NOW())
-		`, productID, newStock)
-		if err != nil {
-			return fmt.Errorf("failed to insert stock: %w", err)
-		}
+		return fmt.Errorf("failed to upsert stock: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `

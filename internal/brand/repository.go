@@ -3,12 +3,36 @@ package brand
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var jakartaLoc *time.Location
+
+func init() {
+	var err error
+	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+		jakartaLoc = time.UTC
+	}
+}
+
+func mustLoadJakarta() *time.Location {
+	if jakartaLoc == nil {
+		var err error
+		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
+		if err != nil {
+			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+			jakartaLoc = time.UTC
+		}
+	}
+	return jakartaLoc
+}
 
 type ImportResult struct {
 	Inserted int      `json:"inserted"`
@@ -39,7 +63,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Brand, error) {
 		}
 		return nil, err
 	}
-	b.CreatedAt = createdAt.Format(time.RFC3339)
+	b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &b, nil
 }
 
@@ -57,7 +81,7 @@ func (r *Repository) GetAll(ctx context.Context) ([]Brand, error) {
 		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		b.CreatedAt = createdAt.Format(time.RFC3339)
+		b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		brands = append(brands, b)
 	}
 	return brands, nil
@@ -105,7 +129,7 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Brand, error) {
 		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		b.CreatedAt = createdAt.Format(time.RFC3339)
+		b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		brands = append(brands, b)
 	}
 	return brands, nil

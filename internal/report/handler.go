@@ -30,7 +30,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/dashboard/chart/monthly", auth, perm("report:read"), h.GetSalesMonthlyReport)
 	r.GET("/dashboard/comparison", auth, perm("report:read"), h.GetPeriodComparison)
 	r.POST("/dashboard/export", auth, perm("report:read"), h.ExportDashboard)
-	r.GET("/dashboard/years", auth, h.GetAvailableYears)
+	r.GET("/dashboard/years", auth, perm("report:read"), h.GetAvailableYears)
 }
 
 type PeriodType string

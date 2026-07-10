@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"retail-pos-system/internal/eventbus"
 )
@@ -30,10 +31,14 @@ func (s *Service) AdjustStock(ctx context.Context, productID int, quantityChange
 		return fmt.Errorf("adjust stock: %w", err)
 	}
 
-	return s.eventBus.Publish(ctx, string(eventbus.StockAdjusted), StockAdjustedEvent{
+	if err := s.eventBus.Publish(ctx, string(eventbus.StockAdjusted), StockAdjustedEvent{
 		ProductID:      productID,
 		QuantityChange: quantityChange,
 		UserID:         userID,
 		Notes:          notes,
-	})
+	}); err != nil {
+		log.Printf("[inventory] failed to publish stock adjusted event: %v", err)
+	}
+
+	return nil
 }

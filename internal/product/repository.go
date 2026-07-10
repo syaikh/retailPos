@@ -382,6 +382,9 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		products = append(products, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return products, total, nil
 }
 
@@ -439,8 +442,8 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 	if err != nil {
 		return err
 	}
-	product.CreatedAt = createdTime.Format(time.RFC3339)
-	product.UpdatedAt = updatedTime.Format(time.RFC3339)
+	product.CreatedAt = createdTime.In(jakartaLoc).Format(time.RFC3339)
+	product.UpdatedAt = updatedTime.In(jakartaLoc).Format(time.RFC3339)
 
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
@@ -511,13 +514,17 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 		description = nil
 	}
 
-	_, err := r.db.Exec(ctx, `
-		UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
-			cost = $6, stock = $7, store_id = $8, status = $9, updated_at = NOW(),
-			brand_id = $10, description = $11, tax_class_id = $12, weight_grams = $13, unit_of_measure_id = $14, default_discount_percent = $15
-		WHERE id = $16
-	`, product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
-		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID)
+	query := `UPDATE products SET sku = $1, name = $2, barcode = $3, category_id = $4, price = $5,
+		cost = $6, stock = $7, store_id = $8, status = $9, updated_at = NOW(),
+		brand_id = $10, description = $11, tax_class_id = $12, weight_grams = $13, unit_of_measure_id = $14, default_discount_percent = $15
+		WHERE id = $16`
+	args := []interface{}{product.SKU, product.Name, barcode, categoryID, product.Price, product.Cost, product.Stock, storeIDVal, product.Status,
+		brandID, description, taxClassID, weightGrams, unitOfMeasureID, defaultDiscount, product.ID}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -541,7 +548,13 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 }
 
 func (r *Repository) DeleteProduct(ctx context.Context, id int, storeID *int) error {
-	_, err := r.db.Exec(ctx, "UPDATE products SET deleted_at = NOW(), status = 'archived' WHERE id = $1", id)
+	query := "UPDATE products SET deleted_at = NOW(), status = 'archived' WHERE id = $1"
+	args := []interface{}{id}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
@@ -549,7 +562,13 @@ func (r *Repository) BulkUpdateProductStatus(ctx context.Context, ids []int, sta
 	if len(ids) == 0 {
 		return nil
 	}
-	_, err := r.db.Exec(ctx, "UPDATE products SET status = $1 WHERE id = ANY($2)", status, ids)
+	query := "UPDATE products SET status = $1 WHERE id = ANY($2)"
+	args := []interface{}{status, ids}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
@@ -596,8 +615,8 @@ func (r *Repository) GetDeletedProductByBarcode(ctx context.Context, barcode str
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
 	}
-	p.CreatedAt = createdAt.Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -663,7 +682,7 @@ func (r *Repository) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, er
 		}
 		return nil, err
 	}
-	tc.CreatedAt = createdAt.Format(time.RFC3339)
+	tc.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &tc, nil
 }
 
@@ -681,8 +700,11 @@ func (r *Repository) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 		if err := rows.Scan(&tc.ID, &tc.Name, &tc.RatePercent, &tc.Description, &tc.IsActive, &createdAt); err != nil {
 			return nil, err
 		}
-		tc.CreatedAt = createdAt.Format(time.RFC3339)
+		tc.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		taxClasses = append(taxClasses, tc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return taxClasses, nil
 }
@@ -710,7 +732,7 @@ func (r *Repository) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, 
 		v := int(storeID.Int64)
 		w.StoreID = &v
 	}
-	w.CreatedAt = createdAt.Format(time.RFC3339)
+	w.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	return &w, nil
 }
 
@@ -741,8 +763,11 @@ func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Ware
 			v := int(storeIDVal.Int64)
 			w.StoreID = &v
 		}
-		w.CreatedAt = createdAt.Format(time.RFC3339)
+		w.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		warehouses = append(warehouses, w)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return warehouses, nil
 }
@@ -824,6 +849,9 @@ func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, er
 		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		products = append(products, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return products, nil
 }
@@ -947,6 +975,10 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 			existingMap[sku] = id
 		}
 	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, fmt.Errorf("batch lookup rows iteration: %w", err)
+	}
 	rows.Close()
 
 	var newPayloads []ProductImportPayload
@@ -1066,6 +1098,10 @@ func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductI
 		if err := rows.Scan(&id, &sku); err == nil {
 			existingMap[sku] = id
 		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, fmt.Errorf("batch lookup rows iteration: %w", err)
 	}
 	rows.Close()
 

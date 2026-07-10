@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
@@ -17,11 +18,11 @@ type IPRateLimiter struct {
 	b   int
 }
 
-func NewIPRateLimiter(rps int, burst int) *IPRateLimiter {
+func NewIPRateLimiter(r rate.Limit, burst int) *IPRateLimiter {
 	return &IPRateLimiter{
 		ips: make(map[string]*rate.Limiter),
 		mu:  &sync.RWMutex{},
-		r:   rate.Limit(rps),
+		r:   r,
 		b:   burst,
 	}
 }
@@ -41,7 +42,13 @@ func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	l.mu.RUnlock()
 
 	if !exists {
-		return l.AddIP(ip)
+		l.mu.Lock()
+		limiter, exists = l.ips[ip]
+		if !exists {
+			limiter = rate.NewLimiter(l.r, l.b)
+			l.ips[ip] = limiter
+		}
+		l.mu.Unlock()
 	}
 	return limiter
 }
@@ -50,7 +57,7 @@ func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 // Exclude sensitive endpoints if needed.
 func RateLimitMiddleware() gin.HandlerFunc {
 	// 5 requests per second, burst 10 (300 req/min)
-	limiter := NewIPRateLimiter(5, 10)
+	limiter := NewIPRateLimiter(rate.Limit(5), 10)
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
@@ -65,7 +72,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 // LoginRateLimitMiddleware returns a stricter rate limiter for the login endpoint.
 // 5 requests per minute, burst 5 — limits brute-force attempts.
 func LoginRateLimitMiddleware() gin.HandlerFunc {
-	limiter := NewIPRateLimiter(5, 5)
+	limiter := NewIPRateLimiter(rate.Every(time.Minute/5), 5)
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()

@@ -45,12 +45,23 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		}
 
 		var stock int
-		err := tx.QueryRow(ctx, `SELECT COALESCE(quantity, 0) FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, item.ProductID).Scan(&stock)
+		err := tx.QueryRow(ctx, `SELECT COALESCE(quantity, 0) FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL FOR UPDATE`, item.ProductID).Scan(&stock)
 		if err != nil {
 			return fmt.Errorf("check stock for product %d: %w", item.ProductID, err)
 		}
 		if stock < item.Quantity {
 			return ErrInsufficientStock
+		}
+
+		newStock := stock - item.Quantity
+		_, err = tx.Exec(ctx, `
+			INSERT INTO product_stock (product_id, quantity, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (product_id)
+			DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
+		`, item.ProductID, newStock)
+		if err != nil {
+			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)
 		}
 
 		if s.priceStore != nil {

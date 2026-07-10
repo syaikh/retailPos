@@ -18,7 +18,7 @@ func NewService(repo *Repository, eventBus EventBus) *Service {
 // ==================== USER ====================
 
 func (s *Service) GetUserByID(ctx context.Context, id int) (*User, error) {
-	user, err := s.repo.GetByID(id)
+	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *Service) CreateUser(ctx context.Context, user *User) error {
 }
 
 func (s *Service) UpdateUser(ctx context.Context, user *User) error {
-	old, err := s.repo.GetByID(user.ID)
+	old, err := s.repo.GetByID(ctx, user.ID)
 	if err != nil {
 		return err
 	}

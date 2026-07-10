@@ -65,7 +65,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Greater(t, u.ID, 0)
 
-		got, err := repo.GetByID(u.ID)
+		got, err := repo.GetByID(ctx, u.ID)
 		require.NoError(t, err)
 		assert.Equal(t, u.Username, got.Username)
 		assert.Equal(t, u.Email, got.Email)
@@ -92,7 +92,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 	})
 
 	t.Run("Get user not found", func(t *testing.T) {
-		_, err := repo.GetByID(-1)
+		_, err := repo.GetByID(ctx, -1)
 		assert.ErrorContains(t, err, "user not found")
 
 		_, err = repo.GetByUsername(ctx, "nonexistent_user_xxx")
@@ -117,7 +117,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 		err := repo.UpdateUser(ctx, u)
 		require.NoError(t, err)
 
-		got, err := repo.GetByID(u.ID)
+		got, err := repo.GetByID(ctx, u.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "testuser_updated_nopw", got.Username)
 		assert.Equal(t, "updatednopw@test.com", got.Email)
@@ -139,7 +139,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 		err := repo.UpdateUser(ctx, u)
 		require.NoError(t, err)
 
-		got, err := repo.GetByID(u.ID)
+		got, err := repo.GetByID(ctx, u.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newHash, got.Password)
 	})
@@ -157,7 +157,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 		err := repo.DeleteUser(ctx, u.ID)
 		require.NoError(t, err)
 
-		_, err = repo.GetByID(u.ID)
+		_, err = repo.GetByID(ctx, u.ID)
 		assert.ErrorContains(t, err, "user not found")
 
 		_, err = repo.GetByUsername(ctx, "testuser_delete")
@@ -177,7 +177,7 @@ func TestUserRepository_UserCRUD(t *testing.T) {
 		err := repo.UpdateLastLogin(ctx, u.ID)
 		require.NoError(t, err)
 
-		got, err := repo.GetByID(u.ID)
+		got, err := repo.GetByID(ctx, u.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, got.LastLogin)
 	})

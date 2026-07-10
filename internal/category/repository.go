@@ -66,6 +66,9 @@ func (r *Repository) ListCategories(ctx context.Context) ([]Category, error) {
 		c.UpdatedAt = ""
 		categories = append(categories, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return categories, nil
 }
 
@@ -125,6 +128,9 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		categories = append(categories, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 	return categories, total, nil
 }
@@ -276,6 +282,9 @@ func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category,
 		}
 		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		categories = append(categories, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return categories, nil
 }

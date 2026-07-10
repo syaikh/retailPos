@@ -1,7 +1,9 @@
 package customer
 
 import (
+	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -9,6 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type Handler struct {
 	svc *Service
@@ -26,6 +30,20 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.DELETE("/customers/:id", auth, perm("customer:delete"), h.DeleteCustomer)
 	r.POST("/customers/bulk/status", auth, perm("customer:update"), h.BulkUpdateCustomerStatus)
 	r.POST("/customers/bulk/delete", auth, perm("customer:delete"), h.BulkDeleteCustomers)
+}
+
+func validateCustomerEmail(email string) error {
+	if email != "" && !emailRegex.MatchString(email) {
+		return fmt.Errorf("invalid email format")
+	}
+	return nil
+}
+
+func validateCustomerPhone(phone string) error {
+	if phone == "" {
+		return fmt.Errorf("phone is required")
+	}
+	return nil
 }
 
 func (h *Handler) GetCustomers(c *gin.Context) {
@@ -90,6 +108,15 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		return
 	}
 
+	if err := validateCustomerEmail(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateCustomerPhone(req.Phone); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	customer := &Customer{
 		Name:     req.Name,
 		Phone:    &req.Phone,
@@ -119,11 +146,24 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		Email    *string `json:"email"`
 		Address  *string `json:"address"`
 		Note     *string `json:"note"`
-		IsActive bool    `json:"is_active"`
+		IsActive *bool   `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	if req.Email != nil {
+		if err := validateCustomerEmail(*req.Email); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.Phone != nil {
+		if err := validateCustomerPhone(*req.Phone); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	customer := &Customer{
@@ -133,7 +173,9 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		Email:    req.Email,
 		Address:  req.Address,
 		Note:     req.Note,
-		IsActive: req.IsActive,
+	}
+	if req.IsActive != nil {
+		customer.IsActive = *req.IsActive
 	}
 
 	if err := h.svc.UpdateCustomer(c.Request.Context(), customer, id); err != nil {
