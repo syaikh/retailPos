@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -50,7 +52,7 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 
 	customers, total, err := h.svc.GetAllCustomers(c.Request.Context(), limit, offset, search, isActive)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	if customers == nil {
@@ -68,7 +70,7 @@ func (h *Handler) GetCustomerByID(c *gin.Context) {
 
 	customer, err := h.svc.GetCustomerByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": customer})
@@ -98,7 +100,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateCustomer(c.Request.Context(), customer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": customer})
@@ -135,7 +137,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateCustomer(c.Request.Context(), customer, id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": customer})
@@ -149,7 +151,7 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 	}
 
 	if err := h.svc.DeleteCustomer(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -166,7 +168,7 @@ func (h *Handler) BulkUpdateCustomerStatus(c *gin.Context) {
 	}
 
 	if err := h.svc.BulkUpdateCustomersStatus(c.Request.Context(), req.IDs, req.IsActive); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
@@ -182,7 +184,7 @@ func (h *Handler) BulkDeleteCustomers(c *gin.Context) {
 	}
 
 	if err := h.svc.BulkDeleteCustomers(c.Request.Context(), req.IDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

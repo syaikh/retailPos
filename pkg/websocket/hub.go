@@ -37,12 +37,12 @@ const (
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return true
+		return false
 	}
-	if strings.HasPrefix(origin, "http://localhost") ||
-		strings.HasPrefix(origin, "http://127.0.0.1") ||
-		strings.HasPrefix(origin, "http://192.168.") ||
-		strings.HasPrefix(origin, "http://10.") {
+	if origin == "http://localhost:5173" ||
+		origin == "http://localhost:9095" ||
+		origin == "http://127.0.0.1:5173" ||
+		origin == "http://127.0.0.1:9095" {
 		return true
 	}
 	allowedOrigin := os.Getenv("CORS_ORIGIN")

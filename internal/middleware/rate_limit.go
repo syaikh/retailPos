@@ -49,13 +49,28 @@ func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 // RateLimitMiddleware returns a gin handler that limits requests per IP.
 // Exclude sensitive endpoints if needed.
 func RateLimitMiddleware() gin.HandlerFunc {
-	// 5 requests per second, burst 10
+	// 5 requests per second, burst 10 (300 req/min)
 	limiter := NewIPRateLimiter(5, 10)
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		if !limiter.GetLimiter(ip).Allow() {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
+			return
+		}
+		c.Next()
+	}
+}
+
+// LoginRateLimitMiddleware returns a stricter rate limiter for the login endpoint.
+// 5 requests per minute, burst 5 — limits brute-force attempts.
+func LoginRateLimitMiddleware() gin.HandlerFunc {
+	limiter := NewIPRateLimiter(5, 5)
+
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		if !limiter.GetLimiter(ip).Allow() {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts. try again later."})
 			return
 		}
 		c.Next()

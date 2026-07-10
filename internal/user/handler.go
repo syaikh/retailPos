@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -88,7 +90,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 
 	users, total, err := h.svc.GetAllUsers(c.Request.Context(), limit, offset, search, sortBy, sortDir, roleID, isActive)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": users, "total": total})
@@ -113,6 +115,11 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	if len(req.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 14)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
@@ -134,7 +141,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateUser(c.Request.Context(), user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	user.Password = ""
@@ -197,7 +204,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateUser(c.Request.Context(), existing); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	existing.Password = ""
@@ -211,7 +218,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		return
 	}
 	if err := h.svc.DeleteUser(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -220,7 +227,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 func (h *Handler) ListRoles(c *gin.Context) {
 	roles, err := h.svc.GetAllRoles(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": roles})
@@ -237,7 +244,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		Description: req.Description,
 	}
 	if err := h.svc.CreateRole(c.Request.Context(), role); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": role})
@@ -266,7 +273,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		existing.Description = *req.Description
 	}
 	if err := h.svc.UpdateRole(c.Request.Context(), existing); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": existing})
@@ -284,12 +291,12 @@ func (h *Handler) UpdateRolePermissions(c *gin.Context) {
 		return
 	}
 	if err := h.svc.UpdateRolePermissions(c.Request.Context(), id, req.PermissionIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	role, err := h.svc.GetRoleByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": role})
@@ -303,7 +310,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 	}
 	count, err := h.svc.CountUsersByRole(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	if count > 0 {
@@ -311,7 +318,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		return
 	}
 	if err := h.svc.DeleteRole(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -320,7 +327,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 func (h *Handler) ListPermissions(c *gin.Context) {
 	permissions, err := h.svc.GetAllPermissions(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": permissions})

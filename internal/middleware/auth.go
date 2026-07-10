@@ -134,11 +134,6 @@ func extractToken(c *gin.Context) string {
 		}
 	}
 
-	token := c.Query("token")
-	if token != "" {
-		return token
-	}
-
 	cookie, err := c.Cookie("access_token")
 	if err == nil && cookie != "" {
 		return cookie

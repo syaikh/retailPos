@@ -175,7 +175,7 @@ func TestSaleService_ReadOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("GetSaleByID", func(t *testing.T) {
-		got, err := svc.GetSaleByID(ctx, sale.ID)
+		got, err := svc.GetSaleByID(ctx, sale.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, sale.InvoiceNumber, got.InvoiceNumber)
 		assert.Equal(t, "QRIS", got.PaymentMethod)

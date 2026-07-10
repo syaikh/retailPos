@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,7 +28,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 func (h *Handler) ListCategories(c *gin.Context) {
 	categories, err := h.svc.ListCategories(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	if categories == nil {
@@ -51,7 +53,7 @@ func (h *Handler) ListCategoriesManagement(c *gin.Context) {
 
 	categories, total, err := h.svc.GetAllCategories(c.Request.Context(), limit, offset, search)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": categories, "total": total})
@@ -66,7 +68,7 @@ func (h *Handler) CreateCategoryHandler(c *gin.Context) {
 
 	category, err := h.svc.CreateCategory(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": category})
@@ -87,7 +89,7 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 
 	category, err := h.svc.UpdateCategory(c.Request.Context(), id, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": category})
@@ -101,7 +103,7 @@ func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
 	}
 
 	if err := h.svc.DeleteCategory(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})

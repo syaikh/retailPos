@@ -60,12 +60,11 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		csrfToken := c.GetHeader("X-CSRF-Token")
-		if csrfToken == "" || csrfToken != "1" {
-			c.AbortWithStatusJSON(403, gin.H{"error": "CSRF token missing or invalid"})
+		if c.Request.Header.Get("X-Requested-With") != "" {
+			c.Next()
 			return
 		}
 
-		c.Next()
+		c.AbortWithStatusJSON(403, gin.H{"error": "CSRF token missing or invalid"})
 	}
 }

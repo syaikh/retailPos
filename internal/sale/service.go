@@ -8,6 +8,7 @@ import (
 
 var ErrInsufficientStock = errors.New("insufficient stock")
 var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
+var ErrSaleNotFound = errors.New("sale not found")
 
 type EventBus interface {
 	Publish(ctx context.Context, topic string, event interface{}) error
@@ -90,8 +91,8 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 	return nil
 }
 
-func (s *Service) GetSaleByID(ctx context.Context, id int) (*Sale, error) {
-	return s.repo.GetSaleByID(ctx, id)
+func (s *Service) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
+	return s.repo.GetSaleByID(ctx, id, storeID)
 }
 
 func (s *Service) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {

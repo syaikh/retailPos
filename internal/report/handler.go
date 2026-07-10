@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
@@ -246,18 +247,21 @@ func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 
 func (h *Handler) GetDashboardStats(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	stats, err := h.svc.GetDashboardStats(ctx, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
 	liveRevenue, liveSales, totalProducts, lowStock, err := h.svc.GetLiveDashboardStats(ctx, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -279,12 +283,15 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 
 func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	todaysRevenue, todaysSales, totalProducts, lowStockCount, err := h.svc.GetLiveDashboardStats(ctx, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -300,7 +307,10 @@ func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 
 func (h *Handler) GetSalesChartData(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	jakartaLoc := config.Load().Timezone
@@ -325,7 +335,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	if startDate.Equal(endDate) {
 		data, err := h.svc.GetHourlySales(ctx, sid, startDate)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			shared.InternalError(c, err)
 			return
 		}
 		if prevStartStr != "" && prevEndStr != "" {
@@ -336,7 +346,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			}
 			prevData, err := h.svc.GetHourlySales(ctx, sid, prevStart)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				shared.InternalError(c, err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"data": gin.H{"current": data, "previous": prevData}})
@@ -363,7 +373,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate, prevStart, prevEnd)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			shared.InternalError(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"current": current, "previous": previous}})
@@ -372,7 +382,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 	data, err := h.svc.GetDailySales(ctx, sid, startDate, endDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": data})
@@ -380,7 +390,10 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 
 func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	jakartaLoc := config.Load().Timezone
@@ -403,7 +416,7 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 
 	data, err := h.svc.GetSalesWeeklyReport(ctx, sid, startDate, endDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": data})
@@ -411,7 +424,10 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 
 func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	jakartaLoc := config.Load().Timezone
@@ -449,7 +465,7 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 
 		current, previous, err := h.svc.GetDualMonthlyReport(ctx, sid, startDate, endDate, prevStart, prevEnd)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			shared.InternalError(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"current": current, "previous": previous}})
@@ -458,7 +474,7 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 
 	data, err := h.svc.GetSalesMonthlyReport(ctx, sid, startDate, endDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": data})
@@ -492,7 +508,7 @@ func (h *Handler) GetPeriodComparison(c *gin.Context) {
 
 	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -533,7 +549,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 
 	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -578,18 +594,21 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Header("Content-Disposition", "attachment; filename=dashboard_export.xlsx")
 	if err := f.Write(c.Writer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 	}
 }
 
 func (h *Handler) GetAvailableYears(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
-	sid, _ := storeID.(int)
+	sid := 0
+	if ptr, ok := storeID.(*int); ok && ptr != nil {
+		sid = *ptr
+	}
 	ctx := c.Request.Context()
 
 	years, err := h.svc.GetAvailableYears(ctx, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 

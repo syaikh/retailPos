@@ -13,6 +13,7 @@ import (
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/template"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
@@ -125,13 +126,13 @@ func (h *Handler) DownloadTemplate(c *gin.Context) {
 
 	adapter, err := h.adapterReg.Get(module)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
 	refData, err := adapter.Repository().LoadReferences(c.Request.Context(), s)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("load references: %v", err)})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -147,7 +148,7 @@ func (h *Handler) DownloadTemplate(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-template.xlsx"`, module))
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	if err := h.templateEng.Generate(s, refDataFlat, c.Writer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("generate template: %v", err)})
+		shared.InternalError(c, err)
 	}
 }
 
@@ -159,12 +160,20 @@ func (h *Handler) Preview(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required or too large (max 10MB)"})
 		return
 	}
 	defer file.Close()
+
+	filename := strings.ToLower(header.Filename)
+	if !strings.HasSuffix(filename, ".csv") && !strings.HasSuffix(filename, ".xlsx") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file format. only .csv and .xlsx files are allowed"})
+		return
+	}
 
 	result, err := h.importEng.Preview(c.Request.Context(), module, header.Filename, file)
 	if err != nil {
@@ -194,7 +203,7 @@ func (h *Handler) Confirm(c *gin.Context) {
 
 	jobID, err := h.importEng.StartImport(c.Request.Context(), token, userIDInt, storeID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -246,7 +255,7 @@ func (h *Handler) ListImportHistory(c *gin.Context) {
 
 	jobs, err := h.progressEng.ListJobs(c.Request.Context(), module, 50)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -270,13 +279,13 @@ func (h *Handler) Export(c *gin.Context) {
 
 	adapter, err := h.adapterReg.Get(module)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
 	data, err := adapter.Repository().ExportData(c.Request.Context(), s)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("export data: %v", err)})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -290,7 +299,7 @@ func (h *Handler) Export(c *gin.Context) {
 	}
 
 	if err := h.exportEng.Export(c.Writer, s, data, expFormat); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("export: %v", err)})
+		shared.InternalError(c, err)
 	}
 }
 
@@ -320,11 +329,11 @@ func (h *Handler) GetImportDetail(c *gin.Context) {
 
 	snapshot, err := h.historyStore.GetSnapshot(c.Request.Context(), jobID)
 	if err != nil {
-		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
-			status = http.StatusNotFound
+			c.JSON(http.StatusNotFound, gin.H{"error": "snapshot not found"})
+			return
 		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -354,11 +363,11 @@ func (h *Handler) GetImportRows(c *gin.Context) {
 
 	rows, err := h.historyStore.GetRows(c.Request.Context(), jobID)
 	if err != nil {
-		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
-			status = http.StatusNotFound
+			c.JSON(http.StatusNotFound, gin.H{"error": "rows not found"})
+			return
 		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 

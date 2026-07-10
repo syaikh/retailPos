@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -90,16 +91,29 @@ func main() {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://pos:admin123@localhost:5433/retail_pos?sslmode=disable&timezone=Asia/Jakarta"
+		sslmode := "disable"
+		if cfg.Env == "production" {
+			sslmode = "require"
+		}
+		dbUser := os.Getenv("DB_USER")
+		dbPass := os.Getenv("DB_PASSWORD")
+		dbHost := os.Getenv("DB_HOST")
+		dbPort := os.Getenv("DB_PORT")
+		dbName := os.Getenv("DB_NAME")
+		if dbHost == "" {
+			log.Fatal("FATAL: DB_HOST environment variable is required when DATABASE_URL is not set")
+		}
+		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=Asia/Jakarta",
+			dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
 	}
 	dbPool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		panic(fmt.Sprintf("Unable to connect to database: %v\n", err))
+		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 	defer dbPool.Close()
 
 	if err := dbPool.Ping(context.Background()); err != nil {
-		panic(fmt.Sprintf("Unable to ping database: %v\n", err))
+		log.Fatalf("Unable to ping database: %v\n", err)
 	}
 	fmt.Println("Connected to PostgreSQL")
 
@@ -201,7 +215,9 @@ func main() {
 	brandH.RegisterPublicRoutes(router.Group("/api"))
 	uomH.RegisterPublicRoutes(router.Group("/api"))
 
+	authH.RegisterLoginRoute(router.Group("/api"), middleware.LoginRateLimitMiddleware())
 	authH.RegisterRoutes(router.Group("/api"), authMiddleware, permMiddleware)
+	authH.RegisterRefreshRoute(router.Group("/api"), middleware.CSRFMiddleware())
 	protected := router.Group("/api")
 	protected.Use(authMiddleware)
 	protected.Use(middleware.CSRFMiddleware())

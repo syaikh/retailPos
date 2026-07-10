@@ -143,7 +143,7 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 		prodID := insertTestProduct(t, ctx, "REPO-GET-001", "Get Test Product", 20000, 30)
 		sale := createAndCommitSale(t, ctx, repo, "INV-REPO-GET-001", prodID, 2, 20000, 40000, 40000, 0)
 
-		got, err := repo.GetSaleByID(ctx, sale.ID)
+		got, err := repo.GetSaleByID(ctx, sale.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, sale.InvoiceNumber, got.InvoiceNumber)
 		assert.Equal(t, sale.CashierID, got.CashierID)
@@ -159,7 +159,7 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("get sale by ID not found", func(t *testing.T) {
-		_, err := repo.GetSaleByID(ctx, -1)
+		_, err := repo.GetSaleByID(ctx, -1, nil)
 		assert.ErrorContains(t, err, "sale not found")
 	})
 

@@ -109,7 +109,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			shared.JSONError(c, http.StatusConflict, "insufficient stock")
 			return
 		}
-		shared.JSONError(c, http.StatusInternalServerError, err.Error())
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -182,7 +182,7 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 
 	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal)
 	if err != nil {
-		shared.JSONError(c, http.StatusInternalServerError, err.Error())
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -198,13 +198,16 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 		return
 	}
 
-	sale, err := h.svc.GetSaleByID(ctx, id)
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	sale, err := h.svc.GetSaleByID(ctx, id, storeIDPtr)
 	if err != nil {
-		if err.Error() == "sale not found" {
+		if errors.Is(err, ErrSaleNotFound) {
 			shared.JSONError(c, http.StatusNotFound, err.Error())
 			return
 		}
-		shared.JSONError(c, http.StatusInternalServerError, err.Error())
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -244,7 +247,7 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	ctx := c.Request.Context()
 	rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal)
 	if err != nil {
-		shared.JSONError(c, http.StatusInternalServerError, err.Error())
+		shared.InternalError(c, err)
 		return
 	}
 
@@ -309,7 +312,7 @@ func (h *Handler) ListPaymentMethods(c *gin.Context) {
 	ctx := c.Request.Context()
 	methods, err := h.svc.GetAllPaymentMethods(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": methods})

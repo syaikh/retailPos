@@ -20,10 +20,16 @@ func NewAuthHandler(svc *AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/login", h.Login)
-	r.POST("/refresh", h.RefreshToken)
 	r.POST("/validate", auth, h.ValidateSession)
 	r.POST("/logout", auth, h.Logout)
+}
+
+func (h *AuthHandler) RegisterRefreshRoute(r *gin.RouterGroup, csrf gin.HandlerFunc) {
+	r.POST("/refresh", csrf, h.RefreshToken)
+}
+
+func (h *AuthHandler) RegisterLoginRoute(r *gin.RouterGroup, loginRateLimit gin.HandlerFunc) {
+	r.POST("/login", loginRateLimit, h.Login)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -45,6 +51,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	domain := os.Getenv("COOKIE_DOMAIN")
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", resp.RefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  resp.AccessToken,
@@ -71,6 +78,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	domain := os.Getenv("COOKIE_DOMAIN")
 	secure := os.Getenv("COOKIE_SECURE") == "true"
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", newRefreshToken, int(7*24*time.Hour/time.Second), "/", domain, secure, true)
 
 	c.JSON(http.StatusOK, gin.H{"access_token": accessToken, "refresh_token": newRefreshToken})
@@ -125,13 +133,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	if refreshToken != "" {
 		if err := h.svc.Logout(c.Request.Context(), id, refreshToken); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			shared.InternalError(c, err)
 			return
 		}
 	}
 
 	domain := os.Getenv("COOKIE_DOMAIN")
 	secure := os.Getenv("COOKIE_SECURE") == "true"
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", "", -1, "/", domain, secure, true)
 
 	c.JSON(http.StatusOK, gin.H{"status": "logged out"})

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,7 +46,7 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		return
 	}
 	if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, uid, req.Notes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		shared.InternalError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})

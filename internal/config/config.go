@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -45,6 +46,7 @@ func Load() *Config {
 	env := os.Getenv("ENV")
 	if env == "" {
 		env = "development"
+		log.Println("WARNING: ENV environment variable not set, defaulting to 'development'. Set ENV=production for production deployments.")
 	}
 
 	corsOrigin := os.Getenv("CORS_ORIGIN")

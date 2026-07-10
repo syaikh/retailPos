@@ -114,26 +114,32 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	return nil
 }
 
-func (r *Repository) GetSaleByID(ctx context.Context, id int) (*Sale, error) {
+func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	var sale Sale
-	var storeID sql.NullInt64
+	var storeIDFromDB sql.NullInt64
 	var createdAt, updatedAt time.Time
 
-	err := r.db.QueryRow(ctx, `
+	query := `
 		SELECT s.id, s.invoice_number, s.cashier_id, s.customer_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
-		WHERE s.id = $1
-	`, id).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID, &sale.Subtotal, &sale.Discount, &sale.Tax,
+		WHERE s.id = $1`
+	args := []interface{}{id}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND s.store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+
+	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID, &sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt, &sale.CustomerName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("sale not found")
+			return nil, ErrSaleNotFound
 		}
 		return nil, err
 	}
-	if storeID.Valid {
-		v := int(storeID.Int64)
+	if storeIDFromDB.Valid {
+		v := int(storeIDFromDB.Int64)
 		sale.StoreID = &v
 	}
 	sale.CreatedAt = createdAt.Format(time.RFC3339)
