@@ -872,6 +872,10 @@ API endpoints are documented in code handlers. Key endpoints:
 | GET | `/api/import-export/history/:module/:jobId` | Import job detail + snapshot | Yes |
 | GET | `/api/import-export/history/:module/:jobId/rows` | Import row results | Yes |
 | GET | `/api/import-export/export/:module` | Export data (CSV/XLSX) | Yes |
+| GET | `/api/audit-logs` | List audit logs (paginated, filterable) | Yes |
+| GET | `/api/audit-logs/entity-types` | List distinct entity types for filters | Yes |
+| GET | `/api/audit-logs/export` | Export audit logs (CSV/XLSX) | Yes |
+| POST | `/api/inventory/adjust` | Manual stock adjustment | Yes |
 | GET | `/ws` | WebSocket hub | Yes (token query) |
 
 ### Product Filtering
