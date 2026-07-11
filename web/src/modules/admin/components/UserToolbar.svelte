@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, SearchBar, Dropdown } from '$shared/ui';
-  import { Plus, ChevronDown, SlidersHorizontal, X } from 'lucide-svelte';
+  import { Button, SearchBar, Dropdown, FilterChipBar } from '$shared/ui';
+  import { Plus, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
 
   let {
     searchQuery = $bindable(''),
@@ -95,48 +95,5 @@
       </Button>
     {/if}
   </div>
-  <div class="filter-chips-wrapper" class:is-open={activeChips.length > 0}>
-    <div class="filter-chips-inner">
-      <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/50">
-        {#each activeChips as chip}
-          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-subtle/20 border border-primary-subtle/30 rounded-full text-sm text-text-secondary">
-            <SlidersHorizontal size={13} class="text-primary-light shrink-0" />
-            <span class="font-medium truncate max-w-[180px]">{chip.label}</span>
-            <button
-              class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
-              onclick={() => clearFilter(chip.type)}
-              aria-label="Hapus filter"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        {/each}
-        <button
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-primary bg-surface-default/50 border border-border/50 rounded-full transition-colors"
-          onclick={onclearall}
-        >
-          Clear all
-          <X size={12} />
-        </button>
-      </div>
-    </div>
-  </div>
+  <FilterChipBar chips={activeChips} onclear={clearFilter} onclearall={onclearall} clearLabel="Clear all" />
 </div>
-
-<style>
-  .filter-chips-wrapper {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transition: grid-template-rows 0.2s ease-out, opacity 0.2s ease-out;
-  }
-
-  .filter-chips-wrapper.is-open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-
-  .filter-chips-inner {
-    overflow: hidden;
-  }
-</style>

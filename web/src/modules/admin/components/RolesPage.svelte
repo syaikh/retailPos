@@ -5,7 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
 
-  import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui';
+  import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -602,26 +602,17 @@
   {#snippet footer()}<Button variant="secondary" onclick={cancelDiscard}>Keep Editing</Button><Button variant="danger" onclick={confirmDiscard}>Discard</Button>{/snippet}
 </Modal>
 
-<!-- Delete Confirmation -->
-<Modal bind:open={showDeleteModal} title="Delete Role" size="sm">
-  <div class="text-center py-2">
-    <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4"><Trash2 size={24} class="text-danger" /></div>
-    <p class="text-text-primary font-semibold mb-1">Delete role "{selectedRole?.name}"?</p>
-    <p class="text-text-muted text-sm">This action cannot be undone. Make sure no users are currently assigned to this role before deleting.</p>
-  </div>
-  {#snippet footer()}<Button variant="secondary" onclick={() => { showDeleteModal = false; selectedRole = null; }}>Cancel</Button><Button variant="danger" onclick={confirmDelete}>Delete</Button>{/snippet}
-</Modal>
+<ConfirmDeleteModal bind:open={showDeleteModal} title="Delete Role" itemName={selectedRole?.name} description="This action cannot be undone. Make sure no users are currently assigned to this role before deleting." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
 
 <!-- Role Detail Drawer -->
-{#if showRoleDrawer && selectedRole}
-  <RoleDetailDrawer
-    {selectedRole}
-    {permissions}
-    {canEdit}
-    {canDelete}
-    onclose={closeRoleDrawer}
-    onedit={() => { showRoleDrawer = false; closeAll(); openEdit(selectedRole); }}
-    onduplicate={() => { showRoleDrawer = false; closeAll(); openDuplicate(selectedRole); }}
-    ondeleterequest={() => { showRoleDrawer = false; showDeleteModal = true; }}
-  />
-{/if}
+<RoleDetailDrawer
+  bind:open={showRoleDrawer}
+  {selectedRole}
+  {permissions}
+  {canEdit}
+  {canDelete}
+  onclose={closeRoleDrawer}
+  onedit={() => { showRoleDrawer = false; closeAll(); openEdit(selectedRole); }}
+  onduplicate={() => { showRoleDrawer = false; closeAll(); openDuplicate(selectedRole); }}
+  ondeleterequest={() => { showRoleDrawer = false; showDeleteModal = true; }}
+/>

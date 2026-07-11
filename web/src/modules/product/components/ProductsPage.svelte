@@ -5,7 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
-  import { Button, Modal, Pagination, ImportWizard } from '$shared/ui';
+  import { Button, Modal, Pagination, ImportWizard, ConfirmDeleteModal } from '$shared/ui';
   import CategoryFilterModal from '$modules/product/components/CategoryFilterModal.svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
   import ProductFormModal from '$modules/product/components/ProductFormModal.svelte';
@@ -601,21 +601,7 @@
   onCancel={() => { showModal = false; }}
 />
 
-<Modal bind:open={showDeleteModal} title="Delete Product" size="sm">
-  <div class="text-center py-2">
-    <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
-      <Trash2 size={24} class="text-danger" />
-    </div>
-    <p class="text-text-primary font-semibold mb-1">Delete "{selectedProduct?.name}"?</p>
-    <p class="text-text-muted text-sm">This action cannot be undone and will remove the product from the catalog.</p>
-  </div>
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isDeleting} onclick={() => showDeleteModal = false}>Cancel</Button>
-    <Button variant="danger" class="px-5" disabled={isDeleting} onclick={() => handleDelete()}>
-      {isDeleting ? 'Deleting...' : 'Delete'}
-    </Button>
-  {/snippet}
-</Modal>
+<ConfirmDeleteModal bind:open={showDeleteModal} title="Delete Product" itemName={selectedProduct?.name} description="This action cannot be undone and will remove the product from the catalog." loading={isDeleting} onconfirm={handleDelete} oncancel={() => showDeleteModal = false} />
 
 <StockAdjustModal
   bind:open={showAdjustStockModal}
@@ -662,7 +648,6 @@
   isFullAudit={isFullAudit}
   isSuperAdmin={isSuperAdmin}
   isAdmin={isAdmin}
-  onclose={() => showDetailDrawer = false}
   onedit={() => {
     showDetailDrawer = false;
     modalMode = 'edit';

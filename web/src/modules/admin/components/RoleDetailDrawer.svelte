@@ -1,9 +1,9 @@
 <script>
-  import { fly } from 'svelte/transition';
-  import { Badge, Button } from '$shared/ui';
-  import { X, Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte';
+  import { Badge, Button, Drawer } from '$shared/ui';
+  import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte';
 
   let {
+    open = $bindable(false),
     selectedRole = null,
     permissions = [],
     canEdit = false,
@@ -46,39 +46,16 @@
     'pos': { label: 'POS', icon: Shield },
     'audit': { label: 'System', icon: Shield },
   };
-
-  function handleDrawerKeydown(e) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onclose();
-    }
-  }
 </script>
 
-<div class="fixed inset-0 bg-black/60 z-50" onclick={onclose} aria-hidden="true"></div>
-<div
-  class="fixed inset-y-0 right-0 w-[520px] max-w-full bg-surface-default border-l border-border shadow-2xl z-[55] flex flex-col transition-transform duration-300 ease-out"
-  transition:fly={{ x: 520, duration: 300, easing: t => t * (2 - t) }}
-  role="dialog" aria-modal="true" aria-labelledby="role-detail-heading" tabindex="-1"
-  onkeydown={handleDrawerKeydown}
->
-  <div class="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
-      <h2 id="role-detail-heading" class="text-lg font-bold text-text-primary">{selectedRole.name}</h2>
-      {#if selectedRole.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}
-    </div>
-    <button
-      class="p-2 rounded-lg text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors"
-      onclick={onclose}
-      onkeydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') { e.preventDefault(); onclose(); } }}
-      title="Close" aria-label="Close detail panel"
-    >
-      <X size={18} />
-    </button>
+<Drawer bind:open width={520} ariaLabel="Role detail" onclose={() => onclose()}>
+  <div class="flex items-center gap-3 mb-4">
+    <div class="w-9 h-9 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
+    <h2 class="text-lg font-bold text-text-primary">{selectedRole.name}</h2>
+    {#if selectedRole.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}
   </div>
 
-  <div class="flex-1 overflow-y-auto px-6 py-4 pb-28 space-y-4">
+  <div class="space-y-4">
     {#if selectedRole.description}
       <div class="rounded-2xl bg-surface-default border border-border p-4">
         <p class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">Description</p>
@@ -112,8 +89,8 @@
     </div>
   </div>
 
-  {#if canEdit || canDelete}
-    <div class="absolute bottom-0 left-0 right-0 p-4 bg-surface-default border-t border-border/50">
+  {#snippet footer()}
+    {#if canEdit || canDelete}
       <div class="flex items-center gap-3">
         {#if canEdit}
           <Button
@@ -141,6 +118,6 @@
           </Button>
         {/if}
       </div>
-    </div>
-  {/if}
-</div>
+    {/if}
+  {/snippet}
+</Drawer>

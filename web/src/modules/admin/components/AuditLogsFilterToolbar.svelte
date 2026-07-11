@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, Input, SearchBar, Dropdown } from '$shared/ui';
-  import { Search, RefreshCw, X, Download, FileSpreadsheet, CalendarDays, ChevronDown, List, Tag } from 'lucide-svelte';
+  import { Button, Input, SearchBar, Dropdown, FilterChipBar } from '$shared/ui';
+  import { Search, RefreshCw, Download, FileSpreadsheet, CalendarDays, ChevronDown, List, Tag } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
@@ -311,20 +311,22 @@
       filters.push({
         type: 'entity',
         label: resourceFilters.find((f) => f.id === selectedResource)?.label || selectedResource,
+        icon: getFilterIcon('entity'),
       });
     }
     if (selectedAction !== 'all') {
       filters.push({
         type: 'action',
         label: actionFilters.find((f) => f.id === selectedAction)?.label || selectedAction,
+        icon: getFilterIcon('action'),
       });
     }
     if (selectedDateRange !== '24h') {
       if (selectedDateRange === 'custom') {
-        filters.push({ type: 'date', label: `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}` });
+        filters.push({ type: 'date', label: `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}`, icon: getFilterIcon('date') });
       } else {
         const dr = dateRanges.find((d) => d.id === selectedDateRange);
-        if (dr) filters.push({ type: 'date', label: dr.label });
+        if (dr) filters.push({ type: 'date', label: dr.label, icon: getFilterIcon('date') });
       }
     }
     return filters;
@@ -505,50 +507,5 @@
     </Dropdown>
   </div>
 
-  <div class="filter-chips-wrapper" class:is-open={activeFilters.length > 0}>
-    <div class="filter-chips-inner">
-      <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border/50">
-        {#each activeFilters as filter}
-          {@const FilterIcon = getFilterIcon(filter.type)}
-          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-subtle/20 border border-primary-subtle/30 rounded-full text-sm text-text-secondary">
-            <FilterIcon size={13} class="text-primary-light shrink-0" />
-            <span class="font-medium truncate max-w-[180px]">{filter.label}</span>
-            <button
-              class="w-4 h-4 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
-              title={`Clear ${filter.label}`}
-              onclick={() => clearFilter(filter.type)}
-              aria-label={`Clear ${filter.label} filter`}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        {/each}
-        <button
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-text-primary bg-primary-subtle/40 border border-primary-subtle/50 rounded-full transition-colors hover:bg-primary-subtle/60"
-          onclick={clearAllFilters}
-        >
-          Clear all
-          <X size={12} />
-        </button>
-      </div>
-    </div>
-  </div>
+  <FilterChipBar chips={activeFilters} onclear={clearFilter} onclearall={clearAllFilters} clearLabel="Clear all" />
 </div>
-
-<style>
-  .filter-chips-wrapper {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transition: grid-template-rows 0.2s ease-out, opacity 0.2s ease-out;
-  }
-
-  .filter-chips-wrapper.is-open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-
-  .filter-chips-inner {
-    overflow: hidden;
-  }
-</style>

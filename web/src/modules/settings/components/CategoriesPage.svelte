@@ -8,7 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, ToggleSwitch, ConfirmDeleteModal } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -394,16 +394,7 @@ let canView = $derived(authStore.user != null);
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
-        <label class="flex items-center gap-3 cursor-pointer select-none group">
-          <div class="relative">
-            <input type="checkbox" class="sr-only peer" bind:checked={form.is_active} />
-            <div class="w-10 h-5 bg-surface-default border border-border rounded-full peer peer-checked:bg-primary-subtle peer-checked:border-primary/50 transition-colors"></div>
-            <div class="absolute left-1 top-1 w-3 h-3 bg-text-muted rounded-full peer-checked:translate-x-5 peer-checked:bg-primary-light transition-transform shadow-sm"></div>
-          </div>
-          <span class="text-sm font-medium text-text-secondary group-hover:text-text-primary transition-colors">
-            {form.is_active ? 'Aktif' : 'Tidak Aktif'}
-          </span>
-        </label>
+        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? 'Aktif' : 'Tidak Aktif'} />
       </div>
     {/if}
   </form>
@@ -427,17 +418,4 @@ let canView = $derived(authStore.user != null);
 />
 
 
-<!-- Delete Confirm Modal -->
-<Modal bind:open={showDeleteModal} title="Hapus Kategori" size="sm">
-  <div class="text-center py-2">
-    <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
-      <Trash2 size={24} class="text-danger" />
-    </div>
-    <p class="text-text-primary font-semibold mb-1">Hapus "{selectedCategory?.name}"?</p>
-    <p class="text-text-muted text-sm">Kategori ini akan dihapus secara permanen dan tidak dapat dikembalikan.</p>
-  </div>
-  {#snippet footer()}
-    <Button variant="secondary" onclick={() => showDeleteModal = false}>Batal</Button>
-    <Button variant="danger" onclick={confirmDelete}>Hapus</Button>
-  {/snippet}
-</Modal>
+<ConfirmDeleteModal bind:open={showDeleteModal} title="Hapus Kategori" itemName={selectedCategory?.name} confirmLabel="Hapus" cancelLabel="Batal" description="Kategori akan dihapus secara permanen dan tidak dapat dikembalikan." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />

@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { X, Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte';
-  import { ActionBadge } from '$shared/ui';
+  import { Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte';
+  import { ActionBadge, Drawer } from '$shared/ui';
   import { formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
-  import { fly } from 'svelte/transition';
 
   let {
     selectedLog = null,
@@ -188,23 +187,15 @@
   }
 </script>
 
-{#if drawerOpen && selectedLog}
-  {@const changes = getChanges(selectedLog)}
-  <button type="button" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onclick={onclose} aria-label="Close drawer"></button>
-  <div class="fixed right-0 top-0 bottom-0 w-full max-w-lg z-50 bg-bg border-l border-border shadow-2xl flex flex-col animate-slide-in" role="dialog" aria-modal="true" aria-label="Audit Log Details">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-      <div class="flex items-center gap-3">
-        <ActionBadge action={selectedLog.action} />
-        <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
-      </div>
-      <button type="button" class="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-hover transition-colors" onclick={onclose} aria-label="Close drawer">
-        <X size={18} />
-      </button>
+<Drawer bind:open={drawerOpen} width={520} ariaLabel="Audit Log Details" onclose={() => onclose()}>
+  {#if selectedLog}
+    {@const changes = getChanges(selectedLog)}
+    <div class="flex items-center gap-3 mb-4">
+      <ActionBadge action={selectedLog.action} />
+      <span class="font-mono text-sm text-text-muted bg-surface-default px-2 py-0.5 rounded border border-border/50">{selectedLog.entity_type}</span>
     </div>
 
-    <!-- Body -->
-    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+    <div class="space-y-5">
       <!-- Human-friendly summary -->
       <div class="bg-surface-default rounded-lg p-4 border border-border/50">
         <p class="text-sm text-text-primary leading-relaxed">
@@ -316,22 +307,10 @@
         </div>
       {/if}
     </div>
-  </div>
-{/if}
+  {/if}
+</Drawer>
 
 <style>
-  @keyframes slide-in {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
-    }
-  }
-  .animate-slide-in {
-    animation: slide-in 0.2s ease-out;
-  }
-
   :global(input[type="date"]::-webkit-calendar-picker-indicator) {
     filter: invert(1);
     cursor: pointer;
