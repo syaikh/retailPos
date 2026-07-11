@@ -245,6 +245,15 @@ func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 	}
 }
 
+// GetDashboardStats godoc
+// @Summary Get dashboard statistics
+// @Description Get today's revenue, sales, total products, and low stock count
+// @Tags reports
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /dashboard/stats [get]
 func (h *Handler) GetDashboardStats(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	sid := 0
@@ -259,12 +268,6 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 		return
 	}
 
-	liveRevenue, liveSales, totalProducts, lowStock, err := h.svc.GetLiveDashboardStats(ctx, sid)
-	if err != nil {
-		shared.InternalError(c, err)
-		return
-	}
-
 	yesterdayRevenue := stats.TotalRevenue - stats.TodaysRevenue
 	if yesterdayRevenue < 0 {
 		yesterdayRevenue = 0
@@ -272,11 +275,11 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"todays_revenue":    liveRevenue,
+			"todays_revenue":    stats.TodaysRevenue,
 			"yesterday_revenue": yesterdayRevenue,
-			"todays_sales":      liveSales,
-			"total_products":    totalProducts,
-			"low_stock_count":   lowStock,
+			"todays_sales":      stats.TodaysSales,
+			"total_products":    stats.TotalProducts,
+			"low_stock_count":   stats.LowStockCount,
 		},
 	})
 }
@@ -305,6 +308,19 @@ func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 	})
 }
 
+// GetSalesChartData godoc
+// @Summary Get sales chart data
+// @Description Get daily or hourly sales data for charting. Returns hourly data when startDate equals endDate.
+// @Tags reports
+// @Accept json
+// @Produce json
+// @Param startDate query string false "Start date (YYYY-MM-DD, Jakarta time)" default(7 days ago)
+// @Param endDate query string false "End date (YYYY-MM-DD, Jakarta time)" default(today)
+// @Param prevStart query string false "Previous period start date for comparison"
+// @Param prevEnd query string false "Previous period end date for comparison"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /dashboard/chart [get]
 func (h *Handler) GetSalesChartData(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	sid := 0
@@ -505,6 +521,18 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 
+// GetPeriodComparison godoc
+// @Summary Get period comparison
+// @Description Compare revenue, orders, and AOV between current and previous period
+// @Tags reports
+// @Accept json
+// @Produce json
+// @Param period query string false "Period type (daily, 7days, weekly, monthly, yearly)" default(daily)
+// @Param mode query string false "Comparison mode (realtime, completed, 30days)" default(realtime)
+// @Param date query string false "Reference date (YYYY-MM-DD, Jakarta time)" default(today)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /dashboard/comparison [get]
 func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := c.Request.Context()
 

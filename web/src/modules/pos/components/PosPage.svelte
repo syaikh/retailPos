@@ -149,14 +149,17 @@ const authStore = useAuthStore();
         return;
       }
       existing.quantity++;
-      cart = [...cart];
+      cart = cart;
     } else {
-      cart = [...cart, { ...product, quantity: 1 }];
+      cart.push({ ...product, quantity: 1 });
+      cart = cart;
     }
   }
 
   function removeFromCart(id) {
-    cart = cart.filter((item) => item.id !== id);
+    const idx = cart.findIndex((item) => item.id === id);
+    if (idx !== -1) cart.splice(idx, 1);
+    cart = cart;
   }
 
   function updateQty(id, delta) {
@@ -172,7 +175,7 @@ const authStore = useAuthStore();
       } else {
         item.quantity = newQty;
       }
-      cart = [...cart];
+      cart = cart;
     }
   }
 

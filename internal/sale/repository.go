@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -18,7 +18,7 @@ func init() {
 	var err error
 	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
 	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+		slog.Warn("failed to load Asia/Jakarta timezone, falling back to UTC", "error", err)
 		jakartaLoc = time.UTC
 	}
 }
@@ -28,7 +28,7 @@ func mustLoadJakarta() *time.Location {
 		var err error
 		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
 		if err != nil {
-			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
+			slog.Warn("failed to load Asia/Jakarta timezone, falling back to UTC", "error", err)
 			jakartaLoc = time.UTC
 		}
 	}
@@ -62,22 +62,12 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	sale.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 
 	for i := range items {
-		// 1. Insert sale item
 		_, err = tx.Exec(ctx, `
 			INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
 		`, sale.ID, items[i].ProductID, items[i].Quantity, items[i].UnitPrice, items[i].Subtotal, items[i].DPPAmount, items[i].TaxAmount)
 		if err != nil {
 			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
-		}
-
-		// 2. Record inventory movement (stock deduction handled by inventory.StockDeductListener via eventbus)
-		_, err = tx.Exec(ctx, `
-			INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-		`, items[i].ProductID, -items[i].Quantity, "sale", sale.ID, "sales", sale.CashierID, fmt.Sprintf("Sale %s", sale.InvoiceNumber))
-		if err != nil {
-			return fmt.Errorf("failed to record inventory movement for product %d: %w", items[i].ProductID, err)
 		}
 	}
 
@@ -123,12 +113,12 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 			WHERE si.sale_id = $1
 		`, sale.ID)
 	if err != nil {
-		log.Printf("Warning: failed to load items for sale %d: %v", sale.ID, err)
+		slog.Warn("failed to load items for sale", "sale_id", sale.ID, "error", err)
 	} else {
 		for itemRows.Next() {
 			var item SaleItem
 			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal, &item.DPPAmount, &item.TaxAmount); scanErr != nil {
-				log.Printf("Warning: failed to scan item row: %v", scanErr)
+				slog.Warn("failed to scan item row", "sale_id", sale.ID, "error", scanErr)
 				continue
 			}
 			sale.Items = append(sale.Items, item)

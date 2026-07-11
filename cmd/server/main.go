@@ -30,6 +30,7 @@ import (
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 	"retail-pos-system/pkg/websocket"
@@ -84,6 +85,7 @@ func main() {
 	time.Local = loc
 
 	cfg := config.Load()
+	shared.InitLogger(cfg.Env)
 
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -118,6 +120,7 @@ func main() {
 	fmt.Println("Connected to PostgreSQL")
 
 	bus := eventbus.New()
+	bus.SetDeadLetterStore(eventbus.NewPgDeadLetterStore(dbPool))
 	go bus.Run()
 	defer bus.Shutdown()
 
@@ -216,24 +219,25 @@ func main() {
 	uomH.RegisterPublicRoutes(router.Group("/api"))
 
 	authH.RegisterLoginRoute(router.Group("/api"), middleware.LoginRateLimitMiddleware())
-	authH.RegisterRoutes(router.Group("/api"), authMiddleware, permMiddleware)
+	authH.RegisterRoutes(router.Group("/api"), authMiddleware, middleware.CSRFMiddleware(), permMiddleware)
 	authH.RegisterRefreshRoute(router.Group("/api"), middleware.RefreshRateLimitMiddleware(), middleware.CSRFMiddleware())
-	authH.RegisterChangePasswordRoute(router.Group("/api"), authMiddleware)
+	authH.RegisterChangePasswordRoute(router.Group("/api"), authMiddleware, middleware.CSRFMiddleware())
 	protected := router.Group("/api")
 	protected.Use(authMiddleware)
 	protected.Use(middleware.CSRFMiddleware())
+	noopAuth := func(c *gin.Context) { c.Next() }
 	{
-		productH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		saleH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		inventoryH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		customerH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		categoryH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		userH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		auditH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		reportH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		brandH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		uomH.RegisterRoutes(protected, authMiddleware, permMiddleware)
-		ieH.RegisterRoutes(protected, authMiddleware, permMiddleware)
+		productH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		saleH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		inventoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		customerH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		categoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		userH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		auditH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		reportH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		brandH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		uomH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		ieH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {
@@ -250,7 +254,7 @@ func main() {
 		Addr:         addr,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

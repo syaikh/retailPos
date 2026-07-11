@@ -128,10 +128,10 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 		err = tx.Commit(ctx)
 		require.NoError(t, err)
 
-		var movCount int
-		err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM inventory_movements WHERE product_id = $1 AND type = 'sale' AND reference_id = $2`, prodID, sale.ID).Scan(&movCount)
+		var itemCount int
+		err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM sale_items WHERE sale_id = $1`, sale.ID).Scan(&itemCount)
 		require.NoError(t, err)
-		assert.Equal(t, 1, movCount)
+		assert.Equal(t, 1, itemCount)
 	})
 
 	t.Run("get sale by ID with items", func(t *testing.T) {

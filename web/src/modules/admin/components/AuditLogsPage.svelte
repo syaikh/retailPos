@@ -21,10 +21,10 @@
   let searchQuery = $state('');
   let selectedAction = $state('all');
   let selectedResource = $state('all');
-  let selectedDateRange = $state('24h');
+  let selectedDateRange = $state('7d');
   let showDatePicker = $state(false);
 
-  let customStartDate = $state(getDateNDaysAgoInJakarta(1));
+  let customStartDate = $state(getDateNDaysAgoInJakarta(7));
   let customEndDate = $state(getTodayInJakarta());
 
   // Request tracking to prevent duplicate requests

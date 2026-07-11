@@ -413,12 +413,12 @@
   }
 
   let userRoleName = $derived(getUserRoleName());
-  let isSuperAdmin = $derived(() => getUserRoleName() === 'superadmin');
-  let isAdmin = $derived(() => getUserRoleName() === 'admin');
+  let isSuperAdmin = $derived.by(() => getUserRoleName() === 'superadmin');
+  let isAdmin = $derived.by(() => getUserRoleName() === 'admin');
   let canCreate = $derived(['superadmin', 'admin'].includes(userRoleName));
-  let isSensitive = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
-  let isFullAudit = $derived(() => ['superadmin', 'admin'].includes(getUserRoleName()));
-  let canEdit = $derived(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
+  let isSensitive = $derived.by(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
+  let isFullAudit = $derived.by(() => ['superadmin', 'admin'].includes(getUserRoleName()));
+  let canEdit = $derived.by(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
 
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
@@ -545,8 +545,8 @@
       bind:sortDir
       bind:showCopySuccess
       onsort={handleSort}
-      canEdit={canEdit()}
-      canDelete={isSuperAdmin() || isAdmin()}
+      canEdit={canEdit}
+      canDelete={isSuperAdmin || isAdmin}
       canAdjustStock={allowedStockRoles.includes(getUserRoleName())}
       {warningThreshold}
       {criticalThreshold}
@@ -595,8 +595,8 @@
   {taxClasses}
   {categories}
   {saving}
-  isSuperAdmin={isSuperAdmin()}
-  isAdmin={isAdmin()}
+  isSuperAdmin={isSuperAdmin}
+  isAdmin={isAdmin}
   onSubmit={() => { modalMode === 'add' ? handleAdd() : handleUpdate(); }}
   onCancel={() => { showModal = false; }}
 />
@@ -656,12 +656,12 @@
   {selectedProduct}
   {warningThreshold}
   {criticalThreshold}
-  canEdit={canEdit()}
-  canDelete={isSuperAdmin() || isAdmin()}
-  isSensitive={isSensitive()}
-  isFullAudit={isFullAudit()}
-  isSuperAdmin={isSuperAdmin()}
-  isAdmin={isAdmin()}
+  canEdit={canEdit}
+  canDelete={isSuperAdmin || isAdmin}
+  isSensitive={isSensitive}
+  isFullAudit={isFullAudit}
+  isSuperAdmin={isSuperAdmin}
+  isAdmin={isAdmin}
   onclose={() => showDetailDrawer = false}
   onedit={() => {
     showDetailDrawer = false;

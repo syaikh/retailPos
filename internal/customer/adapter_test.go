@@ -52,6 +52,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Address:  "Jl. Merdeka No.1",
 				Note:     "VIP customer",
 				IsActive: true,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -64,6 +65,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      2,
 				Name:     "Jane Smith",
 				IsActive: true,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -93,6 +95,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Name:     "DefaultActive",
 				Phone:    "081111111",
 				IsActive: true,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -106,6 +109,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      6,
 				Name:     "InactiveGuy",
 				IsActive: false,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -119,6 +123,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      7,
 				Name:     "YesMan",
 				IsActive: true,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -132,6 +137,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      8,
 				Name:     "NumberOne",
 				IsActive: true,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -145,6 +151,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      9,
 				Name:     "Maybe",
 				IsActive: false,
+				StoreID:  nil,
 			},
 		},
 		{
@@ -156,6 +163,21 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				Row:      0,
 				Name:     "ZeroRow",
 				IsActive: true,
+				StoreID:  nil,
+			},
+		},
+		{
+			name: "with store_id",
+			row: map[string]interface{}{
+				"_row":      10,
+				"_store_id": 42,
+				"Name":      "StoreOwner",
+			},
+			want: CustomerImportRow{
+				Row:      10,
+				Name:     "StoreOwner",
+				IsActive: true,
+				StoreID:  intPtr(42),
 			},
 		},
 	}
@@ -200,6 +222,8 @@ func TestStrVal(t *testing.T) {
 		})
 	}
 }
+
+func intPtr(i int) *int { return &i }
 
 func ptrHelper(s string) *string {
 	return &s

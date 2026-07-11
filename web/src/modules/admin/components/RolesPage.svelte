@@ -56,7 +56,7 @@
   }
 
   // ── Filtered + sorted roles ─────────────────────────────────────
-  let filteredRoles = $derived(() => {
+  let filteredRoles = $derived.by(() => {
     let result = [...roles];
     if (roleSearchDebounced) {
       result = result.filter(r =>
@@ -80,12 +80,12 @@
   });
 
   // ── Paginated roles ──────────────────────────────────────────────
-  let paginatedRoles = $derived(() => {
-    const all = filteredRoles();
+  let paginatedRoles = $derived.by(() => {
+    const all = filteredRoles;
     return all.slice(pageOffset, pageOffset + pageLimit);
   });
 
-  let totalFiltered = $derived(filteredRoles().length);
+  let totalFiltered = $derived(filteredRoles.length);
 
   function clearFilters() {
     roleSearch = '';
@@ -133,7 +133,7 @@
     'audit': { label: 'System', icon: Settings },
   };
 
-  let groupedPermissions = $derived(() => {
+  let groupedPermissions = $derived.by(() => {
     const filtered = permissionSearch.trim()
       ? permissions.filter(p =>
           p.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
@@ -158,7 +158,7 @@
       }));
   });
 
-  let selectedGroupCount = $derived(() => {
+  let selectedGroupCount = $derived.by(() => {
     const uniqueGroups = new Set();
     for (const gid of form.permission_ids) {
       const p = permissions.find(pp => pp.id === gid);
@@ -168,7 +168,7 @@
   });
 
   // ── Validation ──────────────────────────────────────────────────
-  let nameError = $derived(() => {
+  let nameError = $derived.by(() => {
     if (!nameTouched && modalStep === 1) return '';
     if (!form.name.trim()) return 'Role name is required';
     if (roles.some(r => r.name.toLowerCase() === form.name.trim().toLowerCase() && r.id !== selectedRole?.id)) {
@@ -176,9 +176,9 @@
     }
     return '';
   });
-  let nameErrorText = $derived(nameError());
+  let nameErrorText = $derived(nameError);
 
-  let hasUnsavedChanges = $derived(() => {
+  let hasUnsavedChanges = $derived.by(() => {
     if (modalMode === 'add') return form.permission_ids.length > 0 || form.name.trim() !== '' || form.description.trim() !== '';
     const permsCurrent = JSON.stringify([...form.permission_ids].sort());
     const permsInitial = JSON.stringify([...initialPermissionIds].sort());
@@ -186,9 +186,9 @@
     return form.name !== initialFormData.name || form.description !== initialFormData.description;
   });
 
-  let isFormDirty = $derived(() => {
+  let isFormDirty = $derived.by(() => {
     if (modalMode === 'add') return form.name.trim() !== '' || form.permission_ids.length > 0;
-    return hasUnsavedChanges();
+    return hasUnsavedChanges;
   });
 
   let userRole = $derived(authStore.user?.role?.name || (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) || '');
@@ -196,9 +196,9 @@
   let canEdit = $derived(userRole === 'superadmin');
   let canDelete = $derived(userRole === 'superadmin');
 
-  function allExpanded() { return groupedPermissions().every(g => !collapsedGroups.has(g.key)); }
+  function allExpanded() { return groupedPermissions.every(g => !collapsedGroups.has(g.key)); }
   function toggleGroup(key) { const s = new Set(collapsedGroups); if (s.has(key)) s.delete(key); else s.add(key); collapsedGroups = s; }
-  function setAllExpanded(expanded) { collapsedGroups = expanded ? new Set() : new Set(groupedPermissions().map(g => g.key)); }
+  function setAllExpanded(expanded) { collapsedGroups = expanded ? new Set() : new Set(groupedPermissions.map(g => g.key)); }
 
   function toggleGroupAll(group) {
     const allSel = group.permissions.every(p => form.permission_ids.includes(p.id));
@@ -209,8 +209,8 @@
   function isGroupPartialSelected(group) { return group.permissions.some(p => form.permission_ids.includes(p.id)) && !isGroupAllSelected(group); }
 
   function handleGroupKeydown(e, group) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); const groups = groupedPermissions(); const idx = groups.findIndex(g => g.key === group.key); if (idx < groups.length - 1) document.querySelector(`[data-group-toggle][data-group-key="${groups[idx + 1].key}"]`)?.focus(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); const groups = groupedPermissions(); const idx = groups.findIndex(g => g.key === group.key); if (idx > 0) document.querySelector(`[data-group-toggle][data-group-key="${groups[idx - 1].key}"]`)?.focus(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); const groups = groupedPermissions; const idx = groups.findIndex(g => g.key === group.key); if (idx < groups.length - 1) document.querySelector(`[data-group-toggle][data-group-key="${groups[idx + 1].key}"]`)?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); const groups = groupedPermissions; const idx = groups.findIndex(g => g.key === group.key); if (idx > 0) document.querySelector(`[data-group-toggle][data-group-key="${groups[idx - 1].key}"]`)?.focus(); }
   }
 
   let form = $state({ name: '', description: '', permission_ids: [] });
@@ -258,7 +258,7 @@
 
   function closeAll() { expandedRoleId = null; }
 
-  function requestClose() { if (isFormDirty()) { pendingClose = true; showDiscardModal = true; } else showModal = false; }
+  function requestClose() { if (isFormDirty) { pendingClose = true; showDiscardModal = true; } else showModal = false; }
   function confirmDiscard() { showDiscardModal = false; showModal = false; pendingClose = false; }
   function cancelDiscard() { showDiscardModal = false; pendingClose = false; }
 
@@ -440,7 +440,7 @@
             </tr>
           </thead>
             <tbody>
-              {#each paginatedRoles() as role (role.id)}
+              {#each paginatedRoles as role (role.id)}
                 {@const rolePerms = getRolePermissions(role)}
                 <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer" onclick={() => openRoleDrawer(role)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRoleDrawer(role); } }} tabindex="0" role="button">
                   <td class="p-4">
@@ -522,21 +522,21 @@
           <div class="min-w-0"><p class="text-sm font-semibold text-text-primary truncate">{selectedRole?.name}</p><p class="text-xs text-text-muted truncate">{selectedRole?.description || 'No description'}</p></div>
         </div>
       {/if}
-      {#if isFormDirty()}<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-warning-subtle/30 border border-warning/20"><div class="w-2 h-2 rounded-full bg-warning animate-pulse"></div><span class="text-xs text-warning-light">You have unsaved changes</span></div>{/if}
+      {#if isFormDirty}<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-warning-subtle/30 border border-warning/20"><div class="w-2 h-2 rounded-full bg-warning animate-pulse"></div><span class="text-xs text-warning-light">You have unsaved changes</span></div>{/if}
       <div class="border-t border-border pt-4 mt-1">
         <div class="flex items-center justify-between mb-2">
           <p class="text-sm font-medium text-text-secondary">Permissions</p>
           <div class="flex items-center gap-2">
             <span class="text-xs text-text-muted">{form.permission_ids.length} of {permissions.length} selected</span>
-            {#if groupedPermissions().length > 1}<button type="button" class="text-xs text-primary hover:text-primary-light transition-colors" onclick={() => setAllExpanded(!allExpanded())}>{allExpanded() ? 'Collapse All' : 'Expand All'}</button>{/if}
+            {#if groupedPermissions.length > 1}<button type="button" class="text-xs text-primary hover:text-primary-light transition-colors" onclick={() => setAllExpanded(!allExpanded())}>{allExpanded() ? 'Collapse All' : 'Expand All'}</button>{/if}
           </div>
         </div>
         <div class="mb-3">
           <SearchBar bind:value={permissionSearch} placeholder="Search permissions…" inputClass="text-sm" />
         </div>
         <div class="space-y-2 max-h-80 overflow-y-auto">
-          {#if groupedPermissions().length > 0}
-            {#each groupedPermissions() as group (group.key)}
+          {#if groupedPermissions.length > 0}
+            {#each groupedPermissions as group (group.key)}
               {@const isCollapsed = collapsedGroups.has(group.key)} {@const Icon = group.icon} {@const allSel = isGroupAllSelected(group)} {@const partialSel = isGroupPartialSelected(group)}
               <div class="rounded-xl border border-border/50 overflow-hidden" data-group>
                 <div class="flex items-center gap-2 px-3 py-2.5 bg-surface-subtle/40 hover:bg-surface-subtle/60 transition-colors">
@@ -567,7 +567,7 @@
         </div>
         {#if form.permission_ids.length > 0}
           <div class="flex items-center justify-between px-3 py-2 mt-2 rounded-lg bg-surface-subtle/40 border border-border/30">
-            <span class="text-xs text-text-secondary"><span class="font-semibold text-text-primary">{form.permission_ids.length}</span> permissions selected {#if selectedGroupCount() > 0}<span class="text-text-muted"> across {selectedGroupCount()} {selectedGroupCount() === 1 ? 'group' : 'groups'}</span>{/if}</span>
+            <span class="text-xs text-text-secondary"><span class="font-semibold text-text-primary">{form.permission_ids.length}</span> permissions selected {#if selectedGroupCount > 0}<span class="text-text-muted"> across {selectedGroupCount} {selectedGroupCount === 1 ? 'group' : 'groups'}</span>{/if}</span>
             <button type="button" class="text-xs text-danger hover:text-danger-light transition-colors" onclick={() => form.permission_ids = []}>Clear all</button>
           </div>
         {/if}

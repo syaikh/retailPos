@@ -12,6 +12,7 @@ const (
 	CtxKeyUserID   ctxKey = "userID"
 	CtxKeyUsername ctxKey = "username"
 	CtxKeyRole     ctxKey = "role"
+	CtxKeyStoreID  ctxKey = "storeID"
 )
 
 func UserIDFromContext(ctx context.Context) *int {
@@ -48,6 +49,15 @@ func IPAddressFromContext(ctx context.Context) string {
 		}
 	}
 	return ""
+}
+
+func StoreIDFromContext(ctx context.Context) *int {
+	if v := ctx.Value(CtxKeyStoreID); v != nil {
+		if id, ok := v.(*int); ok {
+			return id
+		}
+	}
+	return nil
 }
 
 func UserAgentFromContext(ctx context.Context) string {

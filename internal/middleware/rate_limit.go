@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"log"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,24 +12,29 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// IPRateLimiter naive in-memory rate limiter per IP (development only).
-// Not suitable for multi-instance production (use Redis then).
+type ipEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
 type IPRateLimiter struct {
-	ips      map[string]*rate.Limiter
+	ips      map[string]*ipEntry
 	mu       *sync.RWMutex
 	r        rate.Limit
 	b        int
 	stopCh   chan struct{}
 	stopped  bool
+	ttl      time.Duration
 }
 
 func NewIPRateLimiter(r rate.Limit, burst int) *IPRateLimiter {
 	l := &IPRateLimiter{
-		ips:    make(map[string]*rate.Limiter),
+		ips:    make(map[string]*ipEntry),
 		mu:     &sync.RWMutex{},
 		r:      r,
 		b:      burst,
 		stopCh: make(chan struct{}),
+		ttl:    30 * time.Minute,
 	}
 	go l.cleanupLoop()
 	return l
@@ -42,13 +50,18 @@ func (l *IPRateLimiter) Stop() {
 }
 
 func (l *IPRateLimiter) cleanupLoop() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			l.mu.Lock()
-			l.ips = make(map[string]*rate.Limiter)
+			now := time.Now()
+			for ip, entry := range l.ips {
+				if now.Sub(entry.lastSeen) > l.ttl {
+					delete(l.ips, ip)
+				}
+			}
 			l.mu.Unlock()
 		case <-l.stopCh:
 			return
@@ -56,40 +69,61 @@ func (l *IPRateLimiter) cleanupLoop() {
 	}
 }
 
-func (l *IPRateLimiter) AddIP(ip string) *rate.Limiter {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	limiter := rate.NewLimiter(l.r, l.b)
-	l.ips[ip] = limiter
-	return limiter
-}
-
 func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	l.mu.RLock()
-	limiter, exists := l.ips[ip]
+	entry, exists := l.ips[ip]
 	l.mu.RUnlock()
 
-	if !exists {
+	if exists {
 		l.mu.Lock()
-		limiter, exists = l.ips[ip]
-		if !exists {
-			limiter = rate.NewLimiter(l.r, l.b)
-			l.ips[ip] = limiter
-		}
+		entry.lastSeen = time.Now()
 		l.mu.Unlock()
+		return entry.limiter
 	}
-	return limiter
+
+	l.mu.Lock()
+	entry, exists = l.ips[ip]
+	if !exists {
+		entry = &ipEntry{
+			limiter:  rate.NewLimiter(l.r, l.b),
+			lastSeen: time.Now(),
+		}
+		l.ips[ip] = entry
+	} else {
+		entry.lastSeen = time.Now()
+	}
+	l.mu.Unlock()
+	return entry.limiter
 }
 
-// RateLimitMiddleware returns a gin handler that limits requests per IP.
-// Exclude sensitive endpoints if needed.
+// getClientIP extracts the real client IP from the TCP connection's RemoteAddr
+// instead of trusting X-Forwarded-For, which can be spoofed by clients to bypass
+// rate limiting. If X-Forwarded-For is present, a warning is logged because it
+// may indicate a misconfigured reverse proxy or a spoofing attempt.
+//
+// WARNING: This server does not validate trusted proxy IPs. If deployed behind
+// a reverse proxy, configure TrustedProxies on the Gin engine and replace this
+// with proxy-aware IP extraction. Do not use c.ClientIP() for rate limiting
+// with untrusted proxies.
+func getClientIP(c *gin.Context) string {
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		log.Printf("warning: X-Forwarded-For header detected (%s) for rate limiting; using RemoteAddr instead. "+
+			"If behind a trusted proxy, configure Gin TrustedProxies.", xff)
+	}
+
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		// RemoteAddr may not have a port (e.g. Unix sockets); fall back as-is.
+		return strings.TrimSpace(c.Request.RemoteAddr)
+	}
+	return host
+}
+
 func RateLimitMiddleware() gin.HandlerFunc {
-	// 5 requests per second, burst 10 (300 req/min)
 	limiter := NewIPRateLimiter(rate.Limit(5), 10)
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
+		ip := getClientIP(c)
 		if !limiter.GetLimiter(ip).Allow() {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
 			return
@@ -98,13 +132,11 @@ func RateLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
-// LoginRateLimitMiddleware returns a stricter rate limiter for the login endpoint.
-// 5 requests per minute, burst 5 — limits brute-force attempts.
 func LoginRateLimitMiddleware() gin.HandlerFunc {
 	limiter := NewIPRateLimiter(rate.Every(time.Minute/5), 5)
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
+		ip := getClientIP(c)
 		if !limiter.GetLimiter(ip).Allow() {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts. try again later."})
 			return
@@ -113,13 +145,11 @@ func LoginRateLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
-// RefreshRateLimitMiddleware returns a moderate rate limiter for the refresh endpoint.
-// 10 requests per minute, burst 10 — limits rotation abuse while allowing legitimate use.
 func RefreshRateLimitMiddleware() gin.HandlerFunc {
 	limiter := NewIPRateLimiter(rate.Every(time.Minute/10), 10)
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
+		ip := getClientIP(c)
 		if !limiter.GetLimiter(ip).Allow() {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many refresh attempts. try again later."})
 			return

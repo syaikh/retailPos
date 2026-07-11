@@ -53,6 +53,8 @@ type PreviewState struct {
 	Created  time.Time
 }
 
+const previewTTL = 30 * time.Minute
+
 type Engine struct {
 	schemaReg    *schema.Registry
 	validator    *validation.Pipeline
@@ -62,10 +64,11 @@ type Engine struct {
 	eventBus     *eventbus.Bus
 	previews     map[string]*PreviewState
 	mu           sync.RWMutex
+	done         chan struct{}
 }
 
 func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *importexport.AdapterRegistry, progressEng *progress.Engine, historyStore *history.Store, eventBus *eventbus.Bus) *Engine {
-	return &Engine{
+	e := &Engine{
 		schemaReg:    schemaReg,
 		validator:    v,
 		adapterReg:   adapterReg,
@@ -73,7 +76,10 @@ func NewEngine(schemaReg *schema.Registry, v *validation.Pipeline, adapterReg *i
 		historyStore: historyStore,
 		eventBus:     eventBus,
 		previews:     make(map[string]*PreviewState),
+		done:         make(chan struct{}),
 	}
+	go e.previewCleanupLoop()
+	return e
 }
 
 func (e *Engine) Preview(ctx context.Context, module string, filename string, file io.Reader) (*importexport.PreviewResult, error) {
@@ -87,15 +93,27 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
+	var rows []map[string]interface{}
 	if strings.HasSuffix(strings.ToLower(filename), ".xlsx") {
-		if err := validateMetaSheet(bytes.NewReader(data), s); err != nil {
+		wb, err := excelize.OpenReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("open xlsx: %w", err)
+		}
+		defer wb.Close()
+
+		if err := validateMetaSheet(wb, s); err != nil {
 			return nil, err
 		}
-	}
 
-	rows, err := ParseFile(filename, bytes.NewReader(data), s)
-	if err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
+		rows, err = ParseXLSXWorkbook(wb, s)
+		if err != nil {
+			return nil, fmt.Errorf("parse: %w", err)
+		}
+	} else {
+		rows, err = ParseFile(filename, bytes.NewReader(data), s)
+		if err != nil {
+			return nil, fmt.Errorf("parse: %w", err)
+		}
 	}
 
 	if len(rows) == 0 {
@@ -136,15 +154,51 @@ func (e *Engine) StorePreview(token string, state *PreviewState) {
 }
 
 func (e *Engine) GetPreview(token string) *PreviewState {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.previews[token]
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	state, ok := e.previews[token]
+	if !ok {
+		return nil
+	}
+	if time.Since(state.Created) > previewTTL {
+		delete(e.previews, token)
+		return nil
+	}
+	return state
 }
 
 func (e *Engine) DeletePreview(token string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	delete(e.previews, token)
+}
+
+func (e *Engine) Close() {
+	close(e.done)
+}
+
+func (e *Engine) previewCleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			e.cleanupExpiredPreviews()
+		case <-e.done:
+			return
+		}
+	}
+}
+
+func (e *Engine) cleanupExpiredPreviews() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := time.Now()
+	for token, state := range e.previews {
+		if now.Sub(state.Created) > previewTTL {
+			delete(e.previews, token)
+		}
+	}
 }
 
 func (e *Engine) isCancelled(ctx context.Context, jobID int64) bool {
@@ -351,13 +405,7 @@ func (e *Engine) StartImport(ctx context.Context, token string, userID, storeID 
 	return jobID, nil
 }
 
-func validateMetaSheet(r io.Reader, s schema.ModuleSchema) error {
-	wb, err := excelize.OpenReader(r)
-	if err != nil {
-		return nil
-	}
-	defer wb.Close()
-
+func validateMetaSheet(wb *excelize.File, s schema.ModuleSchema) error {
 	idx, err := wb.GetSheetIndex("_Meta")
 	if err != nil || idx < 0 {
 		return nil

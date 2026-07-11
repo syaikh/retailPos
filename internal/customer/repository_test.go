@@ -42,14 +42,14 @@ func TestCustomerRepository_GetByPhone(t *testing.T) {
 		err := repo.CreateCustomer(ctx, &Customer{Name: "Ahmad Fauzi", Phone: &phone, Email: ptr("ahmad@test.com"), IsActive: true})
 		require.NoError(t, err)
 
-		c, err := repo.GetByPhone(ctx, "081234567890")
+		c, err := repo.GetByPhone(ctx, "081234567890", nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Ahmad Fauzi", c.Name)
 		assert.False(t, c.IsWalkIn)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := repo.GetByPhone(ctx, "999999999999")
+		_, err := repo.GetByPhone(ctx, "999999999999", nil)
 		assert.ErrorContains(t, err, "customer not found")
 	})
 }
@@ -64,14 +64,14 @@ func TestCustomerRepository_GetCustomerByID(t *testing.T) {
 		err := repo.CreateCustomer(ctx, created)
 		require.NoError(t, err)
 
-		c, err := repo.GetCustomerByID(ctx, created.ID)
+		c, err := repo.GetCustomerByID(ctx, created.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Pelanggan Umum / Walk-in", c.Name)
 		assert.True(t, c.IsWalkIn)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := repo.GetCustomerByID(ctx, -1)
+		_, err := repo.GetCustomerByID(ctx, -1, nil)
 		assert.ErrorContains(t, err, "customer not found")
 	})
 }
@@ -81,7 +81,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("default list excludes walk-in", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 9)
 		for _, c := range customers {
@@ -90,7 +90,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	})
 
 	t.Run("search by name", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad", nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.Contains(t, customers[0].Name, "Ahmad")
@@ -98,7 +98,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 
 	t.Run("filter by active", func(t *testing.T) {
 		active := true
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "", &active)
+		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "", &active, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, c := range customers {
@@ -107,7 +107,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	})
 
 	t.Run("pagination", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 2, 0, "", nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 2, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, customers, 2)
 		assert.GreaterOrEqual(t, total, 9)
@@ -130,7 +130,7 @@ func TestCustomerRepository_CreateCustomer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, c.ID, 0)
 
-		got, err := repo.GetCustomerByID(ctx, c.ID)
+		got, err := repo.GetCustomerByID(ctx, c.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Test Create", got.Name)
 		assert.Equal(t, phone, *got.Phone)
@@ -155,7 +155,7 @@ func TestCustomerRepository_CreateCustomer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, c.ID, 0)
 
-		got, err := repo.GetCustomerByID(ctx, c.ID)
+		got, err := repo.GetCustomerByID(ctx, c.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, email, *got.Email)
 		assert.Equal(t, addr, *got.Address)
@@ -183,10 +183,10 @@ func TestCustomerRepository_UpdateCustomer(t *testing.T) {
 	c.Phone = &newPhone
 	c.IsActive = false
 
-	err = repo.UpdateCustomer(ctx, c, c.ID)
+	err = repo.UpdateCustomer(ctx, c, c.ID, nil)
 	require.NoError(t, err)
 
-	got, err := repo.GetCustomerByID(ctx, c.ID)
+	got, err := repo.GetCustomerByID(ctx, c.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "After Update", got.Name)
 	assert.Equal(t, newPhone, *got.Phone)
@@ -207,10 +207,10 @@ func TestCustomerRepository_DeleteCustomer(t *testing.T) {
 	err := repo.CreateCustomer(ctx, c)
 	require.NoError(t, err)
 
-	err = repo.DeleteCustomer(ctx, c.ID)
+	err = repo.DeleteCustomer(ctx, c.ID, nil)
 	require.NoError(t, err)
 
-	got, err := repo.GetCustomerByID(ctx, c.ID)
+	got, err := repo.GetCustomerByID(ctx, c.ID, nil)
 	require.NoError(t, err)
 	assert.False(t, got.IsActive)
 }
@@ -226,11 +226,11 @@ func TestCustomerRepository_BulkUpdateCustomersStatus(t *testing.T) {
 	require.NoError(t, repo.CreateCustomer(ctx, c1))
 	require.NoError(t, repo.CreateCustomer(ctx, c2))
 
-	err := repo.BulkUpdateCustomersStatus(ctx, []int{c1.ID, c2.ID}, false)
+	err := repo.BulkUpdateCustomersStatus(ctx, []int{c1.ID, c2.ID}, false, nil)
 	require.NoError(t, err)
 
-	got1, _ := repo.GetCustomerByID(ctx, c1.ID)
-	got2, _ := repo.GetCustomerByID(ctx, c2.ID)
+	got1, _ := repo.GetCustomerByID(ctx, c1.ID, nil)
+	got2, _ := repo.GetCustomerByID(ctx, c2.ID, nil)
 	assert.False(t, got1.IsActive)
 	assert.False(t, got2.IsActive)
 }
@@ -246,11 +246,11 @@ func TestCustomerRepository_BulkDeleteCustomers(t *testing.T) {
 	require.NoError(t, repo.CreateCustomer(ctx, c1))
 	require.NoError(t, repo.CreateCustomer(ctx, c2))
 
-	err := repo.BulkDeleteCustomers(ctx, []int{c1.ID, c2.ID})
+	err := repo.BulkDeleteCustomers(ctx, []int{c1.ID, c2.ID}, nil)
 	require.NoError(t, err)
 
-	got1, _ := repo.GetCustomerByID(ctx, c1.ID)
-	got2, _ := repo.GetCustomerByID(ctx, c2.ID)
+	got1, _ := repo.GetCustomerByID(ctx, c1.ID, nil)
+	got2, _ := repo.GetCustomerByID(ctx, c2.ID, nil)
 	assert.False(t, got1.IsActive)
 	assert.False(t, got2.IsActive)
 }

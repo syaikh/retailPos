@@ -35,7 +35,7 @@ func TestCustomerService_CreatePublishesEvent(t *testing.T) {
 		Email: ptr("test@example.com"),
 		IsActive: true,
 	}
-	err := svc.CreateCustomer(ctx, c)
+	err := svc.CreateCustomer(ctx, c, nil)
 	require.NoError(t, err)
 
 	select {
@@ -53,7 +53,7 @@ func TestCustomerService_CreateCustomerNilError(t *testing.T) {
 	svc := NewService(NewRepository(dbPool), bus)
 	ctx := context.Background()
 
-	err := svc.CreateCustomer(ctx, nil)
+	err := svc.CreateCustomer(ctx, nil, nil)
 	assert.ErrorContains(t, err, "customer cannot be nil")
 }
 
@@ -82,10 +82,10 @@ func TestCustomerService_UpdatePublishesEvent(t *testing.T) {
 		Email: ptr("test@example.com"),
 		IsActive: true,
 	}
-	require.NoError(t, svc.CreateCustomer(ctx, c))
+	require.NoError(t, svc.CreateCustomer(ctx, c, nil))
 
 	c.Name = "After Update"
-	err := svc.UpdateCustomer(ctx, c, c.ID)
+	err := svc.UpdateCustomer(ctx, c, c.ID, nil)
 	require.NoError(t, err)
 
 	select {
@@ -103,7 +103,7 @@ func TestCustomerService_UpdateCustomerNilError(t *testing.T) {
 	svc := NewService(NewRepository(dbPool), bus)
 	ctx := context.Background()
 
-	err := svc.UpdateCustomer(ctx, nil, 1)
+	err := svc.UpdateCustomer(ctx, nil, 1, nil)
 	assert.ErrorContains(t, err, "customer cannot be nil")
 }
 
@@ -132,9 +132,9 @@ func TestCustomerService_DeletePublishesEvent(t *testing.T) {
 		Email: ptr("test@example.com"),
 		IsActive: true,
 	}
-	require.NoError(t, svc.CreateCustomer(ctx, c))
+	require.NoError(t, svc.CreateCustomer(ctx, c, nil))
 
-	err := svc.DeleteCustomer(ctx, c.ID)
+	err := svc.DeleteCustomer(ctx, c.ID, nil)
 	require.NoError(t, err)
 
 	select {
@@ -160,22 +160,22 @@ func TestCustomerService_ReadOperations(t *testing.T) {
 		Email: ptr("test@example.com"),
 		IsActive: true,
 	}
-	require.NoError(t, svc.CreateCustomer(ctx, c))
+	require.NoError(t, svc.CreateCustomer(ctx, c, nil))
 
 	t.Run("GetByPhone", func(t *testing.T) {
-		got, err := svc.GetByPhone(ctx, phone)
+		got, err := svc.GetByPhone(ctx, phone, nil)
 		require.NoError(t, err)
 		assert.Equal(t, c.Name, got.Name)
 	})
 
 	t.Run("GetCustomerByID", func(t *testing.T) {
-		got, err := svc.GetCustomerByID(ctx, c.ID)
+		got, err := svc.GetCustomerByID(ctx, c.ID, nil)
 		require.NoError(t, err)
 		assert.Equal(t, c.Name, got.Name)
 	})
 
 	t.Run("GetAllCustomers", func(t *testing.T) {
-		customers, total, err := svc.GetAllCustomers(ctx, 10, 0, "", nil)
+		customers, total, err := svc.GetAllCustomers(ctx, 10, 0, "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(customers), 1)
@@ -195,15 +195,15 @@ func TestCustomerService_BulkOperations(t *testing.T) {
 	phone2 := "087777777776"
 	c1 := &Customer{Name: "Svc Bulk 1", Phone: &phone1, Email: ptr("test@example.com"), IsActive: true}
 	c2 := &Customer{Name: "Svc Bulk 2", Phone: &phone2, Email: ptr("test@example.com"), IsActive: true}
-	require.NoError(t, svc.CreateCustomer(ctx, c1))
-	require.NoError(t, svc.CreateCustomer(ctx, c2))
+	require.NoError(t, svc.CreateCustomer(ctx, c1, nil))
+	require.NoError(t, svc.CreateCustomer(ctx, c2, nil))
 
 	t.Run("BulkUpdateCustomersStatus", func(t *testing.T) {
-		err := svc.BulkUpdateCustomersStatus(ctx, []int{c1.ID, c2.ID}, false)
+		err := svc.BulkUpdateCustomersStatus(ctx, []int{c1.ID, c2.ID}, false, nil)
 		require.NoError(t, err)
 
-		got1, _ := repo.GetCustomerByID(ctx, c1.ID)
-		got2, _ := repo.GetCustomerByID(ctx, c2.ID)
+		got1, _ := repo.GetCustomerByID(ctx, c1.ID, nil)
+		got2, _ := repo.GetCustomerByID(ctx, c2.ID, nil)
 		assert.False(t, got1.IsActive)
 		assert.False(t, got2.IsActive)
 	})
@@ -211,12 +211,12 @@ func TestCustomerService_BulkOperations(t *testing.T) {
 	t.Run("BulkDeleteCustomers", func(t *testing.T) {
 		phone3 := "087777777777"
 		c3 := &Customer{Name: "Svc Bulk 3", Phone: &phone3, Email: ptr("test@example.com"), IsActive: true}
-		require.NoError(t, svc.CreateCustomer(ctx, c3))
+		require.NoError(t, svc.CreateCustomer(ctx, c3, nil))
 
-		err := svc.BulkDeleteCustomers(ctx, []int{c3.ID})
+		err := svc.BulkDeleteCustomers(ctx, []int{c3.ID}, nil)
 		require.NoError(t, err)
 
-		got, _ := repo.GetCustomerByID(ctx, c3.ID)
+		got, _ := repo.GetCustomerByID(ctx, c3.ID, nil)
 		assert.False(t, got.IsActive)
 	})
 }

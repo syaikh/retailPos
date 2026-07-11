@@ -68,6 +68,10 @@ func parseXLSX(r io.Reader, s schema.ModuleSchema) ([]map[string]interface{}, er
 	}
 	defer wb.Close()
 
+	return ParseXLSXWorkbook(wb, s)
+}
+
+func ParseXLSXWorkbook(wb *excelize.File, s schema.ModuleSchema) ([]map[string]interface{}, error) {
 	sheet := wb.GetSheetName(0)
 	all, err := wb.GetRows(sheet, excelize.Options{RawCellValue: true})
 	if err != nil {

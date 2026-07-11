@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
+	"retail-pos-system/internal/middleware"
 )
 
 type adapter struct {
@@ -31,6 +32,12 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		return nil, fmt.Errorf("Name is required")
 	}
 	rowNum, _ := row["_row"].(int)
+	var storeID *int
+	if sid, ok := row["_store_id"]; ok {
+		if v, ok2 := sid.(int); ok2 && v > 0 {
+			storeID = &v
+		}
+	}
 	phone, _ := row["Phone"].(string)
 	email, _ := row["Email"].(string)
 	address, _ := row["Address"].(string)
@@ -47,6 +54,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		Address:  address,
 		Note:     note,
 		IsActive: isActive,
+		StoreID:  storeID,
 	}, nil
 }
 
@@ -63,7 +71,8 @@ func (r *customerRepoAdapter) Insert(ctx context.Context, entities []interface{}
 	for i, e := range entities {
 		rows[i] = e.(CustomerImportRow)
 	}
-	result := r.repo.BulkUpsertCustomers(ctx, rows)
+	storeID := extractStoreID(rows)
+	result := r.repo.BulkUpsertCustomers(ctx, rows, storeID)
 	if len(result.Errors) > 0 {
 		return result.Inserted, fmt.Errorf("customer import errors: %v", strings.Join(result.Errors, "; "))
 	}
@@ -75,15 +84,26 @@ func (r *customerRepoAdapter) Update(ctx context.Context, entities []interface{}
 	for i, e := range entities {
 		rows[i] = e.(CustomerImportRow)
 	}
-	result := r.repo.BulkUpsertCustomers(ctx, rows)
+	storeID := extractStoreID(rows)
+	result := r.repo.BulkUpsertCustomers(ctx, rows, storeID)
 	if len(result.Errors) > 0 {
 		return result.Updated, fmt.Errorf("customer import errors: %v", strings.Join(result.Errors, "; "))
 	}
 	return result.Updated, nil
 }
 
+func extractStoreID(rows []CustomerImportRow) *int {
+	for _, r := range rows {
+		if r.StoreID != nil {
+			return r.StoreID
+		}
+	}
+	return nil
+}
+
 func (r *customerRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
-	customers, err := r.repo.GetAllCustomersForExport(ctx)
+	storeID := middleware.StoreIDFromContext(ctx)
+	customers, err := r.repo.GetAllCustomersForExport(ctx, storeID)
 	if err != nil {
 		return nil, err
 	}

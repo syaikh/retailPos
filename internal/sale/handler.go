@@ -1,16 +1,13 @@
 package sale
 
 import (
-	"encoding/csv"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/xuri/excelize/v2"
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/shared"
@@ -36,6 +33,18 @@ func (h *Handler) RegisterPaymentMethodsPublicRoutes(r *gin.RouterGroup) {
 	r.GET("/payment-methods", h.ListPaymentMethods)
 }
 
+// CreateSale godoc
+// @Summary Create a new sale
+// @Description Create a new sale with items. Invoice number is auto-generated if omitted.
+// @Tags sales
+// @Accept json
+// @Produce json
+// @Param request body createSaleReq true "Sale payload"
+// @Security BearerAuth
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 409 {object} map[string]interface{}
+// @Router /sales [post]
 func (h *Handler) CreateSale(c *gin.Context) {
 	type createSaleItem struct {
 		ProductID int `json:"product_id"`
@@ -141,6 +150,25 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
 }
 
+// GetSalesHistory godoc
+// @Summary Get sales history
+// @Description Get paginated list of sales with optional filters
+// @Tags sales
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit" default(50)
+// @Param offset query int false "Offset" default(0)
+// @Param search query string false "Search by invoice number or customer name"
+// @Param payment_methods query string false "Filter by payment methods (comma-separated codes)"
+// @Param min_total query int false "Minimum total amount"
+// @Param max_total query int false "Maximum total amount"
+// @Param sort_by query string false "Sort field (created_at, total_amount, invoice_number, payment_method, status)" default(created_at)
+// @Param sort_dir query string false "Sort direction (ASC or DESC)" default(DESC)
+// @Param start_date query string false "Start date (YYYY-MM-DD, Jakarta time)"
+// @Param end_date query string false "End date (YYYY-MM-DD, Jakarta time)"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /sales [get]
 func (h *Handler) GetSalesHistory(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -214,6 +242,18 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": sales, "total": total})
 }
 
+// GetSaleByID godoc
+// @Summary Get a sale by ID
+// @Description Get sale details including items by sale ID
+// @Tags sales
+// @Accept json
+// @Produce json
+// @Param id path int true "Sale ID"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Router /sales/{id} [get]
 func (h *Handler) GetSaleByID(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -239,6 +279,22 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 	shared.JSONSuccess(c, sale)
 }
 
+// ExportSales godoc
+// @Summary Export sales data
+// @Description Export sales to CSV or XLSX file
+// @Tags sales
+// @Accept json
+// @Produce text/csv
+// @Param format query string false "Export format (csv or xlsx)" default(csv)
+// @Param search query string false "Search by invoice number or customer name"
+// @Param payment_methods query string false "Filter by payment methods (comma-separated codes)"
+// @Param min_total query int false "Minimum total amount"
+// @Param max_total query int false "Maximum total amount"
+// @Param start_date query string false "Start date (YYYY-MM-DD, Jakarta time)"
+// @Param end_date query string false "End date (YYYY-MM-DD, Jakarta time)"
+// @Security BearerAuth
+// @Success 200 {file} binary "Exported file"
+// @Router /sales/export [get]
 func (h *Handler) ExportSales(c *gin.Context) {
 	format := c.DefaultQuery("format", "csv")
 	search := c.Query("search")
@@ -281,58 +337,17 @@ func (h *Handler) ExportSales(c *gin.Context) {
 
 	switch format {
 	case "xlsx":
-		h.exportXLSX(c, rows)
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", "attachment; filename=sales_export.xlsx")
+		if err := WriteXLSX(rows, c.Writer); err != nil {
+			log.Printf("failed to write xlsx: %v", err)
+		}
 	default:
-		h.exportCSV(c, rows)
-	}
-}
-
-func (h *Handler) exportCSV(c *gin.Context, rows []SaleExportRow) {
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", "attachment; filename=sales_export.csv")
-
-	w := csv.NewWriter(c.Writer)
-	shared.WriteCSVRow(w, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
-	for _, row := range rows {
-		shared.WriteCSVRow(w, []string{
-			row.InvoiceNumber,
-			row.CreatedAt,
-			row.CustomerName,
-			strconv.Itoa(row.ItemCount),
-			row.PaymentMethod,
-			fmt.Sprintf("%d", row.TotalAmount),
-		})
-	}
-	w.Flush()
-}
-
-func (h *Handler) exportXLSX(c *gin.Context, rows []SaleExportRow) {
-	f := excelize.NewFile()
-	defer f.Close()
-
-	sheet := f.GetSheetName(0)
-	f.SetCellValue(sheet, "A1", "Invoice Number")
-	f.SetCellValue(sheet, "B1", "Date")
-	f.SetCellValue(sheet, "C1", "Customer")
-	f.SetCellValue(sheet, "D1", "Items")
-	f.SetCellValue(sheet, "E1", "Payment Method")
-	f.SetCellValue(sheet, "F1", "Total Amount")
-
-	for i, row := range rows {
-		r := i + 2
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", r), row.InvoiceNumber)
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", r), row.CreatedAt)
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", r), row.CustomerName)
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", r), row.ItemCount)
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", r), row.PaymentMethod)
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", r), row.TotalAmount)
-	}
-
-	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", "attachment; filename=sales_export.xlsx")
-
-	if err := f.Write(c.Writer); err != nil {
-		log.Printf("failed to write xlsx: %v", err)
+		c.Header("Content-Type", "text/csv")
+		c.Header("Content-Disposition", "attachment; filename=sales_export.csv")
+		if err := WriteCSV(rows, c.Writer); err != nil {
+			log.Printf("failed to write csv: %v", err)
+		}
 	}
 }
 

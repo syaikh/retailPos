@@ -53,17 +53,6 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 			return ErrInsufficientStock
 		}
 
-		newStock := stock - item.Quantity
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, quantity, updated_at)
-			VALUES ($1, $2, NOW())
-			ON CONFLICT (product_id)
-			DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
-		`, item.ProductID, newStock)
-		if err != nil {
-			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)
-		}
-
 		if s.priceStore != nil {
 			serverPrice, err := s.priceStore.GetProductPrice(ctx, item.ProductID)
 			if err != nil {
@@ -97,6 +86,7 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
+	sale.Items = items
 	_ = s.eventBus.Publish(ctx, "sale.created", sale)
 
 	return nil

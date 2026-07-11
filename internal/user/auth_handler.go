@@ -20,9 +20,9 @@ func NewAuthHandler(svc *AuthService) *AuthHandler {
 	return &AuthHandler{svc: svc}
 }
 
-func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/validate", auth, h.ValidateSession)
-	r.POST("/logout", auth, h.Logout)
+func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth, csrf gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+	r.POST("/validate", auth, csrf, h.ValidateSession)
+	r.POST("/logout", auth, csrf, h.Logout)
 }
 
 func (h *AuthHandler) RegisterRefreshRoute(r *gin.RouterGroup, middlewares ...gin.HandlerFunc) {
@@ -30,14 +30,26 @@ func (h *AuthHandler) RegisterRefreshRoute(r *gin.RouterGroup, middlewares ...gi
 	r.POST("/refresh", handlers...)
 }
 
-func (h *AuthHandler) RegisterChangePasswordRoute(r *gin.RouterGroup, auth gin.HandlerFunc) {
-	r.POST("/change-password", auth, h.ChangePassword)
+func (h *AuthHandler) RegisterChangePasswordRoute(r *gin.RouterGroup, middlewares ...gin.HandlerFunc) {
+	handlers := append(middlewares, h.ChangePassword)
+	r.POST("/change-password", handlers...)
 }
 
 func (h *AuthHandler) RegisterLoginRoute(r *gin.RouterGroup, loginRateLimit gin.HandlerFunc) {
 	r.POST("/login", loginRateLimit, h.Login)
 }
 
+// Login godoc
+// @Summary Login
+// @Description Authenticate user and return access token with refresh token cookie
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Login credentials"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,6 +77,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// RefreshToken godoc
+// @Summary Refresh access token
+// @Description Exchange a refresh token for a new access token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	token := c.GetHeader("X-Refresh-Token")
 	if token == "" {
@@ -126,6 +148,18 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 	})
 }
 
+// ChangePassword godoc
+// @Summary Change password
+// @Description Change the authenticated user's password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body object true "Password change payload"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 401 {object} map[string]interface{}
+// @Router /auth/change-password [post]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var req struct {
 		CurrentPassword string `json:"current_password" binding:"required"`

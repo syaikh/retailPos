@@ -51,10 +51,8 @@
         }
       }),
     ];
-    const intervalId = setInterval(fetchLiveStats, 30000);
     return () => {
       handlers.forEach((fn) => fn());
-      clearInterval(intervalId);
     };
   });
 

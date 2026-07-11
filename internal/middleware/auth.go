@@ -44,6 +44,7 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		ctx = setCtxValue(ctx, CtxKeyUserID, claims.ID)
 		ctx = setCtxValue(ctx, CtxKeyUsername, claims.Username)
 		ctx = setCtxValue(ctx, CtxKeyRole, claims.Role)
+		ctx = setCtxValue(ctx, CtxKeyStoreID, claims.StoreID)
 		ctx = setCtxValue(ctx, shared.CtxKeyIPAddress, shared.GetIPAddress(c))
 		ctx = setCtxValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
 		c.Request = c.Request.WithContext(ctx)

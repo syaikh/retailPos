@@ -11,6 +11,7 @@ type Customer struct {
 	TotalSpent     int     `json:"total_spent"`
 	LastPurchaseAt *string `json:"last_purchase_at,omitempty"`
 	Note           *string `json:"note,omitempty"`
+	StoreID        *int    `json:"store_id,omitempty"`
 	IsActive       bool    `json:"is_active"`
 	IsWalkIn       bool    `json:"is_walk_in"`
 	CreatedAt      string  `json:"created_at,omitempty"`
@@ -45,4 +46,5 @@ type CustomerImportRow struct {
 	Note     string
 	TaxID    string
 	IsActive bool
+	StoreID  *int
 }

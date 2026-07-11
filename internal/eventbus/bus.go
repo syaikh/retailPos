@@ -2,18 +2,69 @@ package eventbus
 
 import (
 	"context"
-	"log"
+	"encoding/json"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	maxRetries     = 3
+	retryBaseDelay = 1 * time.Second
+)
+
+// MetricsSnapshot is a point-in-time copy of event processing counters.
+type MetricsSnapshot struct {
+	EventsPublished         int64
+	EventsConsumed          int64
+	EventsFailed            int64
+	EventProcessingDuration int64
+}
+
+// DeadLetterStore abstracts dead-letter persistence.
+type DeadLetterStore interface {
+	Store(ctx context.Context, eventType string, payload []byte, errMsg string) error
+}
+
+// PgDeadLetterStore implements DeadLetterStore backed by PostgreSQL.
+type PgDeadLetterStore struct {
+	pool *pgxpool.Pool
+}
+
+// NewPgDeadLetterStore creates a new PostgreSQL-backed dead-letter store.
+func NewPgDeadLetterStore(pool *pgxpool.Pool) *PgDeadLetterStore {
+	return &PgDeadLetterStore{pool: pool}
+}
+
+// Store inserts a failed event into the dead_letter_events table.
+func (s *PgDeadLetterStore) Store(ctx context.Context, eventType string, payload []byte, errMsg string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO dead_letter_events (event_type, payload, error, created_at) VALUES ($1, $2, $3, NOW())`,
+		eventType, payload, errMsg,
+	)
+	return err
+}
+
+type busMetrics struct {
+	published           atomic.Int64
+	consumed            atomic.Int64
+	failed              atomic.Int64
+	processingDuration  atomic.Int64
+}
+
 type Bus struct {
-	mu         sync.RWMutex
-	closed     bool
-	listeners  map[EventType][]Listener
-	eventCh    chan Event
-	dispatchWg sync.WaitGroup // tracks inflight dispatch goroutines
-	loopWg     sync.WaitGroup // tracks Run() loop
+	mu              sync.RWMutex
+	closed          bool
+	listeners       map[EventType][]Listener
+	eventCh         chan Event
+	dispatchWg      sync.WaitGroup
+	loopWg          sync.WaitGroup
+	dropCount       int64
+	metrics         busMetrics
+	deadLetterStore DeadLetterStore
 }
 
 func New() *Bus {
@@ -21,6 +72,11 @@ func New() *Bus {
 		listeners: make(map[EventType][]Listener),
 		eventCh:   make(chan Event, 1000),
 	}
+}
+
+// SetDeadLetterStore configures the store used for events that exhaust all retries.
+func (b *Bus) SetDeadLetterStore(store DeadLetterStore) {
+	b.deadLetterStore = store
 }
 
 func (b *Bus) Subscribe(listener Listener) {
@@ -48,9 +104,11 @@ func (b *Bus) Publish(ctx context.Context, topic string, payload interface{}) er
 	}
 	select {
 	case b.eventCh <- evt:
+		b.metrics.published.Add(1)
 		return nil
 	default:
-		log.Printf("[eventbus] channel full, dropping event: %s", topic)
+		b.dropCount++
+		slog.Warn("eventbus channel full, dropping event", "event", topic, "total_drops", b.dropCount)
 		return nil
 	}
 }
@@ -66,8 +124,8 @@ func (b *Bus) Run() {
 }
 
 // dispatch meneruskan event ke semua listener yang terdaftar.
-// Listener berjalan di goroutine terpisah dengan shallow copy event.
-// Payload WAJIB read-only oleh listener (aturan + race detector).
+// Setiap listener dijalankan di goroutine terpisah dengan retry + exponential backoff.
+// Setelah maxRetries kegagalan, event dikirim ke dead-letter store.
 func (b *Bus) dispatch(event Event) {
 	b.mu.RLock()
 	listeners := b.listeners[event.Type]
@@ -79,14 +137,89 @@ func (b *Bus) dispatch(event Event) {
 		b.dispatchWg.Add(1)
 		go func() {
 			defer b.dispatchWg.Done()
-			ctx := e.Ctx
-			if ctx == nil {
-				ctx = context.Background()
+			start := time.Now()
+			b.metrics.consumed.Add(1)
+
+			parentCtx := e.Ctx
+			if parentCtx == nil {
+				parentCtx = context.Background()
 			}
-			if err := l.HandleEvent(ctx, e); err != nil {
-				log.Printf("[eventbus] listener error: %v", err)
+
+			var lastErr error
+			for attempt := 0; attempt <= maxRetries; attempt++ {
+				if attempt > 0 {
+					delay := retryBaseDelay * time.Duration(1<<(attempt-1))
+					timer := time.NewTimer(delay)
+					select {
+					case <-timer.C:
+					case <-parentCtx.Done():
+						timer.Stop()
+					}
+					if parentCtx.Err() != nil {
+						lastErr = parentCtx.Err()
+						break
+					}
+				}
+
+				ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+				lastErr = l.HandleEvent(ctx, e)
+				cancel()
+
+				if lastErr == nil {
+					break
+				}
+				slog.Error("eventbus listener error",
+					"event", string(e.Type),
+					"attempt", attempt+1,
+					"max_retries", maxRetries,
+					"error", lastErr,
+				)
+			}
+
+			b.metrics.processingDuration.Add(time.Since(start).Nanoseconds())
+
+			if lastErr != nil {
+				b.metrics.failed.Add(1)
+				b.deadLetter(e, lastErr)
 			}
 		}()
+	}
+}
+
+// deadLetter stores a permanently failed event in the dead-letter store.
+func (b *Bus) deadLetter(event Event, err error) {
+	store := b.deadLetterStore
+	if store == nil {
+		return
+	}
+
+	var payloadBytes []byte
+	if event.Payload != nil {
+		var marshalErr error
+		payloadBytes, marshalErr = json.Marshal(event.Payload)
+		if marshalErr != nil {
+			slog.Error("eventbus: failed to marshal payload for dead letter", "event", string(event.Type), "error", marshalErr)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if storeErr := store.Store(ctx, string(event.Type), payloadBytes, err.Error()); storeErr != nil {
+		slog.Error("eventbus: failed to store dead letter event",
+			"event", string(event.Type),
+			"error", storeErr,
+		)
+	}
+}
+
+// Metrics returns a snapshot of event processing counters.
+func (b *Bus) Metrics() MetricsSnapshot {
+	return MetricsSnapshot{
+		EventsPublished:         b.metrics.published.Load(),
+		EventsConsumed:          b.metrics.consumed.Load(),
+		EventsFailed:            b.metrics.failed.Load(),
+		EventProcessingDuration: b.metrics.processingDuration.Load(),
 	}
 }
 
@@ -105,6 +238,12 @@ func (b *Bus) Shutdown() {
 	b.mu.Unlock()
 
 	close(b.eventCh)
-	b.loopWg.Wait()    // wait for Run() to finish draining channel
-	b.dispatchWg.Wait() // wait for all inflight listener goroutines to finish
+	b.loopWg.Wait()
+	b.dispatchWg.Wait()
+}
+
+func (b *Bus) DroppedCount() int64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.dropCount
 }

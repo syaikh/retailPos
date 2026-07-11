@@ -56,13 +56,13 @@
 
   let status_ = $derived(statusInfo(selectedProduct?.status || 'draft'));
 
-  let margin = $derived(() => {
+  let margin = $derived.by(() => {
     const p = selectedProduct;
     if (!p) return null;
     return (p.price || 0) - (p.cost || 0);
   });
 
-  let marginPct = $derived(() => {
+  let marginPct = $derived.by(() => {
     const p = selectedProduct;
     if (!p) return null;
     const price = p.price;
@@ -71,8 +71,8 @@
     return ((price - cost) / price) * 100;
   });
 
-  let margVal = $derived(margin());
-  let margPctVal = $derived(marginPct());
+  let margVal = $derived(margin);
+  let margPctVal = $derived(marginPct);
   let margIsLoss = $derived(margVal !== null && margVal < 0);
   let uomLabel = $derived(selectedProduct?.unit_of_measure || null);
 

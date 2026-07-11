@@ -52,47 +52,70 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) GetByPhone(ctx context.Context, phone string) (*Customer, error) {
+func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int) (*Customer, error) {
 	var c Customer
 	var createdAt, updatedAt time.Time
-	err := r.db.QueryRow(ctx, `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
+	var storeIDVal int
+	query := `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
 		FROM customers
-		WHERE phone = $1
-	`, phone).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt)
+		WHERE phone = $1`
+	args := []interface{}{phone}
+	if storeID != nil {
+		query += " AND (store_id = $2 OR is_walk_in = true)"
+		args = append(args, *storeID)
+	}
+	err := r.db.QueryRow(ctx, query, args...).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("customer not found")
 		}
 		return nil, err
 	}
+	if !c.IsWalkIn {
+		c.StoreID = &storeIDVal
+	}
 	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return &c, nil
 }
 
-func (r *Repository) GetCustomerByID(ctx context.Context, id int) (*Customer, error) {
+func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) (*Customer, error) {
 	var c Customer
 	var createdAt, updatedAt time.Time
-	err := r.db.QueryRow(ctx, `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
-		FROM customers WHERE id = $1
-	`, id).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt)
+	var storeIDVal int
+	query := `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
+		FROM customers WHERE id = $1`
+	args := []interface{}{id}
+	if storeID != nil {
+		query += " AND (store_id = $2 OR is_walk_in = true)"
+		args = append(args, *storeID)
+	}
+	err := r.db.QueryRow(ctx, query, args...).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("customer not found")
 		}
 		return nil, err
 	}
+	if !c.IsWalkIn {
+		c.StoreID = &storeIDVal
+	}
 	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 	return &c, nil
 }
 
-func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Customer, int, error) {
+func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
 	args := []interface{}{}
 	argIdx := 1
 	countQuery := `SELECT COUNT(*) FROM customers WHERE is_walk_in = false`
+	if storeID != nil {
+		countQuery += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
 	if search != "" {
 		countQuery += fmt.Sprintf(" AND (name ILIKE $%d OR phone ILIKE $%d OR email ILIKE $%d)", argIdx, argIdx, argIdx)
 		args = append(args, "%"+search+"%")
@@ -107,9 +130,14 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 		return nil, 0, err
 	}
 
-	query := `SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at FROM customers WHERE is_walk_in = false`
+	query := `SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at FROM customers WHERE is_walk_in = false`
 	queryArgs := []interface{}{}
 	argIdx2 := 1
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", argIdx2)
+		queryArgs = append(queryArgs, *storeID)
+		argIdx2++
+	}
 	if search != "" {
 		query += fmt.Sprintf(" AND (name ILIKE $%d OR phone ILIKE $%d OR email ILIKE $%d)", argIdx2, argIdx2, argIdx2)
 		queryArgs = append(queryArgs, "%"+search+"%")
@@ -133,9 +161,11 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 	for rows.Next() {
 		var c Customer
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
+		var storeIDVal int
+		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt); err != nil {
 			return nil, 0, err
 		}
+		c.StoreID = &storeIDVal
 		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		customers = append(customers, c)
@@ -145,50 +175,76 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 
 func (r *Repository) CreateCustomer(ctx context.Context, customer *Customer) error {
 	var createdAt, updatedAt time.Time
+	storeIDVal := 1
+	if customer.StoreID != nil {
+		storeIDVal = *customer.StoreID
+	}
 	return r.db.QueryRow(ctx, `
-		INSERT INTO customers (name, phone, email, address, tax_id, note, is_active, is_walk_in)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO customers (name, phone, email, address, tax_id, note, is_active, is_walk_in, store_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
-	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.IsWalkIn).
+	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.IsWalkIn, storeIDVal).
 		Scan(&customer.ID, &createdAt, &updatedAt)
 }
 
-func (r *Repository) UpdateCustomer(ctx context.Context, customer *Customer, id int) error {
-	_, err := r.db.Exec(ctx, `
+func (r *Repository) UpdateCustomer(ctx context.Context, customer *Customer, id int, storeID *int) error {
+	query := `
 		UPDATE customers
 		SET name = $1, phone = $2, email = $3, address = $4, tax_id = $5, note = $6, is_active = $7, updated_at = NOW()
-		WHERE id = $8
-	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, id)
+		WHERE id = $8`
+	args := []interface{}{customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, id}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
-func (r *Repository) DeleteCustomer(ctx context.Context, id int) error {
-	_, err := r.db.Exec(ctx, `UPDATE customers SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+func (r *Repository) DeleteCustomer(ctx context.Context, id int, storeID *int) error {
+	query := `UPDATE customers SET is_active = false, updated_at = NOW() WHERE id = $1`
+	args := []interface{}{id}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
-func (r *Repository) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE customers SET is_active = $1, updated_at = NOW()
-		WHERE id = ANY($2) AND is_walk_in = false
-	`, isActive, ids)
+func (r *Repository) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
+	query := `UPDATE customers SET is_active = $1, updated_at = NOW() WHERE id = ANY($2) AND is_walk_in = false`
+	args := []interface{}{isActive, ids}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
-func (r *Repository) BulkDeleteCustomers(ctx context.Context, ids []int) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE customers SET is_active = false, updated_at = NOW()
-		WHERE id = ANY($1) AND is_walk_in = false
-	`, ids)
+func (r *Repository) BulkDeleteCustomers(ctx context.Context, ids []int, storeID *int) error {
+	query := `UPDATE customers SET is_active = false, updated_at = NOW() WHERE id = ANY($1) AND is_walk_in = false`
+	args := []interface{}{ids}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	_, err := r.db.Exec(ctx, query, args...)
 	return err
 }
 
-func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, created_at, updated_at
-		FROM customers WHERE is_walk_in = false
-		ORDER BY name
-	`)
+func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int) ([]Customer, error) {
+	query := `
+		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
+		FROM customers WHERE is_walk_in = false`
+	args := []interface{}{}
+	if storeID != nil {
+		query += " AND store_id = $1"
+		args = append(args, *storeID)
+	}
+	query += " ORDER BY name"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -198,9 +254,11 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, 
 	for rows.Next() {
 		var c Customer
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &createdAt, &updatedAt); err != nil {
+		var storeIDVal int
+		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
+		c.StoreID = &storeIDVal
 		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
 		customers = append(customers, c)
@@ -208,7 +266,7 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context) ([]Customer, 
 	return customers, nil
 }
 
-func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []CustomerImportRow) ImportResult {
+func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []CustomerImportRow, storeID *int) ImportResult {
 	result := ImportResult{Errors: []string{}}
 	if len(records) == 0 {
 		return result
@@ -232,7 +290,13 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 	}
 
 	existingMap := make(map[string]int, len(validRecords))
-	rows, err := r.db.Query(ctx, "SELECT id, phone FROM customers WHERE phone = ANY($1) AND is_walk_in = false", phones)
+	lookupQuery := "SELECT id, phone FROM customers WHERE phone = ANY($1) AND is_walk_in = false"
+	lookupArgs := []interface{}{phones}
+	if storeID != nil {
+		lookupQuery += " AND store_id = $2"
+		lookupArgs = append(lookupArgs, *storeID)
+	}
+	rows, err := r.db.Query(ctx, lookupQuery, lookupArgs...)
 	if err == nil {
 		for rows.Next() {
 			var id int
@@ -291,16 +355,20 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 	}
 
 	if len(insertRecords) > 0 {
+		storeIDVal := 1
+		if storeID != nil {
+			storeIDVal = *storeID
+		}
 		valueStrings := make([]string, 0, len(insertRecords))
-		valueArgs := make([]interface{}, 0, len(insertRecords)*7)
+		valueArgs := make([]interface{}, 0, len(insertRecords)*8)
 		for _, rec := range insertRecords {
 			offset := len(valueArgs)
-			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, NULLIF($%d, ''), NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d, false)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7))
-			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive, rec.TaxID)
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, NULLIF($%d, ''), NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d, false, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8))
+			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive, rec.TaxID, storeIDVal)
 		}
 
 		query := fmt.Sprintf(`
-			INSERT INTO customers (name, phone, email, address, note, is_active, tax_id, is_walk_in)
+			INSERT INTO customers (name, phone, email, address, note, is_active, tax_id, is_walk_in, store_id)
 			VALUES %s
 		`, strings.Join(valueStrings, ", "))
 

@@ -68,7 +68,10 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 		}
 	}
 
-	customers, total, err := h.svc.GetAllCustomers(c.Request.Context(), limit, offset, search, isActive)
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	customers, total, err := h.svc.GetAllCustomers(c.Request.Context(), limit, offset, search, isActive, storeIDPtr)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -86,7 +89,10 @@ func (h *Handler) GetCustomerByID(c *gin.Context) {
 		return
 	}
 
-	customer, err := h.svc.GetCustomerByID(c.Request.Context(), id)
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	customer, err := h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -117,6 +123,9 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		return
 	}
 
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
 	customer := &Customer{
 		Name:     req.Name,
 		Phone:    &req.Phone,
@@ -126,7 +135,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		IsActive: req.IsActive,
 	}
 
-	if err := h.svc.CreateCustomer(c.Request.Context(), customer); err != nil {
+	if err := h.svc.CreateCustomer(c.Request.Context(), customer, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
 	}
@@ -166,6 +175,9 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		}
 	}
 
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
 	customer := &Customer{
 		ID:       id,
 		Name:     req.Name,
@@ -178,7 +190,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		customer.IsActive = *req.IsActive
 	}
 
-	if err := h.svc.UpdateCustomer(c.Request.Context(), customer, id); err != nil {
+	if err := h.svc.UpdateCustomer(c.Request.Context(), customer, id, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
 	}
@@ -192,7 +204,10 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteCustomer(c.Request.Context(), id); err != nil {
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	if err := h.svc.DeleteCustomer(c.Request.Context(), id, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
 	}
@@ -218,7 +233,10 @@ func (h *Handler) BulkUpdateCustomerStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.BulkUpdateCustomersStatus(c.Request.Context(), req.IDs, req.IsActive); err != nil {
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	if err := h.svc.BulkUpdateCustomersStatus(c.Request.Context(), req.IDs, req.IsActive, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
 	}
@@ -243,7 +261,10 @@ func (h *Handler) BulkDeleteCustomers(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.BulkDeleteCustomers(c.Request.Context(), req.IDs); err != nil {
+	storeID, _ := c.Get("storeID")
+	storeIDPtr, _ := storeID.(*int)
+
+	if err := h.svc.BulkDeleteCustomers(c.Request.Context(), req.IDs, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
 	}

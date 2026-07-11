@@ -60,6 +60,23 @@ func validateProduct(p *Product) error {
 	return nil
 }
 
+// GetProducts godoc
+// @Summary List products
+// @Description Get paginated list of products with optional filters
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit" default(50)
+// @Param offset query int false "Offset" default(0)
+// @Param search query string false "Search by name, SKU, or barcode"
+// @Param sortBy query string false "Sort field"
+// @Param sortDir query string false "Sort direction (asc or desc)"
+// @Param category query string false "Filter by category name"
+// @Param status query string false "Filter by status (active, inactive)"
+// @Param isActive query string false "Filter by active status (true/false)"
+// @Param maxStock query int false "Maximum stock threshold"
+// @Success 200 {object} map[string]interface{}
+// @Router /products [get]
 func (h *Handler) GetProducts(c *gin.Context) {
 	limit := 50
 	if l := c.Query("limit"); l != "" {
@@ -129,6 +146,17 @@ func (h *Handler) GetProductByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": product})
 }
 
+// CreateProduct godoc
+// @Summary Create a new product
+// @Description Create a new product with the provided details
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param request body Product true "Product payload"
+// @Security BearerAuth
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /products [post]
 func (h *Handler) CreateProduct(c *gin.Context) {
 	var product Product
 	if err := c.ShouldBindJSON(&product); err != nil {
@@ -148,6 +176,18 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": product})
 }
 
+// UpdateProduct godoc
+// @Summary Update a product
+// @Description Update an existing product by ID
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param request body Product true "Product payload"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /products/{id} [put]
 func (h *Handler) UpdateProduct(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -175,6 +215,17 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": product})
 }
 
+// DeleteProduct godoc
+// @Summary Delete a product
+// @Description Delete a product by ID
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /products/{id} [delete]
 func (h *Handler) DeleteProduct(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
