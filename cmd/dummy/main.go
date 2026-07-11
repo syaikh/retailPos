@@ -928,26 +928,12 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	return nil
 }
 
-// SaleBatch represents a batch of sales data for efficient insertion
-type SaleBatch struct {
-	Sales     []SaleRecord
-	SaleItems []SaleItemRecord
-}
-
-type SaleRecord struct {
-	Invoice      string
-	CashierID    int
-	PaymentMethod string
-	CreatedAt    time.Time
-	TotalAmount  int
-}
-
 type SaleItemRecord struct {
-	SaleID      int
-	ProductID   int
-	Quantity    int
-	UnitPrice   int
-	Subtotal    int
+	SaleID    int
+	ProductID int
+	Quantity  int
+	UnitPrice int
+	Subtotal  int
 }
 
 // processWorkerJob handles a single worker's portion of the work with optimized batch transactions

@@ -40,8 +40,6 @@ type dailySaleProduct struct {
 	ID       int
 	Price    int
 	Category string
-	Barcode  string
-	Cost     int
 }
 
 // jakartaTZ is the single timezone used throughout the daily seeder.
@@ -560,7 +558,7 @@ func persistOne(ctx context.Context, db *sql.DB, sale dailySaleRecord) error {
 		// 2. Decrement product stock; insert row if missing
 		res, err := tx.ExecContext(ctx, `
 			UPDATE product_stock
-			SET quantity = quantity - $1, updated_at = NOW()
+			SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
 			WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
 		`, item.Quantity, item.ProductID)
 		if err != nil {
