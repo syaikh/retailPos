@@ -75,7 +75,7 @@
     </div>
   {:else}
     <div class="overflow-x-auto">
-      <table class="w-full">
+      <table class="w-full min-w-[860px]">
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">

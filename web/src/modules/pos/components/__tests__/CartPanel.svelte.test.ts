@@ -67,4 +67,8 @@ describe('CartPanel.svelte source-structure guards', () => {
   it('renders print receipt button', () => {
     expect(src).toContain('Print Last Receipt');
   });
+
+  it('accepts responsive class overrides for mobile layouts', () => {
+    expect(src).toContain("class: className = ''");
+  });
 });

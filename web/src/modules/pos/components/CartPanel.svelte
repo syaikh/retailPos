@@ -16,6 +16,7 @@
     selectedCustomerLabel = '',
     lastSale = null,
     checkingOut = false,
+    class: className = '',
     onupdateqty = (id: number, delta: number) => {},
     onremovefromcart = (id: number) => {},
     onclearcart = () => {},
@@ -34,6 +35,7 @@
     selectedCustomerLabel: string;
     lastSale: any;
     checkingOut: boolean;
+    class?: string;
     onupdateqty?: (id: number, delta: number) => void;
     onremovefromcart?: (id: number) => void;
     onclearcart?: () => void;
@@ -43,7 +45,7 @@
   } = $props();
 </script>
 
-<div class="card flex flex-col overflow-hidden p-0 sticky top-0 h-[calc(100vh-120px)] max-h-[800px]">
+<div class={`card flex flex-col overflow-hidden p-0 sticky top-0 h-[calc(100vh-120px)] max-h-[800px] ${className}`}>
   <div class="px-4 py-3.5 border-b border-border flex items-center justify-between shrink-0">
     <div class="flex items-center gap-2">
       <ShoppingCart size={18} class="text-primary-light" />

@@ -2,8 +2,17 @@
   import { useWebSocket } from '$shared/api/websocket';
   import { getCurrentJakartaDateDisplay, getCurrentJakartaClock } from '$shared/utils/jakartaTime';
   import NotificationBell from '$app/layouts/NotificationBell.svelte';
+  import { Menu } from 'lucide-svelte';
 
-  let { currentPath = '/' }: { currentPath?: string } = $props();
+  let {
+    currentPath = '/',
+    ontogglemenu = () => {},
+    isMobileMenuOpen = false,
+  }: {
+    currentPath?: string;
+    ontogglemenu?: () => void;
+    isMobileMenuOpen?: boolean;
+  } = $props();
   const ws = useWebSocket();
   
   // Get the status store reference
@@ -81,7 +90,18 @@
 
 </script>
 
-<header class="flex items-center h-16 px-6 border-b border-border-default bg-surface-default">
+<header class="flex items-center h-14 md:h-16 px-4 md:px-6 border-b border-border-default bg-surface-default">
+  <!-- Hamburger (mobile only) -->
+  <button
+    type="button"
+    class="md:hidden p-2 -ml-2 mr-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+    onclick={ontogglemenu}
+    aria-label="Toggle navigation menu"
+    aria-expanded={isMobileMenuOpen}
+  >
+    <Menu size={20} />
+  </button>
+
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-2" aria-label="Breadcrumb">
     {#each breadcrumb as crumb, i}

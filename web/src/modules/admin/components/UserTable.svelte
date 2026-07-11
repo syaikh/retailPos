@@ -95,7 +95,7 @@
         {/each}
       {:else if users.length === 0}
         <tr>
-          <td colspan="5" class="px-4 py-12 text-center" role="status">
+          <td colspan="5" class="px-4 py-12 text-center" aria-live="polite">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Users size={32} class="text-text-muted" />
             </div>

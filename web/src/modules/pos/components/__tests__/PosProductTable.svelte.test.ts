@@ -45,7 +45,7 @@ describe('PosProductTable.svelte source-structure guards', () => {
   });
 
   it('renders stock badges with variants', () => {
-    expect(src).toContain('variant="destructive"');
+    expect(src).toContain('variant="danger"');
     expect(src).toContain('variant="warning"');
     expect(src).toContain('variant="success"');
   });

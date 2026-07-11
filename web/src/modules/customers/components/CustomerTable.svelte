@@ -61,7 +61,8 @@
   }
 </script>
 
-<table class="min-w-full text-sm table-fixed">
+<div class="overflow-x-auto">
+<table class="min-w-full text-sm table-fixed min-w-[800px]">
   <thead class="bg-muted/50">
     <tr>
       <th class="p-4 font-semibold w-12">
@@ -171,3 +172,4 @@
     {/if}
   </tbody>
 </table>
+</div>

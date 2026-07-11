@@ -30,7 +30,7 @@
   type="button"
   class="flex items-center gap-1 hover:text-primary transition-colors {align === 'right' ? 'justify-end w-full' : ''}"
   onclick={() => onsort(column)}
-  aria-sort={ariaSort}
+  aria-label={`Sort by ${label}`}
 >
   {label}
   {#if isActive}

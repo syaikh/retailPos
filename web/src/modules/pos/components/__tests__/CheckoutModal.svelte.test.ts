@@ -35,7 +35,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('defines quickCashPresets', () => {
-    expect(src).toContain('const quickCashPresets = [50000, 100000, 150000, 200000]');
+    expect(src).toContain('const quickCashPresets = [50000, 100000, 200000, 500000, 1000000]');
   });
 
   it('renders modal with Pembayaran Selesai heading', () => {

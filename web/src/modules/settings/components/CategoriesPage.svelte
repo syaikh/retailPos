@@ -280,7 +280,8 @@ let canView = $derived(authStore.user != null);
         </p>
       </div>
     {:else}
-      <table class="w-full table-fixed">
+      <div class="overflow-x-auto">
+      <table class="w-full table-fixed min-w-[700px]">
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 50%;">
@@ -360,6 +361,7 @@ let canView = $derived(authStore.user != null);
           {/each}
         </tbody>
       </table>
+      </div>
 
       {#if !loading && categories.length > 0}
         <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">

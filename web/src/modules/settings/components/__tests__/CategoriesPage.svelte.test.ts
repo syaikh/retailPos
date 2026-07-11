@@ -34,11 +34,12 @@ describe('CategoriesPage.svelte source-structure guards', () => {
     expect(src).toContain('let searchQuery = $state');
   });
 
-  it('has RBAC derived from auth store', () => {
-    expect(src).toContain("let canCreate = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canEdit = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canDelete = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canView = $derived(authStore.user != null)");
+  it('has RBAC derived from the shared composable', () => {
+    expect(src).toContain('const rbac = useRBAC()');
+    expect(src).toContain('let canCreate = $derived(rbac.canCreate)');
+    expect(src).toContain('let canEdit = $derived(rbac.canEdit)');
+    expect(src).toContain('let canDelete = $derived(rbac.isAdmin)');
+    expect(src).toContain('let canView = $derived(authStore.user != null)');
   });
 
   it('has sort state and handleSort function', () => {

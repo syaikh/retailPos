@@ -38,7 +38,7 @@
 
   let stock_stk = $derived(selectedProduct?.stock ?? 0);
 
-  function statusInfo(status?: string): { variant: 'success' | 'muted' | 'destructive'; label: string } {
+  function statusInfo(status?: string): { variant: 'success' | 'muted' | 'danger'; label: string } {
     switch ((status || '').toLowerCase()) {
       case 'active': return { variant: 'success', label: 'Active' };
       case 'draft':
@@ -46,7 +46,7 @@
         return { variant: 'muted', label: (status || 'Draft').charAt(0).toUpperCase() + (status || 'draft').slice(1) };
       case 'discontinued':
       case 'archived':
-        return { variant: 'destructive', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
+        return { variant: 'danger', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
       default: return { variant: 'muted', label: '- ' };
     }
   }

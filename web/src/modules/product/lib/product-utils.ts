@@ -1,6 +1,6 @@
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 
-export type StatusVariant = 'success' | 'muted' | 'destructive' | 'warning';
+export type StatusVariant = 'success' | 'muted' | 'danger' | 'warning';
 
 export interface StatusInfo {
   variant: StatusVariant;
@@ -20,7 +20,7 @@ export function statusInfo(status?: string): StatusInfo {
     case 'discontinued':
     case 'archived':
       return {
-        variant: 'destructive',
+        variant: 'danger',
         label: status!.charAt(0).toUpperCase() + status!.slice(1),
       };
     default:

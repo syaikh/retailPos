@@ -66,7 +66,7 @@
     onselect(id);
   }
 
-  function statusInfo(status?: string): { variant: 'success' | 'muted' | 'destructive'; label: string } {
+  function statusInfo(status?: string): { variant: 'success' | 'muted' | 'danger'; label: string } {
     switch ((status || '').toLowerCase()) {
       case 'active': return { variant: 'success', label: 'Active' };
       case 'draft':
@@ -74,15 +74,15 @@
         return { variant: 'muted', label: (status || 'Draft').charAt(0).toUpperCase() + (status || 'draft').slice(1) };
       case 'discontinued':
       case 'archived':
-        return { variant: 'destructive', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
+        return { variant: 'danger', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
       default: return { variant: 'muted', label: '- ' };
     }
   }
 </script>
 
 {#if loading}
-  <div aria-busy="true" aria-label="Loading products">
-  <table class="w-full table-fixed">
+  <div aria-busy="true" aria-label="Loading products" class="overflow-x-auto">
+  <table class="w-full table-fixed min-w-[900px]">
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12"></th>
@@ -122,7 +122,8 @@
     <p class="text-text-muted text-sm mt-1">Try adjusting your filters or start by adding your first product</p>
   </div>
 {:else}
-  <table class="w-full table-fixed">
+  <div class="overflow-x-auto">
+  <table class="w-full table-fixed min-w-[900px]">
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12">
@@ -219,4 +220,5 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {/if}

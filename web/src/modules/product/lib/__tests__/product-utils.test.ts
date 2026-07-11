@@ -17,14 +17,14 @@ describe('product-utils', () => {
       expect(statusInfo('inactive')).toEqual({ variant: 'muted', label: 'Inactive' });
     });
 
-    it('returns destructive for discontinued', async () => {
+    it('returns danger for discontinued', async () => {
       const { statusInfo } = await import('../product-utils');
-      expect(statusInfo('discontinued')).toEqual({ variant: 'destructive', label: 'Discontinued' });
+      expect(statusInfo('discontinued')).toEqual({ variant: 'danger', label: 'Discontinued' });
     });
 
-    it('returns destructive for archived', async () => {
+    it('returns danger for archived', async () => {
       const { statusInfo } = await import('../product-utils');
-      expect(statusInfo('archived')).toEqual({ variant: 'destructive', label: 'Archived' });
+      expect(statusInfo('archived')).toEqual({ variant: 'danger', label: 'Archived' });
     });
 
     it('returns muted for unknown status', async () => {

@@ -5,8 +5,14 @@
   import { logout, useAuthStore } from '$modules/auth';
 
   let {
-    currentPath = $bindable('/')
-  }: { currentPath?: string } = $props();
+    currentPath = $bindable('/'),
+    isMobileMenuOpen = false,
+    onclose = () => {},
+  }: {
+    currentPath?: string;
+    isMobileMenuOpen?: boolean;
+    onclose?: () => void;
+  } = $props();
 
   let collapsed = $state(false);
   let adminExpanded = $state(false);
@@ -27,6 +33,14 @@
 
   $effect(() => {
     if (isMasterDataPath) masterDataExpanded = true;
+  });
+
+  $effect(() => {
+    function handleKeydown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && isMobileMenuOpen) onclose();
+    }
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
   });
 
   const authStore = useAuthStore();
@@ -103,6 +117,7 @@
 
   function navigate(href: string) {
     goto(href);
+    onclose();
   }
 
   async function handleLogout() {
@@ -133,7 +148,7 @@
 </script>
 
 <aside
-  class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar shrink-0 transition-all duration-300 ease-spring"
+  class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar shrink-0 transition-all duration-300 ease-spring max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[var(--sidebar-width)] {isMobileMenuOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'}"
   style:width={collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'}
   aria-label="Sidebar"
 >

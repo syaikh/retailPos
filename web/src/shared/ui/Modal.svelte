@@ -1,7 +1,6 @@
 <script lang="ts">
   import { Button } from '$shared/ui';
   import type { Snippet } from 'svelte';
-  import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
 
@@ -88,7 +87,9 @@
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
     transition:fade={{ duration: 200 }}
+    role="presentation"
     onclick={() => { if (!persistent) open = false; }}
+    onkeydown={(e) => { if (e.key === 'Escape' && !persistent) open = false; }}
   >
     <!-- Panel - trap focus within the dialog -->
     <div

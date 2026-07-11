@@ -48,6 +48,7 @@ const authStore = useAuthStore();
   let checkingOut = $state(false);
 
    let showCheckoutModal = $state(false);
+   let showCart = $state(false);
    let cashReceived = $state(0);
    let changeDue = $derived(cashReceived - totalAmount);
 
@@ -457,47 +458,89 @@ const authStore = useAuthStore();
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-<div class="space-y-6">
-  <div class="flex gap-6">
-    <div class="flex-1 flex flex-col gap-4">
-      <ProductSearchPanel bind:searchQuery />
-      <div class="card flex-1 overflow-hidden flex flex-col p-0">
-        <PosProductTable
-          {products}
-          {loading}
-          {total}
-          {limit}
-          {offset}
-          {warningThreshold}
-          {criticalThreshold}
-          bind:showCopySuccess
-          onaddtocart={addToCart}
-          oncopy={copyToClipboard}
-          onpagechange={handlePageChange}
-        />
-      </div>
-    </div>
-    <div class="w-[340px] shrink-0 flex flex-col relative">
-      <CartPanel
-        {cart}
-        {totalAmount}
-        {totalItems}
-        {subtotal}
-        {taxAmount}
-        {dppDisplay}
-        bind:paymentMethod
-        {paymentOptions}
-        {selectedCustomerLabel}
-        {lastSale}
-        {checkingOut}
-        onupdateqty={updateQty}
-        onremovefromcart={removeFromCart}
-        onclearcart={clearCart}
-        oncheckout={openCheckoutModal}
-        onprintreceipt={printReceipt}
-        onselectcustomer={() => (showCustomerModal = true)}
+<div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
+  <!-- Product area -->
+  <div class="flex-1 flex flex-col gap-4">
+    <ProductSearchPanel bind:searchQuery />
+    <div class="card flex-1 overflow-hidden flex flex-col p-0">
+      <PosProductTable
+        {products}
+        {loading}
+        {total}
+        {limit}
+        {offset}
+        {warningThreshold}
+        {criticalThreshold}
+        bind:showCopySuccess
+        onaddtocart={addToCart}
+        oncopy={copyToClipboard}
+        onpagechange={handlePageChange}
       />
     </div>
+  </div>
+
+  <!-- Cart: toggleable bottom panel on tablet/mobile, side panel on desktop -->
+  <div class="lg:hidden">
+    <button
+      type="button"
+      class="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-surface-default text-sm font-medium text-text-primary"
+      onclick={() => showCart = !showCart}
+    >
+      <span class="flex items-center gap-2">
+        <span class="text-primary-light">Cart</span>
+        {#if totalItems > 0}
+          <span class="px-2 py-0.5 rounded-full bg-primary-subtle text-primary-light text-xs font-semibold">{totalItems} items</span>
+        {/if}
+      </span>
+      <span class="text-text-muted">{showCart ? 'Hide' : 'Show'}</span>
+    </button>
+    {#if showCart}
+      <div class="mt-2">
+        <CartPanel
+          {cart}
+          {totalAmount}
+          {totalItems}
+          {subtotal}
+          {taxAmount}
+          {dppDisplay}
+          bind:paymentMethod
+          {paymentOptions}
+          {selectedCustomerLabel}
+          {lastSale}
+          {checkingOut}
+          onupdateqty={updateQty}
+          onremovefromcart={removeFromCart}
+          onclearcart={clearCart}
+          oncheckout={openCheckoutModal}
+          onprintreceipt={printReceipt}
+          onselectcustomer={() => (showCustomerModal = true)}
+          class="!h-auto !max-h-none !sticky-none"
+        />
+      </div>
+    {/if}
+  </div>
+
+  <!-- Desktop cart (side panel) -->
+  <div class="hidden lg:block w-[340px] shrink-0">
+    <CartPanel
+      {cart}
+      {totalAmount}
+      {totalItems}
+      {subtotal}
+      {taxAmount}
+      {dppDisplay}
+      bind:paymentMethod
+      {paymentOptions}
+      {selectedCustomerLabel}
+      {lastSale}
+      {checkingOut}
+      onupdateqty={updateQty}
+      onremovefromcart={removeFromCart}
+      onclearcart={clearCart}
+      oncheckout={openCheckoutModal}
+      onprintreceipt={printReceipt}
+      onselectcustomer={() => (showCustomerModal = true)}
+    />
   </div>
 </div>
 
