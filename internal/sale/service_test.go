@@ -144,6 +144,92 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	initialStock := 100
+	quantity := 7
+	prodID := insertTestProduct(t, ctx, "SVC-STOCK-DED", "Stock Deduction Product", 5000, initialStock)
+
+	var stockBefore int
+	err := dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockBefore)
+	require.NoError(t, err)
+	assert.Equal(t, initialStock, stockBefore)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-STOCK-DED-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      5000 * quantity,
+		TotalAmount:   5000 * quantity,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  quantity,
+		UnitPrice: 5000,
+		Subtotal:  5000 * quantity,
+		DPPAmount: 5000 * quantity,
+		TaxAmount: 0,
+	}}
+
+	err = svc.CreateSale(ctx, sale, items)
+	require.NoError(t, err)
+
+	var stockAfter int
+	err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+	require.NoError(t, err)
+	assert.Equal(t, initialStock-quantity, stockAfter, "stock should be reduced by sale quantity")
+}
+
+func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-DISC-PROD", "Discount Product", 10000, 50)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-DISC-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      30000,
+		Discount:      5000,
+		TotalAmount:   25000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  3,
+		UnitPrice: 10000,
+		Subtotal:  30000,
+		DPPAmount: 30000,
+		TaxAmount: 0,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items)
+	require.NoError(t, err)
+	require.Greater(t, sale.ID, 0)
+
+	got, err := svc.GetSaleByID(ctx, sale.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 30000, got.Subtotal)
+	assert.Equal(t, 5000, got.Discount)
+	assert.Equal(t, 25000, got.TotalAmount)
+	assert.Len(t, got.Items, 1)
+	assert.Equal(t, 3, got.Items[0].Quantity)
+}
+
 func TestSaleService_ReadOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()

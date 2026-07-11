@@ -2,6 +2,7 @@ package sale
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -9,16 +10,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -145,6 +149,22 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		}
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		actorID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "sale",
+			EntityID:    &sale.ID,
+			NewValues:   shared.ToJSONMap(sale),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
+		})
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"data": sale})

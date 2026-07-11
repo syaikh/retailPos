@@ -49,7 +49,7 @@ func setupProductRouter() *gin.Engine {
 	go bus.Run()
 
 	svc := NewService(repo, nil, nil, nil, bus)
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)

@@ -66,10 +66,7 @@ func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search,
 }
 
 func (s *Service) CreateProduct(ctx context.Context, product *Product) error {
-	if err := s.repo.CreateProduct(ctx, product); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "product.created", product)
+	return s.repo.CreateProduct(ctx, product)
 }
 
 func (s *Service) UpdateProduct(ctx context.Context, product *Product) error {
@@ -84,10 +81,7 @@ func (s *Service) UpdateProduct(ctx context.Context, product *Product) error {
 }
 
 func (s *Service) DeleteProduct(ctx context.Context, id int, storeID *int) error {
-	if err := s.repo.DeleteProduct(ctx, id, storeID); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "product.deleted", id)
+	return s.repo.DeleteProduct(ctx, id, storeID)
 }
 
 func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {

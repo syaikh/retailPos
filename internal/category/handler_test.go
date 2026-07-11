@@ -12,8 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -45,11 +43,9 @@ func setupCategoryRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
 
-	svc := NewService(repo, bus)
-	h := NewHandler(svc)
+	svc := NewService(repo)
+	h := NewHandler(svc, nil)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)

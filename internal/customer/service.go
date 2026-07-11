@@ -3,21 +3,14 @@ package customer
 import (
 	"context"
 	"errors"
-
-	"retail-pos-system/internal/eventbus"
 )
 
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
-
 type Service struct {
-	repo     *Repository
-	eventBus EventBus
+	repo *Repository
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
 }
 
 func (s *Service) GetByPhone(ctx context.Context, phone string, storeID *int) (*Customer, error) {
@@ -37,10 +30,7 @@ func (s *Service) CreateCustomer(ctx context.Context, customer *Customer, storeI
 		return errors.New("customer cannot be nil")
 	}
 	customer.StoreID = storeID
-	if err := s.repo.CreateCustomer(ctx, customer); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "customer.created", customer)
+	return s.repo.CreateCustomer(ctx, customer)
 }
 
 func (s *Service) UpdateCustomer(ctx context.Context, customer *Customer, id int, storeID *int) error {
@@ -66,17 +56,11 @@ func (s *Service) UpdateCustomer(ctx context.Context, customer *Customer, id int
 	if customer.Note == nil {
 		customer.Note = old.Note
 	}
-	if err := s.repo.UpdateCustomer(ctx, customer, id, storeID); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "customer.updated", eventbus.UpdatePayload{Old: old, New: customer})
+	return s.repo.UpdateCustomer(ctx, customer, id, storeID)
 }
 
 func (s *Service) DeleteCustomer(ctx context.Context, id int, storeID *int) error {
-	if err := s.repo.DeleteCustomer(ctx, id, storeID); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "customer.deleted", id)
+	return s.repo.DeleteCustomer(ctx, id, storeID)
 }
 
 func (s *Service) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
@@ -86,5 +70,3 @@ func (s *Service) BulkUpdateCustomersStatus(ctx context.Context, ids []int, isAc
 func (s *Service) BulkDeleteCustomers(ctx context.Context, ids []int, storeID *int) error {
 	return s.repo.BulkDeleteCustomers(ctx, ids, storeID)
 }
-
-

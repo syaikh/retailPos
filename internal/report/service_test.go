@@ -24,6 +24,12 @@ func TestReportService_DashboardStats(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	assert.GreaterOrEqual(t, stats.TotalSales, int64(0))
+	assert.GreaterOrEqual(t, stats.TotalRevenue, int64(0))
+	assert.GreaterOrEqual(t, stats.TotalProducts, int64(0))
+	assert.GreaterOrEqual(t, stats.LowStockCount, int64(0))
+	assert.GreaterOrEqual(t, stats.TodaysSales, int64(0))
+	assert.GreaterOrEqual(t, stats.TodaysRevenue, int64(0))
+	assert.GreaterOrEqual(t, stats.ActiveCustomers, int64(0))
 }
 
 func TestReportService_LiveDashboardStats(t *testing.T) {
@@ -59,6 +65,12 @@ func TestReportService_PeriodComparison(t *testing.T) {
 	result, err := svc.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	assert.GreaterOrEqual(t, result.CurrentRevenue, 0)
+	assert.GreaterOrEqual(t, result.PreviousRevenue, 0)
+	assert.GreaterOrEqual(t, result.CurrentOrders, 0)
+	assert.GreaterOrEqual(t, result.PreviousOrders, 0)
+	assert.GreaterOrEqual(t, result.CurrentAOV, 0)
+	assert.GreaterOrEqual(t, result.PreviousAOV, 0)
 }
 
 func TestReportService_DualChartData(t *testing.T) {

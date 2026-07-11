@@ -6,17 +6,20 @@ import (
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -173,6 +176,21 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "product",
+			EntityID:    &product.ID,
+			NewValues:   shared.ToJSONMap(product),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Created product %s", product.Name),
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": product})
 }
 
@@ -208,9 +226,35 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
+	var oldProduct *Product
+	if h.auditSvc != nil {
+		sid := 0
+		if product.StoreID != nil {
+			sid = *product.StoreID
+		}
+		oldProduct, _ = h.svc.GetProductByID(c.Request.Context(), id, sid)
+	}
+
 	if err := h.svc.UpdateProduct(c.Request.Context(), &product); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "product",
+			EntityID:    &product.ID,
+			OldValues:   shared.ToJSONMap(oldProduct),
+			NewValues:   shared.ToJSONMap(product),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Updated product %s", product.Name),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": product})
 }
@@ -233,10 +277,40 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
+	var oldProduct *Product
+	if h.auditSvc != nil {
+		sid := 0
+		if storeID := h.getStoreID(c); storeID != nil {
+			sid = *storeID
+		}
+		oldProduct, _ = h.svc.GetProductByID(c.Request.Context(), id, sid)
+	}
+
 	storeID := h.getStoreID(c)
 	if err := h.svc.DeleteProduct(c.Request.Context(), id, storeID); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		var description string
+		if oldProduct != nil {
+			description = fmt.Sprintf("Deleted product %s", oldProduct.Name)
+		} else {
+			description = fmt.Sprintf("Deleted product #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "delete",
+			EntityType:  "product",
+			EntityID:    &id,
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }

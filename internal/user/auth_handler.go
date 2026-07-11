@@ -3,21 +3,24 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	svc *AuthService
+	svc      *AuthService
+	auditSvc *audit.Service
 }
 
-func NewAuthHandler(svc *AuthService) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(svc *AuthService, auditSvc *audit.Service) *AuthHandler {
+	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth, csrf gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -75,6 +78,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"access_token": resp.AccessToken,
 		"user":         resp.User,
 	})
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			Username:    req.Username,
+			Action:      "login",
+			EntityType:  "auth",
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("User %s logged in", req.Username),
+		})
+	}
 }
 
 // RefreshToken godoc
@@ -186,6 +200,24 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
+	if h.auditSvc != nil {
+		username, _ := c.Get("username")
+		role, _ := c.Get("role")
+		usernameStr, _ := username.(string)
+		roleStr, _ := role.(string)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      &id,
+			Username:    usernameStr,
+			Role:        roleStr,
+			Action:      "update",
+			EntityType:  "user",
+			EntityID:    &id,
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: "Changed password",
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "password changed"})
 }
 
@@ -210,6 +242,25 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	secure := os.Getenv("COOKIE_SECURE") == "true"
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", "", -1, "/", domain, secure, true)
+
+	if h.auditSvc != nil {
+		userID, _ := c.Get("userID")
+		uid, _ := userID.(int)
+		username, _ := c.Get("username")
+		role, _ := c.Get("role")
+		usernameStr, _ := username.(string)
+		roleStr, _ := role.(string)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      &uid,
+			Username:    usernameStr,
+			Role:        roleStr,
+			Action:      "logout",
+			EntityType:  "auth",
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: "User logged out",
+		})
+	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "logged out"})
 }

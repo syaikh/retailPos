@@ -6,27 +6,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
 
-func TestAuditService_CreatePublishesEvent(t *testing.T) {
+func TestAuditService_CreateAuditLog(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"audit.log_created"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
 
 	al := &AuditLog{
 		Role:       "admin",
@@ -35,21 +20,12 @@ func TestAuditService_CreatePublishesEvent(t *testing.T) {
 	}
 	err := svc.CreateAuditLog(ctx, al)
 	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for audit.log_created event")
-	}
+	assert.Greater(t, al.ID, 0)
 }
 
 func TestAuditService_GetAuditLogs(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	al := &AuditLog{

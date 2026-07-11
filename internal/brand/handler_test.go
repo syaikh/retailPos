@@ -9,11 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -45,11 +46,9 @@ func setupBrandRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
 
-	svc := NewService(repo, bus)
-	h := NewHandler(svc)
+	svc := NewService(repo)
+	h := NewHandler(svc, nil)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
@@ -187,6 +186,110 @@ func TestHandler_DeleteBrand(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+func setupBrandRouterWithAudit() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+
+	repo := NewRepository(dbPool)
+	auditRepo := audit.NewRepository(dbPool)
+
+	svc := NewService(repo)
+	auditSvc := audit.NewService(auditRepo)
+	h := NewHandler(svc, auditSvc)
+
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	h.RegisterPublicRoutes(r.Group("/"))
+	return r
+}
+
+func countAuditLogs(t *testing.T, entityType string) int {
+	t.Helper()
+	var count int
+	err := dbPool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = $1`, entityType).Scan(&count)
+	require.NoError(t, err)
+	return count
+}
+
+func TestHandler_CreateBrand_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupBrandRouterWithAudit()
+
+	before := countAuditLogs(t, "brand")
+
+	body := `{"name":"Audit Create Brand","description":"test audit","is_active":true}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/brands", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	after := countAuditLogs(t, "brand")
+	assert.Equal(t, before+1, after, "audit log should be created for brand create")
+}
+
+func TestHandler_UpdateBrand_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupBrandRouterWithAudit()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	b := &Brand{Name: "Audit Update Brand", Description: "before", IsActive: true}
+	require.NoError(t, repo.Create(ctx, b))
+
+	before := countAuditLogs(t, "brand")
+
+	body := `{"name":"Audit Update Brand Updated","description":"after","is_active":true}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/brands/"+strconv.Itoa(b.ID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	after := countAuditLogs(t, "brand")
+	assert.Equal(t, before+1, after, "audit log should be created for brand update")
+}
+
+func TestHandler_DeleteBrand_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupBrandRouterWithAudit()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	b := &Brand{Name: "Audit Delete Brand", IsActive: true}
+	require.NoError(t, repo.Create(ctx, b))
+
+	before := countAuditLogs(t, "brand")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/brands/"+strconv.Itoa(b.ID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	after := countAuditLogs(t, "brand")
+	assert.Equal(t, before+1, after, "audit log should be created for brand delete")
+}
+
+func TestHandler_CreateBrand_NilAuditSvc(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupBrandRouter()
+
+	body := `{"name":"Nil Audit Brand","description":"no audit","is_active":true}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/brands", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 

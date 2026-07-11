@@ -1,18 +1,24 @@
 package uom
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -49,6 +55,22 @@ func (h *Handler) CreateUnitOfMeasure(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create unit of measure"})
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "uom",
+			EntityID:    &uom.ID,
+			NewValues:   shared.ToJSONMap(uom),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Created unit of measure %s", uom.Name),
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": uom})
 }
 
@@ -57,6 +79,11 @@ func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid unit of measure id"})
 		return
+	}
+
+	var oldUOM *UnitOfMeasure
+	if h.auditSvc != nil {
+		oldUOM, _ = h.svc.GetByID(c.Request.Context(), id)
 	}
 
 	var req UOMUpdateRequest
@@ -70,6 +97,23 @@ func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update unit of measure"})
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "uom",
+			EntityID:    &uom.ID,
+			OldValues:   shared.ToJSONMap(oldUOM),
+			NewValues:   shared.ToJSONMap(uom),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Updated unit of measure %s", uom.Name),
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"data": uom})
 }
 
@@ -80,9 +124,37 @@ func (h *Handler) DeleteUnitOfMeasure(c *gin.Context) {
 		return
 	}
 
+	var oldUOMName string
+	if h.auditSvc != nil {
+		if u, err := h.svc.GetByID(c.Request.Context(), id); err == nil {
+			oldUOMName = u.Name
+		}
+	}
+
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete unit of measure"})
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		var description string
+		if oldUOMName != "" {
+			description = fmt.Sprintf("Deleted unit of measure %s", oldUOMName)
+		} else {
+			description = fmt.Sprintf("Deleted unit of measure #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "delete",
+			EntityType:  "uom",
+			EntityID:    &id,
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }

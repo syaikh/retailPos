@@ -1,20 +1,24 @@
 package category
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -71,6 +75,22 @@ func (h *Handler) CreateCategoryHandler(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "category",
+			EntityID:    &category.ID,
+			NewValues:   shared.ToJSONMap(category),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Created category %s", category.Name),
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": category})
 }
 
@@ -79,6 +99,11 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
+	}
+
+	var oldCategory *Category
+	if h.auditSvc != nil {
+		oldCategory, _ = h.svc.GetCategoryByID(c.Request.Context(), id)
 	}
 
 	var req CategoryUpdateRequest
@@ -92,6 +117,23 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "category",
+			EntityID:    &category.ID,
+			OldValues:   shared.ToJSONMap(oldCategory),
+			NewValues:   shared.ToJSONMap(category),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Updated category %s", category.Name),
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"data": category})
 }
 
@@ -102,9 +144,37 @@ func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
 		return
 	}
 
+	var oldCategoryName string
+	if h.auditSvc != nil {
+		if cat, err := h.svc.GetCategoryByID(c.Request.Context(), id); err == nil {
+			oldCategoryName = cat.Name
+		}
+	}
+
 	if err := h.svc.DeleteCategory(c.Request.Context(), id); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		var description string
+		if oldCategoryName != "" {
+			description = fmt.Sprintf("Deleted category %s", oldCategoryName)
+		} else {
+			description = fmt.Sprintf("Deleted category #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "delete",
+			EntityType:  "category",
+			EntityID:    &id,
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }

@@ -6,151 +6,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
 
-func TestCustomerService_CreatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"customer.created"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	phone := "087777777771"
-	c := &Customer{
-		Name:     "Service Create Test",
-		Phone:    &phone,
-		Email: ptr("test@example.com"),
-		IsActive: true,
-	}
-	err := svc.CreateCustomer(ctx, c, nil)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for customer.created event")
-	}
-}
-
 func TestCustomerService_CreateCustomerNilError(t *testing.T) {
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(NewRepository(dbPool), bus)
+	svc := NewService(NewRepository(dbPool))
 	ctx := context.Background()
 
 	err := svc.CreateCustomer(ctx, nil, nil)
 	assert.ErrorContains(t, err, "customer cannot be nil")
 }
 
-func TestCustomerService_UpdatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"customer.updated"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	phone := "087777777772"
-	c := &Customer{
-		Name:     "Before Update",
-		Phone:    &phone,
-		Email: ptr("test@example.com"),
-		IsActive: true,
-	}
-	require.NoError(t, svc.CreateCustomer(ctx, c, nil))
-
-	c.Name = "After Update"
-	err := svc.UpdateCustomer(ctx, c, c.ID, nil)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for customer.updated event")
-	}
-}
-
 func TestCustomerService_UpdateCustomerNilError(t *testing.T) {
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(NewRepository(dbPool), bus)
+	svc := NewService(NewRepository(dbPool))
 	ctx := context.Background()
 
 	err := svc.UpdateCustomer(ctx, nil, 1, nil)
 	assert.ErrorContains(t, err, "customer cannot be nil")
 }
 
-func TestCustomerService_DeletePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"customer.deleted"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	phone := "087777777773"
-	c := &Customer{
-		Name:     "Delete Event Test",
-		Phone:    &phone,
-		Email: ptr("test@example.com"),
-		IsActive: true,
-	}
-	require.NoError(t, svc.CreateCustomer(ctx, c, nil))
-
-	err := svc.DeleteCustomer(ctx, c.ID, nil)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for customer.deleted event")
-	}
-}
-
 func TestCustomerService_ReadOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	phone := "087777777774"
@@ -184,11 +61,8 @@ func TestCustomerService_ReadOperations(t *testing.T) {
 
 func TestCustomerService_BulkOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	phone1 := "087777777775"

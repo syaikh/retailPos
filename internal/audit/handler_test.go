@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/shared"
 )
 
@@ -45,10 +44,7 @@ func setupAuditRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	h := NewHandler(svc)
 
 	r := gin.New()

@@ -52,7 +52,7 @@ func setupSaleRouter() *gin.Engine {
 	go bus.Run()
 
 	svc := NewService(repo, bus)
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	ctx := context.Background()
 	var id int

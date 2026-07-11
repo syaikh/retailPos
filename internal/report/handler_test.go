@@ -75,6 +75,10 @@ func TestHandler_DashboardStats(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, resp.Data.TodaysRevenue, 0)
+	assert.GreaterOrEqual(t, resp.Data.YesterdayRevenue, 0)
+	assert.GreaterOrEqual(t, resp.Data.TodaysSales, 0)
+	assert.GreaterOrEqual(t, resp.Data.TotalProducts, 0)
+	assert.GreaterOrEqual(t, resp.Data.LowStockCount, 0)
 }
 
 func TestHandler_LiveDashboardStats(t *testing.T) {
@@ -97,6 +101,9 @@ func TestHandler_LiveDashboardStats(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, resp.Data.TodaysRevenue, 0)
+	assert.GreaterOrEqual(t, resp.Data.TodaysSales, 0)
+	assert.GreaterOrEqual(t, resp.Data.TotalProducts, 0)
+	assert.GreaterOrEqual(t, resp.Data.LowStockCount, 0)
 }
 
 func TestHandler_SalesChartData(t *testing.T) {
@@ -183,6 +190,10 @@ func TestHandler_AvailableYears(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.NotNil(t, resp.Data)
+	for _, y := range resp.Data {
+		assert.GreaterOrEqual(t, y, 2020)
+		assert.LessOrEqual(t, y, 2030)
+	}
 }
 
 func TestHandler_ExportDashboard(t *testing.T) {

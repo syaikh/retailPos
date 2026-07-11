@@ -24,14 +24,9 @@ var (
 	ErrInvalidPassword    = errors.New("current password is incorrect")
 )
 
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
-
 type AuthService struct {
 	dbPool     *pgxpool.Pool
 	repo       *Repository
-	eventBus   EventBus
 	jwtSecret  string
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -47,7 +42,7 @@ type AuthClaims struct {
 	jwt.RegisteredClaims
 }
 
-func NewAuthService(repo *Repository, eventBus EventBus) *AuthService {
+func NewAuthService(repo *Repository) *AuthService {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		panic("FATAL: JWT_SECRET environment variable is required.")
@@ -55,7 +50,6 @@ func NewAuthService(repo *Repository, eventBus EventBus) *AuthService {
 	return &AuthService{
 		dbPool:     repo.db,
 		repo:       repo,
-		eventBus:   eventBus,
 		jwtSecret:  secret,
 		accessTTL:  15 * time.Minute,
 		refreshTTL: 7 * 24 * time.Hour,
@@ -97,13 +91,6 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 	}
 	if err := s.storeRefreshToken(ctx, user.ID, refreshToken); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
-	}
-
-	if err := s.eventBus.Publish(ctx, "auth.login", map[string]interface{}{
-		"user_id":  user.ID,
-		"username": user.Username,
-	}); err != nil {
-		log.Printf("warning: failed to publish auth.login event: %v", err)
 	}
 
 	user.Password = ""
@@ -173,26 +160,11 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 		return "", "", fmt.Errorf("commit refresh token rotation: %w", err)
 	}
 
-	if err := s.eventBus.Publish(ctx, "auth.token_refreshed", map[string]interface{}{
-		"user_id":  claims.ID,
-		"username": claims.Username,
-	}); err != nil {
-		log.Printf("warning: failed to publish auth.token_refreshed event: %v", err)
-	}
-
 	return newAccessToken, newRefreshToken, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID int, refreshToken string) error {
-	if err := s.deleteRefreshToken(ctx, userID, refreshToken); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "auth.logout", map[string]interface{}{
-		"user_id": userID,
-	}); err != nil {
-		log.Printf("warning: failed to publish auth.logout event: %v", err)
-	}
-	return nil
+	return s.deleteRefreshToken(ctx, userID, refreshToken)
 }
 
 func (s *AuthService) ValidateToken(tokenString string) (*AuthClaims, error) {
@@ -221,10 +193,6 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPas
 	if err := s.repo.DeleteUserRefreshTokens(ctx, userID); err != nil {
 		log.Printf("warning: failed to delete refresh tokens after password change for user %d: %v", userID, err)
 	}
-
-	_ = s.eventBus.Publish(ctx, "auth.password_changed", map[string]interface{}{
-		"user_id": userID,
-	})
 
 	return nil
 }

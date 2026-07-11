@@ -3,52 +3,13 @@ package product
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
 )
-
-type testEventBus struct {
-	eventbus.Bus
-}
-
-func TestProductService_CreatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, nil, nil, nil, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"product.created"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	p := &Product{
-		SKU:    "SVC-EVT-001",
-		Name:   "Service Event Test",
-		Price:  10000,
-		Cost:   5000,
-		Stock:  5,
-		Status: "active",
-	}
-	err := svc.CreateProduct(ctx, p)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for product.created event")
-	}
-}
 
 func TestProductService_UpdatePublishesEvent(t *testing.T) {
 	repo := NewRepository(dbPool)
@@ -84,7 +45,7 @@ func TestProductService_UpdatePublishesEvent(t *testing.T) {
 
 	select {
 	case <-published:
-	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for product.updated event")
 	}
 }
@@ -127,44 +88,6 @@ func TestProductService_ReadOperations(t *testing.T) {
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(products), 1)
 	})
-}
-
-func TestProductService_DeletePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, nil, nil, nil, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"product.deleted"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	p := &Product{
-		SKU:    "SVC-EVT-DEL",
-		Name:   "Delete Event Test",
-		Price:  5000,
-		Cost:   2500,
-		Stock:  1,
-		Status: "active",
-	}
-	require.NoError(t, svc.CreateProduct(ctx, p))
-
-	err := svc.DeleteProduct(ctx, p.ID, nil)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for product.deleted event")
-	}
 }
 
 func TestProductService_BulkUpdate(t *testing.T) {

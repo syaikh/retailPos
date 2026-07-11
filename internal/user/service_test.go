@@ -6,130 +6,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
-
-func TestUserService_CreatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-	hash := testPasswordHash()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"user.created"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	u := &User{
-		Username: "svc_create_evt_001",
-		Email:    "svc_create_evt_001@test.com",
-		Password: hash,
-		RoleID:   1,
-		IsActive: true,
-	}
-	err := svc.CreateUser(ctx, u)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for user.created event")
-	}
-}
-
-func TestUserService_UpdatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-	hash := testPasswordHash()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"user.updated"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	u := &User{
-		Username: "svc_update_evt_001",
-		Email:    "svc_update_evt_001@test.com",
-		Password: hash,
-		RoleID:   1,
-		IsActive: true,
-	}
-	require.NoError(t, svc.CreateUser(ctx, u))
-
-	u.Username = "svc_update_evt_002"
-	err := svc.UpdateUser(ctx, u)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for user.updated event")
-	}
-}
-
-func TestUserService_DeletePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-	hash := testPasswordHash()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"user.deleted"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	u := &User{
-		Username: "svc_delete_evt_001",
-		Email:    "svc_delete_evt_001@test.com",
-		Password: hash,
-		RoleID:   1,
-		IsActive: true,
-	}
-	require.NoError(t, svc.CreateUser(ctx, u))
-
-	err := svc.DeleteUser(ctx, u.ID)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for user.deleted event")
-	}
-}
 
 func TestUserService_ReadOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 	hash := testPasswordHash()
 
@@ -165,11 +47,8 @@ func TestUserService_ReadOperations(t *testing.T) {
 
 func TestUserService_RoleOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	t.Run("GetAllRoles", func(t *testing.T) {
@@ -232,11 +111,8 @@ func TestUserService_RoleOperations(t *testing.T) {
 
 func TestUserService_PermissionOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	t.Run("GetAllPermissions", func(t *testing.T) {

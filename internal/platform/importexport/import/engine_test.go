@@ -17,7 +17,7 @@ func TestEngine_Preview(t *testing.T) {
 	v := validation.NewDefaultPipeline()
 	adapterReg := importexport.NewAdapterRegistry()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	e := NewEngine(reg, v, adapterReg, progEng, nil, nil)
+	e := NewEngine(reg, v, adapterReg, progEng, nil)
 
 	csv := "Code,Product Name,Price\nA1,Widget,100\n"
 	result, err := e.Preview(context.Background(), "test", "data.csv", strings.NewReader(csv))
@@ -37,7 +37,7 @@ func TestEngine_PreviewUnknownModule(t *testing.T) {
 	v := validation.NewDefaultPipeline()
 	adapterReg := importexport.NewAdapterRegistry()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	e := NewEngine(reg, v, adapterReg, progEng, nil, nil)
+	e := NewEngine(reg, v, adapterReg, progEng, nil)
 
 	_, err := e.Preview(context.Background(), "bogus", "data.csv", strings.NewReader("x\n1\n"))
 	if err == nil {
@@ -50,7 +50,7 @@ func TestEngine_ExecuteNoPreview(t *testing.T) {
 	v := validation.NewDefaultPipeline()
 	adapterReg := importexport.NewAdapterRegistry()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	e := NewEngine(reg, v, adapterReg, progEng, nil, nil)
+	e := NewEngine(reg, v, adapterReg, progEng, nil)
 
 	_, err := e.Execute(context.Background(), "bogus-token")
 	if err == nil {

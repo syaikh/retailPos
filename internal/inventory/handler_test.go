@@ -50,7 +50,7 @@ func setupInventoryRouter() *gin.Engine {
 	go bus.Run()
 
 	svc := NewService(repo, bus)
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)

@@ -1,20 +1,24 @@
 package inventory
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -48,6 +52,22 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 	if err := h.svc.AdjustStock(c.Request.Context(), req.ProductID, req.QuantityChange, uid, req.Notes); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		actorID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "inventory",
+			EntityID:    &req.ProductID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"product_id": req.ProductID, "quantity_change": req.QuantityChange, "notes": req.Notes}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Adjusted stock for product #%d by %d", req.ProductID, req.QuantityChange),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

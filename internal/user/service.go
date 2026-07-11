@@ -2,17 +2,14 @@ package user
 
 import (
 	"context"
-
-	"retail-pos-system/internal/eventbus"
 )
 
 type Service struct {
-	repo     *Repository
-	eventBus EventBus
+	repo *Repository
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
 }
 
 // ==================== USER ====================
@@ -46,37 +43,15 @@ func (s *Service) GetAllUsers(ctx context.Context, limit, offset int, search, so
 }
 
 func (s *Service) CreateUser(ctx context.Context, user *User) error {
-	if err := s.repo.CreateUser(ctx, user); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "user.created", user); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.CreateUser(ctx, user)
 }
 
 func (s *Service) UpdateUser(ctx context.Context, user *User) error {
-	old, err := s.repo.GetByID(ctx, user.ID)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.UpdateUser(ctx, user); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "user.updated", eventbus.UpdatePayload{Old: old, New: user}); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.UpdateUser(ctx, user)
 }
 
 func (s *Service) DeleteUser(ctx context.Context, id int) error {
-	if err := s.repo.DeleteUser(ctx, id); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "user.deleted", id); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.DeleteUser(ctx, id)
 }
 
 // ==================== ROLE ====================
@@ -98,37 +73,15 @@ func (s *Service) GetAllRoles(ctx context.Context) ([]Role, error) {
 }
 
 func (s *Service) CreateRole(ctx context.Context, role *Role) error {
-	if err := s.repo.CreateRole(ctx, role); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "role.created", role); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.CreateRole(ctx, role)
 }
 
 func (s *Service) UpdateRole(ctx context.Context, role *Role) error {
-	old, err := s.repo.GetRoleByID(ctx, role.ID)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.UpdateRole(ctx, role); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "role.updated", eventbus.UpdatePayload{Old: old, New: role}); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.UpdateRole(ctx, role)
 }
 
 func (s *Service) DeleteRole(ctx context.Context, id int) error {
-	if err := s.repo.DeleteRole(ctx, id); err != nil {
-		return err
-	}
-	if err := s.eventBus.Publish(ctx, "role.deleted", id); err != nil {
-		return err
-	}
-	return nil
+	return s.repo.DeleteRole(ctx, id)
 }
 
 func (s *Service) GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error) {

@@ -7,86 +7,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
-
-func TestCategoryService_CreatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"category.created"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
-		Name:        "SvcCreateEvt-" + t.Name(),
-		Description: "Event test",
-	})
-	require.NoError(t, err)
-	require.Greater(t, cat.ID, 0)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for category.created event")
-	}
-}
-
-func TestCategoryService_UpdatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
-		Name: "SvcUpdBefore-" + t.Name(),
-	})
-	require.NoError(t, err)
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"category.updated"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	updated, err := svc.UpdateCategory(ctx, cat.ID, &CategoryUpdateRequest{
-		Name:        "SvcUpdAfter-" + t.Name(),
-		Description: "Updated desc",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "SvcUpdAfter-"+t.Name(), updated.Name)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for category.updated event")
-	}
-}
 
 func TestCategoryService_ReadOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
@@ -126,46 +52,10 @@ func TestCategoryService_ReadOperations(t *testing.T) {
 	})
 }
 
-func TestCategoryService_DeletePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
-
-	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
-		Name: "SvcDelBefore-" + t.Name(),
-	})
-	require.NoError(t, err)
-
-	published := make(chan struct{}, 1)
-	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"category.deleted"},
-		func(ctx context.Context, event eventbus.Event) error {
-			published <- struct{}{}
-			return nil
-		},
-	))
-
-	err = svc.DeleteCategory(ctx, cat.ID)
-	require.NoError(t, err)
-
-	select {
-	case <-published:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for category.deleted event")
-	}
-}
-
 func TestCategoryService_DeleteWithActiveProductsFails(t *testing.T) {
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := NewService(repo)
 	ctx := context.Background()
 
 	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{

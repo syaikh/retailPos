@@ -99,7 +99,7 @@ func setupTestHandler() (*Handler, *gin.Engine, *progress.Engine) {
 
 	val := validation.NewDefaultPipeline()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
@@ -387,7 +387,7 @@ func TestHandler_ExportCSV(t *testing.T) {
 
 		val := validation.NewDefaultPipeline()
 		progEng := progress.NewEngine(progress.NewInMemoryStore())
-		importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+		importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 		exportEng := export.NewEngine()
 		templateEng := template.NewEngine()
 
@@ -440,7 +440,7 @@ func TestHandler_ExportXLSX(t *testing.T) {
 
 		val := validation.NewDefaultPipeline()
 		progEng := progress.NewEngine(progress.NewInMemoryStore())
-		importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+		importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 		exportEng := export.NewEngine()
 		templateEng := template.NewEngine()
 
@@ -507,7 +507,7 @@ func TestHandler_PermissionDenied(t *testing.T) {
 
 	val := validation.NewDefaultPipeline()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
@@ -572,7 +572,7 @@ func TestHandler_ListModules_Empty(t *testing.T) {
 	adapterReg := importexport.NewAdapterRegistry()
 	val := validation.NewDefaultPipeline()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 
@@ -658,7 +658,7 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 
 	val := validation.NewDefaultPipeline()
 	progEng := progress.NewEngine(progress.NewInMemoryStore())
-	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil, nil)
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
 	exportEng := export.NewEngine()
 	templateEng := template.NewEngine()
 

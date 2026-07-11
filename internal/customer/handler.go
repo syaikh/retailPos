@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -15,11 +17,12 @@ import (
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -139,6 +142,22 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "create",
+			EntityType:  "customer",
+			EntityID:    &customer.ID,
+			NewValues:   shared.ToJSONMap(customer),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Created customer %s", customer.Name),
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": customer})
 }
 
@@ -178,6 +197,11 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
 
+	var oldCustomer *Customer
+	if h.auditSvc != nil {
+		oldCustomer, _ = h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr)
+	}
+
 	customer := &Customer{
 		ID:       id,
 		Name:     req.Name,
@@ -194,6 +218,23 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "customer",
+			EntityID:    &id,
+			OldValues:   shared.ToJSONMap(oldCustomer),
+			NewValues:   shared.ToJSONMap(customer),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Updated customer %s", customer.Name),
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"data": customer})
 }
 
@@ -207,9 +248,37 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
 
+	var oldCustomerName string
+	if h.auditSvc != nil {
+		if cust, err := h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr); err == nil {
+			oldCustomerName = cust.Name
+		}
+	}
+
 	if err := h.svc.DeleteCustomer(c.Request.Context(), id, storeIDPtr); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID := middleware.UserIDFromContext(c.Request.Context())
+		var description string
+		if oldCustomerName != "" {
+			description = fmt.Sprintf("Deleted customer %s", oldCustomerName)
+		} else {
+			description = fmt.Sprintf("Deleted customer #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      userID,
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "delete",
+			EntityType:  "customer",
+			EntityID:    &id,
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }

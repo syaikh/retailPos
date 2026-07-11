@@ -2,21 +2,14 @@ package uom
 
 import (
 	"context"
-
-	"retail-pos-system/internal/eventbus"
 )
 
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
-
 type Service struct {
-	repo     *Repository
-	eventBus EventBus
+	repo *Repository
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
 }
 
 func (s *Service) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error) {
@@ -45,9 +38,6 @@ func (s *Service) Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMea
 	if err := s.repo.Create(ctx, uom); err != nil {
 		return nil, err
 	}
-	if err := s.eventBus.Publish(ctx, "uom.created", uom); err != nil {
-		return nil, err
-	}
 	return s.repo.GetByID(ctx, uom.ID)
 }
 
@@ -56,7 +46,6 @@ func (s *Service) Update(ctx context.Context, id int, req *UOMUpdateRequest) (*U
 	if err != nil {
 		return nil, err
 	}
-	old := *uom
 	uom.Code = req.Code
 	uom.Name = req.Name
 	uom.Description = req.Description
@@ -66,17 +55,9 @@ func (s *Service) Update(ctx context.Context, id int, req *UOMUpdateRequest) (*U
 	if err := s.repo.Update(ctx, uom); err != nil {
 		return nil, err
 	}
-	if err := s.eventBus.Publish(ctx, "uom.updated", eventbus.UpdatePayload{Old: &old, New: uom}); err != nil {
-		return nil, err
-	}
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *Service) Delete(ctx context.Context, id int) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "uom.deleted", id)
+	return s.repo.Delete(ctx, id)
 }
-
-

@@ -1,23 +1,41 @@
 package user
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type Handler struct {
-	svc *Service
+func auditContextFromGin(c *gin.Context) (userID *int, username, role string) {
+	if v, ok := c.Get("userID"); ok {
+		if id, ok := v.(int); ok {
+			userID = &id
+		}
+	}
+	if v, ok := c.Get("username"); ok {
+		username, _ = v.(string)
+	}
+	if v, ok := c.Get("role"); ok {
+		role, _ = v.(string)
+	}
+	return
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+type Handler struct {
+	svc      *Service
+	auditSvc *audit.Service
+}
+
+func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -144,6 +162,22 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "create",
+			EntityType:  "user",
+			EntityID:    &user.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": user.Username, "email": user.Email, "role_id": user.RoleID, "is_active": user.IsActive}),
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("Created user %s", user.Username),
+		})
+	}
 	user.Password = ""
 	c.JSON(http.StatusCreated, gin.H{"data": user})
 }
@@ -165,6 +199,16 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
+	}
+
+	var oldValues map[string]interface{}
+	if h.auditSvc != nil {
+		oldValues = shared.ToJSONMap(map[string]interface{}{
+			"username":  existing.Username,
+			"email":     existing.Email,
+			"role_id":   existing.RoleID,
+			"is_active": existing.IsActive,
+		})
 	}
 
 	if req.Username != nil {
@@ -207,6 +251,23 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "update",
+			EntityType:  "user",
+			EntityID:    &existing.ID,
+			OldValues:   oldValues,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "is_active": existing.IsActive}),
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("Updated user %s", existing.Username),
+		})
+	}
 	existing.Password = ""
 	c.JSON(http.StatusOK, gin.H{"data": existing})
 }
@@ -217,9 +278,38 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
+
+	var oldUsername string
+	if h.auditSvc != nil {
+		if u, err := h.svc.GetUserByID(c.Request.Context(), id); err == nil {
+			oldUsername = u.Username
+		}
+	}
+
 	if err := h.svc.DeleteUser(c.Request.Context(), id); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		var description string
+		if oldUsername != "" {
+			description = fmt.Sprintf("Deleted user %s", oldUsername)
+		} else {
+			description = fmt.Sprintf("Deleted user #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "delete",
+			EntityType:  "user",
+			EntityID:    &id,
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
@@ -247,6 +337,22 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "create",
+			EntityType:  "role",
+			EntityID:    &role.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"name": role.Name, "description": role.Description}),
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("Created role %s", role.Name),
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": role})
 }
 
@@ -266,6 +372,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
 		return
 	}
+	oldValues := shared.ToJSONMap(map[string]interface{}{"name": existing.Name, "description": existing.Description})
 	if req.Name != nil {
 		existing.Name = *req.Name
 	}
@@ -275,6 +382,23 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 	if err := h.svc.UpdateRole(c.Request.Context(), existing); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "update",
+			EntityType:  "role",
+			EntityID:    &existing.ID,
+			OldValues:   oldValues,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"name": existing.Name, "description": existing.Description}),
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: fmt.Sprintf("Updated role %s", existing.Name),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": existing})
 }
@@ -317,9 +441,37 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete role: users are assigned to this role"})
 		return
 	}
+	var oldRoleName string
+	if h.auditSvc != nil {
+		if r, err := h.svc.GetRoleByID(c.Request.Context(), id); err == nil {
+			oldRoleName = r.Name
+		}
+	}
+
 	if err := h.svc.DeleteRole(c.Request.Context(), id); err != nil {
 		shared.InternalError(c, err)
 		return
+	}
+
+	if h.auditSvc != nil {
+		actorID, actorUsername, actorRole := auditContextFromGin(c)
+		var description string
+		if oldRoleName != "" {
+			description = fmt.Sprintf("Deleted role %s", oldRoleName)
+		} else {
+			description = fmt.Sprintf("Deleted role #%d", id)
+		}
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      actorID,
+			Username:    actorUsername,
+			Role:        actorRole,
+			Action:      "delete",
+			EntityType:  "role",
+			EntityID:    &id,
+			IPAddress:   shared.GetIPAddress(c),
+			UserAgent:   shared.GetUserAgent(c),
+			Description: description,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }

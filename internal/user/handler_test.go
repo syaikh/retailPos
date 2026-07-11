@@ -10,11 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"retail-pos-system/internal/eventbus"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -49,11 +50,9 @@ func setupUserRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
 
-	svc := NewService(repo, bus)
-	h := NewHandler(svc)
+	svc := NewService(repo)
+	h := NewHandler(svc, nil)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
@@ -256,6 +255,125 @@ func TestHandler_ListRoles(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.Data)
+}
+
+func setupUserRouterWithAudit() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+
+	repo := NewRepository(dbPool)
+	auditRepo := audit.NewRepository(dbPool)
+
+	svc := NewService(repo)
+	auditSvc := audit.NewService(auditRepo)
+	h := NewHandler(svc, auditSvc)
+
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	return r
+}
+
+func countAuditLogs(t *testing.T, entityType string) int {
+	t.Helper()
+	var count int
+	err := dbPool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = $1`, entityType).Scan(&count)
+	require.NoError(t, err)
+	return count
+}
+
+func ensureTestUserExists(t *testing.T) {
+	t.Helper()
+	_, err := dbPool.Exec(context.Background(),
+		`INSERT INTO users (id, username, email, password_hash, role_id, is_active)
+		 VALUES (1, 'test_actor', 'test_actor@test.com', 'hash', 1, true)
+		 ON CONFLICT (id) DO NOTHING`)
+	require.NoError(t, err)
+}
+
+func TestHandler_CreateUser_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	ensureTestUserExists(t)
+	r := setupUserRouterWithAudit()
+
+	before := countAuditLogs(t, "user")
+
+	body := `{"username":"auditcreate1","email":"auditcreate1@test.com","password":"secret123","role_id":1}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/admin/users", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	after := countAuditLogs(t, "user")
+	assert.Equal(t, before+1, after, "audit log should be created for user create")
+}
+
+func TestHandler_DeleteUser_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	ensureTestUserExists(t)
+	r := setupUserRouterWithAudit()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+	u := &User{
+		Username: "auditdelete1",
+		Email:    "auditdelete1@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, u))
+
+	before := countAuditLogs(t, "user")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/admin/users/"+strconv.Itoa(u.ID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	after := countAuditLogs(t, "user")
+	assert.Equal(t, before+1, after, "audit log should be created for user delete")
+}
+
+func TestHandler_CreateRole_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	ensureTestUserExists(t)
+	r := setupUserRouterWithAudit()
+
+	before := countAuditLogs(t, "role")
+
+	roleName := uniqueRoleName("audit_role")
+	body := fmt.Sprintf(`{"name":"%s","description":"Audit test role"}`, roleName)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/admin/roles", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	after := countAuditLogs(t, "role")
+	assert.Equal(t, before+1, after, "audit log should be created for role create")
+}
+
+func TestHandler_CreateUser_NilAuditSvc(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	ensureTestUserExists(t)
+	r := setupUserRouter()
+
+	body := `{"username":"nilaudit1","email":"nilaudit1@test.com","password":"secret123","role_id":1}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/admin/users", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 func TestHandler_CreateRole(t *testing.T) {

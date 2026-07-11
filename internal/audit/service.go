@@ -17,24 +17,16 @@ func init() {
 	}
 }
 
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
-
 type Service struct {
-	repo     *Repository
-	eventBus EventBus
+	repo *Repository
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
 }
 
 func (s *Service) CreateAuditLog(ctx context.Context, log *AuditLog) error {
-	if err := s.repo.CreateAuditLog(ctx, log); err != nil {
-		return err
-	}
-	return s.eventBus.Publish(ctx, "audit.log_created", log)
+	return s.repo.CreateAuditLog(ctx, log)
 }
 
 func (s *Service) GetEntityTypes(ctx context.Context) ([]string, error) {

@@ -1,11 +1,22 @@
 package shared
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
+
+func ToJSONMap(v interface{}) map[string]interface{} {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var m map[string]interface{}
+	_ = json.Unmarshal(b, &m)
+	return m
+}
 
 func JSONSuccess(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, gin.H{

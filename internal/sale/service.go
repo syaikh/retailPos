@@ -53,6 +53,11 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 			return ErrInsufficientStock
 		}
 
+		_, err = tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - $1 WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`, item.Quantity, item.ProductID)
+		if err != nil {
+			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)
+		}
+
 		if s.priceStore != nil {
 			serverPrice, err := s.priceStore.GetProductPrice(ctx, item.ProductID)
 			if err != nil {
