@@ -8,7 +8,7 @@
     class: className = '',
     children
   }: {
-    variant?: 'default' | 'success' | 'warning' | 'danger' | 'destructive' | 'primary' | 'muted';
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted';
     size?: 'sm' | 'md';
     class?: string;
     children: Snippet;
@@ -21,7 +21,6 @@
     success: 'bg-success-subtle text-success-light shadow-[0_0_12px_rgba(16,185,129,0.15)]',
     warning: 'bg-warning-subtle text-warning-light shadow-[0_0_12px_rgba(245,158,11,0.15)]',
     danger: 'bg-danger-subtle text-danger-light shadow-[0_0_12px_rgba(239,68,68,0.15)]',
-    destructive: 'bg-danger-subtle text-danger-light shadow-[0_0_12px_rgba(239,68,68,0.15)]',
     primary: 'bg-primary-subtle text-primary-light shadow-glow-primary-sm',
     muted: 'bg-surface-default text-text-muted border border-border-default'
   };

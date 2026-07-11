@@ -9,12 +9,14 @@
     open = $bindable(false),
     title = '',
     size = 'md',
+    persistent = false,
     children,
     footer,
   }: {
     open?: boolean;
     title?: string;
     size?: 'sm' | 'md' | 'lg' | 'xl';
+    persistent?: boolean;
     children: Snippet;
     footer?: Snippet;
   } = $props();
@@ -51,7 +53,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') open = false;
+    if (e.key === 'Escape' && !persistent) open = false;
   }
 
   function stopPropagation(e: MouseEvent) {
@@ -82,15 +84,16 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop - no click handler to prevent closing when clicking outside -->
+  <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 "
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
     transition:fade={{ duration: 200 }}
+    onclick={() => { if (!persistent) open = false; }}
   >
     <!-- Panel - trap focus within the dialog -->
     <div
       bind:this={panelEl}
-      class="relative w-full {sizes[size]} bg-surface border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col"
+      class="relative w-full {sizes[size]} bg-surface-default border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col"
       transition:fly={{ y: 20, duration: 300 }}
       role="dialog"
       aria-modal="true"

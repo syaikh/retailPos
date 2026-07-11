@@ -63,7 +63,7 @@
     onclick={() => document.getElementById(inputId)?.click()}
     role="button"
     tabindex="0"
-    onkeydown={(e) => { if (e.key === 'Enter') document.getElementById(inputId)?.click(); }}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(inputId)?.click(); } }}
   >
     <Upload size={36} class="mx-auto mb-3 text-text-muted" />
     <p class="text-text-primary font-semibold">Drop file here or click to browse</p>

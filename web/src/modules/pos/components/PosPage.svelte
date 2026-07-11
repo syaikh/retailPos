@@ -289,11 +289,14 @@ const authStore = useAuthStore();
 
   function finalizeSale() {
     if (cart.length === 0 || changeDue < 0) return;
+    const capturedCash = cashReceived;
+    const capturedChange = changeDue;
+    const capturedPayment = paymentMethod;
+    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
     closeCheckoutModal();
     processCheckout().then(() => {
       if (lastSale && lastSale.items) {
-        const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
-        const taxAmount = lastSale.tax || 0;
+        const taxAmt = lastSale.tax || 0;
         printReceiptStore.set({
           invoice_number: lastSale.invoice_number,
           created_at: lastSale.created_at,
@@ -303,20 +306,21 @@ const authStore = useAuthStore();
             unit_price: item.unit_price,
           })),
           total_amount: lastSale.total_amount,
-          subtotal_dpp: lastSale.total_amount - taxAmount,
-          tax: taxAmount,
-          paymentMethod: paymentMethod,
-          cashReceived: cashReceived,
-          changeDue: changeDue,
+          subtotal_dpp: lastSale.total_amount - taxAmt,
+          tax: taxAmt,
+          paymentMethod: capturedPayment,
+          cashReceived: capturedCash,
+          changeDue: capturedChange,
           customer_name: customer?.name,
         });
+        setTimeout(() => {
+          window.print();
+          setTimeout(() => printReceiptStore.set(null), 1000);
+        }, 300);
       }
-    setTimeout(() => {
-      window.print();
-      // Clear the receipt store after print dialog closes so the
-      // hidden receipt container doesn't linger in the DOM
-      setTimeout(() => printReceiptStore.set(null), 1000);
-    }, 300);
+    }).catch((err) => {
+      console.error('Checkout failed:', err);
+      toast.error('Checkout failed. Please try again.');
     });
   }
 
@@ -334,7 +338,7 @@ const authStore = useAuthStore();
   function handleGlobalKeydown(event) {
     if (event.altKey && event.key === 'Delete') {
       event.preventDefault();
-      if (cart.length > 0 && confirm('Kosongkan seluruh keranjang belanja?')) {
+      if (cart.length > 0) {
         clearCart();
         toast.info('Cart cleared');
       }

@@ -61,7 +61,14 @@
             <span>{progress.processed} / {progress.total_rows} rows</span>
             <span>{progress.progress_pct}%</span>
           </div>
-          <div class="h-2 bg-surface-default rounded-full overflow-hidden border border-border">
+          <div
+            class="h-2 bg-surface-default rounded-full overflow-hidden border border-border"
+            role="progressbar"
+            aria-valuenow={progress.progress_pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Import progress"
+          >
             <div
               class="h-full bg-primary-default rounded-full transition-all duration-500"
               style="width: {progress.progress_pct}%"

@@ -5,6 +5,8 @@
   import { initAuth } from '$app/providers/auth-init';
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
   import { fade } from 'svelte/transition';
+  import { routePermissions } from '$app/config/permissions';
+  import { toast } from '$shared/stores/toast.svelte';
 
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
@@ -83,6 +85,14 @@
     document.title = `${page} — RetailPOS`;
   }
 
+  function hasRoutePermission(path) {
+    const requiredPerms = routePermissions[path];
+    if (!requiredPerms) return true;
+    const authStore = useAuthStore();
+    const userPerms = authStore.user?.permissions || [];
+    return requiredPerms.some(p => userPerms.includes(p));
+  }
+
   async function handleRoute(path) {
     const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
@@ -99,6 +109,12 @@
     }
 
     if (path === '/login') {
+      goto('/');
+      return;
+    }
+
+    if (!hasRoutePermission(path)) {
+      toast.error('You do not have permission to access this page');
       goto('/');
       return;
     }
@@ -156,6 +172,16 @@
       }
       if (path === '/inventory/stock') {
         goto('/inventory/products');
+        isInitializing = false;
+        return;
+      }
+
+      if (!hasRoutePermission(path)) {
+        toast.error('You do not have permission to access this page');
+        Component = Home;
+        currentPath = '/';
+        window.history.replaceState({}, '', '/');
+        updateTitle('/');
         isInitializing = false;
         return;
       }
