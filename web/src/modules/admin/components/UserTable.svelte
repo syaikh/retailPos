@@ -60,9 +60,8 @@
         <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody aria-busy={loading} aria-label={loading ? 'Loading users' : undefined}>
       {#if loading}
-        <div aria-busy="true" aria-label="Loading users">
         {#each { length: 5 } as _}
           <tr class="border-t border-border">
             <td class="p-4">
@@ -94,7 +93,6 @@
             </td>
           </tr>
         {/each}
-        </div>
       {:else if users.length === 0}
         <tr>
           <td colspan="5" class="px-4 py-12 text-center" role="status">
