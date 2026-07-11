@@ -3,6 +3,48 @@ import { toast } from '$shared/stores/toast.svelte';
 import { getTodayInJakarta } from '$shared/utils/jakartaTime';
 import { getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
 
+interface ExportToExcelParams {
+  exportPeriod?: string;
+  exportMode?: string;
+  exportDate?: string;
+  chartCanvas?: HTMLCanvasElement;
+}
+
+interface ExportToPDFParams {
+  startDate?: string;
+  endDate?: string;
+  selectedPeriodType: string;
+  currentTimeHour?: string;
+  chartType: string;
+  comparisonDateRange?: string;
+  statCardLabels: { comparisonLabel: string };
+  kpiData: {
+    totalRevenue: number;
+    previousRevenue: number;
+    totalOrders: number;
+    previousOrders: number;
+    avgOrderValue: number;
+    previousAvgOrderValue: number;
+    revenuePerDay: number;
+    previousRevenuePerDay: number;
+    peakRevenueHour: number;
+    previousPeakRevenue: number;
+    peakRevenueMonth: number;
+    previousPeakRevenueMonth: number;
+  };
+  chartCanvas?: HTMLCanvasElement;
+  chartData: Array<{ date?: string; total: number }>;
+  bestPeriod?: { total: number; [key: string]: unknown } | null;
+  worstPeriod?: { total: number; [key: string]: unknown } | null;
+  bestWorstHeading: string;
+  sortedRows: Array<{
+    period: string;
+    revenue: number;
+    prevRevenue: number | null;
+    orderCount: number | null;
+  }>;
+}
+
 /**
  * Exports the current dashboard view to Excel.
  */
@@ -11,7 +53,7 @@ export async function exportToExcel({
   exportMode,
   exportDate,
   chartCanvas,
-}) {
+}: ExportToExcelParams) {
   try {
     const formData = new FormData();
     if (exportPeriod) formData.set('period', exportPeriod);
@@ -71,7 +113,7 @@ export async function exportToPDF({
   worstPeriod,
   bestWorstHeading,
   sortedRows,
-}) {
+}: ExportToPDFParams) {
   try {
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');

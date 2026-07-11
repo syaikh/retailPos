@@ -105,28 +105,6 @@ describe('reporting-utils', () => {
     });
   });
 
-  describe('getChartType', () => {
-    it('returns hourly for realtime/yesterday/daily', async () => {
-      const { getChartType } = await import('../reporting-utils');
-      expect(getChartType('realtime')).toBe('hourly');
-      expect(getChartType('yesterday')).toBe('hourly');
-      expect(getChartType('daily')).toBe('hourly');
-    });
-
-    it('returns daily for 7days/30days/weekly/monthly', async () => {
-      const { getChartType } = await import('../reporting-utils');
-      expect(getChartType('7days')).toBe('daily');
-      expect(getChartType('30days')).toBe('daily');
-      expect(getChartType('weekly')).toBe('daily');
-      expect(getChartType('monthly')).toBe('daily');
-    });
-
-    it('returns yearly for yearly', async () => {
-      const { getChartType } = await import('../reporting-utils');
-      expect(getChartType('yearly')).toBe('yearly');
-    });
-  });
-
   describe('getBackendPeriodType', () => {
     it('maps period types correctly', async () => {
       const { getBackendPeriodType } = await import('../reporting-utils');

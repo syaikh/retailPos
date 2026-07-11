@@ -12,11 +12,11 @@
   } = $props();
 </script>
 
-<div class="page-header">
+<div class="flex items-center justify-between">
   <div>
-    <h1 class="page-title">{title}</h1>
+    <h1 class="text-2xl font-bold text-text-primary">{title}</h1>
     {#if subtitle}
-      <p class="page-subtitle">{subtitle}</p>
+      <p class="mt-1 text-sm text-text-secondary">{subtitle}</p>
     {/if}
   </div>
   {#if actions}

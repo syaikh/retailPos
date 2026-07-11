@@ -1,5 +1,25 @@
 import { getCurrentJakartaHour, getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
 
+interface ChartDataPoint {
+  date?: string;
+  total: number;
+  month_start?: string;
+  week_start?: string;
+  week_end?: string;
+  label?: string;
+}
+
+interface ChartConfigParams {
+  chartType: string;
+  chartData: ChartDataPoint[];
+  prevChartData: Array<{ date?: string; total: number; month_start?: string; week_start?: string; week_end?: string }>;
+  activePeriodType: string;
+  endDate?: string;
+  selectedMonthlyRange?: { start: { year: number; month: number; day: number }; end: { year: number; month: number; day: number } };
+  selectedYearlyRange?: { start: { year: number }; end: { year: number } };
+  chartYear: number;
+}
+
 /**
  * Builds the Chart.js configuration object from report state.
  * All dependencies are passed as parameters to avoid coupling to Svelte reactivity.
@@ -13,7 +33,7 @@ export function buildChartConfig({
   selectedMonthlyRange,
   selectedYearlyRange,
   chartYear,
-}) {
+}: ChartConfigParams) {
   let labels = [];
   let values = [];
   let prevValues = [];

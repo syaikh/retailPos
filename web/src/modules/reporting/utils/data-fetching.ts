@@ -2,6 +2,49 @@ import { apiFetch } from '$shared/api/http-client';
 import { toast } from '$shared/stores/toast.svelte';
 import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$shared/utils/jakartaTime';
 
+interface FetchSalesWithRangeParams {
+  start: string;
+  end: string;
+  chartType: string;
+  activePeriodType: string;
+  selectedMonthlyRange?: { start: { year: number; month: number; day: number }; end: { year: number; month: number; day: number } };
+  selectedYearlyRange?: { start: { year: number }; end: { year: number } };
+  peakChartValue: number;
+}
+
+interface KpiData {
+  totalRevenue: number;
+  previousRevenue: number;
+  totalOrders: number;
+  previousOrders: number;
+  avgOrderValue: number;
+  previousAvgOrderValue: number;
+  revenuePerDay: number;
+  previousRevenuePerDay: number;
+  peakRevenueHour: number;
+  previousPeakRevenue: number;
+  peakRevenueMonth: number;
+  previousPeakRevenueMonth: number;
+  percentChange: number;
+  comparisonType: string;
+  isPartial: boolean;
+  periodInfo: Record<string, unknown>;
+}
+
+interface FetchSalesResult {
+  chartData: Array<{ date?: string; total: number }>;
+  prevChartData: Array<{ date?: string; total: number }>;
+  startDate: string;
+  endDate: string;
+  chartEndDate: string;
+  prevStart: string;
+  prevEnd: string;
+  exportPeriod: string;
+  exportMode: string;
+  exportDate: string;
+  kpiData: KpiData | null;
+}
+
 /**
  * Fetches sales data for a given date range and comparison period.
  * Returns an object with the state values to apply, or throws on failure.
@@ -14,7 +57,7 @@ export async function fetchSalesWithRange({
   selectedMonthlyRange,
   selectedYearlyRange,
   peakChartValue,
-}) {
+}: FetchSalesWithRangeParams): Promise<FetchSalesResult> {
   const chartEndpoint = chartType === 'yearly'
     ? '/api/dashboard/chart/monthly'
     : '/api/dashboard/chart';

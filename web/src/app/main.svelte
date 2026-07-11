@@ -4,6 +4,7 @@
   import { initWebSocket } from '$app/providers/websocket';
   import { initAuth } from '$app/providers/auth-init';
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
+  import NotFoundPage from '$modules/auth/components/NotFoundPage.svelte';
   import { fade } from 'svelte/transition';
   import { routePermissions } from '$app/config/permissions';
   import { toast } from '$shared/stores/toast.svelte';
@@ -73,11 +74,16 @@
 
   async function getComponent(path) {
     const loader = pageModules[path];
-    if (!loader) return Home;
+    if (!loader) return NotFoundPage;
     const id = ++loadId;
-    const mod = await loader();
-    if (id !== loadId) return;
-    return mod.default;
+    try {
+      const mod = await loader();
+      if (id !== loadId) return;
+      return mod.default;
+    } catch (err) {
+      console.error('Failed to load page:', err);
+      return NotFoundPage;
+    }
   }
 
   function updateTitle(path) {

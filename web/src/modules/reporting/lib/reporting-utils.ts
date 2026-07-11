@@ -70,13 +70,6 @@ export function getPeriodDateRange(periodType: string): { start: string; end: st
   }
 }
 
-export function getChartType(activePeriodType: string): string {
-  if (['realtime', 'yesterday', 'daily'].includes(activePeriodType)) return 'hourly';
-  if (['7days', '30days', 'weekly', 'monthly'].includes(activePeriodType)) return 'daily';
-  if (['yearly'].includes(activePeriodType)) return 'yearly';
-  return 'monthly';
-}
-
 export function getBackendPeriodType(activePeriodType: string): string {
   if (['realtime', 'yesterday', 'daily'].includes(activePeriodType)) return 'daily';
   if (activePeriodType === 'weekly') return 'weekly';
