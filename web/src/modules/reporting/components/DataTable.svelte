@@ -1,6 +1,7 @@
 <script>
   import { fly } from 'svelte/transition';
   import { TrendingUp, TrendingDown } from 'lucide-svelte';
+  import { SortableHeader } from '$shared/ui';
 
   let {
     showDataTable = false,
@@ -18,36 +19,16 @@
       <thead>
         <tr class="border-b border-border/50">
           <th class="py-2 px-3 font-medium text-text-secondary select-none whitespace-nowrap">
-            <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors" onclick={() => ontogglesort('period')}>
-              {tablePeriodHeading}
-              {#if sortColumn === 'period'}
-                <span>{sortAsc ? '▲' : '▼'}</span>
-              {/if}
-            </button>
+            <SortableHeader label={tablePeriodHeading} column="period" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => ontogglesort('revenue')}>
-              Revenue (Rp)
-              {#if sortColumn === 'revenue'}
-                <span>{sortAsc ? '▲' : '▼'}</span>
-              {/if}
-            </button>
+            <SortableHeader label="Revenue (Rp)" column="revenue" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => ontogglesort('prev')}>
-              Prev Period (Rp)
-              {#if sortColumn === 'prev'}
-                <span>{sortAsc ? '▲' : '▼'}</span>
-              {/if}
-            </button>
+            <SortableHeader label="Prev Period (Rp)" column="prev" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <button type="button" class="flex items-center gap-1 hover:text-text-primary transition-colors justify-end w-full" onclick={() => ontogglesort('change')}>
-              Change
-              {#if sortColumn === 'change'}
-                <span>{sortAsc ? '▲' : '▼'}</span>
-              {/if}
-            </button>
+            <SortableHeader label="Change" column="change" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           {#if sortedRows.some(r => r.orderCount !== null)}
             <th class="py-2 px-3 font-medium text-text-secondary text-right whitespace-nowrap">

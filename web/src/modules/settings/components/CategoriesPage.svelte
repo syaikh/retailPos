@@ -8,7 +8,7 @@
 
   const authStore = useAuthStore();
 
-  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, ToggleSwitch, ConfirmDeleteModal } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, SearchBar, Skeleton, BulkActionDropdown, ImportWizard, ToggleSwitch, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2, X } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -250,7 +250,7 @@ let canView = $derived(authStore.user != null);
   <div class="card overflow-hidden">
 
     {#if loading}
-      <table class="w-full table-fixed">
+      <table class="w-full table-fixed" aria-busy="true" aria-label="Loading categories">
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 50%;">CATEGORY NAME</th>
@@ -273,7 +273,7 @@ let canView = $derived(authStore.user != null);
         </tbody>
       </table>
     {:else if categories.length === 0}
-      <div class="px-4 py-12 text-center">
+      <div class="px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
         </div>
@@ -287,24 +287,16 @@ let canView = $derived(authStore.user != null);
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 50%;">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('name')}>
-                CATEGORY NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="CATEGORY NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold w-32">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('slug')}>
-                SLUG {#if sortBy === 'slug'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="SLUG" column="slug" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-right p-4 font-semibold w-24">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('product_count')}>
-                PRODUCTS {#if sortBy === 'product_count'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="PRODUCTS" column="product_count" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
             </th>
             <th class="text-left p-4 font-semibold w-28">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
-                CREATED {#if sortBy === 'created_at'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="CREATED" column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
           </tr>

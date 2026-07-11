@@ -4,7 +4,7 @@
   import { initWebSocket } from '$app/providers/websocket';
   import { initAuth } from '$app/providers/auth-init';
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
-  import NotFoundPage from '$modules/auth/components/NotFoundPage.svelte';
+  import NotFoundPage from '$app/components/NotFoundPage.svelte';
   import { fade } from 'svelte/transition';
   import { routePermissions } from '$app/config/permissions';
   import { toast } from '$shared/stores/toast.svelte';

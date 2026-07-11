@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge, Pagination, Skeleton } from '$shared/ui';
+  import { Badge, Pagination, Skeleton, SortableHeader } from '$shared/ui';
   import { Banknote } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 
@@ -53,7 +53,8 @@
 
 <div class="card p-0 overflow-hidden">
   {#if loading}
-    <div class="divide-y divide-border">
+    <div aria-busy="true" aria-label="Loading transactions">
+      <div class="divide-y divide-border">
       {#each { length: 5 } as _}
         <div class="flex items-center gap-4 px-4 py-3.5">
           <Skeleton width="w-32" height="h-4" />
@@ -62,9 +63,10 @@
           <Skeleton width="w-28" height="h-4" />
         </div>
       {/each}
+      </div>
     </div>
   {:else if salesData.length === 0}
-    <div class="px-4 py-12 text-center">
+    <div class="px-4 py-12 text-center" role="status">
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
         <Banknote size={32} class="text-text-muted" />
       </div>
@@ -77,26 +79,18 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('invoice_number')}>
-                INVOICE {#if sortBy === 'invoice_number'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="INVOICE" column="invoice_number" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('created_at')}>
-                DATE {#if sortBy === 'created_at'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="DATE" column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold w-[30%]">CUSTOMER</th>
             <th class="text-left p-4 font-semibold">ITEMS</th>
             <th class="text-left p-4 font-semibold">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => handleSort('payment_method')}>
-                PAYMENT {#if sortBy === 'payment_method'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="PAYMENT" column="payment_method" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-right p-4 font-semibold">
-              <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => handleSort('total_amount')}>
-                TOTAL (RP) {#if sortBy === 'total_amount'}<span>{sortDir === 'ASC' ? '▲' : '▼'}</span>{/if}
-              </button>
+              <SortableHeader label="TOTAL (RP)" column="total_amount" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
             </th>
           </tr>
         </thead>

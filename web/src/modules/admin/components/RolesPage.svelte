@@ -5,7 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
 
-  import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal } from '$shared/ui';
+  import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -375,7 +375,7 @@
 
     <!-- Table -->
     {#if loading}
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" aria-busy="true" aria-label="Loading roles">
         <table class="w-full table-fixed">
           <thead class="bg-muted/50">
             <tr>
@@ -402,7 +402,7 @@
         </table>
       </div>
     {:else if totalFiltered === 0}
-      <div class="card px-4 py-12 text-center">
+      <div class="card px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-16 h-16 mx-auto flex justify-center"><Shield size={28} class="text-text-muted" /></div>
         <p class="text-text-primary font-semibold mt-3">{roleSearchDebounced || filterType !== 'all' ? 'No matching roles' : 'No roles defined'}</p>
         <p class="text-text-muted text-sm mt-1 max-w-sm mx-auto">
@@ -425,15 +425,11 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold" style="width: 35%;">
-                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('name')}>
-                  ROLE {#if sortField === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-                </button>
+                <SortableHeader label="ROLE" column="name" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">TYPE</th>
               <th class="text-left p-4 font-semibold w-20">
-                <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-xs uppercase tracking-wider" onclick={() => toggleSort('permissions')}>
-                  PERMISSIONS {#if sortField === 'permissions'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-                </button>
+                <SortableHeader label="PERMISSIONS" column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">DESCRIPTION</th>
               <th class="text-right p-4 font-semibold w-10"></th>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge, Button, Skeleton } from '$shared/ui';
+  import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { Pencil, Trash2, Search } from 'lucide-svelte';
 
   let {
@@ -68,26 +68,18 @@
         <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
       </th>
       <th class="text-left p-4 font-semibold w-[20%]">
-        <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('name')}>
-          NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+        <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-left p-4 font-semibold w-[12%]">
-        <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('phone')}>
-          PHONE {#if sortBy === 'phone'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+        <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-left p-4 font-semibold w-[16%]">
-        <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('email')}>
-          EMAIL {#if sortBy === 'email'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+        <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-left p-4 font-semibold w-[16%]">ADDRESS</th>
       <th class="text-left p-4 font-semibold w-[14%]">NOTE</th>
       <th class="text-left p-4 font-semibold w-[12%]">
-        <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('status')}>
-          STATUS {#if sortBy === 'status'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+        <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-center p-4 font-semibold w-20">Actions</th>
     </tr>
@@ -95,7 +87,7 @@
   <tbody>
     {#if loading}
       {#each { length: 5 } as _, i}
-        <tr class="border-t border-border">
+        <tr class="border-t border-border" aria-hidden="true">
           <td class="px-4 py-3" colspan={8}>
             <div class="flex items-center gap-3">
               <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
@@ -110,7 +102,7 @@
     {:else if customers.length === 0}
       <tr class="border-t border-border">
         <td colspan={8}>
-          <div class="px-4 py-16 text-center">
+          <div class="px-4 py-16 text-center" role="status">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Search size={32} class="text-text-muted" />
             </div>

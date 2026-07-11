@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge, Button, Skeleton } from '$shared/ui';
+  import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { Package, Copy } from 'lucide-svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
 
@@ -81,6 +81,7 @@
 </script>
 
 {#if loading}
+  <div aria-busy="true" aria-label="Loading products">
   <table class="w-full table-fixed">
     <thead class="bg-muted/50">
       <tr>
@@ -111,8 +112,9 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {:else if products.length === 0}
-  <div class="px-4 py-12 text-center">
+  <div class="px-4 py-12 text-center" role="status">
     <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
       <Package size={32} class="text-text-muted" />
     </div>
@@ -127,26 +129,18 @@
           <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all products" />
         </th>
         <th class="text-left p-4 font-semibold" style="width: 40%;">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('name')}>
-            PRODUCT NAME {#if sortBy === 'name'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="PRODUCT NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-52">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('category')}>
-            CATEGORY {#if sortBy === 'category'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="CATEGORY" column="category" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-28">BRAND</th>
         <th class="text-left p-4 font-semibold w-24">UOM</th>
         <th class="p-4 font-semibold w-28">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => onsort('price')}>
-            PRICE {#if sortBy === 'price'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="PRICE" column="price" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="p-4 font-semibold w-20">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors justify-end w-full" onclick={() => onsort('stock')}>
-            STOCK {#if sortBy === 'stock'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="STOCK" column="stock" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="text-left p-4 font-semibold w-20">STATUS</th>
         <th class="text-left p-4 font-semibold w-10"></th>

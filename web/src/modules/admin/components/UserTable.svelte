@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge, Button, Skeleton } from '$shared/ui';
+  import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { User, Pencil, Trash2, Users, Search } from 'lucide-svelte';
   import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime';
 
@@ -48,26 +48,21 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="text-left p-4 font-semibold" style="width: 30%;">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('username')}>
-            USER {#if sortBy === 'username'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="USER" column="username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-40">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('role_id')}>
-            ROLE {#if sortBy === 'role_id'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="ROLE" column="role_id" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-28">STATUS</th>
         <th class="text-left p-4 font-semibold w-44">
-          <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors" onclick={() => onsort('last_login')}>
-            LAST LOGIN {#if sortBy === 'last_login'}<span>{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
-          </button>
+          <SortableHeader label="LAST LOGIN" column="last_login" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
       </tr>
     </thead>
     <tbody>
       {#if loading}
+        <div aria-busy="true" aria-label="Loading users">
         {#each { length: 5 } as _}
           <tr class="border-t border-border">
             <td class="p-4">
@@ -99,9 +94,10 @@
             </td>
           </tr>
         {/each}
+        </div>
       {:else if users.length === 0}
         <tr>
-          <td colspan="5" class="px-4 py-12 text-center">
+          <td colspan="5" class="px-4 py-12 text-center" role="status">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Users size={32} class="text-text-muted" />
             </div>
