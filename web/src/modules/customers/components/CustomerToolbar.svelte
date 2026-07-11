@@ -21,7 +21,7 @@
   } = $props();
 </script>
 
-<div class="border border-border rounded-xl p-4 space-y-3 bg-bg-card">
+<div class="card p-4 space-y-3">
   <div class="flex items-center gap-3">
     <div class="flex-1">
       <SearchBar bind:value={searchQuery} placeholder="Search by name, phone, or email..." oninput={onsearch} />

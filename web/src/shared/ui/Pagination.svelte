@@ -95,8 +95,10 @@
       value={limit}
       onchange={handleLimitChange}
     >
+      <option value={10}>10</option>
       <option value={20}>20</option>
-      <option value={40}>40</option>
+      <option value={50}>50</option>
+      <option value={100}>100</option>
     </select>
     <span class="ml-2">
       Showing {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)} of {total}

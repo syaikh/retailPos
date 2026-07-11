@@ -4,6 +4,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC';
 
 
   import { Button, Pagination } from '$shared/ui';
@@ -14,6 +15,7 @@
   import UserTable from './UserTable.svelte';
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   let loading = $state(true);
   let users = $state([]);
@@ -35,16 +37,11 @@
   let filterRole = $state('all');
   let filterStatus = $state('all');
 
-  let userRole = $derived(
-    authStore.user?.role?.name ||
-    (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) ||
-    ''
-  );
-  let canCreate = $derived(['superadmin', 'admin'].includes(userRole));
-  let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
-  let canDelete = $derived(userRole === 'superadmin');
-  let canView = $derived(userRole !== 'cashier' && userRole !== '');
-  let canEditSuperadmin = $derived(userRole === 'superadmin');
+  let canCreate = $derived(rbac.canCreate);
+  let canEdit = $derived(rbac.canEdit);
+  let canDelete = $derived(rbac.canDelete);
+  let canView = $derived(rbac.canView);
+  let canEditSuperadmin = $derived(rbac.canEditSuperadmin);
   let usernameHasInvalidChars = $derived(form.username.length > 0 && !/^[a-zA-Z0-9]+$/.test(form.username));
 
   let currentUserID = $derived(authStore.user?.id || 0);

@@ -4,6 +4,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { ScrollText } from 'lucide-svelte';
   import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte';
@@ -11,6 +12,7 @@
   import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte';
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   // State variables
   let loading = $state(true);
@@ -32,12 +34,7 @@
   let abortController = $state(null);
   let hasInitialized = $state(false);
 
-  let userRole = $derived(
-    authStore.user?.role?.name ||
-      (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) ||
-      ''
-  );
-  let canView = $derived(userRole === 'superadmin');
+  let canView = $derived(rbac.isSuperAdmin);
 
   // Drawer state
   let drawerOpen = $state(false);

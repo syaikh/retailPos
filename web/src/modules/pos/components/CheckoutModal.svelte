@@ -3,7 +3,7 @@
   import { Button } from '$shared/ui';
   import { X, Check, Search } from 'lucide-svelte';
 
-  const quickCashPresets = [50000, 100000, 150000, 200000];
+  const quickCashPresets = [50000, 100000, 200000, 500000, 1000000];
 
   let {
     showCheckoutModal = $bindable(false),
@@ -36,6 +36,11 @@
     onfinalize?: () => void;
     onselectcustomer?: () => void;
   } = $props();
+
+  function handleCashInput(e: Event) {
+    const raw = (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '');
+    cashReceived = raw ? parseInt(raw, 10) : 0;
+  }
 
   function close() {
     showCheckoutModal = false;
@@ -100,7 +105,7 @@
 
       <div class="mb-4">
         <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
-        <Button variant="secondary" class="w-full justify-between text-sm" onclick={() => { showCheckoutModal = false; onselectcustomer(); }}>
+        <Button variant="secondary" class="w-full justify-between text-sm" onclick={() => onselectcustomer()}>
           <span class="truncate">{selectedCustomerLabel}</span>
           <Search size={14} />
         </Button>
@@ -115,7 +120,8 @@
             id="cash-received-input"
             type="text"
             inputmode="numeric"
-            bind:value={cashReceived}
+            value={cashReceived || ''}
+            oninput={handleCashInput}
             class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
@@ -130,6 +136,12 @@
               Rp {preset.toLocaleString('id-ID')}
             </button>
           {/each}
+          <button
+            class="px-3.5 py-1.5 rounded-xl border border-primary-light text-xs font-semibold text-primary-light hover:bg-primary-subtle transition-colors"
+            onclick={() => cashReceived = totalAmount}
+          >
+            Tepat ({totalAmount.toLocaleString('id-ID')})
+          </button>
         </div>
 
         <div
@@ -158,27 +170,11 @@
             id="card-ewallet-amount-input"
             type="text"
             inputmode="numeric"
-            bind:value={cashReceived}
+            value={cashReceived || ''}
+            oninput={handleCashInput}
             class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
-        </div>
-        <div
-          class="flex items-center justify-between p-4 rounded-xl
-            {changeDue >= 0
-              ? 'bg-success-subtle border border-success-default/20'
-              : 'bg-danger-subtle border border-danger-default/20'}"
-        >
-          <span class="text-sm font-medium text-text-secondary">Kembali</span>
-          <span
-            class="text-2xl font-extrabold
-              {changeDue >= 0 ? 'text-emerald-400' : 'text-danger-light'}"
-          >
-            {Math.abs(changeDue).toLocaleString('id-ID')}
-            {#if changeDue < 0}
-              <span class="text-xs font-semibold text-danger-light ml-1">(kurang)</span>
-            {/if}
-          </span>
         </div>
       {/if}
 

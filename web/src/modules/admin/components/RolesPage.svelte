@@ -4,11 +4,13 @@
   import RoleDetailDrawer from './RoleDetailDrawer.svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC';
 
   import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   // ── State ────────────────────────────────────────────────────────
   let loading = $state(true);
@@ -191,10 +193,9 @@
     return hasUnsavedChanges;
   });
 
-  let userRole = $derived(authStore.user?.role?.name || (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) || '');
-  let canView = $derived(userRole !== 'cashier' && userRole !== '');
-  let canEdit = $derived(userRole === 'superadmin');
-  let canDelete = $derived(userRole === 'superadmin');
+  let canView = $derived(rbac.canView);
+  let canEdit = $derived(rbac.isSuperAdmin);
+  let canDelete = $derived(rbac.canDelete);
 
   function allExpanded() { return groupedPermissions.every(g => !collapsedGroups.has(g.key)); }
   function toggleGroup(key) { const s = new Set(collapsedGroups); if (s.has(key)) s.delete(key); else s.add(key); collapsedGroups = s; }

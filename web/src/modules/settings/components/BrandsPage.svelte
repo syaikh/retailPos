@@ -3,10 +3,12 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
 
   const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
@@ -26,14 +28,9 @@
     is_active: true
   });
 
-  let userRole = $derived(
-    authStore.user?.role?.name ||
-    (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) ||
-    ''
-  );
-  let canCreate = $derived(['superadmin', 'admin'].includes(userRole));
-  let canEdit = $derived(['superadmin', 'admin'].includes(userRole));
-  let canDelete = $derived(['superadmin', 'admin'].includes(userRole));
+  let canCreate = $derived(rbac.canCreate);
+  let canEdit = $derived(rbac.canEdit);
+  let canDelete = $derived(rbac.isAdmin);
   let canView = $derived(authStore.user != null);
 
   function formatDate(dateStr) {
