@@ -4,7 +4,7 @@
   import RoleDetailDrawer from './RoleDetailDrawer.svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
 
   import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';

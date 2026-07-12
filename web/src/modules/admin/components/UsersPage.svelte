@@ -4,7 +4,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
 
 
   import { Button, Pagination } from '$shared/ui';
