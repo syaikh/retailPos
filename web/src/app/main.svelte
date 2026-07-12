@@ -47,7 +47,8 @@
   };
 
   const pageModules = {
-    '/pos':                 () => import('$modules/pos/components/PosPage.svelte'),
+    '/':                   () => Promise.resolve({ default: Home }),
+    '/pos':                () => import('$modules/pos/components/PosPage.svelte'),
     '/inventory':           () => import('$modules/product/components/ProductsPage.svelte'),
     '/inventory/products':  () => import('$modules/product/components/ProductsPage.svelte'),
     '/reports':             () => import('$modules/reporting/components/ReportsPage.svelte'),
