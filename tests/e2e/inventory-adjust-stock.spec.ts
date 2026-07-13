@@ -56,14 +56,14 @@ test.describe('Inventory Stock Adjustment', () => {
     const adjustmentQty = 15;
 
     // Find the product row in table by searching for the SKU
-    await page.fill('input[placeholder="Search products..."]', targetProd.sku);
+    await page.fill('input[placeholder="Search by name, SKU, or barcode..."]', targetProd.sku);
     await page.waitForTimeout(1500); // Wait for debounce + API response
 
     const productRow = page.locator('tbody tr').filter({ hasText: targetProd.sku }).first();
     await expect(productRow).toBeVisible({ timeout: 5000 });
 
-    // Open action dropdown
-    const actionBtn = productRow.locator('button[title="Actions"]');
+    // Open the adjust stock modal for this product
+    const actionBtn = productRow.getByRole('button', { name: 'Actions' });
     await actionBtn.click();
 
     // Click Adjust Stock in dropdown
@@ -122,7 +122,7 @@ test.describe('Inventory Stock Adjustment', () => {
     const reductionQty = -5;
 
     // Search for product
-    await page.fill('input[placeholder="Search products..."]', targetProd.sku);
+    await page.fill('input[placeholder="Search by name, SKU, or barcode..."]', targetProd.sku);
     await page.waitForTimeout(1500);
 
     const productRow = page.locator('tbody tr').filter({ hasText: targetProd.sku }).first();

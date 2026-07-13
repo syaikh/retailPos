@@ -31,7 +31,6 @@ test.describe('WebSocket Real-time Events', () => {
     const created = await createRes.json();
     const productId = created.data?.id || created.id;
 
-    // Adjust stock to create product_stock record
     await page.request.post(`${API_BASE}/api/inventory/adjust`, {
       headers: authHeader(token!),
       data: { product_id: productId, quantity_change: 10, notes: 'seed stock for WS sale test' },
@@ -41,7 +40,7 @@ test.describe('WebSocket Real-time Events', () => {
       headers: authHeader(token!),
       data: {
         items: [{ product_id: productId, quantity: 1, subtotal: 25000 }],
-        payment_method: 'cash',
+        payment_method: 'CASH',
       },
     });
     expect(saleRes.ok()).toBeTruthy();

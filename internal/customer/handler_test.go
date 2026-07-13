@@ -161,7 +161,7 @@ func TestHandler_CreateCustomer(t *testing.T) {
 	r := setupCustomerRouter()
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"name":"Handler Create Test","phone":"0812TEST001","email":"create@test.com","is_active":true}`
+		body := `{"name":"Handler Create Test","phone":"0812000001","email":"create@test.com","is_active":true}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/customers", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -193,7 +193,7 @@ func TestHandler_UpdateCustomer(t *testing.T) {
 
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	phone := "0812TEST002"
+	phone := "0812000002"
 	c := &Customer{
 		Name:     "Handler Before Update",
 		Phone:    &phone,
@@ -203,7 +203,7 @@ func TestHandler_UpdateCustomer(t *testing.T) {
 	require.NoError(t, repo.CreateCustomer(ctx, c))
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"name":"Handler After Update","phone":"0812TEST002","email":"updated@test.com","is_active":false}`
+		body := `{"name":"Handler After Update","phone":"0812000002","email":"updated@test.com","is_active":false}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", "/customers/"+strconv.Itoa(c.ID), strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

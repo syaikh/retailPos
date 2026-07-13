@@ -36,11 +36,11 @@ test.describe('Transactions Page', () => {
   });
 
   test('should filter by payment method', async ({ page }) => {
-    await page.locator('.payment-dropdown-container').first().click();
+    await page.getByRole('button', { name: 'All methods' }).click();
     await expect(page.locator('text=All methods')).toBeVisible();
 
     await page.getByText('CASH').first().click();
-    await page.getByText('Clear selection').click();
+    await page.getByRole('button', { name: 'Clear' }).click();
   });
 
   test('should open export dropdown', async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe('Transactions Page', () => {
     const drawer = page.getByRole('dialog', { name: 'Transaction Details' }).or(page.locator('#transaction-details-heading'));
     await expect(drawer.first()).toBeVisible({ timeout: 5000 });
 
-    await page.locator('button[aria-label="Close detail panel"]').click();
+    await page.locator('button[aria-label="Close drawer"]').click();
     await expect(page.getByRole('dialog', { name: 'Transaction Details' })).toBeHidden({ timeout: 5000 });
   });
 

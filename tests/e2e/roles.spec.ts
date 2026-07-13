@@ -186,6 +186,8 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await expect(getModal(page).getByText('3 of', { exact: false })).toBeVisible({ timeout: 5000 });
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
+    const searchBar178 = page.getByPlaceholder('Search roles…');
+    await searchBar178.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
@@ -421,6 +423,8 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
 
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
+    const searchBar410 = page.getByPlaceholder('Search roles…');
+    await searchBar410.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
 
     const roleRow = page.locator('tr').filter({ hasText: uniqueName });

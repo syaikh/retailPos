@@ -2,12 +2,19 @@ package config
 
 import (
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+func resetConfigForTest() {
+	cachedConfig = nil
+	configOnce = sync.Once{}
+}
+
 func TestLoadDefaults(t *testing.T) {
+	resetConfigForTest()
 	os.Unsetenv("ENV")
 	os.Unsetenv("CORS_ORIGIN")
 	os.Setenv("JWT_SECRET", "test-secret")
@@ -25,6 +32,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadFromEnv(t *testing.T) {
+	resetConfigForTest()
 	os.Setenv("ENV", "production")
 	os.Setenv("CORS_ORIGIN", "https://example.com")
 	os.Setenv("JWT_SECRET", "test-secret")

@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
+function enabledAddButton(page: any) {
+  return page.locator('button').filter({ hasText: 'Add' }).locator('visible=true').first();
+}
+
 test.describe('POS UI Flow', () => {
   test.beforeEach(async ({ page }) => {
     await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
@@ -14,7 +18,7 @@ test.describe('POS UI Flow', () => {
 
   test('should load POS page with product table and cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Cart', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Cart', { exact: true }).nth(1)).toBeVisible();
   });
 
   test('should search products by name', async ({ page }) => {
@@ -25,8 +29,9 @@ test.describe('POS UI Flow', () => {
 
   test('should add product to cart', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
@@ -34,8 +39,9 @@ test.describe('POS UI Flow', () => {
 
   test('should increase item quantity in cart', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -47,8 +53,9 @@ test.describe('POS UI Flow', () => {
 
   test('should decrease item quantity in cart', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -64,8 +71,9 @@ test.describe('POS UI Flow', () => {
 
   test('should remove item from cart', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -78,8 +86,9 @@ test.describe('POS UI Flow', () => {
 
   test('should open checkout modal with F4 key', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -95,14 +104,15 @@ test.describe('POS UI Flow', () => {
     await page.locator('button').filter({ hasText: 'Walk-in / General' }).first().click();
     await expect(page.locator('#customer-modal-heading')).toBeVisible({ timeout: 5000 });
 
-    await page.locator('button[aria-label="Close customer selection"]').click();
+    await page.locator('button[aria-label="Tutup"]').click();
     await expect(page.locator('#customer-modal-heading')).toBeHidden({ timeout: 5000 });
   });
 
   test('should clear cart with ALT+DEL and confirm', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const addButton = page.locator('button').filter({ hasText: 'Add' }).first();
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -126,14 +136,10 @@ test.describe('POS API Tests', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         invoice_number: `INV-${Date.now()}`,
-        cashier_id: 1,
-        subtotal: 1262000,
         discount: 0,
-        tax: 0,
-        total_amount: 1262000,
-        payment_method: 'cash',
+        payment_method: 'CASH',
         items: [
-           { product_id: 4690, quantity: 1, unit_price: 1262000, subtotal: 1262000 }
+           { product_id: 4690, quantity: 1, subtotal: 1195000 }
         ]
       }
     });
@@ -142,7 +148,7 @@ test.describe('POS API Tests', () => {
     const sale = await saleResponse.json();
     expect(sale.data).toHaveProperty('id');
     expect(sale.data.invoice_number).toBeTruthy();
-    expect(sale.data.total_amount).toBe(1262000);
+    expect(sale.data.total_amount).toBe(1195000);
     if (sale.data.tax > 0) {
       expect(sale.data.subtotal + sale.data.tax).toBe(sale.data.total_amount);
     }
