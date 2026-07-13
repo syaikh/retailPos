@@ -21,17 +21,24 @@ test.describe('Units of Measure Management', () => {
   });
 
   test('should create a new unit of measure', async ({ page }) => {
-    const code = `E2E${Date.now()}`.slice(0, 8).toUpperCase();
+    const code = `U${Date.now()}`.slice(0, 10).toUpperCase();
     const name = `E2E Unit ${Date.now()}`;
 
     await page.getByRole('button', { name: 'Tambah Unit' }).first().click();
     await expect(page.getByRole('dialog', { name: 'Tambah Unit' })).toBeVisible();
 
-    await page.fill('#uom-code', code);
-    await page.fill('#uom-name', name);
-    await page.fill('#uom-desc', 'Auto-generated e2e unit');
+    await page.locator('#uom-code').click();
+    await page.locator('#uom-code').fill(code);
+    await page.locator('#uom-name').click();
+    await page.locator('#uom-name').fill(name);
+    await page.locator('#uom-desc').click();
+    await page.locator('#uom-desc').fill('Auto-generated e2e unit');
 
-    await page.getByRole('dialog', { name: 'Tambah Unit' }).getByRole('button', { name: 'Tambah Unit' }).click();
+    const submitBtn = page.getByRole('dialog', { name: 'Tambah Unit' }).getByRole('button', { name: 'Tambah Unit' });
+    await expect(submitBtn).toBeEnabled({ timeout: 5000 });
+    const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/units-of-measure') && resp.request().method() === 'POST');
+    await submitBtn.click();
+    await responsePromise;
     await expect(page.getByRole('dialog', { name: 'Tambah Unit' })).toBeHidden({ timeout: 15000 });
   });
 

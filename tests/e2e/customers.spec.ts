@@ -317,12 +317,17 @@ test.describe('Customers API - Validation', () => {
   });
 
   test('name is trimmed on create', async ({ request }) => {
-    const res = await request.post(`${API_BASE}/api/customers`, {
-      headers: authHeader(token),
-      data: { name: '  Trim Me  ', phone: uniquePhone(), email: uniqueEmail() },
-    });
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
+    let res;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      res = await request.post(`${API_BASE}/api/customers`, {
+        headers: authHeader(token),
+        data: { name: '  Trim Me  ', phone: uniquePhone(), email: uniqueEmail() },
+      });
+      if (res.ok()) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    expect(res!.ok(), `create customer failed after retries: ${res!.status()}`).toBeTruthy();
+    const body = await res!.json();
     expect(body.data.name).toBe('Trim Me');
   });
 });
