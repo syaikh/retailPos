@@ -11,16 +11,12 @@ function getSource(): string {
 describe('ProductDetailDrawer.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports fly transition', () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+  it('imports Badge, Button, and Drawer from shared UI', () => {
+    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
   });
 
-  it('imports Badge and Button from shared UI', () => {
-    expect(src).toContain("import { Badge, Button } from '$shared/ui'");
-  });
-
-  it('imports lucide icons (X, Pencil, Trash2, Copy)', () => {
-    expect(src).toContain("import { X, Pencil, Trash2, Copy } from 'lucide-svelte'");
+  it('imports lucide icons (Pencil, Trash2, Copy)', () => {
+    expect(src).toContain("import { Pencil, Trash2, Copy } from 'lucide-svelte'");
   });
 
   it('imports formatDateTimeInJakarta', () => {
@@ -77,11 +73,7 @@ describe('ProductDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('renders detail drawer with showDetailDrawer condition', () => {
-    expect(src).toContain('{#if showDetailDrawer && selectedProduct}');
-  });
-
-  it('has close button with X icon', () => {
-    expect(src).toContain('<X size={18} />');
+    expect(src).toContain('{#if selectedProduct}');
   });
 
   it('has edit and delete buttons', () => {

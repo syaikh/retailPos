@@ -11,16 +11,12 @@ function getSource(): string {
 describe('RoleDetailDrawer.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports fly transition from svelte', () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
-  });
-
-  it('imports Badge and Button from shared/ui', () => {
-    expect(src).toContain("import { Badge, Button } from '$shared/ui'");
+  it('imports Badge, Button and Drawer from shared/ui', () => {
+    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
   });
 
   it('imports lucide icons', () => {
-    expect(src).toContain("import { X, Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte'");
+    expect(src).toContain("import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte'");
   });
 
   it('uses $props for component props', () => {
@@ -57,14 +53,6 @@ describe('RoleDetailDrawer.svelte source-structure guards', () => {
 
   it('has groupMeta constant', () => {
     expect(src).toContain('const groupMeta');
-  });
-
-  it('has backdrop overlay', () => {
-    expect(src).toContain('fixed inset-0 bg-black/60 z-50');
-  });
-
-  it('has fly transition on drawer panel', () => {
-    expect(src).toContain('transition:fly');
   });
 
   it('has permission list with grouped display', () => {

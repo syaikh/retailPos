@@ -12,11 +12,11 @@ describe('AuditLogDetailsDrawer.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports lucide icons', () => {
-    expect(src).toContain("import { X, Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte'");
+    expect(src).toContain("import { Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte'");
   });
 
   it('imports ActionBadge from shared/ui', () => {
-    expect(src).toContain("import { ActionBadge } from '$shared/ui'");
+    expect(src).toContain("import { ActionBadge, Drawer } from '$shared/ui'");
   });
 
   it('imports Jakarta time utilities', () => {
@@ -54,7 +54,6 @@ describe('AuditLogDetailsDrawer.svelte source-structure guards', () => {
   it('renders drawer with header and body', () => {
     expect(src).toContain('Audit Log Details');
     expect(src).toContain('What Changed');
-    expect(src).toContain('animate-slide-in');
   });
 
   it('shows changes section', () => {

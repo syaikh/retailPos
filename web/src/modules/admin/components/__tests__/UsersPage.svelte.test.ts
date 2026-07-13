@@ -23,9 +23,9 @@ describe('UsersPage.svelte source-structure guards', () => {
   });
 
   it('has permission-based RBAC (canCreate, canEdit, canDelete)', () => {
-    expect(src).toContain("let canCreate = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canEdit = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canDelete = $derived(userRole === 'superadmin')");
+    expect(src).toContain("let canCreate = $derived(rbac.canCreate)");
+    expect(src).toContain("let canEdit = $derived(rbac.canEdit)");
+    expect(src).toContain("let canDelete = $derived(rbac.canDelete)");
   });
 
   it('has load, saveUser, confirmDelete functions', () => {

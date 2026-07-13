@@ -20,7 +20,7 @@ describe('TransactionTable.svelte source-structure guards', () => {
   });
 
   it('imports Badge, Pagination, Skeleton', () => {
-    expect(src).toContain("import { Badge, Pagination, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Badge, Pagination, Skeleton, SortableHeader } from '$shared/ui'");
   });
 
   it('imports Banknote icon', () => {

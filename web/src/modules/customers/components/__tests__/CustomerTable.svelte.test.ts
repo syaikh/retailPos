@@ -12,7 +12,7 @@ describe('CustomerTable.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports Badge, Button, Skeleton from shared/ui', () => {
-    expect(src).toContain("import { Badge, Button, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui'");
   });
 
   it('uses $bindable for selectedIds, sortBy, sortDir', () => {

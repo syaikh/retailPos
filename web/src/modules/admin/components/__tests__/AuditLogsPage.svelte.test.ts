@@ -32,7 +32,7 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
   });
 
   it('has RBAC — only superadmin can view', () => {
-    expect(src).toContain("let canView = $derived(userRole === 'superadmin')");
+    expect(src).toContain("let canView = $derived(rbac.isSuperAdmin)");
   });
 
   it('has drawer open/close functions', () => {

@@ -15,16 +15,12 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain('= $props()');
   });
 
-  it('imports fly transition', () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+  it('imports Badge, Button, and Drawer', () => {
+    expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
   });
 
-  it('imports Badge and Button', () => {
-    expect(src).toContain("import { Badge, Button } from '$shared/ui'");
-  });
-
-  it('imports X, Printer, Download icons', () => {
-    expect(src).toContain("import { X, Printer, Download } from 'lucide-svelte'");
+  it('imports Printer, Download icons', () => {
+    expect(src).toContain("import { Printer, Download } from 'lucide-svelte'");
   });
 
   it('imports formatDateTimeInJakarta', () => {
@@ -63,10 +59,6 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain('async function downloadInvoiceHandler');
   });
 
-  it('renders drawer with overlay', () => {
-    expect(src).toContain('fixed inset-0 bg-black/60 z-50');
-  });
-
   it('renders Print Receipt button', () => {
     expect(src).toContain('Print Receipt');
   });
@@ -90,11 +82,4 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain('Subtotal');
   });
 
-  it('handles Escape key on drawer', () => {
-    expect(src).toContain('Escape');
-  });
-
-  it('has transition:fly', () => {
-    expect(src).toContain('transition:fly');
-  });
 });

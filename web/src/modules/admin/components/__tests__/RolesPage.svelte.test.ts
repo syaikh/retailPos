@@ -20,7 +20,7 @@ describe('RolesPage.svelte source-structure guards', () => {
   });
 
   it('imports shared UI components', () => {
-    expect(src).toContain("import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton } from '$shared/ui'");
+    expect(src).toContain("import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui'");
   });
 
   it('imports RoleDetailDrawer component', () => {

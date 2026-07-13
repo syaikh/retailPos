@@ -26,19 +26,18 @@ describe('UsersPage.svelte source-structure guards', () => {
   });
 
   // ── RBAC guards ──────────────────────────────────────────────────────────────
-  it('derives userRole from auth store', () => {
-    expect(src).toContain('let userRole = $derived');
-    expect(src).toContain('authStore.user?.role?.name');
+  it('imports useRBAC for role-based access control', () => {
+    expect(src).toContain("const rbac = useRBAC()");
   });
 
   it('defines canCreate, canEdit for superadmin/admin, canDelete for superadmin only', () => {
-    expect(src).toContain("let canCreate = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canEdit = $derived(['superadmin', 'admin'].includes(userRole))");
-    expect(src).toContain("let canDelete = $derived(userRole === 'superadmin')");
+    expect(src).toContain("let canCreate = $derived(rbac.canCreate)");
+    expect(src).toContain("let canEdit = $derived(rbac.canEdit)");
+    expect(src).toContain("let canDelete = $derived(rbac.canDelete)");
   });
 
   it('defines canView excluding cashier', () => {
-    expect(src).toContain("let canView = $derived(userRole !== 'cashier' && userRole !== '')");
+    expect(src).toContain("let canView = $derived(rbac.canView)");
   });
 
   it('shows Access Denied when user lacks view permission', () => {

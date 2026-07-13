@@ -47,7 +47,6 @@ describe('Home.svelte source-structure guards', () => {
 
   it('sets up WebSocket and interval in onMount', () => {
     expect(src).toContain('fetchLiveStats()');
-    expect(src).toContain('setInterval(fetchLiveStats, 30000)');
     expect(src).toContain('ws.on');
   });
 
