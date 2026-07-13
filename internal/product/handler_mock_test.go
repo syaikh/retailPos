@@ -409,4 +409,91 @@ func TestMockHandler_ListTaxClasses(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "[]")
 	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockProductService{
+			getTaxClassesFn: func(ctx context.Context) ([]TaxClass, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/tax-classes", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_GetStockThresholds(t *testing.T) {
+	r := setupMockProductRouter(&mockProductService{})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/stock-thresholds", nil))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "warning")
+	assert.Contains(t, w.Body.String(), "critical")
+}
+
+func TestMockHandler_GetNextSKU_ServiceError(t *testing.T) {
+	svc := &mockProductService{
+		nextSKUFn: func(ctx context.Context) (string, error) {
+			return "", errors.New("gen error")
+		},
+	}
+	r := setupMockProductRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/products/next-sku", nil))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMockHandler_BulkUpdateStatus_ServiceError(t *testing.T) {
+	svc := &mockProductService{
+		bulkStatusFn: func(ctx context.Context, ids []int, isActive bool, storeID *int) error {
+			return errors.New("db error")
+		},
+	}
+	r := setupMockProductRouter(svc)
+	body := `{"ids":[1,2],"is_active":true}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/products/bulk/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMockHandler_CreateProduct_ServiceError(t *testing.T) {
+	svc := &mockProductService{
+		createFn: func(ctx context.Context, product *Product) error {
+			return errors.New("duplicate sku")
+		},
+	}
+	r := setupMockProductRouter(svc)
+	body := `{"name":"New Product","price":1000,"cost":500,"stock":10}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/products", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMockHandler_UpdateProduct_ServiceError(t *testing.T) {
+	svc := &mockProductService{
+		updateFn: func(ctx context.Context, product *Product) error {
+			return errors.New("update failed")
+		},
+	}
+	r := setupMockProductRouter(svc)
+	body := `{"name":"Updated","price":2000,"cost":1000,"stock":20}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/products/5", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMockHandler_UpdateProduct_InvalidJSON(t *testing.T) {
+	r := setupMockProductRouter(&mockProductService{})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/products/5", strings.NewReader("{bad"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

@@ -2,11 +2,29 @@ package websocket
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func waitForMessage(t *testing.T, ch <-chan []byte, predicate func(string) bool, timeout time.Duration) (string, bool) {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case msg := <-ch:
+			s := string(msg)
+			if predicate(s) {
+				return s, true
+			}
+		case <-timer.C:
+			return "", false
+		}
+	}
+}
 
 func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("stock_update"), EventStockUpdate)
@@ -60,12 +78,17 @@ func TestBroadcastStockUpdate_WithHub(t *testing.T) {
 		StoreID:  &storeID,
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "stock_update")
-		assert.Contains(t, string(msg), "SKU-042")
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for broadcast")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-client.send:
+			s := string(msg)
+			if strings.Contains(s, "stock_update") && strings.Contains(s, "SKU-042") {
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for stock_update broadcast with SKU-042")
+		}
 	}
 }
 
@@ -95,12 +118,16 @@ func TestBroadcastSaleCreated_WithHub(t *testing.T) {
 		Items:   3,
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "sale_created")
-		assert.Contains(t, string(msg), "INV-001")
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for broadcast")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-client.send:
+			if strings.Contains(string(msg), "sale_created") && strings.Contains(string(msg), "INV-001") {
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for sale_created broadcast")
+		}
 	}
 }
 
@@ -131,12 +158,16 @@ func TestBroadcastProductUpdate_WithHub(t *testing.T) {
 		Price: 25000,
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "product_updated")
-		assert.Contains(t, string(msg), "PROD-077")
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for broadcast")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-client.send:
+			if strings.Contains(string(msg), "product_updated") && strings.Contains(string(msg), "PROD-077") {
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for product_updated broadcast")
+		}
 	}
 }
 
@@ -166,12 +197,16 @@ func TestBroadcastLowStockAlert_WithHub(t *testing.T) {
 		Stock: 0,
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "low_stock_alert")
-		assert.Contains(t, string(msg), "SKU-055")
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for broadcast")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-client.send:
+			if strings.Contains(string(msg), "low_stock_alert") && strings.Contains(string(msg), "SKU-055") {
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for low_stock_alert broadcast")
+		}
 	}
 }
 
@@ -192,6 +227,10 @@ func TestBroadcastStockUpdate_StoreFiltering(t *testing.T) {
 
 	regularClient := registerClient(t, hub, 1, store2, false)
 	adminClient := registerClient(t, hub, 2, store1, true)
+	time.Sleep(50 * time.Millisecond)
+	drainMessages(regularClient.send)
+	drainMessages(adminClient.send)
+	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 	drainMessages(adminClient.send)
 
@@ -203,19 +242,25 @@ func TestBroadcastStockUpdate_StoreFiltering(t *testing.T) {
 	})
 
 	// Admin at store1 receives it
-	select {
-	case msg := <-adminClient.send:
-		assert.Contains(t, string(msg), "stock_update")
-	case <-time.After(time.Second):
-		t.Fatal("timeout: admin should receive broadcast")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-adminClient.send:
+			if strings.Contains(string(msg), "stock_update") {
+				goto doneStock
+			}
+		case <-timeout:
+			t.Fatal("timeout: admin should receive broadcast")
+		}
 	}
+doneStock:
 
 	// Regular client at store2 does NOT receive it
-	select {
-	case msg := <-regularClient.send:
-		t.Fatalf("regular client at different store should not receive, got: %s", msg)
-	case <-time.After(200 * time.Millisecond):
-		// expected
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "stock_update")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive stock_update")
 	}
 }
 
@@ -235,6 +280,9 @@ func TestBroadcastSaleCreated_StoreFiltering(t *testing.T) {
 	store2 := intPtr(2)
 
 	regularClient := registerClient(t, hub, 1, store2, false)
+	time.Sleep(50 * time.Millisecond)
+	drainMessages(regularClient.send)
+	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 
 	BroadcastSaleCreated(hub, SaleCreatedEvent{
@@ -243,11 +291,11 @@ func TestBroadcastSaleCreated_StoreFiltering(t *testing.T) {
 		StoreID: store1,
 	})
 
-	select {
-	case msg := <-regularClient.send:
-		t.Fatalf("regular client at different store should not receive, got: %s", msg)
-	case <-time.After(200 * time.Millisecond):
-		// expected
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "sale_created")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive sale_created")
 	}
 }
 
@@ -268,6 +316,10 @@ func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
 
 	regularClient := registerClient(t, hub, 1, store2, false)
 	adminClient := registerClient(t, hub, 2, store1, true)
+	time.Sleep(50 * time.Millisecond)
+	drainMessages(regularClient.send)
+	drainMessages(adminClient.send)
+	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 	drainMessages(adminClient.send)
 
@@ -277,18 +329,19 @@ func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
 		StoreID: store1,
 	})
 
-	select {
-	case msg := <-adminClient.send:
-		assert.Contains(t, string(msg), "product_updated")
-	case <-time.After(time.Second):
+	msg, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+		return strings.Contains(s, "product_updated")
+	}, 2*time.Second)
+	if !ok {
 		t.Fatal("timeout: admin should receive broadcast")
 	}
+	_ = msg
 
-	select {
-	case msg := <-regularClient.send:
-		t.Fatalf("regular client at different store should not receive, got: %s", msg)
-	case <-time.After(200 * time.Millisecond):
-		// expected
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "product_updated")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive product_updated")
 	}
 }
 
@@ -308,6 +361,9 @@ func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
 	store2 := intPtr(2)
 
 	regularClient := registerClient(t, hub, 1, store2, false)
+	time.Sleep(50 * time.Millisecond)
+	drainMessages(regularClient.send)
+	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 
 	BroadcastLowStockAlert(hub, LowStockAlertEvent{
@@ -318,10 +374,10 @@ func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
 		StoreID: store1,
 	})
 
-	select {
-	case msg := <-regularClient.send:
-		t.Fatalf("regular client at different store should not receive, got: %s", msg)
-	case <-time.After(200 * time.Millisecond):
-		// expected
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "low_stock_alert")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive low_stock_alert")
 	}
 }

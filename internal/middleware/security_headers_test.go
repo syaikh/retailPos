@@ -110,6 +110,39 @@ func TestCSRFMiddleware(t *testing.T) {
 			refreshHeader: "some-refresh-token",
 			wantCode:      http.StatusOK,
 		},
+		{
+			name:     "PUT without Authorization returns 403",
+			method:   http.MethodPut,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "PATCH without Authorization returns 403",
+			method:   http.MethodPatch,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "DELETE without Authorization returns 403",
+			method:   http.MethodDelete,
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:       "PUT with Authorization passes",
+			method:     http.MethodPut,
+			authHeader: "Bearer token",
+			wantCode:   http.StatusOK,
+		},
+		{
+			name:       "DELETE with X-Refresh-Token passes",
+			method:     http.MethodDelete,
+			refreshHeader: "refresh",
+			wantCode:   http.StatusOK,
+		},
+		{
+			name:       "POST with empty Authorization returns 403",
+			method:     http.MethodPost,
+			authHeader: "",
+			wantCode:   http.StatusForbidden,
+		},
 	}
 
 	for _, tt := range tests {

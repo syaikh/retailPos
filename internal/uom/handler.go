@@ -1,6 +1,7 @@
 package uom
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,12 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type UOMService interface {
+	GetByID(ctx context.Context, id int) (*UnitOfMeasure, error)
+	GetAll(ctx context.Context) ([]UnitOfMeasure, error)
+	Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error)
+	Update(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error)
+	Delete(ctx context.Context, id int) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      UOMService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc UOMService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

@@ -692,3 +692,172 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 }
 
 var _ = importexportshared.ValidationError{}
+
+func TestSanitizeFilename(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"categories", "categories"},
+		{"my file name", "my_file_name"},
+		{"hello/world", "hello_world"},
+		{"file-name_123", "file-name_123"},
+		{"special!@#$chars", "special____chars"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizeFilename(tt.input)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestHandler_ListImportHistory(t *testing.T) {
+	_, r, progEng := setupTestHandler()
+
+	ctx := context.Background()
+	_, _ = progEng.CreateJob(ctx, "categories", "1.0.0", "a.csv", 1, 0)
+	_, _ = progEng.CreateJob(ctx, "categories", "1.0.0", "b.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var jobs []map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &jobs)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 2)
+}
+
+func TestHandler_ListImportHistory_UnknownModule(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/bogus", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetImportDetail_UnknownModule(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/bogus/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetImportDetail_InvalidJobID(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories/abc", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetImportDetail_NilHistoryStore(t *testing.T) {
+	_, r, progEng := setupTestHandler()
+
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_GetImportRows_UnknownModule(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/bogus/1/rows", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetImportRows_InvalidJobID(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories/abc/rows", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetImportRows_NilHistoryStore(t *testing.T) {
+	_, r, progEng := setupTestHandler()
+
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_DownloadTemplate_TemplateDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(schema.ModuleSchema{
+		ModuleName: "categories",
+		Features: schema.ModuleFeatures{
+			TemplateEnabled: false,
+		},
+		Columns: []schema.ColumnSchema{{Name: "Code", Type: schema.ColString, Label: "Code"}},
+	})
+
+	adapterReg := importexport.NewAdapterRegistry()
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("storeID", 0)
+		c.Next()
+	}
+	perm := func(_ string) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	}
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/template/categories", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "template not available")
+}
+
+func TestHandler_Preview_InvalidFormat(t *testing.T) {
+	_, r, _ := setupTestHandler()
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "test.pdf")
+	_, _ = part.Write([]byte("%PDF-1.4 fake"))
+	writer.Close()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}

@@ -138,3 +138,184 @@ func TestMultipleJobs(t *testing.T) {
 		t.Fatalf("job2: expected inserted=0 updated=0, got %d/%d", p2.Inserted, p2.Updated)
 	}
 }
+
+func TestSetErrorReport(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+	err := e.SetErrorReport(context.Background(), id, "row 3: invalid price")
+	if err != nil {
+		t.Fatalf("SetErrorReport failed: %v", err)
+	}
+
+	p, _ := e.GetProgress(context.Background(), id)
+	if p.ErrorReport != "row 3: invalid price" {
+		t.Fatalf("expected error report, got %q", p.ErrorReport)
+	}
+}
+
+func TestSetErrorReport_JobNotFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	err := e.SetErrorReport(context.Background(), 999, "error")
+	if err == nil {
+		t.Fatal("expected error for missing job")
+	}
+}
+
+func TestListJobs_FilterByModule(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
+	_, _ = e.CreateJob(context.Background(), "categories", "1.0.0", "b.csv", 2, 1)
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "c.csv", 3, 1)
+
+	jobs, err := e.ListJobs(context.Background(), "products", 50)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 products jobs, got %d", len(jobs))
+	}
+}
+
+func TestListJobs_FilterByModule_NoneFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
+
+	jobs, err := e.ListJobs(context.Background(), "categories", 50)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("expected 0 jobs, got %d", len(jobs))
+	}
+}
+
+func TestListJobs_Limit(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	for i := 0; i < 5; i++ {
+		_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+	}
+
+	jobs, err := e.ListJobs(context.Background(), "products", 3)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 3 {
+		t.Fatalf("expected 3 jobs, got %d", len(jobs))
+	}
+}
+
+func TestListJobs_EmptyModuleFilter(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, _ = e.CreateJob(context.Background(), "products", "1.0.0", "a.csv", 1, 1)
+	_, _ = e.CreateJob(context.Background(), "categories", "1.0.0", "b.csv", 2, 1)
+
+	jobs, err := e.ListJobs(context.Background(), "", 50)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs with empty filter, got %d", len(jobs))
+	}
+}
+
+func TestUpdateStatus_FailedSetsCompletedAt(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+	time.Sleep(time.Millisecond)
+	_ = e.SetStatus(context.Background(), id, StatusFailed)
+
+	p, _ := e.GetProgress(context.Background(), id)
+	if p.DurationMs <= 0 {
+		t.Fatalf("expected duration > 0 for failed status, got %d", p.DurationMs)
+	}
+}
+
+func TestUpdateStatus_CancelledSetsCompletedAt(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+	time.Sleep(time.Millisecond)
+	_ = e.SetStatus(context.Background(), id, StatusCancelled)
+
+	p, _ := e.GetProgress(context.Background(), id)
+	if p.DurationMs <= 0 {
+		t.Fatalf("expected duration > 0 for cancelled status, got %d", p.DurationMs)
+	}
+}
+
+func TestUpdateStatus_JobNotFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	err := e.SetStatus(context.Background(), 999, StatusCompleted)
+	if err == nil {
+		t.Fatal("expected error for missing job")
+	}
+}
+
+func TestRequestCancel_JobNotFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	err := e.RequestCancel(context.Background(), 999)
+	if err == nil {
+		t.Fatal("expected error for missing job")
+	}
+}
+
+func TestIsCancelRequested_JobNotFound(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	_, err := e.IsCancelRequested(context.Background(), 999)
+	if err == nil {
+		t.Fatal("expected error for missing job")
+	}
+}
+
+func TestGetProgress_ZeroTotalRows(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+
+	p, _ := e.GetProgress(context.Background(), id)
+	if p.ProgressPct != 0 {
+		t.Fatalf("expected 0%% for zero total rows, got %d%%", p.ProgressPct)
+	}
+}
+
+func TestListJobs_WithCompletedDuration(t *testing.T) {
+	store := NewInMemoryStore()
+	e := NewEngine(store)
+
+	id, _ := e.CreateJob(context.Background(), "products", "1.0.0", "test.csv", 1, 1)
+	time.Sleep(time.Millisecond)
+	_ = e.SetStatus(context.Background(), id, StatusCompleted)
+
+	jobs, err := e.ListJobs(context.Background(), "products", 50)
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+	if jobs[0].DurationMs <= 0 {
+		t.Fatalf("expected duration > 0 in list, got %d", jobs[0].DurationMs)
+	}
+}

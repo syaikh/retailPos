@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,12 +13,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type InventoryService interface {
+	AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      InventoryService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc InventoryService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

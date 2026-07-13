@@ -554,4 +554,132 @@ func TestMockHandler_BulkDeleteCustomers(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockCustomerService{
+			bulkDeleteFn: func(ctx context.Context, ids []int, storeID *int) error {
+				return errors.New("db error")
+			},
+		}
+		r := setupMockRouter(svc)
+		body := `{"ids":[1]}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/customers/bulk/delete", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
+	t.Run("isActive camelCase param", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+				require.NotNil(t, isActive)
+				assert.False(t, *isActive)
+				return []Customer{}, 0, nil
+			},
+		}
+		r := setupMockRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?isActive=false", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("default limit when no param", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+				assert.Equal(t, 50, limit)
+				return []Customer{}, 0, nil
+			},
+		}
+		r := setupMockRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("invalid limit falls back to default", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+				assert.Equal(t, 50, limit)
+				return []Customer{}, 0, nil
+			},
+		}
+		r := setupMockRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?limit=abc", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("search param passed through", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+				assert.Equal(t, "john", search)
+				return []Customer{}, 0, nil
+			},
+		}
+		r := setupMockRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?search=john", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("negative offset clamped to zero", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+				assert.Equal(t, 0, offset)
+				return []Customer{}, 0, nil
+			},
+		}
+		r := setupMockRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?offset=-5", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestMockHandler_CreateCustomer_ExtraPaths(t *testing.T) {
+	t.Run("name too long", func(t *testing.T) {
+		r := setupMockRouter(&mockCustomerService{})
+		longName := strings.Repeat("a", 201)
+		body := `{"name":"` + longName + `","phone":"0812345678","email":"a@test.com"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/customers", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "200 characters")
+	})
+
+	t.Run("empty email", func(t *testing.T) {
+		r := setupMockRouter(&mockCustomerService{})
+		body := `{"name":"Test","phone":"0812345678","email":""}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/customers", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "email is required")
+	})
+}
+
+func TestMockHandler_UpdateCustomer_ServiceError(t *testing.T) {
+	t.Run("update service error", func(t *testing.T) {
+		svc := &mockCustomerService{
+			getByIDFn: func(ctx context.Context, id int, storeID *int) (*Customer, error) {
+				return &Customer{ID: 1, Name: "Existing"}, nil
+			},
+			updateFn: func(ctx context.Context, customer *Customer, id int, storeID *int) error {
+				return errors.New("update failed")
+			},
+		}
+		r := setupMockRouter(svc)
+		body := `{"name":"Updated"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/customers/1", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }

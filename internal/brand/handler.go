@@ -1,6 +1,7 @@
 package brand
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,12 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type BrandService interface {
+	GetByID(ctx context.Context, id int) (*Brand, error)
+	GetAll(ctx context.Context) ([]Brand, error)
+	Create(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
+	Update(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	Delete(ctx context.Context, id int) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      BrandService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc BrandService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

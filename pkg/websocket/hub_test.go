@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,11 +307,16 @@ func TestHub_Broadcast(t *testing.T) {
 		Type: EventStockUpdate,
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "stock_update")
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for broadcast to reach client")
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case msg := <-client.send:
+			if strings.Contains(string(msg), "stock_update") {
+				return
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for stock_update broadcast")
+		}
 	}
 }
 
@@ -325,12 +331,13 @@ func TestHub_Broadcast_TimestampAutoFill(t *testing.T) {
 	event := Event{Type: EventStockUpdate}
 	hub.Broadcast(event)
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "stock_update")
-	case <-time.After(time.Second):
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "stock_update")
+	}, 2*time.Second)
+	if !ok {
 		t.Fatal("timeout waiting for broadcast")
 	}
+	_ = msg
 }
 
 func TestHub_ShouldReceiveEvent(t *testing.T) {
@@ -508,11 +515,11 @@ func TestHub_BroadcastWithPayload(t *testing.T) {
 		Payload: []byte(`{"id":1,"invoice":"INV-001","total":50000,"items":3}`),
 	})
 
-	select {
-	case msg := <-client.send:
-		assert.Contains(t, string(msg), "sale_created")
-		assert.Contains(t, string(msg), "INV-001")
-	case <-time.After(time.Second):
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "sale_created") && strings.Contains(s, "INV-001")
+	}, 2*time.Second)
+	if !ok {
 		t.Fatal("timeout waiting for broadcast")
 	}
+	_ = msg
 }

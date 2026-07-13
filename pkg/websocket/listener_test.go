@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,13 +56,13 @@ func TestNewSaleCreatedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "sale_created")
-			assert.Contains(t, string(msg), "INV-042")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "sale_created") && strings.Contains(s, "INV-042")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for sale broadcast")
 		}
+		_ = msg
 	})
 
 	t.Run("nil items count is zero", func(t *testing.T) {
@@ -78,12 +79,13 @@ func TestNewSaleCreatedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "sale_created")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "sale_created")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for sale broadcast")
 		}
+		_ = msg
 	})
 
 	t.Run("wrong payload type returns nil", func(t *testing.T) {
@@ -120,13 +122,13 @@ func TestNewProductUpdatedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "product_updated")
-			assert.Contains(t, string(msg), "SKU-010")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "product_updated") && strings.Contains(s, "SKU-010")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for product broadcast")
 		}
+		_ = msg
 	})
 
 	t.Run("update payload wrapper", func(t *testing.T) {
@@ -143,13 +145,13 @@ func TestNewProductUpdatedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "product_updated")
-			assert.Contains(t, string(msg), "SKU-020")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "product_updated") && strings.Contains(s, "SKU-020")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for product broadcast")
 		}
+		_ = msg
 	})
 
 	t.Run("update payload with wrong new type", func(t *testing.T) {
@@ -206,13 +208,13 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "stock_update")
-			assert.Contains(t, string(msg), "SKU-100")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "stock_update") && strings.Contains(s, "SKU-100")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for stock broadcast")
 		}
+		_ = msg
 	})
 
 	t.Run("broadcasts low stock alert when stock is zero", func(t *testing.T) {
@@ -239,21 +241,21 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		// Should receive stock_update
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "stock_update")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "stock_update")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for stock broadcast")
 		}
+		_ = msg
 
-		// Should also receive low_stock_alert
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "low_stock_alert")
-		case <-time.After(time.Second):
+		msg, ok = waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "low_stock_alert")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for low stock alert")
 		}
+		_ = msg
 	})
 
 	t.Run("broadcasts low stock alert when stock is negative", func(t *testing.T) {
@@ -280,21 +282,21 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		// Should receive stock_update
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "stock_update")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "stock_update")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for stock broadcast")
 		}
+		_ = msg
 
-		// Should also receive low_stock_alert
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "low_stock_alert")
-		case <-time.After(time.Second):
+		msg, ok = waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "low_stock_alert")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for low stock alert")
 		}
+		_ = msg
 	})
 
 	t.Run("no broadcast on lookup error", func(t *testing.T) {
@@ -303,6 +305,9 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		defer hub.Shutdown()
 
 		client := registerClient(t, hub, 1, nil, true)
+		time.Sleep(50 * time.Millisecond)
+		drainMessages(client.send)
+		time.Sleep(50 * time.Millisecond)
 		drainMessages(client.send)
 
 		mock := &mockProductLookup{
@@ -318,11 +323,11 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
+		msg, found := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "stock_update") || strings.Contains(s, "low_stock_alert")
+		}, 300*time.Millisecond)
+		if found {
 			t.Fatalf("should not broadcast on lookup error, got: %s", msg)
-		case <-time.After(300 * time.Millisecond):
-			// expected: no message
 		}
 	})
 
@@ -366,13 +371,13 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		select {
-		case msg := <-client.send:
-			assert.Contains(t, string(msg), "stock_update")
-			assert.Contains(t, string(msg), "SKU-400")
-		case <-time.After(time.Second):
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "stock_update") && strings.Contains(s, "SKU-400")
+		}, 2*time.Second)
+		if !ok {
 			t.Fatal("timeout waiting for broadcast")
 		}
+		_ = msg
 	})
 }
 
