@@ -189,3 +189,77 @@ func TestHandler_ExportAuditLogs(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "handler_export_test")
 	})
 }
+
+func TestHandler_GetAuditLog(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupAuditRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	al := &AuditLog{
+		Role:       "admin",
+		Action:     "handler_getbyid_test",
+		EntityType: "product",
+		IPAddress:  "10.0.0.3",
+	}
+	require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+	t.Run("found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs/"+strconv.Itoa(al.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data AuditLog `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "handler_getbyid_test", resp.Data.Action)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs/999999", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs/abc", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_ListEntityTypes(t *testing.T) {
+	skipIfNoDB(t)
+	shared.TruncateTestData(dbPool)
+	r := setupAuditRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+		Role:       "admin",
+		Action:     "entity_type_test",
+		EntityType: "widget",
+	}))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/audit-logs/entity-types", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []string `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Contains(t, resp.Data, "widget")
+}

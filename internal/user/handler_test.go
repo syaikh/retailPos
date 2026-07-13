@@ -417,3 +417,134 @@ func TestHandler_CreateRole(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
+
+func TestHandler_UpdateRole(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	roleName := uniqueRoleName("upd_role")
+	role := &Role{Name: roleName, Description: "To be updated"}
+	require.NoError(t, repo.CreateRole(ctx, role))
+
+	t.Run("success", func(t *testing.T) {
+		newName := uniqueRoleName("upd_role_new")
+		body := fmt.Sprintf(`{"name":"%s","description":"Updated description"}`, newName)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/roles/"+strconv.Itoa(role.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data Role `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, newName, resp.Data.Name)
+		assert.Equal(t, "Updated description", resp.Data.Description)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		body := `{"name":"nobody"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/roles/999999", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		body := `{"name":"bad"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/roles/abc", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_DeleteRole(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		roleName := uniqueRoleName("del_role")
+		role := &Role{Name: roleName, Description: "To be deleted"}
+		require.NoError(t, repo.CreateRole(ctx, role))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/admin/roles/"+strconv.Itoa(role.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Status string `json:"status"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "deleted", resp.Status)
+	})
+
+	t.Run("role with users cannot be deleted", func(t *testing.T) {
+		roleName := uniqueRoleName("del_protected")
+		role := &Role{Name: roleName, Description: "Protected role"}
+		require.NoError(t, repo.CreateRole(ctx, role))
+
+		hash := testPasswordHash()
+		u := &User{
+			Username: "delroleuser_" + roleName,
+			Email:    "delrole_" + roleName + "@test.com",
+			Password: hash,
+			RoleID:   role.ID,
+			IsActive: true,
+		}
+		require.NoError(t, repo.CreateUser(ctx, u))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/admin/roles/"+strconv.Itoa(role.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("not found is idempotent", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/admin/roles/999999", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/admin/roles/abc", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_ListPermissions(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/admin/permissions", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []Permission `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.Data)
+}

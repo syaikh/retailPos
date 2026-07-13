@@ -286,3 +286,87 @@ func TestSaleService_ReadOperations(t *testing.T) {
 		assert.Contains(t, next, "INV-")
 	})
 }
+
+type mockPriceStore struct {
+	prices map[int]int
+}
+
+func (m *mockPriceStore) GetProductPrice(_ context.Context, productID int) (int, error) {
+	if p, ok := m.prices[productID]; ok {
+		return p, nil
+	}
+	return 0, assert.AnError
+}
+
+func (m *mockPriceStore) GetProductPrices(_ context.Context, productIDs []int) (map[int]int, error) {
+	result := make(map[int]int, len(productIDs))
+	for _, pid := range productIDs {
+		if p, ok := m.prices[pid]; ok {
+			result[pid] = p
+		} else {
+			return nil, assert.AnError
+		}
+	}
+	return result, nil
+}
+
+func TestSaleService_CreateSalePriceValidation(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
+
+	t.Run("price mismatch returns error", func(t *testing.T) {
+		svc.SetPriceStore(&mockPriceStore{prices: map[int]int{prodID: 15000}})
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PRICE-001",
+			CashierID:     insertTestCashier(t, ctx),
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+			DPPAmount: 10000,
+			TaxAmount: 0,
+		}}
+
+		err := svc.CreateSale(ctx, sale, items)
+		assert.ErrorIs(t, err, ErrPriceMismatch)
+	})
+
+	t.Run("price match succeeds", func(t *testing.T) {
+		svc.SetPriceStore(&mockPriceStore{prices: map[int]int{prodID: 10000}})
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PRICE-002",
+			CashierID:     insertTestCashier(t, ctx),
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+			DPPAmount: 10000,
+			TaxAmount: 0,
+		}}
+
+		err := svc.CreateSale(ctx, sale, items)
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+	})
+}

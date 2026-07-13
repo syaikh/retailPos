@@ -249,3 +249,30 @@ func TestHandler_ExportSales(t *testing.T) {
 		assert.Contains(t, w.Header().Get("Content-Type"), "openxmlformats")
 	})
 }
+
+func TestHandler_GetPaymentMethodByCode(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSaleRouter()
+
+	t.Run("found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/payment-methods/CASH", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data PaymentMethod `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "CASH", resp.Data.Code)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/payment-methods/NONEXISTENT", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}

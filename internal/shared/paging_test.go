@@ -1,0 +1,110 @@
+package shared
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestParsePaginationParams(t *testing.T) {
+	tests := []struct {
+		name       string
+		limitStr   string
+		offsetStr  string
+		expectLim  int
+		expectOffs int
+	}{
+		{"valid limit and offset", "10", "0", 10, 0},
+		{"zero limit defaults", "0", "0", 20, 0},
+		{"empty strings default", "", "", 20, 0},
+		{"negative limit defaults", "-1", "0", 20, 0},
+		{"over max limit defaults", "150", "0", 20, 0},
+		{"negative offset clamped", "10", "-5", 10, 0},
+		{"non-numeric strings", "abc", "xyz", 20, 0},
+		{"max valid limit", "100", "50", 100, 50},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			limit, offset := ParsePaginationParams(tt.limitStr, tt.offsetStr)
+			assert.Equal(t, tt.expectLim, limit)
+			assert.Equal(t, tt.expectOffs, offset)
+		})
+	}
+}
+
+func TestSanitizeSortBy(t *testing.T) {
+	tests := []struct {
+		name       string
+		sortBy     string
+		context    string
+		expected   string
+	}{
+		{"valid products name", "name", "products", "name"},
+		{"valid products price", "price", "products", "price"},
+		{"valid sales created_at", "created_at", "sales", "created_at"},
+		{"valid users created_at", "created_at", "users", "created_at"},
+		{"invalid column defaults", "bogus", "products", "created_at"},
+		{"unknown context defaults", "name", "unknown_context", "created_at"},
+		{"sql injection defaults", "name; DROP TABLE", "products", "created_at"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeSortBy(tt.sortBy, tt.context)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSanitizeSortDir(t *testing.T) {
+	tests := []struct {
+		name     string
+		sortDir  string
+		expected string
+	}{
+		{"uppercase ASC", "ASC", "ASC"},
+		{"uppercase DESC", "DESC", "DESC"},
+		{"lowercase asc", "asc", "ASC"},
+		{"lowercase desc", "desc", "DESC"},
+		{"empty defaults", "", "DESC"},
+		{"bogus defaults", "bogus", "DESC"},
+		{"injection defaults", "ASC; DROP TABLE", "DESC"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeSortDir(tt.sortDir)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestNewPaginatedResponse(t *testing.T) {
+	data := "test"
+
+	tests := []struct {
+		name            string
+		total           int
+		limit           int
+		offset          int
+		expectedPages   int
+	}{
+		{"evenly divisible", 100, 10, 0, 10},
+		{"zero total", 0, 10, 0, 0},
+		{"exact fit", 1, 10, 0, 1},
+		{"partial page", 11, 10, 0, 2},
+		{"zero limit", 0, 0, 0, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := NewPaginatedResponse(data, tt.total, tt.limit, tt.offset)
+			assert.Equal(t, data, resp.Data)
+			assert.Equal(t, tt.total, resp.Total)
+			assert.Equal(t, tt.limit, resp.Limit)
+			assert.Equal(t, tt.offset, resp.Offset)
+			assert.Equal(t, tt.expectedPages, resp.TotalPages)
+		})
+	}
+}
