@@ -221,6 +221,7 @@ func main() {
 	}))
 	router.Use(middleware.SecurityHeadersMiddleware([]string{cfg.CORSOrigin}))
 	router.Use(middleware.RateLimitMiddleware())
+	router.Use(middleware.BodyLimitMiddleware(1 << 20))
 
 	authMiddleware := middleware.NewModularAuthMiddleware(authSvc)
 	permMiddleware := middleware.RequirePermission

@@ -1,7 +1,10 @@
 package shared
 
 import (
+	"log"
+	"net"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,13 +65,15 @@ func GetStoreID(c *gin.Context) *int {
 }
 
 func GetIPAddress(c *gin.Context) string {
-	if ip := c.GetHeader("X-Forwarded-For"); ip != "" {
-		return ip
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		log.Printf("warning: X-Forwarded-For header detected (%s); using RemoteAddr instead", xff)
 	}
-	if ip := c.GetHeader("X-Real-IP"); ip != "" {
-		return ip
+
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		return strings.TrimSpace(c.Request.RemoteAddr)
 	}
-	return c.ClientIP()
+	return host
 }
 
 func GetUserAgent(c *gin.Context) string {

@@ -47,16 +47,39 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
 		}
+	}
 
-		var stock int
-		err := tx.QueryRow(ctx, `SELECT COALESCE(quantity, 0) FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL FOR UPDATE`, item.ProductID).Scan(&stock)
-		if err != nil {
-			return fmt.Errorf("check stock for product %d: %w", item.ProductID, err)
+	productIDs := make([]int, len(items))
+	for i, item := range items {
+		productIDs[i] = item.ProductID
+	}
+
+	rows, err := tx.Query(ctx, `SELECT product_id, COALESCE(quantity, 0) FROM product_stock WHERE product_id = ANY($1) AND warehouse_id IS NULL AND store_id IS NULL FOR UPDATE`, productIDs)
+	if err != nil {
+		return fmt.Errorf("batch check stock: %w", err)
+	}
+	stockMap := make(map[int]int, len(items))
+	for rows.Next() {
+		var pid, qty int
+		if err := rows.Scan(&pid, &qty); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan stock: %w", err)
+		}
+		stockMap[pid] = qty
+	}
+	rows.Close()
+
+	for _, item := range items {
+		stock, ok := stockMap[item.ProductID]
+		if !ok {
+			return fmt.Errorf("stock record not found for product %d", item.ProductID)
 		}
 		if stock < item.Quantity {
 			return ErrInsufficientStock
 		}
+	}
 
+	for _, item := range items {
 		_, err = tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - $1 WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`, item.Quantity, item.ProductID)
 		if err != nil {
 			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)

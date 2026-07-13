@@ -116,7 +116,8 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	startDate := parseDateParam(c.Query("start_date"))
 	endDate := parseDateParam(c.Query("end_date"))
 
-	logs, _, err := h.svc.GetAuditLogs(c.Request.Context(), 100000, 0, userID, search, action, entityType, startDate, endDate)
+	const maxExportRows = 10000
+	logs, _, err := h.svc.GetAuditLogs(c.Request.Context(), maxExportRows, 0, userID, search, action, entityType, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return

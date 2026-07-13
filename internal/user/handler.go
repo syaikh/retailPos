@@ -195,6 +195,15 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	if req.RoleID != nil || req.StoreID != nil {
+		if currentUserID, ok := c.Get("userID"); ok {
+			if uid, ok := currentUserID.(int); ok && uid == id {
+				c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify your own role or store"})
+				return
+			}
+		}
+	}
+
 	existing, err := h.svc.GetUserByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})

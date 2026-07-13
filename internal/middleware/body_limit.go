@@ -1,0 +1,21 @@
+package middleware
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+const DefaultMaxBodySize = 1 << 20
+
+func BodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
+	if maxBytes <= 0 {
+		maxBytes = DefaultMaxBodySize
+	}
+	return func(c *gin.Context) {
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		}
+		c.Next()
+	}
+}

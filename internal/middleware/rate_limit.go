@@ -21,22 +21,24 @@ type ipEntry struct {
 
 type IPRateLimiter struct {
 	ips      map[string]*ipEntry
-	mu       *sync.RWMutex
+	mu       *sync.Mutex
 	r        rate.Limit
 	b        int
 	stopCh   chan struct{}
 	stopped  bool
 	ttl      time.Duration
+	maxSize  int
 }
 
 func NewIPRateLimiter(r rate.Limit, burst int) *IPRateLimiter {
 	l := &IPRateLimiter{
 		ips:    make(map[string]*ipEntry),
-		mu:     &sync.RWMutex{},
+		mu:     &sync.Mutex{},
 		r:      r,
 		b:      burst,
 		stopCh: make(chan struct{}),
 		ttl:    30 * time.Minute,
+		maxSize: 10000,
 	}
 	go l.cleanupLoop()
 	return l
@@ -72,30 +74,39 @@ func (l *IPRateLimiter) cleanupLoop() {
 }
 
 func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
-	l.mu.RLock()
-	entry, exists := l.ips[ip]
-	l.mu.RUnlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
+	entry, exists := l.ips[ip]
 	if exists {
-		l.mu.Lock()
 		entry.lastSeen = time.Now()
-		l.mu.Unlock()
 		return entry.limiter
 	}
 
-	l.mu.Lock()
-	entry, exists = l.ips[ip]
-	if !exists {
-		entry = &ipEntry{
-			limiter:  rate.NewLimiter(l.r, l.b),
-			lastSeen: time.Now(),
-		}
-		l.ips[ip] = entry
-	} else {
-		entry.lastSeen = time.Now()
+	if len(l.ips) >= l.maxSize {
+		l.evictOldestLocked()
 	}
-	l.mu.Unlock()
+
+	entry = &ipEntry{
+		limiter:  rate.NewLimiter(l.r, l.b),
+		lastSeen: time.Now(),
+	}
+	l.ips[ip] = entry
 	return entry.limiter
+}
+
+func (l *IPRateLimiter) evictOldestLocked() {
+	var oldestIP string
+	var oldestTime time.Time
+	for ip, entry := range l.ips {
+		if oldestIP == "" || entry.lastSeen.Before(oldestTime) {
+			oldestIP = ip
+			oldestTime = entry.lastSeen
+		}
+	}
+	if oldestIP != "" {
+		delete(l.ips, oldestIP)
+	}
 }
 
 // getClientIP extracts the real client IP from the TCP connection's RemoteAddr

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -336,7 +337,10 @@ type authMessage struct {
 }
 
 func ServeWebSocket(hub *Hub, c *gin.Context) {
-	clientIP := c.ClientIP()
+	clientIP := c.Request.RemoteAddr
+	if host, _, err := net.SplitHostPort(c.Request.RemoteAddr); err == nil {
+		clientIP = host
+	}
 
 	if !hub.rateLimiter.getLimiter(clientIP).Allow() {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many connection attempts"})
