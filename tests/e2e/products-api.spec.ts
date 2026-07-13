@@ -107,13 +107,15 @@ test.describe('Products API - Delete', () => {
   test('DELETE /api/products/:id deletes a product', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
-    // List existing products to pick one to delete
-    const listRes = await request.get(`${API_BASE}/api/products?limit=1`, { headers: authHeader(token) });
-    expect(listRes.ok()).toBeTruthy();
-    const listBody = await listRes.json();
-    if (!listBody.data || listBody.data.length === 0) return;
+    const sku = `DELPROD${Date.now()}`;
+    const createRes = await request.post(`${API_BASE}/api/products`, {
+      headers: authHeader(token),
+      data: { name: `DeleteMe ${Date.now()}`, sku, price: 1000, cost: 500, stock: 1, status: 'active', store_id: 1 },
+    });
+    expect(createRes.ok(), `create failed: ${createRes.status()}: ${await createRes.text()}`).toBeTruthy();
+    const created = await createRes.json();
+    const productId = created.data?.id || created.id;
 
-    const productId = listBody.data[0].id;
     const deleteRes = await request.delete(`${API_BASE}/api/products/${productId}`, {
       headers: authHeader(token),
     });

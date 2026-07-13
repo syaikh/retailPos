@@ -16,8 +16,8 @@ const config = {
   // Test files location
   testDir: 'tests/e2e',
 
-  // Run tests in parallel (faster, but may strain resources)
-  fullyParallel: true,
+  // Run tests sequentially within each file
+  fullyParallel: false,
 
   // Don't fail on CI if tests marked with .only
   forbidOnly: !!process.env.CI,
@@ -25,8 +25,8 @@ const config = {
   // Retry failed tests (more retries in CI to handle flaky networks)
   retries: process.env.CI ? 2 : 0,
 
-  // Limit workers on CI to avoid resource exhaustion
-  workers: 1,  // Run sequentially to avoid race conditions (refresh token collisions)
+  // 1 worker: sequential execution to avoid memory issues (Chrome + Vite + Go)
+  workers: 1,
 
   // Reporter
   reporter: [
