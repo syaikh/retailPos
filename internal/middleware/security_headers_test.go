@@ -72,10 +72,11 @@ func TestCSRFMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name       string
-		method     string
-		authHeader string
-		wantCode   int
+		name           string
+		method         string
+		authHeader     string
+		refreshHeader  string
+		wantCode       int
 	}{
 		{
 			name:     "GET request passes",
@@ -103,6 +104,12 @@ func TestCSRFMiddleware(t *testing.T) {
 			authHeader: "Bearer abc123",
 			wantCode:   http.StatusOK,
 		},
+		{
+			name:          "POST with X-Refresh-Token passes",
+			method:        http.MethodPost,
+			refreshHeader: "some-refresh-token",
+			wantCode:      http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,6 +119,9 @@ func TestCSRFMiddleware(t *testing.T) {
 			c.Request = httptest.NewRequest(tt.method, "/", nil)
 			if tt.authHeader != "" {
 				c.Request.Header.Set("Authorization", tt.authHeader)
+			}
+			if tt.refreshHeader != "" {
+				c.Request.Header.Set("X-Refresh-Token", tt.refreshHeader)
 			}
 
 			middleware := CSRFMiddleware()
