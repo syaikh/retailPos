@@ -1,6 +1,7 @@
 package product
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,12 +14,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ProductService interface {
+	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error)
+	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
+	CreateProduct(ctx context.Context, product *Product) error
+	UpdateProduct(ctx context.Context, product *Product) error
+	DeleteProduct(ctx context.Context, id int, storeID *int) error
+	BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error
+	GetNextSKU(ctx context.Context) (string, error)
+	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
+}
+
 type Handler struct {
-	svc      *Service
+	svc      ProductService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc ProductService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

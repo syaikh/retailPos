@@ -551,11 +551,23 @@ test.describe('Import/Export Framework — XLSX Roundtrip', () => {
   test('Products XLSX: preview → confirm → verify', async ({ request }) => {
     const token = await getToken(request);
     const sku = `SKUXLSX${Date.now()}`;
+    const catName = uniqueName('CatProdXLSX');
+    const brandName = uniqueName('BrandProdXLSX');
+
+    await request.post(`${API_BASE}/api/categories`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name: catName, description: 'Product XLSX test category' },
+    });
+    await request.post(`${API_BASE}/api/brands`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name: brandName, description: 'Product XLSX test brand' },
+    });
+
     await xlsxRoundtrip(
       request, token,
       'products',
       ['SKU', 'Product Name', 'Barcode', 'Category', 'Brand', 'Price', 'Cost', 'Status', 'Unit of Measure'],
-      [[sku, 'XLSX Product', '', 'Canned Goods', 'Unilever', 15000, 10000, 'active', 'pcs']],
+      [[sku, 'XLSX Product', '', catName, brandName, 15000, 10000, 'active', 'pcs']],
       `${API_BASE}/api/products?limit=200&search=${sku}`,
       'sku',
       sku,

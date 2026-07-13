@@ -1,6 +1,7 @@
 package customer
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -16,12 +17,22 @@ import (
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
+type CustomerService interface {
+	GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error)
+	GetCustomerByID(ctx context.Context, id int, storeID *int) (*Customer, error)
+	CreateCustomer(ctx context.Context, customer *Customer, storeID *int) error
+	UpdateCustomer(ctx context.Context, customer *Customer, id int, storeID *int) error
+	DeleteCustomer(ctx context.Context, id int, storeID *int) error
+	BulkUpdateCustomersStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error
+	BulkDeleteCustomers(ctx context.Context, ids []int, storeID *int) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      CustomerService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc CustomerService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

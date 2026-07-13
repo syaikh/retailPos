@@ -1,6 +1,7 @@
 package category
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,12 +13,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type CategoryService interface {
+	ListCategories(ctx context.Context) ([]Category, error)
+	GetCategoryByID(ctx context.Context, id int) (*Category, error)
+	GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
+	CreateCategory(ctx context.Context, req *CategoryCreateRequest) (*Category, error)
+	UpdateCategory(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error)
+	DeleteCategory(ctx context.Context, id int) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      CategoryService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc CategoryService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

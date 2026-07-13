@@ -14,12 +14,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type AuthLoginService interface {
+	Login(ctx context.Context, username, password string) (*LoginResponse, error)
+	RefreshToken(ctx context.Context, oldRefreshToken string) (string, string, error)
+	ValidateToken(tokenString string) (*AuthClaims, error)
+	ChangePassword(ctx context.Context, userID int, currentPassword, newPassword string) error
+	Logout(ctx context.Context, userID int, refreshToken string) error
+	HashPassword(password string) (string, error)
+}
+
 type AuthHandler struct {
-	svc      *AuthService
+	svc      AuthLoginService
 	auditSvc *audit.Service
 }
 
-func NewAuthHandler(svc *AuthService, auditSvc *audit.Service) *AuthHandler {
+func NewAuthHandler(svc AuthLoginService, auditSvc *audit.Service) *AuthHandler {
 	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 

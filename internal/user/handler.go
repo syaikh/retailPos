@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -29,12 +30,29 @@ func auditContextFromGin(c *gin.Context) (userID *int, username, role string) {
 	return
 }
 
+type UserService interface {
+	GetUserByID(ctx context.Context, id int) (*User, error)
+	GetUserByUsername(ctx context.Context, username string) (*User, error)
+	GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
+	CreateUser(ctx context.Context, user *User) error
+	UpdateUser(ctx context.Context, user *User) error
+	DeleteUser(ctx context.Context, id int) error
+	GetAllRoles(ctx context.Context) ([]Role, error)
+	GetRoleByID(ctx context.Context, id int) (*Role, error)
+	CreateRole(ctx context.Context, role *Role) error
+	UpdateRole(ctx context.Context, role *Role) error
+	DeleteRole(ctx context.Context, id int) error
+	CountUsersByRole(ctx context.Context, roleID int) (int, error)
+	GetAllPermissions(ctx context.Context) ([]Permission, error)
+	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
+}
+
 type Handler struct {
-	svc      *Service
+	svc      UserService
 	auditSvc *audit.Service
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+func NewHandler(svc UserService, auditSvc *audit.Service) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
