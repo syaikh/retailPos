@@ -858,3 +858,132 @@ test.describe('Customers UI - Unauthenticated', () => {
     expect(res.status()).toBe(401);
   });
 });
+
+// ============================================================================
+// 12. API tests: Bulk operations
+// ============================================================================
+
+test.describe('Customers API - Bulk Operations', () => {
+  let token: string;
+
+  test.beforeAll(async ({ request }) => {
+    token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+  });
+
+  test('POST /customers/bulk/status deactivates multiple customers', async ({ request }) => {
+    const c1 = await createCustomerAPI(request, token, { name: `BulkStatus1 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+    const c2 = await createCustomerAPI(request, token, { name: `BulkStatus2 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+
+    const res = await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      headers: authHeader(token),
+      data: { ids: [c1.id, c2.id], is_active: false },
+    });
+    expect(res.ok(), `bulk status failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const body = await res.json();
+    expect(body.status).toBe('updated');
+
+    // Verify they're deactivated
+    const get1 = await request.get(`${API_BASE}/api/customers/${c1.id}`, { headers: authHeader(token) });
+    const body1 = await get1.json();
+    expect(body1.data.is_active).toBe(false);
+  });
+
+  test('POST /customers/bulk/status reactivates multiple customers', async ({ request }) => {
+    const c1 = await createCustomerAPI(request, token, { name: `BulkReact1 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+    const c2 = await createCustomerAPI(request, token, { name: `BulkReact2 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+
+    // Deactivate first
+    await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      headers: authHeader(token),
+      data: { ids: [c1.id, c2.id], is_active: false },
+    });
+
+    // Reactivate
+    const res = await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      headers: authHeader(token),
+      data: { ids: [c1.id, c2.id], is_active: true },
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const get1 = await request.get(`${API_BASE}/api/customers/${c1.id}`, { headers: authHeader(token) });
+    expect((await get1.json()).data.is_active).toBe(true);
+  });
+
+  test('POST /customers/bulk/status with empty IDs returns 400', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      headers: authHeader(token),
+      data: { ids: [], is_active: false },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('POST /customers/bulk/status with restricted role returns 403', async ({ request }) => {
+    const cashierToken = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const res = await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      headers: authHeader(cashierToken),
+      data: { ids: [1], is_active: false },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /customers/bulk/delete deletes multiple customers', async ({ request }) => {
+    const c1 = await createCustomerAPI(request, token, { name: `BulkDel1 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+    const c2 = await createCustomerAPI(request, token, { name: `BulkDel2 ${Date.now()}`, phone: uniquePhone(), email: uniqueEmail() });
+
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      headers: authHeader(token),
+      data: { ids: [c1.id, c2.id] },
+    });
+    expect(res.ok(), `bulk delete failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const body = await res.json();
+    expect(body.status).toBe('deleted');
+  });
+
+  test('POST /customers/bulk/delete with empty IDs returns 400', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      headers: authHeader(token),
+      data: { ids: [] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('POST /customers/bulk/delete with >200 IDs returns 400', async ({ request }) => {
+    const ids = Array.from({ length: 201 }, (_, i) => i + 100000);
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      headers: authHeader(token),
+      data: { ids },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('POST /customers/bulk/delete with restricted role returns 403', async ({ request }) => {
+    const managerToken = await getToken(request, TEST_USERS.manager.username, TEST_USERS.manager.password);
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      headers: authHeader(managerToken),
+      data: { ids: [1] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /customers/bulk/delete with invalid IDs returns 400', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      headers: authHeader(token),
+      data: { ids: 'not-an-array' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('POST /customers/bulk/status without auth returns 401', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/customers/bulk/status`, {
+      data: { ids: [1], is_active: false },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('POST /customers/bulk/delete without auth returns 401', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/customers/bulk/delete`, {
+      data: { ids: [1] },
+    });
+    expect(res.status()).toBe(401);
+  });
+});

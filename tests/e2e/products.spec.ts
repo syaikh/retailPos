@@ -44,7 +44,7 @@ test.describe('Products Management', () => {
     await page.locator('button').filter({ hasText: 'Kategori' }).first().click();
     await expect(page.getByText('Filter Produk')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Belts' }).first();
+    const bevLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Personal Care' }).first();
     await bevLabel.evaluate((el: HTMLElement) => el.click());
     const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Kategori"] button', { hasText: 'Terapkan Filter' });
     await applyBtn.evaluate((el: HTMLElement) => el.click());
@@ -56,8 +56,8 @@ test.describe('Products Management', () => {
     await page.locator('button').filter({ hasText: 'Kategori' }).first().click();
     await expect(page.getByText('Filter Produk')).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(1000);
-    const beltsLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Belts' }).first();
-    await beltsLabel.evaluate((el: HTMLElement) => el.click());
+    const gamingLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Gaming' }).first();
+    await gamingLabel.evaluate((el: HTMLElement) => el.click());
     const condLabel = page.locator('div[role="dialog"][aria-label="Filter Kategori"] label').filter({ hasText: 'Condiments' }).first();
     await condLabel.evaluate((el: HTMLElement) => el.click());
     const applyBtn = page.locator('div[role="dialog"][aria-label="Filter Kategori"] button', { hasText: 'Terapkan Filter' });
@@ -72,7 +72,7 @@ test.describe('Products Management', () => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const productResp = await page.request.post('http://localhost:9095/api/products', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      data: { name, sku, price: 50000, stock: 100, category_name: 'Belts', status: 'active' }
+      data: { name, sku, price: 50000, stock: 100, category_name: 'Personal Care', status: 'active' }
     });
     expect(productResp.ok()).toBeTruthy();
 
@@ -160,7 +160,7 @@ test.describe('Products Management', () => {
 test.describe('Products API - Category Filter', () => {
   test('GET /api/products?category=single returns filtered products', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const response = await request.get(`${API_BASE}/api/products?category=Belts`, {
+    const response = await request.get(`${API_BASE}/api/products?category=Personal+Care`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     expect(response.ok()).toBeTruthy();
@@ -168,21 +168,21 @@ test.describe('Products API - Category Filter', () => {
     expect(body.data).toBeInstanceOf(Array);
     if (body.data.length > 0) {
       for (const product of body.data) {
-        expect(product.category_name).toBe('Belts');
+        expect(product.category_name).toBe('Personal Care');
       }
     }
   });
 
   test('GET /api/products?category=multiple returns products matching any category', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const response = await request.get(`${API_BASE}/api/products?category=Belts,Condiments`, {
+    const response = await request.get(`${API_BASE}/api/products?category=Gaming,Condiments`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.data).toBeInstanceOf(Array);
     if (body.data.length > 0) {
-      const validCategories = ['Belts', 'Condiments'];
+      const validCategories = ['Gaming', 'Condiments'];
       for (const product of body.data) {
         expect(validCategories).toContain(product.category_name);
       }

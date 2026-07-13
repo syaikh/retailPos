@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { loginUI, logoutUI } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI } from './fixtures';
+
+const getToken = cachedGetToken;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -172,6 +174,8 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await goToStep2(page);
     await saveRole(page);
     await expect(page.getByRole('dialog').first()).toBeHidden({ timeout: 10000 });
+    const searchBar = page.getByPlaceholder('Search roles…');
+    await searchBar.fill(uniqueName);
     await expect(page.getByText(uniqueName, { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
@@ -466,5 +470,163 @@ test.describe('Admin Panel — Role Management (Create Role Modal)', () => {
     await expect(getModal(page).getByText('0 of', { exact: false })).toBeVisible();
     const toggle = getModal(page).getByRole('button', { name: 'Toggle User & Role permissions' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+// ============================================================================
+// Role API: Update, Delete, Permissions
+// ============================================================================
+
+test.describe('Roles API - Update Role', () => {
+  test('PUT /admin/roles/:id updates role name', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    // Create a role first
+    const createRes = await request.post(`${API_BASE}/api/admin/roles`, {
+      headers: authHeader(token),
+      data: { name: `updatable_${Date.now()}`, description: 'to be updated' },
+    });
+    expect(createRes.ok(), `create failed: ${createRes.status()}`).toBeTruthy();
+    const created = await createRes.json();
+    const roleId = created.data.id;
+
+    const newName = `updated_${Date.now()}`;
+    const res = await request.put(`${API_BASE}/api/admin/roles/${roleId}`, {
+      headers: authHeader(token),
+      data: { name: newName },
+    });
+    expect(res.ok(), `update failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.name).toBe(newName);
+  });
+
+  test('PUT /admin/roles/:id updates description', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const createRes = await request.post(`${API_BASE}/api/admin/roles`, {
+      headers: authHeader(token),
+      data: { name: `descupdate_${Date.now()}`, description: 'old desc' },
+    });
+    const created = await createRes.json();
+    const roleId = created.data.id;
+
+    const res = await request.put(`${API_BASE}/api/admin/roles/${roleId}`, {
+      headers: authHeader(token),
+      data: { description: 'new description' },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.description).toBe('new description');
+  });
+
+  test('PUT /admin/roles/:id returns 404 for nonexistent role', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.put(`${API_BASE}/api/admin/roles/999999`, {
+      headers: authHeader(token),
+      data: { name: 'nope' },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('PUT /admin/roles/:id with restricted role returns 403', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const res = await request.put(`${API_BASE}/api/admin/roles/1`, {
+      headers: authHeader(token),
+      data: { name: 'hack' },
+    });
+    expect(res.status()).toBe(403);
+  });
+});
+
+test.describe('Roles API - Update Permissions', () => {
+  test('PUT /admin/roles/:id/permissions updates permission set', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    // Get valid permission IDs from the permissions endpoint
+    const permRes = await request.get(`${API_BASE}/api/admin/permissions`, { headers: authHeader(token) });
+    expect(permRes.ok()).toBeTruthy();
+    const permBody = await permRes.json();
+    const perms = permBody.data || [];
+    if (perms.length === 0) return;
+    const permIds = perms.slice(0, 3).map((p: any) => p.id);
+
+    const createRes = await request.post(`${API_BASE}/api/admin/roles`, {
+      headers: authHeader(token),
+      data: { name: `permrole_${Date.now()}`, description: 'for perm test' },
+    });
+    const created = await createRes.json();
+    const roleId = created.data.id;
+
+    const res = await request.put(`${API_BASE}/api/admin/roles/${roleId}/permissions`, {
+      headers: authHeader(token),
+      data: { permission_ids: permIds },
+    });
+    expect(res.ok(), `perm update failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.permissions).toBeDefined();
+  });
+
+  test('PUT /admin/roles/:id/permissions with empty array is accepted', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const createRes = await request.post(`${API_BASE}/api/admin/roles`, {
+      headers: authHeader(token),
+      data: { name: `emptyperm_${Date.now()}`, description: 'for empty perm test' },
+    });
+    const created = await createRes.json();
+    const roleId = created.data.id;
+
+    const res = await request.put(`${API_BASE}/api/admin/roles/${roleId}/permissions`, {
+      headers: authHeader(token),
+      data: { permission_ids: [] },
+    });
+    expect(res.ok()).toBeTruthy();
+  });
+});
+
+test.describe('Roles API - Delete Role', () => {
+  test('DELETE /admin/roles/:id deletes a role with no users', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const createRes = await request.post(`${API_BASE}/api/admin/roles`, {
+      headers: authHeader(token),
+      data: { name: `deleteme_${Date.now()}`, description: 'to be deleted' },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const created = await createRes.json();
+    const roleId = created.data.id;
+
+    const deleteRes = await request.delete(`${API_BASE}/api/admin/roles/${roleId}`, {
+      headers: authHeader(token),
+    });
+    expect(deleteRes.ok(), `delete failed: ${deleteRes.status()}: ${await deleteRes.text()}`).toBeTruthy();
+    const body = await deleteRes.json();
+    expect(body.status).toBe('deleted');
+
+    // Verify it's gone
+    const getRes = await request.get(`${API_BASE}/api/admin/roles?limit=100`, { headers: authHeader(token) });
+    const roles = await getRes.json();
+    const found = roles.data?.find((r: any) => r.id === roleId);
+    expect(found).toBeUndefined();
+  });
+
+  test('DELETE /admin/roles/:id returns 400 for role with assigned users', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    // Get the admin role (id=2) which has users assigned
+    const res = await request.delete(`${API_BASE}/api/admin/roles/2`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('users are assigned');
+  });
+
+  test('DELETE /admin/roles/:id with restricted role returns 403', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const res = await request.delete(`${API_BASE}/api/admin/roles/1`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(403);
   });
 });

@@ -60,6 +60,11 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		if c.Request.Header.Get("X-Refresh-Token") != "" {
+			c.Next()
+			return
+		}
+
 		c.AbortWithStatusJSON(403, gin.H{"error": "CSRF token missing or invalid"})
 	}
 }

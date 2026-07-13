@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { loginUI, logoutUI } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI } from './fixtures';
+
+const getToken = cachedGetToken;
 
 test.describe('Categories Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -51,5 +53,52 @@ test.describe('Categories Management', () => {
 
     await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Nama kategori wajib diisi')).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ============================================================================
+// Categories API - Delete
+// ============================================================================
+
+test.describe('Categories API - Delete', () => {
+
+  test('DELETE /api/categories/:id deletes a category', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    // Create a category to delete
+    const createRes = await request.post(`${API_BASE}/api/categories`, {
+      headers: authHeader(token),
+      data: { name: `DelCat ${Date.now()}` },
+    });
+    expect(createRes.ok(), `create failed: ${createRes.status()}: ${await createRes.text()}`).toBeTruthy();
+    const created = await createRes.json();
+    const catId = created.data?.id || created.id;
+    expect(catId).toBeTruthy();
+
+    const deleteRes = await request.delete(`${API_BASE}/api/categories/${catId}`, {
+      headers: authHeader(token),
+    });
+    expect(deleteRes.ok(), `delete failed: ${deleteRes.status()}: ${await deleteRes.text()}`).toBeTruthy();
+  });
+
+  test('DELETE /api/categories/:id returns 400 for invalid id', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.delete(`${API_BASE}/api/categories/not-a-number`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('DELETE /api/categories/:id without auth returns 401', async ({ request }) => {
+    const res = await request.delete(`${API_BASE}/api/categories/1`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('DELETE /api/categories/:id with restricted role returns 403', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const res = await request.delete(`${API_BASE}/api/categories/1`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(403);
   });
 });

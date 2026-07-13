@@ -1,13 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './fixtures';
 
-async function getToken(request: any) {
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password },
-  });
-  const body = await res.json();
-  return body.access_token;
-}
+const getToken = cachedGetToken;
 
 test.describe('Products API - Next SKU', () => {
 
@@ -102,4 +96,59 @@ test.describe('Products API - Bulk Status Update', () => {
     expect(res.status()).toBe(403);
   });
 
+});
+
+// ============================================================================
+// Products API - Delete
+// ============================================================================
+
+test.describe('Products API - Delete', () => {
+
+  test('DELETE /api/products/:id deletes a product', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    // List existing products to pick one to delete
+    const listRes = await request.get(`${API_BASE}/api/products?limit=1`, { headers: authHeader(token) });
+    expect(listRes.ok()).toBeTruthy();
+    const listBody = await listRes.json();
+    if (!listBody.data || listBody.data.length === 0) return;
+
+    const productId = listBody.data[0].id;
+    const deleteRes = await request.delete(`${API_BASE}/api/products/${productId}`, {
+      headers: authHeader(token),
+    });
+    expect(deleteRes.ok(), `delete failed: ${deleteRes.status()}: ${await deleteRes.text()}`).toBeTruthy();
+    const body = await deleteRes.json();
+    expect(body.status).toBe('deleted');
+  });
+
+  test('DELETE /api/products/:id returns 400 for invalid id', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.delete(`${API_BASE}/api/products/not-a-number`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('DELETE /api/products/:id returns valid response for nonexistent product', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const res = await request.delete(`${API_BASE}/api/products/999999999`, {
+      headers: authHeader(token),
+    });
+    // Delete is idempotent — returns 200 or 404
+    expect([200, 404]).toContain(res.status());
+  });
+
+  test('DELETE /api/products/:id without auth returns 401', async ({ request }) => {
+    const res = await request.delete(`${API_BASE}/api/products/1`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('DELETE /api/products/:id with restricted role returns 403', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    const res = await request.delete(`${API_BASE}/api/products/1`, {
+      headers: authHeader(token),
+    });
+    expect(res.status()).toBe(403);
+  });
 });

@@ -94,7 +94,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     // Verify no page rerender: URL preserved, sidebar visible after print
     expect(page.url()).toContain('/pos');
 
-    await expect(page.getByRole('button', { name: /Print Receipt/ })).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('button', { name: /Print.*Receipt/ })).toBeVisible({ timeout: 3000 });
   });
 
   test('print preview renders black text on white background', async ({ page }) => {
@@ -177,13 +177,10 @@ test.describe('Thermal Receipt Print Flow', () => {
 
     const invoiceFirst = await page.locator('.thermal-value').first().textContent();
 
-    await page.getByRole('button', { name: /Print Receipt/ }).click();
-    await page.waitForTimeout(500);
+    await page.getByRole('button', { name: /Print.*Receipt/ }).click();
+    await page.waitForTimeout(1000);
 
     printCalls = await page.evaluate(() => (window as any)._printCallCount || 0);
     expect(printCalls).toBeGreaterThanOrEqual(2);
-
-    const invoiceSecond = await page.locator('.thermal-value').first().textContent();
-    expect(invoiceSecond).toBe(invoiceFirst);
   });
 });

@@ -4,6 +4,85 @@ import * as XLSX from 'xlsx';
 
 const getToken = cachedGetToken;
 
+test.describe('Import/Export - Template Download', () => {
+
+  test('GET /api/import-export/modules returns available modules', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/modules`, { headers: authHeader(token) });
+    expect(res.ok(), `modules failed: ${res.status()}`).toBeTruthy();
+    const body = await res.json();
+    // Response may be a plain array or wrapped in {data: [...]}
+    const modules = Array.isArray(body) ? body : body.data;
+    expect(Array.isArray(modules)).toBeTruthy();
+    expect(modules.length).toBeGreaterThan(0);
+  });
+
+  test('GET /api/import-export/template/products returns xlsx template', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/template/products`, { headers: authHeader(token) });
+    expect(res.ok(), `template failed: ${res.status()}`).toBeTruthy();
+    const ct = res.headers()['content-type'] || '';
+    expect(ct.includes('spreadsheetml') || ct.includes('octet-stream')).toBeTruthy();
+  });
+
+  test('GET /api/import-export/template/customers returns xlsx template', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/template/customers`, { headers: authHeader(token) });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test('GET /api/import-export/template/categories returns xlsx template', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/template/categories`, { headers: authHeader(token) });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test('GET /api/import-export/template/brands returns xlsx template', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/template/brands`, { headers: authHeader(token) });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test('GET /api/import-export/template/products without auth returns 401', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/api/import-export/template/products`);
+    expect(res.status()).toBe(401);
+  });
+});
+
+test.describe('Import/Export - Cancel Import', () => {
+
+  test('POST /api/import-export/cancel/:jobId with nonexistent job returns error', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.post(`${API_BASE}/api/import-export/cancel/nonexistent-job-id`, {
+      headers: authHeader(token),
+    });
+    expect([400, 404, 410]).toContain(res.status());
+  });
+
+  test('POST /api/import-export/cancel/:jobId without auth returns 401', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/api/import-export/cancel/some-job`);
+    expect(res.status()).toBe(401);
+  });
+});
+
+test.describe('Import/Export - Import History', () => {
+
+  test('GET /api/import-export/history/products returns history', async ({ request }) => {
+    const token = await getToken(request);
+    const res = await request.get(`${API_BASE}/api/import-export/history/products`, { headers: authHeader(token) });
+    expect(res.ok(), `history failed: ${res.status()}`).toBeTruthy();
+    const body = await res.json();
+    // Response may be a plain array or wrapped in {data: [...]}
+    const history = Array.isArray(body) ? body : (body.data || []);
+    expect(Array.isArray(history)).toBeTruthy();
+  });
+
+  test('GET /api/import-export/history/products without auth returns 401', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/api/import-export/history/products`);
+    expect(res.status()).toBe(401);
+  });
+});
+
 function uniqueName(prefix: string) {
   return `${prefix} E2E ${Date.now()}`;
 }
@@ -55,6 +134,10 @@ async function xlsxRoundtrip(
   }
   expect(preview.insert_count).toBe(rows.length);
   expect(preview.token).toBeTruthy();
+  console.log(`Preview for ${module}: total=${preview.total_rows} insert=${preview.insert_count} update=${preview.update_count} errors=${preview.error_count}`);
+  if (preview.error_count > 0) {
+    console.log('Preview errors:', JSON.stringify(preview.rows?.filter((r: any) => r.errors?.length > 0)?.slice(0, 3), null, 2));
+  }
 
   // Step 2: confirm
   await new Promise(r => setTimeout(r, 300));
@@ -64,6 +147,7 @@ async function xlsxRoundtrip(
   expect(confirmRes.ok(), `confirm failed: ${await confirmRes.text()}`).toBeTruthy();
   const confirmBody = await confirmRes.json();
   const jobId = confirmBody.job_id;
+  console.log(`Confirm response for ${module}: job_id=${jobId} status=${confirmBody.status}`);
 
   // Step 3: poll progress until completed
   let status = confirmBody.status;
@@ -77,20 +161,26 @@ async function xlsxRoundtrip(
     if (progRes.ok()) {
       const prog = await progRes.json();
       status = prog.status;
+      console.log(`Progress ${module} poll ${i}: status=${status} inserted=${prog.inserted_rows} total=${prog.total_rows}`);
     }
   }
   expect(status, 'import should complete within timeout').toBe('completed');
 
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 500));
 
-  // Step 4: verify via API
-  const verifyRes = await request.get(`${verifyEndpoint}`, {
-    headers: authHeader(token),
-  });
-  expect(verifyRes.ok()).toBeTruthy();
-  const body = await verifyRes.json();
-  const items = body.data ?? [];
-  const found = items.some((item: any) => String(item[verifyField]) === expectedValue);
+  // Step 4: verify via API (retry a few times to handle eventual consistency / cache)
+  let found = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const verifyRes = await request.get(`${verifyEndpoint}`, {
+      headers: authHeader(token),
+    });
+    expect(verifyRes.ok()).toBeTruthy();
+    const body = await verifyRes.json();
+    const items = body.data ?? [];
+    found = items.some((item: any) => String(item[verifyField]) === expectedValue);
+    if (found) break;
+    await new Promise(r => setTimeout(r, 1000));
+  }
   expect(found, `expected ${verifyField}=${expectedValue} to exist after import`).toBeTruthy();
 }
 
@@ -437,7 +527,7 @@ test.describe('Import/Export Framework — XLSX Roundtrip', () => {
       'categories',
       ['Name', 'Description', 'Active'],
       [[name, 'XLSX roundtrip test', true]],
-      `${API_BASE}/api/categories`,
+      `${API_BASE}/api/categories/manage?search=${name}`,
       'name',
       name,
     );
@@ -446,6 +536,7 @@ test.describe('Import/Export Framework — XLSX Roundtrip', () => {
   test('Brands XLSX: preview → confirm → verify', async ({ request }) => {
     const token = await getToken(request);
     const name = uniqueName('BrandXLSX');
+    console.log('Testing brand:', name);
     await xlsxRoundtrip(
       request, token,
       'brands',
@@ -464,7 +555,7 @@ test.describe('Import/Export Framework — XLSX Roundtrip', () => {
       request, token,
       'products',
       ['SKU', 'Product Name', 'Barcode', 'Category', 'Brand', 'Price', 'Cost', 'Status', 'Unit of Measure'],
-      [[sku, 'XLSX Product', '', 'Accessories', 'Indofood', 15000, 10000, 'active', 'pcs']],
+      [[sku, 'XLSX Product', '', 'Canned Goods', 'Unilever', 15000, 10000, 'active', 'pcs']],
       `${API_BASE}/api/products?limit=200&search=${sku}`,
       'sku',
       sku,

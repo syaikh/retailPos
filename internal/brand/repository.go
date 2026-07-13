@@ -225,5 +225,10 @@ func (r *Repository) BulkUpsert(ctx context.Context, records []BrandImportRow) I
 		result.Errors = append(result.Errors, fmt.Sprintf("rows iteration: %v", err))
 	}
 
+	if r.cache != nil {
+		r.cache.FlushByPrefix("brand:")
+		r.cache.Delete("brands:all")
+	}
+
 	return result
 }

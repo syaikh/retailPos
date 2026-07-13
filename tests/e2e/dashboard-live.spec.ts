@@ -52,13 +52,15 @@ test.describe('Dashboard Live Stats', () => {
 
   test('updates revenue and transactions after a new sale is broadcast', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const productRes = await request.get(`${API_BASE}/api/products?limit=1`, {
+    const productRes = await request.get(`${API_BASE}/api/products?limit=50`, {
       headers: authHeader(token),
     });
     expect(productRes.ok()).toBeTruthy();
     const productData = await productRes.json();
     const productWithStock = productData.data?.find((p: any) => (p.stock ?? 0) > 0);
-    const productId = productWithStock?.id ?? 4227;
+    expect(productWithStock, 'no product with stock found').toBeTruthy();
+    const productId = productWithStock.id;
+    const productPrice = productWithStock.price ?? productWithStock.selling_price ?? 25000;
 
     const beforeStats = await request.get(`${API_BASE}/api/dashboard/live`, {
       headers: authHeader(token),
@@ -71,12 +73,12 @@ test.describe('Dashboard Live Stats', () => {
       data: {
         invoice_number: `INV-LIVE-${Date.now()}`,
         cashier_id: 1,
-        subtotal: 25000,
+        subtotal: productPrice,
         discount: 0,
         tax: 0,
-        total_amount: 25000,
+        total_amount: productPrice,
         payment_method: 'cash',
-        items: [{ product_id: productId, quantity: 1, unit_price: 25000, subtotal: 25000 }],
+        items: [{ product_id: productId, quantity: 1, unit_price: productPrice, subtotal: productPrice }],
       },
     });
 
@@ -93,7 +95,7 @@ test.describe('Dashboard Live Stats', () => {
     const afterSales = (afterJson.data?.todays_sales ?? 0) as number;
 
     expect(afterRevenue).toBeGreaterThan(beforeRevenue);
-    expect(afterRevenue).toBeGreaterThanOrEqual(25000);
+    expect(afterRevenue).toBeGreaterThanOrEqual(productPrice);
     expect(afterSales).toBeGreaterThanOrEqual(1);
   });
 });

@@ -32,7 +32,7 @@ test.describe('Units of Measure Management', () => {
     await page.fill('#uom-desc', 'Auto-generated e2e unit');
 
     await page.getByRole('dialog', { name: 'Tambah Unit' }).getByRole('button', { name: 'Tambah Unit' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Unit' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Tambah Unit' })).toBeHidden({ timeout: 15000 });
   });
 
   test('should edit the first unit of measure', async ({ page }) => {

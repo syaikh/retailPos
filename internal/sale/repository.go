@@ -425,7 +425,7 @@ func (r *Repository) GetPaymentMethodByCode(ctx context.Context, code string) (*
 	err := r.db.QueryRow(ctx, `
 		SELECT id, code, name, is_active, requires_reference, sort_order, created_at
 		FROM payment_methods
-		WHERE code = $1
+		WHERE UPPER(code) = UPPER($1)
 	`, code).Scan(&m.ID, &m.Code, &m.Name, &m.IsActive, &m.RequiresReference, &m.SortOrder, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
