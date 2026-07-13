@@ -1,15 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './fixtures';
 import * as XLSX from 'xlsx';
 
-async function getToken(request: any, username: string = TEST_USERS.superadmin.username, password: string = TEST_USERS.superadmin.password) {
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: { username, password },
-  });
-  expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
-  const body = await res.json();
-  return body.access_token;
-}
+const getToken = cachedGetToken;
 
 function uniqueName(prefix: string) {
   return `${prefix} E2E ${Date.now()}`;

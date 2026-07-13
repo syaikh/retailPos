@@ -4,6 +4,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -120,7 +122,15 @@ func getClientIP(c *gin.Context) string {
 }
 
 func RateLimitMiddleware() gin.HandlerFunc {
-	limiter := NewIPRateLimiter(rate.Limit(5), 10)
+	rps := 50
+	burst := 100
+	if v, err := strconv.Atoi(os.Getenv("RATE_LIMIT_RPS")); err == nil && v > 0 {
+		rps = v
+	}
+	if v, err := strconv.Atoi(os.Getenv("RATE_LIMIT_BURST")); err == nil && v > 0 {
+		burst = v
+	}
+	limiter := NewIPRateLimiter(rate.Limit(rps), burst)
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
@@ -133,7 +143,15 @@ func RateLimitMiddleware() gin.HandlerFunc {
 }
 
 func LoginRateLimitMiddleware() gin.HandlerFunc {
-	limiter := NewIPRateLimiter(rate.Every(time.Minute/5), 5)
+	burst := 5
+	rpm := 5
+	if v, err := strconv.Atoi(os.Getenv("LOGIN_RATE_LIMIT_RPM")); err == nil && v > 0 {
+		rpm = v
+	}
+	if v, err := strconv.Atoi(os.Getenv("LOGIN_RATE_LIMIT_BURST")); err == nil && v > 0 {
+		burst = v
+	}
+	limiter := NewIPRateLimiter(rate.Every(time.Minute/time.Duration(rpm)), burst)
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
@@ -146,7 +164,15 @@ func LoginRateLimitMiddleware() gin.HandlerFunc {
 }
 
 func RefreshRateLimitMiddleware() gin.HandlerFunc {
-	limiter := NewIPRateLimiter(rate.Every(time.Minute/10), 10)
+	burst := 10
+	rpm := 10
+	if v, err := strconv.Atoi(os.Getenv("REFRESH_RATE_LIMIT_RPM")); err == nil && v > 0 {
+		rpm = v
+	}
+	if v, err := strconv.Atoi(os.Getenv("REFRESH_RATE_LIMIT_BURST")); err == nil && v > 0 {
+		burst = v
+	}
+	limiter := NewIPRateLimiter(rate.Every(time.Minute/time.Duration(rpm)), burst)
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)

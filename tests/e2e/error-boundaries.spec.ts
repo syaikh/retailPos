@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginUI } from './fixtures';
 
 test.describe('Error Boundaries', () => {
   test('should redirect to login when unauthenticated', async ({ page }) => {
@@ -9,11 +10,7 @@ test.describe('Error Boundaries', () => {
   });
 
   test('should show page content for unknown routes', async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', 'superadmin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+    await loginUI(page, 'superadmin', 'admin123');
 
     await page.goto('http://localhost:5173/nonexistent-route');
     await page.waitForTimeout(1000);

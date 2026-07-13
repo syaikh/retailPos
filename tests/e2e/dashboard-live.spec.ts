@@ -1,17 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_URLS, API_BASE, authHeader, decodeJWT } from './fixtures';
-
-async function getAuthToken(request: any) {
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: {
-      username: TEST_USERS.superadmin.username,
-      password: TEST_USERS.superadmin.password,
-    },
-  });
-  const body = await res.json();
-  expect(res.ok()).toBeTruthy();
-  return body.access_token;
-}
+import { TEST_USERS, API_URLS, API_BASE, authHeader, decodeJWT, loginUI, logoutUI, getToken } from './fixtures';
 
 async function createTestSale(request: any, token: string, productId = 1) {
   const invoiceNumber = `INV-LIVE-${Date.now()}`;
@@ -43,27 +31,27 @@ async function createTestSale(request: any, token: string, productId = 1) {
 
 test.describe('Dashboard Live Stats', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/);
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('displays live dashboard header with connection indicator', async ({ page }) => {
-    await expect(page.getByText("Live Dashboard")).toBeVisible();
-    await expect(page.getByText("Live")).toBeVisible();
+    await expect(page.getByText("Live Dashboard", { exact: true })).toBeVisible();
+    await expect(page.getByText("Live", { exact: true })).toBeVisible();
   });
 
   test('shows real stat cards on initial load', async ({ page }) => {
     await expect(page.getByText("Today's Revenue")).toBeVisible();
-    await expect(page.getByText('Transactions', { exact: true })).toBeVisible();
+    await expect(page.locator('#main-content').getByText('Transactions', { exact: true })).toBeVisible();
     await expect(page.getByText('Total Products')).toBeVisible();
     await expect(page.getByText('Low Stock Alerts')).toBeVisible();
   });
 
   test('updates revenue and transactions after a new sale is broadcast', async ({ page, request }) => {
-    const token = await getAuthToken(request);
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const productRes = await request.get(`${API_BASE}/api/products?limit=1`, {
       headers: authHeader(token),
     });

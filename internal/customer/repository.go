@@ -3,36 +3,14 @@ package customer
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		var err error
-		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-		if err != nil {
-			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-			jakartaLoc = time.UTC
-		}
-	}
-	return jakartaLoc
-}
 
 type ImportResult struct {
 	Inserted int      `json:"inserted"`
@@ -75,8 +53,8 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int)
 	if !c.IsWalkIn {
 		c.StoreID = &storeIDVal
 	}
-	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &c, nil
 }
 
@@ -102,8 +80,8 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 	if !c.IsWalkIn {
 		c.StoreID = &storeIDVal
 	}
-	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &c, nil
 }
 
@@ -166,8 +144,8 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 			return nil, 0, err
 		}
 		c.StoreID = &storeIDVal
-		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		customers = append(customers, c)
 	}
 	return customers, total, nil
@@ -259,8 +237,8 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 			return nil, err
 		}
 		c.StoreID = &storeIDVal
-		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		customers = append(customers, c)
 	}
 	return customers, nil

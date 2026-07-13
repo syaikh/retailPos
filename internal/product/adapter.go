@@ -16,16 +16,19 @@ import (
 
 type CategoryRefRepo interface {
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
+	GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error)
 	GetAllCategoriesForExport(ctx context.Context) ([]category.Category, error)
 }
 
 type BrandRefRepo interface {
 	GetIDByName(ctx context.Context, name string) (int, error)
+	GetIDsByNames(ctx context.Context, names []string) (map[string]int, error)
 	GetAllForExport(ctx context.Context) ([]brand.Brand, error)
 }
 
 type UOMRefRepo interface {
 	GetIDByCode(ctx context.Context, code string) (int, error)
+	GetIDsByCodes(ctx context.Context, codes []string) (map[string]int, error)
 	GetAllForExport(ctx context.Context) ([]uom.UnitOfMeasure, error)
 }
 
@@ -113,10 +116,14 @@ type productRepoAdapter struct {
 }
 
 func (r *productRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
+	catMap, brandMap, uomMap, err := r.batchResolveAll(ctx, entities)
+	if err != nil {
+		return 0, err
+	}
 	payloads := make([]ProductImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(ProductImportRow)
-		payload, err := r.resolveReferences(ctx, row)
+		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		if err != nil {
 			return len(payloads), err
 		}
@@ -126,10 +133,14 @@ func (r *productRepoAdapter) Insert(ctx context.Context, entities []interface{})
 }
 
 func (r *productRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
+	catMap, brandMap, uomMap, err := r.batchResolveAll(ctx, entities)
+	if err != nil {
+		return 0, err
+	}
 	payloads := make([]ProductImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(ProductImportRow)
-		payload, err := r.resolveReferences(ctx, row)
+		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		if err != nil {
 			return len(payloads), err
 		}
@@ -138,7 +149,49 @@ func (r *productRepoAdapter) Update(ctx context.Context, entities []interface{})
 	return r.repo.BulkUpdateProducts(ctx, payloads)
 }
 
-func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductImportRow) (*ProductImportPayload, error) {
+func (r *productRepoAdapter) batchResolveAll(ctx context.Context, entities []interface{}) (catMap, brandMap, uomMap map[string]int, err error) {
+	catNames := make(map[string]bool)
+	brandNames := make(map[string]bool)
+	uomCodes := make(map[string]bool)
+	for _, e := range entities {
+		row := e.(ProductImportRow)
+		if row.Category != "" {
+			catNames[row.Category] = true
+		}
+		if row.Brand != "" {
+			brandNames[row.Brand] = true
+		}
+		if row.UnitOfMeasure != "" {
+			uomCodes[row.UnitOfMeasure] = true
+		}
+	}
+	uniqueCatNames := keysOf(catNames)
+	uniqueBrandNames := keysOf(brandNames)
+	uniqueUomCodes := keysOf(uomCodes)
+	catMap, err = r.categoryRepo.GetCategoryIDsByNames(ctx, uniqueCatNames)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("batch resolve categories: %w", err)
+	}
+	brandMap, err = r.brandRepo.GetIDsByNames(ctx, uniqueBrandNames)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("batch resolve brands: %w", err)
+	}
+	uomMap, err = r.uomRepo.GetIDsByCodes(ctx, uniqueUomCodes)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("batch resolve UoMs: %w", err)
+	}
+	return catMap, brandMap, uomMap, nil
+}
+
+func keysOf(m map[string]bool) []string {
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
+}
+
+func (r *productRepoAdapter) resolveReferences(row ProductImportRow, catMap, brandMap, uomMap map[string]int) (*ProductImportPayload, error) {
 	status := strings.ToLower(row.Status)
 	if status == "" {
 		status = "active"
@@ -146,27 +199,27 @@ func (r *productRepoAdapter) resolveReferences(ctx context.Context, row ProductI
 
 	var categoryID *int
 	if row.Category != "" {
-		id, err := r.categoryRepo.GetCategoryIDByName(ctx, row.Category)
-		if err != nil {
-			return nil, fmt.Errorf("category %q: %w", row.Category, err)
+		id, ok := catMap[row.Category]
+		if !ok {
+			return nil, fmt.Errorf("category %q not found", row.Category)
 		}
 		categoryID = &id
 	}
 
 	var brandID *int
 	if row.Brand != "" {
-		id, err := r.brandRepo.GetIDByName(ctx, row.Brand)
-		if err != nil {
-			return nil, fmt.Errorf("brand %q: %w", row.Brand, err)
+		id, ok := brandMap[row.Brand]
+		if !ok {
+			return nil, fmt.Errorf("brand %q not found", row.Brand)
 		}
 		brandID = &id
 	}
 
 	var uomID *int
 	if row.UnitOfMeasure != "" {
-		id, err := r.uomRepo.GetIDByCode(ctx, row.UnitOfMeasure)
-		if err != nil {
-			return nil, fmt.Errorf("unit of measure %q: %w", row.UnitOfMeasure, err)
+		id, ok := uomMap[row.UnitOfMeasure]
+		if !ok {
+			return nil, fmt.Errorf("unit of measure %q not found", row.UnitOfMeasure)
 		}
 		uomID = &id
 	}

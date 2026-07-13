@@ -3,6 +3,18 @@ import { useAuthStore } from '../stores/auth-store.svelte';
 import { setAccessToken, removeAccessToken, getAuthToken } from '../lib/session';
 import type { User } from '../types';
 
+function decodeTokenPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 const authApi = axios.create({
   baseURL: '/api',
   withCredentials: true,
@@ -166,6 +178,10 @@ export async function login(username: string, password: string): Promise<{ acces
     const data = response.data;
     if (data.access_token) {
       sessionStorage.setItem('access_token', data.access_token);
+      const claims = decodeTokenPayload(data.access_token);
+      if (claims?.permissions && Array.isArray(claims.permissions) && data.user) {
+        data.user.permissions = claims.permissions as string[];
+      }
     }
     return data;
   } catch {

@@ -32,19 +32,19 @@ describe('CustomerSelectModal.svelte source-structure guards', () => {
     expect(src).toContain('onselectcustomer');
   });
 
-  it('renders Select Customer heading', () => {
-    expect(src).toContain('Select Customer');
+  it('renders Pilih Customer heading', () => {
+    expect(src).toContain('Pilih Customer');
   });
 
   it('renders walk-in option', () => {
-    expect(src).toContain('Walk-in / General');
+    expect(src).toContain('Walk-in / Umum');
   });
 
   it('renders no customers found message', () => {
-    expect(src).toContain('No customers found');
+    expect(src).toContain('Customer tidak ditemukan');
   });
 
   it('renders customer search input', () => {
-    expect(src).toContain('Search by phone or name');
+    expect(src).toContain('Cari berdasarkan');
   });
 });

@@ -1,26 +1,24 @@
 import { test, expect, type Page } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
-
-async function login(page: Page, username: string, password: string) {
-  await page.goto('/');
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.click('button[type="submit"]');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-}
+import { TEST_USERS, API_BASE, authHeader, loginUI, logoutUI, getToken } from './fixtures';
 
 async function navigateToInventory(page: Page) {
-  // Sidebar uses <button> elements, not <a> tags
   const sidebar = page.locator('aside');
-  const inventoryBtn = sidebar.locator('button', { hasText: 'Inventory' }).first();
-  await inventoryBtn.click();
+  const masterDataBtn = sidebar.locator('button', { hasText: 'Master Data' }).first();
+  await masterDataBtn.click();
+  await page.waitForTimeout(300);
+  const productsBtn = sidebar.locator('button', { hasText: 'Products' }).first();
+  await productsBtn.click();
   await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
 }
 
 test.describe('Inventory Stock Adjustment', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await navigateToInventory(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('opens adjust stock modal when clicking Adjust Stock in action dropdown', async ({ page }) => {
@@ -45,14 +43,7 @@ test.describe('Inventory Stock Adjustment', () => {
   });
 
   test('adjusts stock positively and reflects via API', async ({ page, request }) => {
-    // Get a known product from API to verify stock changes
-    const tokenRes = await request.post(`${API_BASE}/api/login`, {
-      data: {
-        username: TEST_USERS.superadmin.username,
-        password: TEST_USERS.superadmin.password,
-      },
-    });
-    const { access_token: token } = await tokenRes.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     // Find a product with existing stock
     const prodRes = await request.get(`${API_BASE}/api/products?limit=10&offset=0`, {
@@ -118,13 +109,7 @@ test.describe('Inventory Stock Adjustment', () => {
   });
 
   test('adjusts stock negatively (reduction)', async ({ page, request }) => {
-    const tokenRes = await request.post(`${API_BASE}/api/login`, {
-      data: {
-        username: TEST_USERS.superadmin.username,
-        password: TEST_USERS.superadmin.password,
-      },
-    });
-    const { access_token: token } = await tokenRes.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     // Find a product with enough stock to reduce
     const prodRes = await request.get(`${API_BASE}/api/products?limit=20&offset=0`, {
@@ -251,7 +236,7 @@ test.describe('Inventory Stock Adjustment', () => {
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
 
-    await login(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
+    await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
     await navigateToInventory(page);
 
     // Find product row and open dropdown
@@ -278,7 +263,7 @@ test.describe('Inventory Stock Adjustment', () => {
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
 
-    await login(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
 
     // Cashier doesn't have Inventory in sidebar, navigate directly
     await page.goto('/inventory');

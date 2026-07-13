@@ -19,6 +19,6 @@
       No data available for this period
     </div>
   {:else}
-    <canvas bind:this={chartCanvas} use:chart={chartConfig}></canvas>
+    <canvas bind:this={chartCanvas} use:chart={chartConfig} aria-label="Sales chart"></canvas>
   {/if}
 </div>

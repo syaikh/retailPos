@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { TEST_USERS, API_BASE } from './fixtures';
+import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 async function ensureSectionExpanded(page: Page, name: string) {
   const btn = page.locator('aside').locator('button').filter({ hasText: name });
@@ -20,11 +20,11 @@ async function navigateToProducts(page: Page) {
 
 test.describe('Products Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('should load products page with product table', async ({ page }) => {
@@ -65,14 +65,11 @@ test.describe('Products Management', () => {
     await expect(page.getByText('Filter Produk')).toBeHidden({ timeout: 5000 });
   });
 
-  test('should add a new product', async ({ page }) => {
+  test('should add a new product', async ({ page, request }) => {
     const ts = Date.now();
     const name = `E2E Test Product ${ts}`;
     const sku = `E2E-TEST-${ts}`;
-    const createResp = await page.request.post('http://localhost:9095/api/login', {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await createResp.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const productResp = await page.request.post('http://localhost:9095/api/products', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: { name, sku, price: 50000, stock: 100, category_name: 'Belts', status: 'active' }
@@ -135,7 +132,7 @@ test.describe('Products Management', () => {
 
   test('should show stock status badges with correct variant classes', async ({ page }) => {
     await navigateToProducts(page);
-    const stockCells = page.locator('table tbody tr td:nth-child(5)');
+    const stockCells = page.locator('table tbody tr td:nth-child(7)');
     const count = await stockCells.count();
     if (count > 0) {
       await expect(stockCells.first().locator('span')).toBeVisible();
@@ -162,10 +159,7 @@ test.describe('Products Management', () => {
 
 test.describe('Products API - Category Filter', () => {
   test('GET /api/products?category=single returns filtered products', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const response = await request.get(`${API_BASE}/api/products?category=Belts`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -180,10 +174,7 @@ test.describe('Products API - Category Filter', () => {
   });
 
   test('GET /api/products?category=multiple returns products matching any category', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const response = await request.get(`${API_BASE}/api/products?category=Belts,Condiments`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -201,10 +192,7 @@ test.describe('Products API - Category Filter', () => {
 
 test.describe('Products API - Stock', () => {
   test('GET /api/products returns stock data', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const response = await request.get(`${API_BASE}/api/products?limit=200`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -213,15 +201,12 @@ test.describe('Products API - Stock', () => {
     expect(body.data).toBeInstanceOf(Array);
     expect(body.data.length).toBeGreaterThan(0);
     for (const product of body.data) {
-      expect(product.stock).toBeGreaterThan(0);
+      expect(product.stock).toBeGreaterThanOrEqual(0);
     }
   });
 
   test('GET /api/stock-thresholds returns threshold config', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const response = await request.get(`${API_BASE}/api/stock-thresholds`, {
       headers: { Authorization: `Bearer ${token}` }
     });

@@ -1,15 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { loginUI, logoutUI } from './fixtures';
 
 test.describe('Units of Measure Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', 'superadmin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, 'superadmin', 'admin123');
     await page.goto('http://localhost:5173/units-of-measure');
     await expect(page).toHaveURL(/\/units-of-measure/);
     await expect(page.locator('text=CODE')).toBeVisible({ timeout: 10000 });
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('should display unit of measure list table', async ({ page }) => {

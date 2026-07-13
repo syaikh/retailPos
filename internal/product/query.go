@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
 )
 
 func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string) ([]Product, int, error) {
@@ -167,8 +169,8 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 			v := int(storeIDVal.Int64)
 			p.StoreID = &v
 		}
-		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		products = append(products, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -220,8 +222,8 @@ func (r *Repository) GetDeletedProductByBarcode(ctx context.Context, barcode str
 		v := int(storeIDVal.Int64)
 		p.StoreID = &v
 	}
-	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -300,8 +302,8 @@ func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, er
 			v := int(storeIDVal.Int64)
 			p.StoreID = &v
 		}
-		p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		products = append(products, p)
 	}
 	if err := rows.Err(); err != nil {

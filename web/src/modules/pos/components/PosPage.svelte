@@ -141,6 +141,12 @@ const authStore = useAuthStore();
     }
   });
 
+  function handleSearchSubmit() {
+    if (products.length > 0) {
+      addToCart(products[0]);
+    }
+  }
+
   function addToCart(product) {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
@@ -461,7 +467,7 @@ const authStore = useAuthStore();
 <div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
   <!-- Product area -->
   <div class="flex-1 flex flex-col gap-4">
-    <ProductSearchPanel bind:searchQuery />
+    <ProductSearchPanel bind:searchQuery onsearchsubmit={handleSearchSubmit} />
     <div class="card flex-1 overflow-hidden flex flex-col p-0">
       <PosProductTable
         {products}
@@ -558,7 +564,7 @@ const authStore = useAuthStore();
   {changeDue}
   {checkingOut}
   onfinalize={finalizeSale}
-  onselectcustomer={() => { showCheckoutModal = false; showCustomerModal = true; }}
+  onselectcustomer={() => { showCustomerModal = true; }}
 />
 
 <CustomerSelectModal

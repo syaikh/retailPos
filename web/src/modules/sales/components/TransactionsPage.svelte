@@ -77,10 +77,10 @@
 
   function toggleSort(column: string) {
     if (store.sortBy === column) {
-      store.sortDir = store.sortDir === 'ASC' ? 'DESC' : 'ASC';
+      store.sortDir = store.sortDir === 'asc' ? 'desc' : 'asc';
     } else {
       store.sortBy = column;
-      store.sortDir = 'ASC';
+      store.sortDir = 'asc';
     }
     store.page = 0;
   }

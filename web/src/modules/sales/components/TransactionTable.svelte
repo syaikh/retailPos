@@ -10,7 +10,7 @@
     limit = 20,
     offset = 0,
     sortBy = $bindable('created_at'),
-    sortDir = $bindable('DESC'),
+    sortDir = $bindable('desc'),
     ontogglesort = () => {},
     onpagechange = () => {},
     onrowclick = () => {},

@@ -35,16 +35,34 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/customers/bulk/delete", auth, perm("customer:delete"), h.BulkDeleteCustomers)
 }
 
+var phoneRegex = regexp.MustCompile(`^[0-9+\-() ]{7,20}$`)
+
+func validateCustomerName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	if len(name) > 200 {
+		return fmt.Errorf("name must be at most 200 characters")
+	}
+	return nil
+}
+
 func validateCustomerEmail(email string) error {
-	if email != "" && !emailRegex.MatchString(email) {
+	if strings.TrimSpace(email) == "" {
+		return fmt.Errorf("email is required")
+	}
+	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")
 	}
 	return nil
 }
 
 func validateCustomerPhone(phone string) error {
-	if phone == "" {
+	if strings.TrimSpace(phone) == "" {
 		return fmt.Errorf("phone is required")
+	}
+	if !phoneRegex.MatchString(phone) {
+		return fmt.Errorf("invalid phone format")
 	}
 	return nil
 }
@@ -64,7 +82,11 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 	search := strings.TrimSpace(c.Query("search"))
 
 	var isActive *bool
-	if v := c.Query("is_active"); v != "" {
+	v := c.Query("is_active")
+	if v == "" {
+		v = c.Query("isActive")
+	}
+	if v != "" {
 		b, err := strconv.ParseBool(v)
 		if err == nil {
 			isActive = &b
@@ -110,14 +132,14 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		Email    string  `json:"email"`
 		Address  *string `json:"address"`
 		Note     *string `json:"note"`
-		IsActive bool    `json:"is_active"`
+		IsActive *bool   `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := validateCustomerEmail(req.Email); err != nil {
+	if err := validateCustomerName(req.Name); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -125,9 +147,18 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if err := validateCustomerEmail(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
+
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
 
 	customer := &Customer{
 		Name:     req.Name,
@@ -135,7 +166,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		Email:    &req.Email,
 		Address:  req.Address,
 		Note:     req.Note,
-		IsActive: req.IsActive,
+		IsActive: isActive,
 	}
 
 	if err := h.svc.CreateCustomer(c.Request.Context(), customer, storeIDPtr); err != nil {
@@ -169,7 +200,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	}
 
 	var req struct {
-		Name     string  `json:"name"`
+		Name     *string `json:"name"`
 		Phone    *string `json:"phone"`
 		Email    *string `json:"email"`
 		Address  *string `json:"address"`
@@ -181,6 +212,12 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		return
 	}
 
+	if req.Name != nil {
+		if err := validateCustomerName(*req.Name); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	if req.Email != nil {
 		if err := validateCustomerEmail(*req.Email); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -197,18 +234,30 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
 
+	existing, err := h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "customer not found"})
+		return
+	}
+	if existing.IsWalkIn {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify walk-in customer"})
+		return
+	}
+
 	var oldCustomer *Customer
 	if h.auditSvc != nil {
-		oldCustomer, _ = h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr)
+		oldCustomer = existing
 	}
 
 	customer := &Customer{
 		ID:       id,
-		Name:     req.Name,
 		Phone:    req.Phone,
 		Email:    req.Email,
 		Address:  req.Address,
 		Note:     req.Note,
+	}
+	if req.Name != nil {
+		customer.Name = *req.Name
 	}
 	if req.IsActive != nil {
 		customer.IsActive = *req.IsActive
@@ -248,11 +297,19 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 	storeID, _ := c.Get("storeID")
 	storeIDPtr, _ := storeID.(*int)
 
+	existing, err := h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "customer not found"})
+		return
+	}
+	if existing.IsWalkIn {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify walk-in customer"})
+		return
+	}
+
 	var oldCustomerName string
 	if h.auditSvc != nil {
-		if cust, err := h.svc.GetCustomerByID(c.Request.Context(), id, storeIDPtr); err == nil {
-			oldCustomerName = cust.Name
-		}
+		oldCustomerName = existing.Name
 	}
 
 	if err := h.svc.DeleteCustomer(c.Request.Context(), id, storeIDPtr); err != nil {

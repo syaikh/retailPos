@@ -99,6 +99,11 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	sortDir := c.Query("sortDir")
 	category := c.Query("category")
 
+	if c.Query("minPrice") != "" || c.Query("maxPrice") != "" || c.Query("brand") != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "minPrice, maxPrice, and brand filters are not yet implemented. Please use search or category filters instead."})
+		return
+	}
+
 	status := c.Query("status")
 	var isActive *bool
 	if status == "" {

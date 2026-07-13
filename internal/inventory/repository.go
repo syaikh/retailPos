@@ -4,30 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"retail-pos-system/internal/shared"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		return time.UTC
-	}
-	return jakartaLoc
-}
 
 type Repository struct {
 	db *pgxpool.Pool
@@ -69,10 +52,10 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 		ps.ReorderQuantity = v
 	}
 	if lastRestockedAt.Valid {
-		ps.LastRestockedAt = lastRestockedAt.Time.In(jakartaLoc).Format(time.RFC3339)
+		ps.LastRestockedAt = lastRestockedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
-	ps.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	ps.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	ps.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &ps, nil
 }
 

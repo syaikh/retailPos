@@ -66,6 +66,23 @@
     notifications.markAllRead();
   }
 
+  function handleDropdownKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Tab') return;
+    const dropdown = container?.querySelector('[role="menu"]');
+    if (!dropdown) return;
+    const focusable = dropdown.querySelectorAll<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   // Register WebSocket listeners once on mount
   onMount(() => {
     const unsubs = [
@@ -119,7 +136,7 @@
   </Button>
 
   {#if open}
-    <div class="absolute right-0 top-full mt-2 z-50" onclick={(e) => e.stopPropagation()} role="none" onkeydown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }} transition:fly={{ y: -8, duration: 200 }}>
+    <div class="absolute right-0 top-full mt-2 z-50" onclick={(e) => e.stopPropagation()} role="none" onkeydown={handleDropdownKeydown} transition:fly={{ y: -8, duration: 200 }}>
       <div class="card-glass p-2 w-80 max-h-96 flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-2 py-1.5 border-b border-border/50">
@@ -137,7 +154,7 @@
         </div>
 
         <!-- Body -->
-        <div class="overflow-y-auto flex-1 max-h-80">
+        <div class="overflow-y-auto flex-1 max-h-80" role="menu">
           {#if items.length === 0}
             <div class="flex flex-col items-center justify-center py-8 text-text-muted">
               <Bell size={24} class="opacity-30 mb-2" />
@@ -148,6 +165,7 @@
   <button type="button" 
                 class="w-full text-left flex items-start gap-2.5 px-2 py-2.5 rounded-lg transition-colors hover:bg-surface-hover/50 {n.read ? 'opacity-60' : ''}"
                 onclick={() => handleNotificationClick(n)}
+                role="menuitem"
               >
                 <span class="text-base leading-none mt-0.5 shrink-0">{getNotificationIcon(n.type)}</span>
                 <div class="min-w-0 flex-1">

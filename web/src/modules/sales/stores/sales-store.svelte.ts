@@ -15,7 +15,7 @@ let endDate = $state('');
 let page = $state(0);
 let pageSize = $state(20);
 let sortBy = $state('created_at');
-let sortDir = $state('DESC');
+let sortDir = $state('desc');
 
 let paymentMethodOptions = $state<{ code: string; name: string }[]>([]);
 let initialized = false;

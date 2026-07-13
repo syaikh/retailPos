@@ -18,6 +18,10 @@ type ProductPriceGetter interface {
 	GetProductPrice(ctx context.Context, productID int) (int, error)
 }
 
+type ProductBatchPriceGetter interface {
+	GetProductPrices(ctx context.Context, productIDs []int) (map[int]int, error)
+}
+
 type Service struct {
 	repo       *Repository
 	eventBus   EventBus
@@ -39,7 +43,7 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 	}
 	defer tx.Rollback(ctx)
 
-	for i, item := range items {
+	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
 		}
@@ -57,11 +61,36 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		if err != nil {
 			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)
 		}
+	}
 
-		if s.priceStore != nil {
-			serverPrice, err := s.priceStore.GetProductPrice(ctx, item.ProductID)
+	if s.priceStore != nil {
+		productIDs := make([]int, len(items))
+		for i, item := range items {
+			productIDs[i] = item.ProductID
+		}
+
+		var prices map[int]int
+		if batchGetter, ok := s.priceStore.(ProductBatchPriceGetter); ok {
+			prices, err = batchGetter.GetProductPrices(ctx, productIDs)
 			if err != nil {
-				return fmt.Errorf("lookup price for product %d: %w", item.ProductID, err)
+				return fmt.Errorf("batch lookup prices: %w", err)
+			}
+		} else {
+			prices = make(map[int]int, len(productIDs))
+			for _, pid := range productIDs {
+				p, err := s.priceStore.GetProductPrice(ctx, pid)
+				if err != nil {
+					return fmt.Errorf("lookup price for product %d: %w", pid, err)
+				}
+				prices[pid] = p
+			}
+		}
+
+		sale.Subtotal = 0
+		for i, item := range items {
+			serverPrice, ok := prices[item.ProductID]
+			if !ok {
+				return fmt.Errorf("price not found for product %d", item.ProductID)
 			}
 			clientUnitPrice := item.UnitPrice
 			if clientUnitPrice != serverPrice {
@@ -69,13 +98,7 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 			}
 			items[i].UnitPrice = serverPrice
 			items[i].Subtotal = serverPrice * item.Quantity
-		}
-	}
-
-	if s.priceStore != nil {
-		sale.Subtotal = 0
-		for _, item := range items {
-			sale.Subtotal += item.Subtotal
+			sale.Subtotal += items[i].Subtotal
 		}
 		sale.TotalAmount = sale.Subtotal - sale.Discount
 		if sale.TotalAmount < 0 {

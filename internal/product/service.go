@@ -13,6 +13,7 @@ type EventBus interface {
 
 type CategoryRepo interface {
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
+	GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error)
 }
 
 type BrandRepo interface {
@@ -50,16 +51,30 @@ func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search,
 	var categoryIDs []int
 	if category != "" {
 		names := strings.Split(category, ",")
+		unique := make([]string, 0, len(names))
 		for _, name := range names {
 			name = strings.TrimSpace(name)
 			if name == "" {
 				continue
 			}
-			id, err := s.categoryRepo.GetCategoryIDByName(ctx, name)
+			unique = append(unique, name)
+		}
+		if len(unique) == 1 {
+			id, err := s.categoryRepo.GetCategoryIDByName(ctx, unique[0])
 			if err != nil {
 				return nil, 0, err
 			}
 			categoryIDs = append(categoryIDs, id)
+		} else if len(unique) > 1 {
+			ids, err := s.categoryRepo.GetCategoryIDsByNames(ctx, unique)
+			if err != nil {
+				return nil, 0, err
+			}
+			for _, name := range unique {
+				if id, ok := ids[name]; ok {
+					categoryIDs = append(categoryIDs, id)
+				}
+			}
 		}
 	}
 	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, maxStock, storeID, status)

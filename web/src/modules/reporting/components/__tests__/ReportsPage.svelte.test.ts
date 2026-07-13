@@ -20,7 +20,7 @@ describe('ReportsPage.svelte source-structure guards', () => {
     expect(src).toContain("import KPICards from './KPICards.svelte'");
     expect(src).toContain("import ChartArea from './ChartArea.svelte'");
     expect(src).toContain("import BestWorstBadges from './BestWorstBadges.svelte'");
-    expect(src).toContain("import DataTable from './DataTable.svelte'");
+    expect(src).toContain("import RevenueDataTable from './RevenueDataTable.svelte'");
   });
 
   it('uses child components in template', () => {
@@ -28,7 +28,7 @@ describe('ReportsPage.svelte source-structure guards', () => {
     expect(src).toContain('<KPICards');
     expect(src).toContain('<ChartArea');
     expect(src).toContain('<BestWorstBadges');
-    expect(src).toContain('<DataTable');
+    expect(src).toContain('<RevenueDataTable');
   });
 
   it('uses $state for chart data, KPI data', () => {

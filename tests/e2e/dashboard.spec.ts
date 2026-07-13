@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { loginUI, logoutUI } from './fixtures';
 
 test.describe('Dashboard (Home Page)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', 'superadmin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+    await loginUI(page, 'superadmin', 'admin123');
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('should persist JWT tokens', async ({ page }) => {

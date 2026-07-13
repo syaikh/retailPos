@@ -1,17 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
-
-async function getAuthToken(request: any) {
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: {
-      username: TEST_USERS.superadmin.username,
-      password: TEST_USERS.superadmin.password,
-    },
-  });
-  const body = await res.json();
-  expect(res.ok()).toBeTruthy();
-  return body.access_token;
-}
+import { TEST_USERS, API_BASE, authHeader, getToken } from './fixtures';
 
 test.describe('Payment Methods', () => {
   test('lists active payment methods publicly', async ({ request }) => {
@@ -27,7 +15,7 @@ test.describe('Payment Methods', () => {
   });
 
   test('returns cash method by code', async ({ request }) => {
-    const token = await getAuthToken(request);
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const res = await request.get(`${API_BASE}/api/payment-methods/CASH`, {
       headers: authHeader(token),
     });
@@ -39,7 +27,7 @@ test.describe('Payment Methods', () => {
   });
 
   test('return 404 for unknown code', async ({ request }) => {
-    const token = await getAuthToken(request);
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     const res = await request.get(`${API_BASE}/api/payment-methods/UNKNOWN`, {
       headers: authHeader(token),
     });

@@ -4,11 +4,13 @@
 
   let {
     expanded = $bindable(false),
+    columns = 100,
     rowContent,
     expandedContent,
     class: className = '',
   }: {
     expanded?: boolean;
+    columns?: number;
     rowContent?: Snippet;
     expandedContent?: Snippet;
     class?: string;
@@ -42,7 +44,7 @@
 </tr>
 {#if expanded}
   <tr class="bg-surface-default border-t border-border/40">
-    <td colspan="100" class="p-0">
+    <td colspan={columns} class="p-0">
       <div class="animate-in slide-in-from-top-1 fade-in duration-200">
         <div id="expandable-content-{id}" class="px-10 py-5 border-l-2 border-primary-default bg-surface-subtle shadow-inner">
           {@render expandedContent?.()}

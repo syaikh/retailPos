@@ -6,6 +6,7 @@
     value = $bindable(''),
     placeholder = 'Search...',
     oninput,
+    onsubmit,
     loading = false,
     class: className = '',
     inputClass = '',
@@ -14,6 +15,7 @@
     value?: string;
     placeholder?: string;
     oninput?: () => void;
+    onsubmit?: () => void;
     loading?: boolean;
     class?: string;
     inputClass?: string;
@@ -29,6 +31,9 @@
         oninput?.();
       }
       inputEl?.blur();
+    }
+    if (e.key === 'Enter') {
+      onsubmit?.();
     }
   }
 

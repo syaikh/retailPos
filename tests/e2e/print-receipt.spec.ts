@@ -22,7 +22,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     await page.click('nav button:has-text("Point of Sale")');
     await page.waitForSelector('#pos-search-input', { state: 'visible', timeout: 15000 });
 
-    const addButtons = page.locator('.btn-sm:has-text("Add"):not([disabled])');
+    const addButtons = page.locator('button:has-text("Add"):not([disabled])');
     await addButtons.first().waitFor({ state: 'visible', timeout: 10000 });
     expect(await addButtons.count()).toBeGreaterThanOrEqual(3);
     for (let i = 0; i < 3; i++) {
@@ -107,7 +107,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     await page.click('nav button:has-text("Point of Sale")');
     await page.waitForSelector('#pos-search-input', { state: 'visible', timeout: 15000 });
 
-    const addButtons = page.locator('.btn-sm:has-text("Add"):not([disabled])');
+    const addButtons = page.locator('button:has-text("Add"):not([disabled])');
     await addButtons.first().waitFor({ state: 'visible', timeout: 10000 });
     for (let i = 0; i < 2; i++) {
       await addButtons.nth(i).click();
@@ -147,7 +147,7 @@ test.describe('Thermal Receipt Print Flow', () => {
     await page.click('nav button:has-text("Point of Sale")');
     await page.waitForSelector('#pos-search-input', { state: 'visible', timeout: 15000 });
 
-    const addButtons = page.locator('.btn-sm:has-text("Add"):not([disabled])');
+    const addButtons = page.locator('button:has-text("Add"):not([disabled])');
     await addButtons.first().waitFor({ state: 'visible', timeout: 10000 });
     await addButtons.nth(0).click();
     await page.waitForTimeout(300);

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, loginUI } from './fixtures';
 
 test.describe('WebSocket Real-time Events', () => {
 
@@ -12,11 +12,7 @@ test.describe('WebSocket Real-time Events', () => {
       });
     });
 
-    await page.goto('/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     await page.waitForTimeout(2000);
 
@@ -91,11 +87,7 @@ test.describe('WebSocket Real-time Events', () => {
       });
     });
 
-    await page.goto('/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     await page.waitForTimeout(2000);
 
@@ -114,11 +106,7 @@ test.describe('WebSocket Real-time Events', () => {
       });
     });
 
-    await page.goto('/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     await page.waitForTimeout(2000);
 
@@ -157,11 +145,7 @@ test.describe('WebSocket Real-time Events', () => {
       });
     });
 
-    await page.goto('/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     await page.waitForTimeout(2000);
 
@@ -203,11 +187,7 @@ test.describe('WebSocket Real-time Events', () => {
       });
     });
 
-    await page.goto('/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     await page.waitForTimeout(2000);
 

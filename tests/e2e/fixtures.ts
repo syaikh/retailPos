@@ -109,8 +109,32 @@ export const API_ENDPOINTS = {
 };
 
 // ============================================================================
-// Utility Functions
+// Token Cache - Reuse tokens across tests to avoid login rate limiting
 // ============================================================================
+
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+const TOKEN_TTL_MS = 55 * 60 * 1000; // 55 minutes (tokens typically last 1 hour)
+
+/**
+ * Login via API and cache the access token to avoid hitting rate limits.
+ * Uses request fixture from Playwright for HTTP calls.
+ */
+export async function getToken(request: any, username: string = TEST_USERS.superadmin.username, password: string = TEST_USERS.superadmin.password): Promise<string> {
+  const cacheKey = `${username}:${password}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.token;
+  }
+
+  const res = await request.post(`${API_BASE}/api/login`, {
+    data: { username, password },
+  });
+  expect(res.ok(), `login failed for ${username}: ${res.status()}`).toBeTruthy();
+  const body = await res.json();
+  const token = body.access_token;
+  tokenCache.set(cacheKey, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+  return token;
+}
 
 /**
  * Wait for API to be ready
@@ -141,6 +165,46 @@ export function decodeJWT(token: string) {
  */
 export function authHeader(token: string) {
   return { Authorization: `Bearer ${token}` };
+}
+
+/**
+ * Login via browser UI with retry for transient failures.
+ * Clears session, fills form, submits, and waits for navigation away from login.
+ */
+export async function loginUI(page: any, username: string, password: string, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    await page.goto(`${FRONTEND_BASE}/login`);
+    await page.waitForTimeout(500);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });
+    await page.fill('#username', username);
+    await page.fill('#password', password);
+    await page.click('button[type="submit"]');
+    await page.waitForTimeout(1500);
+    try {
+      await page.waitForFunction(() => {
+        const path = window.location.hash || window.location.pathname;
+        return path === '/' || path === '' || !path.includes('login');
+      }, { timeout: 10000 });
+      return;
+    } catch {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw new Error(`loginUI failed after ${retries + 1} attempts for user "${username}"`);
+    }
+  }
+}
+
+/**
+ * Logout via browser UI - clears session and navigates to login.
+ */
+export async function logoutUI(page: any) {
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(`${FRONTEND_BASE}/login`);
+  await page.waitForSelector('#username', { state: 'visible', timeout: 10000 });
 }
 
 // ============================================================================

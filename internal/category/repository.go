@@ -3,9 +3,11 @@ package category
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,28 +23,27 @@ func (r *ImportResult) AddError(row int, msg string) {
 	r.Errors = append(r.Errors, fmt.Sprintf("row %d: %s", row, msg))
 }
 
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
 type Repository struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	cache *cache.Cache
 }
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) SetCache(c *cache.Cache) {
+	r.cache = c
+}
+
 // ==================== CATEGORY ====================
 
 func (r *Repository) ListCategories(ctx context.Context) ([]Category, error) {
+	if r.cache != nil {
+		if v, ok := r.cache.Get("categories:list"); ok {
+			return v.([]Category), nil
+		}
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id, name, COALESCE(slug,''), COALESCE(description,''), is_active, created_at
 		FROM categories
@@ -62,12 +63,15 @@ func (r *Repository) ListCategories(ctx context.Context) ([]Category, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		c.UpdatedAt = ""
 		categories = append(categories, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if r.cache != nil && categories != nil {
+		r.cache.Set("categories:list", categories)
 	}
 	return categories, nil
 }
@@ -77,6 +81,28 @@ func (r *Repository) GetCategoryIDByName(ctx context.Context, name string) (int,
 	query := "SELECT id FROM categories WHERE name = $1 AND is_active = true"
 	err := r.db.QueryRow(ctx, query, name).Scan(&id)
 	return id, err
+}
+
+func (r *Repository) GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	query := "SELECT id, name FROM categories WHERE name = ANY($1) AND is_active = true"
+	rows, err := r.db.Query(ctx, query, names)
+	if err != nil {
+		return nil, fmt.Errorf("batch get category IDs: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string]int, len(names))
+	for rows.Next() {
+		var id int
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan category: %w", err)
+		}
+		result[name] = id
+	}
+	return result, rows.Err()
 }
 
 // GetAllCategories returns paginated categories with product count (for management page)
@@ -125,8 +151,8 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &c.ProductCount, &createdAt, &updatedAt); err != nil {
 			continue
 		}
-		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		categories = append(categories, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -150,8 +176,8 @@ func (r *Repository) GetCategoryByID(ctx context.Context, id int) (*Category, er
 		}
 		return nil, err
 	}
-	c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &c, nil
 }
 
@@ -201,8 +227,12 @@ func (r *Repository) CreateCategory(ctx context.Context, category *Category) err
 	if err != nil {
 		return err
 	}
-	category.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	category.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	category.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	category.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	if r.cache != nil {
+		r.cache.FlushByPrefix("category:")
+		r.cache.Delete("categories:list")
+	}
 	return nil
 }
 
@@ -238,12 +268,20 @@ func (r *Repository) UpdateCategory(ctx context.Context, category *Category) err
 		UPDATE categories SET name = $1, slug = $2, description = $3, is_active = $4, updated_at = NOW()
 		WHERE id = $5
 	`, category.Name, category.Slug, category.Description, category.IsActive, category.ID)
+	if err == nil && r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("category:%d", category.ID))
+		r.cache.Delete("categories:list")
+	}
 	return err
 }
 
 // DeleteCategory deletes a category (FK RESTRICT handles race condition)
 func (r *Repository) DeleteCategory(ctx context.Context, id int) error {
 	_, err := r.db.Exec(ctx, "DELETE FROM categories WHERE id = $1", id)
+	if err == nil && r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("category:%d", id))
+		r.cache.Delete("categories:list")
+	}
 	return err
 }
 
@@ -280,7 +318,7 @@ func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category,
 		if err != nil {
 			return nil, err
 		}
-		c.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		categories = append(categories, c)
 	}
 	if err := rows.Err(); err != nil {

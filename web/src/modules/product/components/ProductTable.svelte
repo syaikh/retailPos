@@ -81,7 +81,7 @@
 </script>
 
 {#if loading}
-  <div aria-busy="true" aria-label="Loading products" class="overflow-x-auto">
+  <div aria-busy="true" aria-label="Loading products" aria-live="polite" class="overflow-x-auto">
   <table class="w-full table-fixed min-w-[900px]">
     <thead class="bg-muted/50">
       <tr>
@@ -114,7 +114,7 @@
   </table>
   </div>
 {:else if products.length === 0}
-  <div class="px-4 py-12 text-center" role="status">
+  <div class="px-4 py-12 text-center" role="status" aria-live="polite">
     <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
       <Package size={32} class="text-text-muted" />
     </div>

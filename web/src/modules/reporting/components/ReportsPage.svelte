@@ -11,7 +11,7 @@
   import KPICards from './KPICards.svelte';
   import ChartArea from './ChartArea.svelte';
   import BestWorstBadges from './BestWorstBadges.svelte';
-  import DataTable from './DataTable.svelte';
+  import RevenueDataTable from './RevenueDataTable.svelte';
 
   let loading = $state(true);
   let chartData = $state([]);
@@ -506,7 +506,7 @@
 
     <ChartArea bind:chartCanvas {chartConfig} {loading} {chartData} />
 
-    <DataTable
+    <RevenueDataTable
       {showDataTable}
       {sortedRows}
       bind:sortColumn

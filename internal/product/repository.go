@@ -4,52 +4,78 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		var err error
-		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-		if err != nil {
-			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-			jakartaLoc = time.UTC
-		}
-	}
-	return jakartaLoc
-}
-
 type Repository struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	cache *cache.Cache
 }
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) SetCache(c *cache.Cache) {
+	r.cache = c
+}
+
 func (r *Repository) GetProductPrice(ctx context.Context, id int) (int, error) {
+	if r.cache != nil {
+		key := fmt.Sprintf("product:price:%d", id)
+		if v, ok := r.cache.Get(key); ok {
+			return v.(int), nil
+		}
+	}
 	var price int
 	err := r.db.QueryRow(ctx, "SELECT price FROM products WHERE id = $1", id).Scan(&price)
 	if err != nil {
 		return 0, fmt.Errorf("get product price: %w", err)
 	}
+	if r.cache != nil {
+		r.cache.SetWithTTL(fmt.Sprintf("product:price:%d", id), price, 5*time.Minute)
+	}
 	return price, nil
+}
+
+func (r *Repository) GetProductPrices(ctx context.Context, ids []int) (map[int]int, error) {
+	prices := make(map[int]int, len(ids))
+	if len(ids) == 0 {
+		return prices, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf("SELECT id, price FROM products WHERE id IN (%s)", strings.Join(placeholders, ","))
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch get product prices: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, price int
+		if err := rows.Scan(&id, &price); err != nil {
+			return nil, err
+		}
+		prices[id] = price
+		if r.cache != nil {
+			r.cache.SetWithTTL(fmt.Sprintf("product:price:%d", id), price, 5*time.Minute)
+		}
+	}
+	return prices, rows.Err()
 }
 
 // ==================== CORE CRUD ====================
@@ -131,8 +157,8 @@ func (r *Repository) GetProductByID(ctx context.Context, id int, storeID *int) (
 		v := taxRateVal.Float64
 		p.TaxRate = &v
 	}
-	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -214,8 +240,8 @@ func (r *Repository) GetProductBySKU(ctx context.Context, sku string, storeID *i
 		v := taxRateVal.Float64
 		p.TaxRate = &v
 	}
-	p.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	return &p, nil
 }
@@ -280,8 +306,8 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 	if err != nil {
 		return err
 	}
-	product.CreatedAt = createdTime.In(jakartaLoc).Format(time.RFC3339)
-	product.UpdatedAt = updatedTime.In(jakartaLoc).Format(time.RFC3339)
+	product.CreatedAt = createdTime.In(shared.JakartaLocation()).Format(time.RFC3339)
+	product.UpdatedAt = updatedTime.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
@@ -298,6 +324,10 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
+	}
+	if r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
+		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
 	}
 	return nil
 }
@@ -395,6 +425,10 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
+	if r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
+		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
+	}
 	return nil
 }
 
@@ -406,6 +440,10 @@ func (r *Repository) DeleteProduct(ctx context.Context, id int, storeID *int) er
 		args = append(args, *storeID)
 	}
 	_, err := r.db.Exec(ctx, query, args...)
+	if err == nil && r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("product:%d", id))
+		r.cache.Delete(fmt.Sprintf("product:price:%d", id))
+	}
 	return err
 }
 
@@ -452,7 +490,14 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("product:%d", product.ID))
+		r.cache.Delete(fmt.Sprintf("product:price:%d", product.ID))
+	}
+	return nil
 }
 
 func (r *Repository) GetNextSKU(ctx context.Context) (string, error) {
@@ -476,7 +521,7 @@ func (r *Repository) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, er
 		}
 		return nil, err
 	}
-	tc.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	tc.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &tc, nil
 }
 
@@ -494,7 +539,7 @@ func (r *Repository) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 		if err := rows.Scan(&tc.ID, &tc.Name, &tc.RatePercent, &tc.Description, &tc.IsActive, &createdAt); err != nil {
 			return nil, err
 		}
-		tc.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		tc.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		taxClasses = append(taxClasses, tc)
 	}
 	if err := rows.Err(); err != nil {
@@ -526,7 +571,7 @@ func (r *Repository) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, 
 		v := int(storeID.Int64)
 		w.StoreID = &v
 	}
-	w.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	w.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &w, nil
 }
 
@@ -557,7 +602,7 @@ func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Ware
 			v := int(storeIDVal.Int64)
 			w.StoreID = &v
 		}
-		w.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		w.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		warehouses = append(warehouses, w)
 	}
 	if err := rows.Err(); err != nil {

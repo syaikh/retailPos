@@ -26,6 +26,7 @@ func NewHandler(svc *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.GET("/audit-logs", auth, perm("audit:read"), h.ListAuditLogs)
+	r.GET("/audit-logs/:id", auth, perm("audit:read"), h.GetAuditLog)
 	r.GET("/audit-logs/export", auth, perm("audit:read"), h.ExportAuditLogs)
 	r.GET("/audit-logs/entity-types", auth, perm("audit:read"), h.ListEntityTypes)
 }
@@ -65,10 +66,26 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	}
 
 	if logs == nil {
-		logs = []AuditLog{}
+		logs = []AuditLogListItem{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
+}
+
+func (h *Handler) GetAuditLog(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	log, err := h.svc.GetAuditLogByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "audit log not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": log})
 }
 
 func (h *Handler) ListEntityTypes(c *gin.Context) {
@@ -106,7 +123,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	}
 
 	if logs == nil {
-		logs = []AuditLog{}
+		logs = []AuditLogListItem{}
 	}
 
 	cfg := config.Load()

@@ -103,7 +103,7 @@
     {:else if customers.length === 0}
       <tr class="border-t border-border">
         <td colspan={8}>
-          <div class="px-4 py-16 text-center" role="status">
+          <div class="px-4 py-16 text-center" role="status" aria-live="polite">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Search size={32} class="text-text-muted" />
             </div>

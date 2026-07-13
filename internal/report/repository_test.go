@@ -137,7 +137,7 @@ func TestReportRepository_DashboardStats(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	stats, err := repo.GetDashboardStats(ctx, nil, mustLoadJakarta())
+	stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	assert.GreaterOrEqual(t, stats.TotalSales, int64(0))

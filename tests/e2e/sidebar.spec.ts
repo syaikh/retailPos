@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS } from './fixtures';
+import { TEST_USERS, loginUI } from './fixtures';
 
 function sidebarLink(page, name) {
   return page.locator('aside').locator('a, button').filter({ hasText: name });
@@ -14,17 +14,9 @@ async function ensureSectionExpanded(page, name) {
   }
 }
 
-async function loginAs(page, username, password) {
-  await page.goto('http://localhost:5173/login');
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.click('button[type="submit"]');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-}
-
 test.describe('Sidebar RBAC', () => {
   test('superadmin sees all nav items', async ({ page }) => {
-    await loginAs(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await ensureSectionExpanded(page, 'Master Data');
     await ensureSectionExpanded(page, 'Administration');
 
@@ -45,7 +37,7 @@ test.describe('Sidebar RBAC', () => {
   });
 
   test('admin sees all except audit logs', async ({ page }) => {
-    await loginAs(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
     await ensureSectionExpanded(page, 'Master Data');
     await ensureSectionExpanded(page, 'Administration');
 
@@ -66,7 +58,7 @@ test.describe('Sidebar RBAC', () => {
   });
 
   test('manager sees no admin section', async ({ page }) => {
-    await loginAs(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
+    await loginUI(page, TEST_USERS.manager.username, TEST_USERS.manager.password);
     await ensureSectionExpanded(page, 'Master Data');
 
     await expect(sidebarLink(page, 'Dashboard')).toBeVisible();
@@ -86,7 +78,7 @@ test.describe('Sidebar RBAC', () => {
   });
 
   test('cashier sees only POS, transactions, and dashboard', async ({ page }) => {
-    await loginAs(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
 
     await expect(sidebarLink(page, 'Dashboard')).toBeVisible();
     await expect(sidebarLink(page, 'Point of Sale')).toBeVisible();
@@ -104,7 +96,7 @@ test.describe('Sidebar RBAC', () => {
   });
 
   test('staff sees only dashboard and products', async ({ page }) => {
-    await loginAs(page, 'staff', 'admin123');
+    await loginUI(page, 'staff', 'admin123');
     await ensureSectionExpanded(page, 'Master Data');
 
     await expect(sidebarLink(page, 'Dashboard')).toBeVisible();

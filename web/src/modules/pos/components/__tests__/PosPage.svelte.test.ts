@@ -55,6 +55,7 @@ describe('PosPage.svelte source-structure guards', () => {
 
   it('has addToCart, removeFromCart, updateQty functions', () => {
     expect(src).toContain('function addToCart(product)');
+    expect(src).toContain('function handleSearchSubmit');
     expect(src).toContain('function removeFromCart(id)');
     expect(src).toContain('function updateQty(id, delta)');
   });

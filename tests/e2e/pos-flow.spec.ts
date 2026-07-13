@@ -1,20 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE } from './fixtures';
+import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('POS UI Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto('http://localhost:5173/pos');
     await expect(page).toHaveURL(/\/pos/);
   });
 
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
+  });
+
   test('should load POS page with product table and cart', async ({ page }) => {
     await expect(page.locator('text=PRODUCT NAME')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Cart')).toBeVisible();
+    await expect(page.getByText('Cart', { exact: true }).first()).toBeVisible();
   });
 
   test('should search products by name', async ({ page }) => {
@@ -119,19 +119,8 @@ test.describe('POS UI Flow', () => {
 });
 
 test.describe('POS API Tests', () => {
-  async function getAuthToken(page) {
-    const tokenResponse = await page.request.post(`${API_BASE}/api/login`, {
-      data: {
-        username: TEST_USERS.superadmin.username,
-        password: TEST_USERS.superadmin.password
-      }
-    });
-    const tokenData = await tokenResponse.json();
-    return tokenData.access_token;
-  }
-
-  test('should create sale via API with computed tax', async ({ page }) => {
-    const token = await getAuthToken(page);
+  test('should create sale via API with computed tax', async ({ page, request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     const saleResponse = await page.request.post(`${API_BASE}/api/sales`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -159,8 +148,8 @@ test.describe('POS API Tests', () => {
     }
   });
 
-  test('GET /api/products should return products list', async ({ page }) => {
-    const token = await getAuthToken(page);
+  test('GET /api/products should return products list', async ({ page, request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     const response = await page.request.get(`${API_BASE}/api/products`, {
       headers: { Authorization: `Bearer ${token}` }

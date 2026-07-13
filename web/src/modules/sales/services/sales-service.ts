@@ -12,7 +12,7 @@ export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal
     offset: filters.offset.toString(),
     search: filters.search || '',
     sort_by: filters.sortBy || 'created_at',
-    sort_dir: filters.sortDir || 'DESC',
+    sort_dir: filters.sortDir || 'desc',
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
     params.set('payment_methods', filters.paymentMethods.join(','));
@@ -66,7 +66,7 @@ export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters):
     end_date: filters.endDate,
     search: filters.search || '',
     sort_by: filters.sortBy || 'created_at',
-    sort_dir: filters.sortDir || 'DESC',
+    sort_dir: filters.sortDir || 'desc',
   });
   if (filters.paymentMethods && filters.paymentMethods.length > 0) {
     params.set('payment_methods', filters.paymentMethods.join(','));

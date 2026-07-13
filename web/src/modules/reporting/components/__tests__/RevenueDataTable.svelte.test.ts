@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 function getSource(): string {
-  return readFileSync(path.join(path.dirname(__filename), '..', 'DataTable.svelte'), 'utf-8');
+  return readFileSync(path.join(path.dirname(__filename), '..', 'RevenueDataTable.svelte'), 'utf-8');
 }
 
 describe('DataTable.svelte source-structure guards', () => {

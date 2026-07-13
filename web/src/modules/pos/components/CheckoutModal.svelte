@@ -2,8 +2,11 @@
   import { fly } from 'svelte/transition';
   import { Button } from '$shared/ui';
   import { X, Check, Search } from 'lucide-svelte';
+  import { tick } from 'svelte';
 
   const quickCashPresets = [50000, 100000, 200000, 500000, 1000000];
+  let dialogEl: HTMLDivElement | undefined = $state();
+  let previousFocus: HTMLElement | null = null;
 
   let {
     showCheckoutModal = $bindable(false),
@@ -46,12 +49,55 @@
     showCheckoutModal = false;
     cashReceived = 0;
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key === 'Tab' && dialogEl) {
+      const focusable = dialogEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  }
+
+  $effect(() => {
+    if (showCheckoutModal) {
+      previousFocus = document.activeElement as HTMLElement;
+      tick().then(() => {
+        const firstFocusable = dialogEl?.querySelector<HTMLElement>(
+          'button:not([disabled]), input:not([disabled])'
+        );
+        firstFocusable?.focus();
+      });
+    } else if (previousFocus) {
+      previousFocus.focus();
+      previousFocus = null;
+    }
+  });
 </script>
 
 {#if showCheckoutModal}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center print-modal-overlay"
     transition:fly={{ y: 40, duration: 300 }}
+    onkeydown={handleKeydown}
   >
     <div
       class="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -60,6 +106,7 @@
     ></div>
 
     <div
+      bind:this={dialogEl}
       role="dialog"
       aria-modal="true"
       aria-label="Pembayaran Selesai"

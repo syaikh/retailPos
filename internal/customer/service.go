@@ -3,6 +3,7 @@ package customer
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 type Service struct {
@@ -29,6 +30,7 @@ func (s *Service) CreateCustomer(ctx context.Context, customer *Customer, storeI
 	if customer == nil {
 		return errors.New("customer cannot be nil")
 	}
+	customer.Name = strings.TrimSpace(customer.Name)
 	customer.StoreID = storeID
 	return s.repo.CreateCustomer(ctx, customer)
 }
@@ -37,9 +39,15 @@ func (s *Service) UpdateCustomer(ctx context.Context, customer *Customer, id int
 	if customer == nil {
 		return errors.New("customer cannot be nil")
 	}
+	if customer.Name != "" {
+		customer.Name = strings.TrimSpace(customer.Name)
+	}
 	old, err := s.repo.GetCustomerByID(ctx, id, storeID)
 	if err != nil {
 		return err
+	}
+	if customer.Name == "" {
+		customer.Name = old.Name
 	}
 	if customer.Phone == nil {
 		customer.Phone = old.Phone

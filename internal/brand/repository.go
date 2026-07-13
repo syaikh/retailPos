@@ -3,36 +3,15 @@ package brand
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		var err error
-		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-		if err != nil {
-			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-			jakartaLoc = time.UTC
-		}
-	}
-	return jakartaLoc
-}
 
 type ImportResult struct {
 	Inserted int      `json:"inserted"`
@@ -45,14 +24,26 @@ func (r *ImportResult) AddError(row int, msg string) {
 }
 
 type Repository struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	cache *cache.Cache
 }
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) SetCache(c *cache.Cache) {
+	r.cache = c
+}
+
 func (r *Repository) GetByID(ctx context.Context, id int) (*Brand, error) {
+	if r.cache != nil {
+		key := fmt.Sprintf("brand:%d", id)
+		if v, ok := r.cache.Get(key); ok {
+			b := v.(Brand)
+			return &b, nil
+		}
+	}
 	var b Brand
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, "SELECT id, name, description, is_active, created_at, updated_at FROM brands WHERE id = $1", id).Scan(
@@ -63,11 +54,19 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Brand, error) {
 		}
 		return nil, err
 	}
-	b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	b.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	if r.cache != nil {
+		r.cache.Set(fmt.Sprintf("brand:%d", id), b)
+	}
 	return &b, nil
 }
 
 func (r *Repository) GetAll(ctx context.Context) ([]Brand, error) {
+	if r.cache != nil {
+		if v, ok := r.cache.Get("brands:all"); ok {
+			return v.([]Brand), nil
+		}
+	}
 	rows, err := r.db.Query(ctx, "SELECT id, name, description, is_active, created_at, updated_at FROM brands WHERE is_active = true ORDER BY name")
 	if err != nil {
 		return nil, err
@@ -81,8 +80,11 @@ func (r *Repository) GetAll(ctx context.Context) ([]Brand, error) {
 		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		b.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		brands = append(brands, b)
+	}
+	if r.cache != nil && brands != nil {
+		r.cache.Set("brands:all", brands)
 	}
 	return brands, nil
 }
@@ -93,13 +95,39 @@ func (r *Repository) GetIDByName(ctx context.Context, name string) (int, error) 
 	return id, err
 }
 
+func (r *Repository) GetIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, "SELECT id, name FROM brands WHERE name = ANY($1) AND is_active = true", names)
+	if err != nil {
+		return nil, fmt.Errorf("batch get brand IDs: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string]int, len(names))
+	for rows.Next() {
+		var id int
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan brand: %w", err)
+		}
+		result[name] = id
+	}
+	return result, rows.Err()
+}
+
 func (r *Repository) Create(ctx context.Context, brand *Brand) error {
 	var createdAt, updatedAt time.Time
-	return r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		INSERT INTO brands (name, description, is_active)
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at, updated_at
 	`, brand.Name, brand.Description, brand.IsActive).Scan(&brand.ID, &createdAt, &updatedAt)
+	if err == nil && r.cache != nil {
+		r.cache.FlushByPrefix("brand:")
+		r.cache.Delete("brands:all")
+	}
+	return err
 }
 
 func (r *Repository) Update(ctx context.Context, brand *Brand) error {
@@ -107,11 +135,19 @@ func (r *Repository) Update(ctx context.Context, brand *Brand) error {
 		UPDATE brands SET name = $1, description = $2, is_active = $3, updated_at = NOW()
 		WHERE id = $4
 	`, brand.Name, brand.Description, brand.IsActive, brand.ID)
+	if err == nil && r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("brand:%d", brand.ID))
+		r.cache.Delete("brands:all")
+	}
 	return err
 }
 
 func (r *Repository) Delete(ctx context.Context, id int) error {
 	_, err := r.db.Exec(ctx, "DELETE FROM brands WHERE id = $1", id)
+	if err == nil && r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("brand:%d", id))
+		r.cache.Delete("brands:all")
+	}
 	return err
 }
 
@@ -129,7 +165,7 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Brand, error) {
 		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		b.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		b.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		brands = append(brands, b)
 	}
 	return brands, nil

@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE } from './fixtures';
+import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Reports & Analytics', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', TEST_USERS.superadmin.username);
-    await page.fill('#password', TEST_USERS.superadmin.password);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto('http://localhost:5173/reports');
     await expect(page).toHaveURL(/\/reports/);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('should display KPI cards', async ({ page }) => {
@@ -44,8 +44,8 @@ test.describe('Reports & Analytics', () => {
   });
 
   test('should open export dropdown', async ({ page }) => {
-    await page.locator('button[aria-haspopup="menu"][aria-controls="export-dropdown-reports"]').click();
-    await expect(page.locator('#export-dropdown-reports')).toBeVisible({ timeout: 5000 });
+    await page.locator('button').filter({ hasText: 'Export' }).first().click();
+    await expect(page.getByRole('menu').filter({ hasText: 'Export to Excel' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole('menuitem', { name: 'Export to Excel' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Export to PDF' })).toBeVisible();
   });
@@ -53,10 +53,7 @@ test.describe('Reports & Analytics', () => {
 
 test.describe('Reports API', () => {
   test('GET /api/stats returns valid dashboard data', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     const response = await request.get(`${API_BASE}/api/dashboard/stats`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -69,10 +66,7 @@ test.describe('Reports API', () => {
   });
 
   test('GET /api/sales supports pagination and filters', async ({ request }) => {
-    const tokenResponse = await request.post(`${API_BASE}/api/login`, {
-      data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password }
-    });
-    const { access_token: token } = await tokenResponse.json();
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
     const response = await request.get(`${API_BASE}/api/sales?limit=5`, {
       headers: { Authorization: `Bearer ${token}` }

@@ -1,13 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader } from './fixtures';
+import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './fixtures';
 
-async function getToken(request: any) {
-  const res = await request.post(`${API_BASE}/api/login`, {
-    data: { username: TEST_USERS.superadmin.username, password: TEST_USERS.superadmin.password },
-  });
-  const body = await res.json();
-  return body.access_token;
-}
+const getToken = cachedGetToken;
 
 test.describe('Sales API - Get By ID', () => {
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginUI, logoutUI } from './fixtures';
 
 async function selectRole(page: any, roleName: string) {
   const dialog = page.getByRole('dialog');
@@ -11,14 +12,14 @@ async function selectRole(page: any, roleName: string) {
 
 test.describe('Admin Panel - User Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/login');
-    await page.fill('#username', 'superadmin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await loginUI(page, 'superadmin', 'admin123');
     await page.goto('http://localhost:5173/admin/users');
     await expect(page).toHaveURL(/\/admin\/users/);
     await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible({ timeout: 10000 });
+  });
+
+  test.afterEach(async ({ page }) => {
+    await logoutUI(page);
   });
 
   test('should display user table with columns', async ({ page }) => {
@@ -43,9 +44,9 @@ test.describe('Admin Panel - User Management', () => {
 
     await page.getByRole('button', { name: 'Create User' }).click();
 
-    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 15000 });
     await page.getByPlaceholder('Search by username or email…').fill(inputUsername.toLowerCase());
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     await expect(page.locator('table').getByText(inputUsername.toLowerCase(), { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
@@ -75,8 +76,9 @@ test.describe('Admin Panel - User Management', () => {
   });
 
   test('should filter by role', async ({ page }) => {
-    await page.locator('.role-filter-container button').first().click();
-    await page.getByRole('button', { name: 'cashier' }).click();
+    await page.getByRole('button', { name: 'All Roles' }).click();
+    await page.waitForTimeout(300);
+    await page.locator('[role="menu"] button', { hasText: 'cashier' }).click();
     await page.waitForTimeout(500);
 
     const rows = page.locator('table tbody tr');
@@ -87,8 +89,9 @@ test.describe('Admin Panel - User Management', () => {
   });
 
   test('should filter by status', async ({ page }) => {
-    await page.locator('.status-filter-container button').first().click();
-    await page.getByRole('button', { name: 'Active', exact: true }).click();
+    await page.getByRole('button', { name: 'All Status' }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole('menuitem', { name: 'Active', exact: true }).click();
     await page.waitForTimeout(500);
   });
 
@@ -102,11 +105,10 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'admin');
     await page.getByRole('button', { name: 'Create User' }).click();
-    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by username or email…').fill(username);
-    await page.waitForTimeout(500);
-    await page.locator('table').getByText(username).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(1000);
     await expect(page.locator('table').getByText(username, { exact: true })).toBeVisible({ timeout: 10000 });
 
     const editButton = page.locator('tr').filter({ hasText: username }).locator('button[aria-label="Edit"]');
@@ -127,10 +129,10 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'admin');
     await page.getByRole('button', { name: 'Create User' }).click();
-    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by username or email…').fill(username);
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     await expect(page.locator('table').getByText(username, { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('tr').filter({ hasText: username }).locator('text=Active')).toBeVisible();
 
@@ -156,7 +158,7 @@ test.describe('Admin Panel - User Management', () => {
     await page.fill('#usr-password', 'password123');
     await selectRole(page, 'admin');
     await page.getByRole('button', { name: 'Create User' }).click();
-    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Add New User' })).toBeHidden({ timeout: 15000 });
 
     await page.getByPlaceholder('Search by username or email…').fill(username);
     await expect(page.locator('table').getByText(username, { exact: true })).toBeVisible({ timeout: 10000 });

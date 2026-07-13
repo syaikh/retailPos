@@ -8,23 +8,10 @@ import (
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/shared"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	return jakartaLoc
-}
 
 type Repository struct {
 	db *pgxpool.Pool
@@ -222,8 +209,8 @@ func (r *Repository) GetDualChartData(
 }
 
 func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
-	jakartaNow := time.Now().In(mustLoadJakarta())
-	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, mustLoadJakarta())
+	jakartaNow := time.Now().In(shared.JakartaLocation())
+	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, shared.JakartaLocation())
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	todayQuery := `
@@ -476,78 +463,67 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jakartaLoc)
 	todayEnd := todayStart.Add(24 * time.Hour)
 
-	var stats DashboardStats
-
-	todayQuery := `
-		SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
-		FROM sales
-		WHERE created_at >= $1 AND created_at < $2
-		  AND status = 'completed'`
-	args := []interface{}{todayStart, todayEnd}
-	argIdx := 3
+	cfg := config.Load()
+	storeFilter := ""
+	args := []interface{}{todayStart, todayEnd, cfg.StockCriticalThreshold}
+	argIdx := 4
 	if storeID != nil {
-		todayQuery += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		storeFilter = fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
+		argIdx++
 	}
+
+	query := `
+		WITH today_sales AS (
+			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
+			FROM sales
+			WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'` + storeFilter + `
+		),
+		total_sales AS (
+			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
+			FROM sales
+			WHERE status = 'completed'` + storeFilter + `
+		),
+		product_count AS (
+			SELECT COUNT(*) AS total
+			FROM products
+			WHERE deleted_at IS NULL` + storeFilter + `
+		),
+		stock_count AS (
+			SELECT COUNT(*) AS low
+			FROM product_stock
+			WHERE quantity <= $3` + storeFilter + `
+		),
+		customer_count AS (
+			SELECT COUNT(DISTINCT customer_id) AS active
+			FROM sales
+			WHERE status = 'completed' AND customer_id IS NOT NULL` + storeFilter + `
+		)
+		SELECT ts.revenue, ts.orders,
+		       tots.revenue, tots.orders,
+		       pc.total, sc.low, cc.active
+		FROM today_sales ts, total_sales tots, product_count pc, stock_count sc, customer_count cc`
+
+	var stats DashboardStats
 	var todaysRevInt, todaysSalesInt int
-	if err := r.db.QueryRow(ctx, todayQuery, args...).Scan(&todaysRevInt, &todaysSalesInt); err != nil {
-		return nil, fmt.Errorf("failed to query today stats: %w", err)
+	var totalRevInt, totalSalesInt int
+	var totalProducts int64
+	var lowStockCount int64
+	var activeCustomers int64
+	if err := r.db.QueryRow(ctx, query, args...).Scan(
+		&todaysRevInt, &todaysSalesInt,
+		&totalRevInt, &totalSalesInt,
+		&totalProducts, &lowStockCount, &activeCustomers,
+	); err != nil {
+		return nil, fmt.Errorf("failed to query dashboard stats: %w", err)
 	}
 	stats.TodaysRevenue = int64(todaysRevInt)
 	stats.TodaysSales = int64(todaysSalesInt)
-
-	totalQuery := `
-		SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
-		FROM sales
-		WHERE status = 'completed'`
-	totalArgs := []interface{}{}
-	totalArgIdx := 1
-	if storeID != nil {
-		totalQuery += fmt.Sprintf(" AND store_id = $%d", totalArgIdx)
-		totalArgs = append(totalArgs, *storeID)
-	}
-	var totalRevInt, totalSalesInt int
-	if err := r.db.QueryRow(ctx, totalQuery, totalArgs...).Scan(&totalRevInt, &totalSalesInt); err != nil {
-		return nil, fmt.Errorf("failed to query total stats: %w", err)
-	}
 	stats.TotalRevenue = int64(totalRevInt)
 	stats.TotalSales = int64(totalSalesInt)
-
-	productQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
-	productArgs := []interface{}{}
-	productArgIdx := 1
-	if storeID != nil {
-		productQuery += fmt.Sprintf(" AND store_id = $%d", productArgIdx)
-		productArgs = append(productArgs, *storeID)
-	}
-	var totalProducts int64
-	if err := r.db.QueryRow(ctx, productQuery, productArgs...).Scan(&totalProducts); err != nil {
-		return nil, fmt.Errorf("failed to query total products: %w", err)
-	}
 	stats.TotalProducts = totalProducts
-
-	cfg := config.Load()
-	stockQuery := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
-	stockArgs := []interface{}{cfg.StockCriticalThreshold}
-	if storeID != nil {
-		stockQuery += fmt.Sprintf(" AND store_id = $%d", len(stockArgs)+1)
-		stockArgs = append(stockArgs, *storeID)
-	}
-	var lowStockCount int64
-	if err := r.db.QueryRow(ctx, stockQuery, stockArgs...).Scan(&lowStockCount); err != nil {
-		return nil, fmt.Errorf("failed to query low stock count: %w", err)
-	}
 	stats.LowStockCount = lowStockCount
-
-	customerArgs := []interface{}{}
-	customerQuery := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
-	if storeID != nil {
-		customerQuery += fmt.Sprintf(" AND store_id = $%d", len(customerArgs)+1)
-		customerArgs = append(customerArgs, *storeID)
-	}
-	if err := r.db.QueryRow(ctx, customerQuery, customerArgs...).Scan(&stats.ActiveCustomers); err != nil {
-		stats.ActiveCustomers = 0
-	}
+	stats.ActiveCustomers = activeCustomers
 
 	return &stats, nil
 }

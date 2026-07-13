@@ -619,9 +619,16 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 
 	var chartData []ChartDataPoint
 	if chartDataStr != "" {
+		if len(chartDataStr) > 1<<20 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "chartData too large (max 1MB)"})
+			return
+		}
 		decoded, err := base64.StdEncoding.DecodeString(chartDataStr)
-		if err == nil {
+		if err == nil && len(decoded) <= 2<<20 {
 			json.Unmarshal(decoded, &chartData)
+		}
+		if len(chartData) > 366 {
+			chartData = chartData[:366]
 		}
 	}
 

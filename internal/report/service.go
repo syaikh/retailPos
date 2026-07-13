@@ -3,6 +3,8 @@ package report
 import (
 	"context"
 	"time"
+
+	"retail-pos-system/internal/shared"
 )
 
 type EventBus interface {
@@ -29,7 +31,7 @@ func storeIDPtr(storeID int) *int {
 }
 
 func (s *Service) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
-	return s.repo.GetDashboardStats(ctx, storeIDPtr(storeID), mustLoadJakarta())
+	return s.repo.GetDashboardStats(ctx, storeIDPtr(storeID), shared.JakartaLocation())
 }
 
 func (s *Service) GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {

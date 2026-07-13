@@ -10,30 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"retail-pos-system/internal/shared"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		slog.Warn("failed to load Asia/Jakarta timezone, falling back to UTC", "error", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		var err error
-		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-		if err != nil {
-			slog.Warn("failed to load Asia/Jakarta timezone, falling back to UTC", "error", err)
-			jakartaLoc = time.UTC
-		}
-	}
-	return jakartaLoc
-}
 
 type Repository struct {
 	db *pgxpool.Pool
@@ -58,8 +37,8 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
 	}
-	sale.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	sale.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	for i := range items {
 		_, err = tx.Exec(ctx, `
@@ -102,8 +81,8 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		v := int(storeIDFromDB.Int64)
 		sale.StoreID = &v
 	}
-	sale.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-	sale.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	// Load sale items
 	itemRows, err := r.db.Query(ctx, `
@@ -147,7 +126,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	}
 	if startDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
 			countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
 			countArgs = append(countArgs, start)
 			argIdx++
@@ -155,7 +134,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	}
 	if endDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
 			countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
 			countArgs = append(countArgs, end.Add(24*time.Hour))
 			argIdx++
@@ -201,7 +180,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	}
 	if startDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
 			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
 			args2 = append(args2, start)
 			argIdx2++
@@ -209,7 +188,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	}
 	if endDate != "" {
 		// Use Asia/Jakarta timezone for date filtering
-		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
 			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
 			args2 = append(args2, end.Add(24*time.Hour))
 			argIdx2++
@@ -270,8 +249,8 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 			v := int(storeIDVal.Int64)
 			s.StoreID = &v
 		}
-		s.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
-		s.UpdatedAt = updatedAt.In(jakartaLoc).Format(time.RFC3339)
+		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 		sales = append(sales, s)
 		saleIDs = append(saleIDs, s.ID)
@@ -282,6 +261,12 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 
 	// Batch load all sale items in chunks to avoid PostgreSQL parameter limit
 	if len(saleIDs) > 0 {
+		// Build a map for O(1) sale lookup instead of O(n²) linear scan
+		saleMap := make(map[int]*Sale, len(sales))
+		for i := range sales {
+			saleMap[sales[i].ID] = &sales[i]
+		}
+
 		// Process in chunks of 1000 to stay under PostgreSQL's parameter limit
 		for i := 0; i < len(saleIDs); i += 1000 {
 			end := i + 1000
@@ -309,12 +294,8 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 					var item SaleItem
 					err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal)
 					if err == nil {
-						// Find the sale and append the item
-						for j := range sales {
-							if sales[j].ID == item.SaleID {
-								sales[j].Items = append(sales[j].Items, item)
-								break
-							}
+						if s, ok := saleMap[item.SaleID]; ok {
+							s.Items = append(s.Items, item)
 						}
 					}
 				}
@@ -342,14 +323,14 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		argIdx++
 	}
 	if startDate != "" {
-		if start, err := time.ParseInLocation("2006-01-02", startDate, mustLoadJakarta()); err == nil {
+		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
 			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
 			args = append(args, start)
 			argIdx++
 		}
 	}
 	if endDate != "" {
-		if end, err := time.ParseInLocation("2006-01-02", endDate, mustLoadJakarta()); err == nil {
+		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
 			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
 			args = append(args, end.Add(24*time.Hour))
 			argIdx++
@@ -388,7 +369,7 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		if err := rows.Scan(&row.InvoiceNumber, &createdAt, &row.CustomerName, &row.ItemCount, &row.PaymentMethod, &row.TotalAmount); err != nil {
 			return nil, fmt.Errorf("scan sale export row: %w", err)
 		}
-		row.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		row.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		result = append(result, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -398,41 +379,16 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 }
 
 func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {
-	now := time.Now().In(mustLoadJakarta())
+	now := time.Now().In(shared.JakartaLocation())
 	year := now.Year()
-	yearStr := fmt.Sprintf("%d", year)
 
-	tx, err := r.db.Begin(ctx)
+	var seq int
+	err := r.db.QueryRow(ctx, `SELECT nextval('invoice_seq')`).Scan(&seq)
 	if err != nil {
-		return "", fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// Use advisory lock to serialize concurrent invoice number generation
-	_, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(1)`)
-	if err != nil {
-		return "", fmt.Errorf("failed to acquire lock: %w", err)
+		return "", fmt.Errorf("failed to get next invoice sequence: %w", err)
 	}
 
-	var maxSeq int
-	err = tx.QueryRow(ctx, `
-		SELECT COALESCE(MAX(
-			CAST(SUBSTRING(invoice_number FROM '\d+$') AS INTEGER)
-		 ), 0)
-		 FROM sales
-		 WHERE invoice_number LIKE $1
-	`, "INV-"+yearStr+"-%").Scan(&maxSeq)
-	if err != nil {
-		return "", fmt.Errorf("failed to get next invoice number: %w", err)
-	}
-
-	invoiceNumber := fmt.Sprintf("INV-%d-%06d", year, maxSeq+1)
-
-	if err := tx.Commit(ctx); err != nil {
-		return "", fmt.Errorf("failed to commit invoice number generation: %w", err)
-	}
-
-	return invoiceNumber, nil
+	return fmt.Sprintf("INV-%d-%06d", year, seq), nil
 }
 
 // ==================== PAYMENT METHODS ====================
@@ -457,7 +413,7 @@ func (r *Repository) GetAllActive(ctx context.Context) ([]PaymentMethod, error) 
 		if err != nil {
 			return nil, err
 		}
-		m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+		m.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		methods = append(methods, m)
 	}
 	return methods, nil
@@ -477,7 +433,7 @@ func (r *Repository) GetPaymentMethodByCode(ctx context.Context, code string) (*
 		}
 		return nil, err
 	}
-	m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	m.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &m, nil
 }
 
@@ -495,6 +451,6 @@ func (r *Repository) GetPaymentMethodByID(ctx context.Context, id int) (*Payment
 		}
 		return nil, err
 	}
-	m.CreatedAt = createdAt.In(jakartaLoc).Format(time.RFC3339)
+	m.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &m, nil
 }

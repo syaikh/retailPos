@@ -33,6 +33,7 @@ import (
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
+	"retail-pos-system/pkg/cache"
 	"retail-pos-system/pkg/websocket"
 
 	"github.com/gin-contrib/cors"
@@ -108,7 +109,17 @@ func main() {
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=Asia/Jakarta",
 			dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
 	}
-	dbPool, err := pgxpool.New(context.Background(), dsn)
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Fatalf("Unable to parse database config: %v\n", err)
+	}
+	poolCfg.MaxConns = 25
+	poolCfg.MinConns = 5
+	poolCfg.MaxConnLifetime = 30 * time.Minute
+	poolCfg.MaxConnIdleTime = 5 * time.Minute
+	poolCfg.HealthCheckPeriod = 15 * time.Second
+
+	dbPool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
@@ -119,19 +130,26 @@ func main() {
 	}
 	fmt.Println("Connected to PostgreSQL")
 
+	appCache := cache.New(10*time.Minute, 30*time.Second)
+
 	bus := eventbus.New()
 	bus.SetDeadLetterStore(eventbus.NewPgDeadLetterStore(dbPool))
 	go bus.Run()
 	defer bus.Shutdown()
 
 	userRepo := user.NewRepository(dbPool)
+	userRepo.SetCache(appCache)
 	productRepo := product.NewRepository(dbPool)
+	productRepo.SetCache(appCache)
 	saleRepo := sale.NewRepository(dbPool)
 	inventoryRepo := inventory.NewRepository(dbPool)
 	customerRepo := customer.NewRepository(dbPool)
 	categoryRepo := category.NewRepository(dbPool)
+	categoryRepo.SetCache(appCache)
 	brandRepo := brand.NewRepository(dbPool)
+	brandRepo.SetCache(appCache)
 	uomRepo := uom.NewRepository(dbPool)
+	uomRepo.SetCache(appCache)
 	auditRepo := audit.NewRepository(dbPool)
 	reportRepo := report.NewRepository(dbPool)
 

@@ -3,35 +3,13 @@ package progress
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"retail-pos-system/internal/shared"
 )
-
-var jakartaLoc *time.Location
-
-func init() {
-	var err error
-	jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-		jakartaLoc = time.UTC
-	}
-}
-
-func mustLoadJakarta() *time.Location {
-	if jakartaLoc == nil {
-		var err error
-		jakartaLoc, err = time.LoadLocation("Asia/Jakarta")
-		if err != nil {
-			log.Printf("Warning: failed to load Asia/Jakarta timezone: %v. Falling back to UTC.", err)
-			jakartaLoc = time.UTC
-		}
-	}
-	return jakartaLoc
-}
 
 // compile-time interface check
 var _ Repository = (*PgRepository)(nil)
@@ -153,7 +131,7 @@ func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress,
 		ErrorReport: job.ErrorReport,
 	}
 	if job.StartedAt != nil {
-		p.StartedAt = job.StartedAt.In(jakartaLoc).Format(time.RFC3339)
+		p.StartedAt = job.StartedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
 	if job.CompletedAt != nil {
 		p.DurationMs = int(job.CompletedAt.Sub(*job.StartedAt).Milliseconds())
@@ -209,7 +187,7 @@ func (r *PgRepository) ListJobs(ctx context.Context, module string, limit int) (
 			ErrorReport: job.ErrorReport,
 		}
 		if job.StartedAt != nil {
-			p.StartedAt = job.StartedAt.In(jakartaLoc).Format(time.RFC3339)
+			p.StartedAt = job.StartedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		}
 		if job.CompletedAt != nil {
 			p.DurationMs = int(job.CompletedAt.Sub(*job.StartedAt).Milliseconds())

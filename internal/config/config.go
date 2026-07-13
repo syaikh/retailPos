@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,9 @@ func init() {
 	}
 }
 
+var cachedConfig *Config
+var configOnce sync.Once
+
 func getEnvInt(key string, defaultVal int) int {
 	val := os.Getenv(key)
 	if val == "" {
@@ -43,33 +47,37 @@ func getEnvInt(key string, defaultVal int) int {
 }
 
 func Load() *Config {
-	env := os.Getenv("ENV")
-	if env == "" {
-		env = "development"
-		log.Println("WARNING: ENV environment variable not set, defaulting to 'development'. Set ENV=production for production deployments.")
-	}
+	configOnce.Do(func() {
+		env := os.Getenv("ENV")
+		if env == "" {
+			env = "development"
+			log.Println("WARNING: ENV environment variable not set, defaulting to 'development'. Set ENV=production for production deployments.")
+		}
 
-	corsOrigin := os.Getenv("CORS_ORIGIN")
-	if corsOrigin == "" {
-		corsOrigin = "http://localhost:5173"
-	}
+		corsOrigin := os.Getenv("CORS_ORIGIN")
+		if corsOrigin == "" {
+			corsOrigin = "http://localhost:5173"
+		}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		panic("FATAL: JWT_SECRET environment variable is required. Set it to a secure random value (256-bit recommended).")
-	}
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			panic("FATAL: JWT_SECRET environment variable is required. Set it to a secure random value (256-bit recommended).")
+		}
 
-	warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
-	criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
-	stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
+		warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
+		criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
+		stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
 
-	return &Config{
-		Env:                    env,
-		CORSOrigin:             corsOrigin,
-		JWTSecret:              jwtSecret,
-		StockWarningThreshold:  warningThreshold,
-		StockCriticalThreshold: criticalThreshold,
-		StockMinimum:           stockMinimum,
-		Timezone:               defaultLocation,
-	}
+		cachedConfig = &Config{
+			Env:                    env,
+			CORSOrigin:             corsOrigin,
+			JWTSecret:              jwtSecret,
+			StockWarningThreshold:  warningThreshold,
+			StockCriticalThreshold: criticalThreshold,
+			StockMinimum:           stockMinimum,
+			Timezone:               defaultLocation,
+		}
+	})
+
+	return cachedConfig
 }

@@ -11,9 +11,7 @@ class WebSocketService {
   private disconnectRequested = false;
 
   connect(token: string) {
-    console.log('[WebSocket] connect() called with token length:', token.length);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('[WebSocket] Already connected, skipping');
       return;
     }
     if (this.ws) {
