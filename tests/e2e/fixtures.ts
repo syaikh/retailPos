@@ -113,7 +113,7 @@ export const API_ENDPOINTS = {
 // ============================================================================
 
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
-const TOKEN_TTL_MS = 55 * 60 * 1000; // 55 minutes (tokens typically last 1 hour)
+const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes (JWT expires in 15 min)
 
 /**
  * Login via API and cache the access token to avoid hitting rate limits.
