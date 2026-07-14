@@ -204,3 +204,47 @@ func TestMockUOMHandler_DeleteUnitOfMeasure(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
+
+func TestMockUOMHandler_UpdateUnitOfMeasure_InvalidJSON(t *testing.T) {
+	svc := &mockUOMService{}
+	r := setupMockUOMRouter(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/units-of-measure/1", strings.NewReader("{bad json"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+func TestMockUOMHandler_DeleteUnitOfMeasure_ServiceError(t *testing.T) {
+	svc := &mockUOMService{
+		deleteFn: func(ctx context.Context, id int) error {
+			return errors.New("foreign key constraint violation")
+		},
+	}
+	r := setupMockUOMRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/units-of-measure/1", nil))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+func TestMockUOMHandler_UpdateUnitOfMeasure_SuccessIsActive(t *testing.T) {
+	svc := &mockUOMService{
+		updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+			assert.Equal(t, 5, id)
+			assert.Equal(t, "L", req.Code)
+			assert.Equal(t, "Liter", req.Name)
+			assert.NotNil(t, req.IsActive)
+			assert.True(t, *req.IsActive)
+			return &UnitOfMeasure{ID: id, Code: req.Code, Name: req.Name, IsActive: *req.IsActive}, nil
+		},
+	}
+	r := setupMockUOMRouter(svc)
+	body := `{"code":"L","name":"Liter","is_active":true}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/units-of-measure/5", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}

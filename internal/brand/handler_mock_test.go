@@ -204,3 +204,27 @@ func TestMockBrandHandler_DeleteBrand(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
+
+func TestMockBrandHandler_UpdateBrand_InvalidJSON(t *testing.T) {
+	svc := &mockBrandService{}
+	r := setupMockBrandRouter(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/brands/1", strings.NewReader("{bad json"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+func TestMockBrandHandler_DeleteBrand_ServiceError(t *testing.T) {
+	svc := &mockBrandService{
+		deleteFn: func(ctx context.Context, id int) error {
+			return errors.New("foreign key constraint violation")
+		},
+	}
+	r := setupMockBrandRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/brands/1", nil))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}

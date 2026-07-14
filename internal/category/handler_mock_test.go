@@ -308,3 +308,34 @@ func TestMockHandler_DeleteCategory(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
+
+func TestMockHandler_UpdateCategory_InvalidJSON(t *testing.T) {
+	svc := &mockCategoryService{
+		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
+			return &Category{ID: 1}, nil
+		},
+	}
+	r := setupMockRouter(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PUT", "/categories/1", strings.NewReader("{invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+func TestMockHandler_DeleteCategory_ServiceError(t *testing.T) {
+	svc := &mockCategoryService{
+		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
+			return &Category{ID: 1, Name: "TestCat"}, nil
+		},
+		deleteFn: func(ctx context.Context, id int) error {
+			return errors.New("foreign key constraint violation")
+		},
+	}
+	r := setupMockRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/categories/1", nil))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
