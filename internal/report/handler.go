@@ -1,6 +1,7 @@
 package report
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,11 +15,24 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-type Handler struct {
-	svc *Service
+type ReportService interface {
+	GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error)
+	GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
+	GetHourlySales(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
+	GetDailySales(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
+	GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error)
+	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error)
+	GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error)
+	GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
+	GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error)
+	GetAvailableYears(ctx context.Context, storeID int) ([]int, error)
 }
 
-func NewHandler(svc *Service) *Handler {
+type Handler struct {
+	svc ReportService
+}
+
+func NewHandler(svc ReportService) *Handler {
 	return &Handler{svc: svc}
 }
 

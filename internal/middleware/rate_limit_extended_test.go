@@ -247,3 +247,87 @@ func TestGetClientIP_XForwardedForLogged(t *testing.T) {
 	got := getClientIP(c)
 	assert.Equal(t, "10.0.0.1", got)
 }
+
+func TestCleanupOnce_RemovesExpiredEntries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	limiter := NewIPRateLimiter(rate.Limit(100), 10)
+	defer limiter.Stop()
+
+	// Set TTL to 5 minutes; entries older than that should be removed.
+	limiter.mu.Lock()
+	limiter.ttl = 5 * time.Minute
+
+	// Add entries well past TTL.
+	limiter.ips["10.0.0.1"] = &ipEntry{
+		limiter:  rate.NewLimiter(100, 10),
+		lastSeen: time.Now().Add(-10 * time.Minute),
+	}
+	limiter.ips["10.0.0.2"] = &ipEntry{
+		limiter:  rate.NewLimiter(100, 10),
+		lastSeen: time.Now().Add(-10 * time.Minute),
+	}
+	// Add a fresh entry (seen 1 minute ago, within 5-min TTL).
+	limiter.ips["10.0.0.3"] = &ipEntry{
+		limiter:  rate.NewLimiter(100, 10),
+		lastSeen: time.Now().Add(-1 * time.Minute),
+	}
+	limiter.mu.Unlock()
+
+	limiter.cleanupOnce()
+
+	limiter.mu.Lock()
+	count := len(limiter.ips)
+	_, exists1 := limiter.ips["10.0.0.1"]
+	_, exists2 := limiter.ips["10.0.0.2"]
+	_, exists3 := limiter.ips["10.0.0.3"]
+	limiter.mu.Unlock()
+
+	assert.Equal(t, 1, count, "should only have fresh entry")
+	assert.False(t, exists1, "expired entry 1 should be removed")
+	assert.False(t, exists2, "expired entry 2 should be removed")
+	assert.True(t, exists3, "fresh entry should remain")
+}
+
+func TestCleanupOnce_EmptyMap(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	limiter := NewIPRateLimiter(rate.Limit(100), 10)
+	defer limiter.Stop()
+
+	// Should not panic on empty map.
+	limiter.cleanupOnce()
+
+	limiter.mu.Lock()
+	count := len(limiter.ips)
+	limiter.mu.Unlock()
+	assert.Equal(t, 0, count)
+}
+
+func TestCleanupOnce_EntriesWithinTTLPreserved(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	limiter := NewIPRateLimiter(rate.Limit(100), 10)
+	defer limiter.Stop()
+
+	// Set TTL to 10 minutes.
+	limiter.mu.Lock()
+	limiter.ttl = 10 * time.Minute
+
+	// Entry seen 5 minutes ago (within TTL).
+	limiter.ips["10.0.0.1"] = &ipEntry{
+		limiter:  rate.NewLimiter(100, 10),
+		lastSeen: time.Now().Add(-5 * time.Minute),
+	}
+	limiter.mu.Unlock()
+
+	limiter.cleanupOnce()
+
+	limiter.mu.Lock()
+	count := len(limiter.ips)
+	_, exists := limiter.ips["10.0.0.1"]
+	limiter.mu.Unlock()
+
+	assert.Equal(t, 1, count)
+	assert.True(t, exists, "entry within TTL should be preserved")
+}

@@ -59,18 +59,22 @@ func (l *IPRateLimiter) cleanupLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			l.mu.Lock()
-			now := time.Now()
-			for ip, entry := range l.ips {
-				if now.Sub(entry.lastSeen) > l.ttl {
-					delete(l.ips, ip)
-				}
-			}
-			l.mu.Unlock()
+			l.cleanupOnce()
 		case <-l.stopCh:
 			return
 		}
 	}
+}
+
+func (l *IPRateLimiter) cleanupOnce() {
+	l.mu.Lock()
+	now := time.Now()
+	for ip, entry := range l.ips {
+		if now.Sub(entry.lastSeen) > l.ttl {
+			delete(l.ips, ip)
+		}
+	}
+	l.mu.Unlock()
 }
 
 func (l *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {

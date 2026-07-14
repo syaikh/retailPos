@@ -28,26 +28,33 @@ func (s *Service) GetAuditLogByID(ctx context.Context, id int) (*AuditLog, error
 }
 
 func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType, startDate, endDate string) ([]AuditLogListItem, int, error) {
-	var start, end *time.Time
+	start, end, err := parseDateRange(startDate, endDate)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.repo.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType, start, end)
+}
+
+func parseDateRange(startDate, endDate string) (start, end *time.Time, err error) {
 	if startDate != "" {
-		t, err := time.Parse(time.RFC3339, startDate)
-		if err != nil {
-			t, err = time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation())
-			if err != nil {
-				return nil, 0, err
+		t, e := time.Parse(time.RFC3339, startDate)
+		if e != nil {
+			t, e = time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation())
+			if e != nil {
+				return nil, nil, e
 			}
 		}
 		start = &t
 	}
 	if endDate != "" {
-		t, err := time.Parse(time.RFC3339, endDate)
-		if err != nil {
-			t, err = time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation())
-			if err != nil {
-				return nil, 0, err
+		t, e := time.Parse(time.RFC3339, endDate)
+		if e != nil {
+			t, e = time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation())
+			if e != nil {
+				return nil, nil, e
 			}
 		}
 		end = &t
 	}
-	return s.repo.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType, start, end)
+	return start, end, nil
 }
