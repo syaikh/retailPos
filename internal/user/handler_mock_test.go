@@ -374,6 +374,17 @@ func TestMockHandler_ListRoles(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/roles", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+	t.Run("error", func(t *testing.T) {
+		svc := &mockUserService{
+			getAllRolesFn: func(ctx context.Context) ([]Role, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/roles", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }
 
 func TestMockHandler_CreateRole(t *testing.T) {
@@ -521,13 +532,26 @@ func TestMockHandler_DeleteRole(t *testing.T) {
 }
 
 func TestMockHandler_ListPermissions(t *testing.T) {
-	svc := &mockUserService{
-		getAllPermsFn: func(ctx context.Context) ([]Permission, error) {
-			return []Permission{{ID: 1, Code: "user:read"}}, nil
-		},
-	}
-	r := setupMockUserRouter(svc)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/permissions", nil))
-	assert.Equal(t, http.StatusOK, w.Code)
+	t.Run("success", func(t *testing.T) {
+		svc := &mockUserService{
+			getAllPermsFn: func(ctx context.Context) ([]Permission, error) {
+				return []Permission{{ID: 1, Code: "user:read"}}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/permissions", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+	t.Run("error", func(t *testing.T) {
+		svc := &mockUserService{
+			getAllPermsFn: func(ctx context.Context) ([]Permission, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/permissions", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }
