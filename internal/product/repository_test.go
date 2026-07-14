@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,10 @@ import (
 )
 
 var dbPool *pgxpool.Pool
+
+func uniqueSKU(base string) string {
+	return base + "-" + time.Now().Format("20060102150405")
+}
 
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
@@ -39,7 +44,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 
 	t.Run("Create and get by ID", func(t *testing.T) {
 		p := &Product{
-			SKU:    "TEST-SKU-001",
+			SKU:    uniqueSKU("TEST-SKU-001"),
 			Name:   "Test Product",
 			Price:  15000,
 			Cost:   10000,
@@ -61,7 +66,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 
 	t.Run("Get by SKU", func(t *testing.T) {
 		p := &Product{
-			SKU:    "TEST-SKU-UNIQUE",
+			SKU:    uniqueSKU("TEST-SKU-UNIQUE"),
 			Name:   "SKU Lookup Test",
 			Price:  20000,
 			Cost:   15000,
@@ -71,7 +76,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 		err := repo.CreateProduct(ctx, p)
 		require.NoError(t, err)
 
-		got, err := repo.GetProductBySKU(ctx, "TEST-SKU-UNIQUE", nil)
+		got, err := repo.GetProductBySKU(ctx, p.SKU, nil)
 		require.NoError(t, err)
 		assert.Equal(t, p.Name, got.Name)
 	})
@@ -83,7 +88,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 
 	t.Run("Update product", func(t *testing.T) {
 		p := &Product{
-			SKU:    "TEST-SKU-UPDATE",
+			SKU:    uniqueSKU("TEST-SKU-UPDATE"),
 			Name:   "Before Update",
 			Price:  10000,
 			Cost:   5000,
@@ -107,7 +112,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 
 	t.Run("Delete product (soft)", func(t *testing.T) {
 		p := &Product{
-			SKU:    "TEST-SKU-DELETE",
+			SKU:    uniqueSKU("TEST-SKU-DELETE"),
 			Name:   "To Be Deleted",
 			Price:  5000,
 			Cost:   2500,
@@ -126,8 +131,8 @@ func TestProductRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Bulk update status", func(t *testing.T) {
-		p1 := &Product{SKU: "TEST-BULK-1", Name: "Bulk 1", Price: 1000, Cost: 500, Stock: 1, Status: "active"}
-		p2 := &Product{SKU: "TEST-BULK-2", Name: "Bulk 2", Price: 2000, Cost: 1000, Stock: 2, Status: "active"}
+		p1 := &Product{SKU: uniqueSKU("TEST-BULK-1"), Name: "Bulk 1", Price: 1000, Cost: 500, Stock: 1, Status: "active"}
+		p2 := &Product{SKU: uniqueSKU("TEST-BULK-2"), Name: "Bulk 2", Price: 2000, Cost: 1000, Stock: 2, Status: "active"}
 		require.NoError(t, repo.CreateProduct(ctx, p1))
 		require.NoError(t, repo.CreateProduct(ctx, p2))
 
@@ -189,7 +194,7 @@ func TestProductRepository_DeletedProductRestore(t *testing.T) {
 		// First create a product with a unique barcode
 		barcode := "DEL-BARCODE-001"
 		p := &Product{
-			SKU:     "TEST-RESTORE-SKU",
+			SKU:     uniqueSKU("TEST-RESTORE-SKU"),
 			Name:    "Restore Test",
 			Price:   10000,
 			Cost:    5000,
@@ -212,7 +217,7 @@ func TestProductRepository_DeletedProductRestore(t *testing.T) {
 
 	t.Run("Restore product", func(t *testing.T) {
 		p := &Product{
-			SKU:    "TEST-RESTORE-2",
+			SKU:    uniqueSKU("TEST-RESTORE-2"),
 			Name:   "To Restore",
 			Price:  5000,
 			Cost:   2500,
@@ -238,7 +243,7 @@ func TestProductRepository_GetAllProductsPagination(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		p := &Product{
-			SKU:    "TEST-PAGING-" + string(rune('A'+i)),
+			SKU:    uniqueSKU("TEST-PAGING-" + string(rune('A'+i))),
 			Name:   "Paging Test " + string(rune('A'+i)),
 			Price:  1000 * (i + 1),
 			Cost:   500 * (i + 1),

@@ -9,15 +9,13 @@ import (
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/shared"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
-	db *pgxpool.Pool
+	db shared.DBPool
 }
 
-func NewRepository(db *pgxpool.Pool) *Repository {
+func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 

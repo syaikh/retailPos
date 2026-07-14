@@ -11,15 +11,14 @@ import (
 	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
-	db    *pgxpool.Pool
+	db    shared.DBPool
 	cache *cache.Cache
 }
 
-func NewRepository(db *pgxpool.Pool) *Repository {
+func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 

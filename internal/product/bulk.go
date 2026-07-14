@@ -284,7 +284,7 @@ func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductI
 	for _, d := range updates {
 		offset := len(valueArgs)
 		p := d.payload
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d::int, $%d::int, $%d::int, $%d::int, $%d, $%d::int, $%d::int, $%d, $%d::int)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11))
 
 		var barcode interface{}
@@ -320,19 +320,19 @@ func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductI
 		UPDATE products SET
 			name = data.name,
 			barcode = data.barcode,
-			category_id = data.category_id,
-			brand_id = data.brand_id,
-			price = data.price,
-			cost = data.cost,
+			category_id = data.category_id::int,
+			brand_id = data.brand_id::int,
+			price = data.price::int,
+			cost = data.cost::int,
 			status = data.status,
-			unit_of_measure_id = data.uom_id,
-			weight_grams = data.weight_grams,
+			unit_of_measure_id = data.uom_id::int,
+			weight_grams = data.weight_grams::int,
 			description = data.description,
 			updated_at = NOW()
-		FROM (VALUES %s) AS data(name text, barcode text, category_id int, brand_id int,
-		                         price int, cost int, status text, uom_id int,
-		                         weight_grams int, description text, id int)
-		WHERE products.id = data.id
+		FROM (VALUES %s) AS data(name, barcode, category_id, brand_id,
+		                         price, cost, status, uom_id,
+		                         weight_grams, description, id)
+		WHERE products.id = data.id::int
 	`, strings.Join(valueStrings, ", "))
 
 	_, err = r.db.Exec(ctx, query, valueArgs...)

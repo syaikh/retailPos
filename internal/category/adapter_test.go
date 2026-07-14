@@ -2,8 +2,11 @@ package category
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,5 +182,132 @@ func TestCategoryAdapter_Repository(t *testing.T) {
 	a := &adapter{}
 	ra := a.Repository()
 	assert.NotNil(t, ra)
+}
+
+func TestCategoryAdapter_ReposAdapter_Insert(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(true)
+	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	inserted, err := ra.Insert(context.Background(), []interface{}{
+		CategoryImportRow{Row: 1, Name: "New Cat", Description: "new", IsActive: true},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, inserted)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCategoryAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(true)
+	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	_, err = ra.Insert(context.Background(), []interface{}{
+		CategoryImportRow{Row: 1, Name: "Valid", IsActive: true},
+		CategoryImportRow{Row: 2, Name: "", IsActive: true},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "category import errors")
+}
+
+func TestCategoryAdapter_ReposAdapter_Update(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(false)
+	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	updated, err := ra.Update(context.Background(), []interface{}{
+		CategoryImportRow{Row: 1, Name: "Existing Cat", Description: "upd", IsActive: true},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, updated)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCategoryAdapter_ReposAdapter_Update_Errors(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(true)
+	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	_, err = ra.Update(context.Background(), []interface{}{
+		CategoryImportRow{Row: 1, Name: "Valid", IsActive: true},
+		CategoryImportRow{Row: 2, Name: "", IsActive: true},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "category import errors")
+}
+
+func TestCategoryAdapter_ReposAdapter_ExportData(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	rows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "created_at"}).
+		AddRow(1, "Food", "food", "All food", true, now)
+	mock.ExpectQuery("SELECT id, name, COALESCE").WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	data, err := ra.ExportData(context.Background(), Schema)
+	require.NoError(t, err)
+	assert.Len(t, data, 1)
+	assert.Equal(t, "Food", data[0]["Name"])
+	assert.Equal(t, "food", data[0]["Slug"])
+	assert.Equal(t, "true", data[0]["IsActive"])
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCategoryAdapter_ReposAdapter_ExportData_Error(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT id, name, COALESCE").WillReturnError(fmt.Errorf("db error"))
+
+	repo := NewRepository(mock)
+	a := NewAdapter(repo)
+	ra := a.Repository()
+
+	_, err = ra.ExportData(context.Background(), Schema)
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCategoryAdapter_ReposAdapter_LoadReferences(t *testing.T) {
+	a := NewAdapter(nil)
+	ra := a.Repository()
+	refs, err := ra.LoadReferences(context.Background(), Schema)
+	assert.NoError(t, err)
+	assert.Nil(t, refs)
 }
 

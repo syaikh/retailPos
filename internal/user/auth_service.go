@@ -13,8 +13,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	"retail-pos-system/internal/shared"
 )
 
 var (
@@ -25,7 +26,7 @@ var (
 )
 
 type AuthService struct {
-	dbPool     *pgxpool.Pool
+	dbPool     shared.DBPool
 	repo       *Repository
 	jwtSecret  string
 	accessTTL  time.Duration
@@ -248,11 +249,8 @@ func (s *AuthService) parseToken(tokenString string) (*AuthClaims, error) {
 		return []byte(s.jwtSecret), nil
 	})
 	if err != nil {
-		var ve interface{ Errors() uint32 }
-		if errors.As(err, &ve) {
-			if ve.Errors()&1 != 0 {
-				return nil, ErrTokenExpired
-			}
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrTokenExpired
 		}
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
@@ -270,11 +268,8 @@ func (s *AuthService) parseRefreshToken(tokenString string) (*AuthClaims, error)
 		return []byte(s.jwtSecret + "-refresh"), nil
 	})
 	if err != nil {
-		var ve interface{ Errors() uint32 }
-		if errors.As(err, &ve) {
-			if ve.Errors()&1 != 0 {
-				return nil, ErrTokenExpired
-			}
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrTokenExpired
 		}
 		return nil, fmt.Errorf("failed to parse refresh token: %w", err)
 	}

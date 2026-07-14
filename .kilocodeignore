@@ -1,0 +1,92 @@
+# Dependencies
+node_modules/
+web/node_modules/
+.kilo/node_modules/
+.opencode/node_modules/
+vendor/
+
+# Build outputs and compiled binaries
+dist/
+build/
+web/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+server
+seeder
+dummy
+retailpos
+retail-pos-system
+retail-pos
+backfill-audit-description
+
+# Go artifacts
+*.out
+coverage.html
+coverage.xml
+go.work
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+.env.test
+.env.*.local
+
+# Logs
+*.log
+server.log
+seed.log
+
+# Test artifacts and coverage
+test-results/
+test-results*
+playwright-report/
+coverage.out
+coverage_full.out
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Cache directories
+.cache/
+.vite/
+.svelte-kit/
+
+# Kilo internal/legacy config
+.kilo/
+.opencode/
+.session
+session-*.md
+*.session
+
+# Large binary and data files
+*.db
+*.sqlite
+*.sqlite3
+
+# Watch files
+watch_*
+
+# Local development files
+web/loginpage.html.htm
+web/test-no-svelte.js

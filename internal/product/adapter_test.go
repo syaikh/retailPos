@@ -6,6 +6,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/brand"
+	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
+	"retail-pos-system/internal/uom"
 )
 
 type mockCategoryRepo struct {
@@ -275,4 +281,165 @@ func ptrString(s string) *string {
 
 func ptrInt(i int) *int {
 	return &i
+}
+
+func seedProductReferences(t *testing.T, ctx context.Context) {
+	t.Helper()
+	_, err := dbPool.Exec(ctx, `INSERT INTO categories (name, slug, description, is_active) VALUES ('TestCat', 'testcat', 'Test category', true) ON CONFLICT (name) DO NOTHING`)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx, `INSERT INTO brands (name, description, is_active) VALUES ('TestBrand', 'Test brand', true) ON CONFLICT (name) DO NOTHING`)
+	require.NoError(t, err)
+	_, err = dbPool.Exec(ctx, `INSERT INTO units_of_measure (code, name, description, is_active) VALUES ('PCSP', 'Pieces', 'Pieces', true) ON CONFLICT (code) DO NOTHING`)
+	require.NoError(t, err)
+}
+
+func TestProductAdapter_Insert_Success(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(t, ctx)
+
+	repo := NewRepository(dbPool)
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	ra := adapter.Repository()
+
+	rows := []interface{}{
+		ProductImportRow{
+			Row: 1, SKU: "TEST-SKU-001", Name: "Test Product 1",
+			Category: "TestCat", Brand: "TestBrand", Price: 10000, Cost: 7000, Stock: 50,
+			Status: "active", UnitOfMeasure: "PCSP",
+		},
+	}
+
+	count, err := ra.Insert(ctx, rows)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	product, err := repo.GetProductBySKU(ctx, "TEST-SKU-001", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Test Product 1", product.Name)
+	assert.Equal(t, 10000, product.Price)
+}
+
+func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(t, ctx)
+
+	repo := NewRepository(dbPool)
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	ra := adapter.Repository()
+
+	rows := []interface{}{
+		ProductImportRow{
+			Row: 1, SKU: "TEST-SKU-002", Name: "Test Product 2",
+			Category: "NonExistentCat", Brand: "TestBrand", Price: 10000, Cost: 7000, Stock: 50,
+			Status: "active", UnitOfMeasure: "PCSP",
+		},
+	}
+
+	_, err := ra.Insert(ctx, rows)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "category")
+}
+
+func TestProductAdapter_Update_Success(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(t, ctx)
+
+	repo := NewRepository(dbPool)
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	ra := adapter.Repository()
+
+	product := &Product{
+		SKU: "TEST-SKU-UPDATE", Name: "Before Update", Price: 10000, Cost: 5000, Stock: 20, Status: "active",
+	}
+	err := repo.CreateProduct(ctx, product)
+	require.NoError(t, err)
+
+	rows := []interface{}{
+		ProductImportRow{
+			Row: 1, SKU: "TEST-SKU-UPDATE", Name: "After Update",
+			Category: "TestCat", Brand: "TestBrand", Price: 15000, Cost: 8000, Stock: 30,
+			Status: "active", UnitOfMeasure: "PCSP",
+		},
+	}
+
+	count, err := ra.Update(ctx, rows)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	got, err := repo.GetProductBySKU(ctx, "TEST-SKU-UPDATE", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "After Update", got.Name)
+	assert.Equal(t, 15000, got.Price)
+}
+
+func TestProductAdapter_ExportData_Success(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(t, ctx)
+
+	repo := NewRepository(dbPool)
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	ra := adapter.Repository()
+
+	product := &Product{
+		SKU: "TEST-SKU-EXPORT", Name: "Export Product", Price: 20000, Cost: 15000, Stock: 100, Status: "active",
+	}
+	err := repo.CreateProduct(ctx, product)
+	require.NoError(t, err)
+
+	data, err := ra.ExportData(ctx, importexportshared.ModuleSchema{})
+	require.NoError(t, err)
+	require.NotEmpty(t, data)
+
+	found := false
+	for _, row := range data {
+		if row["SKU"] == "TEST-SKU-EXPORT" {
+			found = true
+			assert.Equal(t, "Export Product", row["Name"])
+			assert.Equal(t, 20000, row["Price"])
+		}
+	}
+	assert.True(t, found, "exported product not found")
+}
+
+func TestProductAdapter_LoadReferences_Success(t *testing.T) {
+	ctx := context.Background()
+	seedProductReferences(t, ctx)
+
+	repo := NewRepository(dbPool)
+	catRepo := category.NewRepository(dbPool)
+	brandRepo := brand.NewRepository(dbPool)
+	uomRepo := uom.NewRepository(dbPool)
+	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+
+	schema := schema.ModuleSchema{
+		ModuleName:    "products",
+		SchemaVersion: "1.0",
+		References: []importexportshared.ReferenceDef{
+			{ReferenceModule: "categories"},
+			{ReferenceModule: "brands"},
+			{ReferenceModule: "uoms"},
+		},
+	}
+
+	refs, err := adapter.Repository().LoadReferences(ctx, schema)
+	require.NoError(t, err)
+	require.NotNil(t, refs)
+	assert.Contains(t, refs, "categories")
+	assert.Contains(t, refs, "brands")
+	assert.Contains(t, refs, "uoms")
+	assert.NotEmpty(t, refs["categories"])
+	assert.NotEmpty(t, refs["brands"])
+	assert.NotEmpty(t, refs["uoms"])
 }

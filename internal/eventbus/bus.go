@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"retail-pos-system/internal/shared"
 )
 
 const (
@@ -31,11 +31,11 @@ type DeadLetterStore interface {
 
 // PgDeadLetterStore implements DeadLetterStore backed by PostgreSQL.
 type PgDeadLetterStore struct {
-	pool *pgxpool.Pool
+	pool shared.DBPool
 }
 
 // NewPgDeadLetterStore creates a new PostgreSQL-backed dead-letter store.
-func NewPgDeadLetterStore(pool *pgxpool.Pool) *PgDeadLetterStore {
+func NewPgDeadLetterStore(pool shared.DBPool) *PgDeadLetterStore {
 	return &PgDeadLetterStore{pool: pool}
 }
 

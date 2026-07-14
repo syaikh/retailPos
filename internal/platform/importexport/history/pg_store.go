@@ -8,16 +8,16 @@ import (
 	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
+	"retail-pos-system/internal/shared"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Store struct {
-	db *pgxpool.Pool
+	db shared.DBPool
 }
 
-func NewStore(db *pgxpool.Pool) *Store {
+func NewStore(db shared.DBPool) *Store {
 	return &Store{db: db}
 }
 

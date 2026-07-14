@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 func TestCustomerAdapter_ModuleName(t *testing.T) {
@@ -227,4 +229,92 @@ func intPtr(i int) *int { return &i }
 
 func ptrHelper(s string) *string {
 	return &s
+}
+
+func TestCustomerAdapter_Insert_Success(t *testing.T) {
+	ctx := context.Background()
+	repo := NewRepository(dbPool)
+	adapter := NewAdapter(repo)
+	ra := adapter.Repository()
+
+	rows := []interface{}{
+		CustomerImportRow{Row: 1, Name: "DB Insert 1", Phone: "0811111111", Email: "dbins1@test.com", IsActive: true},
+		CustomerImportRow{Row: 2, Name: "DB Insert 2", Phone: "0812222222", Email: "dbins2@test.com", IsActive: true},
+	}
+
+	count, err := ra.Insert(ctx, rows)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, total, 2)
+}
+
+func TestCustomerAdapter_Insert_WithStoreID(t *testing.T) {
+	ctx := context.Background()
+	repo := NewRepository(dbPool)
+	adapter := NewAdapter(repo)
+	ra := adapter.Repository()
+
+	storeID := 1
+	rows := []interface{}{
+		CustomerImportRow{Row: 1, Name: "Store Cust", Phone: "0813333333", Email: "store@test.com", IsActive: true, StoreID: &storeID},
+	}
+
+	count, err := ra.Insert(ctx, rows)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+func TestCustomerAdapter_Update_Success(t *testing.T) {
+	ctx := context.Background()
+	repo := NewRepository(dbPool)
+	adapter := NewAdapter(repo)
+	ra := adapter.Repository()
+
+	phone := "0814444444"
+	customer := &Customer{Name: "Before Update", Phone: &phone, Email: ptr("before@test.com"), IsActive: true}
+	err := repo.CreateCustomer(ctx, customer)
+	require.NoError(t, err)
+
+	rows := []interface{}{
+		CustomerImportRow{Row: 1, Name: "After Update", Phone: "0814444444", Email: "after@test.com", IsActive: true},
+	}
+
+	count, err := ra.Update(ctx, rows)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	got, err := repo.GetCustomerByID(ctx, customer.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "After Update", got.Name)
+	assert.Equal(t, "after@test.com", *got.Email)
+}
+
+func TestCustomerAdapter_ExportData_Success(t *testing.T) {
+	ctx := context.Background()
+	repo := NewRepository(dbPool)
+	adapter := NewAdapter(repo)
+	ra := adapter.Repository()
+
+	phone := "0815555555"
+	customer := &Customer{Name: "Export Test", Phone: &phone, Email: ptr("export@test.com"), Address: ptr("Jl. Export"), IsActive: true}
+	err := repo.CreateCustomer(ctx, customer)
+	require.NoError(t, err)
+
+	data, err := ra.ExportData(ctx, importexportshared.ModuleSchema{})
+	require.NoError(t, err)
+	require.NotEmpty(t, data)
+
+	found := false
+	for _, row := range data {
+		if row["Name"] == "Export Test" {
+			found = true
+			assert.Equal(t, "0815555555", row["Phone"])
+			assert.Equal(t, "export@test.com", row["Email"])
+			assert.Equal(t, "Jl. Export", row["Address"])
+		}
+	}
+	assert.True(t, found, "exported customer not found")
 }

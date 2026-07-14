@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retail-pos-system/internal/shared"
 )
@@ -15,10 +14,10 @@ import (
 var _ Repository = (*PgRepository)(nil)
 
 type PgRepository struct {
-	db *pgxpool.Pool
+	db shared.DBPool
 }
 
-func NewPgRepository(db *pgxpool.Pool) *PgRepository {
+func NewPgRepository(db shared.DBPool) *PgRepository {
 	return &PgRepository{db: db}
 }
 

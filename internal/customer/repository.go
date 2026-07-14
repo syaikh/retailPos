@@ -2,6 +2,7 @@ package customer
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"retail-pos-system/internal/shared"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ImportResult struct {
@@ -23,10 +23,10 @@ func (r *ImportResult) AddError(row int, msg string) {
 }
 
 type Repository struct {
-	db *pgxpool.Pool
+	db shared.DBPool
 }
 
-func NewRepository(db *pgxpool.Pool) *Repository {
+func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
@@ -43,7 +43,7 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int)
 		query += " AND (store_id = $2 OR is_walk_in = true)"
 		args = append(args, *storeID)
 	}
-	err := r.db.QueryRow(ctx, query, args...).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt)
+	err := scanCustomerRow(r.db.QueryRow(ctx, query, args...), &c, &createdAt, &updatedAt, &storeIDVal)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("customer not found")
@@ -70,7 +70,7 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 		query += " AND (store_id = $2 OR is_walk_in = true)"
 		args = append(args, *storeID)
 	}
-	err := r.db.QueryRow(ctx, query, args...).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt)
+	err := scanCustomerRow(r.db.QueryRow(ctx, query, args...), &c, &createdAt, &updatedAt, &storeIDVal)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("customer not found")
@@ -140,7 +140,7 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 		var c Customer
 		var createdAt, updatedAt time.Time
 		var storeIDVal int
-		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt); err != nil {
+		if err := scanCustomerRow(rows, &c, &createdAt, &updatedAt, &storeIDVal); err != nil {
 			return nil, 0, err
 		}
 		c.StoreID = &storeIDVal
@@ -233,7 +233,7 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 		var c Customer
 		var createdAt, updatedAt time.Time
 		var storeIDVal int
-		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Address, &c.TaxID, &c.LoyaltyPoints, &c.TotalSpent, &c.LastPurchaseAt, &c.Note, &c.IsActive, &c.IsWalkIn, &storeIDVal, &createdAt, &updatedAt); err != nil {
+		if err := scanCustomerRow(rows, &c, &createdAt, &updatedAt, &storeIDVal); err != nil {
 			return nil, err
 		}
 		c.StoreID = &storeIDVal
@@ -307,21 +307,21 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 		valueArgs := make([]interface{}, 0, len(updateRecords)*7)
 		for i, rec := range updateRecords {
 			offset := len(valueArgs)
-			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7))
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d::boolean, $%d::int)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7))
 			valueArgs = append(valueArgs, rec.Name, rec.Phone, rec.Email, rec.Address, rec.Note, rec.IsActive, updateIDs[i])
 		}
 
 		query := fmt.Sprintf(`
-			UPDATE customers SET
-				name = data.name,
-				phone = data.phone,
-				email = NULLIF(data.email, ''),
-				address = NULLIF(data.address, ''),
-				note = NULLIF(data.note, ''),
-				is_active = data.is_active,
-				updated_at = NOW()
-			FROM (VALUES %s) AS data(name text, phone text, email text, address text, note text, is_active boolean, id int)
-			WHERE customers.id = data.id
+		UPDATE customers SET
+			name = data.name,
+			phone = data.phone,
+			email = NULLIF(data.email, ''),
+			address = NULLIF(data.address, ''),
+			note = NULLIF(data.note, ''),
+			is_active = data.is_active::boolean,
+			updated_at = NOW()
+		FROM (VALUES %s) AS data(name, phone, email, address, note, is_active, id)
+		WHERE customers.id = data.id::int
 		`, strings.Join(valueStrings, ", "))
 
 		_, err := r.db.Exec(ctx, query, valueArgs...)
@@ -366,4 +366,27 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+type scannable interface {
+	Scan(dest ...any) error
+}
+
+func scanCustomerRow(src scannable, c *Customer, createdAt, updatedAt *time.Time, storeIDVal *int) error {
+	var phone, email, address, taxID, lastPurchaseAt, note sql.NullString
+	err := src.Scan(
+		&c.ID, &c.Name, &phone, &email, &address, &taxID,
+		&c.LoyaltyPoints, &c.TotalSpent, &lastPurchaseAt, &note,
+		&c.IsActive, &c.IsWalkIn, storeIDVal, createdAt, updatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	c.Phone = strPtr(phone.String)
+	c.Email = strPtr(email.String)
+	c.Address = strPtr(address.String)
+	c.TaxID = strPtr(taxID.String)
+	c.LastPurchaseAt = strPtr(lastPurchaseAt.String)
+	c.Note = strPtr(note.String)
+	return nil
 }

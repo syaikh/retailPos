@@ -10,7 +10,6 @@ import (
 	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ImportResult struct {
@@ -24,11 +23,11 @@ func (r *ImportResult) AddError(row int, msg string) {
 }
 
 type Repository struct {
-	db    *pgxpool.Pool
+	db    shared.DBPool
 	cache *cache.Cache
 }
 
-func NewRepository(db *pgxpool.Pool) *Repository {
+func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
@@ -388,7 +387,7 @@ func (r *Repository) BulkUpsertCategories(ctx context.Context, records []Categor
 
 	if r.cache != nil {
 		r.cache.FlushByPrefix("category:")
-		r.cache.Delete("categories:all")
+		r.cache.Delete("categories:list")
 	}
 
 	return result
