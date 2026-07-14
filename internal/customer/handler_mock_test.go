@@ -683,3 +683,43 @@ func TestMockHandler_UpdateCustomer_ServiceError(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
+
+func TestMockHandler_DeleteCustomer_WalkIn(t *testing.T) {
+	svc := &mockCustomerService{
+		getByIDFn: func(ctx context.Context, id int, storeID *int) (*Customer, error) {
+			return &Customer{ID: 1, Name: "Walk-In", IsWalkIn: true}, nil
+		},
+	}
+	r := setupMockRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/customers/1", nil))
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "walk-in")
+}
+
+func TestMockHandler_DeleteCustomer_ServiceError(t *testing.T) {
+	svc := &mockCustomerService{
+		getByIDFn: func(ctx context.Context, id int, storeID *int) (*Customer, error) {
+			return &Customer{ID: 1, Name: "Real"}, nil
+		},
+		deleteFn: func(ctx context.Context, id int, storeID *int) error {
+			return errors.New("fk constraint")
+		},
+	}
+	r := setupMockRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/customers/1", nil))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMockHandler_DeleteCustomer_NotFound(t *testing.T) {
+	svc := &mockCustomerService{
+		getByIDFn: func(ctx context.Context, id int, storeID *int) (*Customer, error) {
+			return nil, errors.New("not found")
+		},
+	}
+	r := setupMockRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/customers/999", nil))
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
