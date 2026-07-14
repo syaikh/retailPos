@@ -27,12 +27,16 @@ type CustomerService interface {
 	BulkDeleteCustomers(ctx context.Context, ids []int, storeID *int) error
 }
 
-type Handler struct {
-	svc      CustomerService
-	auditSvc *audit.Service
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
 }
 
-func NewHandler(svc CustomerService, auditSvc *audit.Service) *Handler {
+type Handler struct {
+	svc      CustomerService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc CustomerService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

@@ -21,12 +21,16 @@ type BrandService interface {
 	Delete(ctx context.Context, id int) error
 }
 
-type Handler struct {
-	svc      BrandService
-	auditSvc *audit.Service
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
 }
 
-func NewHandler(svc BrandService, auditSvc *audit.Service) *Handler {
+type Handler struct {
+	svc      BrandService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc BrandService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

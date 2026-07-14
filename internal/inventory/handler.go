@@ -17,12 +17,16 @@ type InventoryService interface {
 	AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
 }
 
-type Handler struct {
-	svc      InventoryService
-	auditSvc *audit.Service
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
 }
 
-func NewHandler(svc InventoryService, auditSvc *audit.Service) *Handler {
+type Handler struct {
+	svc      InventoryService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc InventoryService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

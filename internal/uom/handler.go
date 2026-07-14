@@ -21,12 +21,16 @@ type UOMService interface {
 	Delete(ctx context.Context, id int) error
 }
 
-type Handler struct {
-	svc      UOMService
-	auditSvc *audit.Service
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
 }
 
-func NewHandler(svc UOMService, auditSvc *audit.Service) *Handler {
+type Handler struct {
+	svc      UOMService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc UOMService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

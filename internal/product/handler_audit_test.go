@@ -15,6 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockAuditCreator struct {
+	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+}
+
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
 func setupMockProductRouterWithAudit(svc ProductService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -24,10 +35,7 @@ func setupMockProductRouterWithAudit(svc ProductService) *gin.Engine {
 		c.Set("role", "admin")
 		c.Next()
 	})
-	var auditSvc *audit.Service
-	if dbPool != nil {
-		auditSvc = audit.NewService(audit.NewRepository(dbPool))
-	}
+	auditSvc := &mockAuditCreator{}
 	h := NewHandler(svc, auditSvc)
 	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
@@ -37,9 +45,6 @@ func setupMockProductRouterWithAudit(svc ProductService) *gin.Engine {
 }
 
 func TestAuditHandler_CreateProduct(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockProductService{
 		createFn: func(ctx context.Context, product *Product) error {
 			product.ID = 42
@@ -56,9 +61,6 @@ func TestAuditHandler_CreateProduct(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateProduct(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockProductService{
 		getByIDFn: func(ctx context.Context, id, storeID int) (*Product, error) {
 			return &Product{ID: 1, Name: "Old Widget", Price: 5000}, nil
@@ -77,9 +79,6 @@ func TestAuditHandler_UpdateProduct(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteProduct(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockProductService{
 		getByIDFn: func(ctx context.Context, id, storeID int) (*Product, error) {
 			return &Product{ID: 1, Name: "Widget"}, nil
@@ -95,9 +94,6 @@ func TestAuditHandler_DeleteProduct(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteProduct_OldProductNotFound(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockProductService{
 		getByIDFn: func(ctx context.Context, id, storeID int) (*Product, error) {
 			return nil, errors.New("not found")
@@ -113,9 +109,6 @@ func TestAuditHandler_DeleteProduct_OldProductNotFound(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateProduct_OldProductNotFound(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockProductService{
 		getByIDFn: func(ctx context.Context, id, storeID int) (*Product, error) {
 			return nil, errors.New("not found")

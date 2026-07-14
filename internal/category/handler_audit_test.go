@@ -14,6 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockAuditCreator struct {
+	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+}
+
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
 func setupMockRouterWithAudit(svc CategoryService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -23,10 +34,7 @@ func setupMockRouterWithAudit(svc CategoryService) *gin.Engine {
 		c.Set("role", "admin")
 		c.Next()
 	})
-	var auditSvc *audit.Service
-	if dbPool != nil {
-		auditSvc = audit.NewService(audit.NewRepository(dbPool))
-	}
+	auditSvc := &mockAuditCreator{}
 	h := NewHandler(svc, auditSvc)
 	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
@@ -35,9 +43,6 @@ func setupMockRouterWithAudit(svc CategoryService) *gin.Engine {
 }
 
 func TestAuditHandler_CreateCategory(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockCategoryService{
 		createFn: func(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
 			return &Category{ID: 42, Name: req.Name}, nil
@@ -53,9 +58,6 @@ func TestAuditHandler_CreateCategory(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateCategory(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockCategoryService{
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return &Category{ID: 1, Name: "Old"}, nil
@@ -74,9 +76,6 @@ func TestAuditHandler_UpdateCategory(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteCategory(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockCategoryService{
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return &Category{ID: 1, Name: "ToDelete"}, nil
@@ -92,9 +91,6 @@ func TestAuditHandler_DeleteCategory(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteCategory_GetByIDError(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockCategoryService{
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return nil, errors.New("not found")
@@ -110,9 +106,6 @@ func TestAuditHandler_DeleteCategory_GetByIDError(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateCategory_GetByIDError(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockCategoryService{
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return nil, errors.New("not found")

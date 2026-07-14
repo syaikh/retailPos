@@ -14,6 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockAuditCreator struct {
+	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+}
+
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+	if m.createAuditLogFn != nil {
+		return m.createAuditLogFn(ctx, log)
+	}
+	return nil
+}
+
 func setupMockUOMRouterWithAudit(svc UOMService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -23,10 +34,7 @@ func setupMockUOMRouterWithAudit(svc UOMService) *gin.Engine {
 		c.Set("role", "admin")
 		c.Next()
 	})
-	var auditSvc *audit.Service
-	if dbPool != nil {
-		auditSvc = audit.NewService(audit.NewRepository(dbPool))
-	}
+	auditSvc := &mockAuditCreator{}
 	h := NewHandler(svc, auditSvc)
 	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
@@ -36,9 +44,6 @@ func setupMockUOMRouterWithAudit(svc UOMService) *gin.Engine {
 }
 
 func TestAuditHandler_CreateUOM(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockUOMService{
 		createFn: func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: 42, Name: req.Name, Code: req.Code}, nil
@@ -54,9 +59,6 @@ func TestAuditHandler_CreateUOM(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateUOM(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockUOMService{
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: 1, Name: "Old", Code: "OLD"}, nil
@@ -75,9 +77,6 @@ func TestAuditHandler_UpdateUOM(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteUOM(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockUOMService{
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: 1, Name: "ToDelete", Code: "DEL"}, nil
@@ -93,9 +92,6 @@ func TestAuditHandler_DeleteUOM(t *testing.T) {
 }
 
 func TestAuditHandler_DeleteUOM_GetByIDError(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockUOMService{
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return nil, errors.New("not found")
@@ -111,9 +107,6 @@ func TestAuditHandler_DeleteUOM_GetByIDError(t *testing.T) {
 }
 
 func TestAuditHandler_UpdateUOM_GetByIDError(t *testing.T) {
-	if dbPool == nil {
-		t.Skip("requires DB")
-	}
 	svc := &mockUOMService{
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return nil, errors.New("not found")
