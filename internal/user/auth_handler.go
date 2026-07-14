@@ -25,10 +25,10 @@ type AuthLoginService interface {
 
 type AuthHandler struct {
 	svc      AuthLoginService
-	auditSvc *audit.Service
+	auditSvc AuditCreator
 }
 
-func NewAuthHandler(svc AuthLoginService, auditSvc *audit.Service) *AuthHandler {
+func NewAuthHandler(svc AuthLoginService, auditSvc AuditCreator) *AuthHandler {
 	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 

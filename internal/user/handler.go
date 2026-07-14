@@ -47,12 +47,16 @@ type UserService interface {
 	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
 }
 
-type Handler struct {
-	svc      UserService
-	auditSvc *audit.Service
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
 }
 
-func NewHandler(svc UserService, auditSvc *audit.Service) *Handler {
+type Handler struct {
+	svc      UserService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc UserService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
