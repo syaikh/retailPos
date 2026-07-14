@@ -1,6 +1,7 @@
 package sale
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -16,12 +17,26 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type Handler struct {
-	svc      *Service
-	auditSvc *audit.Service
+type SaleService interface {
+	CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error
+	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
+	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error)
+	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
+	GetNextInvoiceNumber(ctx context.Context) (string, error)
+	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
+	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
 }
 
-func NewHandler(svc *Service, auditSvc *audit.Service) *Handler {
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
+}
+
+type Handler struct {
+	svc      SaleService
+	auditSvc AuditCreator
+}
+
+func NewHandler(svc SaleService, auditSvc AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
