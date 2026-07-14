@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/config"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -242,6 +244,93 @@ func TestGetYearlyRanges(t *testing.T) {
 			assert.Equal(t, tt.want.PreviousEnd, got.PreviousEnd)
 		})
 	}
+}
+
+func TestGetComparisonRanges_AllPeriodTypes(t *testing.T) {
+	refDate := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
+
+	tests := []struct {
+		name     string
+		period   PeriodType
+		completed bool
+	}{
+		{"daily realtime", PeriodDaily, false},
+		{"daily completed", PeriodDaily, true},
+		{"7days realtime", Period7Days, false},
+		{"7days completed", Period7Days, true},
+		{"weekly realtime", PeriodWeekly, false},
+		{"weekly completed", PeriodWeekly, true},
+		{"monthly realtime", PeriodMonthly, false},
+		{"monthly completed", PeriodMonthly, true},
+		{"yearly realtime", PeriodYearly, false},
+		{"yearly completed", PeriodYearly, true},
+		{"unknown period defaults to daily", PeriodType("unknown"), false},
+		{"unknown period completed defaults to daily", PeriodType("unknown"), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pr := getComparisonRanges(tt.period, refDate, tt.completed)
+			assert.False(t, pr.CurrentStart.IsZero(), "CurrentStart should not be zero")
+			assert.False(t, pr.CurrentEnd.IsZero(), "CurrentEnd should not be zero")
+			assert.False(t, pr.PreviousStart.IsZero(), "PreviousStart should not be zero")
+			assert.False(t, pr.PreviousEnd.IsZero(), "PreviousEnd should not be zero")
+			assert.True(t, pr.CurrentEnd.After(pr.CurrentStart), "CurrentEnd should be after CurrentStart")
+			assert.True(t, pr.PreviousEnd.After(pr.PreviousStart), "PreviousEnd should be after PreviousStart")
+			assert.Greater(t, pr.DaysInPeriod, 0, "DaysInPeriod should be positive")
+		})
+	}
+}
+
+func TestGetComparisonRanges_DaysInPeriod(t *testing.T) {
+	refDate := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
+
+	pr := getComparisonRanges(PeriodDaily, refDate, false)
+	assert.Equal(t, 7, pr.DaysInPeriod, "daily realtime should have 7-day range")
+
+	pr = getComparisonRanges(PeriodDaily, refDate, true)
+	assert.Equal(t, 1, pr.DaysInPeriod, "daily completed should have 1-day range")
+
+	pr = getComparisonRanges(PeriodMonthly, refDate, false)
+	assert.Greater(t, pr.DaysInPeriod, 0)
+}
+
+func TestGetComparisonRanges_IsPartial(t *testing.T) {
+	midMonth := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
+	endOfWeek := time.Date(2026, 7, 19, 0, 0, 0, 0, wib) // Sunday
+
+	// Weekly realtime mid-week IS partial because isPeriodIncomplete + periodType == PeriodWeekly
+	pr := getComparisonRanges(PeriodWeekly, midMonth, false)
+	assert.True(t, pr.IsPartial, "weekly realtime mid-week should be partial")
+
+	// Weekly completed mid-week is also partial
+	pr = getComparisonRanges(PeriodWeekly, midMonth, true)
+	assert.True(t, pr.IsPartial, "weekly completed mid-week should be partial")
+
+	// Weekly realtime on Sunday (not incomplete) should not be partial
+	pr = getComparisonRanges(PeriodWeekly, endOfWeek, false)
+	assert.False(t, pr.IsPartial, "weekly realtime on sunday should not be partial")
+
+	// Monthly realtime mid-month IS partial (isPeriodIncomplete + PeriodMonthly)
+	pr = getComparisonRanges(PeriodMonthly, midMonth, false)
+	assert.True(t, pr.IsPartial, "monthly realtime mid-month should be partial")
+
+	pr = getComparisonRanges(PeriodMonthly, midMonth, true)
+	assert.True(t, pr.IsPartial, "monthly completed mid-month should be partial")
+
+	// Daily never partial
+	pr = getComparisonRanges(PeriodDaily, midMonth, false)
+	assert.False(t, pr.IsPartial, "daily never partial")
+
+	pr = getComparisonRanges(PeriodDaily, midMonth, true)
+	assert.False(t, pr.IsPartial, "daily completed never partial")
+}
+
+func TestGetComparisonRanges_DefaultCase(t *testing.T) {
+	refDate := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
+	pr := getComparisonRanges(PeriodType("bogus"), refDate, false)
+	dailyPr := getDailyRanges(time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, config.Load().Timezone), false)
+	assert.Equal(t, dailyPr.CurrentStart, pr.CurrentStart, "unknown period should default to daily")
 }
 
 func TestIsPeriodIncomplete(t *testing.T) {
