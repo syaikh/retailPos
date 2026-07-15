@@ -21,15 +21,15 @@ export function useRBAC() {
   const isCashier = $derived(userRole === 'cashier');
 
   return {
-    userRole,
-    isAdmin,
-    isSuperAdmin,
-    isManager,
-    isCashier,
-    canCreate: isAdmin,
-    canEdit: isAdmin,
-    canDelete: isSuperAdmin,
-    canView: userRole !== '' && !isCashier,
-    canEditSuperadmin: isSuperAdmin,
+    get userRole() { return userRole; },
+    get isAdmin() { return isAdmin; },
+    get isSuperAdmin() { return isSuperAdmin; },
+    get isManager() { return isManager; },
+    get isCashier() { return isCashier; },
+    get canCreate() { return isAdmin; },
+    get canEdit() { return isAdmin; },
+    get canDelete() { return isSuperAdmin; },
+    get canView() { return userRole !== '' && !isCashier; },
+    get canEditSuperadmin() { return isSuperAdmin; },
   };
 }

@@ -68,7 +68,8 @@
 </script>
 
 {#if showCustomerModal}
-  <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }} onkeydown={handleKeydown}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }} onkeydown={handleKeydown} role="none">
     <div class="absolute inset-0 bg-black/60" onclick={close} role="presentation"></div>
     <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
       <div class="flex items-center justify-between mb-4">
