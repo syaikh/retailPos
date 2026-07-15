@@ -861,3 +861,197 @@ func TestHandler_Preview_InvalidFormat(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+type failingLoadRepo struct {
+	mockTestRepo
+}
+
+func (m *failingLoadRepo) LoadReferences(_ context.Context, _ schema.ModuleSchema) (map[string][]importexportshared.ReferenceItem, error) {
+	return nil, fmt.Errorf("load references failed")
+}
+
+type failingExportRepo struct {
+	mockTestRepo
+}
+
+func (m *failingExportRepo) ExportData(_ context.Context, _ schema.ModuleSchema) ([]map[string]interface{}, error) {
+	return nil, fmt.Errorf("export data failed")
+}
+
+type failingLoadAdapter struct {
+	repo *failingLoadRepo
+}
+
+func (m *failingLoadAdapter) ModuleName() string { return "categories" }
+func (m *failingLoadAdapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexportshared.ValidationError {
+	return nil
+}
+func (m *failingLoadAdapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[string]interface{}) (interface{}, error) {
+	return row, nil
+}
+func (m *failingLoadAdapter) Repository() importexportshared.RepositoryActions {
+	return m.repo
+}
+
+type failingExportAdapter struct {
+	repo *failingExportRepo
+}
+
+func (m *failingExportAdapter) ModuleName() string { return "categories" }
+func (m *failingExportAdapter) ValidateBusiness(_ context.Context, _ schema.ModuleSchema, _ []map[string]interface{}) []importexportshared.ValidationError {
+	return nil
+}
+func (m *failingExportAdapter) MapToEntity(_ context.Context, _ schema.ModuleSchema, row map[string]interface{}) (interface{}, error) {
+	return row, nil
+}
+func (m *failingExportAdapter) Repository() importexportshared.RepositoryActions {
+	return m.repo
+}
+
+type failingProgressStore struct {
+	progress.InMemoryStore
+	err error
+}
+
+func (f *failingProgressStore) ListJobs(_ context.Context, _ string, _ int) ([]*progress.Progress, error) {
+	return nil, f.err
+}
+
+func TestHandler_DownloadTemplate_AdapterError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(schema.ModuleSchema{
+		ModuleName: "noadapter",
+		Features:   schema.ModuleFeatures{TemplateEnabled: true},
+		Columns:    []schema.ColumnSchema{{Name: "X", Type: schema.ColString, Label: "X"}},
+	})
+
+	adapterReg := importexport.NewAdapterRegistry()
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/template/noadapter", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_DownloadTemplate_LoadRefError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	_ = adapterReg.Register(&failingLoadAdapter{repo: &failingLoadRepo{}})
+
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/template/categories", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_Export_AdapterError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/export/categories?format=csv", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_Export_ExportDataError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	_ = adapterReg.Register(&failingExportAdapter{repo: &failingExportRepo{}})
+
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/export/categories?format=csv", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_ListImportHistory_ListJobsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+
+	adapterReg := importexport.NewAdapterRegistry()
+	val := validation.NewDefaultPipeline()
+	failStore := &failingProgressStore{err: fmt.Errorf("store unavailable")}
+	progEng := progress.NewEngine(failStore)
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}

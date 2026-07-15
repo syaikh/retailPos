@@ -47,6 +47,14 @@ func TestGetUsername_Missing(t *testing.T) {
 	}
 }
 
+func TestGetUsername_WrongType(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("username", 12345)
+	if got := GetUsername(c); got != "" {
+		t.Errorf("expected empty for wrong type, got %s", got)
+	}
+}
+
 func TestGetRole_Present(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set("role", "superadmin")
@@ -59,6 +67,14 @@ func TestGetRole_Missing(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	if got := GetRole(c); got != "" {
 		t.Errorf("expected empty, got %s", got)
+	}
+}
+
+func TestGetRole_WrongType(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("role", 42)
+	if got := GetRole(c); got != "" {
+		t.Errorf("expected empty for wrong type, got %s", got)
 	}
 }
 
@@ -154,6 +170,19 @@ func TestGetIPAddress_FromRealIP(t *testing.T) {
 	got := GetIPAddress(c)
 	if got != "172.16.0.1" {
 		t.Errorf("expected 172.16.0.1, got %s", got)
+	}
+}
+
+func TestGetIPAddress_XForwardedFor(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.RemoteAddr = "192.168.1.1:12345"
+	c.Request.Header.Set("X-Forwarded-For", "10.0.0.1")
+
+	got := GetIPAddress(c)
+	if got != "192.168.1.1" {
+		t.Errorf("expected 192.168.1.1 (RemoteAddr used despite XFF), got %s", got)
 	}
 }
 

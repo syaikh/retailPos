@@ -83,6 +83,24 @@ func TestInventoryRepository_GetStockByProductID(t *testing.T) {
 		_, err := repo.GetStockByProductID(ctx, -1)
 		assert.Error(t, err)
 	})
+
+	t.Run("with nullable columns populated", func(t *testing.T) {
+		productID := insertTestProduct(t, ctx, "REPO-GET-NP-001")
+		_, err := dbPool.Exec(ctx,
+			`INSERT INTO product_stock (product_id, reorder_point, reorder_quantity, last_restocked_at, quantity)
+			 VALUES ($1, 5, 10, NOW(), 100)`,
+			productID,
+		)
+		require.NoError(t, err)
+
+		stock, err := repo.GetStockByProductID(ctx, productID)
+		require.NoError(t, err)
+		assert.Equal(t, productID, stock.ProductID)
+		assert.Equal(t, 100, stock.Quantity)
+		assert.Equal(t, 5, stock.ReorderPoint)
+		assert.Equal(t, 10, stock.ReorderQuantity)
+		assert.NotEmpty(t, stock.LastRestockedAt)
+	})
 }
 
 func TestInventoryRepository_AdjustStock(t *testing.T) {

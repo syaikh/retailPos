@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,6 +11,12 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 )
+
+type failingEventBus struct{}
+
+func (f *failingEventBus) Publish(_ context.Context, _ string, _ interface{}) error {
+	return fmt.Errorf("publish failed")
+}
 
 func TestInventoryService_GetStockByProductID(t *testing.T) {
 	repo := NewRepository(dbPool)
@@ -76,5 +83,19 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 		stock, err := svc.GetStockByProductID(ctx, productID)
 		require.NoError(t, err)
 		assert.Equal(t, 3, stock.Quantity, "stock should remain unchanged")
+	})
+
+	t.Run("event publish failure does not block adjust", func(t *testing.T) {
+		svcFailing := NewService(repo, &failingEventBus{})
+		productID := insertTestProduct(t, ctx, "SVC-ADJ-FAILPUB-001")
+		insertTestStock(t, ctx, productID, 20)
+		insertTestUser(t, ctx, 1)
+
+		err := svcFailing.AdjustStock(ctx, productID, 5, 1, "event fail test")
+		require.NoError(t, err)
+
+		stock, err := svcFailing.GetStockByProductID(ctx, productID)
+		require.NoError(t, err)
+		assert.Equal(t, 25, stock.Quantity)
 	})
 }

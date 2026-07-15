@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,4 +25,21 @@ func TestLogger_Functional(t *testing.T) {
 	logger.Info("test message", "key", "value")
 	logger.Debug("debug message", "key", 42)
 	logger.Warn("warn message")
+}
+
+func TestInitLogger_Production(t *testing.T) {
+	origOnce := once
+	origLogger := globalLogger
+	defer func() {
+		once = origOnce
+		globalLogger = origLogger
+	}()
+
+	once = sync.Once{}
+	globalLogger = nil
+	InitLogger("production")
+	l := Logger()
+	require.NotNil(t, l)
+	// Should not panic; production uses JSON handler at Info level
+	l.Info("production log", "key", "value")
 }
