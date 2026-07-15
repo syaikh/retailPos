@@ -7,6 +7,10 @@ import (
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
+type named interface {
+	Name() string
+}
+
 var testSchema = importexportshared.ModuleSchema{
 	ModuleName:   "test",
 	BusinessKeys: []string{"Code"},
@@ -236,5 +240,197 @@ func TestDuplicateValidator_NoBusinessKeys(t *testing.T) {
 	errs := v.Validate(ctx(), s, rows, nil)
 	if len(errs) != 0 {
 		t.Fatalf("expected no errors when no business keys, got %v", errs)
+	}
+}
+
+func TestValidatorNames(t *testing.T) {
+	tests := []struct {
+		v    named
+		name string
+	}{
+		{&DuplicateValidator{}, "duplicate"},
+		{&FileValidator{}, "file"},
+		{&ReferenceValidator{}, "reference"},
+		{&RequiredValidator{}, "required"},
+		{&TemplateValidator{}, "template"},
+		{&TypeValidator{}, "type"},
+	}
+	for _, tt := range tests {
+		if got := tt.v.Name(); got != tt.name {
+			t.Errorf("%T.Name() = %q, want %q", tt.v, got, tt.name)
+		}
+	}
+}
+
+func TestTemplateValidator_EmptyRows(t *testing.T) {
+	v := &TemplateValidator{}
+	errs := v.Validate(ctx(), testSchema, nil, nil)
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors for nil rows, got %v", errs)
+	}
+}
+
+func TestTemplateValidator_NonRequiredColumnMissing(t *testing.T) {
+	v := &TemplateValidator{}
+	s := testSchema
+	s.Columns[2].Required = false // Price is non-required
+
+	rows := []map[string]interface{}{{"Code": "x", "Name": "test", "Date": "2024-01-01"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	for _, e := range errs {
+		if e.Field == "Price" {
+			t.Fatalf("non-required missing column should not produce error, got %v", e)
+		}
+	}
+}
+
+func TestTemplateValidator_NonTemplateColumnSkipped(t *testing.T) {
+	v := &TemplateValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Code", Type: importexportshared.ColString, Label: "Code", Required: true, Template: true},
+			{Name: "Hidden", Type: importexportshared.ColString, Label: "Hidden", Required: true, Template: false},
+		},
+	}
+	rows := []map[string]interface{}{{"Code": "x"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	for _, e := range errs {
+		if e.Field == "Hidden" {
+			t.Fatalf("non-template column should be skipped, got error %v", e)
+		}
+	}
+}
+
+func TestReferenceValidator_EmptyReferenceSkip(t *testing.T) {
+	v := &ReferenceValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Brand", Type: importexportshared.ColReference, Label: "Brand", Reference: ""},
+		},
+	}
+	rows := []map[string]interface{}{{"Brand": "Nike"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) != 0 {
+		t.Fatalf("empty reference should be skipped, got %v", errs)
+	}
+}
+
+func TestReferenceValidator_LabelFallback(t *testing.T) {
+	v := &ReferenceValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Brand", Type: importexportshared.ColReference, Label: "Brand Label", Reference: "brands"},
+		},
+	}
+	refs := map[string][]importexportshared.ReferenceItem{
+		"brands": {{Key: "Nike"}},
+	}
+	rows := []map[string]interface{}{{"Brand Label": "Nike"}}
+	errs := v.Validate(ctx(), s, rows, refs)
+	if len(errs) != 0 {
+		t.Fatalf("label fallback should find value, got %v", errs)
+	}
+}
+
+func TestReferenceValidator_MissingRefData(t *testing.T) {
+	v := &ReferenceValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Brand", Type: importexportshared.ColReference, Label: "Brand", Reference: "brands"},
+		},
+	}
+	refs := map[string][]importexportshared.ReferenceItem{}
+	rows := []map[string]interface{}{{"Brand": "Nike"}}
+	errs := v.Validate(ctx(), s, rows, refs)
+	if len(errs) == 0 {
+		t.Fatal("expected error when reference data not loaded")
+	}
+}
+
+func TestDuplicateValidator_NilValues(t *testing.T) {
+	v := &DuplicateValidator{}
+	s := testSchema
+	rows := []map[string]interface{}{
+		{"Code": nil, "Name": "One"},
+		{"Code": nil, "Name": "Two"},
+	}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) != 0 {
+		t.Fatalf("nil business key values should be skipped, got %v", errs)
+	}
+}
+
+func TestTypeValidator_LabelFallback(t *testing.T) {
+	v := &TypeValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Price", Type: importexportshared.ColNumber, Label: "Price Label"},
+		},
+	}
+	rows := []map[string]interface{}{{"Price Label": "not-a-number"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) == 0 {
+		t.Fatal("label fallback should validate type")
+	}
+}
+
+func TestTypeValidator_NumericDate(t *testing.T) {
+	v := &TypeValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Date", Type: importexportshared.ColDate, Label: "Date"},
+		},
+	}
+	rows := []map[string]interface{}{{"Date": "2024"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) == 0 {
+		t.Fatal("numeric date should be rejected")
+	}
+}
+
+func TestTypeValidator_NumberBothMinMax(t *testing.T) {
+	v := &TypeValidator{}
+	s := testSchema
+	s.Columns[2].MinValue = importexportshared.Float64Ptr(0)
+	s.Columns[2].MaxValue = importexportshared.Float64Ptr(100)
+
+	rows := []map[string]interface{}{{"Price": "200", "Code": "x"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) == 0 {
+		t.Fatal("expected error for number exceeding both min and max")
+	}
+}
+
+func TestTypeValidator_NumberNoMinMax(t *testing.T) {
+	v := &TypeValidator{}
+	s := testSchema
+	s.Columns[2].MinValue = nil
+	s.Columns[2].MaxValue = nil
+
+	rows := []map[string]interface{}{{"Price": "999999", "Code": "x"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) != 0 {
+		t.Fatalf("number with no min/max should pass, got %v", errs)
+	}
+}
+
+func TestTypeValidator_StringNoMaxLength(t *testing.T) {
+	v := &TypeValidator{}
+	s := importexportshared.ModuleSchema{
+		ModuleName: "test",
+		Columns: []importexportshared.ColumnSchema{
+			{Name: "Code", Type: importexportshared.ColString, Label: "Code"},
+		},
+	}
+	rows := []map[string]interface{}{{"Code": "very long string that should pass"}}
+	errs := v.Validate(ctx(), s, rows, nil)
+	if len(errs) != 0 {
+		t.Fatalf("string with no max length should pass, got %v", errs)
 	}
 }

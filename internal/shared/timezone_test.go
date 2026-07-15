@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -28,5 +29,24 @@ func TestJakartaLocation_CanConvertTime(t *testing.T) {
 	now := time.Now().In(loc)
 	if now.Location() != loc {
 		t.Error("expected time in Jakarta location")
+	}
+}
+
+func TestInitLocation_FallbackToUTC(t *testing.T) {
+	orig := loadLocation
+	origLoc := jakartaLoc
+	defer func() {
+		loadLocation = orig
+		jakartaLoc = origLoc
+	}()
+
+	loadLocation = func(name string) (*time.Location, error) {
+		return nil, fmt.Errorf("tzdata missing")
+	}
+
+	loadJakartaLocation()
+
+	if jakartaLoc != time.UTC {
+		t.Errorf("expected UTC fallback, got %s", jakartaLoc)
 	}
 }

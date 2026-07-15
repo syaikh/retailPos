@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,11 +45,17 @@ type Handler struct {
 	exportEng    *export.Engine
 	templateEng  *template.Engine
 	progressEng  *progress.Engine
-	historyStore *history.Store
+	historyStore HistoryReader
 	permFunc     func(string) gin.HandlerFunc
 }
 
-func NewHandler(schemaReg *schema.Registry, adapterReg *importexport.AdapterRegistry, importEng *importer.Engine, exportEng *export.Engine, templateEng *template.Engine, progressEng *progress.Engine, historyStore *history.Store) *Handler {
+// HistoryReader abstracts the history store for testing.
+type HistoryReader interface {
+	GetSnapshot(ctx context.Context, jobID int64) (*history.SnapshotData, error)
+	GetRows(ctx context.Context, jobID int64) ([]history.RowWithErrors, error)
+}
+
+func NewHandler(schemaReg *schema.Registry, adapterReg *importexport.AdapterRegistry, importEng *importer.Engine, exportEng *export.Engine, templateEng *template.Engine, progressEng *progress.Engine, historyStore HistoryReader) *Handler {
 	return &Handler{
 		schemaReg:    schemaReg,
 		adapterReg:   adapterReg,

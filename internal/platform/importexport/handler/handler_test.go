@@ -19,6 +19,7 @@ import (
 	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
+	"retail-pos-system/internal/platform/importexport/history"
 	importer "retail-pos-system/internal/platform/importexport/import"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -1045,7 +1046,7 @@ func TestHandler_ListImportHistory_ListJobsError(t *testing.T) {
 
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
-	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Set("storeID", 0); c.Next() }
 	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
@@ -1054,4 +1055,180 @@ func TestHandler_ListImportHistory_ListJobsError(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+type mockHistoryStore struct {
+	snapshot *history.SnapshotData
+	rows     []history.RowWithErrors
+	snapErr  error
+	rowsErr  error
+}
+
+func (m *mockHistoryStore) GetSnapshot(_ context.Context, _ int64) (*history.SnapshotData, error) {
+	return m.snapshot, m.snapErr
+}
+
+func (m *mockHistoryStore) GetRows(_ context.Context, _ int64) ([]history.RowWithErrors, error) {
+	return m.rows, m.rowsErr
+}
+
+func setupHandlerWithHistory(hs HistoryReader) (*gin.Engine, *progress.Engine) {
+	gin.SetMode(gin.TestMode)
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+	adapterReg := importexport.NewAdapterRegistry()
+	_ = adapterReg.Register(&mockTestAdapter{repo: &mockTestRepo{}})
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, hs)
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Set("storeID", 0); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+	return r, progEng
+}
+
+func TestHandler_GetImportDetail_SnapshotNotFound(t *testing.T) {
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{
+		snapErr: fmt.Errorf("snapshot not found for job 999"),
+	})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "snapshot not found")
+}
+
+func TestHandler_GetImportDetail_DBError(t *testing.T) {
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{
+		snapErr: fmt.Errorf("get snapshot: connection refused"),
+	})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_GetImportDetail_Success(t *testing.T) {
+	snap := &history.SnapshotData{
+		RowsData:       []map[string]interface{}{{"Code": "A1", "Name": "Widget"}},
+		SchemaSnapshot: map[string]interface{}{"module_name": "categories"},
+	}
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{snapshot: snap})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.NotNil(t, resp["snapshot"])
+	assert.NotNil(t, resp["progress"])
+}
+
+func TestHandler_GetImportRows_RowsNotFound(t *testing.T) {
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{
+		rowsErr: fmt.Errorf("rows not found for job 999"),
+	})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "rows not found")
+}
+
+func TestHandler_GetImportRows_DBError(t *testing.T) {
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{
+		rowsErr: fmt.Errorf("query rows: connection refused"),
+	})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_GetImportRows_Success(t *testing.T) {
+	rows := []history.RowWithErrors{
+		{RowNumber: 1, Status: "created", EntityID: intPtr(10)},
+		{RowNumber: 2, Status: "skipped"},
+	}
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{rows: rows})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	rowList := resp["rows"].([]interface{})
+	assert.Len(t, rowList, 2)
+}
+
+func intPtr(v int) *int { return &v }
+
+func TestHandler_GetImportRows_NotFoundSubstring(t *testing.T) {
+	r, progEng := setupHandlerWithHistory(&mockHistoryStore{
+		rowsErr: fmt.Errorf("not found in table import_rows"),
+	})
+	ctx := context.Background()
+	jobID, _ := progEng.CreateJob(ctx, "categories", "1.0.0", "test.csv", 1, 0)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/import-export/history/categories/%d/rows", jobID), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "rows not found")
+}
+
+func TestHandler_GetImportDetail_GetProgressNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	schemaReg := schema.NewRegistry()
+	_ = schemaReg.Register(testSchema)
+	adapterReg := importexport.NewAdapterRegistry()
+	val := validation.NewDefaultPipeline()
+	progEng := progress.NewEngine(progress.NewInMemoryStore())
+	importEng := importer.NewEngine(schemaReg, val, adapterReg, progEng, nil)
+	exportEng := export.NewEngine()
+	templateEng := template.NewEngine()
+
+	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, &mockHistoryStore{})
+	r := gin.New()
+	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
+	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	h.RegisterRoutes(r.Group("/api"), auth, perm)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/import-export/history/categories/999999", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
