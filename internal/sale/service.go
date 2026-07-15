@@ -4,15 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"retail-pos-system/internal/shared"
 )
 
 var ErrInsufficientStock = errors.New("insufficient stock")
 var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
 var ErrSaleNotFound = errors.New("sale not found")
-
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
 
 type ProductPriceGetter interface {
 	GetProductPrice(ctx context.Context, productID int) (int, error)
@@ -24,11 +22,11 @@ type ProductBatchPriceGetter interface {
 
 type Service struct {
 	repo       *Repository
-	eventBus   EventBus
+	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
+func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
 }
 
@@ -79,11 +77,17 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		}
 	}
 
-	for _, item := range items {
-		_, err = tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - $1 WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`, item.Quantity, item.ProductID)
-		if err != nil {
-			return fmt.Errorf("deduct stock for product %d: %w", item.ProductID, err)
-		}
+	stockPIDs := make([]int, len(items))
+	stockQtys := make([]int, len(items))
+	for i, item := range items {
+		stockPIDs[i] = item.ProductID
+		stockQtys[i] = item.Quantity
+	}
+	_, err = tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - v.qty
+		FROM (SELECT unnest($1::int[]) AS product_id, unnest($2::int[]) AS qty) v
+		WHERE product_stock.product_id = v.product_id AND warehouse_id IS NULL AND store_id IS NULL`, stockPIDs, stockQtys)
+	if err != nil {
+		return fmt.Errorf("batch deduct stock: %w", err)
 	}
 
 	if s.priceStore != nil {

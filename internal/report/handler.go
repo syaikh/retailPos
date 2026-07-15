@@ -259,6 +259,38 @@ func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 	}
 }
 
+type dateRange struct {
+	Start time.Time
+	End   time.Time
+}
+
+func parseDateRange(c *gin.Context, defaultStartDaysAgo int) (dateRange, bool) {
+	jakartaLoc := config.Load().Timezone
+	now := time.Now().In(jakartaLoc)
+	startDateStr := c.DefaultQuery("startDate", now.AddDate(0, 0, -defaultStartDaysAgo).Format("2006-01-02"))
+	endDateStr := c.DefaultQuery("endDate", now.Format("2006-01-02"))
+
+	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, jakartaLoc)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
+		return dateRange{}, false
+	}
+	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
+		return dateRange{}, false
+	}
+	if endDate.Before(startDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
+		return dateRange{}, false
+	}
+	if startDate.AddDate(0, 0, 366).Before(endDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
+		return dateRange{}, false
+	}
+	return dateRange{Start: startDate, End: endDate}, true
+}
+
 // GetDashboardStats godoc
 // @Summary Get dashboard statistics
 // @Description Get today's revenue, sales, total products, and low stock count
@@ -343,33 +375,13 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 
-	jakartaLoc := config.Load().Timezone
-	now := time.Now().In(jakartaLoc)
-
-	startDateStr := c.DefaultQuery("startDate", now.AddDate(0, 0, -7).Format("2006-01-02"))
-	endDateStr := c.DefaultQuery("endDate", now.Format("2006-01-02"))
+	dr, ok := parseDateRange(c, 7)
+	if !ok {
+		return
+	}
+	startDate, endDate := dr.Start, dr.End
 	prevStartStr := c.Query("prevStart")
 	prevEndStr := c.Query("prevEnd")
-
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
-		return
-	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
-		return
-	}
-
-	if endDate.Before(startDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
-		return
-	}
-	if startDate.AddDate(0, 0, 366).Before(endDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
-		return
-	}
 
 	if startDate.Equal(endDate) {
 		data, err := h.svc.GetHourlySales(ctx, sid, startDate)
@@ -378,7 +390,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			return
 		}
 		if prevStartStr != "" && prevEndStr != "" {
-			prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, jakartaLoc)
+			prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
 				return
@@ -398,12 +410,12 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	endDate = endDate.Add(24 * time.Hour)
 
 	if prevStartStr != "" && prevEndStr != "" {
-		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, jakartaLoc)
+		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
 			return
 		}
-		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, jakartaLoc)
+		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, config.Load().Timezone)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
 			return
@@ -434,30 +446,11 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 
-	jakartaLoc := config.Load().Timezone
-	now := time.Now().In(jakartaLoc)
-
-	startDateStr := c.DefaultQuery("startDate", now.AddDate(0, 0, -84).Format("2006-01-02"))
-	endDateStr := c.DefaultQuery("endDate", now.Format("2006-01-02"))
-
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
+	dr, ok := parseDateRange(c, 84)
+	if !ok {
 		return
 	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
-		return
-	}
-	if endDate.Before(startDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
-		return
-	}
-	if startDate.AddDate(0, 0, 366).Before(endDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
-		return
-	}
+	startDate, endDate := dr.Start, dr.End
 	endDate = endDate.Add(24 * time.Hour)
 
 	data, err := h.svc.GetSalesWeeklyReport(ctx, sid, startDate, endDate)
@@ -476,41 +469,22 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 
-	jakartaLoc := config.Load().Timezone
-	now := time.Now().In(jakartaLoc)
-
-	startDateStr := c.DefaultQuery("startDate", now.AddDate(0, -12, 0).Format("2006-01-02"))
-	endDateStr := c.DefaultQuery("endDate", now.Format("2006-01-02"))
+	dr, ok := parseDateRange(c, 365)
+	if !ok {
+		return
+	}
+	startDate, endDate := dr.Start, dr.End
 	prevStartStr := c.Query("prevStart")
 	prevEndStr := c.Query("prevEnd")
-
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
-		return
-	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
-		return
-	}
-	if endDate.Before(startDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
-		return
-	}
-	if startDate.AddDate(0, 0, 366).Before(endDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
-		return
-	}
 	endDate = endDate.Add(24 * time.Hour)
 
 	if prevStartStr != "" && prevEndStr != "" {
-		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, jakartaLoc)
+		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
 			return
 		}
-		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, jakartaLoc)
+		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, config.Load().Timezone)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
 			return

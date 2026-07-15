@@ -153,6 +153,7 @@ func main() {
 	uomRepo.SetCache(appCache)
 	auditRepo := audit.NewRepository(dbPool)
 	reportRepo := report.NewRepository(dbPool)
+	reportRepo.SetCache(appCache)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo)
@@ -210,6 +211,7 @@ func main() {
 	bus.Subscribe(websocket.NewSaleCreatedListener(hub))
 	bus.Subscribe(websocket.NewProductUpdatedListener(hub))
 	bus.Subscribe(websocket.NewStockAdjustedListener(hub, wsProductLookup))
+	bus.Subscribe(reportRepo.NewSaleCreatedListener())
 
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{

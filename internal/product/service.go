@@ -5,11 +5,8 @@ import (
 	"strings"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
-
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
 
 type CategoryRepo interface {
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
@@ -29,10 +26,10 @@ type Service struct {
 	categoryRepo CategoryRepo
 	brandRepo   BrandRepo
 	uomRepo     UOMRepo
-	eventBus    EventBus
+	eventBus    shared.EventBus
 }
 
-func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus EventBus) *Service {
+func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, categoryRepo: categoryRepo, brandRepo: brandRepo, uomRepo: uomRepo, eventBus: eventBus}
 }
 

@@ -39,13 +39,28 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	for i := range items {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-		`, sale.ID, items[i].ProductID, items[i].Quantity, items[i].UnitPrice, items[i].Subtotal, items[i].DPPAmount, items[i].TaxAmount)
+	if len(items) > 0 {
+		saleIDs := make([]int, len(items))
+		pIDs := make([]int, len(items))
+		qtys := make([]int, len(items))
+		prices := make([]int, len(items))
+		subs := make([]int, len(items))
+		dpps := make([]int, len(items))
+		taxes := make([]int, len(items))
+		for i, item := range items {
+			saleIDs[i] = sale.ID
+			pIDs[i] = item.ProductID
+			qtys[i] = item.Quantity
+			prices[i] = item.UnitPrice
+			subs[i] = item.Subtotal
+			dpps[i] = item.DPPAmount
+			taxes[i] = item.TaxAmount
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+			SELECT unnest($1::int[]), unnest($2::int[]), unnest($3::int[]), unnest($4::int[]), unnest($5::int[]), unnest($6::int[]), unnest($7::int[])`,
+			saleIDs, pIDs, qtys, prices, subs, dpps, taxes)
 		if err != nil {
-			return fmt.Errorf("failed to insert sale item for product %d: %w", items[i].ProductID, err)
+			return fmt.Errorf("batch insert sale items: %w", err)
 		}
 	}
 
@@ -308,10 +323,11 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 
 func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
-		(SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
+		COALESCE(si_counts.cnt, 0) as items_count,
 		s.payment_method, s.total_amount
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
+		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
 		WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1

@@ -4,19 +4,61 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"strings"
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/pkg/cache"
 )
 
 type Repository struct {
-	db shared.DBPool
+	db    shared.DBPool
+	cache *cache.Cache
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) SetCache(c *cache.Cache) {
+	r.cache = c
+}
+
+func (r *Repository) InvalidateDashboardCache(storeID *int) {
+	if r.cache == nil {
+		return
+	}
+	r.cache.Delete("dashboard:stats")
+	r.cache.Delete("dashboard:live")
+	if storeID != nil {
+		r.cache.Delete(fmt.Sprintf("dashboard:stats:store:%d", *storeID))
+		r.cache.Delete(fmt.Sprintf("dashboard:live:store:%d", *storeID))
+	}
+}
+
+func (r *Repository) NewSaleCreatedListener() *saleCreatedListener {
+	return &saleCreatedListener{repo: r}
+}
+
+type saleCreatedListener struct {
+	repo *Repository
+}
+
+func (l *saleCreatedListener) EventTypes() []eventbus.EventType {
+	return []eventbus.EventType{eventbus.SaleCreated}
+}
+
+func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Event) error {
+	s, ok := event.Payload.(*sale.Sale)
+	if !ok {
+		return nil
+	}
+	l.repo.InvalidateDashboardCache(s.StoreID)
+	return nil
 }
 
 func (r *Repository) GetPeriodComparison(
@@ -26,78 +68,76 @@ func (r *Repository) GetPeriodComparison(
 	storeID *int,
 ) (*PeriodComparison, error) {
 
+	key := fmt.Sprintf("report:comparison:%s:%s:%s:%s", currentStart.Format("20060102"), currentEnd.Format("20060102"), previousStart.Format("20060102"), previousEnd.Format("20060102"))
+	if storeID != nil {
+		key += fmt.Sprintf(":store:%d", *storeID)
+	}
+	if r.cache != nil {
+		if cached, found := r.cache.Get(key); found {
+			return cached.(*PeriodComparison), nil
+		}
+	}
+
 	query := `
-		WITH current_period AS (
+		WITH period_stats AS (
 			SELECT
-				COALESCE(SUM(total_amount), 0) as revenue,
-				COUNT(*) as orders
+				COALESCE(SUM(CASE WHEN created_at >= $1 AND created_at < $2 THEN total_amount ELSE 0 END), 0) as current_revenue,
+				COUNT(CASE WHEN created_at >= $1 AND created_at < $2 THEN 1 END) as current_orders,
+				COALESCE(SUM(CASE WHEN created_at >= $3 AND created_at < $4 THEN total_amount ELSE 0 END), 0) as previous_revenue,
+				COUNT(CASE WHEN created_at >= $3 AND created_at < $4 THEN 1 END) as previous_orders
 			FROM sales
-			WHERE created_at >= $1 AND created_at < $2
+			WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
 				AND status = 'completed'
 		),
-		previous_period AS (
+		peak_hours AS (
 			SELECT
-				COALESCE(SUM(total_amount), 0) as revenue,
-				COUNT(*) as orders
-			FROM sales
-			WHERE created_at >= $3 AND created_at < $4
-				AND status = 'completed'
-		),
-		current_peak_hour AS (
-			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
+				MAX(CASE WHEN period = 'current' THEN hourly_total ELSE 0 END) as current_peak,
+				MAX(CASE WHEN period = 'previous' THEN hourly_total ELSE 0 END) as previous_peak
 			FROM (
-				SELECT SUM(total_amount) as hourly_total
-				FROM sales
-				WHERE created_at >= $1 AND created_at < $2
-					AND status = 'completed'
-				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+				SELECT
+					SUM(total_amount) as hourly_total,
+					period
+				FROM (
+					SELECT total_amount,
+						CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
+						EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as hour
+					FROM sales
+					WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
+						AND status = 'completed'
+				) tagged
+				GROUP BY hour, period
 			) hourly
 		),
-		previous_peak_hour AS (
-			SELECT COALESCE(MAX(hourly_total), 0) as peak_revenue
+		peak_months AS (
+			SELECT
+				MAX(CASE WHEN period = 'current' THEN monthly_total ELSE 0 END) as current_peak,
+				MAX(CASE WHEN period = 'previous' THEN monthly_total ELSE 0 END) as previous_peak
 			FROM (
-				SELECT SUM(total_amount) as hourly_total
-				FROM sales
-				WHERE created_at >= $3 AND created_at < $4
-					AND status = 'completed'
-				GROUP BY EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
-			) hourly
-		),
-		current_peak_month AS (
-			SELECT COALESCE(MAX(monthly_total), 0) as peak_revenue
-			FROM (
-				SELECT SUM(total_amount) as monthly_total
-				FROM sales
-				WHERE created_at >= $1 AND created_at < $2
-					AND status = 'completed'
-				GROUP BY EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')),
-				         EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
-			) monthly
-		),
-		previous_peak_month AS (
-			SELECT COALESCE(MAX(monthly_total), 0) as peak_revenue
-			FROM (
-				SELECT SUM(total_amount) as monthly_total
-				FROM sales
-				WHERE created_at >= $3 AND created_at < $4
-					AND status = 'completed'
-				GROUP BY EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')),
-				         EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta'))
+				SELECT
+					SUM(total_amount) as monthly_total,
+					period
+				FROM (
+					SELECT total_amount,
+						CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
+						EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as yr,
+						EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as mo
+					FROM sales
+					WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
+						AND status = 'completed'
+				) tagged
+				GROUP BY yr, mo, period
 			) monthly
 		)
 		SELECT
-			cp.revenue, cp.orders,
-			pp.revenue, pp.orders,
-			cpeak_hour.peak_revenue, ppeak_hour.peak_revenue,
-			cpeak_month.peak_revenue, ppeak_month.peak_revenue
-		FROM current_period cp, previous_period pp,
-		     current_peak_hour cpeak_hour, previous_peak_hour ppeak_hour,
-		     current_peak_month cpeak_month, previous_peak_month ppeak_month`
+			ps.current_revenue, ps.current_orders,
+			ps.previous_revenue, ps.previous_orders,
+			COALESCE(ph.current_peak, 0), COALESCE(ph.previous_peak, 0),
+			COALESCE(pm.current_peak, 0), COALESCE(pm.previous_peak, 0)
+		FROM period_stats ps, peak_hours ph, peak_months pm`
 
 	args := []interface{}{currentStart, currentEnd, previousStart, previousEnd, storeID}
 	storeFilter := ` AND (store_id = $5 OR $5 IS NULL)`
 
-	// Inject storeFilter into every subquery that filters on created_at
 	query = strings.ReplaceAll(query, "AND status = 'completed'", storeFilter+" AND status = 'completed'")
 
 	var result PeriodComparison
@@ -130,6 +170,11 @@ func (r *Repository) GetPeriodComparison(
 
 	result.RevenuePerDay = int(math.Round(float64(result.CurrentRevenue) / float64(days)))
 	result.PreviousRevenuePerDay = int(math.Round(float64(result.PreviousRevenue) / float64(days)))
+
+	if r.cache != nil {
+		ttl := 5*time.Second + time.Duration(rand.Intn(5))*time.Second
+		r.cache.SetWithTTL(key, &result, ttl)
+	}
 
 	return &result, nil
 }
@@ -206,49 +251,72 @@ func (r *Repository) GetDualChartData(
 	return current, previous, rows.Err()
 }
 
+type liveDashboardResult struct {
+	todaysRevenue  int
+	todaysSales    int
+	totalProducts  int
+	lowStockCount  int
+}
+
 func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
+	key := "dashboard:live"
+	if storeID != nil {
+		key = fmt.Sprintf("dashboard:live:store:%d", *storeID)
+	}
+	if r.cache != nil {
+		if cached, found := r.cache.Get(key); found {
+			res := cached.(*liveDashboardResult)
+			return res.todaysRevenue, res.todaysSales, res.totalProducts, res.lowStockCount, nil
+		}
+	}
+
 	jakartaNow := time.Now().In(shared.JakartaLocation())
 	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, shared.JakartaLocation())
 	todayEnd := todayStart.Add(24 * time.Hour)
 
-	todayQuery := `
-		SELECT COALESCE(SUM(total_amount), 0), COUNT(*)
-		FROM sales
-		WHERE created_at >= $1 AND created_at < $2
-		  AND status = 'completed'`
-
-	args := []interface{}{todayStart, todayEnd}
-	argIdx := 3
+	cfg := config.Load()
+	storeFilter := ""
+	args := []interface{}{todayStart, todayEnd, cfg.StockCriticalThreshold}
+	argIdx := 4
 	if storeID != nil {
-		todayQuery += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		storeFilter = fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
 	}
 
-	if err := r.db.QueryRow(ctx, todayQuery, args...).Scan(&todaysRevenue, &todaysSales); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard sales: %w", err)
-	}
+	query := `
+		WITH today_sales AS (
+			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
+			FROM sales
+			WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'` + storeFilter + `
+		),
+		product_count AS (
+			SELECT COUNT(*) AS total
+			FROM products
+			WHERE deleted_at IS NULL` + storeFilter + `
+		),
+		stock_count AS (
+			SELECT COUNT(*) AS low
+			FROM product_stock
+			WHERE quantity <= $3` + storeFilter + `
+		)
+		SELECT ts.revenue, ts.orders, pc.total, sc.low
+		FROM today_sales ts, product_count pc, stock_count sc`
 
-	productsQuery := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
-	args2 := []interface{}{}
-	argIdx2 := 1
-	if storeID != nil {
-		productsQuery += fmt.Sprintf(" AND store_id = $%d", argIdx2)
-		args2 = append(args2, *storeID)
+	var todaysRevInt, todaysSalesInt int
+	var totalProductsInt, lowStockCountInt int64
+	if err := r.db.QueryRow(ctx, query, args...).Scan(
+		&todaysRevInt, &todaysSalesInt, &totalProductsInt, &lowStockCountInt,
+	); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard stats: %w", err)
 	}
-	if err := r.db.QueryRow(ctx, productsQuery, args2...).Scan(&totalProducts); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard products: %w", err)
-	}
+	todaysRevenue = todaysRevInt
+	todaysSales = todaysSalesInt
+	totalProducts = int(totalProductsInt)
+	lowStockCount = int(lowStockCountInt)
 
-	cfg := config.Load()
-	stockQuery := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
-	stockArgs := []interface{}{cfg.StockCriticalThreshold}
-	stockIdx := 2
-	if storeID != nil {
-		stockQuery += fmt.Sprintf(" AND store_id = $%d", stockIdx)
-		stockArgs = append(stockArgs, *storeID)
-	}
-	if err := r.db.QueryRow(ctx, stockQuery, stockArgs...).Scan(&lowStockCount); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard low stock: %w", err)
+	if r.cache != nil {
+		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
+		r.cache.SetWithTTL(key, &liveDashboardResult{todaysRevenue, todaysSales, totalProducts, lowStockCount}, ttl)
 	}
 
 	return
@@ -457,6 +525,16 @@ func (r *Repository) GetSalesMonthlyReport(ctx context.Context, start, end time.
 }
 
 func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error) {
+	key := "dashboard:stats"
+	if storeID != nil {
+		key = fmt.Sprintf("dashboard:stats:store:%d", *storeID)
+	}
+	if r.cache != nil {
+		if cached, found := r.cache.Get(key); found {
+			return cached.(*DashboardStats), nil
+		}
+	}
+
 	now := time.Now().In(jakartaLoc)
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jakartaLoc)
 	todayEnd := todayStart.Add(24 * time.Hour)
@@ -522,6 +600,11 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	stats.TotalProducts = totalProducts
 	stats.LowStockCount = lowStockCount
 	stats.ActiveCustomers = activeCustomers
+
+	if r.cache != nil {
+		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
+		r.cache.SetWithTTL(key, &stats, ttl)
+	}
 
 	return &stats, nil
 }

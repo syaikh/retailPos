@@ -11,17 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"golang.org/x/time/rate"
 )
 
 func getJakartaLoc() *time.Location {
-	loc, err := time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		return time.UTC
-	}
-	return loc
+	return shared.JakartaLocation()
 }
 
 const (

@@ -6,18 +6,15 @@ import (
 	"log"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
-
-type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-}
 
 type Service struct {
 	repo     *Repository
-	eventBus EventBus
+	eventBus shared.EventBus
 }
 
-func NewService(repo *Repository, eventBus EventBus) *Service {
+func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
 }
 
