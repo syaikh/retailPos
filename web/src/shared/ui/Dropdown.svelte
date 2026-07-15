@@ -6,7 +6,7 @@
   type Placement = 'bottom-start' | 'bottom-end' | 'bottom' | 'top-start' | 'top-end' | 'top';
 
   export interface DropdownItem {
-    label: string;
+    label?: string;
     icon?: ComponentType;
     iconClass?: string;
     disabled?: boolean;
@@ -27,8 +27,8 @@
     menuClass = '',
   }: {
     items?: DropdownItem[];
-    trigger: Snippet<{ open: boolean; toggle: () => void }>;
-    content?: Snippet<{ close: () => void }>;
+    trigger: Snippet<[{ open: boolean; toggle: () => void }]>;
+    content?: Snippet<[{ close: () => void }]>;
     placement?: Placement;
     open?: boolean;
     menu?: boolean;

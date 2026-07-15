@@ -3,6 +3,7 @@ export interface User {
   username: string;
   email: string;
   role?: { id: number; name: string } | string;
+  role_id?: number;
   store_id?: number;
   is_active?: boolean;
   last_login?: string;

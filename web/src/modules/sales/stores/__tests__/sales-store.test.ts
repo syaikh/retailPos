@@ -62,13 +62,13 @@ describe('sales-store', () => {
     store.pageSize = 50;
     store.page = 2;
     store.sortBy = 'invoice_number';
-    store.sortDir = 'ASC';
+    store.sortDir = 'asc';
     store.searchQuery = 'test';
     const filters = store.currentFilters;
     expect(filters.limit).toBe(50);
     expect(filters.offset).toBe(100);
     expect(filters.sortBy).toBe('invoice_number');
-    expect(filters.sortDir).toBe('ASC');
+    expect(filters.sortDir).toBe('asc');
     expect(filters.search).toBe('test');
   });
 

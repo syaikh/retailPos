@@ -16,7 +16,7 @@
 
   // State variables
   let loading = $state(true);
-  let items = $state([]);
+  let items = $state<any[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
@@ -31,16 +31,16 @@
 
   // Request tracking to prevent duplicate requests
   let currentRequestId = $state(0);
-  let abortController = $state(null);
+  let abortController: AbortController | null = $state(null);
   let hasInitialized = $state(false);
 
   let canView = $derived(rbac.isSuperAdmin);
 
   // Drawer state
   let drawerOpen = $state(false);
-  let selectedLog = $state(null);
+  let selectedLog: any = $state(null);
 
-  function openDrawer(log) {
+  function openDrawer(log: any) {
     selectedLog = log;
     drawerOpen = true;
   }
@@ -51,7 +51,7 @@
   }
 
   // Convert a Jakarta date string (YYYY-MM-DD) to UTC epoch for RFC3339 API
-  function jakartaDateToUTC(dateStr) {
+  function jakartaDateToUTC(dateStr: string) {
     const [y, m, d] = dateStr.split('-').map(Number);
     // Jakarta midnight = UTC 17:00 previous day
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
@@ -62,7 +62,7 @@
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
 
-  function getDateRange(range) {
+  function getDateRange(range: string) {
     switch (range) {
       case '24h': {
         const yesterday = getDateNDaysAgoInJakarta(1);
@@ -149,7 +149,7 @@
       const data = response.data || {};
       items = data.data || [];
       total = data.total || 0;
-    } catch (error) {
+    } catch (error: any) {
       const isCanceled =
         error?.name === 'CanceledError' ||
         error?.name === 'AbortError' ||
@@ -221,7 +221,7 @@
     prevLim = sl;
   });
 
-  function handlePageChange(newOffset, newLimit) {
+  function handlePageChange(newOffset: number, newLimit: number) {
     offset = newOffset;
     limit = newLimit;
   }

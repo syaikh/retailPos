@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { ToastMessage, toast as ToastStore } from '../toast.svelte.ts';
 
 describe('toast store', () => {
-  let toast: typeof import('../toast.svelte').toast;
+  let toast: typeof ToastStore;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -27,7 +28,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     toast.success('Test message');
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts).toHaveLength(1);
     expect(toasts[0].variant).toBe('success');
@@ -39,7 +40,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     toast.error('Error message');
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts[0].variant).toBe('error');
     expect(toasts[0].message).toBe('Error message');
@@ -49,7 +50,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     toast.warning('Warning message');
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts[0].variant).toBe('warning');
   });
@@ -58,7 +59,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     toast.info('Info message');
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts[0].variant).toBe('info');
   });
@@ -67,7 +68,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     const id = toast.success('Test');
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts).toHaveLength(1);
     toast.remove(id);
@@ -79,7 +80,7 @@ describe('toast store', () => {
     const { toast: t } = await import('../toast.svelte');
     toast = t;
     toast.success('Test', 4000);
-    let toasts: typeof import('../toast.svelte').ToastMessage[] = [];
+    let toasts: ToastMessage[] = [];
     toast.subscribe((value) => { toasts = value; })();
     expect(toasts).toHaveLength(1);
     vi.advanceTimersByTime(4000);

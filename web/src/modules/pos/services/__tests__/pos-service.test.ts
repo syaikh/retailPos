@@ -65,7 +65,7 @@ describe('pos-service', () => {
       cashier_id: 1, store_id: null, subtotal: 10000, discount: 0, tax: 0,
       total_amount: 10000, payment_method: 'Cash', customer_id: null, status: 'completed',
     };
-    const result = await createSale(payload);
+    const result = await createSale(payload) as { data: { data: { invoice_number: string } } };
 
     expect(mockPost).toHaveBeenCalledWith('/sales', payload);
     expect(result.data.data.invoice_number).toBe('INV-001');

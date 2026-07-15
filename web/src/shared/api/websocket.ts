@@ -135,7 +135,7 @@ class WebSocketService {
   }
 }
 
-let instance = null;
+let instance: WebSocketService | null = null;
 
 export function useWebSocket() {
   if (!instance) {

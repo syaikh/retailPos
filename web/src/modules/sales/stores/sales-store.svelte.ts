@@ -15,7 +15,7 @@ let endDate = $state('');
 let page = $state(0);
 let pageSize = $state(20);
 let sortBy = $state('created_at');
-let sortDir = $state('desc');
+let sortDir = $state<'asc' | 'desc'>('desc');
 
 let paymentMethodOptions = $state<{ code: string; name: string }[]>([]);
 let initialized = false;
@@ -54,8 +54,8 @@ export function useSalesStore() {
     set offset(v: number) { page = Math.floor(v / pageSize); },
     get sortBy() { return sortBy; },
     set sortBy(v: string) { sortBy = v; },
-    get sortDir() { return sortDir; },
-    set sortDir(v: string) { sortDir = v; },
+    get sortDir(): 'asc' | 'desc' { return sortDir; },
+    set sortDir(v: 'asc' | 'desc') { sortDir = v; },
     get paymentMethodOptions() { return paymentMethodOptions; },
     set paymentMethodOptions(v: { code: string; name: string }[]) { paymentMethodOptions = v; },
 

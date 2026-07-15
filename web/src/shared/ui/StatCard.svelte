@@ -1,5 +1,7 @@
-<script>
+<script lang="ts">
   import { Badge, Skeleton } from '$shared/ui';
+  import type { Snippet } from 'svelte';
+  import type { Component } from 'svelte';
 
   let {
     label,
@@ -13,6 +15,18 @@
     iconColor = 'text-primary-light',
     loading = false,
     valueClass = '',
+  }: {
+    label: string;
+    value: string | number;
+    sub?: string;
+    trend?: number | null;
+    trendLabel?: string;
+    displayTrend?: boolean;
+    icon: Component;
+    iconBg?: string;
+    iconColor?: string;
+    loading?: boolean;
+    valueClass?: string;
   } = $props();
 
   const trendUp = $derived(trend !== null && trend > 0);

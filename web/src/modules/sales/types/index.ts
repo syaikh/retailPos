@@ -23,6 +23,8 @@ export interface Sale {
   items: SaleItem[];
   created_at: string;
   customer_name?: string;
+  cash_received?: number;
+  change_due?: number;
 }
 
 export interface SaleFilters {

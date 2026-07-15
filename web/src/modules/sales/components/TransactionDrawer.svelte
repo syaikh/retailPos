@@ -111,7 +111,7 @@
         <div>
           <p class="text-xs font-medium text-text-muted uppercase tracking-wide">Payment Method</p>
           <div class="mt-1">
-            <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(selectedTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(selectedTransaction.payment_method) === 'warning' ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'}">
+            <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full {getPaymentMethodVariant(selectedTransaction.payment_method) === 'success' ? 'bg-success/20 text-success' : getPaymentMethodVariant(selectedTransaction.payment_method) === 'muted' ? 'bg-muted/20 text-muted' : 'bg-primary/20 text-primary'}">
               {selectedTransaction.payment_method || '—'}
             </span>
           </div>

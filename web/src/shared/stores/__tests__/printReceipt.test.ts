@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ReceiptData } from '../printReceipt.svelte.ts';
+import type { printReceipt as PrintReceiptStore } from '../printReceipt.svelte.ts';
 
 describe('printReceipt store', () => {
-  let printReceipt: typeof import('../printReceipt.svelte').printReceipt;
+  let printReceipt: typeof PrintReceiptStore;
 
   beforeEach(() => {
     vi.resetModules();
@@ -18,7 +20,7 @@ describe('printReceipt store', () => {
   it('initial value is null', async () => {
     const { printReceipt: p } = await import('../printReceipt.svelte');
     printReceipt = p;
-    let value: typeof import('../printReceipt.svelte').ReceiptData | null = 'not null';
+    let value: ReceiptData | null = 'not null' as unknown as ReceiptData;
     printReceipt.subscribe((v) => { value = v; })();
     expect(value).toBeNull();
   });
@@ -36,7 +38,7 @@ describe('printReceipt store', () => {
       changeDue: 0,
     };
     printReceipt.set(data);
-    let value: typeof import('../printReceipt.svelte').ReceiptData | null = null;
+    let value: ReceiptData | null = null;
     printReceipt.subscribe((v) => { value = v; })();
     expect(value).toEqual(data);
   });
@@ -46,7 +48,7 @@ describe('printReceipt store', () => {
     printReceipt = p;
     printReceipt.set({ invoice_number: 'X', created_at: '', items: [], total_amount: 0, paymentMethod: '', cashReceived: 0, changeDue: 0 });
     printReceipt.set(null);
-    let value: typeof import('../printReceipt.svelte').ReceiptData | null = 'not null';
+    let value: ReceiptData | null = 'not null' as unknown as ReceiptData;
     printReceipt.subscribe((v) => { value = v; })();
     expect(value).toBeNull();
   });

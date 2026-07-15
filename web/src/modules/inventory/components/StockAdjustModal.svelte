@@ -4,7 +4,7 @@
 
   let {
     open = $bindable(false),
-    stockAdjustProduct = null as {name: string, stock: number} | null,
+    stockAdjustProduct = $bindable(null as {name: string, stock: number} | null),
     productId = $bindable(null as number | null),
     quantityChange = $bindable(0),
     notes = $bindable(''),

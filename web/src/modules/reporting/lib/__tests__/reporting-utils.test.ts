@@ -57,19 +57,19 @@ describe('reporting-utils', () => {
   describe('getPeriodLabel', () => {
     it('formats hour item', async () => {
       const { getPeriodLabel } = await import('../reporting-utils');
-      expect(getPeriodLabel({ hour: 5, total: 100 })).toBe('05:00');
+      expect(getPeriodLabel({ hour: 5 })).toBe('05:00');
     });
 
     it('formats date item', async () => {
       const { getPeriodLabel } = await import('../reporting-utils');
-      const result = getPeriodLabel({ date: '2026-06-15', total: 100 });
+      const result = getPeriodLabel({ date: '2026-06-15' });
       expect(result).toContain('Jun');
       expect(result).toContain('15');
     });
 
     it('returns label fallback', async () => {
       const { getPeriodLabel } = await import('../reporting-utils');
-      expect(getPeriodLabel({ label: 'Week 1', total: 100 })).toBe('Week 1');
+      expect(getPeriodLabel({ label: 'Week 1' })).toBe('Week 1');
     });
 
     it('returns empty for null', async () => {
@@ -170,7 +170,7 @@ describe('reporting-utils', () => {
   describe('getPeriodLabel', () => {
     it('returns empty string for null', async () => {
       const { getPeriodLabel } = await import('../reporting-utils');
-      expect(getPeriodLabel(null)).toBe('');
+      expect(getPeriodLabel(null as unknown as { hour?: number; date?: string; month_start?: string; label?: string })).toBe('');
     });
 
     it('formats hourly items', async () => {

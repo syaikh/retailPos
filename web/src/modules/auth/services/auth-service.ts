@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth-store.svelte';
 import { setAccessToken, removeAccessToken, getAuthToken } from '../lib/session';
 import type { User } from '../types';
@@ -43,7 +44,7 @@ export async function refreshTokenSilently(): Promise<string | null> {
   }
 }
 
-export function setupAxiosInterceptors(apiClient: axios.AxiosInstance) {
+export function setupAxiosInterceptors(apiClient: AxiosInstance) {
   let isRefreshing = false;
   let failedQueue: Array<{
     resolve: (token: string) => void;
@@ -63,12 +64,12 @@ export function setupAxiosInterceptors(apiClient: axios.AxiosInstance) {
 
   apiClient.interceptors.response.use(
     (response) => response,
-    async (error: axios.AxiosError) => {
-      const originalRequest = error.config as axios.AxiosRequestConfig & { _retry?: boolean };
+    async (error: AxiosError) => {
+      const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
       if (error.response?.status === 401 && !originalRequest._retry) {
         if (isRefreshing) {
-          return new Promise((resolve, reject) => {
+          return new Promise<string>((resolve, reject) => {
             failedQueue.push({ resolve, reject });
           })
             .then((token: string) => {

@@ -19,9 +19,21 @@
 
 const authStore = useAuthStore();
 
-   let cart = $state([]);
-   let products = $state([]);
-   let total = $state(0);
+  interface CartItem {
+    id: number;
+    name: string;
+    price: number;
+    quantity: number;
+    stock: number;
+    tax_rate?: number;
+    sku?: string;
+    barcode?: string;
+    [key: string]: unknown;
+  }
+
+   let cart: CartItem[] = $state([]);
+let products: any[] = $state([]);
+let total: number = $state(0);
    let searchQuery = $state('');
    let loading = $state(false);
    let limit = $state(20);
@@ -31,11 +43,11 @@ const authStore = useAuthStore();
    let lastSale: Sale | null = $state(null);
    let ws = useWebSocket();
 
-  let unsubscribeStock = null;
-  let unsubscribeSale = null;
+  let unsubscribeStock: (() => void) | null = null;
+  let unsubscribeSale: (() => void) | null = null;
 
   let previousSearchQuery = '';
-  let showCopySuccess = $state(null);
+  let showCopySuccess: Set<string> | null = $state(null);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
 
@@ -50,7 +62,6 @@ const authStore = useAuthStore();
    let showCheckoutModal = $state(false);
    let showCart = $state(false);
    let cashReceived = $state(0);
-   let changeDue = $derived(cashReceived - totalAmount);
 
    let customers: Customer[] = $state([]);
    let selectedCustomerId = $state<number | null>(null);
@@ -70,6 +81,7 @@ const authStore = useAuthStore();
   }, 0));
   const taxDisplay = $derived(taxAmount); 
   const totalAmount = $derived(subtotal);
+  const changeDue = $derived(cashReceived - totalAmount);
   const dppDisplay = $derived(subtotal - taxAmount);
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
@@ -147,7 +159,7 @@ const authStore = useAuthStore();
     }
   }
 
-  function addToCart(product) {
+  function addToCart(product: CartItem) {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
       const maxStock = existing.stock || 999;
@@ -163,13 +175,13 @@ const authStore = useAuthStore();
     }
   }
 
-  function removeFromCart(id) {
+  function removeFromCart(id: number) {
     const idx = cart.findIndex((item) => item.id === id);
     if (idx !== -1) cart.splice(idx, 1);
     cart = cart;
   }
 
-  function updateQty(id, delta) {
+  function updateQty(id: number, delta: number) {
     const item = cart.find((i) => i.id === id);
     if (item) {
       const newQty = item.quantity + delta;
@@ -229,7 +241,7 @@ const authStore = useAuthStore();
       toast.success('Sale completed');
       cart = [];
       await fetchProducts(false);
-    } catch (err) {
+    } catch (err: any) {
       const errMsg = err.response?.data?.error || 'Checkout failed';
       toast.error(errMsg);
     } finally {
@@ -257,7 +269,7 @@ const authStore = useAuthStore();
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
       items: (sale.items || []).map((item) => ({
-        name: item.name,
+        name: item.name || '',
         quantity: item.quantity,
         unit_price: item.unit_price,
       })),
@@ -275,7 +287,7 @@ const authStore = useAuthStore();
     }, 300);
   }
 
-  function handlePageChange(newOffset) {
+  function handlePageChange(newOffset: number) {
     offset = newOffset;
     fetchProducts(false);
   }
@@ -308,7 +320,7 @@ const authStore = useAuthStore();
           invoice_number: lastSale.invoice_number,
           created_at: lastSale.created_at,
           items: lastSale.items.map((item) => ({
-            name: item.name,
+            name: item.name || '',
             quantity: item.quantity,
             unit_price: item.unit_price,
           })),
@@ -325,7 +337,7 @@ const authStore = useAuthStore();
           setTimeout(() => printReceiptStore.set(null), 1000);
         }, 300);
       }
-    }).catch((err) => {
+    }).catch((err: any) => {
       console.error('Checkout failed:', err);
       toast.error('Checkout failed. Please try again.');
     });
@@ -342,7 +354,7 @@ const authStore = useAuthStore();
     }
   });
 
-  function handleGlobalKeydown(event) {
+  function handleGlobalKeydown(event: KeyboardEvent) {
     if (event.altKey && event.key === 'Delete') {
       event.preventDefault();
       if (cart.length > 0) {
@@ -356,7 +368,7 @@ const authStore = useAuthStore();
       const input = document.getElementById('pos-search-input');
       if (input) {
         input.focus();
-        input.select();
+        (input as HTMLInputElement).select();
       }
       return;
     }
@@ -409,52 +421,54 @@ const authStore = useAuthStore();
       const input = document.getElementById('pos-search-input');
       if (input) {
         input.focus();
-        input.select();
+        (input as HTMLInputElement).select();
       }
     }, 50);
   }
 
-  onMount(async () => {
-    isInitialMount = true;
-    await Promise.all([fetchProducts(false), fetchThresholds()]);
-    fetchCustomers();
-    isInitialMount = false;
-    focusSearch();
-    try {
-      const endDate = getTodayInJakarta();
-      const startDate = '2025-01-01';
-      const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
-      const body = r.data;
-      let data = body?.data || body;
-      if (Array.isArray(data) && data.length > 0) {
-        lastSale = data[0];
-      } else if (data && !Array.isArray(data) && (data as any).id) {
-        lastSale = data;
-      }
-      if (lastSale) {
-        console.log('[POS] Last sale loaded:', lastSale.invoice_number, 'items:', lastSale.items?.length);
-      }
-      if (lastSale && !lastSale.items) {
-        const detail = await apiClient.get(`/sales/${lastSale.id}`);
-        const detailData = detail.data?.data || detail.data;
-        if (detailData?.items) {
-          lastSale = detailData;
+  onMount(() => {
+    (async () => {
+      isInitialMount = true;
+      await Promise.all([fetchProducts(false), fetchThresholds()]);
+      fetchCustomers();
+      isInitialMount = false;
+      focusSearch();
+      try {
+        const endDate = getTodayInJakarta();
+        const startDate = '2025-01-01';
+        const r = await apiClient.get(`/sales?limit=1&offset=0&startDate=${startDate}&endDate=${endDate}`);
+        const body = r.data;
+        let data = body?.data || body;
+        if (Array.isArray(data) && data.length > 0) {
+          lastSale = data[0];
+        } else if (data && !Array.isArray(data) && (data as any).id) {
+          lastSale = data;
         }
+        if (lastSale) {
+          console.log('[POS] Last sale loaded:', lastSale.invoice_number, 'items:', lastSale.items?.length);
+        }
+        if (lastSale && !lastSale.items) {
+          const detail = await apiClient.get(`/sales/${lastSale.id}`);
+          const detailData = detail.data?.data || detail.data;
+          if (detailData?.items) {
+            lastSale = detailData;
+          }
+        }
+      } catch (err: any) {
+        console.warn('[POS] Failed to load last sale:', err?.response?.data?.error || err?.message);
       }
-    } catch (err: any) {
-      console.warn('[POS] Failed to load last sale:', err?.response?.data?.error || err?.message);
-    }
-    unsubscribeStock = ws.on('stock_update', (data) => {
-      const product = products.find(p => p.id === data.id);
-      if (product) {
-        product.stock = data.stock;
-      }
-    });
-    unsubscribeSale = ws.on('sale_created', (data) => {
-      if (data) {
-        lastSale = data;
-      }
-    });
+      unsubscribeStock = ws.on('stock_update', (data: any) => {
+        const product = products.find(p => p.id === data.id);
+        if (product) {
+          product.stock = data.stock;
+        }
+      });
+      unsubscribeSale = ws.on('sale_created', (data: any) => {
+        if (data) {
+          lastSale = data as Sale;
+        }
+      });
+    })();
     return () => {
       if (unsubscribeStock) unsubscribeStock();
       if (unsubscribeSale) unsubscribeSale();

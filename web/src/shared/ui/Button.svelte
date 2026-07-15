@@ -1,21 +1,18 @@
 <script lang="ts">
   import { cn } from '$shared/utils/cn';
   import type { Snippet } from 'svelte';
+  import type { HTMLButtonAttributes } from 'svelte/elements';
 
   let {
     variant = 'primary',
     size = 'md',
-    disabled = false,
-    class: className = '',
     children,
     ...rest
   }: {
     variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'ghost';
     size?: 'sm' | 'md' | 'icon' | 'xs';
-    disabled?: boolean;
-    class?: string;
     children: Snippet;
-  } = $props();
+  } & HTMLButtonAttributes = $props();
 
   const base =
     'inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg-default disabled:opacity-40 disabled:cursor-not-allowed select-none';
@@ -43,8 +40,7 @@
 
 <button
   type="button"
-  class={cn(base, variants[variant], sizes[size], className)}
-  {disabled}
+  class={cn(base, variants[variant], sizes[size], rest.class)}
   {...rest}
 >
   {@render children()}

@@ -13,7 +13,7 @@
   }: {
     tag?: 'input' | 'select' | 'textarea';
     class?: string;
-    value?: string;
+    value?: string | number;
     children?: Snippet;
     oninput?: (e: Event) => void;
     elementRef?: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void;

@@ -185,7 +185,7 @@
     }
   }
 
-  function jakartaDateToUTC(dateStr) {
+  function jakartaDateToUTC(dateStr: string) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
@@ -195,7 +195,7 @@
     return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - JAKARTA_OFFSET_MS;
   }
 
-  function getDateRange(range) {
+  function getDateRange(range: string) {
     switch (range) {
       case '24h': {
         const yesterday = getDateNDaysAgoInJakarta(1);
@@ -278,7 +278,7 @@
     }
   }
 
-  function clearFilter(type) {
+  function clearFilter(type: string) {
     if (type === 'entity') selectedResource = 'all';
     if (type === 'action') selectedAction = 'all';
     if (type === 'date') {

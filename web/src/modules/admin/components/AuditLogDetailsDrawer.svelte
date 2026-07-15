@@ -13,7 +13,7 @@
     onclose?: () => void;
   } = $props();
 
-  function getChanges(log) {
+  function getChanges(log: any) {
     const ov = log?.old_values || {};
     const nv = log?.new_values || {};
     const keys = new Set([...Object.keys(ov), ...Object.keys(nv)]);
@@ -26,7 +26,7 @@
     return out;
   }
 
-  function getDiffDescription(change) {
+  function getDiffDescription(change: { key: string; old: any; new: any }) {
     const label = getFieldLabel(change.key);
     const oldVal = formatValue(change.old);
     const newVal = formatValue(change.new);
@@ -114,14 +114,14 @@
     return fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  function formatTimestamp(d) {
+  function formatTimestamp(d: string | null | undefined) {
     if (!d) return { date: '—', time: '', full: '—' };
     const dateStr = formatDateInJakarta(d);
     const timeStr = formatTimeInJakarta(d);
     return { date: dateStr, time: timeStr, full: `${dateStr} ${timeStr}` };
   }
 
-  function formatDateHuman(d) {
+  function formatDateHuman(d: string | null | undefined) {
     if (!d) return '—';
     const dateObj = new Date(d);
     const nowMs = Date.now() + JAKARTA_OFFSET_MS;
@@ -138,7 +138,7 @@
     return formatDateInJakarta(d);
   }
 
-  function formatValue(val) {
+  function formatValue(val: any): string {
     if (val == null) return '—';
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     if (typeof val === 'string') {
@@ -155,7 +155,7 @@
     if (typeof val === 'object') {
       if (Array.isArray(val)) {
         if (val.length === 0) return 'None';
-        return val.map((v) => formatValue(v)).join(', ');
+        return val.map((v: any) => formatValue(v)).join(', ');
       }
       if (val.name) return String(val.name);
       if (val.label) return String(val.label);
@@ -178,9 +178,9 @@
         }
         return parts.join(' · ');
       }
-      const pairs = Object.entries(val)
-        .filter(([k]) => k !== 'created_at' && k !== 'updated_at')
-        .map(([k, v]) => `${getFieldLabel(k)}: ${formatValue(v)}`);
+      const pairs: string[] = Object.entries(val)
+        .filter(([k]: [string, any]) => k !== 'created_at' && k !== 'updated_at')
+        .map(([k, v]: [string, any]) => `${getFieldLabel(k)}: ${formatValue(v)}`);
       return pairs.join(', ') || '—';
     }
     return String(val);

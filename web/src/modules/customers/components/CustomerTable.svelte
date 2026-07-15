@@ -10,7 +10,7 @@
     canDelete = false,
     selectedIds = $bindable(new Set<number>()),
     sortBy = $bindable('name'),
-    sortDir = $bindable('asc'),
+    sortDir = $bindable<'asc' | 'desc'>('asc'),
     onselectall = () => {},
     onselect = (id: number) => {},
     onsort = (col: string) => {},
@@ -24,7 +24,7 @@
     canDelete: boolean;
     selectedIds: Set<number>;
     sortBy: string;
-    sortDir: string;
+    sortDir: 'asc' | 'desc';
     onselectall?: () => void;
     onselect?: (id: number) => void;
     onsort?: (col: string) => void;

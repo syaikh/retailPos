@@ -21,7 +21,7 @@
     onrowclick?: (log: any) => void;
   } = $props();
 
-  function formatTimestamp(d) {
+  function formatTimestamp(d: string | null | undefined) {
     if (!d) return { date: '—', time: '', full: '—' };
     const dateStr = formatDateInJakarta(d);
     const timeStr = formatTimeInJakarta(d);

@@ -64,9 +64,11 @@ export async function exportToExcel({
       temp.width = chartCanvas.width;
       temp.height = chartCanvas.height;
       const tCtx = temp.getContext('2d');
-      tCtx.fillStyle = '#111827';
-      tCtx.fillRect(0, 0, temp.width, temp.height);
-      tCtx.drawImage(chartCanvas, 0, 0);
+      if (tCtx) {
+        tCtx.fillStyle = '#111827';
+        tCtx.fillRect(0, 0, temp.width, temp.height);
+        tCtx.drawImage(chartCanvas, 0, 0);
+      }
       formData.set('chartData', temp.toDataURL('image/png'));
     }
 
@@ -89,9 +91,9 @@ export async function exportToExcel({
     URL.revokeObjectURL(url);
 
     toast.success('Excel export completed');
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Excel export error:', error);
-    toast.error('Export Excel gagal: ' + (error.message || 'unknown error'));
+    toast.error('Export Excel gagal: ' + (error instanceof Error ? error.message : 'unknown error'));
   }
 }
 
@@ -123,7 +125,7 @@ export async function exportToPDF({
     const margin = 15;
     let yPos = 20;
 
-    const rangeDateFormat = (ds) => {
+    const rangeDateFormat = (ds: string | undefined) => {
       if (!ds) return '';
       const d = new Date(ds + 'T00:00:00Z');
       return `${String(d.getUTCDate()).padStart(2, '0')} ${d.toLocaleString('id-ID', { month: 'short', timeZone: 'UTC' })} ${d.getUTCFullYear()}`;
@@ -159,8 +161,8 @@ export async function exportToPDF({
       yPos += 6;
     }
 
-    const fmt = (v) => `Rp ${v.toLocaleString('id-ID')}`;
-    const fmtChg = (cur, prev) => {
+    const fmt = (v: number) => `Rp ${v.toLocaleString('id-ID')}`;
+    const fmtChg = (cur: number, prev: number) => {
       if (prev === 0) return cur > 0 ? '+100%' : '0%';
       const chg = (cur - prev) / prev;
       return `${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(1)}%`;
@@ -197,16 +199,18 @@ export async function exportToPDF({
       theme: 'grid',
       styles: { fontSize: 9 },
     });
-    yPos = doc.lastAutoTable.finalY + 8;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     if (chartCanvas && chartData.length > 0) {
       const temp = document.createElement('canvas');
       temp.width = chartCanvas.width;
       temp.height = chartCanvas.height;
       const tCtx = temp.getContext('2d');
-      tCtx.fillStyle = '#111827';
-      tCtx.fillRect(0, 0, temp.width, temp.height);
-      tCtx.drawImage(chartCanvas, 0, 0);
+      if (tCtx) {
+        tCtx.fillStyle = '#111827';
+        tCtx.fillRect(0, 0, temp.width, temp.height);
+        tCtx.drawImage(chartCanvas, 0, 0);
+      }
       const imgData = temp.toDataURL('image/png');
       const imgWidth = pageWidth - margin * 2;
       const imgHeight = (chartCanvas.height / chartCanvas.width) * imgWidth;
@@ -218,12 +222,12 @@ export async function exportToPDF({
 
     if (bestPeriod) {
       doc.setFontSize(9);
-      doc.text(`Best ${bestWorstHeading}: ${getPeriodLabel(bestPeriod)} — Rp ${(bestPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
+      doc.text(`Best ${bestWorstHeading}: ${getPeriodLabel(bestPeriod as { hour?: number; date?: string; month_start?: string; label?: string })} — Rp ${(bestPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
       yPos += 5;
     }
     if (worstPeriod && worstPeriod.total !== bestPeriod?.total) {
       doc.setFontSize(9);
-      doc.text(`Worst ${bestWorstHeading}: ${getPeriodLabel(worstPeriod)} — Rp ${(worstPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
+      doc.text(`Worst ${bestWorstHeading}: ${getPeriodLabel(worstPeriod as { hour?: number; date?: string; month_start?: string; label?: string })} — Rp ${(worstPeriod.total || 0).toLocaleString('id-ID')}`, margin, yPos);
       if (chartType === 'hourly') {
         doc.setFontSize(8);
         doc.setFont('Helvetica', 'italic');
@@ -244,7 +248,7 @@ export async function exportToPDF({
       if (hasOrders) headers.push('Orders');
 
       const body = sortedRows.map(row => {
-        const change = row.prevRevenue > 0 ? (((row.revenue - row.prevRevenue) / row.prevRevenue) * 100) : null;
+        const change = row.prevRevenue !== null && row.prevRevenue > 0 ? (((row.revenue - row.prevRevenue) / row.prevRevenue) * 100) : null;
         const rowData = [
           row.period,
           row.revenue.toLocaleString('id-ID'),

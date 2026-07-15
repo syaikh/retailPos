@@ -16,11 +16,12 @@
   import ProductBulkActions from './ProductBulkActions.svelte';
   import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
+  import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
 
   const authStore = useAuthStore();
 
   let loading = $state(true);
-  let products = $state([]);
+  let products = $state<Product[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
@@ -29,38 +30,38 @@
   let categories = $state(['All']);
   let showModal = $state(false);
   let showDeleteModal = $state(false);
-  let selectedProduct = $state(null);
-  let modalMode = $state('add');
+  let selectedProduct = $state<Product | null>(null);
+  let modalMode = $state<'add' | 'edit'>('add');
   let saving = $state(false);
   let isDeleting = $state(false);
   let showDetailDrawer = $state(false);
-  let showCopySuccess = $state(null);
+  let showCopySuccess = $state<Set<string> | null>(null);
   let ws = useWebSocket();
-  let brands = $state([]);
-  let unitsOfMeasure = $state([]);
-  let taxClasses = $state([]);
+  let brands = $state<Brand[]>([]);
+  let unitsOfMeasure = $state<UnitOfMeasure[]>([]);
+  let taxClasses = $state<TaxClass[]>([]);
   let canManageInventory = $state(false);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
   const allowedInventoryRoles = ['superadmin', 'admin', 'manager', 'staff'];
   const allowedStockRoles = ['superadmin', 'admin', 'manager', 'staff'];
 
-  let stockAdjustProduct = $state(null);
+  let stockAdjustProduct = $state<Product | null>(null);
   let showAdjustStockModal = $state(false);
   let adjustingStock = $state(false);
-  let adjustProductId = $state(null);
+  let adjustProductId = $state<number | null>(null);
   let adjustQuantityChange = $state(0);
   let adjustNotes = $state('');
   let lowStockOnly = $state(false);
   let filterStatus = $state('all');
 
   let previousCategories = ['All'];
-  let sortBy = $state('name');
-  let sortDir = $state('asc');
+  let sortBy = $state<string>('name');
+  let sortDir = $state<'asc' | 'desc'>('asc');
   let showCategoryFilterModal = $state(false);
   let modalCategorySearch = $state('');
 
-  let selectedIds = $state(new Set());
+  let selectedIds = $state(new Set<number>());
   let showBulkStatusModal = $state(false);
   let bulkStatusTarget = $state('active');
   let isBulkUpdating = $state(false);
@@ -93,7 +94,7 @@
       }
       selectedIds = new Set();
       await fetchProducts(offset, limit);
-    } catch (err) {
+    } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to update product statuses');
     } finally {
       isBulkUpdating = false;
@@ -110,7 +111,7 @@
     fetchProducts(0, limit);
   }
 
-  let form = $state({
+  let form = $state<ProductFormData>({
     name: '',
     sku: '',
     barcode: '',
@@ -137,12 +138,12 @@
     }
   }
 
-  function openProductDetails(product) {
+  function openProductDetails(product: Product) {
     selectedProduct = product;
     showDetailDrawer = true;
   }
 
-  function openAdjustStock(product) {
+  function openAdjustStock(product: Product) {
     stockAdjustProduct = product;
     adjustProductId = product.id;
     adjustQuantityChange = 0;
@@ -171,7 +172,7 @@
       showAdjustStockModal = false;
       stockAdjustProduct = null;
       await fetchProducts(offset, limit);
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
       toast.error(errorMsg);
     } finally {
@@ -182,8 +183,8 @@
   async function fetchCategories() {
     try {
       const r = await apiClient.get('/categories');
-      const catList = r.data.data || [];
-      categories = ['All', ...catList.map(c => c.name)];
+      const catList: { name: string }[] = r.data.data || [];
+      categories = ['All', ...catList.map((c: { name: string }) => c.name)];
       if (!form.category && catList.length > 0) {
         form.category = catList[0].name;
       }
@@ -219,7 +220,7 @@
     }
   }
 
-  async function fetchProducts(newOffset?, newLimit?) {
+  async function fetchProducts(newOffset?: number, newLimit?: number) {
     if (newOffset !== undefined) offset = newOffset;
     if (newLimit !== undefined) limit = newLimit;
     selectedIds = new Set();
@@ -276,7 +277,7 @@
     fetchProducts(0, limit);
   });
 
-  function toggleCategory(category) {
+  function toggleCategory(category: string) {
     if (category === 'All') {
       selectedCategories = ['All'];
     } else {
@@ -314,7 +315,7 @@
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || 'Failed to add product';
       console.error('Add product error:', err, errorMsg);
       toast.error(errorMsg);
@@ -326,6 +327,10 @@
   async function handleUpdate() {
     if (!canManageInventory) {
       toast.error('Insufficient permission to update products');
+      return;
+    }
+    if (!selectedProduct) {
+      toast.error('No product selected');
       return;
     }
     if (!validateProductForm()) return;
@@ -344,7 +349,7 @@
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || 'Failed to update product';
       console.error('Update product error:', err, errorMsg);
       toast.error(errorMsg);
@@ -365,7 +370,7 @@
       showDeleteModal = false;
       selectedProduct = null;
       await fetchProducts(offset, limit);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
       toast.error(errorMessage);
@@ -439,7 +444,7 @@
     canManageInventory = allowedInventoryRoles.includes(getUserRoleName());
   });
 
-  function handleSort(column) {
+  function handleSort(column: string) {
     if (sortBy === column) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {
@@ -482,7 +487,8 @@
       isInitialMount = false;
     })();
 
-    const unsubProduct = ws.on('product_updated', (data) => {
+    const unsubProduct = ws.on('product_updated', (raw) => {
+      const data = raw as { id: number; stock: number; price: number };
       const product = products.find(p => p.id === data.id);
       if (product) {
         product.stock = data.stock;
@@ -511,6 +517,8 @@
   bind:open={showCategoryFilterModal}
   bind:selectedCategories
   {categories}
+  onClose={() => showCategoryFilterModal = false}
+  onApply={() => {}}
 />
 
 <div class="space-y-5">
@@ -651,7 +659,7 @@
   onedit={() => {
     showDetailDrawer = false;
     modalMode = 'edit';
-    const p = selectedProduct;
+    const p = selectedProduct!;
     form = {
       name: p.name || '', sku: p.sku || '', barcode: p.barcode || '',
       category: p.category_name || '', brand_id: p.brand_id || null,

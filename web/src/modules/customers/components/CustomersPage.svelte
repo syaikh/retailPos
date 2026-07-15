@@ -88,7 +88,7 @@
   let isSaving = $state(false);
 
   let sortBy = $state('name');
-  let sortDir = $state('asc');
+  let sortDir = $state<'asc' | 'desc'>('asc');
 
   let showCreateModal = $state(false);
   let creating = $state(false);

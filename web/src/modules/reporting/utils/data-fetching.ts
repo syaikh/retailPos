@@ -163,12 +163,12 @@ export async function fetchSalesWithRange({
 
     if (activePeriodType === 'realtime') {
       const currentHour = getCurrentJakartaHour();
-      chartData = rawCurrent.filter(item => {
-        const hour = parseInt(item.date);
+      chartData = rawCurrent.filter((item: { date?: string; total: number }) => {
+        const hour = parseInt(item.date || '');
         return !isNaN(hour) && hour <= currentHour;
       });
-      prevChartData = rawPrevious.filter(item => {
-        const hour = parseInt(item.date);
+      prevChartData = rawPrevious.filter((item: { date?: string; total: number }) => {
+        const hour = parseInt(item.date || '');
         return !isNaN(hour) && hour <= currentHour;
       });
     } else {
@@ -187,7 +187,7 @@ export async function fetchSalesWithRange({
     let percentChange = 0;
     let comparisonType = 'zero';
 
-    const chartTotal = chartData.reduce((sum, item) => {
+    const chartTotal = chartData.reduce((sum: number, item: { date?: string; total: number }) => {
       const val = item.total || 0;
       return sum + (val > 0 ? val : 0);
     }, 0);

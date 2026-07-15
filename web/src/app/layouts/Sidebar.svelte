@@ -45,12 +45,16 @@
 
   const authStore = useAuthStore();
   let username = $derived(authStore.user?.username || 'User');
-  let role = $derived(authStore.user?.role?.name || (authStore.user?.role && typeof authStore.user?.role === 'object' ? authStore.user.role.name : authStore.user?.role) || (authStore.user?.role_id === 1 ? 'superadmin' : authStore.user?.role_id === 2 ? 'admin' : authStore.user?.role_id === 3 ? 'cashier' : authStore.user?.role_id === 4 ? 'manager' : authStore.user?.role_id === 5 ? 'staff' : 'cashier'));
+  let role = $derived(
+    typeof authStore.user?.role === 'object' && authStore.user?.role ? authStore.user.role.name :
+    typeof authStore.user?.role === 'string' ? authStore.user.role :
+    (authStore.user?.role_id === 1 ? 'superadmin' : authStore.user?.role_id === 2 ? 'admin' : authStore.user?.role_id === 3 ? 'cashier' : authStore.user?.role_id === 4 ? 'manager' : authStore.user?.role_id === 5 ? 'staff' : 'cashier')
+  );
 
-  const navItems = [
+  const navItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
   ];
 
@@ -62,9 +66,9 @@
     { label: 'Customers',  href: '/customers',           icon: User },
   ];
 
-  const managerNavItems = [
+  const managerNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
   ];
 
@@ -76,13 +80,13 @@
     { label: 'Customers',  href: '/customers',           icon: User },
   ];
 
-  const cashierNavItems = [
+  const cashierNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined as never, iconText: 'Rp' },
+    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
   ];
 
-  const staffNavItems = [
+  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
   ];
 

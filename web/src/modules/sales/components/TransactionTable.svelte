@@ -14,6 +14,17 @@
     ontogglesort = () => {},
     onpagechange = () => {},
     onrowclick = () => {},
+  }: {
+    salesData?: any[];
+    loading?: boolean;
+    total?: number;
+    limit?: number;
+    offset?: number;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+    ontogglesort?: (col: string) => void;
+    onpagechange?: (offset: number, limit: number) => void;
+    onrowclick?: (sale: any) => void;
   } = $props();
 
   function getPaymentMethodVariant(method = '') {

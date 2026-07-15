@@ -5,15 +5,21 @@
   let {
     open = $bindable(false),
     categories = [],
-    selectedCategories = $bindable([]),
+    selectedCategories = $bindable<string[]>([]),
     onClose,
     onApply,
+  }: {
+    open?: boolean;
+    categories?: string[];
+    selectedCategories?: string[];
+    onClose?: () => void;
+    onApply?: (categories: string[]) => void;
   } = $props();
 
   let searchQuery = $state('');
 
   // Temp state - only modified inside modal, committed to `selectedCategories` on Apply
-  let tempSelectedCategories = $state([]);
+  let tempSelectedCategories = $state<string[]>([]);
 
   let filteredCategories = $derived(
     categories.filter(cat => cat !== 'All' && cat.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -32,7 +38,7 @@
     tempSelectedCategories.filter(c => c !== 'All').length
   );
 
-  function toggleCategory(cat) {
+  function toggleCategory(cat: string) {
     if (tempSelectedCategories.includes(cat)) {
       tempSelectedCategories = tempSelectedCategories.filter(c => c !== cat);
     } else {

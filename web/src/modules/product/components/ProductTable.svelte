@@ -9,7 +9,7 @@
     searchQuery = '',
     selectedIds = $bindable(new Set()),
     sortBy = $bindable('name'),
-    sortDir = $bindable('asc'),
+    sortDir = $bindable<'asc' | 'desc'>('asc'),
     showCopySuccess = $bindable(null as Set<string> | null),
     canEdit = false,
     canDelete = false,
@@ -30,7 +30,7 @@
     searchQuery: string;
     selectedIds: Set<number>;
     sortBy: string;
-    sortDir: string;
+    sortDir: 'asc' | 'desc';
     showCopySuccess: Set<string> | null;
     canEdit: boolean;
     canDelete: boolean;

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Notification } from '../notifications.svelte.ts';
+import type { notifications as NotificationsStore } from '../notifications.svelte.ts';
 
 describe('notifications store', () => {
-  let notifications: typeof import('../notifications.svelte').notifications;
+  let notifications: typeof NotificationsStore;
 
   beforeEach(() => {
     vi.resetModules();
@@ -22,7 +24,7 @@ describe('notifications store', () => {
     const { notifications: n } = await import('../notifications.svelte');
     notifications = n;
     notifications.push({ type: 'low_stock', title: 'Low Stock', description: 'Item low' });
-    let toasts: typeof import('../notifications.svelte').Notification[] = [];
+    let toasts: Notification[] = [];
     notifications.subscribe((value) => { toasts = value; })();
     expect(toasts).toHaveLength(1);
     expect(toasts[0].id).toBeDefined();
@@ -44,7 +46,7 @@ describe('notifications store', () => {
     const { notifications: n } = await import('../notifications.svelte');
     notifications = n;
     notifications.push({ type: 'low_stock', title: 'Low', description: '' });
-    let toasts: typeof import('../notifications.svelte').Notification[] = [];
+    let toasts: Notification[] = [];
     notifications.subscribe((value) => { toasts = value; })();
     notifications.markAsRead(toasts[0].id);
     notifications.subscribe((value) => { toasts = value; })();
@@ -57,7 +59,7 @@ describe('notifications store', () => {
     notifications.push({ type: 'low_stock', title: 'Low', description: '' });
     notifications.push({ type: 'sale_created', title: 'Sale', description: '' });
     notifications.markAllRead();
-    let toasts: typeof import('../notifications.svelte').Notification[] = [];
+    let toasts: Notification[] = [];
     notifications.subscribe((value) => { toasts = value; })();
     expect(toasts.every(n => n.read)).toBe(true);
   });
@@ -67,7 +69,7 @@ describe('notifications store', () => {
     notifications = n;
     notifications.push({ type: 'low_stock', title: 'Low', description: '' });
     notifications.clear();
-    let toasts: typeof import('../notifications.svelte').Notification[] = [];
+    let toasts: Notification[] = [];
     notifications.subscribe((value) => { toasts = value; })();
     expect(toasts).toHaveLength(0);
   });

@@ -4,7 +4,7 @@
 
   let {
     open = $bindable(false),
-    mode = 'add',
+    mode = $bindable('add'),
     form = $bindable({
       name: '',
       sku: '',

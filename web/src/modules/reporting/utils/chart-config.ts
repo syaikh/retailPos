@@ -45,10 +45,10 @@ export function buildChartConfig({
     currentChartType = 'line';
     const currentHour = getCurrentJakartaHour();
     const hours = Array.from({ length: currentHour + 1 }, (_, i) => i);
-    const dataByHour = {};
-    chartData.forEach(d => { dataByHour[parseInt(d.date)] = d.total; });
-    const prevByHour = {};
-    prevChartData.forEach(d => { prevByHour[parseInt(d.date)] = d.total; });
+    const dataByHour: Record<number, number> = {};
+    chartData.forEach(d => { if (d.date) dataByHour[parseInt(d.date)] = d.total; });
+    const prevByHour: Record<number, number> = {};
+    prevChartData.forEach(d => { if (d.date) prevByHour[parseInt(d.date)] = d.total; });
     labels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
     values = hours.map(h => dataByHour[h] || 0);
     prevValues = hours.map(h => prevByHour[h] !== undefined ? prevByHour[h] : 0);
@@ -66,7 +66,7 @@ export function buildChartConfig({
         const month = parseInt(endDateParts[1]);
         const dim = new Date(year, month, 0).getDate();
         const yesterday = getDateNDaysAgoInJakarta(1);
-        const dataMap = {};
+        const dataMap: Record<string, number> = {};
         chartData.forEach(d => {
           if (d.date && d.date <= yesterday) {
             dataMap[d.date] = d.total;
@@ -74,7 +74,7 @@ export function buildChartConfig({
         });
         const prevSorted = [...prevChartData]
           .filter(d => d.date)
-          .sort((a, b) => a.date.localeCompare(b.date));
+          .sort((a, b) => a.date!.localeCompare(b.date!));
         const prevValuesList = prevSorted.map(d => d.total || 0);
         let prevIdx = 0;
         labels = [];
@@ -89,7 +89,7 @@ export function buildChartConfig({
           if (dateStr <= yesterday) {
             const prevItem = prevSorted[prevIdx];
             const hasPrev = prevItem !== undefined;
-            prevDateStrings.push(prevItem ? prevItem.date : '');
+            prevDateStrings.push(prevItem ? prevItem.date! : '');
             values.push(dataMap[dateStr] || 0);
             prevValues.push(hasPrev ? prevItem.total : null);
             prevIdx++;
@@ -101,19 +101,19 @@ export function buildChartConfig({
         }
       }
     } else if (activePeriodType === 'weekly') {
-      const prevByDate = {};
+      const prevByDate: Record<string, number> = {};
       prevChartData.forEach(pd => {
         if (pd.date) prevByDate[pd.date] = pd.total;
       });
-      const dataMap = {};
+      const dataMap: Record<string, number> = {};
       chartData.forEach(d => {
         if (d.date) dataMap[d.date] = d.total;
       });
-      const sortedCurrent = chartData.filter(d => d.date && d.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
-      const sortedPrev = [...prevChartData].filter(d => d.date && d.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
+      const sortedCurrent = chartData.filter(d => d.date && endDate && d.date <= endDate).sort((a, b) => a.date!.localeCompare(b.date!));
+      const sortedPrev = [...prevChartData].filter(d => d.date && endDate && d.date <= endDate).sort((a, b) => a.date!.localeCompare(b.date!));
       let dayOffset = 0;
       if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
-        const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
+        const diffMs = new Date(sortedCurrent[0].date!).getTime() - new Date(sortedPrev[0].date!).getTime();
         dayOffset = Math.round(diffMs / 86400000);
       }
       const endDateTime = new Date(endDate + 'T00:00:00Z');
@@ -131,7 +131,7 @@ export function buildChartConfig({
       for (let d = new Date(mondayDate); d <= sundayDate; d = new Date(d.getTime() + dayMs)) {
         const dateStr = d.toISOString().split('T')[0];
         const currentLabel = d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-        if (dateStr <= endDate) {
+        if (dateStr <= (endDate ?? '')) {
           const total = dataMap[dateStr];
           const expectedPrev = new Date(d.getTime() - dayOffset * 86400000);
           const expectedPrevStr = expectedPrev.toISOString().split('T')[0];
@@ -154,15 +154,15 @@ export function buildChartConfig({
         }
       }
     } else {
-      const prevByDate = {};
+      const prevByDate: Record<string, number> = {};
       prevChartData.forEach(pd => {
         if (pd.date) prevByDate[pd.date] = pd.total;
       });
-      const sortedCurrent = chartData.filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
-      const sortedPrev = [...prevChartData].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
+      const sortedCurrent = chartData.filter(d => d.date).sort((a, b) => a.date!.localeCompare(b.date!));
+      const sortedPrev = [...prevChartData].filter(d => d.date).sort((a, b) => a.date!.localeCompare(b.date!));
       let dayOffset = 0;
       if (sortedCurrent.length > 0 && sortedPrev.length > 0) {
-        const diffMs = new Date(sortedCurrent[0].date).getTime() - new Date(sortedPrev[0].date).getTime();
+        const diffMs = new Date(sortedCurrent[0].date!).getTime() - new Date(sortedPrev[0].date!).getTime();
         dayOffset = Math.round(diffMs / 86400000);
         if (isNaN(dayOffset)) dayOffset = 0;
       }
@@ -207,14 +207,14 @@ export function buildChartConfig({
   } else if (chartType === 'monthly' || chartType === 'yearly') {
     currentChartType = 'bar';
     if (activePeriodType === 'yearly') {
-      const currentByMonth = {};
+      const currentByMonth: Record<number, number> = {};
       chartData.forEach(d => {
         if (d.month_start) {
           const m = parseInt(d.month_start.split('-')[1]);
           if (!isNaN(m)) currentByMonth[m] = d.total;
         }
       });
-      const prevByMonth = {};
+      const prevByMonth: Record<number, number> = {};
       prevChartData.forEach(d => {
         if (d.month_start) {
           const m = parseInt(d.month_start.split('-')[1]);
@@ -247,14 +247,14 @@ export function buildChartConfig({
     } else {
       const prevSorted = [...prevChartData]
         .filter(d => d.month_start)
-        .sort((a, b) => a.month_start.localeCompare(b.month_start));
+        .sort((a, b) => a.month_start!.localeCompare(b.month_start!));
       labels = chartData.map((d, i) => {
         if (d.month_start) {
           const currentDate = new Date(d.month_start);
           const currentLabel = currentDate.toLocaleString('en-US', { month: 'short', year: '2-digit' });
           const prevItem = prevSorted[i];
           const prevLabel = prevItem
-            ? new Date(prevItem.month_start).toLocaleString('en-US', { month: 'short' })
+            ? new Date(prevItem.month_start!).toLocaleString('en-US', { month: 'short' })
             : '';
           return `${currentLabel}\n${prevLabel}`;
         }
@@ -267,7 +267,7 @@ export function buildChartConfig({
     currentChartType = 'bar';
     const prevSorted = [...prevChartData]
       .filter(d => d.week_start)
-      .sort((a, b) => a.week_start.localeCompare(b.week_start));
+      .sort((a, b) => a.week_start!.localeCompare(b.week_start!));
     labels = chartData.map((d, i) => {
       if (d.week_start && d.week_end) {
         const start = new Date(d.week_start);
@@ -277,8 +277,8 @@ export function buildChartConfig({
         const currentLabel = `${startStr} - ${endStr}`;
         const prevItem = prevSorted[i];
         const prevLabel = prevItem
-          ? new Date(prevItem.week_start).toLocaleString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
-            new Date(prevItem.week_end).toLocaleString('en-US', { month: 'short', day: 'numeric' })
+          ? new Date(prevItem.week_start!).toLocaleString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
+            new Date(prevItem.week_end!).toLocaleString('en-US', { month: 'short', day: 'numeric' })
           : '';
         return `${currentLabel}\n${prevLabel}`;
       }
@@ -343,7 +343,7 @@ export function buildChartConfig({
           mode: 'index',
           intersect: false,
           callbacks: {
-            title: function(items) {
+            title: function(items: { label?: string; dataIndex: number }[]) {
               if (!items.length) return '';
               if (activePeriodType === 'monthly' && chartType === 'daily') {
                 const idx = items[0].dataIndex;
@@ -351,7 +351,7 @@ export function buildChartConfig({
               }
               return items[0].label;
             },
-            label: function(context) {
+            label: function(context: { parsed: { y: number | null }; dataset: { label?: string }; dataIndex: number; datasetIndex: number }) {
               if (context.parsed.y === null) return null;
               let label = context.dataset.label || '';
               const showDate = (chartType === 'daily' && ['monthly', 'weekly', '7days', '30days'].includes(activePeriodType)) ||
@@ -377,7 +377,7 @@ export function buildChartConfig({
               else label += 'Rp ' + val.toLocaleString('id-ID');
               return label;
             },
-            footer: function(items) {
+            footer: function(items: { parsed: { y: number | null } }[]) {
               if (items.length < 2) return '';
               const curr = items[0].parsed.y;
               const prev = items[1].parsed.y;
@@ -407,7 +407,7 @@ export function buildChartConfig({
             minRotation: 0,
             autoSkip: activePeriodType === 'monthly' || activePeriodType === '30days',
             maxTicksLimit: activePeriodType === 'monthly' || activePeriodType === '30days' ? 12 : undefined,
-            callback: function(val, idx, ticks) {
+            callback: function(this: { getLabelForValue: (val: number) => string }, val: number, _idx: number, _ticks: unknown[]) {
               const label = this.getLabelForValue(val);
               if (label && label.includes('\n')) return label.split('\n');
               return label;
@@ -420,7 +420,7 @@ export function buildChartConfig({
           ticks: {
             color: '#cbd5e1',
             font: { family: 'inherit' },
-            callback: function(value) {
+            callback: function(value: number) {
               if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1).replace(/\.0$/, '') + ' M';
               if (value > 1000000) return 'Rp ' + (value / 1000000).toFixed(1).replace(/\.0$/, '') + ' jt';
               if (value > 1000) return 'Rp ' + (value / 1000).toFixed(0) + ' Rb';
@@ -429,9 +429,9 @@ export function buildChartConfig({
             }
           },
           min: 0,
-          suggestedMax: function(context) {
-            const allValues = context.chart.data.datasets.flatMap(ds => ds.data);
-            const positiveValues = allValues.filter(v => v > 0);
+          suggestedMax: function(context: { chart: { data: { datasets: { data: number[] }[] } } }) {
+            const allValues = context.chart.data.datasets.flatMap((ds: { data: number[] }) => ds.data);
+            const positiveValues = allValues.filter((v: number) => v > 0);
             if (positiveValues.length === 0 && allValues.length > 0) return 1000;
             if (allValues.length === 0) return 1000;
             const maxValue = Math.max(...allValues);

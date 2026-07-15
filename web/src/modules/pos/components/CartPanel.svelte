@@ -117,7 +117,7 @@
               }}
               onkeydown={(e) => {
                 if (e.key === 'Enter') {
-                  e.target.blur();
+                  (e.target as HTMLInputElement)?.blur();
                 }
               }}
               class="w-12 text-center text-sm font-semibold text-text-primary bg-surface border border-border rounded-xl px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"

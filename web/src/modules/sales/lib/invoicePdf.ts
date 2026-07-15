@@ -48,7 +48,7 @@ export async function downloadInvoice(
       headStyles: { fillColor: [124, 58, 237] },
     });
 
-    const finalY = doc.lastAutoTable.finalY + 10;
+    const finalY = (doc as InstanceType<typeof jsPDF> & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     const taxAmt = transaction.tax || 0;
     if (taxAmt > 0) {
       doc.setFontSize(10);

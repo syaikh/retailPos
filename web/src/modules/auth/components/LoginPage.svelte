@@ -22,7 +22,7 @@
     loading = true;
     const result = await login(username.trim(), password);
     loading = false;
-    if (result && result !== false) {
+    if (result) {
       const store = useAuthStore();
       store.setUser(result.user);
       goto('/');

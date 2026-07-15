@@ -12,7 +12,7 @@
     canEditSuperadmin = false,
     currentUserID = 0,
     sortBy = $bindable('username'),
-    sortDir = $bindable('asc'),
+    sortDir = $bindable<'asc' | 'desc'>('asc'),
     onsort = (key: string) => {},
     onedit = (user: any) => {},
     ondelete = (user: any) => {},
@@ -25,13 +25,13 @@
     canEditSuperadmin: boolean;
     currentUserID: number;
     sortBy: string;
-    sortDir: string;
+    sortDir: 'asc' | 'desc';
     onsort?: (key: string) => void;
     onedit?: (user: any) => void;
     ondelete?: (user: any) => void;
   } = $props();
 
-  function roleVariant(r: any): string {
+  function roleVariant(r: any): 'primary' | 'warning' | 'muted' {
     const roleName = typeof r === 'object' ? r.name : r;
     if (roleName === 'superadmin') return 'primary';
     if (roleName === 'admin') return 'warning';

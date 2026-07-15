@@ -1,11 +1,10 @@
 <script lang="ts">
   import { SlidersHorizontal, X } from 'lucide-svelte';
-  import type { Component } from 'svelte';
 
   type Chip = {
     type: string;
     label: string;
-    icon?: Component;
+    icon?: any;
   };
 
   let {

@@ -1,7 +1,7 @@
-import Chart from 'chart.js/auto';
+import Chart, { type ChartConfiguration } from 'chart.js/auto';
 
-export function chart(node, config) {
-  let chartInstance = null;
+export function chart(node: HTMLCanvasElement, config: ChartConfiguration) {
+  let chartInstance: Chart | null = null;
 
   // Create chart immediately
   try {
@@ -11,14 +11,14 @@ export function chart(node, config) {
   }
 
   return {
-    update(newConfig) {
+    update(newConfig: ChartConfiguration) {
       if (chartInstance && newConfig) {
         if (newConfig.data?.labels) {
           chartInstance.data.labels = [...newConfig.data.labels];
         }
         
         if (newConfig.data?.datasets) {
-          chartInstance.data.datasets = newConfig.data.datasets.map(ds => ({...ds}));
+          chartInstance.data.datasets = newConfig.data.datasets.map((ds) => ({...ds} as any));
         }
         
         if (newConfig.options) {

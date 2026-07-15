@@ -46,7 +46,7 @@
   $effect(() => {
     if (preview) {
       columns = preview.rows.length > 0
-        ? Object.keys(preview.rows[0].new_values || preview.rows[0].newValues)
+        ? Object.keys((preview.rows[0] as unknown as Record<string, unknown>).new_values || (preview.rows[0] as unknown as Record<string, unknown>).newValues || {})
         : [];
       validationErrors = preview.rows
         .filter(r => r.status === 'error')
@@ -252,7 +252,7 @@
             {#if loading}
               <Loader2 size={16} class="animate-spin" /> Confirming...
             {:else}
-              <CheckCircle2 size={14} /> Import {preview?.insert_count + preview?.update_count} Rows
+              <CheckCircle2 size={14} /> Import {preview?.insert_count ?? 0 + (preview?.update_count ?? 0)} Rows
             {/if}
           </Button>
       </div>
