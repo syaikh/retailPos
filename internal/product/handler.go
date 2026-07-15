@@ -25,16 +25,12 @@ type ProductService interface {
 	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
 }
 
-type AuditCreator interface {
-	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
-}
-
 type Handler struct {
 	svc      ProductService
-	auditSvc AuditCreator
+	auditSvc audit.AuditCreator
 }
 
-func NewHandler(svc ProductService, auditSvc AuditCreator) *Handler {
+func NewHandler(svc ProductService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -52,15 +48,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 	r.GET("/tax-classes", h.ListTaxClasses)
 	r.GET("/stock-thresholds", h.GetStockThresholds)
-}
-
-func (h *Handler) getStoreID(c *gin.Context) *int {
-	if sid, exists := c.Get("storeID"); exists {
-		if v, ok := sid.(*int); ok {
-			return v
-		}
-	}
-	return nil
 }
 
 func validateProduct(p *Product) error {
@@ -136,7 +123,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 	}
 
-	storeID := h.getStoreID(c)
+	storeID := shared.GetStoreID(c)
 
 	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status)
 	if err != nil {
@@ -156,7 +143,7 @@ func (h *Handler) GetProductByID(c *gin.Context) {
 		return
 	}
 
-	storeID := h.getStoreID(c)
+	storeID := shared.GetStoreID(c)
 	sid := 0
 	if storeID != nil {
 		sid = *storeID
@@ -240,7 +227,7 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		return
 	}
 	product.ID = id
-	product.StoreID = h.getStoreID(c)
+	product.StoreID = shared.GetStoreID(c)
 
 	if err := validateProduct(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -301,13 +288,13 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 	var oldProduct *Product
 	if h.auditSvc != nil {
 		sid := 0
-		if storeID := h.getStoreID(c); storeID != nil {
+		if storeID := shared.GetStoreID(c); storeID != nil {
 			sid = *storeID
 		}
 		oldProduct, _ = h.svc.GetProductByID(c.Request.Context(), id, sid)
 	}
 
-	storeID := h.getStoreID(c)
+	storeID := shared.GetStoreID(c)
 	if err := h.svc.DeleteProduct(c.Request.Context(), id, storeID); err != nil {
 		shared.InternalError(c, err)
 		return
@@ -354,7 +341,7 @@ func (h *Handler) BulkUpdateProductStatus(c *gin.Context) {
 		return
 	}
 
-	storeID := h.getStoreID(c)
+	storeID := shared.GetStoreID(c)
 	if err := h.svc.BulkUpdateProductStatus(c.Request.Context(), req.IDs, req.IsActive, storeID); err != nil {
 		shared.InternalError(c, err)
 		return

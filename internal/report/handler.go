@@ -269,10 +269,10 @@ func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
 // @Success 200 {object} map[string]interface{}
 // @Router /dashboard/stats [get]
 func (h *Handler) GetDashboardStats(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 
@@ -299,10 +299,10 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 }
 
 func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 
@@ -336,10 +336,10 @@ func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /dashboard/chart [get]
 func (h *Handler) GetSalesChartData(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 
@@ -409,7 +409,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			return
 		}
 
-		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate.Add(-24*time.Hour), prevStart, prevEnd, storeIDPtr(sid))
+		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate.Add(-24*time.Hour), prevStart, prevEnd, storeID)
 		if err != nil {
 			shared.InternalError(c, err)
 			return
@@ -427,10 +427,10 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 
@@ -469,10 +469,10 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 
@@ -549,10 +549,10 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 
 	period := PeriodType(c.DefaultQuery("period", "daily"))
@@ -619,12 +619,8 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 		pr = getComparisonRanges(periodType, refDate, false)
 	}
 
-	storeID, _ := c.Get("storeID")
-	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
-	}
-	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd, storeIDPtr(sid))
+	storeID := shared.GetStoreID(c)
+	comparison, err := h.svc.GetPeriodComparison(ctx, pr.CurrentStart, pr.CurrentEnd, pr.PreviousStart, pr.PreviousEnd, storeID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -684,10 +680,10 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 }
 
 func (h *Handler) GetAvailableYears(c *gin.Context) {
-	storeID, _ := c.Get("storeID")
+	storeID := shared.GetStoreID(c)
 	sid := 0
-	if ptr, ok := storeID.(*int); ok && ptr != nil {
-		sid = *ptr
+	if storeID != nil {
+		sid = *storeID
 	}
 	ctx := c.Request.Context()
 

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"sync"
@@ -13,6 +14,7 @@ type Config struct {
 	Env                    string
 	CORSOrigin             string
 	JWTSecret              string
+	JWTSecretRefresh        string
 	StockWarningThreshold  int
 	StockCriticalThreshold int
 	StockMinimum           int
@@ -58,10 +60,23 @@ func Load() *Config {
 		if corsOrigin == "" {
 			corsOrigin = "http://localhost:5173"
 		}
+		if env == "production" && corsOrigin == "*" {
+			log.Fatal("FATAL: CORS_ORIGIN must not be '*' in production. Set it to your actual domain (e.g., https://pos.example.com).")
+		}
+		if corsOrigin != "*" {
+			if _, err := url.ParseRequestURI(corsOrigin); err != nil {
+				log.Printf("Warning: invalid CORS_ORIGIN %q: %v. Using as-is.", corsOrigin, err)
+			}
+		}
 
 		jwtSecret := os.Getenv("JWT_SECRET")
 		if jwtSecret == "" {
 			panic("FATAL: JWT_SECRET environment variable is required. Set it to a secure random value (256-bit recommended).")
+		}
+
+		jwtSecretRefresh := os.Getenv("JWT_SECRET_REFRESH")
+		if jwtSecretRefresh == "" {
+			jwtSecretRefresh = jwtSecret
 		}
 
 		warningThreshold := getEnvInt("STOCK_WARNING_THRESHOLD", 10)
@@ -72,6 +87,7 @@ func Load() *Config {
 			Env:                    env,
 			CORSOrigin:             corsOrigin,
 			JWTSecret:              jwtSecret,
+			JWTSecretRefresh:       jwtSecretRefresh,
 			StockWarningThreshold:  warningThreshold,
 			StockCriticalThreshold: criticalThreshold,
 			StockMinimum:           stockMinimum,

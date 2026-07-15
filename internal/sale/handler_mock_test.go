@@ -58,7 +58,7 @@ func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditL
 	return nil
 }
 
-func setupSaleHandler(svc SaleService, auditSvc AuditCreator) *gin.Engine {
+func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

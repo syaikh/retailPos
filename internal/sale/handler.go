@@ -27,16 +27,12 @@ type SaleService interface {
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
 }
 
-type AuditCreator interface {
-	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
-}
-
 type Handler struct {
 	svc      SaleService
-	auditSvc AuditCreator
+	auditSvc audit.AuditCreator
 }
 
-func NewHandler(svc SaleService, auditSvc AuditCreator) *Handler {
+func NewHandler(svc SaleService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -96,8 +92,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
 		return
 	}
-	storeID, _ := c.Get("storeID")
-	storeIDPtr, _ := storeID.(*int)
+	storeIDPtr := shared.GetStoreID(c)
 
 	invoiceNumber := req.InvoiceNumber
 	if invoiceNumber == "" {
@@ -265,8 +260,7 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		endDate = ed
 	}
 
-	storeID, _ := c.Get("storeID")
-	storeIDPtr, _ := storeID.(*int)
+	storeIDPtr := shared.GetStoreID(c)
 
 	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal)
 	if err != nil {
@@ -298,8 +292,7 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 		return
 	}
 
-	storeID, _ := c.Get("storeID")
-	storeIDPtr, _ := storeID.(*int)
+	storeIDPtr := shared.GetStoreID(c)
 
 	sale, err := h.svc.GetSaleByID(ctx, id, storeIDPtr)
 	if err != nil {
@@ -361,8 +354,7 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	storeID, _ := c.Get("storeID")
-	storeIDPtr, _ := storeID.(*int)
+	storeIDPtr := shared.GetStoreID(c)
 
 	rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeIDPtr)
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -297,13 +299,12 @@ func TestDeleteProduct_InvalidID(t *testing.T) {
 
 func TestGetStoreID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := &Handler{}
 
 	t.Run("no storeID in context", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-		assert.Nil(t, h.getStoreID(c))
+		assert.Nil(t, shared.GetStoreID(c))
 	})
 
 	t.Run("storeID present", func(t *testing.T) {
@@ -312,7 +313,7 @@ func TestGetStoreID(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		sid := 42
 		c.Set("storeID", &sid)
-		got := h.getStoreID(c)
+		got := shared.GetStoreID(c)
 		require.NotNil(t, got)
 		assert.Equal(t, 42, *got)
 	})
@@ -322,6 +323,6 @@ func TestGetStoreID(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.Set("storeID", "not-an-int")
-		assert.Nil(t, h.getStoreID(c))
+		assert.Nil(t, shared.GetStoreID(c))
 	})
 }

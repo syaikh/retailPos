@@ -20,9 +20,10 @@ func newTestAuthService(t *testing.T) *AuthService {
 	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-32bytes!!")
 	t.Cleanup(func() { os.Unsetenv("JWT_SECRET") })
 	return &AuthService{
-		jwtSecret:  "test-secret-key-for-unit-tests-32bytes!!",
-		accessTTL:  15 * time.Minute,
-		refreshTTL: 7 * 24 * time.Hour,
+		jwtSecret:     "test-secret-key-for-unit-tests-32bytes!!",
+		refreshSecret: "test-refresh-secret-key-for-unit-tests-32b",
+		accessTTL:     15 * time.Minute,
+		refreshTTL:    7 * 24 * time.Hour,
 	}
 }
 
@@ -112,7 +113,7 @@ func TestAuthService_ParseRefreshToken_Expired(t *testing.T) {
 	user := &User{ID: 1, Username: "u", RoleID: 1, Role: Role{Name: "r"}}
 
 	// Manually create an expired token with the same secret
-	svc2 := &AuthService{jwtSecret: svc.jwtSecret, refreshTTL: -1 * time.Hour}
+	svc2 := &AuthService{jwtSecret: svc.jwtSecret, refreshSecret: svc.refreshSecret, refreshTTL: -1 * time.Hour}
 	expiredToken, err := svc2.generateRefreshToken(user)
 	require.NoError(t, err)
 
@@ -152,7 +153,7 @@ func TestAuthService_ParseToken_WrongSecret(t *testing.T) {
 
 func TestAuthService_ParseRefreshToken_WrongSecret(t *testing.T) {
 	svc1 := newTestAuthService(t)
-	svc2 := &AuthService{jwtSecret: "completely-different-secret-32bytes!!!", refreshTTL: 7 * 24 * time.Hour}
+	svc2 := &AuthService{jwtSecret: "completely-different-secret-32bytes!!!", refreshSecret: "also-different-refresh-secret-32bytes!!", refreshTTL: 7 * 24 * time.Hour}
 
 	user := &User{ID: 1, Username: "u", RoleID: 1, Role: Role{Name: "r"}}
 	token, err := svc1.generateRefreshToken(user)
@@ -252,7 +253,7 @@ func TestAuthService_ParseRefreshToken_Expired_IsSentinel(t *testing.T) {
 	svc := newTestAuthService(t)
 	user := &User{ID: 1, Username: "u", RoleID: 1, Role: Role{Name: "r"}}
 
-	svc2 := &AuthService{jwtSecret: svc.jwtSecret, refreshTTL: -1 * time.Hour}
+	svc2 := &AuthService{jwtSecret: svc.jwtSecret, refreshSecret: svc.refreshSecret, refreshTTL: -1 * time.Hour}
 	expiredToken, err := svc2.generateRefreshToken(user)
 	require.NoError(t, err)
 
@@ -357,7 +358,7 @@ func TestAuthService_Login_InactiveUser(t *testing.T) {
 
 	_, err = svc.Login(ctx, "inactive_auth_test", "password")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "inactive")
+	assert.Equal(t, "invalid username or password", err.Error())
 }
 
 func TestAuthService_RefreshToken_Success(t *testing.T) {

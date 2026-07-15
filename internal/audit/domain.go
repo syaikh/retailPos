@@ -1,5 +1,11 @@
 package audit
 
+import "context"
+
+type AuditCreator interface {
+	CreateAuditLog(ctx context.Context, log *AuditLog) error
+}
+
 type AuditLog struct {
 	ID          int         `json:"id"`
 	UserID      *int        `json:"user_id,omitempty"`

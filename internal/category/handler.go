@@ -22,16 +22,12 @@ type CategoryService interface {
 	DeleteCategory(ctx context.Context, id int) error
 }
 
-type AuditCreator interface {
-	CreateAuditLog(ctx context.Context, log *audit.AuditLog) error
-}
-
 type Handler struct {
 	svc      CategoryService
-	auditSvc AuditCreator
+	auditSvc audit.AuditCreator
 }
 
-func NewHandler(svc CategoryService, auditSvc AuditCreator) *Handler {
+func NewHandler(svc CategoryService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 

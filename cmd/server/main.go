@@ -37,6 +37,7 @@ import (
 	"retail-pos-system/pkg/websocket"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -219,6 +220,7 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.SecurityHeadersMiddleware([]string{cfg.CORSOrigin}))
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.BodyLimitMiddleware(1 << 20))
@@ -271,7 +273,7 @@ func main() {
 		Addr:         addr,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

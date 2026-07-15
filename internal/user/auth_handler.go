@@ -25,10 +25,10 @@ type AuthLoginService interface {
 
 type AuthHandler struct {
 	svc      AuthLoginService
-	auditSvc AuditCreator
+	auditSvc audit.AuditCreator
 }
 
-func NewAuthHandler(svc AuthLoginService, auditSvc AuditCreator) *AuthHandler {
+func NewAuthHandler(svc AuthLoginService, auditSvc audit.AuditCreator) *AuthHandler {
 	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -186,10 +186,10 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var req struct {
 		CurrentPassword string `json:"current_password" binding:"required"`
-		NewPassword     string `json:"new_password" binding:"required,min=6"`
+		NewPassword     string `json:"new_password" binding:"required,min=8"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password (min 6 chars) are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password (min 8 chars) are required"})
 		return
 	}
 

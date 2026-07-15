@@ -17,6 +17,8 @@ require (
 	golang.org/x/time v0.15.0
 )
 
+require github.com/gin-contrib/gzip v1.2.6 // indirect
+
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect

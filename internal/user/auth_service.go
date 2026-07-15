@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/shared"
 )
 
@@ -26,11 +26,12 @@ var (
 )
 
 type AuthService struct {
-	dbPool     shared.DBPool
-	repo       *Repository
-	jwtSecret  string
-	accessTTL  time.Duration
-	refreshTTL time.Duration
+	dbPool        shared.DBPool
+	repo          *Repository
+	jwtSecret     string
+	refreshSecret string
+	accessTTL     time.Duration
+	refreshTTL    time.Duration
 }
 
 type AuthClaims struct {
@@ -44,14 +45,15 @@ type AuthClaims struct {
 }
 
 func NewAuthService(repo *Repository) *AuthService {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
+	cfg := config.Load()
+	if cfg.JWTSecret == "" {
 		panic("FATAL: JWT_SECRET environment variable is required.")
 	}
 	return &AuthService{
 		dbPool:     repo.db,
 		repo:       repo,
-		jwtSecret:  secret,
+		jwtSecret:  cfg.JWTSecret,
+		refreshSecret: cfg.JWTSecretRefresh,
 		accessTTL:  15 * time.Minute,
 		refreshTTL: 7 * 24 * time.Hour,
 	}
@@ -63,7 +65,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 		return nil, ErrInvalidCredentials
 	}
 	if !user.IsActive {
-		return nil, errors.New("user account is inactive")
+		return nil, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
@@ -238,7 +240,7 @@ func (s *AuthService) generateRefreshToken(user *User) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.jwtSecret + "-refresh"))
+	return token.SignedString([]byte(s.refreshSecret))
 }
 
 func (s *AuthService) parseToken(tokenString string) (*AuthClaims, error) {
@@ -265,7 +267,7 @@ func (s *AuthService) parseRefreshToken(tokenString string) (*AuthClaims, error)
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(s.jwtSecret + "-refresh"), nil
+		return []byte(s.refreshSecret), nil
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
