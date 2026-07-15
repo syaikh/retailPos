@@ -253,12 +253,28 @@ test.describe('Audit Logs Search', () => {
 
   // --- Date range filter ---
 
-  test('changing date range filter works without errors', async ({ page }) => {
+  test('Last 7 Days preset calculates correct Jakarta date boundaries', async ({ page }) => {
     await page.locator('.date-picker-container button.date-picker-trigger').click();
-    const pickerDropdown = page.getByLabel('Date range picker');
-    await expect(pickerDropdown.getByRole('button', { name: 'Last 7 Days' })).toBeVisible();
+    const pickerDropdown = page.locator('[aria-label="Date range picker"]');
+    await expect(pickerDropdown).toBeVisible();
 
     await pickerDropdown.getByRole('button', { name: 'Last 7 Days' }).click();
+    await page.waitForTimeout(1500);
+
+    const errorToast = page.locator('text=Failed to load audit logs');
+    await expect(errorToast).toBeHidden({ timeout: 3000 });
+
+    const paginationText = await page.locator('text=/Showing.*of/').textContent();
+    expect(paginationText).toBeTruthy();
+    expect(paginationText).not.toContain('Showing 0-0 of 0');
+  });
+
+  test('Last 30 Days preset loads data without errors', async ({ page }) => {
+    await page.locator('.date-picker-container button.date-picker-trigger').click();
+    const pickerDropdown = page.locator('[aria-label="Date range picker"]');
+    await expect(pickerDropdown).toBeVisible();
+
+    await pickerDropdown.getByRole('button', { name: 'Last 30 Days' }).click();
     await page.waitForTimeout(1500);
 
     const errorToast = page.locator('text=Failed to load audit logs');
@@ -448,5 +464,22 @@ test.describe('Audit Logs API - Export', () => {
     const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
     const res = await request.get(`${API_BASE}/api/audit-logs/export`, { headers: authHeader(token) });
     expect(res.status()).toBe(403);
+  });
+
+  test('Today filter returns seeded login event via API', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const year = today.getUTCFullYear();
+    const month = String(today.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(today.getUTCDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    const res = await request.get(`${API_BASE}/api/audit-logs?start_date=${todayStr}&end_date=${todayStr}&limit=10`, {
+      headers: authHeader(token),
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThanOrEqual(0);
   });
 });

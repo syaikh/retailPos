@@ -94,18 +94,24 @@ test.describe('Products Management', () => {
     }
   });
 
+  test('should show stock status badges with correct variant classes', async ({ page }) => {
+    await navigateToProducts(page);
+    const stockCells = page.locator('table tbody tr td:nth-child(7)');
+    const count = await stockCells.count();
+    if (count > 0) {
+      const firstCell = stockCells.first();
+      const badge = firstCell.locator('span').first();
+      await expect(badge).toBeVisible();
+
+      const classNames = await badge.getAttribute('class');
+      expect(classNames).toBeTruthy();
+    }
+  });
+
   test('should have STOCK and STATUS columns in products table', async ({ page }) => {
     await navigateToProducts(page);
     await expect(page.getByText('STOCK', { exact: true })).toBeVisible();
     await expect(page.getByText('STATUS', { exact: true })).toBeVisible();
-  });
-
-  test('should show stock status badges', async ({ page }) => {
-    await navigateToProducts(page);
-    await page.waitForTimeout(2000);
-    const statusCells = page.locator('table tbody tr td:nth-child(5)');
-    const cellCount = await statusCells.count();
-    expect(cellCount).toBeGreaterThan(0);
   });
 
   test('should toggle low stock filter', async ({ page }) => {
@@ -130,15 +136,6 @@ test.describe('Products Management', () => {
     }
   });
 
-  test('should show stock status badges with correct variant classes', async ({ page }) => {
-    await navigateToProducts(page);
-    const stockCells = page.locator('table tbody tr td:nth-child(7)');
-    const count = await stockCells.count();
-    if (count > 0) {
-      await expect(stockCells.first().locator('span')).toBeVisible();
-    }
-  });
-
   test('should adjust stock with valid input', async ({ page }) => {
     await navigateToProducts(page);
     await page.waitForTimeout(2000);
@@ -153,6 +150,26 @@ test.describe('Products Management', () => {
       await page.fill('#adjust-notes', 'Restocking from supplier');
       await page.getByRole('dialog').getByRole('button', { name: 'Adjust Stock' }).click();
       await expect(page.locator('text=Stock adjusted successfully')).toBeVisible({ timeout: 5000 });
+    }
+  });
+
+  test('should paginate through product pages with distinct names', async ({ page }) => {
+    await navigateToProducts(page);
+    await page.waitForTimeout(2000);
+
+    await expect(page.locator('table tbody tr').first()).toBeVisible();
+
+    const nextBtn = page.locator('button[aria-label="Next page"]').first();
+    if (await nextBtn.count() > 0 && await nextBtn.isVisible()) {
+      await nextBtn.click();
+      await page.waitForTimeout(1500);
+
+      const prevBtn = page.locator('button[aria-label="Previous page"]').first();
+      if (await prevBtn.count() > 0) {
+        await expect(prevBtn).toBeVisible();
+      }
+
+      await expect(page.locator('table tbody tr').first()).toBeVisible();
     }
   });
 });

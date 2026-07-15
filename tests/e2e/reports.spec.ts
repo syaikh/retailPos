@@ -49,6 +49,114 @@ test.describe('Reports & Analytics', () => {
     await expect(page.getByRole('menuitem', { name: 'Export to Excel' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Export to PDF' })).toBeVisible();
   });
+
+  test('should change period to 7 Days without errors', async ({ page }) => {
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await expect(page.locator('#period-dropdown-menu')).toBeVisible();
+
+    await page.getByRole('menuitem', { name: '7 Days' }).click();
+    await page.waitForTimeout(1500);
+
+    const errorToast = page.locator('text=Failed to load report data');
+    await expect(errorToast).toBeHidden({ timeout: 3000 });
+  });
+
+  test('should change period to 30 Days without errors', async ({ page }) => {
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await expect(page.locator('#period-dropdown-menu')).toBeVisible();
+
+    await page.getByRole('menuitem', { name: '30 Days' }).click();
+    await page.waitForTimeout(1500);
+
+    const errorToast = page.locator('text=Failed to load report data');
+    await expect(errorToast).toBeHidden({ timeout: 3000 });
+  });
+
+  test('should change period to Monthly without errors', async ({ page }) => {
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await expect(page.locator('#period-dropdown-menu')).toBeVisible();
+
+    await page.getByRole('menuitem', { name: 'Monthly' }).click();
+    await page.waitForTimeout(1500);
+
+    const errorToast = page.locator('text=Failed to load report data');
+    await expect(errorToast).toBeHidden({ timeout: 3000 });
+  });
+
+  test('should display chart canvas after period change', async ({ page }) => {
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await page.getByRole('menuitem', { name: '7 Days' }).click();
+    await page.waitForTimeout(2000);
+
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should load KPI values from dashboard stats API', async ({ page }) => {
+    let statsPayload: any = null;
+    page.on('response', async (response) => {
+      if (response.url().includes('/api/dashboard/comparison')) {
+        statsPayload = await response.json().catch(() => null);
+      }
+    });
+
+    await page.reload();
+    await page.waitForTimeout(3000);
+
+    expect(statsPayload).toBeTruthy();
+    const data = statsPayload?.data || statsPayload;
+    expect(data).toHaveProperty('current_revenue');
+    expect(data).toHaveProperty('current_orders');
+    expect(typeof data.current_revenue).toBe('number');
+    expect(typeof data.current_orders).toBe('number');
+  });
+
+  test('7 Days period returns 7 data points from chart API', async ({ page }) => {
+    let chartPayload: any = null;
+    page.on('response', async (response) => {
+      if (response.url().includes('/api/dashboard/chart') && !response.url().includes('monthly')) {
+        chartPayload = await response.json().catch(() => null);
+      }
+    });
+
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await page.getByRole('menuitem', { name: '7 Days' }).click();
+    await page.waitForTimeout(3000);
+
+    expect(chartPayload).toBeTruthy();
+    const currentData = chartPayload?.data?.current || chartPayload?.current || [];
+    expect(currentData.length).toBe(7);
+  });
+
+  test('Best/Worst badges display period labels from API data', async ({ page }) => {
+    const periodButton = page.locator('button[aria-haspopup="menu"]').first();
+    await expect(periodButton).toBeVisible({ timeout: 10000 });
+
+    await periodButton.click();
+    await page.getByRole('menuitem', { name: '7 Days' }).click();
+    await page.waitForTimeout(3000);
+
+    const bestBadge = page.locator('text=Best').first();
+    await expect(bestBadge).toBeVisible({ timeout: 10000 });
+
+    const badgeText = await bestBadge.textContent();
+    expect(badgeText).toBeTruthy();
+    expect(badgeText!.length).toBeGreaterThan(5);
+  });
 });
 
 test.describe('Reports API', () => {

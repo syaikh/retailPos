@@ -41,8 +41,9 @@ test.describe('Dashboard (Home Page)', () => {
     await expect(page.locator('#username')).toBeVisible();
   });
 
-  test('Topbar clock displays Jakarta time with WIB suffix', async ({ page }) => {
-    const dateTimeText = await page.locator('header').locator('span.text-xs').last().textContent();
-    expect(dateTimeText).toMatch(/\d{2}:\d{2}/);
+  test('Topbar clock displays Jakarta time with correct format', async ({ page }) => {
+    const clockText = await page.locator('header').locator('span.text-xs').last().textContent();
+    expect(clockText).toMatch(/\d{2}:\d{2}/);
+    expect(clockText).toMatch(/•/);
   });
 });

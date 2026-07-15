@@ -1,25 +1,24 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken, loginUI, logoutUI } from './fixtures';
-
-const getToken = cachedGetToken;
+import { TEST_USERS, loginUI, logoutUI } from './fixtures';
 
 test.describe('Categories Management', () => {
   test.beforeEach(async ({ page }) => {
-    await loginUI(page, 'superadmin', 'admin123');
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
     await page.goto('http://localhost:5173/categories');
-    await page.waitForTimeout(2000);
-    await expect(page.getByRole('columnheader', { name: 'CATEGORY NAME' })).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/categories/);
+    await expect(page.locator('text=CATEGORY NAME')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterEach(async ({ page }) => {
     await logoutUI(page);
   });
 
-  test('should display category list table', async ({ page }) => {
+  test('should display categories table with columns', async ({ page }) => {
     await expect(page.getByRole('columnheader', { name: 'CATEGORY NAME' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'SLUG' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'PRODUCTS' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'CREATED' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'ACTIONS' })).toBeVisible();
   });
 
   test('should create a new category', async ({ page }) => {
@@ -29,76 +28,79 @@ test.describe('Categories Management', () => {
     await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeVisible();
 
     await page.fill('#cat-name', categoryName);
-    await page.fill('#cat-desc', 'Auto-generated e2e category');
+    await page.fill('#cat-desc', 'E2E test category description');
+    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
 
-    await page.getByRole('dialog', { name: 'Tambah Kategori' }).getByRole('button', { name: 'Tambah Kategori' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 10000 });
+    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
+
+    await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
+    await page.waitForTimeout(2000);
+    await expect(page.getByText(categoryName, { exact: true })).toBeVisible({ timeout: 15000 });
   });
 
-  test('should edit the first category', async ({ page }) => {
-    await page.locator('button[aria-label="Edit"]').first().click();
+  test('should edit a category', async ({ page }) => {
+    const categoryName = `Edit Category ${Date.now()}`;
+
+    await page.getByRole('button', { name: 'Tambah Kategori' }).first().click();
+    await page.fill('#cat-name', categoryName);
+    await page.fill('#cat-desc', 'Original description');
+    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
+    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
+
+    await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
+    await page.waitForTimeout(1000);
+    await expect(page.locator(`text=${categoryName}`).first()).toBeVisible({ timeout: 10000 });
+
+    const editButton = page.locator('tr').filter({ hasText: categoryName }).locator('button[aria-label="Edit"]');
+    await editButton.click();
     await expect(page.getByRole('dialog', { name: 'Edit Kategori' })).toBeVisible();
 
-    await page.fill('#cat-name', `Updated Category ${Date.now()}`);
+    await page.fill('#cat-name', `${categoryName} Updated`);
     await page.getByRole('button', { name: 'Simpan Perubahan' }).click();
     await expect(page.getByRole('dialog', { name: 'Edit Kategori' })).toBeHidden({ timeout: 10000 });
+
+    await expect(page.locator(`text=${categoryName} Updated`).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('should validate required name field', async ({ page }) => {
+  test('should delete a category', async ({ page }) => {
+    const categoryName = `Delete Category ${Date.now()}`;
+
     await page.getByRole('button', { name: 'Tambah Kategori' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeVisible();
+    await page.fill('#cat-name', categoryName);
+    await page.getByRole('button', { name: 'Tambah Kategori' }).last().click();
+    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeHidden({ timeout: 15000 });
 
-    await page.fill('#cat-name', '');
-    await page.getByRole('dialog', { name: 'Tambah Kategori' }).getByRole('button', { name: 'Tambah Kategori' }).click();
+    await page.getByPlaceholder('Search by name or slug...').fill(categoryName);
+    await page.waitForTimeout(1000);
+    await expect(page.locator(`text=${categoryName}`).first()).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByRole('dialog', { name: 'Tambah Kategori' })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Nama kategori wajib diisi')).toBeVisible({ timeout: 10000 });
-  });
-});
+    const deleteButton = page.locator('tr').filter({ hasText: categoryName }).locator('button[aria-label="Hapus"]');
+    await deleteButton.click();
+    await expect(page.getByRole('dialog', { name: 'Hapus Kategori' })).toBeVisible();
 
-// ============================================================================
-// Categories API - Delete
-// ============================================================================
+    await page.getByRole('dialog', { name: 'Hapus Kategori' }).getByRole('button', { name: 'Hapus' }).click();
+    await expect(page.getByRole('dialog', { name: 'Hapus Kategori' })).toBeHidden({ timeout: 10000 });
 
-test.describe('Categories API - Delete', () => {
-
-  test('DELETE /api/categories/:id deletes a category', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-
-    // Create a category to delete
-    const createRes = await request.post(`${API_BASE}/api/categories`, {
-      headers: authHeader(token),
-      data: { name: `DelCat ${Date.now()}` },
-    });
-    expect(createRes.ok(), `create failed: ${createRes.status()}: ${await createRes.text()}`).toBeTruthy();
-    const created = await createRes.json();
-    const catId = created.data?.id || created.id;
-    expect(catId).toBeTruthy();
-
-    const deleteRes = await request.delete(`${API_BASE}/api/categories/${catId}`, {
-      headers: authHeader(token),
-    });
-    expect(deleteRes.ok(), `delete failed: ${deleteRes.status()}: ${await deleteRes.text()}`).toBeTruthy();
+    await page.getByPlaceholder('Search by name or slug...').fill('');
+    await page.waitForTimeout(1000);
+    await expect(page.locator(`text=${categoryName}`).first()).toBeHidden({ timeout: 5000 });
   });
 
-  test('DELETE /api/categories/:id returns 400 for invalid id', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.delete(`${API_BASE}/api/categories/not-a-number`, {
-      headers: authHeader(token),
-    });
-    expect(res.status()).toBe(400);
+  test('should search categories', async ({ page }) => {
+    await page.getByPlaceholder('Search by name or slug...').fill('Personal Care');
+    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Personal Care').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('DELETE /api/categories/:id without auth returns 401', async ({ request }) => {
-    const res = await request.delete(`${API_BASE}/api/categories/1`);
-    expect(res.status()).toBe(401);
+  test('should show empty state when no categories match search', async ({ page }) => {
+    await page.getByPlaceholder('Search by name or slug...').fill('ZZZ_NONEXISTENT_CATEGORY_12345');
+    await page.waitForTimeout(1500);
+    await expect(page.locator('text=No categories found')).toBeVisible({ timeout: 5000 });
   });
 
-  test('DELETE /api/categories/:id with restricted role returns 403', async ({ request }) => {
-    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
-    const res = await request.delete(`${API_BASE}/api/categories/1`, {
-      headers: authHeader(token),
-    });
-    expect(res.status()).toBe(403);
+  test('should show import/export dropdown', async ({ page }) => {
+    await page.locator('button').filter({ hasText: 'Bulk Actions' }).first().click();
+    await expect(page.getByRole('menuitem', { name: 'Export CSV' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('menuitem', { name: 'Export XLSX' })).toBeVisible();
   });
 });

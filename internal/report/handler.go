@@ -408,9 +408,8 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
 			return
 		}
-		prevEnd = prevEnd.Add(24 * time.Hour)
 
-		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate, prevStart, prevEnd, storeIDPtr(sid))
+		current, previous, err := h.svc.GetDualChartData(ctx, startDate, endDate.Add(-24*time.Hour), prevStart, prevEnd, storeIDPtr(sid))
 		if err != nil {
 			shared.InternalError(c, err)
 			return

@@ -227,4 +227,93 @@ test.describe('WebSocket Real-time Events', () => {
     expect(lowStockMsg).toBeTruthy();
   });
 
+  test('WebSocket receives sale_created events for all concurrent sales', async ({ page }) => {
+    const messages: string[] = [];
+    page.on('websocket', ws => {
+      ws.on('framereceived', frame => {
+        messages.push(typeof frame === 'string' ? frame : frame.payload || '');
+      });
+    });
+
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await page.waitForTimeout(2000);
+
+    const token = await page.evaluate(() => sessionStorage.getItem('access_token'));
+    expect(token).toBeTruthy();
+
+    const sku = `CONCURRENT-SALE-${Date.now()}`;
+    const createRes = await page.request.post(`${API_BASE}/api/products`, {
+      headers: authHeader(token!),
+      data: { name: 'Concurrent Sale Test', sku, price: 10000, cost: 5000, stock: 100, status: 'active' },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const created = await createRes.json();
+    const productId = created.data?.id || created.id;
+
+    const saleCount = 3;
+    const salePromises = [];
+    for (let i = 0; i < saleCount; i++) {
+      salePromises.push(
+        page.request.post(`${API_BASE}/api/sales`, {
+          headers: authHeader(token!),
+          data: {
+            items: [{ product_id: productId, quantity: 1, subtotal: 10000 }],
+            payment_method: 'CASH',
+          },
+        })
+      );
+    }
+    const saleResults = await Promise.all(salePromises);
+    for (const res of saleResults) {
+      expect(res.ok()).toBeTruthy();
+    }
+
+    await page.waitForTimeout(3000);
+
+    const saleCreatedMessages = messages.filter(m => m.includes('sale_created'));
+    expect(saleCreatedMessages.length).toBeGreaterThanOrEqual(saleCount);
+  });
+
+  test('WebSocket reflects final state after rapid product updates', async ({ page }) => {
+    const messages: string[] = [];
+    page.on('websocket', ws => {
+      ws.on('framereceived', frame => {
+        messages.push(typeof frame === 'string' ? frame : frame.payload || '');
+      });
+    });
+
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await page.waitForTimeout(2000);
+
+    const token = await page.evaluate(() => sessionStorage.getItem('access_token'));
+    expect(token).toBeTruthy();
+
+    const sku = `RAPID-UPDATE-${Date.now()}`;
+    const createRes = await page.request.post(`${API_BASE}/api/products`, {
+      headers: authHeader(token!),
+      data: { name: 'Rapid Update Test', sku, price: 10000, cost: 5000, stock: 10, status: 'active' },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const created = await createRes.json();
+    const productId = created.data?.id || created.id;
+
+    const finalName = `Rapid Update Test Final ${Date.now()}`;
+    await page.request.put(`${API_BASE}/api/products/${productId}`, {
+      headers: authHeader(token!),
+      data: { name: finalName, sku, price: 20000, cost: 10000, stock: 20, status: 'active' },
+    });
+
+    await page.waitForTimeout(2000);
+
+    const productUpdateMessages = messages.filter(m => m.includes('product_updated'));
+    expect(productUpdateMessages.length).toBeGreaterThanOrEqual(1);
+
+    const productsRes = await page.request.get(`${API_BASE}/api/products/${productId}`, {
+      headers: authHeader(token!),
+    });
+    expect(productsRes.ok()).toBeTruthy();
+    const product = await productsRes.json();
+    expect(product.data?.name || product.name).toBe(finalName);
+  });
+
 });

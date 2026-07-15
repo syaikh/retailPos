@@ -126,6 +126,17 @@ test.describe('POS UI Flow', () => {
     await page.keyboard.press('F2');
     await expect(page.locator('#pos-search-input')).toBeFocused({ timeout: 3000 });
   });
+
+  test('cart shows item count after adding product', async ({ page }) => {
+    await page.waitForTimeout(2000);
+    const addButton = page.locator('button:not([disabled])').filter({ hasText: 'Add' }).first();
+    await addButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(addButton).toBeEnabled({ timeout: 5000 });
+    await addButton.click();
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
+  });
 });
 
 test.describe('POS API Tests', () => {
