@@ -1,14 +1,14 @@
 <script>
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte.ts';
-  import { useAuthStore } from '$modules/auth/stores/auth.store.ts';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte.ts';
+  import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../services/supplier-service.ts';
   import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal } from '$shared/ui';
   import { Plus, Pencil, Trash2, Truck, Loader2 } from 'lucide-svelte';
 
   const authStore = useAuthStore();
-  const rbac = useRBAC(() => authStore.user?.role || '');
+  const rbac = useRBAC();
 
   let loading = $state(true);
   let suppliers = $state([]);
