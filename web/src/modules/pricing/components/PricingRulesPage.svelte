@@ -2,13 +2,11 @@
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte.ts';
   import { useAuthStore } from '$modules/auth';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule } from '../services/pricing-service.ts';
   import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal } from '$shared/ui';
   import { Plus, Pencil, Trash2, DollarSign, Loader2 } from 'lucide-svelte';
 
   const authStore = useAuthStore();
-  const rbac = useRBAC();
 
   let loading = $state(true);
   let rules = $state([]);
@@ -34,9 +32,9 @@
     effective_until: ''
   });
 
-  let canCreate = $derived(rbac.hasPermission('pricing:create'));
-  let canEdit = $derived(rbac.hasPermission('pricing:update'));
-  let canDelete = $derived(rbac.hasPermission('pricing:delete'));
+  let canCreate = $derived((authStore.user?.permissions || []).includes('pricing:create'));
+  let canEdit = $derived((authStore.user?.permissions || []).includes('pricing:update'));
+  let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
 
   const pricingTypes = [
     { value: 'discount', label: 'Discount' },
