@@ -37,7 +37,7 @@ describe('ProductsPage.svelte source-structure guards', () => {
 
   it('uses $state for products, loading, pagination state', () => {
     expect(src).toContain('let loading = $state(true)');
-    expect(src).toContain('let products = $state([])');
+    expect(src).toContain('let products = $state<Product[]>');
     expect(src).toContain('let total = $state(0)');
     expect(src).toContain('let searchQuery = $state');
   });

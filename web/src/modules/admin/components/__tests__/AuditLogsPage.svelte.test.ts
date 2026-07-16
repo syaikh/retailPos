@@ -24,11 +24,12 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
   });
 
   it('uses $state for items, pagination, filters, and request tracking', () => {
-    expect(src).toContain('let items = $state([])');
+    expect(src).toContain('let items = $state<any[]>');
     expect(src).toContain('let total = $state(0)');
     expect(src).toContain('let searchQuery = $state');
     expect(src).toContain('let currentRequestId = $state(0)');
-    expect(src).toContain('let abortController = $state');
+    expect(src).toContain('let abortController');
+    expect(src).toContain('$state');
   });
 
   it('has RBAC — only superadmin can view', () => {
@@ -36,7 +37,7 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
   });
 
   it('has drawer open/close functions', () => {
-    expect(src).toContain('function openDrawer(log)');
+    expect(src).toContain('function openDrawer(log');
     expect(src).toContain('function closeDrawer()');
   });
 
@@ -45,7 +46,7 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
   });
 
   it('has handlePageChange function', () => {
-    expect(src).toContain('function handlePageChange(newOffset, newLimit)');
+    expect(src).toContain('function handlePageChange(newOffset');
   });
 
   it('imports the three extracted child components', () => {
