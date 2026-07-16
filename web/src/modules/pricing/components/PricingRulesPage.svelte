@@ -348,7 +348,7 @@
         <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
           {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
         </select>
-        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingTypeDescriptions[form.pricing_type] || ''}</p>
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted h-4 overflow-hidden">{pricingTypeDescriptions[form.pricing_type] || ''}</p>
       </div>
     </div>
     <div>
