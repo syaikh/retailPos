@@ -341,30 +341,35 @@
       <div>
         <label for="product_id" class="block text-xs font-medium text-text-secondary mb-1">Product ID <span class="text-danger">*</span></label>
         <Input id="product_id" type="number" bind:value={form.product_id} required min="1" placeholder="42" class="h-9 text-sm" />
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">ID produk dari halaman Products</p>
       </div>
       <div>
         <label for="pricing_type" class="block text-xs font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
         <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
           {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
         </select>
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingTypeDescriptions[form.pricing_type] || ''}</p>
       </div>
     </div>
     <div>
       <label for="rule_name" class="block text-xs font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
-      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5 pcs" class="h-9 text-sm" />
+      <Input id="rule_name" bind:value={form.name} required placeholder="Wholesale min 5 pcs" class="h-9 text-sm" />
     </div>
     <div class="grid grid-cols-3 gap-3">
       <div>
         <label for="rule_price" class="block text-xs font-medium text-text-secondary mb-1">Harga (Rp) <span class="text-danger">*</span></label>
         <Input id="rule_price" type="number" bind:value={form.price} required min="0" placeholder="15000" class="h-9 text-sm" />
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Harga per unit, contoh: 15000</p>
       </div>
       <div>
         <label for="min_qty" class="block text-xs font-medium text-text-secondary mb-1">Min Qty <span class="text-danger">*</span></label>
         <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" placeholder="1" class="h-9 text-sm" />
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Minimum pembelian</p>
       </div>
       <div>
         <label for="priority" class="block text-xs font-medium text-text-secondary mb-1">Prioritas</label>
         <Input id="priority" type="number" bind:value={form.priority} min="0" placeholder="0" class="h-9 text-sm" />
+        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Lebih tinggi = lebih diprioritaskan</p>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-3">
@@ -377,6 +382,7 @@
         <Input id="effective_until" type="date" bind:value={form.effective_until} class="h-9 text-sm" />
       </div>
     </div>
+    <p class="text-[11px] leading-tight text-text-muted -mt-1">Kosongkan = berlaku selamanya</p>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-2">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
