@@ -14,11 +14,17 @@ export interface CartItem {
   name: string;
   sku: string;
   price: number;
+  original_price: number;
   stock: number;
   quantity: number;
   barcode?: string;
   tax_rate?: number;
   unit?: string;
+  pricing_rule_id?: number;
+  pricing_rule_name?: string;
+  pricing_rule_type?: string;
+  pricing_type?: string;
+  discount?: number;
 }
 
 export interface CheckoutPayload {
@@ -27,6 +33,11 @@ export interface CheckoutPayload {
     quantity: number;
     unit_price: number;
     subtotal: number;
+    pricing_rule_id?: number;
+    pricing_rule_name?: string;
+    pricing_rule_type?: string;
+    pricing_type?: string;
+    original_price?: number;
   }[];
   cashier_id: number;
   store_id: number | null;

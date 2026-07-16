@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -24,6 +25,7 @@ type Service struct {
 	repo       *Repository
 	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
+	resolver   pricing.PriceResolver
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) *Service {
@@ -32,6 +34,10 @@ func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 
 func (s *Service) SetPriceStore(ps ProductPriceGetter) {
 	s.priceStore = ps
+}
+
+func (s *Service) SetPriceResolver(r pricing.PriceResolver) {
+	s.resolver = r
 }
 
 func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error {
@@ -90,7 +96,51 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		return fmt.Errorf("batch deduct stock: %w", err)
 	}
 
-	if s.priceStore != nil {
+	if s.resolver != nil {
+		resolveItems := make([]pricing.ResolveItem, len(items))
+		for i, item := range items {
+			resolveItems[i] = pricing.ResolveItem{ProductID: item.ProductID, Quantity: item.Quantity}
+		}
+
+		resolved, err := s.resolver.ResolveBatch(ctx, resolveItems)
+		if err != nil {
+			return fmt.Errorf("resolve prices: %w", err)
+		}
+
+		sale.Subtotal = 0
+		for i := range items {
+			r := resolved[i]
+
+			clientUnitPrice := items[i].UnitPrice
+			if clientUnitPrice != r.UnitPrice {
+				return fmt.Errorf("%w: product %d, server=%d, client=%d", ErrPriceMismatch, items[i].ProductID, r.UnitPrice, clientUnitPrice)
+			}
+
+			items[i].UnitPrice = r.UnitPrice
+			items[i].Subtotal = r.UnitPrice * items[i].Quantity
+			items[i].OriginalPrice = &r.OriginalPrice
+
+			if r.Rule != nil {
+				ruleID := r.Rule.ID
+				ruleName := r.Rule.Name
+				ruleType := string(r.Rule.PricingType)
+				pt := string(r.PricingType)
+				items[i].PricingRuleID = &ruleID
+				items[i].PricingRuleName = &ruleName
+				items[i].PricingRuleType = &ruleType
+				items[i].PricingType = &pt
+			} else {
+				pt := string(pricing.PricingTypeNormal)
+				items[i].PricingType = &pt
+			}
+
+			sale.Subtotal += items[i].Subtotal
+		}
+		sale.TotalAmount = sale.Subtotal - sale.Discount
+		if sale.TotalAmount < 0 {
+			sale.TotalAmount = 0
+		}
+	} else if s.priceStore != nil {
 		productIDs := make([]int, len(items))
 		for i, item := range items {
 			productIDs[i] = item.ProductID

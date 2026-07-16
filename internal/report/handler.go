@@ -26,6 +26,7 @@ type ReportService interface {
 	GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
 	GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error)
 	GetAvailableYears(ctx context.Context, storeID int) ([]int, error)
+	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
 }
 
 type Handler struct {
@@ -45,6 +46,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/dashboard/comparison", auth, perm("report:read"), h.GetPeriodComparison)
 	r.POST("/dashboard/export", auth, perm("report:read"), h.ExportDashboard)
 	r.GET("/dashboard/years", auth, perm("report:read"), h.GetAvailableYears)
+	r.GET("/dashboard/pricing-breakdown", auth, perm("report:read"), h.GetPricingBreakdown)
 }
 
 type PeriodType string
@@ -668,4 +670,44 @@ func (h *Handler) GetAvailableYears(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": years})
+}
+
+func (h *Handler) GetPricingBreakdown(c *gin.Context) {
+	startStr := c.Query("start")
+	endStr := c.Query("end")
+
+	jakartaLoc := shared.JakartaLocation()
+	now := time.Now().In(jakartaLoc)
+
+	var start, end time.Time
+	if startStr != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", startStr, jakartaLoc)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start date"})
+			return
+		}
+		start = parsed
+	} else {
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, jakartaLoc)
+	}
+	if endStr != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", endStr, jakartaLoc)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end date"})
+			return
+		}
+		end = parsed.Add(24 * time.Hour)
+	} else {
+		end = now.Add(24 * time.Hour)
+	}
+
+	storeID := shared.GetStoreID(c)
+
+	breakdown, err := h.svc.GetPricingBreakdown(c.Request.Context(), start, end, storeID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": breakdown})
 }

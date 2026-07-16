@@ -1,6 +1,8 @@
 <script lang="ts">
   import { Button, Input, Modal } from '$shared/ui';
-  import { Search, X, ChevronDown } from 'lucide-svelte';
+  import { Search, X, ChevronDown, Percent } from 'lucide-svelte';
+  import { getPricingRules } from '$modules/pricing/services/pricing-service';
+  import type { PricingRule } from '$modules/pricing/types';
 
   let {
     open = $bindable(false),
@@ -33,12 +35,40 @@
   } = $props();
 
   let showModalCategoryDropdown = $state(false);
+  let pricingRules = $state<PricingRule[]>([]);
+  let loadingPricing = $state(false);
 
   let filteredModalCategories = $derived(
     categories.filter(cat =>
       cat !== 'All' && cat.toLowerCase().includes(modalCategorySearch.toLowerCase())
     )
   );
+
+  let productFormId = $derived((form as any).id as number | undefined);
+
+  $effect(() => {
+    if (open && mode === 'edit' && productFormId) {
+      loadPricingRules(productFormId);
+    } else {
+      pricingRules = [];
+    }
+  });
+
+  async function loadPricingRules(productId: number) {
+    loadingPricing = true;
+    try {
+      const result = await getPricingRules({ limit: 50, offset: 0, product_id: productId });
+      pricingRules = result.data;
+    } catch {
+      pricingRules = [];
+    } finally {
+      loadingPricing = false;
+    }
+  }
+
+  function formatCurrency(value: number): string {
+    return 'Rp ' + value.toLocaleString('id-ID');
+  }
 
   function selectModalCategory(category: string) {
     form.category = category;
@@ -192,6 +222,47 @@
         {/if}
       </Input>
     </div>
+
+    {#if mode === 'edit' && productFormId}
+      <div class="rounded-xl border border-border bg-surface-default overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2">
+          <Percent size={14} class="text-primary-light" />
+          <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">Pricing Rules</span>
+          {#if pricingRules.length > 0}
+            <span class="text-[10px] font-medium text-text-muted bg-surface px-1.5 py-0.5 rounded-full">{pricingRules.length}</span>
+          {/if}
+        </div>
+        <div class="px-4 py-3">
+          {#if loadingPricing}
+            <p class="text-xs text-text-muted">Loading pricing rules...</p>
+          {:else if pricingRules.length === 0}
+            <p class="text-xs text-text-muted">No pricing rules configured. Base price: {formatCurrency(form.price)}</p>
+          {:else}
+            <div class="space-y-2">
+              {#each pricingRules as rule}
+                <div class="flex items-center justify-between text-xs py-1.5 {rule.is_active ? '' : 'opacity-50'}">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold
+                      {rule.pricing_type === 'discount' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                       rule.pricing_type === 'wholesale' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                       'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}">
+                      {rule.pricing_type}
+                    </span>
+                    <span class="text-text-secondary font-medium">{rule.name}</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    {#if rule.minimum_quantity > 1}
+                      <span class="text-text-muted">min {rule.minimum_quantity}</span>
+                    {/if}
+                    <span class="text-text-primary font-semibold">{formatCurrency(rule.price)}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <div class="flex justify-end gap-4 pt-4">
       <Button variant="secondary" class="px-5 disabled:opacity-50 disabled:cursor-not-allowed" onclick={onCancel}>

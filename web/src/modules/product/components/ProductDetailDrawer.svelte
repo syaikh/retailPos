@@ -1,8 +1,10 @@
 <script lang="ts">
   import { Badge, Button, Drawer } from '$shared/ui';
-  import { Pencil, Trash2, Copy } from 'lucide-svelte';
+  import { Pencil, Trash2, Copy, Percent } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { toast } from '$shared/stores/toast.svelte';
+  import { getPricingRules } from '$modules/pricing/services/pricing-service';
+  import type { PricingRule } from '$modules/pricing/types';
 
   let {
     selectedProduct,
@@ -37,6 +39,28 @@
   } = $props();
 
   let stock_stk = $derived(selectedProduct?.stock ?? 0);
+  let pricingRules = $state<PricingRule[]>([]);
+  let loadingPricing = $state(false);
+
+  $effect(() => {
+    if (showDetailDrawer && selectedProduct?.id) {
+      loadPricingRules(selectedProduct.id);
+    } else {
+      pricingRules = [];
+    }
+  });
+
+  async function loadPricingRules(productId: number) {
+    loadingPricing = true;
+    try {
+      const result = await getPricingRules({ limit: 50, offset: 0, product_id: productId });
+      pricingRules = result.data;
+    } catch {
+      pricingRules = [];
+    } finally {
+      loadingPricing = false;
+    }
+  }
 
   function statusInfo(status?: string): { variant: 'success' | 'muted' | 'danger'; label: string } {
     switch ((status || '').toLowerCase()) {
@@ -238,6 +262,45 @@
         </div>
       </div>
     {/if}
+
+    <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
+      <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
+        <Percent size={14} class="text-primary-light" />
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Aturan Harga</h4>
+        {#if pricingRules.length > 0}
+          <span class="text-[10px] font-medium text-text-muted bg-surface px-1.5 py-0.5 rounded-full">{pricingRules.length}</span>
+        {/if}
+      </div>
+      <div class="px-3.5 py-2.5">
+        {#if loadingPricing}
+          <p class="text-xs text-text-muted">Memuat aturan harga...</p>
+        {:else if pricingRules.length === 0}
+          <p class="text-xs text-text-muted">Tidak ada aturan harga. Harga dasar: {formatCurrency(selectedProduct.price)}</p>
+        {:else}
+          <div class="space-y-2">
+            {#each pricingRules as rule}
+              <div class="flex items-center justify-between text-xs py-1.5 {rule.is_active ? '' : 'opacity-50'}">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold
+                    {rule.pricing_type === 'discount' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                     rule.pricing_type === 'wholesale' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                     'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}">
+                    {rule.pricing_type}
+                  </span>
+                  <span class="text-text-secondary font-medium">{rule.name}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  {#if rule.minimum_quantity > 1}
+                    <span class="text-text-muted">min {rule.minimum_quantity}</span>
+                  {/if}
+                  <span class="text-text-primary font-semibold">{formatCurrency(rule.price)}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
 
     {#if isFullAudit}
       <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">

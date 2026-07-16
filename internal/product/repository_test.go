@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 var dbPool *pgxpool.Pool
 
 func uniqueSKU(base string) string {
-	return base + "-" + time.Now().Format("20060102150405")
+	return base + "-" + time.Now().Format("20060102150405") + "-" + fmt.Sprintf("%09d", time.Now().Nanosecond())
 }
 
 func TestMain(m *testing.M) {

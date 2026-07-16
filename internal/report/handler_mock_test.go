@@ -32,6 +32,7 @@ type mockReportService struct {
 	getSalesMonthlyReportFn func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
 	getDualMonthlyReportFn  func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error)
 	getAvailableYearsFn     func(ctx context.Context, storeID int) ([]int, error)
+	getPricingBreakdownFn   func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
 }
 
 func (m *mockReportService) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
@@ -63,6 +64,12 @@ func (m *mockReportService) GetDualMonthlyReport(ctx context.Context, storeID in
 }
 func (m *mockReportService) GetAvailableYears(ctx context.Context, storeID int) ([]int, error) {
 	return m.getAvailableYearsFn(ctx, storeID)
+}
+func (m *mockReportService) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+	if m.getPricingBreakdownFn != nil {
+		return m.getPricingBreakdownFn(ctx, start, end, storeID)
+	}
+	return []PricingBreakdownItem{}, nil
 }
 
 func setupReportHandler(svc ReportService) *gin.Engine {

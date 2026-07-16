@@ -82,10 +82,22 @@
         >
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-text-primary truncate">{item.name}</p>
-            <p class="text-xs text-text-muted mt-0.5">
-              {item.price.toLocaleString('id-ID')} × {item.quantity}
-              = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
-            </p>
+            {#if item.discount > 0}
+              <p class="text-xs text-text-muted mt-0.5">
+                <span class="line-through">{item.original_price.toLocaleString('id-ID')}</span>
+                <span class="text-green-600 font-medium">{item.price.toLocaleString('id-ID')}</span>
+                × {item.quantity}
+                = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+              </p>
+              {#if item.pricing_rule_name}
+                <p class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</p>
+              {/if}
+            {:else}
+              <p class="text-xs text-text-muted mt-0.5">
+                {item.price.toLocaleString('id-ID')} × {item.quantity}
+                = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+              </p>
+            {/if}
           </div>
           <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
             <button
@@ -105,6 +117,7 @@
                 if (item.quantity > maxStock) {
                   item.quantity = maxStock;
                 }
+                onupdateqty(item.id, 0);
               }}
               onblur={() => {
                 if (item.quantity <= 0) onremovefromcart(item.id);

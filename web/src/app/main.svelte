@@ -42,6 +42,8 @@
     '/admin/categories':   'Category Management',
     '/brands':             'Brand Management',
     '/units-of-measure':   'Unit of Measure Management',
+    '/pricing-rules':      'Pricing Rules',
+    '/suppliers':          'Supplier Management',
     '/admin/brands':       'Brand Management',
     '/admin/units-of-measure': 'Unit of Measure Management',
   };
@@ -67,6 +69,8 @@
     '/admin/categories':    () => import('$modules/settings/components/CategoriesPage.svelte'),
     '/brands':              () => import('$modules/settings/components/BrandsPage.svelte'),
     '/units-of-measure':    () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
+    '/pricing-rules':       () => import('$modules/pricing/components/PricingRulesPage.svelte'),
+    '/suppliers':           () => import('$modules/supplier/components/SuppliersPage.svelte'),
     '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
     '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
   };

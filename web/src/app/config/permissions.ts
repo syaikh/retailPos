@@ -23,4 +23,6 @@ export const routePermissions: Record<string, string[]> = {
 	'/admin/categories': ['category:read'],
 	'/admin/brands': ['product:read'],
 	'/admin/units-of-measure': ['product:read'],
+	'/pricing-rules': ['pricing:read'],
+	'/suppliers': ['pricing:read'],
 };

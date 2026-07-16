@@ -40,6 +40,17 @@
     onselectcustomer?: () => void;
   } = $props();
 
+  let totalSavings = $derived(
+    cart.reduce((sum, item) => {
+      if (item.discount && item.discount > 0) {
+        return sum + item.discount * item.quantity;
+      }
+      return sum;
+    }, 0)
+  );
+
+  let hasDiscountedItems = $derived(cart.some(item => item.discount && item.discount > 0));
+
   function handleCashInput(e: Event) {
     const raw = (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '');
     cashReceived = raw ? parseInt(raw, 10) : 0;
@@ -133,11 +144,37 @@
             <span>PPN 11%: {taxAmount.toLocaleString('id-ID')}</span>
           </div>
         {/if}
+        {#if hasDiscountedItems}
+          <div class="flex justify-center text-xs text-green-500 mb-2">
+            <span>Hemat: {totalSavings.toLocaleString('id-ID')}</span>
+          </div>
+        {/if}
         <p class="text-sm text-text-muted mb-1 font-medium">Total Tagihan</p>
         <p class="text-4xl font-extrabold text-purple-400">
           {totalAmount.toLocaleString('id-ID')}
         </p>
       </div>
+
+      {#if hasDiscountedItems}
+        <div class="mb-4 rounded-xl border border-border/50 bg-surface/50 px-3 py-2.5">
+          <p class="text-[10px] font-semibold uppercase tracking-wide text-text-muted mb-2">Rincian Item</p>
+          <div class="space-y-1.5 max-h-32 overflow-y-auto">
+            {#each cart as item}
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-text-secondary truncate max-w-[60%]">{item.name} × {item.quantity}</span>
+                <div class="flex items-center gap-2">
+                  {#if item.discount && item.discount > 0}
+                    <span class="line-through text-text-muted text-[10px]">{(item.original_price * item.quantity).toLocaleString('id-ID')}</span>
+                    <span class="text-text-primary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                  {:else}
+                    <span class="text-text-primary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <p class="text-xs text-text-muted mb-2 font-medium">Metode Pembayaran</p>
       <div class="grid grid-cols-3 gap-2 mb-6">

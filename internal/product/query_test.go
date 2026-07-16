@@ -27,16 +27,20 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	skuA := uniqueSKU("QF-SEARCH-A")
+	skuB := uniqueSKU("QF-SEARCH-B")
+	skuC := uniqueSKU("QF-SEARCH-C")
+
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-SEARCH-A", Name: "Alpha Gadget", Price: 10000, Cost: 5000,
+		SKU: skuA, Name: "Alpha Gadget", Price: 10000, Cost: 5000,
 		Stock: 10, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-SEARCH-B", Name: "Beta Gadget", Price: 20000, Cost: 10000,
+		SKU: skuB, Name: "Beta Gadget", Price: 20000, Cost: 10000,
 		Stock: 5, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-SEARCH-C", Name: "Omega Widget", Price: 30000, Cost: 15000,
+		SKU: skuC, Name: "Omega Widget", Price: 30000, Cost: 15000,
 		Stock: 3, Status: "active",
 	})
 
@@ -45,11 +49,11 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
-		assert.Equal(t, "QF-SEARCH-A", products[0].SKU)
+		assert.Equal(t, skuA, products[0].SKU)
 	})
 
 	t.Run("search matches by SKU", func(t *testing.T) {
-		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-SEARCH-B", nil, "", "", nil, nil, "")
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, skuB, nil, "", "", nil, nil, "")
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
@@ -75,19 +79,19 @@ func TestGetAllProducts_CategoryFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	catID1 := createTestCategory(t, ctx, "QF-Cat-Filter-1")
-	catID2 := createTestCategory(t, ctx, "QF-Cat-Filter-2")
+	catID1 := createTestCategory(t, ctx, uniqueSKU("QF-Cat-Filter-1"))
+	catID2 := createTestCategory(t, ctx, uniqueSKU("QF-Cat-Filter-2"))
 
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-CAT-A", Name: "CatFilterA", CategoryID: &catID1,
+		SKU: uniqueSKU("QF-CAT-A"), Name: "CatFilterA", CategoryID: &catID1,
 		Price: 1000, Cost: 500, Stock: 10, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-CAT-B", Name: "CatFilterB", CategoryID: &catID2,
+		SKU: uniqueSKU("QF-CAT-B"), Name: "CatFilterB", CategoryID: &catID2,
 		Price: 2000, Cost: 1000, Stock: 5, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-CAT-C", Name: "CatFilterC", CategoryID: &catID1,
+		SKU: uniqueSKU("QF-CAT-C"), Name: "CatFilterC", CategoryID: &catID1,
 		Price: 3000, Cost: 1500, Stock: 7, Status: "active",
 	})
 
@@ -118,10 +122,10 @@ func TestGetAllProducts_StatusFilter(t *testing.T) {
 	ctx := context.Background()
 
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-STATUS-A", Name: "StatusActive", Price: 1000, Cost: 500, Stock: 10, Status: "active",
+		SKU: uniqueSKU("QF-STATUS-A"), Name: "StatusActive", Price: 1000, Cost: 500, Stock: 10, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-STATUS-I", Name: "StatusInactive", Price: 2000, Cost: 1000, Stock: 5, Status: "inactive",
+		SKU: uniqueSKU("QF-STATUS-I"), Name: "StatusInactive", Price: 2000, Cost: 1000, Stock: 5, Status: "inactive",
 	})
 
 	t.Run("filter by active", func(t *testing.T) {
@@ -147,28 +151,30 @@ func TestGetAllProducts_MaxStockFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	skuA := uniqueSKU("QF-STOCK-A")
+	skuB := uniqueSKU("QF-STOCK-B")
+
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-STOCK-A", Name: "StockFilterA", Price: 1000, Cost: 500, Stock: 1, Status: "active",
+		SKU: skuA, Name: "StockFilterA", Price: 1000, Cost: 500, Stock: 1, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-STOCK-B", Name: "StockFilterB", Price: 2000, Cost: 1000, Stock: 9999, Status: "active",
+		SKU: skuB, Name: "StockFilterB", Price: 2000, Cost: 1000, Stock: 9999, Status: "active",
 	})
 
-	// maxStock=1 should only match QF-STOCK-A (stock=1); QF-STOCK-B has stock=9999
 	maxStock := 1
 	products, _, err := repo.GetAllProducts(ctx, 100, 0, "", nil, "", "", &maxStock, nil, "")
 	require.NoError(t, err)
 
 	found := false
 	for _, p := range products {
-		if p.SKU == "QF-STOCK-A" {
+		if p.SKU == skuA {
 			found = true
 		}
-		if p.SKU == "QF-STOCK-B" {
-			t.Error("QF-STOCK-B (stock=9999) should not appear with maxStock=1")
+		if p.SKU == skuB {
+			t.Error("StockFilterB (stock=9999) should not appear with maxStock=1")
 		}
 	}
-	assert.True(t, found, "QF-STOCK-A (stock=1) should appear with maxStock=1")
+	assert.True(t, found, "StockFilterA (stock=1) should appear with maxStock=1")
 }
 
 func TestGetAllProducts_Pagination(t *testing.T) {
@@ -177,7 +183,7 @@ func TestGetAllProducts_Pagination(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		seedTestProduct(t, repo, ctx, &Product{
-			SKU: "QF-PAGE-" + string(rune('A'+i)), Name: "PageTest",
+			SKU: uniqueSKU("QF-PAGE"), Name: "PageTest",
 			Price: 1000 * (i + 1), Cost: 500 * (i + 1), Stock: 10, Status: "active",
 		})
 	}
@@ -207,10 +213,10 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 	ctx := context.Background()
 
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-SORT-1", Name: "Zebra Item", Price: 5000, Cost: 2500, Stock: 10, Status: "active",
+		SKU: uniqueSKU("QF-SORT-1"), Name: "Zebra Item", Price: 5000, Cost: 2500, Stock: 10, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-SORT-2", Name: "Apple Item", Price: 3000, Cost: 1500, Stock: 20, Status: "active",
+		SKU: uniqueSKU("QF-SORT-2"), Name: "Apple Item", Price: 3000, Cost: 1500, Stock: 20, Status: "active",
 	})
 
 	t.Run("sort by name ascending", func(t *testing.T) {
@@ -242,17 +248,20 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	catID := createTestCategory(t, ctx, "QF-Combined-Cat")
+	catID := createTestCategory(t, ctx, uniqueSKU("QF-Combined-Cat"))
+	skuA := uniqueSKU("QF-COMB-A")
+	skuB := uniqueSKU("QF-COMB-B")
+
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-COMB-A", Name: "Combo Alpha", CategoryID: &catID,
+		SKU: skuA, Name: "Combo Alpha", CategoryID: &catID,
 		Price: 5000, Cost: 2500, Stock: 3, Status: "active",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-COMB-B", Name: "Combo Beta", CategoryID: &catID,
+		SKU: skuB, Name: "Combo Beta", CategoryID: &catID,
 		Price: 5000, Cost: 2500, Stock: 50, Status: "inactive",
 	})
 	seedTestProduct(t, repo, ctx, &Product{
-		SKU: "QF-COMB-C", Name: "Combo Gamma",
+		SKU: uniqueSKU("QF-COMB-C"), Name: "Combo Gamma",
 		Price: 5000, Cost: 2500, Stock: 3, Status: "active",
 	})
 
@@ -262,7 +271,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
-		assert.Equal(t, "QF-COMB-A", products[0].SKU)
+		assert.Equal(t, skuA, products[0].SKU)
 	})
 
 	t.Run("search + category combined", func(t *testing.T) {
@@ -270,7 +279,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
-		assert.Equal(t, "QF-COMB-A", products[0].SKU)
+		assert.Equal(t, skuA, products[0].SKU)
 	})
 }
 

@@ -18,6 +18,7 @@ import (
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	ieh "retail-pos-system/internal/platform/importexport/handler"
@@ -31,6 +32,7 @@ import (
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 	"retail-pos-system/pkg/cache"
@@ -154,12 +156,16 @@ func main() {
 	auditRepo := audit.NewRepository(dbPool)
 	reportRepo := report.NewRepository(dbPool)
 	reportRepo.SetCache(appCache)
+	pricingRepo := pricing.NewRepository(dbPool)
+	supplierRepo := supplier.NewRepository(dbPool)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo)
 	productSvc := product.NewService(productRepo, categoryRepo, brandRepo, uomRepo, bus)
 	saleSvc := sale.NewService(saleRepo, bus)
 	saleSvc.SetPriceStore(&productPriceAdapter{repo: productRepo})
+	pricingResolver := pricing.NewResolver(pricingRepo)
+	saleSvc.SetPriceResolver(pricingResolver)
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo)
 	categorySvc := category.NewService(categoryRepo)
@@ -167,6 +173,8 @@ func main() {
 	uomSvc := uom.NewService(uomRepo)
 	auditSvc := audit.NewService(auditRepo)
 	reportSvc := report.NewService(reportRepo, bus)
+	pricingSvc := pricing.NewService(pricingRepo)
+	supplierSvc := supplier.NewService(supplierRepo)
 
 	userH := user.NewHandler(userSvc, auditSvc)
 	authH := user.NewAuthHandler(authSvc, auditSvc)
@@ -179,6 +187,8 @@ func main() {
 	uomH := uom.NewHandler(uomSvc, auditSvc)
 	auditH := audit.NewHandler(auditSvc)
 	reportH := report.NewHandler(reportSvc)
+	pricingH := pricing.NewHandler(pricingSvc, pricingResolver, auditSvc)
+	supplierH := supplier.NewHandler(supplierSvc, auditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)
@@ -259,6 +269,8 @@ func main() {
 		brandH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		uomH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		ieH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		pricingH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		supplierH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
 const mockCart = [
-  { id: 1, name: 'Item A', sku: 'A', price: 10000, stock: 10, quantity: 2, tax_rate: 11 },
-  { id: 2, name: 'Item B', sku: 'B', price: 5000, stock: 5, quantity: 3, tax_rate: 0 },
+  { id: 1, name: 'Item A', sku: 'A', price: 10000, original_price: 10000, stock: 10, quantity: 2, tax_rate: 11 },
+  { id: 2, name: 'Item B', sku: 'B', price: 5000, original_price: 5000, stock: 5, quantity: 3, tax_rate: 0 },
 ];
 
 describe('pos-utils', () => {

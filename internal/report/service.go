@@ -73,3 +73,7 @@ func (s *Service) GetDualMonthlyReport(ctx context.Context, storeID int, current
 	}
 	return current, previous, nil
 }
+
+func (s *Service) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+	return s.repo.GetPricingBreakdown(ctx, start, end, storeID)
+}

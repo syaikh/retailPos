@@ -43,6 +43,9 @@
         name: item.name,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        original_price: item.original_price,
+        pricing_rule_name: item.pricing_rule_name,
+        pricing_type: item.pricing_type,
       })),
       total_amount: selectedTransaction.total_amount,
       subtotal_dpp: selectedTransaction.total_amount - taxAmount,
@@ -51,6 +54,12 @@
       cashReceived: selectedTransaction.cash_received || selectedTransaction.total_amount,
       changeDue: selectedTransaction.change_due || 0,
       customer_name: selectedTransaction.customer_name || undefined,
+      total_savings: (selectedTransaction.items || []).reduce((sum: number, item: any) => {
+        if (item.original_price && item.original_price > item.unit_price) {
+          return sum + (item.original_price - item.unit_price) * item.quantity;
+        }
+        return sum;
+      }, 0),
     });
     setTimeout(() => window.print(), 300);
   }
@@ -136,9 +145,19 @@
               <tbody class="divide-y divide-border">
                 {#each selectedTransaction.items as item}
                   <tr class="hover:bg-surface/50">
-                    <td class="py-3 px-4 text-text-primary">{item.name}</td>
+                    <td class="py-3 px-4 text-text-primary">
+                      <div>{item.name}</div>
+                      {#if item.pricing_rule_name}
+                        <div class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</div>
+                      {/if}
+                    </td>
                     <td class="py-3 px-4 text-center text-text-secondary">{item.quantity}</td>
-                    <td class="py-3 px-4 text-right text-text-secondary">{(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                    <td class="py-3 px-4 text-right text-text-secondary">
+                      {#if item.original_price && item.original_price > item.unit_price}
+                        <span class="line-through text-text-muted text-[10px] block">{item.original_price.toLocaleString('id-ID')}</span>
+                      {/if}
+                      <span>{(item.unit_price || 0).toLocaleString('id-ID')}</span>
+                    </td>
                     <td class="py-3 px-4 text-right font-medium text-text-primary">{(item.unit_price * item.quantity).toLocaleString('id-ID')}</td>
                   </tr>
                 {/each}
@@ -146,6 +165,20 @@
             </table>
           </div>
           <div class="bg-surface-subtle/50 border-t border-border">
+            {#if selectedTransaction.items?.some((item: any) => item.original_price && item.original_price > item.unit_price)}
+              {@const totalSavings = selectedTransaction.items.reduce((sum: number, item: any) => {
+                if (item.original_price && item.original_price > item.unit_price) {
+                  return sum + (item.original_price - item.unit_price) * item.quantity;
+                }
+                return sum;
+              }, 0)}
+              {#if totalSavings > 0}
+                <div class="flex justify-between items-center py-2 px-4 text-sm">
+                  <span class="text-green-600 dark:text-green-400">Hemat</span>
+                  <span class="text-green-600 dark:text-green-400 font-medium">-{totalSavings.toLocaleString('id-ID')}</span>
+                </div>
+              {/if}
+            {/if}
             {#if selectedTransaction.tax && selectedTransaction.tax > 0}
               <div class="flex justify-between items-center py-2 px-4 text-sm">
                 <span class="text-text-muted">Subtotal (DPP)</span>

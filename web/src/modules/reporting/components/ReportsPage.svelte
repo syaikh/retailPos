@@ -50,6 +50,9 @@
 
   let chartCanvas = $state();
 
+  let pricingBreakdown = $state([]);
+  let loadingPricing = $state(false);
+
   let currentTimeHour = $state(`${String(getCurrentJakartaHour()).padStart(2, '0')}:00`);
   let currentJakartaHour = $derived(parseInt(currentTimeHour.split(':')[0]));
 
@@ -433,6 +436,7 @@
       exportMode = result.exportMode;
       exportDate = result.exportDate;
       if (result.kpiData) kpiData = result.kpiData;
+      fetchPricingBreakdown(startDate, endDate);
     } catch (error) {
       toast.error('Failed to load sales data');
     } finally {
@@ -479,6 +483,28 @@
       // Silently fail - will use defaults
     }
   }
+
+  async function fetchPricingBreakdown(start, end) {
+    try {
+      loadingPricing = true;
+      const params = new URLSearchParams();
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
+      const res = await apiFetch(`/api/dashboard/pricing-breakdown?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        pricingBreakdown = data.data || [];
+      }
+    } catch (e) {
+      pricingBreakdown = [];
+    } finally {
+      loadingPricing = false;
+    }
+  }
+
+  let totalPricingRevenue = $derived(
+    pricingBreakdown.reduce((sum, item) => sum + (item.revenue || 0), 0)
+  );
 
   onMount(() => {
     fetchAvailableYears();
@@ -557,4 +583,51 @@
       ontogglesort={toggleSort}
     />
   </div>
+
+  {#if pricingBreakdown.length > 0}
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-text-primary">Revenue by Pricing Type</h2>
+        {#if loadingPricing}
+          <span class="text-xs text-text-muted">Loading...</span>
+        {/if}
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {#each pricingBreakdown as item}
+          <div class="rounded-xl border border-border p-3 bg-surface-default">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+                {item.pricing_type === 'discount' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                 item.pricing_type === 'wholesale' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                 item.pricing_type === 'promotion' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}">
+                {item.pricing_type}
+              </span>
+            </div>
+            <p class="text-lg font-bold text-text-primary">Rp {(item.revenue || 0).toLocaleString('id-ID')}</p>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] text-text-muted">{item.order_count || 0} orders</span>
+              <span class="text-[10px] text-text-muted">·</span>
+              <span class="text-[10px] text-text-muted">{item.item_count || 0} items</span>
+            </div>
+            {#if totalPricingRevenue > 0}
+              <div class="mt-2 h-1.5 rounded-full bg-surface overflow-hidden">
+                <div
+                  class="h-full rounded-full
+                    {item.pricing_type === 'discount' ? 'bg-green-500' :
+                     item.pricing_type === 'wholesale' ? 'bg-blue-500' :
+                     item.pricing_type === 'promotion' ? 'bg-purple-500' :
+                     'bg-gray-500'}"
+                  style="width: {Math.min(100, ((item.revenue || 0) / totalPricingRevenue) * 100)}%"
+                ></div>
+              </div>
+              <span class="text-[10px] text-text-muted text-right">
+                {(((item.revenue || 0) / totalPricingRevenue) * 100).toFixed(1)}%
+              </span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>

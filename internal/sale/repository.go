@@ -47,6 +47,11 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 		subs := make([]int, len(items))
 		dpps := make([]int, len(items))
 		taxes := make([]int, len(items))
+		origPrices := make([]int, len(items))
+		ruleIDs := make([]interface{}, len(items))
+		ruleNames := make([]interface{}, len(items))
+		ruleTypes := make([]interface{}, len(items))
+		pricingTypes := make([]interface{}, len(items))
 		for i, item := range items {
 			saleIDs[i] = sale.ID
 			pIDs[i] = item.ProductID
@@ -55,10 +60,22 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 			subs[i] = item.Subtotal
 			dpps[i] = item.DPPAmount
 			taxes[i] = item.TaxAmount
+			if item.OriginalPrice != nil {
+				origPrices[i] = *item.OriginalPrice
+			} else {
+				origPrices[i] = item.UnitPrice
+			}
+			ruleIDs[i] = item.PricingRuleID
+			ruleNames[i] = item.PricingRuleName
+			ruleTypes[i] = item.PricingRuleType
+			pricingTypes[i] = item.PricingType
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
-			SELECT unnest($1::int[]), unnest($2::int[]), unnest($3::int[]), unnest($4::int[]), unnest($5::int[]), unnest($6::int[]), unnest($7::int[])`,
-			saleIDs, pIDs, qtys, prices, subs, dpps, taxes)
+		_, err = tx.Exec(ctx, `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount,
+			pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, original_price)
+			SELECT unnest($1::int[]), unnest($2::int[]), unnest($3::int[]), unnest($4::int[]), unnest($5::int[]), unnest($6::int[]), unnest($7::int[]),
+			       unnest($8::int[]), unnest($9::text[]), unnest($10::text[]), unnest($11::text[]), unnest($12::int[])`,
+			saleIDs, pIDs, qtys, prices, subs, dpps, taxes,
+			ruleIDs, ruleNames, ruleTypes, pricingTypes, origPrices)
 		if err != nil {
 			return fmt.Errorf("batch insert sale items: %w", err)
 		}
@@ -100,7 +117,8 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 
 	// Load sale items
 	itemRows, err := r.db.Query(ctx, `
-			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal, si.dpp_amount, si.tax_amount
+			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal, si.dpp_amount, si.tax_amount,
+			       si.pricing_rule_id, si.pricing_rule_name, si.pricing_rule_type, si.pricing_type, si.original_price
 			FROM sale_items si
 			JOIN products p ON si.product_id = p.id
 			WHERE si.sale_id = $1
@@ -110,7 +128,8 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	} else {
 		for itemRows.Next() {
 			var item SaleItem
-			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal, &item.DPPAmount, &item.TaxAmount); scanErr != nil {
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal, &item.DPPAmount, &item.TaxAmount,
+				&item.PricingRuleID, &item.PricingRuleName, &item.PricingRuleType, &item.PricingType, &item.OriginalPrice); scanErr != nil {
 				slog.Warn("failed to scan item row", "sale_id", sale.ID, "error", scanErr)
 				continue
 			}

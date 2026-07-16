@@ -43,3 +43,10 @@ type MonthlyReportItem struct {
 	Total      int    `json:"total"`
 	OrderCount int    `json:"order_count"`
 }
+
+type PricingBreakdownItem struct {
+	PricingType string `json:"pricing_type"`
+	Revenue     int    `json:"revenue"`
+	OrderCount  int    `json:"order_count"`
+	ItemCount   int    `json:"item_count"`
+}

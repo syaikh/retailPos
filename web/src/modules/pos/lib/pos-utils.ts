@@ -38,6 +38,13 @@ export function buildCheckoutPayload(
       quantity: item.quantity,
       unit_price: item.price,
       subtotal: item.price * item.quantity,
+      ...(item.pricing_rule_id ? {
+        pricing_rule_id: item.pricing_rule_id,
+        pricing_rule_name: item.pricing_rule_name,
+        pricing_rule_type: item.pricing_rule_type,
+        pricing_type: item.pricing_type,
+        original_price: item.original_price,
+      } : {}),
     })),
     cashier_id: cashierId,
     store_id: storeId,

@@ -15,8 +15,8 @@ describe('ProductDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { Badge, Button, Drawer } from '$shared/ui'");
   });
 
-  it('imports lucide icons (Pencil, Trash2, Copy)', () => {
-    expect(src).toContain("import { Pencil, Trash2, Copy } from 'lucide-svelte'");
+  it('imports lucide icons (Pencil, Trash2, Copy, Percent)', () => {
+    expect(src).toContain("import { Pencil, Trash2, Copy, Percent } from 'lucide-svelte'");
   });
 
   it('imports formatDateTimeInJakarta', () => {

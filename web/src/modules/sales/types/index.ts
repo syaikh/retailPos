@@ -7,6 +7,11 @@ export interface SaleItem {
   subtotal: number;
   dpp_amount?: number;
   tax_amount?: number;
+  original_price?: number;
+  pricing_rule_id?: number;
+  pricing_rule_name?: string;
+  pricing_rule_type?: string;
+  pricing_type?: string;
 }
 
 export interface Sale {

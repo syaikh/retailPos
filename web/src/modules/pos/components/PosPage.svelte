@@ -6,6 +6,7 @@
    import { debounce } from '$shared/utils/debounce';
    import { useWebSocket } from '$shared/api/websocket';
    import { getTodayInJakarta } from '$shared/utils/jakartaTime';
+   import { resolvePrices } from '$modules/pricing/services/pricing-service';
    import type { Sale, SaleItem } from '$modules/sales/types';
   import type { Customer } from '$modules/customers/types';
 
@@ -23,11 +24,17 @@ const authStore = useAuthStore();
     id: number;
     name: string;
     price: number;
+    original_price: number;
     quantity: number;
     stock: number;
     tax_rate?: number;
     sku?: string;
     barcode?: string;
+    pricing_rule_id?: number;
+    pricing_rule_name?: string;
+    pricing_rule_type?: string;
+    pricing_type?: string;
+    discount?: number;
     [key: string]: unknown;
   }
 
@@ -170,15 +177,17 @@ let total: number = $state(0);
       existing.quantity++;
       cart = cart;
     } else {
-      cart.push({ ...product, quantity: 1 });
+      cart.push({ ...product, quantity: 1, original_price: product.price });
       cart = cart;
     }
+    resolveCartPrices();
   }
 
   function removeFromCart(id: number) {
     const idx = cart.findIndex((item) => item.id === id);
     if (idx !== -1) cart.splice(idx, 1);
     cart = cart;
+    resolveCartPrices();
   }
 
   function updateQty(id: number, delta: number) {
@@ -195,6 +204,41 @@ let total: number = $state(0);
         item.quantity = newQty;
       }
       cart = cart;
+      resolveCartPrices();
+    }
+  }
+
+  let pricingResolving = $state(false);
+
+  async function resolveCartPrices() {
+    if (cart.length === 0) return;
+    pricingResolving = true;
+    try {
+      const items = cart.map((item) => ({ product_id: item.id, quantity: item.quantity }));
+      const results = await resolvePrices(items);
+      for (let i = 0; i < cart.length; i++) {
+        const result = results[i];
+        if (result) {
+          cart[i].price = result.unit_price;
+          cart[i].original_price = result.original_price;
+          cart[i].discount = result.discount;
+          cart[i].pricing_type = result.pricing_type;
+          if (result.rule) {
+            cart[i].pricing_rule_id = result.rule.id;
+            cart[i].pricing_rule_name = result.rule.name;
+            cart[i].pricing_rule_type = result.rule.pricing_type;
+          } else {
+            cart[i].pricing_rule_id = undefined;
+            cart[i].pricing_rule_name = undefined;
+            cart[i].pricing_rule_type = undefined;
+          }
+        }
+      }
+      cart = cart;
+    } catch (err) {
+      console.warn('Pricing resolution failed, using base prices', err);
+    } finally {
+      pricingResolving = false;
     }
   }
 
@@ -224,6 +268,13 @@ let total: number = $state(0);
         quantity: item.quantity,
         unit_price: item.price,
         subtotal: item.price * item.quantity,
+        ...(item.pricing_rule_id ? {
+          pricing_rule_id: item.pricing_rule_id,
+          pricing_rule_name: item.pricing_rule_name,
+          pricing_rule_type: item.pricing_rule_type,
+          pricing_type: item.pricing_type,
+          original_price: item.original_price,
+        } : {}),
       }));
       const response = await apiClient.post('/sales', {
         cashier_id: (authStore.user as any)?.id || 1,
@@ -272,6 +323,9 @@ let total: number = $state(0);
         name: item.name || '',
         quantity: item.quantity,
         unit_price: item.unit_price,
+        original_price: item.original_price,
+        pricing_rule_name: item.pricing_rule_name,
+        pricing_type: item.pricing_type,
       })),
       total_amount: sale.total_amount,
       subtotal_dpp: sale.total_amount - saleTaxAmount,
@@ -280,6 +334,12 @@ let total: number = $state(0);
       cashReceived: sale.cash_received || cashReceived,
       changeDue: sale.change_due || changeDue,
       customer_name: customer?.name,
+      total_savings: (sale.items || []).reduce((sum: number, item: any) => {
+        if (item.original_price && item.original_price > item.unit_price) {
+          return sum + (item.original_price - item.unit_price) * item.quantity;
+        }
+        return sum;
+      }, 0),
     });
     setTimeout(() => {
       window.print();
@@ -323,6 +383,9 @@ let total: number = $state(0);
             name: item.name || '',
             quantity: item.quantity,
             unit_price: item.unit_price,
+            original_price: item.original_price,
+            pricing_rule_name: item.pricing_rule_name,
+            pricing_type: item.pricing_type,
           })),
           total_amount: lastSale.total_amount,
           subtotal_dpp: lastSale.total_amount - taxAmt,
@@ -331,6 +394,12 @@ let total: number = $state(0);
           cashReceived: capturedCash,
           changeDue: capturedChange,
           customer_name: customer?.name,
+          total_savings: lastSale.items.reduce((sum: number, item: any) => {
+            if (item.original_price && item.original_price > item.unit_price) {
+              return sum + (item.original_price - item.unit_price) * item.quantity;
+            }
+            return sum;
+          }, 0),
         });
         setTimeout(() => {
           window.print();

@@ -607,3 +607,45 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 
 	return &stats, nil
 }
+
+func (r *Repository) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+	query := `
+		SELECT COALESCE(si.pricing_type, 'normal') AS pricing_type,
+		       SUM(si.unit_price * si.quantity) AS revenue,
+		       COUNT(DISTINCT si.sale_id) AS order_count,
+		       COUNT(*) AS item_count
+		FROM sale_items si
+		JOIN sales s ON si.sale_id = s.id
+		WHERE s.status = 'completed'
+		  AND s.created_at >= $1 AND s.created_at < $2
+	`
+	args := []interface{}{start, end}
+	argIdx := 3
+
+	if storeID != nil {
+		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
+		args = append(args, *storeID)
+		argIdx++
+	}
+
+	query += `
+		GROUP BY COALESCE(si.pricing_type, 'normal')
+		ORDER BY revenue DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query pricing breakdown: %w", err)
+	}
+	defer rows.Close()
+
+	var items []PricingBreakdownItem
+	for rows.Next() {
+		var item PricingBreakdownItem
+		if err := rows.Scan(&item.PricingType, &item.Revenue, &item.OrderCount, &item.ItemCount); err != nil {
+			return nil, fmt.Errorf("scan pricing breakdown: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}

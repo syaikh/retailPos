@@ -19,15 +19,20 @@ type Sale struct {
 }
 
 type SaleItem struct {
-	ID        int    `json:"id"`
-	SaleID    int    `json:"sale_id"`
-	ProductID int    `json:"product_id"`
-	Name      string `json:"name"`
-	Quantity  int    `json:"quantity"`
-	UnitPrice int    `json:"unit_price"`
-	Subtotal  int    `json:"subtotal"`
-	DPPAmount int    `json:"dpp_amount"`
-	TaxAmount int    `json:"tax_amount"`
+	ID               int     `json:"id"`
+	SaleID           int     `json:"sale_id"`
+	ProductID        int     `json:"product_id"`
+	Name             string  `json:"name"`
+	Quantity         int     `json:"quantity"`
+	UnitPrice        int     `json:"unit_price"`
+	Subtotal         int     `json:"subtotal"`
+	DPPAmount        int     `json:"dpp_amount"`
+	TaxAmount        int     `json:"tax_amount"`
+	PricingRuleID    *int    `json:"pricing_rule_id,omitempty"`
+	PricingRuleName  *string `json:"pricing_rule_name,omitempty"`
+	PricingRuleType  *string `json:"pricing_rule_type,omitempty"`
+	PricingType      *string `json:"pricing_type,omitempty"`
+	OriginalPrice    *int    `json:"original_price,omitempty"`
 }
 
 type SaleExportRow struct {
