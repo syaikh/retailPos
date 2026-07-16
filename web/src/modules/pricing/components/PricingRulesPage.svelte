@@ -137,21 +137,18 @@
   onMount(() => fetchRules());
 </script>
 
-<div class="space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900">Pricing Rules</h1>
-      <p class="text-sm text-gray-500 mt-1">Manage product pricing rules (discounts, wholesale, promotions)</p>
+<div class="space-y-5">
+  <div class="card p-4">
+    <div class="flex items-center gap-4">
+      <div class="flex-2">
+        <SearchBar bind:value={searchQuery} placeholder="Search rules..." oninput={handleSearch} inputClass="h-10" />
+      </div>
+      {#if canCreate}
+        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+          <Plus size={18} /> Add Rule
+        </Button>
+      {/if}
     </div>
-    {#if canCreate}
-      <Button variant="primary" onclick={openAdd}>
-        <Plus class="w-4 h-4 mr-2" /> Add Rule
-      </Button>
-    {/if}
-  </div>
-
-  <div class="card">
-    <SearchBar bind:value={searchQuery} placeholder="Search rules..." oninput={handleSearch} />
   </div>
 
   <div class="card">
