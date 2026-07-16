@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"time"
+
+	"retail-pos-system/internal/shared"
 )
 
 // ResolverRepo is the data access interface the resolver depends on.
@@ -33,13 +35,13 @@ func (r *Resolver) Resolve(ctx context.Context, productID int, quantity int) (*R
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	rules, err := r.repo.GetActiveRules(ctx, productID, now)
 	if err != nil {
 		return nil, err
 	}
 
-	best := selectBestRule(rules, quantity)
+	best := selectBestRule(rules, quantity, now)
 	if best == nil {
 		return &ResolvedPrice{
 			UnitPrice:     basePrice,
@@ -85,7 +87,7 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().In(shared.JakartaLocation())
 	rulesByProduct, err := r.repo.GetActiveRulesBatch(ctx, productIDs, now)
 	if err != nil {
 		return nil, err
@@ -96,7 +98,7 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 		basePrice := basePrices[item.ProductID]
 		rules := rulesByProduct[item.ProductID]
 
-		best := selectBestRule(rules, item.Quantity)
+		best := selectBestRule(rules, item.Quantity, now)
 		if best == nil {
 			results[i] = ResolvedPrice{
 				UnitPrice:     basePrice,
@@ -127,9 +129,7 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 // 1. Filter: is_active, not expired, not future, quantity >= minimum_quantity
 // 2. Sort: priority DESC, price ASC, id ASC
 // 3. Return first (best) rule, or nil if none qualify
-func selectBestRule(rules []PricingRule, quantity int) *PricingRule {
-	now := time.Now()
-
+func selectBestRule(rules []PricingRule, quantity int, now time.Time) *PricingRule {
 	// Filter eligible rules
 	var eligible []PricingRule
 	for _, rule := range rules {
