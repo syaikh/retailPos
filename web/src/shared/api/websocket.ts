@@ -1,5 +1,4 @@
 import { writable } from 'svelte/store';
-import { refreshTokenSilently } from '$modules/auth';
 
 class WebSocketService {
   status = writable<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
@@ -62,21 +61,15 @@ class WebSocketService {
           this.reconnectAttempts++;
           console.log(`[WebSocket] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
 
-          try {
-            await refreshTokenSilently();
-            const freshToken = sessionStorage.getItem('access_token');
-            if (!freshToken) {
-              console.warn('[WebSocket] No token available after refresh, stopping reconnects');
-              this.status.set('error');
-              return;
-            }
-            const delay = Math.min(2000 * this.reconnectAttempts, 30000);
-            console.log(`[WebSocket] Reconnecting in ${delay}ms`);
-            this.reconnectTimeout = setTimeout(() => this.connect(freshToken), delay);
-          } catch (e) {
-            console.error('[WebSocket] Token refresh failed during reconnect:', e);
+          const currentToken = sessionStorage.getItem('access_token');
+          if (!currentToken) {
+            console.warn('[WebSocket] No token available, stopping reconnects');
             this.status.set('error');
+            return;
           }
+          const delay = Math.min(2000 * this.reconnectAttempts, 30000);
+          console.log(`[WebSocket] Reconnecting in ${delay}ms`);
+          this.reconnectTimeout = setTimeout(() => this.connect(currentToken), delay);
         } else {
           console.warn('[WebSocket] Max reconnect attempts reached, giving up');
           this.status.set('error');

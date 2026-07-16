@@ -1,6 +1,6 @@
 <script>
   import { goto, getPath, subscribe } from '$app/router';
-  import { restoreSession, useAuthStore } from '$modules/auth';
+  import { restoreSession, useAuthStore, startProactiveRefresh } from '$modules/auth';
   import { initWebSocket } from '$app/providers/websocket';
   import { initAuth } from '$app/providers/auth-init';
   import ReceiptPrintOverlay from '$app/components/ReceiptPrintOverlay.svelte';
@@ -164,6 +164,7 @@
     console.log('[main] Authenticated, calling initWebSocket');
     wsInitialized = true;
     initWebSocket();
+    startProactiveRefresh();
     subscribe(handleRoute);
 
     if (path === '/login') {

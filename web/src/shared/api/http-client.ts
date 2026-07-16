@@ -1,6 +1,6 @@
 // Web API Client (Axios)
 import axios from 'axios';
-import { getAuthToken, refreshAccessToken, logout, setupAxiosInterceptors } from '$modules/auth';
+import { getAuthToken, refreshAccessToken, setupAxiosInterceptors } from '$modules/auth';
 
 // 1. Buat instance Axios untuk aplikasi
 const apiClient = axios.create({
@@ -51,9 +51,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
         ...options,
         headers,
       });
-    } else {
-      logout();
     }
+    throw new Error('Session expired');
   }
 
   return response;

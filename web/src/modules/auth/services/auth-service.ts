@@ -21,31 +21,56 @@ const authApi = axios.create({
   withCredentials: true,
 });
 
-export async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const response = await authApi.post('/refresh');
-    const newAccessToken = response.data.access_token;
-    setAccessToken(newAccessToken);
-    return newAccessToken;
-  } catch (err) {
-    logout();
-    return null;
-  }
+// --- Shared refresh lock (prevents race conditions) ---
+let refreshPromise: Promise<string | null> | null = null;
+
+async function doRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await authApi.post('/refresh');
+      const newAccessToken = response.data.access_token;
+      setAccessToken(newAccessToken);
+      return newAccessToken;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
-export async function refreshTokenSilently(): Promise<string | null> {
-  try {
-    const response = await authApi.post('/refresh');
-    const newAccessToken = response.data.access_token;
-    setAccessToken(newAccessToken);
-    return newAccessToken;
-  } catch (err) {
-    return null;
+export async function refreshAccessToken(): Promise<string | null> {
+  return doRefresh();
+}
+
+// --- Proactive token refresh ---
+let proactiveRefreshTimer: ReturnType<typeof setInterval> | null = null;
+const PROACTIVE_REFRESH_INTERVAL = 13 * 60 * 1000;
+
+export function startProactiveRefresh() {
+  stopProactiveRefresh();
+  proactiveRefreshTimer = setInterval(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      stopProactiveRefresh();
+      return;
+    }
+    await doRefresh();
+  }, PROACTIVE_REFRESH_INTERVAL);
+}
+
+export function stopProactiveRefresh() {
+  if (proactiveRefreshTimer) {
+    clearInterval(proactiveRefreshTimer);
+    proactiveRefreshTimer = null;
   }
 }
 
 export function setupAxiosInterceptors(apiClient: AxiosInstance) {
-  let isRefreshing = false;
   let failedQueue: Array<{
     resolve: (token: string) => void;
     reject: (err: unknown) => void;
@@ -68,7 +93,7 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
       const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
       if (error.response?.status === 401 && !originalRequest._retry) {
-        if (isRefreshing) {
+        if (refreshPromise) {
           return new Promise<string>((resolve, reject) => {
             failedQueue.push({ resolve, reject });
           })
@@ -81,11 +106,14 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
         }
 
         originalRequest._retry = true;
-        isRefreshing = true;
 
         try {
-          const newToken = await refreshAccessToken();
-          if (!newToken) throw new Error('Refresh failed');
+          const newToken = await doRefresh();
+          if (!newToken) {
+            processQueue(new Error('Refresh failed'), null);
+            logout();
+            return Promise.reject(new Error('Refresh failed'));
+          }
 
           processQueue(null, newToken);
 
@@ -94,9 +122,8 @@ export function setupAxiosInterceptors(apiClient: AxiosInstance) {
           return apiClient(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
+          logout();
           return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
         }
       }
 
@@ -116,7 +143,7 @@ export async function checkAuth(): Promise<boolean> {
     return true;
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      const newToken = await refreshAccessToken();
+      const newToken = await doRefresh();
       if (!newToken) return false;
       try {
         await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
@@ -154,7 +181,7 @@ export async function restoreSession(): Promise<{ success: boolean; user?: User 
     return { success: false };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      const newToken = await refreshTokenSilently();
+      const newToken = await doRefresh();
       if (!newToken) return { success: false };
       try {
         const retry = await authApi.post('/validate', {}, { headers: { Authorization: `Bearer ${newToken}` } });
@@ -191,6 +218,7 @@ export async function login(username: string, password: string): Promise<{ acces
 }
 
 export async function logout(): Promise<void> {
+  stopProactiveRefresh();
   try {
     await authApi.post('/logout', {}, { headers: getAuthHeaders() });
   } catch (err) {
