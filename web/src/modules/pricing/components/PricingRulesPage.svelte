@@ -127,8 +127,16 @@
     }
     saving = true;
     const payload = { ...form };
-    if (!payload.effective_from) delete payload.effective_from;
-    if (!payload.effective_until) delete payload.effective_until;
+    if (payload.effective_from) {
+      payload.effective_from = payload.effective_from + 'T00:00:00Z';
+    } else {
+      delete payload.effective_from;
+    }
+    if (payload.effective_until) {
+      payload.effective_until = payload.effective_until + 'T23:59:59Z';
+    } else {
+      delete payload.effective_until;
+    }
 
     let ok;
     if (modalMode === 'add') {
