@@ -36,6 +36,8 @@
 		'/admin/audit-logs':   'Audit Logs',
 		'/brands':             'Brands',
 		'/units-of-measure':   'Units',
+		'/pricing-rules':      'Pricing Rules',
+		'/suppliers':          'Suppliers',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',
 		'/units-of-measure/import-history': 'Import History',
@@ -59,6 +61,11 @@
       const adminPaths = ['/admin/users', '/admin/roles', '/admin/audit-logs'];
       if (adminPaths.includes(path)) {
         parts.push({ label: 'Administration', href: '/admin' });
+      }
+
+      const masterDataPaths = ['/pricing-rules', '/suppliers'];
+      if (masterDataPaths.includes(path)) {
+        parts.push({ label: 'Master Data', href: '/' });
       }
 
       const parent = importHistoryParents[path];
