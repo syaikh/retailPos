@@ -8,6 +8,13 @@ INSERT INTO permissions (code, name, description) VALUES
   ('pricing:delete', 'Hapus Aturan Harga', 'Bisa menghapus aturan harga')
 ON CONFLICT (code) DO NOTHING;
 
+-- Grant pricing:read, pricing:create, pricing:update, pricing:delete to superadmin
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.name = 'superadmin'
+  AND p.code IN ('pricing:read', 'pricing:create', 'pricing:update', 'pricing:delete')
+ON CONFLICT DO NOTHING;
+
 -- Grant pricing:read, pricing:create, pricing:update to admin and manager
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p

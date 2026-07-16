@@ -6,6 +6,13 @@ INSERT INTO permissions (code, name, description) VALUES
   ('supplier_cost:update', 'Edit Harga Beli Supplier', 'Bisa mengubah unit_cost saat menautkan produk ke supplier')
 ON CONFLICT (code) DO NOTHING;
 
+-- Grant supplier_cost:view and supplier_cost:update to superadmin
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.name = 'superadmin'
+  AND p.code IN ('supplier_cost:view', 'supplier_cost:update')
+ON CONFLICT DO NOTHING;
+
 -- Grant supplier_cost:view to admin and manager
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
