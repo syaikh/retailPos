@@ -43,8 +43,11 @@ export function buildChartConfig({
 
   if (chartType === 'hourly') {
     currentChartType = 'line';
+    const isCompletedPeriod = activePeriodType === 'yesterday' || activePeriodType === 'daily';
     const currentHour = getCurrentJakartaHour();
-    const hours = Array.from({ length: currentHour + 1 }, (_, i) => i);
+    const hours = isCompletedPeriod
+      ? Array.from({ length: 24 }, (_, i) => i)
+      : Array.from({ length: currentHour + 1 }, (_, i) => i);
     const dataByHour: Record<number, number> = {};
     chartData.forEach(d => { if (d.date) dataByHour[parseInt(d.date)] = d.total; });
     const prevByHour: Record<number, number> = {};

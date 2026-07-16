@@ -42,6 +42,15 @@ export function getPeriodLabel(item: { hour?: number; date?: string; month_start
   return item.label || '';
 }
 
+export function formatDayDate(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString + 'T00:00:00Z');
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const day = date.getUTCDate();
+  const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  return `${dayNames[date.getUTCDay()]}, ${day} ${month}`;
+}
+
 export function getFirstOfMonthNAgoInJakarta(n: number): string {
   const today = getTodayInJakarta().split('-').map(Number);
   const totalMonths = (today[0] * 12 + today[1] - 1) - n;

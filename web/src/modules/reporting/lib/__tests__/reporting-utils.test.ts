@@ -199,4 +199,44 @@ describe('reporting-utils', () => {
       expect(result).toBe('Jan 1');
     });
   });
+
+  describe('formatDayDate', () => {
+    it('returns empty string for falsy input', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      expect(formatDayDate('')).toBe('');
+      expect(formatDayDate(undefined)).toBe('');
+      expect(formatDayDate(null as unknown as string)).toBe('');
+    });
+
+    it('formats date as "Day, DD Mon"', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      const result = formatDayDate('2026-07-14');
+      expect(result).toBe('Tue, 14 Jul');
+    });
+
+    it('formats a Sunday correctly', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      const result = formatDayDate('2026-07-13');
+      expect(result).toBe('Mon, 13 Jul');
+    });
+
+    it('formats year boundaries', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      const result = formatDayDate('2026-01-01');
+      expect(result).toBe('Thu, 1 Jan');
+    });
+
+    it('formats month boundaries', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      const result = formatDayDate('2026-06-01');
+      expect(result).toBe('Mon, 1 Jun');
+    });
+
+    it('does not include year', async () => {
+      const { formatDayDate } = await import('../reporting-utils');
+      const result = formatDayDate('2026-12-25');
+      expect(result).not.toContain('2026');
+      expect(result).toBe('Fri, 25 Dec');
+    });
+  });
 });

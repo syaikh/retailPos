@@ -92,4 +92,73 @@ describe('ReportsPage.svelte source-structure guards', () => {
   it('does NOT import svelte:window', () => {
     expect(src).not.toContain('<svelte:window');
   });
+
+  it('imports formatDayDate for date comparison labels', () => {
+    expect(src).toContain("formatDayDate");
+  });
+
+  it('has parseJakartaDate helper for timezone-safe date parsing', () => {
+    expect(src).toContain('function parseJakartaDate');
+  });
+
+  it('has shiftDate helper function', () => {
+    expect(src).toContain('function shiftDate');
+  });
+
+  it('uses parseJakartaDate for date parsing (no naive Z suffix)', () => {
+    expect(src).toContain('parseJakartaDate(metaStart)');
+    expect(src).toContain('parseJakartaDate(metaEnd)');
+  });
+
+  it('uses meta.current_start / current_end from periodInfo', () => {
+    expect(src).toContain('kpiData.periodInfo?.current_start');
+    expect(src).toContain('kpiData.periodInfo?.current_end');
+  });
+
+  it('shows 00:00 - 23:00 range for yesterday period', () => {
+    const yesterdayBlock = src.indexOf("activePeriodType === 'yesterday'");
+    const rangeBlock = src.indexOf("'00:00 - 23:00'", yesterdayBlock);
+    expect(rangeBlock).toBeGreaterThan(yesterdayBlock);
+  });
+
+  it('shows 00:00 - 23:00 range for daily period', () => {
+    const dailyBlock = src.indexOf("activePeriodType === 'daily'");
+    const rangeBlock = src.indexOf("'00:00 - 23:00'", dailyBlock);
+    expect(rangeBlock).toBeGreaterThan(dailyBlock);
+  });
+
+  it('uses formatDayDate with shiftDate for yesterday comparison label', () => {
+    const yesterdayLabelMatch = src.match(/yesterday.*formatDayDate.*shiftDate|yesterday.*shiftDate.*formatDayDate/s);
+    expect(yesterdayLabelMatch).toBeTruthy();
+  });
+
+  it('uses formatDayDate with shiftDate for daily comparison label', () => {
+    const dailyLabelMatch = src.match(/daily.*formatDayDate.*shiftDate|daily.*shiftDate.*formatDayDate/s);
+    expect(dailyLabelMatch).toBeTruthy();
+  });
+
+  it('uses shiftDate in comparisonDateRange derived', () => {
+    const rangeIdx = src.indexOf('let comparisonDateRange = $derived.by');
+    expect(rangeIdx).toBeGreaterThan(-1);
+    const rangeBlock = src.substring(rangeIdx, rangeIdx + 1400);
+    expect(rangeBlock).toContain('shiftDate(metaStart');
+    expect(rangeBlock).toContain('shiftDate(metaEnd');
+  });
+
+  it('uses current_start/current_end in comparisonDateRange', () => {
+    const rangeIdx = src.indexOf('let comparisonDateRange = $derived.by');
+    expect(rangeIdx).toBeGreaterThan(-1);
+    const rangeBlock = src.substring(rangeIdx, rangeIdx + 1400);
+    expect(rangeBlock).toContain('current_start');
+    expect(rangeBlock).toContain('current_end');
+  });
+
+  it('returns 1 Jan - 31 Dec format for yearly comparisonDateRange', () => {
+    const rangeIdx = src.indexOf('let comparisonDateRange = $derived.by');
+    const yearlyIdx = src.indexOf("'yearly'", rangeIdx);
+    expect(yearlyIdx).toBeGreaterThan(rangeIdx);
+    const yearBlock = src.substring(yearlyIdx, yearlyIdx + 300);
+    expect(yearBlock).toContain('1 Jan');
+    expect(yearBlock).toContain('31 Dec');
+  });
 });

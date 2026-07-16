@@ -3,7 +3,7 @@
   import { apiFetch } from '$shared/api/http-client';
   import { toast } from '$shared/stores/toast.svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$shared/utils/jakartaTime';
-  import { formatDate, getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
+  import { formatDate, formatDayDate, getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
   import { buildChartConfig } from '$modules/reporting/utils/chart-config';
   import { fetchSalesWithRange as fetchSales } from '$modules/reporting/utils/data-fetching';
   import { exportToExcel as doExportToExcel, exportToPDF as doExportToPDF } from '$modules/reporting/utils/export-utils';
@@ -59,57 +59,87 @@
     ['yearly'].includes(activePeriodType) ? 'yearly' : 'monthly'
   );
 
+  function parseJakartaDate(dateStr) {
+    if (!dateStr) return null;
+    const datePart = dateStr.split(' ')[0];
+    const parts = datePart.split('-');
+    if (parts.length !== 3) return null;
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1;
+    const d = parseInt(parts[2]);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+    return new Date(Date.UTC(y, m, d));
+  }
+
+  function shiftDate(dateStr, days) {
+    const dt = parseJakartaDate(dateStr);
+    if (!dt) return '';
+    dt.setUTCDate(dt.getUTCDate() - days);
+    return dt.toISOString().split('T')[0];
+  }
+
   let statCardLabels = $derived.by(() => {
+    const metaStart = kpiData.periodInfo?.current_start;
+    const metaEnd = kpiData.periodInfo?.current_end;
+    const shiftDays = activePeriodType === 'realtime' ? 1
+      : ['yesterday', 'daily', 'weekly', '7days'].includes(activePeriodType) ? 7
+      : activePeriodType === '30days' ? 30 : 0;
+    const prevStartStr = metaStart && shiftDays > 0 ? shiftDate(metaStart, shiftDays) : undefined;
+
     const getWeeklyDayRangeLabel = () => {
-      const currentStart = kpiData.periodInfo?.current_period?.start;
-      const currentEnd = kpiData.periodInfo?.current_period?.end;
-      if (!currentStart || !currentEnd) return 'vs SAME WEEK LAST YEAR';
+      if (!metaStart || !metaEnd) return 'vs SAME WEEK LAST YEAR';
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const currentStartDate = new Date(currentStart);
-      const currentEndDate = new Date(currentEnd);
+      const currentStartDate = parseJakartaDate(metaStart);
+      const currentEndDate = parseJakartaDate(metaEnd);
+      if (!currentStartDate || !currentEndDate) return 'vs SAME WEEK LAST YEAR';
       const startDayName = dayNames[currentStartDate.getUTCDay()];
       const endDayName = dayNames[currentEndDate.getUTCDay()];
       return `vs Same Days Last Week (${startDayName}-${endDayName})`;
     };
     const getMonthlyDateRangeLabel = () => {
-      const prevStart = kpiData.periodInfo?.previous_period?.start;
-      const prevEnd = kpiData.periodInfo?.previous_period?.end;
-      if (!prevStart || !prevEnd) return 'vs Previous Month';
-      const prevStartDate = new Date(prevStart);
-      const prevEndDate = new Date(prevEnd);
+      if (!metaStart || !metaEnd) return 'vs Previous Month';
+      const startDate = parseJakartaDate(metaStart);
+      const endDate = parseJakartaDate(metaEnd);
+      if (!startDate || !endDate) return 'vs Previous Month';
+      const prevStartDate = new Date(startDate);
+      prevStartDate.setUTCMonth(prevStartDate.getUTCMonth() - 1);
+      const prevEndDate = new Date(endDate);
+      prevEndDate.setUTCMonth(prevEndDate.getUTCMonth() - 1);
+      const lastDayOfPrevMonth = new Date(prevStartDate.getUTCFullYear(), prevStartDate.getUTCMonth() + 1, 0).getUTCDate();
+      const actualPrevEndDay = Math.min(prevEndDate.getUTCDate(), lastDayOfPrevMonth);
+      prevEndDate.setUTCDate(actualPrevEndDay);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const startDay = prevStartDate.getUTCDate();
       const endDay = prevEndDate.getUTCDate();
       if (startDay === endDay) {
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         return `vs ${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
       }
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const startStr = `${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
       const endStr = `${endDay} ${monthNames[prevEndDate.getUTCMonth()]}`;
       return `vs ${startStr} - ${endStr}`;
     };
     return {
-      card4: 
+      card4:
         chartType === 'hourly' ? 'Peak Revenue Hour' :
         activePeriodType === 'yearly' ? 'Peak Revenue Month' :
         activePeriodType === 'monthly' ? 'Avg. Revenue / Day' : 'Avg. Revenue / Day',
       card5:
-        activePeriodType === 'realtime' ? 'vs YESTERDAY' :
-        activePeriodType === 'yesterday' ? 'vs SAME DAY LAST WEEK' :
-        activePeriodType === 'daily' ? 'vs SAME DAY LAST WEEK' :
+        activePeriodType === 'realtime' ? `vs Yesterday (${formatDayDate(getDateNDaysAgoInJakarta(1))})` :
+        activePeriodType === 'yesterday' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
+        activePeriodType === 'daily' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
         activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
         activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
-        activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
+        activePeriodType === 'weekly' ? (kpiData.isPartial && metaStart ?
           getWeeklyDayRangeLabel() : 'vs PREVIOUS WEEK') :
         activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
         activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
       comparisonLabel:
-        activePeriodType === 'realtime' ? 'vs Yesterday' :
-        activePeriodType === 'yesterday' ? 'vs Same Day Last Week' :
-        activePeriodType === 'daily' ? 'vs Same Day Last Week' :
+        activePeriodType === 'realtime' ? `vs Yesterday (${formatDayDate(getDateNDaysAgoInJakarta(1))})` :
+        activePeriodType === 'yesterday' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
+        activePeriodType === 'daily' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
         activePeriodType === '7days' ? 'vs Previous 7 Days' :
         activePeriodType === '30days' ? 'vs Previous 30 Days' :
-        activePeriodType === 'weekly' ? (kpiData.isPartial && kpiData.periodInfo?.current_period ? 
+        activePeriodType === 'weekly' ? (kpiData.isPartial && metaStart ?
           getWeeklyDayRangeLabel() : 'vs Previous Week') :
         activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs Previous Month') :
         activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
@@ -117,10 +147,15 @@
   });
 
   let comparisonDateRange = $derived.by(() => {
-    if (!kpiData.periodInfo?.previous_period) return '';
-    const prev = kpiData.periodInfo.previous_period;
-    if (activePeriodType === 'yearly' && kpiData.periodInfo?.current_period) {
-      const currentYear = kpiData.periodInfo.current_period.start?.split('-')[0];
+    const metaStart = kpiData.periodInfo?.current_start;
+    const metaEnd = kpiData.periodInfo?.current_end;
+    if (!metaStart) return '';
+    const shiftDays = activePeriodType === 'realtime' ? 1
+      : ['yesterday', 'daily', 'weekly', '7days'].includes(activePeriodType) ? 7
+      : activePeriodType === '30days' ? 30 : 0;
+    const prevStartStr = shiftDays > 0 ? shiftDate(metaStart, shiftDays) : undefined;
+    if (activePeriodType === 'yearly') {
+      const currentYear = metaStart.split('-')[0];
       if (currentYear) {
         const prevYear = parseInt(currentYear) - 1;
         return `1 Jan ${prevYear} - 31 Dec ${prevYear}`;
@@ -130,32 +165,39 @@
       return `00:00 - ${String(currentJakartaHour).padStart(2, '0')}:00`;
     }
     if (activePeriodType === 'yesterday') {
-      if (prev.start) return formatDate(prev.start);
-      return '';
+      return '00:00 - 23:00';
     }
     if (activePeriodType === 'daily') {
-      if (prev.start) return formatDate(prev.start);
-      return '';
+      return '00:00 - 23:00';
     }
     if (activePeriodType === 'weekly') {
-      if (prev.start && prev.end) {
-        if (kpiData.isPartial && kpiData.periodInfo?.current_period) {
-          const curr = kpiData.periodInfo.current_period;
-          const currStart = curr.start;
-          const currEnd = curr.end;
-          return `${formatDate(prev.start)} - ${formatDate(prev.end)} (${formatDate(currStart)} - ${formatDate(currEnd)})`;
+      if (metaStart && metaEnd) {
+        const currStart = metaStart.split(' ')[0];
+        const currEnd = metaEnd.split(' ')[0];
+        if (kpiData.isPartial && prevStartStr) {
+          const prevEndStr = shiftDate(metaEnd, shiftDays);
+          return `${formatDate(prevStartStr)} - ${formatDate(prevEndStr)} (${formatDate(currStart)} - ${formatDate(currEnd)})`;
         }
-        return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+        const prevEndStr = metaEnd ? shiftDate(metaEnd, shiftDays) : '';
+        return `${formatDate(prevStartStr)} - ${formatDate(prevEndStr)}`;
       }
       return '';
     }
-    if (activePeriodType === 'monthly' && prev.start && prev.end) {
-      if (kpiData.isPartial && kpiData.periodInfo?.current_period) {
-        return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+    if (activePeriodType === 'monthly' && metaStart && metaEnd) {
+      const currStart = metaStart.split(' ')[0];
+      const currEnd = metaEnd.split(' ')[0];
+      if (kpiData.isPartial) {
+        const prevEndStr = shiftDate(metaEnd, shiftDays);
+        return `${formatDate(prevStartStr)} - ${formatDate(prevEndStr)}`;
       }
-      return `${formatDate(prev.start)} - ${formatDate(prev.end)}`;
+      const prevEndStr = shiftDate(metaEnd, shiftDays);
+      return `${formatDate(prevStartStr)} - ${formatDate(prevEndStr)}`;
     }
-    return prev.start && prev.end ? `${formatDate(prev.start)} - ${formatDate(prev.end)}` : '';
+    if (prevStartStr && metaEnd) {
+      const prevEndStr = shiftDate(metaEnd, shiftDays);
+      return `${formatDate(prevStartStr)} - ${formatDate(prevEndStr)}`;
+    }
+    return '';
   });
 
   let peakChartValue = $derived.by(() => {
