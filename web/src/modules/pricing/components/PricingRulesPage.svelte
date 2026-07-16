@@ -3,7 +3,7 @@
   import { toast } from '$shared/stores/toast.svelte.ts';
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule } from '../services/pricing-service.ts';
-  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, DollarSign, Loader2 } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -19,6 +19,8 @@
   let selectedRule = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+  let sortBy = $state('name');
+  let sortDir = $state('asc');
 
   let form = $state({
     product_id: 0,
@@ -43,12 +45,35 @@
     { value: 'promotion', label: 'Promotion' }
   ];
 
+  let sortedRules = $derived.by(() => {
+    const sorted = [...rules];
+    sorted.sort((a, b) => {
+      let av = a[sortBy];
+      let bv = b[sortBy];
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  });
+
   async function fetchRules() {
     loading = true;
     const result = await getPricingRules({ limit, offset, search: searchQuery });
     rules = result.data;
     total = result.total;
     loading = false;
+  }
+
+  function handleSort(col) {
+    if (sortBy === col) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = col;
+      sortDir = 'asc';
+    }
   }
 
   function openAdd() {
@@ -119,8 +144,9 @@
     }
   }
 
-  function handlePageChange(e) {
-    offset = e.detail.offset;
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
     fetchRules();
   }
 
@@ -130,8 +156,8 @@
     searchTimeout = setTimeout(() => { offset = 0; fetchRules(); }, 300);
   }
 
-  function formatCurrency(v) {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
+  function formatPrice(v) {
+    return v.toLocaleString('id-ID');
   }
 
   onMount(() => fetchRules());
@@ -151,7 +177,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card overflow-hidden">
     {#if loading}
       <table class="w-full">
         <thead><tr><th>Name</th><th>Type</th><th>Price</th><th>Min Qty</th><th>Status</th></tr></thead>
@@ -163,26 +189,39 @@
         <p>No pricing rules found</p>
       </div>
     {:else}
-      <table class="w-full">
-        <thead>
-          <tr class="border-b text-left text-sm text-gray-500">
-            <th class="px-4 py-3">Name</th>
-            <th class="px-4 py-3">Type</th>
-            <th class="px-4 py-3">Price</th>
-            <th class="px-4 py-3">Min Qty</th>
-            <th class="px-4 py-3">Priority</th>
-            <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3 text-right">Actions</th>
+      <div class="overflow-x-auto">
+      <table class="w-full min-w-[800px]">
+        <thead class="bg-muted/50">
+          <tr class="border-b text-left text-sm text-text-muted">
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="TYPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold text-right">
+              <SortableHeader label="RP PRICE" column="price" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+            </th>
+            <th class="px-4 py-3 font-semibold text-right">
+              <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+            </th>
+            <th class="px-4 py-3 font-semibold text-right">
+              <SortableHeader label="PRIORITY" column="priority" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold text-right">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
-          {#each rules as rule (rule.id)}
-            <tr class="border-b hover:bg-gray-50">
+          {#each sortedRules as rule (rule.id)}
+            <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
               <td class="px-4 py-3 font-medium">{rule.name}</td>
               <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{rule.pricing_type}</span></td>
-              <td class="px-4 py-3">{formatCurrency(rule.price)}</td>
-              <td class="px-4 py-3">{rule.minimum_quantity}</td>
-              <td class="px-4 py-3">{rule.priority}</td>
+              <td class="px-4 py-3 text-right tabular-nums">{formatPrice(rule.price)}</td>
+              <td class="px-4 py-3 text-right tabular-nums">{rule.minimum_quantity}</td>
+              <td class="px-4 py-3 text-right tabular-nums">{rule.priority}</td>
               <td class="px-4 py-3">
                 {#if rule.is_active}
                   <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Active</span>
@@ -191,50 +230,80 @@
                 {/if}
               </td>
               <td class="px-4 py-3 text-right">
-                {#if canEdit}
-                  <Button variant="ghost" size="icon" onclick={() => openEdit(rule)}><Pencil class="w-4 h-4" /></Button>
-                {/if}
-                {#if canDelete}
-                  <Button variant="ghost" size="icon" onclick={() => openDelete(rule)}><Trash2 class="w-4 h-4 text-red-500" /></Button>
-                {/if}
+                <div class="flex items-center justify-end gap-1">
+                  {#if canEdit}
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => openEdit(rule)}><Pencil class="w-4 h-4" /></Button>
+                  {/if}
+                  {#if canDelete}
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => openDelete(rule)}><Trash2 class="w-4 h-4" /></Button>
+                  {/if}
+                </div>
               </td>
             </tr>
           {/each}
         </tbody>
       </table>
+      </div>
+
+      {#if !loading && rules.length > 0}
+        <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+        </div>
+      {/if}
     {/if}
   </div>
-
-  {#if total > limit}
-    <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
-  {/if}
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Pricing Rule' : 'Edit Pricing Rule'} size="md">
   <form onsubmit={saveRule} class="space-y-4">
-    <Input type="number" label="Product ID" bind:value={form.product_id} required />
     <div>
-      <label for="pricing_type" class="block text-sm font-medium text-gray-700 mb-1">Pricing Type</label>
-      <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+      <label for="product_id" class="block text-sm font-medium text-text-secondary mb-1">Product ID <span class="text-danger">*</span></label>
+      <Input id="product_id" type="number" bind:value={form.product_id} required min="1" />
+    </div>
+    <div>
+      <label for="pricing_type" class="block text-sm font-medium text-text-secondary mb-1">Pricing Type <span class="text-danger">*</span></label>
+      <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
         {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
       </select>
     </div>
-    <Input label="Name" bind:value={form.name} required />
-    <Input type="number" label="Price" bind:value={form.price} required min="0" />
-    <Input type="number" label="Minimum Quantity" bind:value={form.minimum_quantity} required min="1" />
-    <Input type="number" label="Priority" bind:value={form.priority} min="0" />
-    <Input type="date" label="Effective From" bind:value={form.effective_from} />
-    <Input type="date" label="Effective Until" bind:value={form.effective_until} />
+    <div>
+      <label for="rule_name" class="block text-sm font-medium text-text-secondary mb-1">Name <span class="text-danger">*</span></label>
+      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5" />
+    </div>
+    <div>
+      <label for="rule_price" class="block text-sm font-medium text-text-secondary mb-1">Price (Rp) <span class="text-danger">*</span></label>
+      <Input id="rule_price" type="number" bind:value={form.price} required min="0" />
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="min_qty" class="block text-sm font-medium text-text-secondary mb-1">Minimum Quantity <span class="text-danger">*</span></label>
+        <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" />
+      </div>
+      <div>
+        <label for="priority" class="block text-sm font-medium text-text-secondary mb-1">Priority <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="priority" type="number" bind:value={form.priority} min="0" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="effective_from" class="block text-sm font-medium text-text-secondary mb-1">Effective From <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="effective_from" type="date" bind:value={form.effective_from} />
+      </div>
+      <div>
+        <label for="effective_until" class="block text-sm font-medium text-text-secondary mb-1">Effective Until <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="effective_until" type="date" bind:value={form.effective_until} />
+      </div>
+    </div>
     {#if modalMode === 'edit'}
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
-        <label for="is_active" class="text-sm">Active</label>
+        <label for="is_active" class="text-sm text-text-secondary">Active</label>
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false}>Cancel</Button>
-    <Button variant="primary" onclick={saveRule} disabled={saving}>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Cancel</Button>
+    <Button variant="primary" class="min-w-32" onclick={saveRule} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
       {modalMode === 'add' ? 'Create' : 'Update'}
     </Button>

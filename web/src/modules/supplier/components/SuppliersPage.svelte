@@ -3,7 +3,7 @@
   import { toast } from '$shared/stores/toast.svelte.ts';
   import { useAuthStore } from '$modules/auth';
   import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../services/supplier-service.ts';
-  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Truck, Loader2 } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -19,6 +19,8 @@
   let selectedSupplier = $state(null);
   let modalMode = $state('add');
   let saving = $state(false);
+  let sortBy = $state('name');
+  let sortDir = $state('asc');
 
   let form = $state({
     name: '',
@@ -35,12 +37,35 @@
   let canEdit = $derived((authStore.user?.permissions || []).includes('pricing:update'));
   let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
 
+  let sortedSuppliers = $derived.by(() => {
+    const sorted = [...suppliers];
+    sorted.sort((a, b) => {
+      let av = a[sortBy] ?? '';
+      let bv = b[sortBy] ?? '';
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  });
+
   async function fetchSuppliers() {
     loading = true;
     const result = await getSuppliers({ limit, offset, search: searchQuery });
     suppliers = result.data;
     total = result.total;
     loading = false;
+  }
+
+  function handleSort(col) {
+    if (sortBy === col) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = col;
+      sortDir = 'asc';
+    }
   }
 
   function openAdd() {
@@ -106,8 +131,9 @@
     }
   }
 
-  function handlePageChange(e) {
-    offset = e.detail.offset;
+  function handlePageChange(newOffset, newLimit) {
+    offset = newOffset;
+    limit = newLimit;
     fetchSuppliers();
   }
 
@@ -134,7 +160,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card overflow-hidden">
     {#if loading}
       <table class="w-full">
         <thead><tr><th>Name</th><th>Code</th><th>Contact</th><th>Phone</th><th>Status</th></tr></thead>
@@ -146,26 +172,39 @@
         <p>No suppliers found</p>
       </div>
     {:else}
-      <table class="w-full">
-        <thead>
-          <tr class="border-b text-left text-sm text-gray-500">
-            <th class="px-4 py-3">Name</th>
-            <th class="px-4 py-3">Code</th>
-            <th class="px-4 py-3">Contact</th>
-            <th class="px-4 py-3">Phone</th>
-            <th class="px-4 py-3">Email</th>
-            <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3 text-right">Actions</th>
+      <div class="overflow-x-auto">
+      <table class="w-full min-w-[900px]">
+        <thead class="bg-muted/50">
+          <tr class="border-b text-left text-sm text-text-muted">
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="CODE" column="code" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="CONTACT" column="contact_name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold">
+              <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+            </th>
+            <th class="px-4 py-3 font-semibold text-right">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
-          {#each suppliers as supplier (supplier.id)}
-            <tr class="border-b hover:bg-gray-50">
+          {#each sortedSuppliers as supplier (supplier.id)}
+            <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
               <td class="px-4 py-3 font-medium">{supplier.name}</td>
-              <td class="px-4 py-3"><code class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{supplier.code}</code></td>
-              <td class="px-4 py-3">{supplier.contact_name || '-'}</td>
-              <td class="px-4 py-3">{supplier.phone || '-'}</td>
-              <td class="px-4 py-3">{supplier.email || '-'}</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-surface px-2 py-1 text-xs font-mono font-semibold text-text-secondary border border-border">{supplier.code}</span></td>
+              <td class="px-4 py-3 text-text-secondary">{supplier.contact_name || '-'}</td>
+              <td class="px-4 py-3 text-text-secondary tabular-nums">{supplier.phone || '-'}</td>
+              <td class="px-4 py-3 text-text-secondary text-sm">{supplier.email || '-'}</td>
               <td class="px-4 py-3">
                 {#if supplier.is_active}
                   <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Active</span>
@@ -174,44 +213,74 @@
                 {/if}
               </td>
               <td class="px-4 py-3 text-right">
-                {#if canEdit}
-                  <Button variant="ghost" size="icon" onclick={() => openEdit(supplier)}><Pencil class="w-4 h-4" /></Button>
-                {/if}
-                {#if canDelete}
-                  <Button variant="ghost" size="icon" onclick={() => openDelete(supplier)}><Trash2 class="w-4 h-4 text-red-500" /></Button>
-                {/if}
+                <div class="flex items-center justify-end gap-1">
+                  {#if canEdit}
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => openEdit(supplier)}><Pencil class="w-4 h-4" /></Button>
+                  {/if}
+                  {#if canDelete}
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => openDelete(supplier)}><Trash2 class="w-4 h-4" /></Button>
+                  {/if}
+                </div>
               </td>
             </tr>
           {/each}
         </tbody>
       </table>
+      </div>
+
+      {#if !loading && suppliers.length > 0}
+        <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+        </div>
+      {/if}
     {/if}
   </div>
-
-  {#if total > limit}
-    <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
-  {/if}
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Supplier' : 'Edit Supplier'} size="md">
   <form onsubmit={saveSupplier} class="space-y-4">
-    <Input label="Name" bind:value={form.name} required />
-    <Input label="Code" bind:value={form.code} required />
-    <Input label="Contact Name" bind:value={form.contact_name} />
-    <Input label="Phone" bind:value={form.phone} />
-    <Input label="Email" bind:value={form.email} type="email" />
-    <Input label="Address" bind:value={form.address} tag="textarea" />
-    <Input label="Notes" bind:value={form.notes} tag="textarea" />
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="sup_name" class="block text-sm font-medium text-text-secondary mb-1">Name <span class="text-danger">*</span></label>
+        <Input id="sup_name" bind:value={form.name} required placeholder="e.g. PT Sumber Makmur" />
+      </div>
+      <div>
+        <label for="sup_code" class="block text-sm font-medium text-text-secondary mb-1">Code <span class="text-danger">*</span></label>
+        <Input id="sup_code" bind:value={form.code} required placeholder="e.g. SUP-001" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="sup_contact" class="block text-sm font-medium text-text-secondary mb-1">Contact Name <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="sup_contact" bind:value={form.contact_name} placeholder="e.g. Budi Santoso" />
+      </div>
+      <div>
+        <label for="sup_phone" class="block text-sm font-medium text-text-secondary mb-1">Phone <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="sup_phone" bind:value={form.phone} placeholder="e.g. 021-12345678" />
+      </div>
+    </div>
+    <div>
+      <label for="sup_email" class="block text-sm font-medium text-text-secondary mb-1">Email <span class="text-text-muted text-xs">(opsional)</span></label>
+      <Input id="sup_email" type="email" bind:value={form.email} placeholder="e.g. info@supplier.co.id" />
+    </div>
+    <div>
+      <label for="sup_address" class="block text-sm font-medium text-text-secondary mb-1">Address <span class="text-text-muted text-xs">(opsional)</span></label>
+      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Full address..." class="min-h-[60px] resize-y" />
+    </div>
+    <div>
+      <label for="sup_notes" class="block text-sm font-medium text-text-secondary mb-1">Notes <span class="text-text-muted text-xs">(opsional)</span></label>
+      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Additional notes..." class="min-h-[60px] resize-y" />
+    </div>
     {#if modalMode === 'edit'}
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
-        <label for="is_active" class="text-sm">Active</label>
+        <label for="is_active" class="text-sm text-text-secondary">Active</label>
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false}>Cancel</Button>
-    <Button variant="primary" onclick={saveSupplier} disabled={saving}>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Cancel</Button>
+    <Button variant="primary" class="min-w-32" onclick={saveSupplier} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
       {modalMode === 'add' ? 'Create' : 'Update'}
     </Button>
