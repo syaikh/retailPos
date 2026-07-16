@@ -321,6 +321,20 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		fmt.Printf("   Found %d existing products\n", len(productData))
 	}
 
+	// 4b. Ensure suppliers exist and link to products
+	fmt.Printf("🏭 Injecting suppliers and product links...\n")
+	if err := ensureSuppliers(ctx, db, productData); err != nil {
+		return fmt.Errorf("failed to inject suppliers: %w", err)
+	}
+	fmt.Println("   ✅ Suppliers and product links ready")
+
+	// 4c. Ensure pricing rules exist
+	fmt.Printf("💰 Injecting pricing rules...\n")
+	if err := ensurePricingRules(ctx, db, productData); err != nil {
+		return fmt.Errorf("failed to inject pricing rules: %w", err)
+	}
+	fmt.Println("   ✅ Pricing rules ready")
+
 	// 5. Get users for cashier assignment (needed for sales)
 	var userIDs []int
 	if len(productData) > 0 {
@@ -424,6 +438,9 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"product_stock",
 		"inventory_movements",
 		"sales",
+		"pricing_rules",
+		"product_suppliers",
+		"suppliers",
 		"products",
 		"customers",
 		"payment_methods",
@@ -609,6 +626,239 @@ func ensureUnitsOfMeasure(ctx context.Context, db *sql.DB) {
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure units of measure: %v\n", err)
 	}
+}
+
+var (
+	supplierNames = []struct {
+		Name string
+		Code string
+	}{
+		{"PT Sumber Makmur", "SUP-001"},
+		{"CV Berkah Jaya", "SUP-002"},
+	 {"PT Maju Bersama", "SUP-003"},
+		{"CV Sentosa Trading", "SUP-004"},
+		{"PT Dewa Elektronik", "SUP-005"},
+		{"CV Lestari Supplies", "SUP-006"},
+		{"PT Nusantara Distribution", "SUP-007"},
+		{"CV Prima Kencana", "SUP-008"},
+		{"PT Gemilang Perkasa", "SUP-009"},
+		{"CV Sinar Terang", "SUP-010"},
+		{"PT Abadi Makmur", "SUP-011"},
+		{"CV Cahaya Baru", "SUP-012"},
+		{"PT Sejahtera Abadi", "SUP-013"},
+		{"CV Mitra Usaha", "SUP-014"},
+		{"PT Global Supply", "SUP-015"},
+	}
+	supplierStreets = []string{
+		"Jl. Industri", "Jl. Raya Bogor", "Jl. Pasar Minggu", "Jl. Kemang Raya",
+		"Jl. Tebet Raya", "Jl. Senayan", "Jl. Kuningan", "Jl. Rasuna Said",
+	}
+	supplierCities = []string{
+		"Jakarta Selatan", "Jakarta Timur", "Tangerang", "Bekasi", "Depok",
+	}
+)
+
+func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	// Check if suppliers already exist
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM suppliers").Scan(&count); err == nil && count > 0 {
+		fmt.Printf("   Found %d existing suppliers, skipping creation\n", count)
+		return nil
+	}
+
+	numSuppliers := 10 + rand.Intn(6) // 10-15
+	if numSuppliers > len(supplierNames) {
+		numSuppliers = len(supplierNames)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("failed to rollback: %v", err)
+		}
+	}()
+
+	// Insert suppliers
+	supplierStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO suppliers (name, code, contact_name, phone, email, address, is_active, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING id`)
+	if err != nil {
+		return fmt.Errorf("prepare supplier stmt: %w", err)
+	}
+	defer supplierStmt.Close()
+
+	ref := time.Now().In(jakartaTZ)
+	supplierIDs := make([]int, 0, numSuppliers)
+
+	for i := 0; i < numSuppliers; i++ {
+		s := supplierNames[i]
+		contactFirst := customerFirstNames[rand.Intn(len(customerFirstNames))]
+		contactLast := customerLastNames[rand.Intn(len(customerLastNames))]
+		contactName := fmt.Sprintf("%s %s", contactFirst, contactLast)
+		phone := fmt.Sprintf("021-%08d", rand.Intn(100000000))
+		email := fmt.Sprintf("info@%s.co.id", strings.ToLower(strings.ReplaceAll(s.Name, " ", "")))
+		address := fmt.Sprintf("%s No. %d, %s", supplierStreets[rand.Intn(len(supplierStreets))], 1+rand.Intn(100), supplierCities[rand.Intn(len(supplierCities))])
+		createdAt := ref.AddDate(0, 0, -rand.Intn(90)-30)
+
+		var id int
+		if err := supplierStmt.QueryRowContext(ctx, s.Name, s.Code, contactName, phone, email, address, createdAt).Scan(&id); err != nil {
+			fmt.Printf("   Warning: failed to insert supplier %s: %v\n", s.Name, err)
+			continue
+		}
+		supplierIDs = append(supplierIDs, id)
+	}
+
+	// Link suppliers to products (each product gets 1-3 suppliers)
+	linkStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 ON CONFLICT (product_id, supplier_id) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare link stmt: %w", err)
+	}
+	defer linkStmt.Close()
+
+	linkCount := 0
+	for _, p := range products {
+		numLinks := 1 + rand.Intn(3) // 1-3 suppliers per product
+		if numLinks > len(supplierIDs) {
+			numLinks = len(supplierIDs)
+		}
+
+		// Shuffle supplier IDs for this product
+		shuffled := make([]int, len(supplierIDs))
+		copy(shuffled, supplierIDs)
+		rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+
+		for j := 0; j < numLinks; j++ {
+			supID := shuffled[j]
+			sku := fmt.Sprintf("SKU-P%d-S%d", p.ID, supID)
+			unitCost := int(float64(p.Price) * (0.5 + rand.Float64()*0.3)) // 50-80% of product price
+			leadTime := 1 + rand.Intn(14)                                   // 1-14 days
+			isPreferred := j == 0                                            // first supplier is preferred
+			createdAt := ref.AddDate(0, 0, -rand.Intn(60))
+
+			if _, err := linkStmt.ExecContext(ctx, p.ID, supID, sku, unitCost, leadTime, isPreferred, createdAt); err != nil {
+				// Silently skip constraint violations (e.g. preferred index)
+				continue
+			}
+			linkCount++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit suppliers: %w", err)
+	}
+
+	fmt.Printf("   🎲 Created %d suppliers with %d product links\n", len(supplierIDs), linkCount)
+	return nil
+}
+
+func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	// Check if pricing rules already exist
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pricing_rules").Scan(&count); err == nil && count > 0 {
+		fmt.Printf("   Found %d existing pricing rules, skipping creation\n", count)
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("failed to rollback: %v", err)
+		}
+	}()
+
+	stmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO pricing_rules (product_id, pricing_type, name, price, minimum_quantity, priority, is_active, effective_from, effective_until, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)`)
+	if err != nil {
+		return fmt.Errorf("prepare pricing rule stmt: %w", err)
+	}
+	defer stmt.Close()
+
+	ref := time.Now().In(jakartaTZ)
+	ruleCount := 0
+
+	// Create rules for ~20% of products
+	numProductsToTag := len(products) / 5
+	if numProductsToTag < 10 {
+		numProductsToTag = 10
+	}
+	if numProductsToTag > len(products) {
+		numProductsToTag = len(products)
+	}
+
+	// Shuffle and pick products
+	shuffled := make([]ProductInfo, len(products))
+	copy(shuffled, products)
+	rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+
+	for i := 0; i < numProductsToTag; i++ {
+		p := shuffled[i]
+
+		// Create a wholesale rule (min qty 5-10, price 15-30% lower)
+		if rand.Intn(100) < 70 { // 70% chance of wholesale rule
+			minQty := 5 + rand.Intn(6) // 5-10
+			discount := 0.15 + rand.Float64()*0.15 // 15-30%
+			wholesalePrice := int(float64(p.Price) * (1.0 - discount))
+			if wholesalePrice < 1000 {
+				wholesalePrice = 1000
+			}
+			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(30))
+			effectiveUntil := ref.AddDate(0, 3, rand.Intn(3)) // 3-6 months from now
+			createdAt := ref.AddDate(0, 0, -rand.Intn(30))
+
+			if _, err := stmt.ExecContext(ctx, p.ID, "wholesale",
+				fmt.Sprintf("Wholesale min %d", minQty),
+				wholesalePrice, minQty, 0,
+				effectiveFrom, effectiveUntil, createdAt); err != nil {
+				continue
+			}
+			ruleCount++
+		}
+
+		// Create a discount rule (flat discount 5-15%, no min qty)
+		if rand.Intn(100) < 50 { // 50% chance of discount rule
+			discount := 0.05 + rand.Float64()*0.10 // 5-15%
+			discountPrice := int(float64(p.Price) * (1.0 - discount))
+			if discountPrice < 1000 {
+				discountPrice = 1000
+			}
+			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(15))
+			effectiveUntil := ref.AddDate(0, 1, rand.Intn(2)) // 1-3 months from now
+			createdAt := ref.AddDate(0, 0, -rand.Intn(15))
+
+			if _, err := stmt.ExecContext(ctx, p.ID, "discount",
+				fmt.Sprintf("Diskon %d%%", int(discount*100)),
+				discountPrice, 1, 1,
+				effectiveFrom, effectiveUntil, createdAt); err != nil {
+				continue
+			}
+			ruleCount++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit pricing rules: %w", err)
+	}
+
+	fmt.Printf("   🎲 Created %d pricing rules for %d products\n", ruleCount, numProductsToTag)
+	return nil
 }
 
 func cleanupTestRoles(ctx context.Context, db *sql.DB) {
