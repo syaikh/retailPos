@@ -21,6 +21,7 @@
   let saving = $state(false);
   let sortBy = $state('name');
   let sortDir = $state('asc');
+  let statusFilter = $state('all');
 
   let form = $state({
     name: '',
@@ -53,7 +54,10 @@
 
   async function fetchSuppliers() {
     loading = true;
-    const result = await getSuppliers({ limit, offset, search: searchQuery });
+    const params = { limit, offset, search: searchQuery };
+    if (statusFilter === 'active') params.is_active = true;
+    else if (statusFilter === 'inactive') params.is_active = false;
+    const result = await getSuppliers(params);
     suppliers = result.data;
     total = result.total;
     loading = false;
@@ -143,14 +147,19 @@
     searchTimeout = setTimeout(() => { offset = 0; fetchSuppliers(); }, 300);
   }
 
+  function handleFilterChange() {
+    offset = 0;
+    fetchSuppliers();
+  }
+
   onMount(() => fetchSuppliers());
 </script>
 
 <div class="space-y-5">
-  <div class="card p-4">
+  <div class="card p-4 space-y-3">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search suppliers..." oninput={handleSearch} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder="Search suppliers by name or contact..." oninput={handleSearch} inputClass="h-10" />
       </div>
       {#if canCreate}
         <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
@@ -158,12 +167,28 @@
         </Button>
       {/if}
     </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'all'; handleFilterChange(); }}
+        >All</button>
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'active'; handleFilterChange(); }}
+        >Active</button>
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'inactive'; handleFilterChange(); }}
+        >Inactive</button>
+      </div>
+    </div>
   </div>
 
   <div class="card overflow-hidden">
     {#if loading}
       <table class="w-full">
-        <thead><tr><th>Name</th><th>Code</th><th>Contact</th><th>Phone</th><th>Status</th></tr></thead>
+        <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
         <tbody>{#each Array(5) as _}<tr>{#each Array(5) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
       </table>
     {:else if suppliers.length === 0}
@@ -173,14 +198,11 @@
       </div>
     {:else}
       <div class="overflow-x-auto">
-      <table class="w-full min-w-[900px]">
+      <table class="w-full min-w-[700px]">
         <thead class="bg-muted/50">
           <tr class="border-b text-left text-sm text-text-muted">
             <th class="px-4 py-3 font-semibold">
               <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
-            </th>
-            <th class="px-4 py-3 font-semibold">
-              <SortableHeader label="CODE" column="code" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="px-4 py-3 font-semibold">
               <SortableHeader label="CONTACT" column="contact_name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
@@ -201,7 +223,6 @@
           {#each sortedSuppliers as supplier (supplier.id)}
             <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
               <td class="px-4 py-3 font-medium">{supplier.name}</td>
-              <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-surface px-2 py-1 text-xs font-mono font-semibold text-text-secondary border border-border">{supplier.code}</span></td>
               <td class="px-4 py-3 text-text-secondary">{supplier.contact_name || '-'}</td>
               <td class="px-4 py-3 text-text-secondary tabular-nums">{supplier.phone || '-'}</td>
               <td class="px-4 py-3 text-text-secondary text-sm">{supplier.email || '-'}</td>
@@ -237,25 +258,26 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Supplier' : 'Edit Supplier'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Supplier' : 'Edit Supplier'} size="md">
   <form onsubmit={saveSupplier} class="space-y-4">
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="sup_name" class="block text-sm font-medium text-text-secondary mb-1">Name <span class="text-danger">*</span></label>
+        <label for="sup_name" class="block text-sm font-medium text-text-secondary mb-1">Nama Supplier <span class="text-danger">*</span></label>
         <Input id="sup_name" bind:value={form.name} required placeholder="e.g. PT Sumber Makmur" />
       </div>
       <div>
-        <label for="sup_code" class="block text-sm font-medium text-text-secondary mb-1">Code <span class="text-danger">*</span></label>
+        <label for="sup_code" class="block text-sm font-medium text-text-secondary mb-1">Kode Supplier <span class="text-danger">*</span></label>
         <Input id="sup_code" bind:value={form.code} required placeholder="e.g. SUP-001" />
+        <p class="mt-1 text-xs text-text-muted">Kode unik internal untuk identifikasi supplier.</p>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="sup_contact" class="block text-sm font-medium text-text-secondary mb-1">Contact Name <span class="text-text-muted text-xs">(opsional)</span></label>
+        <label for="sup_contact" class="block text-sm font-medium text-text-secondary mb-1">Nama Kontak <span class="text-text-muted text-xs">(opsional)</span></label>
         <Input id="sup_contact" bind:value={form.contact_name} placeholder="e.g. Budi Santoso" />
       </div>
       <div>
-        <label for="sup_phone" class="block text-sm font-medium text-text-secondary mb-1">Phone <span class="text-text-muted text-xs">(opsional)</span></label>
+        <label for="sup_phone" class="block text-sm font-medium text-text-secondary mb-1">Telepon <span class="text-text-muted text-xs">(opsional)</span></label>
         <Input id="sup_phone" bind:value={form.phone} placeholder="e.g. 021-12345678" />
       </div>
     </div>
@@ -264,25 +286,25 @@
       <Input id="sup_email" type="email" bind:value={form.email} placeholder="e.g. info@supplier.co.id" />
     </div>
     <div>
-      <label for="sup_address" class="block text-sm font-medium text-text-secondary mb-1">Address <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Full address..." class="min-h-[60px] resize-y" />
+      <label for="sup_address" class="block text-sm font-medium text-text-secondary mb-1">Alamat <span class="text-text-muted text-xs">(opsional)</span></label>
+      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Alamat lengkap..." class="min-h-[60px] resize-y" />
     </div>
     <div>
-      <label for="sup_notes" class="block text-sm font-medium text-text-secondary mb-1">Notes <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Additional notes..." class="min-h-[60px] resize-y" />
+      <label for="sup_notes" class="block text-sm font-medium text-text-secondary mb-1">Catatan <span class="text-text-muted text-xs">(opsional)</span></label>
+      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Catatan tambahan..." class="min-h-[60px] resize-y" />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
-        <label for="is_active" class="text-sm text-text-secondary">Active</label>
+        <label for="is_active" class="text-sm text-text-secondary">Aktif</label>
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Cancel</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
     <Button variant="primary" class="min-w-32" onclick={saveSupplier} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
-      {modalMode === 'add' ? 'Create' : 'Update'}
+      {modalMode === 'add' ? 'Tambah' : 'Update'}
     </Button>
   {/snippet}
 </Modal>

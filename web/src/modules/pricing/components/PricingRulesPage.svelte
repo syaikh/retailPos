@@ -4,7 +4,7 @@
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule } from '../services/pricing-service.ts';
   import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
-  import { Plus, Pencil, Trash2, DollarSign, Loader2 } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, DollarSign, Loader2, Info } from 'lucide-svelte';
 
   const authStore = useAuthStore();
 
@@ -21,6 +21,8 @@
   let saving = $state(false);
   let sortBy = $state('name');
   let sortDir = $state('asc');
+  let statusFilter = $state('all');
+  let typeFilter = $state('all');
 
   let form = $state({
     product_id: 0,
@@ -39,10 +41,10 @@
   let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
 
   const pricingTypes = [
-    { value: 'discount', label: 'Discount' },
-    { value: 'wholesale', label: 'Wholesale' },
-    { value: 'member', label: 'Member' },
-    { value: 'promotion', label: 'Promotion' }
+    { value: 'discount', label: 'Discount', description: 'Harga spesial lebih rendah dari harga normal' },
+    { value: 'wholesale', label: 'Wholesale', description: 'Harga grosir untuk pembelian dalam jumlah besar' },
+    { value: 'member', label: 'Member', description: 'Harga khusus anggota/member toko' },
+    { value: 'promotion', label: 'Promotion', description: 'Harga promosi/sale untuk periode tertentu' }
   ];
 
   let sortedRules = $derived.by(() => {
@@ -61,7 +63,11 @@
 
   async function fetchRules() {
     loading = true;
-    const result = await getPricingRules({ limit, offset, search: searchQuery });
+    const params = { limit, offset, search: searchQuery };
+    if (statusFilter === 'active') params.is_active = true;
+    else if (statusFilter === 'inactive') params.is_active = false;
+    if (typeFilter !== 'all') params.pricing_type = typeFilter;
+    const result = await getPricingRules(params);
     rules = result.data;
     total = result.total;
     loading = false;
@@ -156,6 +162,11 @@
     searchTimeout = setTimeout(() => { offset = 0; fetchRules(); }, 300);
   }
 
+  function handleFilterChange() {
+    offset = 0;
+    fetchRules();
+  }
+
   function formatPrice(v) {
     return v.toLocaleString('id-ID');
   }
@@ -164,16 +175,44 @@
 </script>
 
 <div class="space-y-5">
-  <div class="card p-4">
+  <div class="card p-4 space-y-3">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search rules..." oninput={handleSearch} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder="Search rules by name..." oninput={handleSearch} inputClass="h-10" />
       </div>
       {#if canCreate}
         <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
           <Plus size={18} /> Add Rule
         </Button>
       {/if}
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'all'; handleFilterChange(); }}
+        >All</button>
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'active'; handleFilterChange(); }}
+        >Active</button>
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'inactive'; handleFilterChange(); }}
+        >Inactive</button>
+      </div>
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
+        <button
+          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {typeFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { typeFilter = 'all'; handleFilterChange(); }}
+        >All Types</button>
+        {#each pricingTypes as pt}
+          <button
+            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {typeFilter === pt.value ? 'bg-blue-subtle text-blue-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+            onclick={() => { typeFilter = pt.value; handleFilterChange(); }}
+          >{pt.label}</button>
+        {/each}
+      </div>
     </div>
   </div>
 
@@ -200,7 +239,7 @@
               <SortableHeader label="TYPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="px-4 py-3 font-semibold text-right">
-              <SortableHeader label="RP PRICE" column="price" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+              <SortableHeader label="PRICE (Rp)" column="price" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
             </th>
             <th class="px-4 py-3 font-semibold text-right">
               <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
@@ -258,54 +297,61 @@
   <form onsubmit={saveRule} class="space-y-4">
     <div>
       <label for="product_id" class="block text-sm font-medium text-text-secondary mb-1">Product ID <span class="text-danger">*</span></label>
-      <Input id="product_id" type="number" bind:value={form.product_id} required min="1" />
+      <Input id="product_id" type="number" bind:value={form.product_id} required min="1" placeholder="e.g. 42" />
+      <p class="mt-1 text-xs text-text-muted">ID unik produk dari database. Lihat di halaman Products untuk menemukan ID.</p>
     </div>
     <div>
-      <label for="pricing_type" class="block text-sm font-medium text-text-secondary mb-1">Pricing Type <span class="text-danger">*</span></label>
+      <label for="pricing_type" class="block text-sm font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
       <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
         {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
       </select>
+      <p class="mt-1 text-xs text-text-muted">{pricingTypes.find(t => t.value === form.pricing_type)?.description || ''}</p>
     </div>
     <div>
-      <label for="rule_name" class="block text-sm font-medium text-text-secondary mb-1">Name <span class="text-danger">*</span></label>
-      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5" />
+      <label for="rule_name" class="block text-sm font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
+      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5 pcs" />
+      <p class="mt-1 text-xs text-text-muted">Nama deskriptif untuk mengidentifikasi rule ini.</p>
     </div>
     <div>
-      <label for="rule_price" class="block text-sm font-medium text-text-secondary mb-1">Price (Rp) <span class="text-danger">*</span></label>
-      <Input id="rule_price" type="number" bind:value={form.price} required min="0" />
+      <label for="rule_price" class="block text-sm font-medium text-text-secondary mb-1">Harga (Rp) <span class="text-danger">*</span></label>
+      <Input id="rule_price" type="number" bind:value={form.price} required min="0" placeholder="e.g. 15000" />
+      <p class="mt-1 text-xs text-text-muted">Harga jual per unit untuk rule ini. Contoh: 15000 = Rp 15.000</p>
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="min_qty" class="block text-sm font-medium text-text-secondary mb-1">Minimum Quantity <span class="text-danger">*</span></label>
-        <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" />
+        <label for="min_qty" class="block text-sm font-medium text-text-secondary mb-1">Min. Quantity <span class="text-danger">*</span></label>
+        <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" placeholder="1" />
+        <p class="mt-1 text-xs text-text-muted">Jumlah minimum pembelian agar rule ini berlaku.</p>
       </div>
       <div>
-        <label for="priority" class="block text-sm font-medium text-text-secondary mb-1">Priority <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="priority" type="number" bind:value={form.priority} min="0" />
+        <label for="priority" class="block text-sm font-medium text-text-secondary mb-1">Prioritas <span class="text-text-muted text-xs">(opsional)</span></label>
+        <Input id="priority" type="number" bind:value={form.priority} min="0" placeholder="0" />
+        <p class="mt-1 text-xs text-text-muted">Angka lebih tinggi = prioritas lebih tinggi. Jika beberapa rule cocok, yang prioritas tertinggi yang dipakai.</p>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="effective_from" class="block text-sm font-medium text-text-secondary mb-1">Effective From <span class="text-text-muted text-xs">(opsional)</span></label>
+        <label for="effective_from" class="block text-sm font-medium text-text-secondary mb-1">Berlaku Dari <span class="text-text-muted text-xs">(opsional)</span></label>
         <Input id="effective_from" type="date" bind:value={form.effective_from} />
       </div>
       <div>
-        <label for="effective_until" class="block text-sm font-medium text-text-secondary mb-1">Effective Until <span class="text-text-muted text-xs">(opsional)</span></label>
+        <label for="effective_until" class="block text-sm font-medium text-text-secondary mb-1">Berlaku Sampai <span class="text-text-muted text-xs">(opsional)</span></label>
         <Input id="effective_until" type="date" bind:value={form.effective_until} />
       </div>
     </div>
+    <p class="text-xs text-text-muted">Jika tanggal tidak diisi, rule berlaku selamanya.</p>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
-        <label for="is_active" class="text-sm text-text-secondary">Active</label>
+        <label for="is_active" class="text-sm text-text-secondary">Aktif</label>
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Cancel</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
     <Button variant="primary" class="min-w-32" onclick={saveRule} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
-      {modalMode === 'add' ? 'Create' : 'Update'}
+      {modalMode === 'add' ? 'Buat Rule' : 'Update Rule'}
     </Button>
   {/snippet}
 </Modal>
