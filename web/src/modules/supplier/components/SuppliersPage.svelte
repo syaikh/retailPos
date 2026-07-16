@@ -156,18 +156,11 @@
 </script>
 
 <div class="space-y-5">
-  <div class="card p-4 space-y-3">
-    <div class="flex items-center gap-4">
-      <div class="flex-2">
+  <div class="card p-4">
+    <div class="flex items-center gap-3">
+      <div class="flex-1">
         <SearchBar bind:value={searchQuery} placeholder="Search suppliers by name or contact..." oninput={handleSearch} inputClass="h-10" />
       </div>
-      {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} /> Add Supplier
-        </Button>
-      {/if}
-    </div>
-    <div class="flex items-center gap-3">
       <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
         <button
           class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
@@ -182,15 +175,30 @@
           onclick={() => { statusFilter = 'inactive'; handleFilterChange(); }}
         >Inactive</button>
       </div>
+      {#if canCreate}
+        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+          <Plus size={18} /> Add Supplier
+        </Button>
+      {/if}
     </div>
   </div>
 
   <div class="card overflow-hidden">
     {#if loading}
-      <table class="w-full">
-        <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
-        <tbody>{#each Array(5) as _}<tr>{#each Array(5) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
+      <div class="overflow-x-auto">
+      <table class="w-full" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 25%;" />
+          <col style="width: 20%;" />
+          <col style="width: 18%;" />
+          <col style="width: 22%;" />
+          <col style="width: 10%;" />
+          <col style="width: 5%;" />
+        </colgroup>
+        <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead>
+        <tbody>{#each Array(5) as _}<tr>{#each Array(6) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
       </table>
+      </div>
     {:else if suppliers.length === 0}
       <div class="flex flex-col items-center justify-center py-12 text-gray-400">
         <Truck class="w-12 h-12 mb-3" />
@@ -198,7 +206,15 @@
       </div>
     {:else}
       <div class="overflow-x-auto">
-      <table class="w-full min-w-[700px]">
+      <table class="w-full min-w-[700px]" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 25%;" />
+          <col style="width: 20%;" />
+          <col style="width: 18%;" />
+          <col style="width: 22%;" />
+          <col style="width: 10%;" />
+          <col style="width: 5%;" />
+        </colgroup>
         <thead class="bg-muted/50">
           <tr class="border-b text-left text-sm text-text-muted">
             <th class="px-4 py-3 font-semibold">
@@ -222,10 +238,10 @@
         <tbody>
           {#each sortedSuppliers as supplier (supplier.id)}
             <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
-              <td class="px-4 py-3 font-medium">{supplier.name}</td>
-              <td class="px-4 py-3 text-text-secondary">{supplier.contact_name || '-'}</td>
+              <td class="px-4 py-3 font-medium truncate">{supplier.name}</td>
+              <td class="px-4 py-3 text-text-secondary truncate">{supplier.contact_name || '-'}</td>
               <td class="px-4 py-3 text-text-secondary tabular-nums">{supplier.phone || '-'}</td>
-              <td class="px-4 py-3 text-text-secondary text-sm">{supplier.email || '-'}</td>
+              <td class="px-4 py-3 text-text-secondary text-sm truncate">{supplier.email || '-'}</td>
               <td class="px-4 py-3">
                 {#if supplier.is_active}
                   <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Active</span>

@@ -3,8 +3,8 @@
   import { toast } from '$shared/stores/toast.svelte.ts';
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule } from '../services/pricing-service.ts';
-  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
-  import { Plus, Pencil, Trash2, DollarSign, Loader2, Info } from 'lucide-svelte';
+  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader, Dropdown } from '$shared/ui';
+  import { Plus, Pencil, Trash2, DollarSign, Loader2, ChevronDown } from 'lucide-svelte';
 
   const authStore = useAuthStore();
 
@@ -41,11 +41,20 @@
   let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
 
   const pricingTypes = [
-    { value: 'discount', label: 'Discount', description: 'Harga spesial lebih rendah dari harga normal' },
-    { value: 'wholesale', label: 'Wholesale', description: 'Harga grosir untuk pembelian dalam jumlah besar' },
-    { value: 'member', label: 'Member', description: 'Harga khusus anggota/member toko' },
-    { value: 'promotion', label: 'Promotion', description: 'Harga promosi/sale untuk periode tertentu' }
+    { value: 'discount', label: 'Discount' },
+    { value: 'wholesale', label: 'Wholesale' },
+    { value: 'member', label: 'Member' },
+    { value: 'promotion', label: 'Promotion' }
   ];
+
+  const pricingTypeDescriptions = {
+    discount: 'Harga spesial lebih rendah dari harga normal',
+    wholesale: 'Harga grosir untuk pembelian dalam jumlah besar',
+    member: 'Harga khusus anggota/member toko',
+    promotion: 'Harga promosi/sale untuk periode tertentu'
+  };
+
+  let typeLabel = $derived(typeFilter === 'all' ? 'All Types' : pricingTypes.find(t => t.value === typeFilter)?.label || typeFilter);
 
   let sortedRules = $derived.by(() => {
     const sorted = [...rules];
@@ -175,18 +184,11 @@
 </script>
 
 <div class="space-y-5">
-  <div class="card p-4 space-y-3">
-    <div class="flex items-center gap-4">
-      <div class="flex-2">
+  <div class="card p-4">
+    <div class="flex items-center gap-3">
+      <div class="flex-1">
         <SearchBar bind:value={searchQuery} placeholder="Search rules by name..." oninput={handleSearch} inputClass="h-10" />
       </div>
-      {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} /> Add Rule
-        </Button>
-      {/if}
-    </div>
-    <div class="flex items-center gap-3">
       <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
         <button
           class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
@@ -201,27 +203,50 @@
           onclick={() => { statusFilter = 'inactive'; handleFilterChange(); }}
         >Inactive</button>
       </div>
-      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {typeFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { typeFilter = 'all'; handleFilterChange(); }}
-        >All Types</button>
-        {#each pricingTypes as pt}
+      <Dropdown placement="bottom-start" items={[
+        { label: 'All Types', checked: typeFilter === 'all', onclick: () => { typeFilter = 'all'; handleFilterChange(); } },
+        ...pricingTypes.map(pt => ({
+          label: pt.label,
+          checked: typeFilter === pt.value,
+          onclick: () => { typeFilter = pt.value; handleFilterChange(); }
+        }))
+      ]}>
+        {#snippet trigger({ toggle })}
           <button
-            class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {typeFilter === pt.value ? 'bg-blue-subtle text-blue-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-            onclick={() => { typeFilter = pt.value; handleFilterChange(); }}
-          >{pt.label}</button>
-        {/each}
-      </div>
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {typeFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+            style="min-width: 130px;"
+            onclick={toggle}
+          >
+            <span class="flex-1 text-left truncate">{typeLabel}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+        {/snippet}
+      </Dropdown>
+      {#if canCreate}
+        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
+          <Plus size={18} /> Add Rule
+        </Button>
+      {/if}
     </div>
   </div>
 
   <div class="card overflow-hidden">
     {#if loading}
-      <table class="w-full">
-        <thead><tr><th>Name</th><th>Type</th><th>Price</th><th>Min Qty</th><th>Status</th></tr></thead>
-        <tbody>{#each Array(5) as _}<tr>{#each Array(5) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
+      <div class="overflow-x-auto">
+      <table class="w-full" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 25%;" />
+          <col style="width: 13%;" />
+          <col style="width: 14%;" />
+          <col style="width: 10%;" />
+          <col style="width: 10%;" />
+          <col style="width: 10%;" />
+          <col style="width: 18%;" />
+        </colgroup>
+        <thead><tr><th>Name</th><th>Type</th><th>Price (Rp)</th><th>Min Qty</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
       </table>
+      </div>
     {:else if rules.length === 0}
       <div class="flex flex-col items-center justify-center py-12 text-gray-400">
         <DollarSign class="w-12 h-12 mb-3" />
@@ -229,7 +254,16 @@
       </div>
     {:else}
       <div class="overflow-x-auto">
-      <table class="w-full min-w-[800px]">
+      <table class="w-full min-w-[800px]" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 25%;" />
+          <col style="width: 13%;" />
+          <col style="width: 14%;" />
+          <col style="width: 10%;" />
+          <col style="width: 10%;" />
+          <col style="width: 10%;" />
+          <col style="width: 18%;" />
+        </colgroup>
         <thead class="bg-muted/50">
           <tr class="border-b text-left text-sm text-text-muted">
             <th class="px-4 py-3 font-semibold">
@@ -256,8 +290,8 @@
         <tbody>
           {#each sortedRules as rule (rule.id)}
             <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
-              <td class="px-4 py-3 font-medium">{rule.name}</td>
-              <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{rule.pricing_type}</span></td>
+              <td class="px-4 py-3 font-medium truncate">{rule.name}</td>
+              <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 truncate">{rule.pricing_type}</span></td>
               <td class="px-4 py-3 text-right tabular-nums">{formatPrice(rule.price)}</td>
               <td class="px-4 py-3 text-right tabular-nums">{rule.minimum_quantity}</td>
               <td class="px-4 py-3 text-right tabular-nums">{rule.priority}</td>
@@ -305,7 +339,7 @@
       <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
         {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
       </select>
-      <p class="mt-1 text-xs text-text-muted">{pricingTypes.find(t => t.value === form.pricing_type)?.description || ''}</p>
+      <p class="mt-1 text-xs text-text-muted">{pricingTypeDescriptions[form.pricing_type] || ''}</p>
     </div>
     <div>
       <label for="rule_name" class="block text-sm font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
