@@ -336,54 +336,49 @@
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Add Pricing Rule' : 'Edit Pricing Rule'} size="md">
-  <form onsubmit={saveRule} class="space-y-4">
-    <div>
-      <label for="product_id" class="block text-sm font-medium text-text-secondary mb-1">Product ID <span class="text-danger">*</span></label>
-      <Input id="product_id" type="number" bind:value={form.product_id} required min="1" placeholder="e.g. 42" />
-      <p class="mt-1 text-xs text-text-muted">ID unik produk dari database. Lihat di halaman Products untuk menemukan ID.</p>
-    </div>
-    <div>
-      <label for="pricing_type" class="block text-sm font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
-      <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
-        {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
-      </select>
-      <p class="mt-1 text-xs text-text-muted">{pricingTypeDescriptions[form.pricing_type] || ''}</p>
-    </div>
-    <div>
-      <label for="rule_name" class="block text-sm font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
-      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5 pcs" />
-      <p class="mt-1 text-xs text-text-muted">Nama deskriptif untuk mengidentifikasi rule ini.</p>
-    </div>
-    <div>
-      <label for="rule_price" class="block text-sm font-medium text-text-secondary mb-1">Harga (Rp) <span class="text-danger">*</span></label>
-      <Input id="rule_price" type="number" bind:value={form.price} required min="0" placeholder="e.g. 15000" />
-      <p class="mt-1 text-xs text-text-muted">Harga jual per unit untuk rule ini. Contoh: 15000 = Rp 15.000</p>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
+  <form onsubmit={saveRule} class="space-y-3">
+    <div class="grid grid-cols-2 gap-3">
       <div>
-        <label for="min_qty" class="block text-sm font-medium text-text-secondary mb-1">Min. Quantity <span class="text-danger">*</span></label>
-        <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" placeholder="1" />
-        <p class="mt-1 text-xs text-text-muted">Jumlah minimum pembelian agar rule ini berlaku.</p>
+        <label for="product_id" class="block text-xs font-medium text-text-secondary mb-1">Product ID <span class="text-danger">*</span></label>
+        <Input id="product_id" type="number" bind:value={form.product_id} required min="1" placeholder="42" class="h-9 text-sm" />
       </div>
       <div>
-        <label for="priority" class="block text-sm font-medium text-text-secondary mb-1">Prioritas <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="priority" type="number" bind:value={form.priority} min="0" placeholder="0" />
-        <p class="mt-1 text-xs text-text-muted">Angka lebih tinggi = prioritas lebih tinggi. Jika beberapa rule cocok, yang prioritas tertinggi yang dipakai.</p>
+        <label for="pricing_type" class="block text-xs font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
+        <select id="pricing_type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
+          {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
+        </select>
       </div>
     </div>
-    <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label for="rule_name" class="block text-xs font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
+      <Input id="rule_name" bind:value={form.name} required placeholder="e.g. Wholesale min 5 pcs" class="h-9 text-sm" />
+    </div>
+    <div class="grid grid-cols-3 gap-3">
       <div>
-        <label for="effective_from" class="block text-sm font-medium text-text-secondary mb-1">Berlaku Dari <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="effective_from" type="date" bind:value={form.effective_from} />
+        <label for="rule_price" class="block text-xs font-medium text-text-secondary mb-1">Harga (Rp) <span class="text-danger">*</span></label>
+        <Input id="rule_price" type="number" bind:value={form.price} required min="0" placeholder="15000" class="h-9 text-sm" />
       </div>
       <div>
-        <label for="effective_until" class="block text-sm font-medium text-text-secondary mb-1">Berlaku Sampai <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="effective_until" type="date" bind:value={form.effective_until} />
+        <label for="min_qty" class="block text-xs font-medium text-text-secondary mb-1">Min Qty <span class="text-danger">*</span></label>
+        <Input id="min_qty" type="number" bind:value={form.minimum_quantity} required min="1" placeholder="1" class="h-9 text-sm" />
+      </div>
+      <div>
+        <label for="priority" class="block text-xs font-medium text-text-secondary mb-1">Prioritas</label>
+        <Input id="priority" type="number" bind:value={form.priority} min="0" placeholder="0" class="h-9 text-sm" />
       </div>
     </div>
-    <p class="text-xs text-text-muted">Jika tanggal tidak diisi, rule berlaku selamanya.</p>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label for="effective_from" class="block text-xs font-medium text-text-secondary mb-1">Berlaku Dari</label>
+        <Input id="effective_from" type="date" bind:value={form.effective_from} class="h-9 text-sm" />
+      </div>
+      <div>
+        <label for="effective_until" class="block text-xs font-medium text-text-secondary mb-1">Berlaku Sampai</label>
+        <Input id="effective_until" type="date" bind:value={form.effective_until} class="h-9 text-sm" />
+      </div>
+    </div>
     {#if modalMode === 'edit'}
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
         <label for="is_active" class="text-sm text-text-secondary">Aktif</label>
       </div>

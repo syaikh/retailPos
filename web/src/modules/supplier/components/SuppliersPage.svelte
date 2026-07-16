@@ -275,42 +275,41 @@
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Supplier' : 'Edit Supplier'} size="md">
-  <form onsubmit={saveSupplier} class="space-y-4">
-    <div class="grid grid-cols-2 gap-4">
+  <form onsubmit={saveSupplier} class="space-y-3">
+    <div class="grid grid-cols-2 gap-3">
       <div>
-        <label for="sup_name" class="block text-sm font-medium text-text-secondary mb-1">Nama Supplier <span class="text-danger">*</span></label>
-        <Input id="sup_name" bind:value={form.name} required placeholder="e.g. PT Sumber Makmur" />
+        <label for="sup_name" class="block text-xs font-medium text-text-secondary mb-1">Nama Supplier <span class="text-danger">*</span></label>
+        <Input id="sup_name" bind:value={form.name} required placeholder="PT Sumber Makmur" class="h-9 text-sm" />
       </div>
       <div>
-        <label for="sup_code" class="block text-sm font-medium text-text-secondary mb-1">Kode Supplier <span class="text-danger">*</span></label>
-        <Input id="sup_code" bind:value={form.code} required placeholder="e.g. SUP-001" />
-        <p class="mt-1 text-xs text-text-muted">Kode unik internal untuk identifikasi supplier.</p>
-      </div>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="sup_contact" class="block text-sm font-medium text-text-secondary mb-1">Nama Kontak <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="sup_contact" bind:value={form.contact_name} placeholder="e.g. Budi Santoso" />
-      </div>
-      <div>
-        <label for="sup_phone" class="block text-sm font-medium text-text-secondary mb-1">Telepon <span class="text-text-muted text-xs">(opsional)</span></label>
-        <Input id="sup_phone" bind:value={form.phone} placeholder="e.g. 021-12345678" />
+        <label for="sup_code" class="block text-xs font-medium text-text-secondary mb-1">Kode Supplier <span class="text-danger">*</span></label>
+        <Input id="sup_code" bind:value={form.code} required placeholder="SUP-001" class="h-9 text-sm" />
       </div>
     </div>
-    <div>
-      <label for="sup_email" class="block text-sm font-medium text-text-secondary mb-1">Email <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="sup_email" type="email" bind:value={form.email} placeholder="e.g. info@supplier.co.id" />
-    </div>
-    <div>
-      <label for="sup_address" class="block text-sm font-medium text-text-secondary mb-1">Alamat <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Alamat lengkap..." class="min-h-[60px] resize-y" />
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label for="sup_contact" class="block text-xs font-medium text-text-secondary mb-1">Kontak</label>
+        <Input id="sup_contact" bind:value={form.contact_name} placeholder="Budi Santoso" class="h-9 text-sm" />
+      </div>
+      <div>
+        <label for="sup_phone" class="block text-xs font-medium text-text-secondary mb-1">Telepon</label>
+        <Input id="sup_phone" bind:value={form.phone} placeholder="021-12345678" class="h-9 text-sm" />
+      </div>
+      <div>
+        <label for="sup_email" class="block text-xs font-medium text-text-secondary mb-1">Email</label>
+        <Input id="sup_email" type="email" bind:value={form.email} placeholder="info@supplier.co.id" class="h-9 text-sm" />
+      </div>
     </div>
     <div>
-      <label for="sup_notes" class="block text-sm font-medium text-text-secondary mb-1">Catatan <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Catatan tambahan..." class="min-h-[60px] resize-y" />
+      <label for="sup_address" class="block text-xs font-medium text-text-secondary mb-1">Alamat</label>
+      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Alamat lengkap..." class="min-h-[40px] resize-y text-sm" />
+    </div>
+    <div>
+      <label for="sup_notes" class="block text-xs font-medium text-text-secondary mb-1">Catatan</label>
+      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Catatan tambahan..." class="min-h-[40px] resize-y text-sm" />
     </div>
     {#if modalMode === 'edit'}
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
         <label for="is_active" class="text-sm text-text-secondary">Aktif</label>
       </div>
