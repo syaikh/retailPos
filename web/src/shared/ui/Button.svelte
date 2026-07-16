@@ -40,8 +40,8 @@
 
 <button
   type="button"
-  class={cn(base, variants[variant], sizes[size], rest.class)}
   {...rest}
+  class={cn(base, variants[variant], sizes[size], rest.class)}
 >
   {@render children()}
 </button>
