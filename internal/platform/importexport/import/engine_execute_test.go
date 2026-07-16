@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/progress"
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/validation"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type mockRepo struct {
@@ -41,9 +41,9 @@ func (m *mockRepo) LoadReferences(ctx context.Context, s schema.ModuleSchema) (m
 }
 
 type mockAdapter struct {
-	moduleName   string
+	moduleName    string
 	mapToEntityFn func(ctx context.Context, s schema.ModuleSchema, row map[string]interface{}) (interface{}, error)
-	repo         *mockRepo
+	repo          *mockRepo
 }
 
 func (a *mockAdapter) ModuleName() string { return a.moduleName }
@@ -75,7 +75,7 @@ func newTestEngine() (*Engine, *progress.Engine) {
 }
 
 func registerMockAdapter(e *Engine, adapter *mockAdapter) {
-	e.adapterReg.Register(adapter)
+	_ = e.adapterReg.Register(adapter)
 }
 
 func newInsertRows(count int) ([]map[string]interface{}, []importexport.PreviewRow) {
@@ -308,7 +308,7 @@ func TestExecuteImport_ErrorRowsSkipped(t *testing.T) {
 
 	adapter := &mockAdapter{
 		moduleName: "test",
-		repo: &mockRepo{},
+		repo:       &mockRepo{},
 	}
 	registerMockAdapter(e, adapter)
 
@@ -324,11 +324,11 @@ func TestExecuteImport_ErrorRowsSkipped(t *testing.T) {
 	}
 
 	state := &PreviewState{
-		Module:   "test",
-		Schema:   testSchema,
-		Rows:     rows,
-		Result:   &importexport.PreviewResult{TotalRows: 2, ErrorCount: 1, Rows: previewRows},
-		Created:  time.Now(),
+		Module:  "test",
+		Schema:  testSchema,
+		Rows:    rows,
+		Result:  &importexport.PreviewResult{TotalRows: 2, ErrorCount: 1, Rows: previewRows},
+		Created: time.Now(),
 	}
 
 	ctx := context.Background()
@@ -421,7 +421,7 @@ func TestExecuteImport_MixedInsertAndError(t *testing.T) {
 
 	adapter := &mockAdapter{
 		moduleName: "test",
-		repo: &mockRepo{},
+		repo:       &mockRepo{},
 	}
 	registerMockAdapter(e, adapter)
 
@@ -439,11 +439,11 @@ func TestExecuteImport_MixedInsertAndError(t *testing.T) {
 	}
 
 	state := &PreviewState{
-		Module:   "test",
-		Schema:   testSchema,
-		Rows:     rows,
-		Result:   &importexport.PreviewResult{TotalRows: 3, ErrorCount: 1, Rows: previewRows},
-		Created:  time.Now(),
+		Module:  "test",
+		Schema:  testSchema,
+		Rows:    rows,
+		Result:  &importexport.PreviewResult{TotalRows: 3, ErrorCount: 1, Rows: previewRows},
+		Created: time.Now(),
 	}
 
 	ctx := context.Background()
@@ -464,7 +464,7 @@ func TestExecuteImport_CancellationDuringLoop(t *testing.T) {
 
 	adapter := &mockAdapter{
 		moduleName: "test",
-		repo: &mockRepo{},
+		repo:       &mockRepo{},
 	}
 	registerMockAdapter(e, adapter)
 

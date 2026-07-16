@@ -292,7 +292,7 @@ func ensureTestUserExists(t *testing.T) {
 
 func TestHandler_CreateUser_WithAudit(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	ensureTestUserExists(t)
 	r := setupUserRouterWithAudit()
 
@@ -312,7 +312,7 @@ func TestHandler_CreateUser_WithAudit(t *testing.T) {
 
 func TestHandler_DeleteUser_WithAudit(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	ensureTestUserExists(t)
 	r := setupUserRouterWithAudit()
 
@@ -342,7 +342,7 @@ func TestHandler_DeleteUser_WithAudit(t *testing.T) {
 
 func TestHandler_CreateRole_WithAudit(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	ensureTestUserExists(t)
 	r := setupUserRouterWithAudit()
 
@@ -363,7 +363,7 @@ func TestHandler_CreateRole_WithAudit(t *testing.T) {
 
 func TestHandler_CreateUser_NilAuditSvc(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	ensureTestUserExists(t)
 	r := setupUserRouter()
 

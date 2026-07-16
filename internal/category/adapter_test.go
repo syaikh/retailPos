@@ -69,9 +69,9 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "name is required",
 			row: map[string]interface{}{
-				"_row":  3,
-				"Name":  "",
-				"Slug":  "empty",
+				"_row": 3,
+				"Name": "",
+				"Slug": "empty",
 			},
 			wantErr: true,
 		},
@@ -310,4 +310,3 @@ func TestCategoryAdapter_ReposAdapter_LoadReferences(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, refs)
 }
-

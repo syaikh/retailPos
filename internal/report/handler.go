@@ -608,7 +608,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 		}
 		decoded, err := base64.StdEncoding.DecodeString(chartDataStr)
 		if err == nil && len(decoded) <= 2<<20 {
-			json.Unmarshal(decoded, &chartData)
+			_ = json.Unmarshal(decoded, &chartData)
 		}
 		if len(chartData) > 366 {
 			chartData = chartData[:366]
@@ -616,33 +616,33 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	}
 
 	f := excelize.NewFile()
-	f.SetSheetName("Sheet1", "Dashboard")
+	_ = f.SetSheetName("Sheet1", "Dashboard")
 
-	f.SetCellValue("Dashboard", "A1", "Metric")
-	f.SetCellValue("Dashboard", "B1", "Current Period")
-	f.SetCellValue("Dashboard", "C1", "Previous Period")
-	f.SetCellValue("Dashboard", "A2", "Revenue")
-	f.SetCellValue("Dashboard", "B2", comparison.CurrentRevenue)
-	f.SetCellValue("Dashboard", "C2", comparison.PreviousRevenue)
-	f.SetCellValue("Dashboard", "A3", "Orders")
-	f.SetCellValue("Dashboard", "B3", comparison.CurrentOrders)
-	f.SetCellValue("Dashboard", "C3", comparison.PreviousOrders)
-	f.SetCellValue("Dashboard", "A4", "Average Order Value")
-	f.SetCellValue("Dashboard", "B4", comparison.CurrentAOV)
-	f.SetCellValue("Dashboard", "C4", comparison.PreviousAOV)
-	f.SetCellValue("Dashboard", "A5", "Revenue Per Day")
-	f.SetCellValue("Dashboard", "B5", comparison.RevenuePerDay)
-	f.SetCellValue("Dashboard", "C5", comparison.PreviousRevenuePerDay)
-	f.SetCellValue("Dashboard", "A6", "Peak Revenue Hour")
-	f.SetCellValue("Dashboard", "B6", comparison.PeakRevenueHour)
-	f.SetCellValue("Dashboard", "C6", comparison.PreviousPeakRevenue)
+	_ = f.SetCellValue("Dashboard", "A1", "Metric")
+	_ = f.SetCellValue("Dashboard", "B1", "Current Period")
+	_ = f.SetCellValue("Dashboard", "C1", "Previous Period")
+	_ = f.SetCellValue("Dashboard", "A2", "Revenue")
+	_ = f.SetCellValue("Dashboard", "B2", comparison.CurrentRevenue)
+	_ = f.SetCellValue("Dashboard", "C2", comparison.PreviousRevenue)
+	_ = f.SetCellValue("Dashboard", "A3", "Orders")
+	_ = f.SetCellValue("Dashboard", "B3", comparison.CurrentOrders)
+	_ = f.SetCellValue("Dashboard", "C3", comparison.PreviousOrders)
+	_ = f.SetCellValue("Dashboard", "A4", "Average Order Value")
+	_ = f.SetCellValue("Dashboard", "B4", comparison.CurrentAOV)
+	_ = f.SetCellValue("Dashboard", "C4", comparison.PreviousAOV)
+	_ = f.SetCellValue("Dashboard", "A5", "Revenue Per Day")
+	_ = f.SetCellValue("Dashboard", "B5", comparison.RevenuePerDay)
+	_ = f.SetCellValue("Dashboard", "C5", comparison.PreviousRevenuePerDay)
+	_ = f.SetCellValue("Dashboard", "A6", "Peak Revenue Hour")
+	_ = f.SetCellValue("Dashboard", "B6", comparison.PeakRevenueHour)
+	_ = f.SetCellValue("Dashboard", "C6", comparison.PreviousPeakRevenue)
 
-	f.NewSheet("Summary")
-	f.SetCellValue("Summary", "A1", "Date")
-	f.SetCellValue("Summary", "B1", "Revenue")
+	_, _ = f.NewSheet("Summary")
+	_ = f.SetCellValue("Summary", "A1", "Date")
+	_ = f.SetCellValue("Summary", "B1", "Revenue")
 	for i, d := range chartData {
-		f.SetCellValue("Summary", fmt.Sprintf("A%d", i+2), d.Date)
-		f.SetCellValue("Summary", fmt.Sprintf("B%d", i+2), d.Total)
+		_ = f.SetCellValue("Summary", fmt.Sprintf("A%d", i+2), d.Date)
+		_ = f.SetCellValue("Summary", fmt.Sprintf("B%d", i+2), d.Total)
 	}
 
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

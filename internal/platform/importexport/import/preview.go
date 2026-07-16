@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 func GeneratePreview(s schema.ModuleSchema, rows []map[string]interface{}, errs []importexportshared.ValidationError) *importexport.PreviewResult {

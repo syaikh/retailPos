@@ -232,7 +232,7 @@ func TestColWidth(t *testing.T) {
 }
 
 func TestBuildValidationHint(t *testing.T) {
-	intP := func(v int) *int   { return &v }
+	intP := func(v int) *int { return &v }
 	floatP := func(v float64) *float64 { return &v }
 
 	tests := []struct {
@@ -265,8 +265,8 @@ func TestBuildValidationHint(t *testing.T) {
 func TestEngine_GenerateMetaNoDisplayName(t *testing.T) {
 	e := NewEngine()
 	s := schema.ModuleSchema{
-		ModuleName:  "nodisplay",
-		Columns:     []schema.ColumnSchema{{Name: "X", Type: schema.ColString, Label: "X", Required: true, Template: true}},
+		ModuleName: "nodisplay",
+		Columns:    []schema.ColumnSchema{{Name: "X", Type: schema.ColString, Label: "X", Required: true, Template: true}},
 	}
 	var buf bytes.Buffer
 	if err := e.Generate(s, nil, &buf); err != nil {

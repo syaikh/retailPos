@@ -60,9 +60,9 @@ func (v *ReferenceValidator) Validate(_ context.Context, s importexportshared.Mo
 			if !found {
 				errs = append(errs, importexportshared.ValidationError{
 					Row: rowNum, Field: col.Name, Value: strVal,
-					Reason: fmt.Sprintf("value not found in %s", refKey),
+					Reason:     fmt.Sprintf("value not found in %s", refKey),
 					Suggestion: fmt.Sprintf("create the %s first or use an existing value", refKey),
-					Stage:  importexportshared.StageReference,
+					Stage:      importexportshared.StageReference,
 				})
 			}
 		}

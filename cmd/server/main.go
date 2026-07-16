@@ -52,9 +52,9 @@ func (a *authAdapter) ValidateToken(tokenString string) (*websocket.Claims, erro
 		return nil, err
 	}
 	return &websocket.Claims{
-		ID:      claims.ID,
-		Role:    claims.Role,
-		StoreID: claims.StoreID,
+		ID:       claims.ID,
+		Role:     claims.Role,
+		StoreID:  claims.StoreID,
 		Username: claims.Username,
 	}, nil
 }

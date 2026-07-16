@@ -37,7 +37,7 @@ func waitForBus(bus *Bus) {
 		},
 	))
 	go bus.Run()
-	bus.Publish(context.Background(), "entity.created", nil)
+	_ = bus.Publish(context.Background(), "entity.created", nil)
 	<-done
 }
 
@@ -59,7 +59,7 @@ func TestBus_Metrics(t *testing.T) {
 
 	const n = 5
 	for i := 0; i < n; i++ {
-		bus.Publish(context.Background(), "sale.created", nil)
+		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
 
 	bus.Shutdown()
@@ -96,7 +96,7 @@ func TestBus_MetricsWithFailure(t *testing.T) {
 	baseline := bus.Metrics()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", nil)
+	_ = bus.Publish(ctx, "sale.created", nil)
 
 	// Cancel context quickly to abort retries.
 	time.AfterFunc(200*time.Millisecond, cancel)
@@ -126,7 +126,7 @@ func TestBus_DroppedCount(t *testing.T) {
 	))
 
 	for i := 0; i < 1100; i++ {
-		bus.Publish(context.Background(), "sale.created", nil)
+		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
 
 	dropped := bus.DroppedCount()
@@ -161,7 +161,7 @@ func TestBus_SetDeadLetterStore(t *testing.T) {
 		},
 	))
 
-	bus.Publish(context.Background(), "sale.created", map[string]string{"key": "value"})
+	_ = bus.Publish(context.Background(), "sale.created", map[string]string{"key": "value"})
 
 	// Let all retries exhaust naturally: attempt 0 + delays 1s+2s+4s ≈ 7s.
 	bus.Shutdown()
@@ -198,7 +198,7 @@ func TestBus_DeadLetterNilStore(t *testing.T) {
 	))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", nil)
+	_ = bus.Publish(ctx, "sale.created", nil)
 	time.AfterFunc(200*time.Millisecond, cancel)
 
 	bus.Shutdown()
@@ -225,7 +225,7 @@ func TestBus_DeadLetterUnmarshalablePayload(t *testing.T) {
 	))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", make(chan int))
+	_ = bus.Publish(ctx, "sale.created", make(chan int))
 	time.AfterFunc(200*time.Millisecond, cancel)
 
 	bus.Shutdown()
@@ -252,7 +252,7 @@ func TestBus_DeadLetterStoreError(t *testing.T) {
 	))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", "hello")
+	_ = bus.Publish(ctx, "sale.created", "hello")
 	time.AfterFunc(300*time.Millisecond, cancel)
 
 	bus.Shutdown()
@@ -310,7 +310,7 @@ func TestBus_DispatchCancelledContextDuringRetry(t *testing.T) {
 	))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", nil)
+	_ = bus.Publish(ctx, "sale.created", nil)
 
 	// Cancel after first attempt to abort retries.
 	time.AfterFunc(100*time.Millisecond, cancel)
@@ -343,7 +343,7 @@ func TestBus_NilPayloadDeadLetter(t *testing.T) {
 	))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bus.Publish(ctx, "sale.created", nil)
+	_ = bus.Publish(ctx, "sale.created", nil)
 	time.AfterFunc(200*time.Millisecond, cancel)
 
 	bus.Shutdown()

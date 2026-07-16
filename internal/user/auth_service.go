@@ -50,12 +50,12 @@ func NewAuthService(repo *Repository) *AuthService {
 		panic("FATAL: JWT_SECRET environment variable is required.")
 	}
 	return &AuthService{
-		dbPool:     repo.db,
-		repo:       repo,
-		jwtSecret:  cfg.JWTSecret,
+		dbPool:        repo.db,
+		repo:          repo,
+		jwtSecret:     cfg.JWTSecret,
 		refreshSecret: cfg.JWTSecretRefresh,
-		accessTTL:  15 * time.Minute,
-		refreshTTL: 7 * 24 * time.Hour,
+		accessTTL:     15 * time.Minute,
+		refreshTTL:    7 * 24 * time.Hour,
 	}
 }
 
@@ -114,7 +114,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldRefreshToken string) 
 	if err != nil {
 		return "", "", fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	tokenHash := hashToken(oldRefreshToken)
 	var deletedID int
@@ -295,32 +295,8 @@ func (s *AuthService) storeRefreshToken(ctx context.Context, userID int, token s
 	return err
 }
 
-func (s *AuthService) refreshTokenExists(ctx context.Context, userID int, token string) (bool, error) {
-	tokenHash := hashToken(token)
-	var exists bool
-	err := s.dbPool.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW())
-	`, userID, tokenHash).Scan(&exists)
-	return exists, err
-}
-
 func (s *AuthService) deleteRefreshToken(ctx context.Context, userID int, token string) error {
 	tokenHash := hashToken(token)
 	_, err := s.dbPool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, tokenHash)
-	return err
-}
-
-func (s *AuthService) deleteRefreshTx(ctx context.Context, tx pgx.Tx, userID int, token string) error {
-	tokenHash := hashToken(token)
-	_, err := tx.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1 AND token_hash = $2", userID, tokenHash)
-	return err
-}
-
-func (s *AuthService) storeRefreshTx(ctx context.Context, tx pgx.Tx, userID int, token string) error {
-	tokenHash := hashToken(token)
-	_, err := tx.Exec(ctx, `
-		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3)
-	`, userID, tokenHash, time.Now().Add(s.refreshTTL))
 	return err
 }

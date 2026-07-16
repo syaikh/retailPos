@@ -222,7 +222,7 @@ func TestAuthHandler_ValidateSession_Permissions(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	perms, ok := resp["permissions"].([]interface{})
 	require.True(t, ok)
 	assert.Contains(t, perms, "user:read")

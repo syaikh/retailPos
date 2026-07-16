@@ -22,16 +22,16 @@ func init() {
 }
 
 type mockReportService struct {
-	getDashboardStatsFn        func(ctx context.Context, storeID int) (*DashboardStats, error)
-	getLiveDashboardStatsFn    func(ctx context.Context, storeID int) (int, int, int, int, error)
-	getHourlySalesFn           func(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
-	getDailySalesFn            func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
-	getDualChartDataFn         func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) ([]ChartDataPoint, []ChartDataPoint, error)
-	getPeriodComparisonFn      func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) (*PeriodComparison, error)
-	getSalesWeeklyReportFn     func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error)
-	getSalesMonthlyReportFn    func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
-	getDualMonthlyReportFn     func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error)
-	getAvailableYearsFn        func(ctx context.Context, storeID int) ([]int, error)
+	getDashboardStatsFn     func(ctx context.Context, storeID int) (*DashboardStats, error)
+	getLiveDashboardStatsFn func(ctx context.Context, storeID int) (int, int, int, int, error)
+	getHourlySalesFn        func(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
+	getDailySalesFn         func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
+	getDualChartDataFn      func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) ([]ChartDataPoint, []ChartDataPoint, error)
+	getPeriodComparisonFn   func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) (*PeriodComparison, error)
+	getSalesWeeklyReportFn  func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error)
+	getSalesMonthlyReportFn func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
+	getDualMonthlyReportFn  func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error)
+	getAvailableYearsFn     func(ctx context.Context, storeID int) ([]int, error)
 }
 
 func (m *mockReportService) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {

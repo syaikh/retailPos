@@ -218,7 +218,6 @@ func main() {
 func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ctx := context.Background()
 
-
 	// Validate parameters
 	if numProducts < 0 {
 		return fmt.Errorf("products count must not be negative, got %d", numProducts)
@@ -392,9 +391,9 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 
 	// Save system users (system role, non-test/dummy) before truncation
 	type sysUser struct {
-		id, roleID                     int
-		username, email, passwordHash  string
-		isActive                       bool
+		id, roleID                    int
+		username, email, passwordHash string
+		isActive                      bool
 	}
 	var systemUsers []sysUser
 	rows, err := db.QueryContext(ctx, `
@@ -621,11 +620,11 @@ func cleanupTestRoles(ctx context.Context, db *sql.DB) {
 
 // productWorkerJob represents a job for a worker in the concurrent product injection pool
 type productWorkerJob struct {
-	workerID       int
-	startProduct   int
-	endProduct     int
-	categoryIDs    []int
-	categoryNames  map[int]string
+	workerID      int
+	startProduct  int
+	endProduct    int
+	categoryIDs   []int
+	categoryNames map[int]string
 }
 
 // injectProducts generates products using concurrent workers for better performance
@@ -1314,9 +1313,9 @@ func generateBarcode(index int) string {
 	sum := 0
 	for i := 0; i < 12; i++ {
 		if (i % 2) == 0 {
-			sum += digits[i] * 3  // odd positions (1-based): i=0->pos1, i=2->pos3, etc.
+			sum += digits[i] * 3 // odd positions (1-based): i=0->pos1, i=2->pos3, etc.
 		} else {
-			sum += digits[i] * 1  // even positions (1-based): i=1->pos2, i=3->pos4, etc.
+			sum += digits[i] * 1 // even positions (1-based): i=1->pos2, i=3->pos4, etc.
 		}
 	}
 	checkDigit := (10 - (sum % 10)) % 10
@@ -1684,6 +1683,7 @@ func randomPrivateIP() string {
 		return fmt.Sprintf("192.168.%d.%d", rand.Intn(256), rand.Intn(256))
 	}
 }
+
 // ==================== CUSTOMER GENERATION ====================
 
 var (

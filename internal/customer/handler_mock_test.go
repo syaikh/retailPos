@@ -15,13 +15,13 @@ import (
 )
 
 type mockCustomerService struct {
-	getAllFn         func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error)
-	getByIDFn        func(ctx context.Context, id int, storeID *int) (*Customer, error)
-	createFn         func(ctx context.Context, customer *Customer, storeID *int) error
-	updateFn         func(ctx context.Context, customer *Customer, id int, storeID *int) error
-	deleteFn         func(ctx context.Context, id int, storeID *int) error
-	bulkStatusFn     func(ctx context.Context, ids []int, isActive bool, storeID *int) error
-	bulkDeleteFn     func(ctx context.Context, ids []int, storeID *int) error
+	getAllFn     func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error)
+	getByIDFn    func(ctx context.Context, id int, storeID *int) (*Customer, error)
+	createFn     func(ctx context.Context, customer *Customer, storeID *int) error
+	updateFn     func(ctx context.Context, customer *Customer, id int, storeID *int) error
+	deleteFn     func(ctx context.Context, id int, storeID *int) error
+	bulkStatusFn func(ctx context.Context, ids []int, isActive bool, storeID *int) error
+	bulkDeleteFn func(ctx context.Context, ids []int, storeID *int) error
 }
 
 func (m *mockCustomerService) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
@@ -77,7 +77,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?limit=10", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Equal(t, float64(1), resp["total"])
 	})
 

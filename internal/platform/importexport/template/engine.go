@@ -158,22 +158,32 @@ func (e *Engine) createInstructionSheet(wb *excelize.File, s schema.ModuleSchema
 	}
 
 	row := 1
-	writeCell(row, fmt.Sprintf("Module: %s", s.DisplayName), titleSty); row++
-	writeCell(row, fmt.Sprintf("Schema Version: %s", s.SchemaVersion), bodySty); row++
+	writeCell(row, fmt.Sprintf("Module: %s", s.DisplayName), titleSty)
+	row++
+	writeCell(row, fmt.Sprintf("Schema Version: %s", s.SchemaVersion), bodySty)
+	row++
 	if s.Description != "" {
-		writeCell(row, fmt.Sprintf("Description: %s", s.Description), bodySty); row++
+		writeCell(row, fmt.Sprintf("Description: %s", s.Description), bodySty)
+		row++
 	}
 	row++
 
-	writeCell(row, "Instructions:", bodySty); row++
-	writeCell(row, fmt.Sprintf("1. Fill in the data in the '%s' sheet. Do not modify the header row.", s.ModuleName), bodySty); row++
-	writeCell(row, "2. Required columns have a yellow header. They must contain a value.", bodySty); row++
-	writeCell(row, "3. Reference columns have a green header. Use the dropdown or enter an existing value.", bodySty); row++
-	writeCell(row, "4. Optional columns have a blue header. Leave blank if not needed.", bodySty); row++
-	writeCell(row, "5. Read-only columns have a gray header. These are informational and cannot be changed.", bodySty); row++
+	writeCell(row, "Instructions:", bodySty)
+	row++
+	writeCell(row, fmt.Sprintf("1. Fill in the data in the '%s' sheet. Do not modify the header row.", s.ModuleName), bodySty)
+	row++
+	writeCell(row, "2. Required columns have a yellow header. They must contain a value.", bodySty)
+	row++
+	writeCell(row, "3. Reference columns have a green header. Use the dropdown or enter an existing value.", bodySty)
+	row++
+	writeCell(row, "4. Optional columns have a blue header. Leave blank if not needed.", bodySty)
+	row++
+	writeCell(row, "5. Read-only columns have a gray header. These are informational and cannot be changed.", bodySty)
+	row++
 	row++
 
-	writeCell(row, "Column Reference", titleSty); row++
+	writeCell(row, "Column Reference", titleSty)
+	row++
 
 	_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", row), "Column")
 	_ = wb.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), tableHeaderSty)

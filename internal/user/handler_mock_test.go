@@ -104,7 +104,7 @@ func TestMockHandler_ListUsers(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Equal(t, float64(1), resp["total"])
 	})
 

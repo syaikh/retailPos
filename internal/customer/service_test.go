@@ -34,7 +34,7 @@ func TestCustomerService_ReadOperations(t *testing.T) {
 	c := &Customer{
 		Name:     "Service Read Test",
 		Phone:    &phone,
-		Email: ptr("test@example.com"),
+		Email:    ptr("test@example.com"),
 		IsActive: true,
 	}
 	require.NoError(t, svc.CreateCustomer(ctx, c, nil))

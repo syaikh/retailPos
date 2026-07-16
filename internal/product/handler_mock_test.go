@@ -380,7 +380,7 @@ func TestMockHandler_GetNextSKU(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/products/next-sku", nil))
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "PRD-00001", resp["data"])
 }
 

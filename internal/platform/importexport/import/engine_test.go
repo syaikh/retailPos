@@ -188,9 +188,9 @@ func TestValidateMetaSheet_NoMetaSheet(t *testing.T) {
 
 func TestValidateMetaSheet_MatchingVersion(t *testing.T) {
 	wb := excelize.NewFile()
-	wb.SetSheetName("Sheet1", "_Meta")
-	wb.SetCellValue("_Meta", "A1", "SchemaVersion")
-	wb.SetCellValue("_Meta", "B1", "1.0.0")
+	_ = wb.SetSheetName("Sheet1", "_Meta")
+	_ = wb.SetCellValue("_Meta", "A1", "SchemaVersion")
+	_ = wb.SetCellValue("_Meta", "B1", "1.0.0")
 
 	s := schema.ModuleSchema{SchemaVersion: "1.0.0"}
 	err := validateMetaSheet(wb, s)
@@ -201,9 +201,9 @@ func TestValidateMetaSheet_MatchingVersion(t *testing.T) {
 
 func TestValidateMetaSheet_MismatchedVersion(t *testing.T) {
 	wb := excelize.NewFile()
-	wb.SetSheetName("Sheet1", "_Meta")
-	wb.SetCellValue("_Meta", "A1", "SchemaVersion")
-	wb.SetCellValue("_Meta", "B1", "2.0.0")
+	_ = wb.SetSheetName("Sheet1", "_Meta")
+	_ = wb.SetCellValue("_Meta", "A1", "SchemaVersion")
+	_ = wb.SetCellValue("_Meta", "B1", "2.0.0")
 
 	s := schema.ModuleSchema{SchemaVersion: "1.0.0"}
 	err := validateMetaSheet(wb, s)
@@ -217,9 +217,9 @@ func TestValidateMetaSheet_MismatchedVersion(t *testing.T) {
 
 func TestValidateMetaSheet_NoVersionRow(t *testing.T) {
 	wb := excelize.NewFile()
-	wb.SetSheetName("Sheet1", "_Meta")
-	wb.SetCellValue("_Meta", "A1", "SomethingElse")
-	wb.SetCellValue("_Meta", "B1", "1.0.0")
+	_ = wb.SetSheetName("Sheet1", "_Meta")
+	_ = wb.SetCellValue("_Meta", "A1", "SomethingElse")
+	_ = wb.SetCellValue("_Meta", "B1", "1.0.0")
 
 	s := schema.ModuleSchema{SchemaVersion: "1.0.0"}
 	err := validateMetaSheet(wb, s)
@@ -250,11 +250,11 @@ func TestEngine_StartImport_NoAdapter(t *testing.T) {
 	e := NewEngine(reg, v, adapterReg, progEng, nil)
 
 	e.StorePreview("token-no-adapter", &PreviewState{
-		Module:   "test",
-		Schema:   testSchema,
-		Rows:     []map[string]interface{}{},
-		Result:   &importexport.PreviewResult{TotalRows: 0},
-		Created:  time.Now(),
+		Module:  "test",
+		Schema:  testSchema,
+		Rows:    []map[string]interface{}{},
+		Result:  &importexport.PreviewResult{TotalRows: 0},
+		Created: time.Now(),
 	})
 
 	_, err := e.StartImport(context.Background(), "token-no-adapter", 1, 1)

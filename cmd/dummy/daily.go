@@ -49,12 +49,12 @@ type dailySaleProduct struct {
 var jakartaTZ = loadJakartaLocation()
 
 type dailySaleItem struct {
-	ProductID  int
-	Quantity   int
-	UnitPrice  int
-	Subtotal   int
-	DPPAmount  int
-	TaxAmount  int
+	ProductID int
+	Quantity  int
+	UnitPrice int
+	Subtotal  int
+	DPPAmount int
+	TaxAmount int
 }
 
 type dailySaleRecord struct {
@@ -71,11 +71,11 @@ type dailySaleRecord struct {
 // ---------- globals set by flags ----------
 
 var (
-	dailyDateStr    string
-	dailyMin        int
-	dailyMax        int
-	dailyCashierID  int
-	dailyStoreID    int
+	dailyDateStr   string
+	dailyMin       int
+	dailyMax       int
+	dailyCashierID int
+	dailyStoreID   int
 )
 
 func registerDailyFlags() {
@@ -407,10 +407,10 @@ func selectItems(products []dailySaleProduct, count int) []dailySaleItem {
 		p := products[rand.Intn(len(products))]
 		qty := pickQty(p.Category)
 		items = append(items, dailySaleItem{
-			ProductID:  p.ID,
-			Quantity:   qty,
-			UnitPrice:  p.Price,
-			Subtotal:   p.Price * qty,
+			ProductID: p.ID,
+			Quantity:  qty,
+			UnitPrice: p.Price,
+			Subtotal:  p.Price * qty,
 		})
 	}
 	return items

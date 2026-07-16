@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type stubAdapter struct {

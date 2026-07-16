@@ -13,10 +13,10 @@ func TestGetUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name    string
-		userID  interface{}
-		setKey  bool
-		want    int
+		name   string
+		userID interface{}
+		setKey bool
+		want   int
 	}{
 		{
 			name:   "userID set",
@@ -49,10 +49,10 @@ func TestGetUserRole(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name    string
-		role    interface{}
-		setKey  bool
-		want    string
+		name   string
+		role   interface{}
+		setKey bool
+		want   string
 	}{
 		{
 			name:   "role set",
@@ -85,21 +85,21 @@ func TestGetPermissions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name    string
-		perms   interface{}
-		setKey  bool
-		want    []string
+		name   string
+		perms  interface{}
+		setKey bool
+		want   []string
 	}{
 		{
-			name:    "permissions set",
-			perms:   []string{"a", "b"},
-			setKey:  true,
-			want:    []string{"a", "b"},
+			name:   "permissions set",
+			perms:  []string{"a", "b"},
+			setKey: true,
+			want:   []string{"a", "b"},
 		},
 		{
-			name:    "permissions not set",
-			setKey:  false,
-			want:    []string{},
+			name:   "permissions not set",
+			setKey: false,
+			want:   []string{},
 		},
 	}
 
@@ -144,10 +144,10 @@ func TestHasPermission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name     string
+		name      string
 		userPerms []string
-		required string
-		want     bool
+		required  string
+		want      bool
 	}{
 		{
 			name:      "permission exists",
@@ -288,11 +288,11 @@ func TestRequirePermission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name       string
-		perms      interface{}
-		setPerms   bool
-		required   string
-		wantCode   int
+		name     string
+		perms    interface{}
+		setPerms bool
+		required string
+		wantCode int
 	}{
 		{
 			name:     "permission granted",
@@ -337,11 +337,11 @@ func TestRequireAnyPermission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name         string
-		perms        interface{}
-		setPerms     bool
-		requiredAny  []string
-		wantCode     int
+		name        string
+		perms       interface{}
+		setPerms    bool
+		requiredAny []string
+		wantCode    int
 	}{
 		{
 			name:        "first permission matches",

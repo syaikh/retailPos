@@ -3,8 +3,8 @@ package importer
 import (
 	"testing"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 func TestGeneratePreview_AllInsert(t *testing.T) {

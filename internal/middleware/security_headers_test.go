@@ -72,11 +72,11 @@ func TestCSRFMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name           string
-		method         string
-		authHeader     string
-		refreshHeader  string
-		wantCode       int
+		name          string
+		method        string
+		authHeader    string
+		refreshHeader string
+		wantCode      int
 	}{
 		{
 			name:     "GET request passes",
@@ -132,10 +132,10 @@ func TestCSRFMiddleware(t *testing.T) {
 			wantCode:   http.StatusOK,
 		},
 		{
-			name:       "DELETE with X-Refresh-Token passes",
-			method:     http.MethodDelete,
+			name:          "DELETE with X-Refresh-Token passes",
+			method:        http.MethodDelete,
 			refreshHeader: "refresh",
-			wantCode:   http.StatusOK,
+			wantCode:      http.StatusOK,
 		},
 		{
 			name:       "POST with empty Authorization returns 403",

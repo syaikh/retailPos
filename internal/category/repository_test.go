@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCategoryRepository_CRUD(t *testing.T) {
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 

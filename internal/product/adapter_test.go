@@ -14,18 +14,6 @@ import (
 	"retail-pos-system/internal/uom"
 )
 
-type mockCategoryRepo struct {
-	CategoryRefRepo
-}
-
-type mockBrandRepo struct {
-	BrandRefRepo
-}
-
-type mockUOMRepo struct {
-	UOMRefRepo
-}
-
 func TestProductAdapter_ModuleName(t *testing.T) {
 	a := &adapter{}
 	assert.Equal(t, "products", a.ModuleName())
@@ -54,19 +42,19 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "happy path all fields",
 			row: map[string]interface{}{
-				"_row":           1,
-				"SKU":            "SKU-001",
-				"Name":           "Widget Pro",
-				"Barcode":        "8999999999999",
-				"Category":       "Electronics",
-				"Brand":          "Samsung",
-				"Price":          "50000",
-				"Cost":           "35000",
-				"Stock":          "100",
-				"Status":         "active",
-				"UnitOfMeasure":  "PCS",
-				"WeightGrams":    "250",
-				"Description":    "A premium widget",
+				"_row":          1,
+				"SKU":           "SKU-001",
+				"Name":          "Widget Pro",
+				"Barcode":       "8999999999999",
+				"Category":      "Electronics",
+				"Brand":         "Samsung",
+				"Price":         "50000",
+				"Cost":          "35000",
+				"Stock":         "100",
+				"Status":        "active",
+				"UnitOfMeasure": "PCS",
+				"WeightGrams":   "250",
+				"Description":   "A premium widget",
 			},
 			want: ProductImportRow{
 				Row:           1,
@@ -164,10 +152,10 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Price": "0",
 			},
 			want: ProductImportRow{
-				Row:     8,
-				SKU:     "SKU-008",
-				Name:    "Minimal",
-				Status:  "active",
+				Row:    8,
+				SKU:    "SKU-008",
+				Name:   "Minimal",
+				Status: "active",
 			},
 		},
 		{

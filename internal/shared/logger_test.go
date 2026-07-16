@@ -35,7 +35,7 @@ func TestInitLogger_Production(t *testing.T) {
 		globalLogger = origLogger
 	}()
 
-	once = sync.Once{}
+	once = new(sync.Once)
 	globalLogger = nil
 	InitLogger("production")
 	l := Logger()

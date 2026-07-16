@@ -21,7 +21,7 @@ func TestBus_PublishSubscribe(t *testing.T) {
 		},
 	))
 
-	bus.Publish(context.Background(), "sale.created", nil)
+	_ = bus.Publish(context.Background(), "sale.created", nil)
 
 	select {
 	case <-done:
@@ -47,7 +47,7 @@ func TestBus_MultipleListeners(t *testing.T) {
 		))
 	}
 
-	bus.Publish(context.Background(), "sale.created", nil)
+	_ = bus.Publish(context.Background(), "sale.created", nil)
 
 	for i := 0; i < numListeners; i++ {
 		select {
@@ -79,7 +79,7 @@ func TestBus_ListenerErrorDoesNotPanic(t *testing.T) {
 		},
 	))
 
-	bus.Publish(context.Background(), "sale.created", nil)
+	_ = bus.Publish(context.Background(), "sale.created", nil)
 
 	for i := 0; i < 2; i++ {
 		select {
@@ -104,7 +104,7 @@ func TestBus_UnrelatedEventTypeIgnored(t *testing.T) {
 		},
 	))
 
-	bus.Publish(context.Background(), "product.updated", nil)
+	_ = bus.Publish(context.Background(), "product.updated", nil)
 
 	select {
 	case <-done:
@@ -129,7 +129,7 @@ func TestBus_ShutdownDrainsEvents(t *testing.T) {
 	))
 
 	for i := 0; i < numEvents; i++ {
-		bus.Publish(context.Background(), "sale.created", nil)
+		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
 
 	bus.Shutdown()
@@ -157,7 +157,7 @@ func TestBus_ChannelFullDoesNotBlockPublisher(t *testing.T) {
 	))
 
 	for i := 0; i < 1100; i++ {
-		bus.Publish(context.Background(), "sale.created", nil)
+		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -182,7 +182,7 @@ func TestBus_ConcurrentSafety(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			bus.Publish(context.Background(), "sale.created", nil)
+			_ = bus.Publish(context.Background(), "sale.created", nil)
 		}()
 	}
 	wg.Wait()
@@ -214,7 +214,7 @@ func TestBus_EventCarriesContext(t *testing.T) {
 	))
 
 	expectedCtx := context.WithValue(context.Background(), traceID, "abc-123")
-	bus.Publish(expectedCtx, "sale.created", nil)
+	_ = bus.Publish(expectedCtx, "sale.created", nil)
 
 	select {
 	case ctx := <-gotCtx:
@@ -243,7 +243,7 @@ func TestBus_TimestampAutoSet(t *testing.T) {
 		},
 	))
 
-	bus.Publish(context.Background(), "sale.created", nil)
+	_ = bus.Publish(context.Background(), "sale.created", nil)
 
 	select {
 	case <-done:
@@ -263,7 +263,7 @@ func TestBus_PublishAfterShutdown(t *testing.T) {
 	go bus.Run()
 	bus.Shutdown()
 
-	bus.Publish(context.Background(), "sale.created", nil)
+	_ = bus.Publish(context.Background(), "sale.created", nil)
 }
 
 func TestBus_SubscribeAfterShutdown(t *testing.T) {

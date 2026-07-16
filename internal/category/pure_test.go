@@ -1,6 +1,7 @@
 package category
 
 import (
+	"context"
 	"testing"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
@@ -11,9 +12,9 @@ import (
 
 func TestGenerateSlug(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		input string
-		want string
+		want  string
 	}{
 		{"simple", "Hello World", "hello-world"},
 		{"lowercase", "UPPER CASE", "upper-case"},
@@ -99,7 +100,7 @@ func TestImportResult_AddError(t *testing.T) {
 
 func TestCategoryAdapter_LoadReferences(t *testing.T) {
 	a := &adapter{}
-	refs, err := a.Repository().(*categoryRepoAdapter).LoadReferences(nil, importexportshared.ModuleSchema{})
+	refs, err := a.Repository().(*categoryRepoAdapter).LoadReferences(context.TODO(), importexportshared.ModuleSchema{})
 	assert.NoError(t, err)
 	assert.Nil(t, refs)
 }
@@ -115,7 +116,7 @@ func TestCategoryMapToEntity(t *testing.T) {
 			"IsActive":    "true",
 			"_row":        1,
 		}
-		entity, err := a.MapToEntity(nil, importexportshared.ModuleSchema{}, row)
+		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
 		cRow, ok := entity.(CategoryImportRow)
 		require.True(t, ok)
@@ -128,7 +129,7 @@ func TestCategoryMapToEntity(t *testing.T) {
 
 	t.Run("empty name", func(t *testing.T) {
 		row := map[string]interface{}{"Name": ""}
-		_, err := a.MapToEntity(nil, importexportshared.ModuleSchema{}, row)
+		_, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Name is required")
 	})

@@ -42,20 +42,20 @@ func TestService_GetAllProducts_IsActiveToStatus(t *testing.T) {
 
 	t.Run("isActive=true converts to status=active", func(t *testing.T) {
 		active := true
-		defer func() { recover() }()
-		svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &active, nil, "")
+		defer func() { _ = recover() }()
+		_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &active, nil, "")
 	})
 
 	t.Run("isActive=false converts to status=inactive", func(t *testing.T) {
 		inactive := false
-		defer func() { recover() }()
-		svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &inactive, nil, "")
+		defer func() { _ = recover() }()
+		_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &inactive, nil, "")
 	})
 
 	t.Run("status set, isActive ignored", func(t *testing.T) {
 		active := true
-		defer func() { recover() }()
-		svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &active, nil, "custom")
+		defer func() { _ = recover() }()
+		_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, &active, nil, "custom")
 	})
 }
 
@@ -69,8 +69,8 @@ func TestService_GetAllProducts_SingleCategory(t *testing.T) {
 	svc := &Service{categoryRepo: catRepo}
 	ctx := context.Background()
 
-	defer func() { recover() }()
-	svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics", nil, nil, nil, "")
+	defer func() { _ = recover() }()
+	_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics", nil, nil, nil, "")
 }
 
 func TestService_GetAllProducts_SingleCategoryError(t *testing.T) {
@@ -101,8 +101,8 @@ func TestService_GetAllProducts_MultiCategory(t *testing.T) {
 	svc := &Service{categoryRepo: catRepo}
 	ctx := context.Background()
 
-	defer func() { recover() }()
-	svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics,Books", nil, nil, nil, "")
+	defer func() { _ = recover() }()
+	_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics,Books", nil, nil, nil, "")
 }
 
 func TestService_GetAllProducts_MultiCategoryError(t *testing.T) {
@@ -130,8 +130,8 @@ func TestService_GetAllProducts_EmptyCategoryFiltered(t *testing.T) {
 	svc := &Service{categoryRepo: catRepo}
 	ctx := context.Background()
 
-	defer func() { recover() }()
-	svc.GetAllProducts(ctx, 10, 0, "", "", "", " , , ", nil, nil, nil, "")
+	defer func() { _ = recover() }()
+	_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", " , , ", nil, nil, nil, "")
 }
 
 func TestService_GetAllProducts_MultiCategoryPartialMatch(t *testing.T) {
@@ -143,16 +143,16 @@ func TestService_GetAllProducts_MultiCategoryPartialMatch(t *testing.T) {
 	svc := &Service{categoryRepo: catRepo}
 	ctx := context.Background()
 
-	defer func() { recover() }()
-	svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics,Unknown", nil, nil, nil, "")
+	defer func() { _ = recover() }()
+	_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "Electronics,Unknown", nil, nil, nil, "")
 }
 
 func TestService_GetAllProducts_NoCategory(t *testing.T) {
 	svc := &Service{}
 	ctx := context.Background()
 
-	defer func() { recover() }()
-	svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, nil, nil, "")
+	defer func() { _ = recover() }()
+	_, _, _ = svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, nil, nil, "")
 }
 
 func TestService_ResolveHelpers(t *testing.T) {

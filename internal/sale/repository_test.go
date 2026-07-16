@@ -100,7 +100,7 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 
 		tx, err := repo.BeginTx(ctx)
 		require.NoError(t, err)
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 
 		sale := &Sale{
 			InvoiceNumber: "INV-REPO-CREATE-001",
@@ -165,7 +165,7 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 		prodID2 := insertTestProduct(t, ctx, "REPO-DUP-002", "Duplicate Test 2", 15000, 10)
 		tx, err := repo.BeginTx(ctx)
 		require.NoError(t, err)
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 
 		dup := &Sale{
 			InvoiceNumber: "INV-REPO-DUP-001",
@@ -318,7 +318,7 @@ func TestSaleRepository_BeginTx(t *testing.T) {
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var result int
 	err = tx.QueryRow(ctx, "SELECT 1").Scan(&result)

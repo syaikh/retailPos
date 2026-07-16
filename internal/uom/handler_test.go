@@ -184,5 +184,3 @@ func TestHandler_DeleteUnitOfMeasure(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
-
-

@@ -59,7 +59,7 @@ func setupInventoryRouter() *gin.Engine {
 
 func TestHandler_AdjustStock(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
 	insertTestUser(t, ctx, 1)
 	r := setupInventoryRouter()

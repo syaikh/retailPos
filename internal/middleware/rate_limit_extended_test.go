@@ -218,7 +218,7 @@ func TestSetCtxValue(t *testing.T) {
 	const testKey ctxKey = "test"
 
 	t.Run("nil context returns background", func(t *testing.T) {
-		result := setCtxValue(nil, testKey, "value")
+		result := setCtxValue(nil, testKey, "value") //nolint:staticcheck // deliberately tests nil-context handling
 		assert.NotNil(t, result)
 		assert.Equal(t, "value", result.Value(testKey))
 	})

@@ -1,6 +1,7 @@
 package customer
 
 import (
+	"context"
 	"testing"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
@@ -172,7 +173,7 @@ func TestCustomerImportResult_AddError(t *testing.T) {
 
 func TestCustomerAdapter_LoadReferences(t *testing.T) {
 	a := &adapter{}
-	refs, err := a.Repository().(*customerRepoAdapter).LoadReferences(nil, importexportshared.ModuleSchema{})
+	refs, err := a.Repository().(*customerRepoAdapter).LoadReferences(context.TODO(), importexportshared.ModuleSchema{})
 	assert.NoError(t, err)
 	assert.Nil(t, refs)
 }
@@ -196,7 +197,7 @@ func TestCustomerMapToEntity(t *testing.T) {
 			"IsActive": "true",
 			"_row":     1,
 		}
-		entity, err := a.MapToEntity(nil, importexportshared.ModuleSchema{}, row)
+		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
 		cRow, ok := entity.(CustomerImportRow)
 		require.True(t, ok)
@@ -210,13 +211,13 @@ func TestCustomerMapToEntity(t *testing.T) {
 
 	t.Run("empty name", func(t *testing.T) {
 		row := map[string]interface{}{"Name": ""}
-		_, err := a.MapToEntity(nil, importexportshared.ModuleSchema{}, row)
+		_, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		assert.Error(t, err)
 	})
 
 	t.Run("storeID", func(t *testing.T) {
 		row := map[string]interface{}{"Name": "Jane", "_store_id": 42}
-		entity, err := a.MapToEntity(nil, importexportshared.ModuleSchema{}, row)
+		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
 		cRow := entity.(CustomerImportRow)
 		require.NotNil(t, cRow.StoreID)

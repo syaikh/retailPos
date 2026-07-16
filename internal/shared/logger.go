@@ -8,7 +8,7 @@ import (
 
 var (
 	globalLogger *slog.Logger
-	once         sync.Once
+	once         = new(sync.Once)
 )
 
 func InitLogger(env string) {

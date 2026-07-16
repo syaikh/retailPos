@@ -20,24 +20,24 @@ type ipEntry struct {
 }
 
 type IPRateLimiter struct {
-	ips      map[string]*ipEntry
-	mu       *sync.Mutex
-	r        rate.Limit
-	b        int
-	stopCh   chan struct{}
-	stopped  bool
-	ttl      time.Duration
-	maxSize  int
+	ips     map[string]*ipEntry
+	mu      *sync.Mutex
+	r       rate.Limit
+	b       int
+	stopCh  chan struct{}
+	stopped bool
+	ttl     time.Duration
+	maxSize int
 }
 
 func NewIPRateLimiter(r rate.Limit, burst int) *IPRateLimiter {
 	l := &IPRateLimiter{
-		ips:    make(map[string]*ipEntry),
-		mu:     &sync.Mutex{},
-		r:      r,
-		b:      burst,
-		stopCh: make(chan struct{}),
-		ttl:    30 * time.Minute,
+		ips:     make(map[string]*ipEntry),
+		mu:      &sync.Mutex{},
+		r:       r,
+		b:       burst,
+		stopCh:  make(chan struct{}),
+		ttl:     30 * time.Minute,
 		maxSize: 10000,
 	}
 	go l.cleanupLoop()

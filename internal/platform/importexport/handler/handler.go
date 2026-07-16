@@ -28,8 +28,8 @@ var modulePerms = map[string]string{
 	"brands:export":      "product:export",
 	"brands:history":     "product:import",
 	"uoms:import":        "product:import",
-	"uoms:export":       "product:export",
-	"uoms:history":      "product:import",
+	"uoms:export":        "product:export",
+	"uoms:history":       "product:import",
 	"customers:import":   "customer:import",
 	"customers:export":   "customer:export",
 	"customers:history":  "customer:import",
@@ -195,7 +195,7 @@ func (h *Handler) Preview(c *gin.Context) {
 		}
 	}
 	if seeker, ok := file.(io.Seeker); ok {
-		seeker.Seek(0, io.SeekStart)
+		_, _ = seeker.Seek(0, io.SeekStart)
 	}
 
 	result, err := h.importEng.Preview(c.Request.Context(), module, header.Filename, file)

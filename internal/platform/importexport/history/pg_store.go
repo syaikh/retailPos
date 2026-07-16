@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/shared"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -82,11 +82,11 @@ type SnapshotData struct {
 }
 
 type RowWithErrors struct {
-	RowNumber int                    `json:"row_number"`
-	Status    string                 `json:"status"`
-	EntityID  *int                   `json:"entity_id,omitempty"`
-	OldValues map[string]interface{} `json:"old_values,omitempty"`
-	NewValues map[string]interface{} `json:"new_values,omitempty"`
+	RowNumber int                                  `json:"row_number"`
+	Status    string                               `json:"status"`
+	EntityID  *int                                 `json:"entity_id,omitempty"`
+	OldValues map[string]interface{}               `json:"old_values,omitempty"`
+	NewValues map[string]interface{}               `json:"new_values,omitempty"`
 	Errors    []importexportshared.ValidationError `json:"errors,omitempty"`
 }
 

@@ -252,10 +252,10 @@ func (r *Repository) GetDualChartData(
 }
 
 type liveDashboardResult struct {
-	todaysRevenue  int
-	todaysSales    int
-	totalProducts  int
-	lowStockCount  int
+	todaysRevenue int
+	todaysSales   int
+	totalProducts int
+	lowStockCount int
 }
 
 func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
@@ -546,7 +546,6 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	if storeID != nil {
 		storeFilter = fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
-		argIdx++
 	}
 
 	query := `

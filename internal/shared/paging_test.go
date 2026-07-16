@@ -35,10 +35,10 @@ func TestParsePaginationParams(t *testing.T) {
 
 func TestSanitizeSortBy(t *testing.T) {
 	tests := []struct {
-		name       string
-		sortBy     string
-		context    string
-		expected   string
+		name     string
+		sortBy   string
+		context  string
+		expected string
 	}{
 		{"valid products name", "name", "products", "name"},
 		{"valid products price", "price", "products", "price"},
@@ -84,11 +84,11 @@ func TestNewPaginatedResponse(t *testing.T) {
 	data := "test"
 
 	tests := []struct {
-		name            string
-		total           int
-		limit           int
-		offset          int
-		expectedPages   int
+		name          string
+		total         int
+		limit         int
+		offset        int
+		expectedPages int
 	}{
 		{"evenly divisible", 100, 10, 0, 10},
 		{"zero total", 0, 10, 0, 0},

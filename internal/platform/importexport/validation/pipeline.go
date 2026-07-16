@@ -3,8 +3,8 @@ package validation
 import (
 	"context"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport/validation/validators"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 type Pipeline struct {

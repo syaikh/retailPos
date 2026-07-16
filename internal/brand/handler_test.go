@@ -184,5 +184,3 @@ func TestHandler_DeleteBrand(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
-
-

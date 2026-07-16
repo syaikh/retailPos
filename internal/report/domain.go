@@ -16,17 +16,17 @@ type ChartDataPoint struct {
 }
 
 type PeriodComparison struct {
-	CurrentRevenue        int `json:"current_revenue"`
-	PreviousRevenue       int `json:"previous_revenue"`
-	CurrentOrders         int `json:"current_orders"`
-	PreviousOrders        int `json:"previous_orders"`
-	CurrentAOV            int `json:"current_aov"`
-	PreviousAOV           int `json:"previous_aov"`
-	RevenuePerDay         int `json:"revenue_per_day"`
-	PreviousRevenuePerDay int `json:"previous_revenue_per_day"`
-	PeakRevenueHour       int `json:"peak_revenue_hour"`
-	PreviousPeakRevenue   int `json:"previous_peak_revenue"`
-	PeakRevenueMonth      int `json:"peak_revenue_month"`
+	CurrentRevenue           int `json:"current_revenue"`
+	PreviousRevenue          int `json:"previous_revenue"`
+	CurrentOrders            int `json:"current_orders"`
+	PreviousOrders           int `json:"previous_orders"`
+	CurrentAOV               int `json:"current_aov"`
+	PreviousAOV              int `json:"previous_aov"`
+	RevenuePerDay            int `json:"revenue_per_day"`
+	PreviousRevenuePerDay    int `json:"previous_revenue_per_day"`
+	PeakRevenueHour          int `json:"peak_revenue_hour"`
+	PreviousPeakRevenue      int `json:"previous_peak_revenue"`
+	PeakRevenueMonth         int `json:"peak_revenue_month"`
 	PreviousPeakRevenueMonth int `json:"previous_peak_revenue_month"`
 }
 

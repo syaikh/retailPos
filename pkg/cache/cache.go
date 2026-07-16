@@ -10,8 +10,8 @@ import (
 
 // Cache is a thread-safe in-memory cache with TTL and jittered eviction.
 type Cache struct {
-	store    *gocache.Cache
-	mu       sync.RWMutex
+	store      *gocache.Cache
+	mu         sync.RWMutex
 	defaultTTL time.Duration
 }
 

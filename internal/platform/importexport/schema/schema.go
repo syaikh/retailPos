@@ -22,6 +22,6 @@ var (
 	RefAutoCreate = importexportshared.RefAutoCreate
 	RefIgnore     = importexportshared.RefIgnore
 
-	IntPtr    = importexportshared.IntPtr
+	IntPtr     = importexportshared.IntPtr
 	Float64Ptr = importexportshared.Float64Ptr
 )

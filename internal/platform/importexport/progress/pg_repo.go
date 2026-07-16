@@ -90,17 +90,17 @@ func (r *PgRepository) UpdateProgress(ctx context.Context, jobID int64, processe
 
 func (r *PgRepository) GetProgress(ctx context.Context, jobID int64) (*Progress, error) {
 	var job struct {
-		ID              int64
-		Module          string
-		Status          string
-		TotalRows       int
-		Inserted        int
-		Updated         int
-		ErrorCount      int
-		ProgressPct     int
-		ErrorReport     string
-		StartedAt       *time.Time
-		CompletedAt     *time.Time
+		ID          int64
+		Module      string
+		Status      string
+		TotalRows   int
+		Inserted    int
+		Updated     int
+		ErrorCount  int
+		ProgressPct int
+		ErrorReport string
+		StartedAt   *time.Time
+		CompletedAt *time.Time
 	}
 	err := r.db.QueryRow(ctx, `
 		SELECT id, module, status, total_rows, inserted, updated, error_count, progress_pct,

@@ -71,17 +71,17 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "code is required - empty string",
 			row: map[string]interface{}{
-				"_row":  3,
-				"Code":  "",
-				"Name":  "EmptyCode",
+				"_row": 3,
+				"Code": "",
+				"Name": "EmptyCode",
 			},
 			wantErr: true,
 		},
 		{
 			name: "code key missing",
 			row: map[string]interface{}{
-				"_row":  4,
-				"Name":  "NoCode",
+				"_row": 4,
+				"Name": "NoCode",
 			},
 			wantErr: true,
 		},
@@ -105,9 +105,9 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "isActive defaults to true",
 			row: map[string]interface{}{
-				"_row":  7,
-				"Code":  "KG",
-				"Name":  "Kilograms",
+				"_row": 7,
+				"Code": "KG",
+				"Name": "Kilograms",
 			},
 			want: UOMImportRow{
 				Row:      7,

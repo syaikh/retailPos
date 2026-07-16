@@ -23,14 +23,6 @@ func createTestCategory(t *testing.T, ctx context.Context, name string) int {
 	return id
 }
 
-func createTestBrand(t *testing.T, ctx context.Context, name string) int {
-	t.Helper()
-	var id int
-	err := dbPool.QueryRow(ctx, `INSERT INTO brands (name, is_active) VALUES ($1, true) RETURNING id`, name).Scan(&id)
-	require.NoError(t, err)
-	return id
-}
-
 func TestGetAllProducts_SearchFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

@@ -38,7 +38,7 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 	_, _ = pool.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
 	var tableCount int
-	pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
+	_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
 
 	if tableCount > 0 {
 		_, _ = pool.Exec(context.Background(), "CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1")

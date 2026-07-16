@@ -188,5 +188,3 @@ func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
-
-

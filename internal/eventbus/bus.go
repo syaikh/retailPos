@@ -49,10 +49,10 @@ func (s *PgDeadLetterStore) Store(ctx context.Context, eventType string, payload
 }
 
 type busMetrics struct {
-	published           atomic.Int64
-	consumed            atomic.Int64
-	failed              atomic.Int64
-	processingDuration  atomic.Int64
+	published          atomic.Int64
+	consumed           atomic.Int64
+	failed             atomic.Int64
+	processingDuration atomic.Int64
 }
 
 type Bus struct {

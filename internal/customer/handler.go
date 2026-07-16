@@ -257,11 +257,11 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	}
 
 	customer := &Customer{
-		ID:       id,
-		Phone:    req.Phone,
-		Email:    req.Email,
-		Address:  req.Address,
-		Note:     req.Note,
+		ID:      id,
+		Phone:   req.Phone,
+		Email:   req.Email,
+		Address: req.Address,
+		Note:    req.Note,
 	}
 	if req.Name != nil {
 		customer.Name = *req.Name

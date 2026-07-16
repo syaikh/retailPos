@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	importexportshared "retail-pos-system/internal/shared/importexport"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	"retail-pos-system/internal/platform/importexport/history"
@@ -25,6 +24,7 @@ import (
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/template"
 	"retail-pos-system/internal/platform/importexport/validation"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
 var testSchema = schema.ModuleSchema{
@@ -491,7 +491,7 @@ func TestHandler_Export_InvalidFormat(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, string(w.Body.Bytes()), "format must be")
+	assert.Contains(t, w.Body.String(), "format must be")
 }
 
 func TestHandler_PermissionDenied(t *testing.T) {
@@ -597,7 +597,7 @@ func TestHandler_ListModules_Empty(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, "[]", string(w.Body.Bytes()))
+	assert.JSONEq(t, "[]", w.Body.String())
 }
 
 func TestHandler_GetProgress_JSONStructure(t *testing.T) {

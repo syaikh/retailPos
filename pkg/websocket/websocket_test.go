@@ -58,7 +58,7 @@ func sendWSAuth(t *testing.T, conn *websocket.Conn, token string) {
 
 func readOneMessage(t *testing.T, conn *websocket.Conn, timeout time.Duration) []byte {
 	t.Helper()
-	conn.SetReadDeadline(time.Now().Add(timeout))
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		t.Fatalf("read message: %v", err)
@@ -151,7 +151,7 @@ func TestServeWebSocket_InvalidAuthFormat(t *testing.T) {
 	}
 
 	msg, _ := json.Marshal(map[string]string{"type": "wrong"})
-	conn.WriteMessage(websocket.TextMessage, msg)
+	_ = conn.WriteMessage(websocket.TextMessage, msg)
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
@@ -175,7 +175,7 @@ func TestServeWebSocket_MissingAuthType(t *testing.T) {
 	}
 
 	msg, _ := json.Marshal(authMessage{Type: "login", Token: "tok"})
-	conn.WriteMessage(websocket.TextMessage, msg)
+	_ = conn.WriteMessage(websocket.TextMessage, msg)
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
@@ -199,7 +199,7 @@ func TestServeWebSocket_EmptyToken(t *testing.T) {
 	}
 
 	msg, _ := json.Marshal(authMessage{Type: "auth", Token: ""})
-	conn.WriteMessage(websocket.TextMessage, msg)
+	_ = conn.WriteMessage(websocket.TextMessage, msg)
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
@@ -228,7 +228,7 @@ func TestServeWebSocket_WritePumpDeliversMessages(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out waiting for stock_update event")
 		}
-		conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			continue
@@ -264,7 +264,7 @@ func TestServeWebSocket_StoreFiltering(t *testing.T) {
 		StoreID: intPtr(99),
 	})
 
-	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	_, _, err := conn.ReadMessage()
 	if err == nil {
 		t.Fatal("expected no message for different store")
@@ -297,7 +297,7 @@ func TestServeWebSocket_AdminReceivesAllStoreEvents(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out waiting for sale_created event")
 		}
-		conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			continue
@@ -482,7 +482,7 @@ func TestServeWebSocket_NonAdminFilteredByStore(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	found := false
 	for !found && time.Now().Before(deadline) {
-		conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			continue
@@ -499,5 +499,3 @@ func TestServeWebSocket_NonAdminFilteredByStore(t *testing.T) {
 		t.Fatal("expected stock_update for matching store")
 	}
 }
-
-

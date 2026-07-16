@@ -39,7 +39,7 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, item := range items {
 		if item.Quantity <= 0 {

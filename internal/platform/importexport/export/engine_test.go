@@ -120,9 +120,9 @@ func TestExportInvalidFormat(t *testing.T) {
 
 func TestFormatValue(t *testing.T) {
 	tests := []struct {
-		t       schema.ColumnType
-		v       interface{}
-		want    string
+		t    schema.ColumnType
+		v    interface{}
+		want string
 	}{
 		{schema.ColNumber, "100", "100"},
 		{schema.ColNumber, "100.5", "100.5"},

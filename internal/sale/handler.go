@@ -67,12 +67,12 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Subtotal  int `json:"subtotal"`
 	}
 	type createSaleReq struct {
-		InvoiceNumber string          `json:"invoice_number"`
-		CustomerID    *int            `json:"customer_id"`
-		StoreID       *int            `json:"store_id"`
+		InvoiceNumber string           `json:"invoice_number"`
+		CustomerID    *int             `json:"customer_id"`
+		StoreID       *int             `json:"store_id"`
 		Items         []createSaleItem `json:"items" binding:"required"`
-		PaymentMethod string          `json:"payment_method"`
-		Discount      int             `json:"discount"`
+		PaymentMethod string           `json:"payment_method"`
+		Discount      int              `json:"discount"`
 	}
 
 	var req createSaleReq

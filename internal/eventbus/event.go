@@ -29,8 +29,8 @@ const (
 // Proteksi: Read-Only enforcement + go test -race.
 type Event struct {
 	Type      EventType
-	Payload   interface{}            // Read-Only! Jangan di-cast untuk mengubah field.
-	Ctx       context.Context        // Konteks asli HTTP request (trace ID, user info)
+	Payload   interface{}     // Read-Only! Jangan di-cast untuk mengubah field.
+	Ctx       context.Context // Konteks asli HTTP request (trace ID, user info)
 	Timestamp time.Time
 	Metadata  map[string]interface{} // Read-Only!
 }

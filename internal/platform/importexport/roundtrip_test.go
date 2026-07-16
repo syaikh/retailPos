@@ -16,9 +16,6 @@ import (
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/customer"
-	"retail-pos-system/internal/product"
-	"retail-pos-system/internal/uom"
-	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	importer "retail-pos-system/internal/platform/importexport/import"
@@ -26,6 +23,9 @@ import (
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/template"
 	"retail-pos-system/internal/platform/importexport/validation"
+	"retail-pos-system/internal/product"
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/uom"
 )
 
 var (
@@ -251,11 +251,11 @@ func TestRoundtrip_Customers_100Rows(t *testing.T) {
 	rows := make([]map[string]interface{}, 100)
 	for i := 0; i < 100; i++ {
 		rows[i] = map[string]interface{}{
-			"Name":    fmt.Sprintf("%s_Customer_%d", prefix, i+1),
-			"Phone":   fmt.Sprintf("08%09d", i+1),
-			"Email":   fmt.Sprintf("cust%d@roundtrip.test", i+1),
-			"Address": fmt.Sprintf("Test Address %d", i+1),
-			"Note":    fmt.Sprintf("Roundtrip test customer %d", i+1),
+			"Name":     fmt.Sprintf("%s_Customer_%d", prefix, i+1),
+			"Phone":    fmt.Sprintf("08%09d", i+1),
+			"Email":    fmt.Sprintf("cust%d@roundtrip.test", i+1),
+			"Address":  fmt.Sprintf("Test Address %d", i+1),
+			"Note":     fmt.Sprintf("Roundtrip test customer %d", i+1),
 			"IsActive": "true",
 		}
 	}

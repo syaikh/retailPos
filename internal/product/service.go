@@ -22,11 +22,11 @@ type UOMRepo interface {
 }
 
 type Service struct {
-	repo        *Repository
+	repo         *Repository
 	categoryRepo CategoryRepo
-	brandRepo   BrandRepo
-	uomRepo     UOMRepo
-	eventBus    shared.EventBus
+	brandRepo    BrandRepo
+	uomRepo      UOMRepo
+	eventBus     shared.EventBus
 }
 
 func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) *Service {
@@ -43,7 +43,11 @@ func (s *Service) GetProductBySKU(ctx context.Context, sku string, storeID int) 
 
 func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error) {
 	if status == "" && isActive != nil {
-		if *isActive { status = "active" } else { status = "inactive" }
+		if *isActive {
+			status = "active"
+		} else {
+			status = "inactive"
+		}
 	}
 	var categoryIDs []int
 	if category != "" {
@@ -98,17 +102,25 @@ func (s *Service) DeleteProduct(ctx context.Context, id int, storeID *int) error
 
 func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
 	status := "active"
-	if !isActive { status = "inactive" }
+	if !isActive {
+		status = "inactive"
+	}
 	return s.repo.BulkUpdateProductStatus(ctx, ids, status, storeID)
 }
 
 func (s *Service) GetNextSKU(ctx context.Context) (string, error) { return s.repo.GetNextSKU(ctx) }
-func (s *Service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) { return s.repo.GetTaxClassByID(ctx, id) }
-func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) { return s.repo.GetAllTaxClasses(ctx) }
-func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) { return s.repo.GetWarehouseByID(ctx, id) }
-func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) { return s.repo.GetAllWarehouses(ctx, nil) }
-
-
+func (s *Service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) {
+	return s.repo.GetTaxClassByID(ctx, id)
+}
+func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
+	return s.repo.GetAllTaxClasses(ctx)
+}
+func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
+	return s.repo.GetWarehouseByID(ctx, id)
+}
+func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
+	return s.repo.GetAllWarehouses(ctx, nil)
+}
 
 func (s *Service) resolveCategoryID(ctx context.Context, name string) (int, error) {
 	return s.categoryRepo.GetCategoryIDByName(ctx, name)
@@ -137,6 +149,8 @@ func intPtr(i int) *int {
 }
 
 func ptr(i int) *int {
-	if i == 0 { return nil }
+	if i == 0 {
+		return nil
+	}
 	return &i
 }

@@ -197,7 +197,7 @@ func TestHandler_UpdateCustomer(t *testing.T) {
 	c := &Customer{
 		Name:     "Handler Before Update",
 		Phone:    &phone,
-		Email: ptr("test@example.com"),
+		Email:    ptr("test@example.com"),
 		IsActive: true,
 	}
 	require.NoError(t, repo.CreateCustomer(ctx, c))
@@ -233,7 +233,7 @@ func TestHandler_DeleteCustomer(t *testing.T) {
 	c := &Customer{
 		Name:     "Handler To Delete",
 		Phone:    &phone,
-		Email: ptr("test@example.com"),
+		Email:    ptr("test@example.com"),
 		IsActive: true,
 	}
 	require.NoError(t, repo.CreateCustomer(ctx, c))

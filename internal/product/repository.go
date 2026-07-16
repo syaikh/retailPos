@@ -241,7 +241,7 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var createdTime, updatedTime time.Time
 	err = tx.QueryRow(ctx, `
@@ -349,7 +349,7 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
@@ -401,7 +401,7 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var barcode interface{}
 	if product.Barcode != nil {

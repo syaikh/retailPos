@@ -250,8 +250,8 @@ func TestGetComparisonRanges_AllPeriodTypes(t *testing.T) {
 	refDate := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
 
 	tests := []struct {
-		name     string
-		period   PeriodType
+		name      string
+		period    PeriodType
 		completed bool
 	}{
 		{"daily realtime", PeriodDaily, false},
@@ -335,9 +335,9 @@ func TestGetComparisonRanges_DefaultCase(t *testing.T) {
 
 func TestIsPeriodIncomplete(t *testing.T) {
 	tests := []struct {
-		name         string
-		periodType   PeriodType
-		refDate      time.Time
+		name           string
+		periodType     PeriodType
+		refDate        time.Time
 		wantIncomplete bool
 	}{
 		{

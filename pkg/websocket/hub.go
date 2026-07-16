@@ -23,14 +23,14 @@ func getJakartaLoc() *time.Location {
 }
 
 const (
-	writeWait              = 10 * time.Second
-	pongWait               = 60 * time.Second
-	pingPeriod             = (pongWait * 9) / 10
-	maxMessageSize         = 512
-	maxConnectionsPerUser  = 5
-	connRateLimit          = 2
-	rateLimiterCleanupInt  = 10 * time.Minute
-	rateLimiterIdleTTL     = 30 * time.Minute
+	writeWait             = 10 * time.Second
+	pongWait              = 60 * time.Second
+	pingPeriod            = (pongWait * 9) / 10
+	maxMessageSize        = 512
+	maxConnectionsPerUser = 5
+	connRateLimit         = 2
+	rateLimiterCleanupInt = 10 * time.Minute
+	rateLimiterIdleTTL    = 30 * time.Minute
 )
 
 func checkOrigin(r *http.Request) bool {
@@ -70,10 +70,10 @@ const (
 )
 
 type Event struct {
-	Type      EventType        `json:"type"`
-	Payload   json.RawMessage  `json:"payload"`
-	Timestamp time.Time        `json:"timestamp"`
-	StoreID   *int             `json:"store_id,omitempty"`
+	Type      EventType       `json:"type"`
+	Payload   json.RawMessage `json:"payload"`
+	Timestamp time.Time       `json:"timestamp"`
+	StoreID   *int            `json:"store_id,omitempty"`
 }
 
 type Client struct {
@@ -102,8 +102,8 @@ type Claims struct {
 }
 
 type rateLimiterEntry struct {
-	limiter   *rate.Limiter
-	lastSeen  time.Time
+	limiter  *rate.Limiter
+	lastSeen time.Time
 }
 
 type rateLimiter struct {
@@ -144,21 +144,21 @@ func (rl *rateLimiter) cleanup() {
 }
 
 type Hub struct {
-	clients         map[*Client]bool
-	register        chan *Client
-	unregister      chan *Client
-	broadcast       chan Event
-	mutex           sync.RWMutex
+	clients    map[*Client]bool
+	register   chan *Client
+	unregister chan *Client
+	broadcast  chan Event
+	mutex      sync.RWMutex
 
 	userConnections map[int]int
 	userConnMu      sync.RWMutex
 
-	rateLimiter      *rateLimiter
+	rateLimiter *rateLimiter
 
-	authService     TokenValidator
+	authService TokenValidator
 
-	done    chan struct{}
-	wg      sync.WaitGroup
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 func NewHub(authService TokenValidator) *Hub {
@@ -432,7 +432,7 @@ func (c *Client) readPump() {
 
 	go func() {
 		<-c.ctx.Done()
-		c.conn.SetReadDeadline(time.Now())
+		_ = c.conn.SetReadDeadline(time.Now())
 	}()
 
 	for {
@@ -491,7 +491,7 @@ func (c *Client) writePump() {
 }
 
 type StockUpdateEvent struct {
-	ID       int  `json:"id"`
+	ID       int    `json:"id"`
 	SKU      string `json:"sku"`
 	Stock    int    `json:"stock"`
 	LowStock bool   `json:"low_stock"`

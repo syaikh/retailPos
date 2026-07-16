@@ -405,7 +405,7 @@ func (r *Repository) UpdateRolePermissions(ctx context.Context, roleID int, perm
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.Exec(ctx, "DELETE FROM role_permissions WHERE role_id = $1", roleID)
 	if err != nil {

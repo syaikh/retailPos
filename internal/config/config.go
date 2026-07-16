@@ -14,7 +14,7 @@ type Config struct {
 	Env                    string
 	CORSOrigin             string
 	JWTSecret              string
-	JWTSecretRefresh        string
+	JWTSecretRefresh       string
 	StockWarningThreshold  int
 	StockCriticalThreshold int
 	StockMinimum           int

@@ -26,7 +26,7 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ProductImportPaylo
 	if err != nil {
 		return false, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var existingID int
 	err = tx.QueryRow(ctx, "SELECT id FROM products WHERE sku = $1 AND deleted_at IS NULL", p.SKU).Scan(&existingID)

@@ -67,8 +67,8 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "name is required - empty string",
 			row: map[string]interface{}{
-				"_row":  3,
-				"Name":  "",
+				"_row": 3,
+				"Name": "",
 			},
 			wantErr: true,
 		},

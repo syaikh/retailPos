@@ -19,21 +19,21 @@ const (
 )
 
 type ColumnSchema struct {
-	Name          string       `json:"name"`
-	Type          ColumnType   `json:"type"`
-	Label         string       `json:"label"`
-	Required      bool         `json:"required"`
-	MaxLength     *int         `json:"max_length,omitempty"`
-	MinValue      *float64     `json:"min_value,omitempty"`
-	MaxValue      *float64     `json:"max_value,omitempty"`
-	AllowedValues []string     `json:"allowed_values,omitempty"`
-	Reference     string       `json:"reference,omitempty"`
-	Default       interface{}  `json:"default,omitempty"`
-	Description   string       `json:"description,omitempty"`
-	Editable      bool         `json:"editable"`
-	Exportable    bool         `json:"exportable"`
-	Template      bool         `json:"template"`
-	ImportGroup   string       `json:"import_group,omitempty"`
+	Name          string      `json:"name"`
+	Type          ColumnType  `json:"type"`
+	Label         string      `json:"label"`
+	Required      bool        `json:"required"`
+	MaxLength     *int        `json:"max_length,omitempty"`
+	MinValue      *float64    `json:"min_value,omitempty"`
+	MaxValue      *float64    `json:"max_value,omitempty"`
+	AllowedValues []string    `json:"allowed_values,omitempty"`
+	Reference     string      `json:"reference,omitempty"`
+	Default       interface{} `json:"default,omitempty"`
+	Description   string      `json:"description,omitempty"`
+	Editable      bool        `json:"editable"`
+	Exportable    bool        `json:"exportable"`
+	Template      bool        `json:"template"`
+	ImportGroup   string      `json:"import_group,omitempty"`
 }
 
 type ReferenceDef struct {
@@ -56,15 +56,15 @@ type ModuleFeatures struct {
 }
 
 type ModuleSchema struct {
-	ModuleName    string           `json:"module_name"`
-	DisplayName   string           `json:"display_name"`
-	SchemaVersion string           `json:"schema_version"`
-	Description   string           `json:"description"`
-	Columns       []ColumnSchema   `json:"columns"`
-	PrimaryKey    string           `json:"primary_key"`
-	BusinessKeys  []string         `json:"business_keys"`
-	References    []ReferenceDef   `json:"references"`
-	Features      ModuleFeatures   `json:"features"`
+	ModuleName    string         `json:"module_name"`
+	DisplayName   string         `json:"display_name"`
+	SchemaVersion string         `json:"schema_version"`
+	Description   string         `json:"description"`
+	Columns       []ColumnSchema `json:"columns"`
+	PrimaryKey    string         `json:"primary_key"`
+	BusinessKeys  []string       `json:"business_keys"`
+	References    []ReferenceDef `json:"references"`
+	Features      ModuleFeatures `json:"features"`
 }
 
 func IntPtr(v int) *int {

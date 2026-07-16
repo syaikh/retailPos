@@ -46,7 +46,6 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	if status != "" {
 		query += fmt.Sprintf(" AND v.status = $%d", argIdx)
 		args = append(args, status)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)

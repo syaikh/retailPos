@@ -13,11 +13,11 @@ import (
 )
 
 type mockBrandService struct {
-	getAllFn   func(ctx context.Context) ([]Brand, error)
-	getByIDFn  func(ctx context.Context, id int) (*Brand, error)
-	createFn   func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
-	updateFn   func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
-	deleteFn   func(ctx context.Context, id int) error
+	getAllFn  func(ctx context.Context) ([]Brand, error)
+	getByIDFn func(ctx context.Context, id int) (*Brand, error)
+	createFn  func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
+	updateFn  func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	deleteFn  func(ctx context.Context, id int) error
 }
 
 func (m *mockBrandService) GetAll(ctx context.Context) ([]Brand, error) {

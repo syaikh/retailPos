@@ -54,7 +54,7 @@ func setupAuditRouter() *gin.Engine {
 
 func TestHandler_ListAuditLogs(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)
@@ -122,12 +122,12 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		var err error
 		_, err = dbPool.Exec(ctx, `INSERT INTO users (id, username, email, password_hash, role_id) VALUES (999, 'audit_user', 'audit_user@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING`)
 		require.NoError(t, err)
-		repo.CreateAuditLog(ctx, &AuditLog{
+		require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
 			UserID:     intPtr(999),
 			Role:       "admin",
 			Action:     "handler_user_filter",
 			EntityType: "user",
-		})
+		}))
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/audit-logs?user_id="+strconv.Itoa(999), nil)
 		r.ServeHTTP(w, req)
@@ -149,7 +149,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 func TestHandler_ExportAuditLogs(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)
@@ -192,7 +192,7 @@ func TestHandler_ExportAuditLogs(t *testing.T) {
 
 func TestHandler_GetAuditLog(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)
@@ -239,7 +239,7 @@ func TestHandler_GetAuditLog(t *testing.T) {
 
 func TestHandler_ListEntityTypes(t *testing.T) {
 	skipIfNoDB(t)
-	shared.TruncateTestData(dbPool)
+	_ = shared.TruncateTestData(dbPool)
 	r := setupAuditRouter()
 
 	repo := NewRepository(dbPool)

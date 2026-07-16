@@ -123,7 +123,7 @@ func TestCustomerRepository_CreateCustomer(t *testing.T) {
 		c := &Customer{
 			Name:     "Test Create",
 			Phone:    &phone,
-			Email: ptr("test@example.com"),
+			Email:    ptr("test@example.com"),
 			IsActive: true,
 		}
 		err := repo.CreateCustomer(ctx, c)
@@ -172,7 +172,7 @@ func TestCustomerRepository_UpdateCustomer(t *testing.T) {
 	c := &Customer{
 		Name:     "Before Update",
 		Phone:    &phone,
-		Email: ptr("test@example.com"),
+		Email:    ptr("test@example.com"),
 		IsActive: true,
 	}
 	err := repo.CreateCustomer(ctx, c)
@@ -201,7 +201,7 @@ func TestCustomerRepository_DeleteCustomer(t *testing.T) {
 	c := &Customer{
 		Name:     "To Be Deleted",
 		Phone:    &phone,
-		Email: ptr("test@example.com"),
+		Email:    ptr("test@example.com"),
 		IsActive: true,
 	}
 	err := repo.CreateCustomer(ctx, c)

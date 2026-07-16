@@ -60,8 +60,8 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "name only, optional fields empty",
 			row: map[string]interface{}{
-				"_row":  2,
-				"Name":  "Jane Smith",
+				"_row": 2,
+				"Name": "Jane Smith",
 			},
 			want: CustomerImportRow{
 				Row:      2,
@@ -73,8 +73,8 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "name is required - empty string",
 			row: map[string]interface{}{
-				"_row":  3,
-				"Name":  "",
+				"_row": 3,
+				"Name": "",
 			},
 			wantErr: true,
 		},

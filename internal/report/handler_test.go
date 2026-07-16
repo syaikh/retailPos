@@ -65,11 +65,11 @@ func TestHandler_DashboardStats(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
 		Data struct {
-			TodaysRevenue   int `json:"todays_revenue"`
+			TodaysRevenue    int `json:"todays_revenue"`
 			YesterdayRevenue int `json:"yesterday_revenue"`
-			TodaysSales     int `json:"todays_sales"`
-			TotalProducts   int `json:"total_products"`
-			LowStockCount   int `json:"low_stock_count"`
+			TodaysSales      int `json:"todays_sales"`
+			TotalProducts    int `json:"total_products"`
+			LowStockCount    int `json:"low_stock_count"`
 		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -92,10 +92,10 @@ func TestHandler_LiveDashboardStats(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
 		Data struct {
-			TodaysRevenue  int `json:"todays_revenue"`
-			TodaysSales    int `json:"todays_sales"`
-			TotalProducts  int `json:"total_products"`
-			LowStockCount  int `json:"low_stock_count"`
+			TodaysRevenue int `json:"todays_revenue"`
+			TodaysSales   int `json:"todays_sales"`
+			TotalProducts int `json:"total_products"`
+			LowStockCount int `json:"low_stock_count"`
 		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -168,7 +168,7 @@ func TestHandler_PeriodComparison(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
 		Data *PeriodComparison `json:"data"`
-		Meta interface{}      `json:"meta"`
+		Meta interface{}       `json:"meta"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)

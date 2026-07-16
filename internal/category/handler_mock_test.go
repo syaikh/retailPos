@@ -14,12 +14,12 @@ import (
 )
 
 type mockCategoryService struct {
-	listFn      func(ctx context.Context) ([]Category, error)
-	getByIDFn   func(ctx context.Context, id int) (*Category, error)
-	getAllFn    func(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
-	createFn    func(ctx context.Context, req *CategoryCreateRequest) (*Category, error)
-	updateFn    func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error)
-	deleteFn    func(ctx context.Context, id int) error
+	listFn    func(ctx context.Context) ([]Category, error)
+	getByIDFn func(ctx context.Context, id int) (*Category, error)
+	getAllFn  func(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
+	createFn  func(ctx context.Context, req *CategoryCreateRequest) (*Category, error)
+	updateFn  func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error)
+	deleteFn  func(ctx context.Context, id int) error
 }
 
 func (m *mockCategoryService) ListCategories(ctx context.Context) ([]Category, error) {
@@ -181,7 +181,7 @@ func TestMockHandler_CreateCategory(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
 		data := resp["data"].(map[string]interface{})
 		assert.Equal(t, float64(10), data["id"])
 	})

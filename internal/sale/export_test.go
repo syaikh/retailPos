@@ -194,8 +194,7 @@ func TestWriteCSV_SpecialCharactersPreserved(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(records))
 
-	val, err := io.ReadAll(&buf)
-	_ = val
+	_, _ = io.ReadAll(&buf)
 	assert.Contains(t, records[1][0], "SUM")
 }
 
