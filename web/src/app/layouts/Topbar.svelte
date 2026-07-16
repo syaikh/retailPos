@@ -63,11 +63,6 @@
         parts.push({ label: 'Administration', href: '/admin' });
       }
 
-      const masterDataPaths = ['/pricing-rules', '/suppliers'];
-      if (masterDataPaths.includes(path)) {
-        parts.push({ label: 'Master Data', href: '/' });
-      }
-
       const parent = importHistoryParents[path];
       if (parent) {
         parts.push(parent);
