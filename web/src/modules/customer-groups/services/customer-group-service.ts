@@ -10,23 +10,23 @@ export async function getCustomerGroups(filters: CustomerGroupFilters): Promise<
   if (filters.is_active !== undefined) {
     params.is_active = filters.is_active ? 'true' : 'false';
   }
-  const r = await apiClient.get('/api/customer-groups', { params });
+  const r = await apiClient.get('/customer-groups', { params });
   return { data: r.data.data || [], total: r.data.total || 0 };
 }
 
 export async function getCustomerGroup(id: number): Promise<CustomerGroup | null> {
-  const r = await apiClient.get(`/api/customer-groups/${id}`);
+  const r = await apiClient.get(`/customer-groups/${id}`);
   return r.data.data || null;
 }
 
 export async function createCustomerGroup(data: { name: string; description?: string }): Promise<void> {
-  await apiClient.post('/api/customer-groups', data);
+  await apiClient.post('/customer-groups', data);
 }
 
 export async function updateCustomerGroup(id: number, data: { name?: string; description?: string; is_active?: boolean }): Promise<void> {
-  await apiClient.put(`/api/customer-groups/${id}`, data);
+  await apiClient.put(`/customer-groups/${id}`, data);
 }
 
 export async function deleteCustomerGroup(id: number): Promise<void> {
-  await apiClient.delete(`/api/customer-groups/${id}`);
+  await apiClient.delete(`/customer-groups/${id}`);
 }

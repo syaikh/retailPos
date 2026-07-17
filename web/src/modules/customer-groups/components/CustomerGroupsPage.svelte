@@ -137,24 +137,17 @@
   onMount(() => { load(); });
 </script>
 
-<div class="page-container">
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Customer Groups</h1>
-      <p class="page-subtitle">Manage customer groups for pricing tiers and segmentation.</p>
-    </div>
-  </div>
+<div class="space-y-5">
+  <CustomerGroupsToolbar
+    bind:searchQuery
+    bind:statusFilter
+    {canCreate}
+    onsearch={handleSearch}
+    onstatuschange={handleStatusChange}
+    oncreate={() => showCreateModal = true}
+  />
 
-  <div class="page-content space-y-4">
-    <CustomerGroupsToolbar
-      bind:searchQuery
-      bind:statusFilter
-      {canCreate}
-      onsearch={handleSearch}
-      onstatuschange={handleStatusChange}
-      oncreate={() => showCreateModal = true}
-    />
-
+  <div class="card overflow-hidden">
     <CustomerGroupsTable
       {groups}
       {loading}
@@ -168,8 +161,8 @@
       ondelete={openDelete}
     />
 
-    {#if !loading && total > limit}
-      <div class="flex justify-center">
+    {#if !loading && groups.length > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
         <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
       </div>
     {/if}

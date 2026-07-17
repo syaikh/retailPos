@@ -37,6 +37,7 @@
 		'/brands':             'Brands',
 		'/units-of-measure':   'Units',
 		'/pricing-rules':      'Pricing Rules',
+		'/customer-groups':    'Customer Groups',
 		'/suppliers':          'Suppliers',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',

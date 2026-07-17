@@ -21,7 +21,7 @@ describe('customer-group-service', () => {
       mockApiClient.get.mockResolvedValueOnce({ data: { data: [{ id: 1, name: 'VIP' }], total: 1 } });
       const { getCustomerGroups } = await import('../customer-group-service');
       const result = await getCustomerGroups({ limit: 20, offset: 0 });
-      expect(mockApiClient.get).toHaveBeenCalledWith('/api/customer-groups', { params: { limit: 20, offset: 0, search: undefined } });
+      expect(mockApiClient.get).toHaveBeenCalledWith('/customer-groups', { params: { limit: 20, offset: 0, search: undefined } });
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
     });
@@ -41,7 +41,7 @@ describe('customer-group-service', () => {
       mockApiClient.get.mockResolvedValueOnce({ data: { data: { id: 1, name: 'VIP' } } });
       const { getCustomerGroup } = await import('../customer-group-service');
       const result = await getCustomerGroup(1);
-      expect(mockApiClient.get).toHaveBeenCalledWith('/api/customer-groups/1');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/customer-groups/1');
       expect(result?.name).toBe('VIP');
     });
   });
@@ -51,7 +51,7 @@ describe('customer-group-service', () => {
       mockApiClient.post.mockResolvedValueOnce({ ok: true });
       const { createCustomerGroup } = await import('../customer-group-service');
       await createCustomerGroup({ name: 'New Group', description: 'Test' });
-      expect(mockApiClient.post).toHaveBeenCalledWith('/api/customer-groups', { name: 'New Group', description: 'Test' });
+      expect(mockApiClient.post).toHaveBeenCalledWith('/customer-groups', { name: 'New Group', description: 'Test' });
     });
   });
 
@@ -60,7 +60,7 @@ describe('customer-group-service', () => {
       mockApiClient.put.mockResolvedValueOnce({ ok: true });
       const { updateCustomerGroup } = await import('../customer-group-service');
       await updateCustomerGroup(1, { name: 'Updated', is_active: false });
-      expect(mockApiClient.put).toHaveBeenCalledWith('/api/customer-groups/1', { name: 'Updated', is_active: false });
+      expect(mockApiClient.put).toHaveBeenCalledWith('/customer-groups/1', { name: 'Updated', is_active: false });
     });
   });
 
@@ -69,7 +69,7 @@ describe('customer-group-service', () => {
       mockApiClient.delete.mockResolvedValueOnce({ ok: true });
       const { deleteCustomerGroup } = await import('../customer-group-service');
       await deleteCustomerGroup(1);
-      expect(mockApiClient.delete).toHaveBeenCalledWith('/api/customer-groups/1');
+      expect(mockApiClient.delete).toHaveBeenCalledWith('/customer-groups/1');
     });
   });
 });
