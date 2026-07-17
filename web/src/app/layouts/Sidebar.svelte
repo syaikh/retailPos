@@ -26,6 +26,7 @@
     currentPath.startsWith('/brands') ||
     currentPath.startsWith('/units-of-measure') ||
     currentPath.startsWith('/pricing-rules') ||
+    currentPath.startsWith('/customer-groups') ||
     currentPath.startsWith('/suppliers')
   );
 
@@ -67,6 +68,7 @@
     { label: 'Units',      href: '/units-of-measure', icon: Ruler },
     { label: 'Customers',  href: '/customers',           icon: User },
     { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
+    { label: 'Customer Groups', href: '/customer-groups', icon: Users },
     { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
   ];
 
@@ -83,6 +85,7 @@
     { label: 'Units',      href: '/units-of-measure', icon: Ruler },
     { label: 'Customers',  href: '/customers',           icon: User },
     { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
+    { label: 'Customer Groups', href: '/customer-groups', icon: Users },
     { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
   ];
 
