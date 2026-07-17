@@ -214,7 +214,14 @@ let total: number = $state(0);
     if (cart.length === 0) return;
     pricingResolving = true;
     try {
-      const items = cart.map((item) => ({ product_id: item.id, quantity: item.quantity }));
+      const selectedCustomer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+      const storeId = (authStore.user as any)?.store_id || undefined;
+      const items = cart.map((item) => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        customer_group_id: (selectedCustomer as any)?.customer_group_id || undefined,
+        store_id: storeId
+      }));
       const results = await resolvePrices(items);
       for (let i = 0; i < cart.length; i++) {
         const result = results[i];

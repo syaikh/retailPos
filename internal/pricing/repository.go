@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -33,6 +34,19 @@ func (r *Repository) GetBasePrice(ctx context.Context, productID int) (int, erro
 	return price, nil
 }
 
+func (r *Repository) GetProductScope(ctx context.Context, productID int) (categoryID *int, brandID *int, err error) {
+	err = r.db.QueryRow(ctx, `
+		SELECT category_id, brand_id FROM products WHERE id = $1 AND deleted_at IS NULL
+	`, productID).Scan(&categoryID, &brandID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil, ErrProductNotFound
+		}
+		return nil, nil, err
+	}
+	return categoryID, brandID, nil
+}
+
 func (r *Repository) GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error) {
 	if len(productIDs) == 0 {
 		return map[int]int{}, nil
@@ -60,18 +74,59 @@ func (r *Repository) GetBasePricesBatch(ctx context.Context, productIDs []int) (
 	return result, nil
 }
 
+func (r *Repository) GetProductScopesBatch(ctx context.Context, productIDs []int) (map[int]ProductScope, error) {
+	if len(productIDs) == 0 {
+		return map[int]ProductScope{}, nil
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT id, category_id, brand_id FROM products WHERE id = ANY($1) AND deleted_at IS NULL
+	`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]ProductScope, len(productIDs))
+	for rows.Next() {
+		var id int
+		var categoryID, brandID *int
+		if err := rows.Scan(&id, &categoryID, &brandID); err != nil {
+			return nil, err
+		}
+		result[id] = ProductScope{CategoryID: categoryID, BrandID: brandID}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+type ProductScope struct {
+	CategoryID *int
+	BrandID    *int
+}
+
 func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) {
 	var rule PricingRule
 	var createdAt, updatedAt time.Time
 	var effectiveFrom, effectiveUntil sql.NullTime
+	var timeFrom, timeTo sql.NullString
+	var recurrenceDays []string
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules WHERE id = $1
 	`, id).Scan(
-		&rule.ID, &rule.ProductID, &rule.PricingType, &rule.Name,
-		&rule.Price, &rule.MinimumQuantity, &rule.Priority, &rule.IsActive,
+		&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
+		&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+		&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
+		&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
+		&recurrenceDays, &timeFrom, &timeTo,
+		&rule.AllowCombine, &rule.IsActive,
 		&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -87,6 +142,15 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 	if effectiveUntil.Valid {
 		rule.EffectiveUntil = &effectiveUntil.Time
 	}
+	if timeFrom.Valid {
+		rule.TimeFrom = &timeFrom.String
+	}
+	if timeTo.Valid {
+		rule.TimeTo = &timeTo.String
+	}
+	if recurrenceDays != nil {
+		rule.RecurrenceDays = recurrenceDays
+	}
 	rule.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	rule.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &rule, nil
@@ -94,9 +158,11 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 
 func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]PricingRule, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
-		FROM pricing_rules WHERE product_id = $1 ORDER BY priority DESC, price ASC, id ASC
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		FROM pricing_rules WHERE product_id = $1 ORDER BY priority DESC, pricing_value ASC, id ASC
 	`, productID)
 	if err != nil {
 		return nil, err
@@ -106,17 +172,21 @@ func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]Prici
 	return scanRules(rows)
 }
 
-func (r *Repository) GetActiveRules(ctx context.Context, productID int, now time.Time) ([]PricingRule, error) {
+func (r *Repository) GetActiveRules(ctx context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]PricingRule, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules
-		WHERE product_id = $1
-		  AND is_active = true
-		  AND (effective_from IS NULL OR effective_from <= $2)
-		  AND (effective_until IS NULL OR effective_until >= $2)
-		ORDER BY priority DESC, price ASC, id ASC
-	`, productID, now)
+		WHERE is_active = true
+		  AND (product_id = $1 OR (category_id IS NOT NULL AND category_id = $2) OR (brand_id IS NOT NULL AND brand_id = $3))
+		  AND (effective_from IS NULL OR effective_from <= $4)
+		  AND (effective_until IS NULL OR effective_until >= $4)
+		  AND (customer_group_id IS NULL OR customer_group_id = $5)
+		  AND (store_id IS NULL OR store_id = $6)
+		ORDER BY priority DESC, pricing_value ASC, id ASC
+	`, productID, categoryID, brandID, now, customerGroupID, storeID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,14 +201,18 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
-		FROM pricing_rules
-		WHERE product_id = ANY($1)
-		  AND is_active = true
-		  AND (effective_from IS NULL OR effective_from <= $2)
-		  AND (effective_until IS NULL OR effective_until >= $2)
-		ORDER BY product_id, priority DESC, price ASC, id ASC
+		SELECT pr.id, pr.product_id, pr.category_id, pr.brand_id, pr.pricing_type, pr.pricing_method,
+		       pr.pricing_value, pr.name, pr.minimum_quantity, pr.maximum_quantity, pr.priority,
+		       pr.customer_group_id, pr.store_id, pr.recurrence_days, pr.time_from, pr.time_to,
+		       pr.allow_combine, pr.is_active, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
+		FROM pricing_rules pr
+		JOIN products p ON (pr.product_id = p.id OR pr.category_id = p.category_id OR pr.brand_id = p.brand_id)
+		WHERE p.id = ANY($1)
+		  AND p.deleted_at IS NULL
+		  AND pr.is_active = true
+		  AND (pr.effective_from IS NULL OR pr.effective_from <= $2)
+		  AND (pr.effective_until IS NULL OR pr.effective_until >= $2)
+		ORDER BY p.id, pr.priority DESC, pr.pricing_value ASC, pr.id ASC
 	`, productIDs, now)
 	if err != nil {
 		return nil, err
@@ -150,10 +224,16 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		var rule PricingRule
 		var createdAt, updatedAt time.Time
 		var effectiveFrom, effectiveUntil sql.NullTime
+		var timeFrom, timeTo sql.NullString
+		var recurrenceDays []string
 
 		err := rows.Scan(
-			&rule.ID, &rule.ProductID, &rule.PricingType, &rule.Name,
-			&rule.Price, &rule.MinimumQuantity, &rule.Priority, &rule.IsActive,
+			&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
+			&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
+			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
+			&recurrenceDays, &timeFrom, &timeTo,
+			&rule.AllowCombine, &rule.IsActive,
 			&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -166,10 +246,21 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		if effectiveUntil.Valid {
 			rule.EffectiveUntil = &effectiveUntil.Time
 		}
+		if timeFrom.Valid {
+			rule.TimeFrom = &timeFrom.String
+		}
+		if timeTo.Valid {
+			rule.TimeTo = &timeTo.String
+		}
+		if recurrenceDays != nil {
+			rule.RecurrenceDays = recurrenceDays
+		}
 		rule.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rule.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-		result[rule.ProductID] = append(result[rule.ProductID], rule)
+		if rule.ProductID != nil {
+			result[*rule.ProductID] = append(result[*rule.ProductID], rule)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -180,12 +271,17 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO pricing_rules (product_id, pricing_type, name, price, minimum_quantity, priority, is_active, effective_from, effective_until)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id, created_at, updated_at
-	`, rule.ProductID, rule.PricingType, rule.Name, rule.Price,
-		rule.MinimumQuantity, rule.Priority, rule.IsActive,
-		rule.EffectiveFrom, rule.EffectiveUntil,
+	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
+		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
+		rule.Priority, rule.CustomerGroupID, rule.StoreID,
+		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
+		rule.AllowCombine, rule.IsActive, rule.EffectiveFrom, rule.EffectiveUntil,
 	).Scan(&rule.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("insert pricing rule: %w", err)
@@ -198,12 +294,18 @@ func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
 func (r *Repository) Update(ctx context.Context, rule *PricingRule) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE pricing_rules
-		SET pricing_type = $1, name = $2, price = $3, minimum_quantity = $4,
-		    priority = $5, is_active = $6, effective_from = $7, effective_until = $8,
+		SET product_id = $1, category_id = $2, brand_id = $3, pricing_type = $4, pricing_method = $5,
+		    pricing_value = $6, name = $7, minimum_quantity = $8, maximum_quantity = $9,
+		    priority = $10, customer_group_id = $11, store_id = $12,
+		    recurrence_days = $13, time_from = $14, time_to = $15,
+		    allow_combine = $16, is_active = $17, effective_from = $18, effective_until = $19,
 		    updated_at = NOW()
-		WHERE id = $9
-	`, rule.PricingType, rule.Name, rule.Price, rule.MinimumQuantity,
-		rule.Priority, rule.IsActive, rule.EffectiveFrom, rule.EffectiveUntil,
+		WHERE id = $20
+	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
+		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
+		rule.Priority, rule.CustomerGroupID, rule.StoreID,
+		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
+		rule.AllowCombine, rule.IsActive, rule.EffectiveFrom, rule.EffectiveUntil,
 		rule.ID)
 	if err != nil {
 		return fmt.Errorf("update pricing rule: %w", err)
@@ -219,22 +321,24 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType string, isActive *bool) ([]PricingRule, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error) {
 	countQuery := `SELECT COUNT(*) FROM pricing_rules WHERE 1=1`
 	dataQuery := `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules WHERE 1=1`
 
 	var args []interface{}
 	argIdx := 1
 
 	if search != "" {
-		filter := fmt.Sprintf(" AND (name ILIKE $%d OR pricing_type ILIKE $%d)", argIdx, argIdx+1)
+		filter := fmt.Sprintf(" AND (name ILIKE $%d OR pricing_type ILIKE $%d)", argIdx, argIdx)
 		countQuery += filter
 		dataQuery += filter
-		args = append(args, "%"+search+"%", "%"+search+"%")
-		argIdx += 2
+		args = append(args, "%"+search+"%")
+		argIdx++
 	}
 	if productID != nil {
 		filter := fmt.Sprintf(" AND product_id = $%d", argIdx)
@@ -248,6 +352,41 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		countQuery += filter
 		dataQuery += filter
 		args = append(args, pricingType)
+		argIdx++
+	}
+	if pricingMethod != "" {
+		filter := fmt.Sprintf(" AND pricing_method = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, pricingMethod)
+		argIdx++
+	}
+	if categoryID != nil {
+		filter := fmt.Sprintf(" AND category_id = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, *categoryID)
+		argIdx++
+	}
+	if brandID != nil {
+		filter := fmt.Sprintf(" AND brand_id = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, *brandID)
+		argIdx++
+	}
+	if customerGroupID != nil {
+		filter := fmt.Sprintf(" AND customer_group_id = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, *customerGroupID)
+		argIdx++
+	}
+	if storeID != nil {
+		filter := fmt.Sprintf(" AND store_id = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, *storeID)
 		argIdx++
 	}
 	if isActive != nil {
@@ -286,10 +425,16 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 		var rule PricingRule
 		var createdAt, updatedAt time.Time
 		var effectiveFrom, effectiveUntil sql.NullTime
+		var timeFrom, timeTo sql.NullString
+		var recurrenceDays []string
 
 		err := rows.Scan(
-			&rule.ID, &rule.ProductID, &rule.PricingType, &rule.Name,
-			&rule.Price, &rule.MinimumQuantity, &rule.Priority, &rule.IsActive,
+			&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
+			&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
+			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
+			&recurrenceDays, &timeFrom, &timeTo,
+			&rule.AllowCombine, &rule.IsActive,
 			&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -302,6 +447,15 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 		if effectiveUntil.Valid {
 			rule.EffectiveUntil = &effectiveUntil.Time
 		}
+		if timeFrom.Valid {
+			rule.TimeFrom = &timeFrom.String
+		}
+		if timeTo.Valid {
+			rule.TimeTo = &timeTo.String
+		}
+		if recurrenceDays != nil {
+			rule.RecurrenceDays = recurrenceDays
+		}
 		rule.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rule.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rules = append(rules, rule)
@@ -313,28 +467,48 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 }
 
 type PricingRuleImportRow struct {
-	Row             int
-	ProductID       int
-	PricingType     string
-	Name            string
-	Price           int
-	MinimumQuantity int
-	Priority        int
-	IsActive        bool
-	EffectiveFrom   *time.Time
-	EffectiveUntil  *time.Time
+	Row              int
+	ProductID        *int
+	CategoryID       *int
+	BrandID          *int
+	PricingType      string
+	PricingMethod    string
+	PricingValue     float64
+	Name             string
+	MinimumQuantity  int
+	MaximumQuantity  *int
+	Priority         int
+	IsActive         bool
+	EffectiveFrom    *time.Time
+	EffectiveUntil   *time.Time
+	CustomerGroupID  *int
+	StoreID          *int
+	RecurrenceDays   []string
+	TimeFrom         *string
+	TimeTo           *string
+	AllowCombine     bool
 }
 
 type PricingRuleImportPayload struct {
-	ProductID       int
-	PricingType     string
-	Name            string
-	Price           int
-	MinimumQuantity int
-	Priority        int
-	IsActive        bool
-	EffectiveFrom   *time.Time
-	EffectiveUntil  *time.Time
+	ProductID        *int
+	CategoryID       *int
+	BrandID          *int
+	PricingType      string
+	PricingMethod    string
+	PricingValue     float64
+	Name             string
+	MinimumQuantity  int
+	MaximumQuantity  *int
+	Priority         int
+	IsActive         bool
+	EffectiveFrom    *time.Time
+	EffectiveUntil   *time.Time
+	CustomerGroupID  *int
+	StoreID          *int
+	RecurrenceDays   []string
+	TimeFrom         *string
+	TimeTo           *string
+	AllowCombine     bool
 }
 
 func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []PricingRuleImportPayload) (int, error) {
@@ -346,14 +520,21 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Pric
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	count := 0
 	for _, p := range payloads {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO pricing_rules (product_id, pricing_type, name, price, minimum_quantity, priority, is_active, effective_from, effective_until)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		`, p.ProductID, p.PricingType, p.Name, p.Price, p.MinimumQuantity, p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil)
+			INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
+			       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+			       customer_group_id, store_id, recurrence_days, time_from, time_to,
+			       allow_combine, is_active, effective_from, effective_until)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		`, p.ProductID, p.CategoryID, p.BrandID, p.PricingType, p.PricingMethod,
+			p.PricingValue, p.Name, p.MinimumQuantity, p.MaximumQuantity,
+			p.Priority, p.CustomerGroupID, p.StoreID,
+			p.RecurrenceDays, p.TimeFrom, p.TimeTo,
+			p.AllowCombine, p.IsActive, p.EffectiveFrom, p.EffectiveUntil)
 		if err != nil {
 			return count, fmt.Errorf("insert pricing rule: %w", err)
 		}
@@ -375,16 +556,18 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Pric
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	count := 0
 	for _, p := range payloads {
 		tag, err := tx.Exec(ctx, `
 			UPDATE pricing_rules
-			SET price = $1, minimum_quantity = $2, priority = $3, is_active = $4,
-			    effective_from = $5, effective_until = $6, updated_at = NOW()
-			WHERE product_id = $7 AND pricing_type = $8 AND name = $9
-		`, p.Price, p.MinimumQuantity, p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil,
+			SET pricing_method = $1, pricing_value = $2, minimum_quantity = $3, maximum_quantity = $4,
+			    priority = $5, is_active = $6, effective_from = $7, effective_until = $8,
+			    updated_at = NOW()
+			WHERE product_id = $9 AND pricing_type = $10 AND name = $11
+		`, p.PricingMethod, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
+			p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil,
 			p.ProductID, p.PricingType, p.Name)
 		if err != nil {
 			return count, fmt.Errorf("update pricing rule: %w", err)
@@ -402,8 +585,10 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Pric
 
 func (r *Repository) GetAllForExport(ctx context.Context) ([]PricingRule, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, product_id, pricing_type, name, price, minimum_quantity,
-		       priority, is_active, effective_from, effective_until, created_at, updated_at
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules ORDER BY id ASC
 	`)
 	if err != nil {
@@ -411,4 +596,40 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]PricingRule, error)
 	}
 	defer rows.Close()
 	return scanRules(rows)
+}
+
+// SearchProducts searches products by name, SKU, or barcode for autocomplete.
+func (r *Repository) SearchProducts(ctx context.Context, query string, limit int) ([]ProductSearchResult, error) {
+	if query == "" {
+		return []ProductSearchResult{}, nil
+	}
+	like := "%" + strings.ToLower(query) + "%"
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, sku, price FROM products
+		WHERE deleted_at IS NULL AND status = 'active'
+		  AND (LOWER(name) LIKE $1 OR LOWER(sku) LIKE $1 OR LOWER(barcode) LIKE $1)
+		ORDER BY name ASC
+		LIMIT $2
+	`, like, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ProductSearchResult
+	for rows.Next() {
+		var p ProductSearchResult
+		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Price); err != nil {
+			return nil, err
+		}
+		results = append(results, p)
+	}
+	return results, rows.Err()
+}
+
+type ProductSearchResult struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	SKU   string `json:"sku"`
+	Price int    `json:"price"`
 }

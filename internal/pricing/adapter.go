@@ -27,19 +27,54 @@ func (a *adapter) ValidateBusiness(_ context.Context, _ importexportshared.Modul
 }
 
 func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSchema, row map[string]interface{}) (interface{}, error) {
-	productID := floatToInt(row["ProductID"])
-	if productID == 0 {
-		return nil, fmt.Errorf("ProductID is required")
+	var productID *int
+	if v, ok := row["ProductID"]; ok && v != nil {
+		n := floatToInt(v)
+		if n > 0 {
+			productID = &n
+		}
 	}
+
+	var categoryID *int
+	if v, ok := row["CategoryID"]; ok && v != nil {
+		n := floatToInt(v)
+		if n > 0 {
+			categoryID = &n
+		}
+	}
+
+	var brandID *int
+	if v, ok := row["BrandID"]; ok && v != nil {
+		n := floatToInt(v)
+		if n > 0 {
+			brandID = &n
+		}
+	}
+
+	if productID == nil && categoryID == nil && brandID == nil {
+		return nil, fmt.Errorf("at least one of ProductID, CategoryID, or BrandID is required")
+	}
+
 	pricingType, _ := row["PricingType"].(string)
 	if pricingType == "" {
 		return nil, fmt.Errorf("PricingType is required")
 	}
+
+	pricingMethod, _ := row["PricingMethod"].(string)
+	if pricingMethod == "" {
+		pricingMethod = "fixed_price"
+	}
+
+	pricingValue := floatToFloat64(row["PricingValue"])
+	if pricingValue == 0 {
+		// Fallback to legacy "Price" column for backward compatibility
+		pricingValue = floatToFloat64(row["Price"])
+	}
+
 	name, _ := row["Name"].(string)
 	if name == "" {
 		return nil, fmt.Errorf("Name is required")
 	}
-	price := floatToInt(row["Price"])
 	minQty := floatToInt(row["MinimumQuantity"])
 	if minQty == 0 {
 		minQty = 1
@@ -69,9 +104,12 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	return PricingRuleImportRow{
 		Row:             rowNum,
 		ProductID:       productID,
+		CategoryID:      categoryID,
+		BrandID:         brandID,
 		PricingType:     pricingType,
+		PricingMethod:   pricingMethod,
+		PricingValue:    pricingValue,
 		Name:            name,
-		Price:           price,
 		MinimumQuantity: minQty,
 		Priority:        priority,
 		IsActive:        isActive,
@@ -92,17 +130,17 @@ func (r *pricingRepoAdapter) Insert(ctx context.Context, entities []interface{})
 	payloads := make([]PricingRuleImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(PricingRuleImportRow)
-		if row.Price < 0 {
-			return len(payloads), fmt.Errorf("price must not be negative at row %d", row.Row)
-		}
 		if row.MinimumQuantity < 1 {
 			return len(payloads), fmt.Errorf("minimum_quantity must be >= 1 at row %d", row.Row)
 		}
 		payloads = append(payloads, PricingRuleImportPayload{
 			ProductID:       row.ProductID,
+			CategoryID:      row.CategoryID,
+			BrandID:         row.BrandID,
 			PricingType:     row.PricingType,
+			PricingMethod:   row.PricingMethod,
+			PricingValue:    row.PricingValue,
 			Name:            row.Name,
-			Price:           row.Price,
 			MinimumQuantity: row.MinimumQuantity,
 			Priority:        row.Priority,
 			IsActive:        row.IsActive,
@@ -117,14 +155,14 @@ func (r *pricingRepoAdapter) Update(ctx context.Context, entities []interface{})
 	payloads := make([]PricingRuleImportPayload, 0, len(entities))
 	for _, e := range entities {
 		row := e.(PricingRuleImportRow)
-		if row.Price < 0 {
-			return len(payloads), fmt.Errorf("price must not be negative at row %d", row.Row)
-		}
 		payloads = append(payloads, PricingRuleImportPayload{
 			ProductID:       row.ProductID,
+			CategoryID:      row.CategoryID,
+			BrandID:         row.BrandID,
 			PricingType:     row.PricingType,
+			PricingMethod:   row.PricingMethod,
+			PricingValue:    row.PricingValue,
 			Name:            row.Name,
-			Price:           row.Price,
 			MinimumQuantity: row.MinimumQuantity,
 			Priority:        row.Priority,
 			IsActive:        row.IsActive,
@@ -143,13 +181,22 @@ func (r *pricingRepoAdapter) ExportData(ctx context.Context, _ importexportshare
 	result := make([]map[string]interface{}, len(rules))
 	for i, rule := range rules {
 		item := map[string]interface{}{
-			"ProductID":       rule.ProductID,
 			"PricingType":     string(rule.PricingType),
+			"PricingMethod":   string(rule.PricingMethod),
+			"PricingValue":    rule.PricingValue,
 			"Name":            rule.Name,
-			"Price":           rule.Price,
 			"MinimumQuantity": rule.MinimumQuantity,
 			"Priority":        rule.Priority,
 			"IsActive":        rule.IsActive,
+		}
+		if rule.ProductID != nil {
+			item["ProductID"] = *rule.ProductID
+		}
+		if rule.CategoryID != nil {
+			item["CategoryID"] = *rule.CategoryID
+		}
+		if rule.BrandID != nil {
+			item["BrandID"] = *rule.BrandID
 		}
 		if rule.EffectiveFrom != nil {
 			item["EffectiveFrom"] = rule.EffectiveFrom.Format("2006-01-02")
@@ -180,6 +227,20 @@ func floatToInt(v interface{}) int {
 			return 1
 		}
 		return 0
+	default:
+		return 0
+	}
+}
+
+func floatToFloat64(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	case int:
+		return float64(val)
+	case string:
+		f, _ := strconv.ParseFloat(val, 64)
+		return f
 	default:
 		return 0
 	}

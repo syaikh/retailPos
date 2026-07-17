@@ -44,6 +44,7 @@ func setupPricingRouter() *gin.Engine {
 	svc := NewService(repo)
 	resolver := NewResolver(repo)
 	h := NewHandler(svc, resolver, nil)
+	h.SetProductSearcher(repo)
 
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
@@ -74,7 +75,7 @@ func TestHandler_CreateRule(t *testing.T) {
 	productID := insertTestProduct(t, t.Context(), "HDL-CR-"+time.Now().Format("0102150405"), "Handler Create Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"discount","name":"Handler Discount","price":12000,"minimum_quantity":1,"priority":0,"is_active":true}`
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":12000,"name":"Handler Discount","minimum_quantity":1,"priority":0,"is_active":true}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/pricing-rules", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -87,6 +88,8 @@ func TestHandler_CreateRule(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Handler Discount", resp.Data.Name)
+		assert.Equal(t, PricingMethodFixedPrice, resp.Data.PricingMethod)
+		assert.Equal(t, 12000.0, resp.Data.PricingValue)
 		assert.Greater(t, resp.Data.ID, 0)
 	})
 
@@ -107,17 +110,18 @@ func TestHandler_UpdateRule(t *testing.T) {
 	productID := insertTestProduct(t, t.Context(), "HDL-UPD-"+time.Now().Format("0102150405"), "Handler Update Product", 15000)
 	repo := NewRepository(dbPool)
 	rule := &PricingRule{
-		ProductID:       productID,
-		PricingType:     PricingTypeDiscount,
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    12000,
 		Name:            "Before Update",
-		Price:           12000,
 		MinimumQuantity: 1,
 		IsActive:        true,
 	}
 	require.NoError(t, repo.Create(t.Context(), rule))
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"product_id":` + strconv.Itoa(productID) + `,"name":"After Update","pricing_type":"wholesale","price":10000,"minimum_quantity":3,"priority":1,"is_active":true}`
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"name":"After Update","pricing_type":"price_list","pricing_method":"fixed_price","pricing_value":10000,"minimum_quantity":3,"priority":1,"is_active":true}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", "/pricing-rules/"+strconv.Itoa(rule.ID), strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -130,7 +134,7 @@ func TestHandler_UpdateRule(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "After Update", resp.Data.Name)
-		assert.Equal(t, PricingTypeWholesale, resp.Data.PricingType)
+		assert.Equal(t, PricingTypePriceList, resp.Data.PricingType)
 	})
 
 	t.Run("invalid id", func(t *testing.T) {
@@ -150,10 +154,11 @@ func TestHandler_DeleteRule(t *testing.T) {
 	productID := insertTestProduct(t, t.Context(), "HDL-DEL-"+time.Now().Format("0102150405"), "Handler Delete Product", 15000)
 	repo := NewRepository(dbPool)
 	rule := &PricingRule{
-		ProductID:       productID,
+		ProductID:       &productID,
 		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    5000,
 		Name:            "Delete Me",
-		Price:           5000,
 		MinimumQuantity: 1,
 		IsActive:        true,
 	}
@@ -213,7 +218,7 @@ func TestHandler_ResolvePrices(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
@@ -223,5 +228,34 @@ func TestHandler_ResolvePrices(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_SearchProducts(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	insertTestProduct(t, t.Context(), "HDL-SRC-"+time.Now().Format("0102150405"), "Searchable Handler Product", 10000)
+
+	t.Run("search by name", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=Searchable&limit=10", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []ProductSearchResult `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, resp.Data)
+	})
+
+	t.Run("empty query", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=&limit=10", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }

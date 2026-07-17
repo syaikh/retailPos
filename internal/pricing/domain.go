@@ -14,58 +14,101 @@ var (
 )
 
 // PricingType is a classification label — it describes what kind of pricing applies.
-// It carries no behavior. See ADR-001 §Domain Model.
 type PricingType string
 
 const (
-	PricingTypeNormal    PricingType = "normal"
-	PricingTypeDiscount  PricingType = "discount"
-	PricingTypeWholesale PricingType = "wholesale"
-	PricingTypeMember    PricingType = "member"    // future
-	PricingTypePromotion PricingType = "promotion" // future
+	PricingTypeDefault   PricingType = "default"
+	PricingTypePriceList PricingType = "price_list"
+	PricingTypePromotion PricingType = "promotion"
+)
+
+// PricingMethod defines how the pricing value is applied to the base price.
+type PricingMethod string
+
+const (
+	PricingMethodFixedPrice  PricingMethod = "fixed_price"
+	PricingMethodDiscountPct PricingMethod = "discount_percent"
+	PricingMethodDiscountAmt PricingMethod = "discount_amount"
+	PricingMethodMarkupPct   PricingMethod = "markup_percent"
 )
 
 // PricingRule is a business rule entity — it defines eligibility, priority,
-// validity, and the price to charge. See ADR-006.
+// validity, and the pricing method/value to apply.
 type PricingRule struct {
-	ID              int         `json:"id"`
-	ProductID       int         `json:"product_id"`
-	PricingType     PricingType `json:"pricing_type"`
-	Name            string      `json:"name"`
-	Price           int         `json:"price"`
-	MinimumQuantity int         `json:"minimum_quantity"`
-	Priority        int         `json:"priority"`
-	IsActive        bool        `json:"is_active"`
-	EffectiveFrom   *time.Time  `json:"effective_from,omitempty"`
-	EffectiveUntil  *time.Time  `json:"effective_until,omitempty"`
-	CreatedAt       string      `json:"created_at,omitempty"`
-	UpdatedAt       string      `json:"updated_at,omitempty"`
+	ID              int           `json:"id"`
+	ProductID       *int          `json:"product_id,omitempty"`
+	CategoryID      *int          `json:"category_id,omitempty"`
+	BrandID         *int          `json:"brand_id,omitempty"`
+	PricingType     PricingType   `json:"pricing_type"`
+	PricingMethod   PricingMethod `json:"pricing_method"`
+	PricingValue    float64       `json:"pricing_value"`
+	Name            string        `json:"name"`
+	MinimumQuantity int           `json:"minimum_quantity"`
+	MaximumQuantity *int          `json:"maximum_quantity,omitempty"`
+	Priority        int           `json:"priority"`
+	CustomerGroupID *int          `json:"customer_group_id,omitempty"`
+	StoreID         *int          `json:"store_id,omitempty"`
+	RecurrenceDays  []string      `json:"recurrence_days,omitempty"`
+	TimeFrom        *string       `json:"time_from,omitempty"`
+	TimeTo          *string       `json:"time_to,omitempty"`
+	AllowCombine    bool          `json:"allow_combine"`
+	IsActive        bool          `json:"is_active"`
+	EffectiveFrom   *time.Time    `json:"effective_from,omitempty"`
+	EffectiveUntil  *time.Time    `json:"effective_until,omitempty"`
+	CreatedAt       string        `json:"created_at,omitempty"`
+	UpdatedAt       string        `json:"updated_at,omitempty"`
+
+	// Scope fields populated on read (not stored in pricing_rules)
+	ScopeType string `json:"scope_type,omitempty"` // "product", "category", "brand"
 }
 
 // ResolvedPrice is the output of the pricing resolution algorithm.
-// See ADR-005 §Output.
 type ResolvedPrice struct {
-	UnitPrice     int          `json:"unit_price"`
-	OriginalPrice int          `json:"original_price"`
-	Discount      int          `json:"discount"`
-	PricingType   PricingType  `json:"pricing_type"`
-	Rule          *PricingRule `json:"rule,omitempty"`
+	UnitPrice     int           `json:"unit_price"`
+	OriginalPrice int           `json:"original_price"`
+	Discount      int           `json:"discount"`
+	PricingType   PricingType   `json:"pricing_type"`
+	PricingMethod PricingMethod `json:"pricing_method"`
+	Rule          *PricingRule  `json:"rule,omitempty"`
 }
 
 // PriceResolver is the public interface for the pricing subsystem.
-// Consumers (POS, Sales, Reports) depend only on this interface.
-// See INV-P8.
 type PriceResolver interface {
-	// Resolve returns the effective selling price for a product at a given quantity.
-	Resolve(ctx context.Context, productID int, quantity int) (*ResolvedPrice, error)
-
-	// ResolveBatch returns effective selling prices for multiple products in a single operation.
-	// This avoids N+1 queries for POS cart checkout. See INV-P11.
+	Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPrice, error)
 	ResolveBatch(ctx context.Context, items []ResolveItem) ([]ResolvedPrice, error)
+}
+
+// ResolveContext carries the full context for price resolution.
+type ResolveContext struct {
+	ProductID       int
+	Quantity        int
+	CustomerGroupID *int
+	StoreID         *int
 }
 
 // ResolveItem is the input for batch resolution.
 type ResolveItem struct {
-	ProductID int `json:"product_id"`
-	Quantity  int `json:"quantity"`
+	ProductID       int  `json:"product_id"`
+	Quantity        int  `json:"quantity"`
+	CustomerGroupID *int `json:"customer_group_id,omitempty"`
+	StoreID         *int `json:"store_id,omitempty"`
+}
+
+// ValidPricingMethods returns all valid pricing methods.
+func ValidPricingMethods() []PricingMethod {
+	return []PricingMethod{
+		PricingMethodFixedPrice,
+		PricingMethodDiscountPct,
+		PricingMethodDiscountAmt,
+		PricingMethodMarkupPct,
+	}
+}
+
+// ValidPricingTypes returns all valid pricing types.
+func ValidPricingTypes() []PricingType {
+	return []PricingType{
+		PricingTypeDefault,
+		PricingTypePriceList,
+		PricingTypePromotion,
+	}
 }

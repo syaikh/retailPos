@@ -54,7 +54,7 @@ func (h *Handler) RegisterPaymentMethodsPublicRoutes(r *gin.RouterGroup) {
 // @Tags sales
 // @Accept json
 // @Produce json
-// @Param request body createSaleReq true "Sale payload"
+// @Param request body map[string]interface{} true "Sale payload"
 // @Security BearerAuth
 // @Success 201 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}

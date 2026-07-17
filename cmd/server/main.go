@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/customer"
+	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/middleware"
@@ -32,6 +33,7 @@ import (
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
@@ -42,6 +44,10 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	"retail-pos-system/docs"
 )
 
 type authAdapter struct {
@@ -158,6 +164,8 @@ func main() {
 	reportRepo.SetCache(appCache)
 	pricingRepo := pricing.NewRepository(dbPool)
 	supplierRepo := supplier.NewRepository(dbPool)
+	customerGroupRepo := customergroup.NewRepository(dbPool)
+	storeRepo := store.NewRepository(dbPool)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo)
@@ -175,6 +183,8 @@ func main() {
 	reportSvc := report.NewService(reportRepo, bus)
 	pricingSvc := pricing.NewService(pricingRepo)
 	supplierSvc := supplier.NewService(supplierRepo)
+	customerGroupSvc := customergroup.NewService(customerGroupRepo)
+	storeSvc := store.NewService(storeRepo)
 
 	userH := user.NewHandler(userSvc, auditSvc)
 	authH := user.NewAuthHandler(authSvc, auditSvc)
@@ -188,7 +198,10 @@ func main() {
 	auditH := audit.NewHandler(auditSvc)
 	reportH := report.NewHandler(reportSvc)
 	pricingH := pricing.NewHandler(pricingSvc, pricingResolver, auditSvc)
+	pricingH.SetProductSearcher(pricingRepo)
 	supplierH := supplier.NewHandler(supplierSvc, auditSvc)
+	customerGroupH := customergroup.NewHandler(customerGroupSvc, auditSvc)
+	storeH := store.NewHandler(storeSvc, auditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)
@@ -196,6 +209,8 @@ func main() {
 	_ = schemaReg.Register(uom.Schema)
 	_ = schemaReg.Register(customer.Schema)
 	_ = schemaReg.Register(product.Schema)
+	_ = schemaReg.Register(store.Schema)
+	_ = schemaReg.Register(customergroup.Schema)
 
 	adapterReg := importexport.NewAdapterRegistry()
 	_ = adapterReg.Register(category.NewAdapter(categoryRepo))
@@ -203,6 +218,8 @@ func main() {
 	_ = adapterReg.Register(uom.NewAdapter(uomRepo))
 	_ = adapterReg.Register(customer.NewAdapter(customerRepo))
 	_ = adapterReg.Register(product.NewAdapter(productRepo, categoryRepo, brandRepo, uomRepo))
+	_ = adapterReg.Register(store.NewAdapter(storeRepo))
+	_ = adapterReg.Register(customergroup.NewAdapter(customerGroupRepo))
 
 	valPipeline := validation.NewDefaultPipeline()
 	progStore := progress.NewPgRepository(dbPool)
@@ -263,6 +280,8 @@ func main() {
 		inventoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		customerH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		categoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		customerGroupH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		storeH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		userH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		auditH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		reportH.RegisterRoutes(protected, noopAuth, permMiddleware)
@@ -276,6 +295,9 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "timestamp": time.Now().Format(time.RFC3339)})
 	})
+
+	docs.SwaggerInfo.BasePath = "/api"
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -625,7 +625,6 @@ func (r *Repository) GetPricingBreakdown(ctx context.Context, start, end time.Ti
 	if storeID != nil {
 		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
 		args = append(args, *storeID)
-		argIdx++
 	}
 
 	query += `

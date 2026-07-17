@@ -784,8 +784,8 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO pricing_rules (product_id, pricing_type, name, price, minimum_quantity, priority, is_active, effective_from, effective_until, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)`)
+		`INSERT INTO pricing_rules (product_id, pricing_type, pricing_method, pricing_value, name, minimum_quantity, priority, is_active, effective_from, effective_until, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)`)
 	if err != nil {
 		return fmt.Errorf("prepare pricing rule stmt: %w", err)
 	}
@@ -811,41 +811,39 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	for i := 0; i < numProductsToTag; i++ {
 		p := shuffled[i]
 
-		// Create a wholesale rule (min qty 5-10, price 15-30% lower)
-		if rand.Intn(100) < 70 { // 70% chance of wholesale rule
-			minQty := 5 + rand.Intn(6) // 5-10
-			discount := 0.15 + rand.Float64()*0.15 // 15-30%
-			wholesalePrice := int(float64(p.Price) * (1.0 - discount))
+		// Create a price_list rule (min qty 5-10, fixed price 15-30% lower)
+		if rand.Intn(100) < 70 {
+			minQty := 5 + rand.Intn(6)
+			discount := 0.15 + rand.Float64()*0.15
+			wholesalePrice := float64(p.Price) * (1.0 - discount)
 			if wholesalePrice < 1000 {
 				wholesalePrice = 1000
 			}
 			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(30))
-			effectiveUntil := ref.AddDate(0, 3, rand.Intn(3)) // 3-6 months from now
+			effectiveUntil := ref.AddDate(0, 3, rand.Intn(3))
 			createdAt := ref.AddDate(0, 0, -rand.Intn(30))
 
-			if _, err := stmt.ExecContext(ctx, p.ID, "wholesale",
+			if _, err := stmt.ExecContext(ctx, p.ID, "price_list", "fixed_price",
+				wholesalePrice,
 				fmt.Sprintf("Wholesale min %d", minQty),
-				wholesalePrice, minQty, 0,
+				minQty, 0,
 				effectiveFrom, effectiveUntil, createdAt); err != nil {
 				continue
 			}
 			ruleCount++
 		}
 
-		// Create a discount rule (flat discount 5-15%, no min qty)
-		if rand.Intn(100) < 50 { // 50% chance of discount rule
-			discount := 0.05 + rand.Float64()*0.10 // 5-15%
-			discountPrice := int(float64(p.Price) * (1.0 - discount))
-			if discountPrice < 1000 {
-				discountPrice = 1000
-			}
+		// Create a promotion rule with discount_percent
+		if rand.Intn(100) < 50 {
+			discount := 5 + rand.Float64()*10 // 5-15%
 			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(15))
-			effectiveUntil := ref.AddDate(0, 1, rand.Intn(2)) // 1-3 months from now
+			effectiveUntil := ref.AddDate(0, 1, rand.Intn(2))
 			createdAt := ref.AddDate(0, 0, -rand.Intn(15))
 
-			if _, err := stmt.ExecContext(ctx, p.ID, "discount",
-				fmt.Sprintf("Diskon %d%%", int(discount*100)),
-				discountPrice, 1, 1,
+			if _, err := stmt.ExecContext(ctx, p.ID, "promotion", "discount_percent",
+				discount,
+				fmt.Sprintf("Diskon %d%%", int(discount)),
+				1, 1,
 				effectiveFrom, effectiveUntil, createdAt); err != nil {
 				continue
 			}

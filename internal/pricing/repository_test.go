@@ -57,10 +57,11 @@ func TestPricingRepository_CRUD(t *testing.T) {
 
 	t.Run("Create and get by ID", func(t *testing.T) {
 		rule := &PricingRule{
-			ProductID:       productID,
-			PricingType:     PricingTypeDiscount,
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    12000,
 			Name:            "Test Discount",
-			Price:           12000,
 			MinimumQuantity: 1,
 			Priority:        0,
 			IsActive:        true,
@@ -73,9 +74,10 @@ func TestPricingRepository_CRUD(t *testing.T) {
 		got, err := repo.GetByID(ctx, rule.ID)
 		require.NoError(t, err)
 		assert.Equal(t, rule.Name, got.Name)
-		assert.Equal(t, PricingTypeDiscount, got.PricingType)
-		assert.Equal(t, 12000, got.Price)
-		assert.Equal(t, productID, got.ProductID)
+		assert.Equal(t, PricingTypePromotion, got.PricingType)
+		assert.Equal(t, PricingMethodFixedPrice, got.PricingMethod)
+		assert.Equal(t, 12000.0, got.PricingValue)
+		assert.Equal(t, productID, *got.ProductID)
 	})
 
 	t.Run("Get by ID not found", func(t *testing.T) {
@@ -90,7 +92,7 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Get active rules", func(t *testing.T) {
-		rules, err := repo.GetActiveRules(ctx, productID, time.Now())
+		rules, err := repo.GetActiveRules(ctx, productID, nil, nil, time.Now(), nil, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, rules)
 		for _, r := range rules {
@@ -100,10 +102,11 @@ func TestPricingRepository_CRUD(t *testing.T) {
 
 	t.Run("Update rule", func(t *testing.T) {
 		rule := &PricingRule{
-			ProductID:       productID,
-			PricingType:     PricingTypeWholesale,
+			ProductID:       &productID,
+			PricingType:     PricingTypePriceList,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
 			Name:            "Updated Rule",
-			Price:           10000,
 			MinimumQuantity: 5,
 			Priority:        1,
 			IsActive:        true,
@@ -111,22 +114,23 @@ func TestPricingRepository_CRUD(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, rule))
 
 		rule.Name = "Updated Rule v2"
-		rule.Price = 9000
+		rule.PricingValue = 9000
 		err := repo.Update(ctx, rule)
 		require.NoError(t, err)
 
 		got, err := repo.GetByID(ctx, rule.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Rule v2", got.Name)
-		assert.Equal(t, 9000, got.Price)
+		assert.Equal(t, 9000.0, got.PricingValue)
 	})
 
 	t.Run("Delete rule", func(t *testing.T) {
 		rule := &PricingRule{
-			ProductID:       productID,
+			ProductID:       &productID,
 			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    5000,
 			Name:            "Delete Me",
-			Price:           5000,
 			MinimumQuantity: 1,
 			IsActive:        true,
 		}
@@ -140,33 +144,33 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAll with filters", func(t *testing.T) {
-		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", nil)
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with search", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "Updated", nil, "", nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "Updated", nil, "", "", nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with product filter", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", &productID, "", nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", &productID, "", "", nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with type filter", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "discount", nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "promotion", "", nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with active filter", func(t *testing.T) {
 		active := true
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "", &active)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, &active)
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
@@ -205,12 +209,12 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	})
 
 	t.Run("GetActiveRulesBatch", func(t *testing.T) {
-		// Create a rule first
 		rule := &PricingRule{
-			ProductID:       productID,
-			PricingType:     PricingTypeDiscount,
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    18000,
 			Name:            "Batch Discount",
-			Price:           18000,
 			MinimumQuantity: 1,
 			IsActive:        true,
 		}
@@ -225,5 +229,58 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 		rulesMap, err := repo.GetActiveRulesBatch(ctx, []int{}, time.Now())
 		require.NoError(t, err)
 		assert.Empty(t, rulesMap)
+	})
+}
+
+func TestPricingRepository_ProductScope(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	productID := insertTestProduct(t, ctx, "PRC-SCOPE-"+time.Now().Format("0102150405"), "Scope Test Product", 25000)
+
+	t.Run("GetProductScope", func(t *testing.T) {
+		catID, brandID, err := repo.GetProductScope(ctx, productID)
+		require.NoError(t, err)
+		// Product has no category/brand set
+		assert.Nil(t, catID)
+		assert.Nil(t, brandID)
+	})
+
+	t.Run("GetProductScope not found", func(t *testing.T) {
+		_, _, err := repo.GetProductScope(ctx, -1)
+		assert.ErrorIs(t, err, ErrProductNotFound)
+	})
+}
+
+func TestPricingRepository_SearchProducts(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	sku := "SRC-" + time.Now().Format("0102150405")
+	productID := insertTestProduct(t, ctx, sku, "Searchable Product", 10000)
+	_ = productID
+
+	t.Run("Search by name", func(t *testing.T) {
+		results, err := repo.SearchProducts(ctx, "Searchable", 10)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+	})
+
+	t.Run("Search by SKU", func(t *testing.T) {
+		results, err := repo.SearchProducts(ctx, sku, 10)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+	})
+
+	t.Run("Search empty query", func(t *testing.T) {
+		results, err := repo.SearchProducts(ctx, "", 10)
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 }

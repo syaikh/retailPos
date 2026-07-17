@@ -400,7 +400,7 @@ func (r *Repository) BulkInsertSuppliers(ctx context.Context, payloads []Supplie
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	count := 0
 	for _, p := range payloads {
@@ -429,7 +429,7 @@ func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []Supplie
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	count := 0
 	for _, p := range payloads {

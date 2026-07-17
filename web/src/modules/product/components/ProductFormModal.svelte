@@ -243,8 +243,8 @@
                 <div class="flex items-center justify-between text-xs py-1.5 {rule.is_active ? '' : 'opacity-50'}">
                   <div class="flex items-center gap-2">
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold
-                      {rule.pricing_type === 'discount' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                       rule.pricing_type === 'wholesale' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                      {rule.pricing_type === 'promotion' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                       rule.pricing_type === 'price_list' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
                        'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}">
                       {rule.pricing_type}
                     </span>
@@ -254,7 +254,7 @@
                     {#if rule.minimum_quantity > 1}
                       <span class="text-text-muted">min {rule.minimum_quantity}</span>
                     {/if}
-                    <span class="text-text-primary font-semibold">{formatCurrency(rule.price)}</span>
+                    <span class="text-text-primary font-semibold">{formatCurrency(rule.pricing_value)}</span>
                   </div>
                 </div>
               {/each}

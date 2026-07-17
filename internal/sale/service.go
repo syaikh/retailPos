@@ -130,7 +130,7 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 				items[i].PricingRuleType = &ruleType
 				items[i].PricingType = &pt
 			} else {
-				pt := string(pricing.PricingTypeNormal)
+				pt := string(pricing.PricingTypeDefault)
 				items[i].PricingType = &pt
 			}
 

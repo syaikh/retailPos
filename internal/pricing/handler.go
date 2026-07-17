@@ -17,20 +17,31 @@ import (
 type PricingService interface {
 	GetByID(ctx context.Context, id int) (*PricingRule, error)
 	GetByProductID(ctx context.Context, productID int) ([]PricingRule, error)
-	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType string, isActive *bool) ([]PricingRule, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error)
 	Create(ctx context.Context, rule *PricingRule) error
 	Update(ctx context.Context, rule *PricingRule) error
 	Delete(ctx context.Context, id int) error
 }
 
+// ProductSearcher is an optional interface for product autocomplete search.
+type ProductSearcher interface {
+	SearchProducts(ctx context.Context, query string, limit int) ([]ProductSearchResult, error)
+}
+
 type Handler struct {
 	svc      PricingService
 	resolver PriceResolver
+	searcher ProductSearcher
 	auditSvc audit.AuditCreator
 }
 
 func NewHandler(svc PricingService, resolver PriceResolver, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, resolver: resolver, auditSvc: auditSvc}
+}
+
+// SetProductSearcher sets the optional product search provider.
+func (h *Handler) SetProductSearcher(s ProductSearcher) {
+	h.searcher = s
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
@@ -40,36 +51,68 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.PUT("/pricing-rules/:id", auth, perm("pricing:update"), h.UpdateRule)
 	r.DELETE("/pricing-rules/:id", auth, perm("pricing:delete"), h.DeleteRule)
 	r.POST("/pricing/resolve", auth, perm("pricing:read"), h.ResolvePrices)
+	r.GET("/products/search", auth, perm("pricing:read"), h.SearchProducts)
 }
 
 // ListRules godoc
-// @Summary List pricing rules
-// @Description Get paginated list of pricing rules with optional filters
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param limit query int false "Limit" default(20)
-// @Param offset query int false "Offset" default(0)
-// @Param search query string false "Search by name or pricing type"
-// @Param product_id query int false "Filter by product ID"
-// @Param pricing_type query string false "Filter by pricing type (discount, wholesale, member, promotion)"
-// @Param is_active query string false "Filter by active status (true/false)"
-// @Success 200 {object} map[string]interface{}
-// @Router /pricing-rules [get]
+// @Summary      List pricing rules
+// @Description  Get a paginated list of pricing rules with optional filters
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit             query   int     false  "Page size"          default(20)
+// @Param        offset            query   int     false  "Offset"             default(0)
+// @Param        search            query   string  false  "Search rule name"
+// @Param        product_id        query   int     false  "Filter by product ID"
+// @Param        pricing_type      query   string  false  "Filter by type (default|price_list|promotion)"
+// @Param        pricing_method    query   string  false  "Filter by method (fixed_price|discount_percent|discount_amount|markup_percent)"
+// @Param        category_id       query   int     false  "Filter by category ID"
+// @Param        brand_id          query   int     false  "Filter by brand ID"
+// @Param        customer_group_id query   int     false  "Filter by customer group ID"
+// @Param        store_id          query   int     false  "Filter by store ID"
+// @Param        is_active         query   bool    false  "Filter by active status"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules [get]
 func (h *Handler) ListRules(c *gin.Context) {
 	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
 
 	var productID *int
 	if v := c.Query("product_id"); v != "" {
-		if id, err := strconv.Atoi(v); err == nil {
-			productID = &id
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			productID = &n
 		}
 	}
 
-	var pricingType string
-	if v := c.Query("pricing_type"); v != "" {
-		pricingType = strings.ToLower(v)
+	pricingType := c.Query("pricing_type")
+	pricingMethod := c.Query("pricing_method")
+
+	var categoryID, brandID, customerGroupID, storeID *int
+	if v := c.Query("category_id"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			categoryID = &n
+		}
+	}
+	if v := c.Query("brand_id"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			brandID = &n
+		}
+	}
+	if v := c.Query("customer_group_id"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			customerGroupID = &n
+		}
+	}
+	if v := c.Query("store_id"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			storeID = &n
+		}
 	}
 
 	var isActive *bool
@@ -78,7 +121,7 @@ func (h *Handler) ListRules(c *gin.Context) {
 		isActive = &b
 	}
 
-	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, isActive)
+	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -90,19 +133,19 @@ func (h *Handler) ListRules(c *gin.Context) {
 }
 
 // GetRule godoc
-// @Summary Get a pricing rule by ID
-// @Description Get a single pricing rule by its ID
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param id path int true "Pricing Rule ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Router /pricing-rules/{id} [get]
+// @Summary      Get pricing rule by ID
+// @Description  Get a single pricing rule by its ID
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Rule ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules/{id} [get]
 func (h *Handler) GetRule(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pricing rule id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
 		return
 	}
 
@@ -115,15 +158,15 @@ func (h *Handler) GetRule(c *gin.Context) {
 }
 
 // CreateRule godoc
-// @Summary Create a new pricing rule
-// @Description Create a new pricing rule for a product
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param rule body PricingRule true "Pricing Rule"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /pricing-rules [post]
+// @Summary      Create a pricing rule
+// @Description  Create a new pricing rule. Requires at least one target (product_id, category_id, or brand_id).
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      PricingRule  true  "Pricing rule data"
+// @Success      201   {object}  map[string]interface{}
+// @Router       /pricing-rules [post]
 func (h *Handler) CreateRule(c *gin.Context) {
 	var rule PricingRule
 	if err := c.ShouldBindJSON(&rule); err != nil {
@@ -155,20 +198,20 @@ func (h *Handler) CreateRule(c *gin.Context) {
 }
 
 // UpdateRule godoc
-// @Summary Update a pricing rule
-// @Description Update an existing pricing rule by ID
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param id path int true "Pricing Rule ID"
-// @Param rule body PricingRule true "Pricing Rule"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /pricing-rules/{id} [put]
+// @Summary      Update a pricing rule
+// @Description  Update an existing pricing rule
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id    path      int           true  "Rule ID"
+// @Param        body  body      PricingRule   true  "Update data"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /pricing-rules/{id} [put]
 func (h *Handler) UpdateRule(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pricing rule id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
 		return
 	}
 
@@ -209,19 +252,19 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 }
 
 // DeleteRule godoc
-// @Summary Delete a pricing rule
-// @Description Delete a pricing rule by ID
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param id path int true "Pricing Rule ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /pricing-rules/{id} [delete]
+// @Summary      Delete a pricing rule
+// @Description  Delete a pricing rule by ID
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Rule ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules/{id} [delete]
 func (h *Handler) DeleteRule(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pricing rule id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
 		return
 	}
 
@@ -260,35 +303,67 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
+type resolveRequest struct {
+	Items []ResolveItem `json:"items" binding:"required,min=1"`
+}
+
 // ResolvePrices godoc
-// @Summary Resolve prices for cart items
-// @Description Batch resolve effective selling prices for products using pricing rules
-// @Tags pricing
-// @Accept json
-// @Produce json
-// @Param items body object true "Items to resolve"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /pricing/resolve [post]
+// @Summary      Resolve prices for cart items
+// @Description  Resolve the effective selling price for one or more products given context (quantity, customer group, store)
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      resolveRequest  true  "Items to resolve"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /pricing/resolve [post]
 func (h *Handler) ResolvePrices(c *gin.Context) {
-	var request struct {
-		Items []ResolveItem `json:"items" binding:"required,dive"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	var req resolveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if h.resolver == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "pricing resolver not available"})
-		return
-	}
-
-	results, err := h.resolver.ResolveBatch(c.Request.Context(), request.Items)
+	results, err := h.resolver.ResolveBatch(c.Request.Context(), req.Items)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": results})
+}
+
+// SearchProducts godoc
+// @Summary      Search products for pricing autocomplete
+// @Description  Search products by name or SKU for the pricing rule form autocomplete
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        q     query   string  true   "Search query"
+// @Param        limit query   int     false  "Max results (1-50)"  default(10)
+// @Success      200   {object}  map[string]interface{}
+// @Router       /products/search [get]
+func (h *Handler) SearchProducts(c *gin.Context) {
+	query := c.Query("q")
+	limit := 10
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
+			limit = n
+		}
+	}
+
+	if h.searcher != nil {
+		results, err := h.searcher.SearchProducts(c.Request.Context(), query, limit)
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
+		if results == nil {
+			results = []ProductSearchResult{}
+		}
+		c.JSON(http.StatusOK, gin.H{"data": results})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": []ProductSearchResult{}})
 }

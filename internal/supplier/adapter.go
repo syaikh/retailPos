@@ -3,8 +3,6 @@ package supplier
 import (
 	"context"
 	"fmt"
-	"math"
-	"strconv"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
@@ -143,21 +141,4 @@ func nilStr(s *string) string {
 	return *s
 }
 
-func floatToInt(v interface{}) int {
-	switch val := v.(type) {
-	case float64:
-		return int(math.Round(val))
-	case int:
-		return val
-	case string:
-		n, _ := strconv.Atoi(val)
-		return n
-	case bool:
-		if val {
-			return 1
-		}
-		return 0
-	default:
-		return 0
-	}
-}
+
