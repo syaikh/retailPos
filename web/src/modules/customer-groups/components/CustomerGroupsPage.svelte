@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/router';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { getCustomerGroups, createCustomerGroup, updateCustomerGroup, deleteCustomerGroup } from '../services/customer-group-service';
@@ -92,6 +93,10 @@
     }
   }
 
+  function viewMembers(g: any) {
+    goto(`/customers?group=${g.id}`);
+  }
+
   function openEdit(g: any) {
     selectedGroup = g;
     showEditModal = true;
@@ -157,6 +162,7 @@
       bind:sortBy
       bind:sortDir
       onsort={handleSort}
+      onviewmembers={viewMembers}
       onedit={openEdit}
       ondelete={openDelete}
     />

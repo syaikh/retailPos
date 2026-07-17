@@ -322,6 +322,10 @@
   }
 
   onMount(async () => {
+    const urlGroup = new URLSearchParams(window.location.search).get('group');
+    if (urlGroup) {
+      groupFilter = urlGroup;
+    }
     load();
     try {
       const result = await getCustomerGroups({ limit: 100, offset: 0 });

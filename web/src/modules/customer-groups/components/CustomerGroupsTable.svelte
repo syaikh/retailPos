@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
-  import { Pencil, Trash2, Search } from 'lucide-svelte';
+  import { Pencil, Trash2, Search, Users } from 'lucide-svelte';
 
   let {
     groups = [],
@@ -11,6 +11,7 @@
     sortBy = $bindable('name'),
     sortDir = $bindable<'asc' | 'desc'>('asc'),
     onsort = (col: string) => {},
+    onviewmembers = (g: any) => {},
     onedit = (g: any) => {},
     ondelete = (g: any) => {},
   }: {
@@ -22,6 +23,7 @@
     sortBy: string;
     sortDir: 'asc' | 'desc';
     onsort?: (col: string) => void;
+    onviewmembers?: (g: any) => void;
     onedit?: (g: any) => void;
     ondelete?: (g: any) => void;
   } = $props();
@@ -114,6 +116,9 @@
           </td>
           <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
             <div class="flex items-center justify-center gap-1">
+              <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onviewmembers(g)} title="View members" aria-label="View members">
+                <Users size={14} />
+              </Button>
               {#if canUpdate}
                 <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onedit(g)} title="Edit" aria-label="Edit">
                   <Pencil size={14} />
