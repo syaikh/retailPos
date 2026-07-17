@@ -3,6 +3,12 @@ package supplier
 import (
 	"context"
 	"fmt"
+	"regexp"
+)
+
+var (
+	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	phoneRegex = regexp.MustCompile(`^\+?[0-9]{7,15}$`)
 )
 
 type Service struct {
@@ -87,6 +93,17 @@ func validateSupplier(supplier *Supplier) error {
 	}
 	if supplier.Code == "" {
 		return fmt.Errorf("%w: code is required", ErrInvalidSupplier)
+	}
+	if supplier.Email != nil && *supplier.Email != "" {
+		if !emailRegex.MatchString(*supplier.Email) {
+			return fmt.Errorf("%w: invalid email format", ErrInvalidSupplier)
+		}
+	}
+	if supplier.Phone != nil && *supplier.Phone != "" {
+		phone := regexp.MustCompile(`[\s\-\(\)]`).ReplaceAllString(*supplier.Phone, "")
+		if !phoneRegex.MatchString(phone) {
+			return fmt.Errorf("%w: invalid phone format", ErrInvalidSupplier)
+		}
 	}
 	return nil
 }

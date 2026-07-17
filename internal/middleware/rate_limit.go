@@ -198,3 +198,24 @@ func RefreshRateLimitMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func WebSocketRateLimitMiddleware() gin.HandlerFunc {
+	burst := 5
+	rpm := 20
+	if v, err := strconv.Atoi(os.Getenv("WS_RATE_LIMIT_RPM")); err == nil && v > 0 {
+		rpm = v
+	}
+	if v, err := strconv.Atoi(os.Getenv("WS_RATE_LIMIT_BURST")); err == nil && v > 0 {
+		burst = v
+	}
+	limiter := NewIPRateLimiter(rate.Every(time.Minute/time.Duration(rpm)), burst)
+
+	return func(c *gin.Context) {
+		ip := getClientIP(c)
+		if !limiter.GetLimiter(ip).Allow() {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many WebSocket connections. try again later."})
+			return
+		}
+		c.Next()
+	}
+}

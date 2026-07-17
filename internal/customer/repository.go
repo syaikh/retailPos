@@ -243,7 +243,7 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 		query += " AND store_id = $1"
 		args = append(args, *storeID)
 	}
-	query += " ORDER BY name"
+	query += " ORDER BY c.name"
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err

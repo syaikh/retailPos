@@ -22,6 +22,33 @@ func TestValidateSupplier(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "valid supplier with email",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Email: strPtr("contact@majujaya.co.id"),
+			},
+			expectErr: false,
+		},
+		{
+			name: "valid supplier with phone",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Phone: strPtr("+62812345678"),
+			},
+			expectErr: false,
+		},
+		{
+			name: "valid supplier with formatted phone",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Phone: strPtr("(021) 555-1234"),
+			},
+			expectErr: false,
+		},
+		{
 			name: "empty name",
 			supplier: &Supplier{
 				Name: "",
@@ -44,6 +71,60 @@ func TestValidateSupplier(t *testing.T) {
 				Code: "",
 			},
 			expectErr: true,
+		},
+		{
+			name: "invalid email format",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Email: strPtr("not-an-email"),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid email missing @",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Email: strPtr("userexample.com"),
+			},
+			expectErr: true,
+		},
+		{
+			name: "empty email is valid",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Email: strPtr(""),
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid phone too short",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Phone: strPtr("123"),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid phone letters",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Phone: strPtr("+62abc123"),
+			},
+			expectErr: true,
+		},
+		{
+			name: "empty phone is valid",
+			supplier: &Supplier{
+				Name:  "PT Maju Jaya",
+				Code:  "SUP-001",
+				Phone: strPtr(""),
+			},
+			expectErr: false,
 		},
 	}
 

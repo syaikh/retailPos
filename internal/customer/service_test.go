@@ -52,7 +52,7 @@ func TestCustomerService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("GetAllCustomers", func(t *testing.T) {
-		customers, total, err := svc.GetAllCustomers(ctx, 10, 0, "", nil, nil)
+		customers, total, err := svc.GetAllCustomers(ctx, 10, 0, "", nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(customers), 1)

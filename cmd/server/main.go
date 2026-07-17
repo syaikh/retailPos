@@ -257,7 +257,7 @@ func main() {
 	authMiddleware := middleware.NewModularAuthMiddleware(authSvc)
 	permMiddleware := middleware.RequirePermission
 
-	router.GET("/ws", func(c *gin.Context) {
+	router.GET("/ws", middleware.WebSocketRateLimitMiddleware(), func(c *gin.Context) {
 		websocket.ServeWebSocket(hub, c)
 	})
 

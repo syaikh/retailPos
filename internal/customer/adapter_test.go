@@ -246,7 +246,7 @@ func TestCustomerAdapter_Insert_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	_, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil)
+	_, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil, nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 2)
 }

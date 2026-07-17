@@ -55,9 +55,19 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if c.Request.Header.Get("Authorization") != "" {
-			c.Next()
-			return
+		// SPA pattern: browser forms cannot set custom headers.
+		// If Authorization header is present with a valid JWT format (header.payload.signature),
+		// this is a legitimate API call, not a CSRF attack.
+		// CSRF attacks exploit cookie-based auth; JWT in Authorization header is immune.
+		if auth := c.Request.Header.Get("Authorization"); auth != "" {
+			parts := strings.Split(auth, " ")
+			if len(parts) == 2 {
+				token := parts[1]
+				if strings.Count(token, ".") == 2 {
+					c.Next()
+					return
+				}
+			}
 		}
 
 		if c.Request.Header.Get("X-Refresh-Token") != "" {

@@ -606,11 +606,10 @@ func TestResolver_Resolve_StackingTwoPromotions(t *testing.T) {
 
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
-	// Currently: resolver picks best single rule (priority 2 wins: 5000 discount_amount)
-	// When stacking is implemented, this should chain to 100000→90000→85000
-	assert.Equal(t, 95000, result.UnitPrice)
+	// Stacking: highest priority first: 100000 → 5000 off (pri 2) = 95000 → 10% off (pri 1) = 85500
+	assert.Equal(t, 85500, result.UnitPrice)
+	assert.Equal(t, 14500, result.Discount)
 	assert.Equal(t, PricingTypePromotion, result.PricingType)
-	assert.Equal(t, PricingMethodDiscountAmt, result.PricingMethod)
 }
 
 func TestResolver_Resolve_RecurrenceDayAllowed(t *testing.T) {
@@ -734,4 +733,138 @@ func TestResolver_Resolve_MaxQuantityFilter(t *testing.T) {
 	result2, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 6})
 	require.NoError(t, err)
 	assert.Equal(t, 100000, result2.UnitPrice)
+}
+
+// ============================================================
+// Stacking (allow_combine) — full coverage
+// ============================================================
+
+func TestResolver_Resolve_StackingThreePromotions(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 1
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 2
+				ruleAdvanced(12, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 3, true, true, nil, nil, nil, nil, nil, nil, nil),  // priority 3
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	// Highest priority first: 100000 → 5% off (pri 3) = 95000 → 5000 off (pri 2) = 90000 → 10% off (pri 1) = 81000
+	assert.Equal(t, 81000, result.UnitPrice)
+	assert.Equal(t, 19000, result.Discount)
+}
+
+func TestResolver_Resolve_StackingBestNonCombinablePlusCombinable(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, nil, 5, true, false, nil, nil, nil, nil, nil, nil, nil), // best non-combinable: 80000
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),  // combinable: 10% → 72000
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	// Non-combinable wins: 80000, then 10% off → 72000
+	assert.Equal(t, 72000, result.UnitPrice)
+	assert.Equal(t, 28000, result.Discount)
+}
+
+func TestResolver_Resolve_StackingFixedPriceThenPercent(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 200000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodFixedPrice, 150000, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // fixed → 150000
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil),   // 10% → 135000
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	// Highest priority first: 200000 → 10% off (pri 2) = 180000 → fixed 150000 (pri 1) = 150000
+	assert.Equal(t, 150000, result.UnitPrice)
+	assert.Equal(t, 50000, result.Discount)
+}
+
+func TestResolver_Resolve_StackingFloorAtZero(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 10000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountAmt, 6000, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // 6000 → 4000
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 8000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // 8000 → floor 0
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.UnitPrice)
+	assert.Equal(t, 10000, result.Discount)
+}
+
+func TestResolver_Resolve_StackingPriorityOrder(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 10, true, true, nil, nil, nil, nil, nil, nil, nil),   // priority 10
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 1
+				ruleAdvanced(12, PricingTypePromotion, PricingMethodDiscountAmt, 10000, 1, nil, 5, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 5
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	// Highest priority first: 100000 → 5% off (pri 10) = 95000 → 10000 off (pri 5) = 85000 → 15% off (pri 1) = 72250
+	assert.Equal(t, 72250, result.UnitPrice)
+}
+
+func TestResolver_Resolve_NoStackingWhenAllowCombineFalse(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, false, nil, nil, nil, nil, nil, nil, nil),
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, false, nil, nil, nil, nil, nil, nil, nil),
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	// Single best rule: priority 2 wins → 5000 off → 95000
+	assert.Equal(t, 95000, result.UnitPrice)
+}
+
+func TestResolver_Resolve_StackingSingleCombinable(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 20, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	assert.Equal(t, 80000, result.UnitPrice)
+	assert.Equal(t, 20000, result.Discount)
 }

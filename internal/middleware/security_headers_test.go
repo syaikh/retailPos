@@ -101,7 +101,7 @@ func TestCSRFMiddleware(t *testing.T) {
 		{
 			name:       "POST with Authorization passes",
 			method:     http.MethodPost,
-			authHeader: "Bearer abc123",
+			authHeader: "Bearer abc123.eyJpc3MiOiJ0ZXN0In0.signature",
 			wantCode:   http.StatusOK,
 		},
 		{
@@ -128,7 +128,7 @@ func TestCSRFMiddleware(t *testing.T) {
 		{
 			name:       "PUT with Authorization passes",
 			method:     http.MethodPut,
-			authHeader: "Bearer token",
+			authHeader: "Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature",
 			wantCode:   http.StatusOK,
 		},
 		{

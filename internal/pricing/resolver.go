@@ -59,7 +59,43 @@ func (r *Resolver) Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPri
 		}, nil
 	}
 
-	best := selectBestRule(eligible, rc.ProductID, categoryID, brandID)
+	combinable, nonCombinable := splitByCombine(eligible)
+	if len(nonCombinable) > 0 && len(combinable) > 0 {
+		bestNon := selectBestRule(nonCombinable, rc.ProductID, categoryID, brandID)
+		running := float64(computePrice(basePrice, bestNon))
+		chainCombinable(combinable, rc.ProductID, categoryID, brandID, &running)
+		discount := basePrice - int(running+0.5)
+		if discount < 0 {
+			discount = 0
+		}
+		return &ResolvedPrice{
+			UnitPrice:     int(running + 0.5),
+			OriginalPrice: basePrice,
+			Discount:      discount,
+			PricingType:   bestNon.PricingType,
+			PricingMethod: bestNon.PricingMethod,
+			Rule:          bestNon,
+		}, nil
+	}
+
+	if len(combinable) > 0 {
+		running := float64(basePrice)
+		chainCombinable(combinable, rc.ProductID, categoryID, brandID, &running)
+		discount := basePrice - int(running+0.5)
+		if discount < 0 {
+			discount = 0
+		}
+		return &ResolvedPrice{
+			UnitPrice:     int(running + 0.5),
+			OriginalPrice: basePrice,
+			Discount:      discount,
+			PricingType:   combinable[0].PricingType,
+			PricingMethod: combinable[0].PricingMethod,
+			Rule:          &combinable[0],
+		}, nil
+	}
+
+	best := selectBestRule(nonCombinable, rc.ProductID, categoryID, brandID)
 	if best == nil {
 		return &ResolvedPrice{
 			UnitPrice:     basePrice,
@@ -222,6 +258,40 @@ func filterEligible(rules []PricingRule, quantity int, now time.Time, customerGr
 		eligible = append(eligible, rule)
 	}
 	return eligible
+}
+
+// splitByCombine separates eligible rules into combinable and non-combinable.
+func splitByCombine(rules []PricingRule) (combinable, nonCombinable []PricingRule) {
+	for _, r := range rules {
+		if r.AllowCombine {
+			combinable = append(combinable, r)
+		} else {
+			nonCombinable = append(nonCombinable, r)
+		}
+	}
+	return
+}
+
+// chainCombinable sorts combinable rules by specificity, priority, value, then id
+// and applies each sequentially, mutating running.
+func chainCombinable(rules []PricingRule, productID int, categoryID, brandID *int, running *float64) {
+	sort.Slice(rules, func(i, j int) bool {
+		si := specificityScore(rules[i], productID, categoryID, brandID)
+		sj := specificityScore(rules[j], productID, categoryID, brandID)
+		if si != sj {
+			return si > sj
+		}
+		if rules[i].Priority != rules[j].Priority {
+			return rules[i].Priority > rules[j].Priority
+		}
+		if rules[i].PricingValue != rules[j].PricingValue {
+			return rules[i].PricingValue < rules[j].PricingValue
+		}
+		return rules[i].ID < rules[j].ID
+	})
+	for i := range rules {
+		*running = float64(computePrice(int(*running+0.5), &rules[i]))
+	}
 }
 
 // selectBestRule applies the deterministic resolution algorithm:

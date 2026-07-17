@@ -81,7 +81,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("default list excludes walk-in", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 9)
 		for _, c := range customers {
@@ -90,7 +90,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	})
 
 	t.Run("search by name", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad", nil, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad", nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.Contains(t, customers[0].Name, "Ahmad")
@@ -98,7 +98,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 
 	t.Run("filter by active", func(t *testing.T) {
 		active := true
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "", &active, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "", &active, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, c := range customers {
@@ -107,7 +107,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	})
 
 	t.Run("pagination", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 2, 0, "", nil, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 2, 0, "", nil, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, customers, 2)
 		assert.GreaterOrEqual(t, total, 9)

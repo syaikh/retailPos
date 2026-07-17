@@ -15,7 +15,7 @@ import (
 )
 
 type mockCustomerService struct {
-	getAllFn     func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error)
+	getAllFn     func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error)
 	getByIDFn    func(ctx context.Context, id int, storeID *int) (*Customer, error)
 	createFn     func(ctx context.Context, customer *Customer, storeID *int) error
 	updateFn     func(ctx context.Context, customer *Customer, id int, storeID *int) error
@@ -24,8 +24,8 @@ type mockCustomerService struct {
 	bulkDeleteFn func(ctx context.Context, ids []int, storeID *int) error
 }
 
-func (m *mockCustomerService) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
-	return m.getAllFn(ctx, limit, offset, search, isActive, storeID)
+func (m *mockCustomerService) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
+	return m.getAllFn(ctx, limit, offset, search, isActive, storeID, customerGroupID)
 }
 func (m *mockCustomerService) GetCustomerByID(ctx context.Context, id int, storeID *int) (*Customer, error) {
 	return m.getByIDFn(ctx, id, storeID)
@@ -67,7 +67,7 @@ func setupMockRouter(svc CustomerService) *gin.Engine {
 func TestMockHandler_GetCustomers(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 10, limit)
 				return []Customer{{ID: 1, Name: "Test"}}, 1, nil
 			},
@@ -83,7 +83,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 
 	t.Run("nil customers becomes empty array", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				return nil, 0, nil
 			},
 		}
@@ -96,7 +96,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 
 	t.Run("limit clamped to 200", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 200, limit)
 				return []Customer{}, 0, nil
 			},
@@ -109,7 +109,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				return nil, 0, errors.New("db error")
 			},
 		}
@@ -121,7 +121,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 
 	t.Run("is_active param parsed", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				require.NotNil(t, isActive)
 				assert.True(t, *isActive)
 				return []Customer{}, 0, nil
@@ -135,7 +135,7 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 
 	t.Run("negative offset clamped", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 0, offset)
 				return []Customer{}, 0, nil
 			},
@@ -574,7 +574,7 @@ func TestMockHandler_BulkDeleteCustomers(t *testing.T) {
 func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 	t.Run("isActive camelCase param", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				require.NotNil(t, isActive)
 				assert.False(t, *isActive)
 				return []Customer{}, 0, nil
@@ -588,7 +588,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 
 	t.Run("default limit when no param", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 50, limit)
 				return []Customer{}, 0, nil
 			},
@@ -601,7 +601,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 
 	t.Run("invalid limit falls back to default", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 50, limit)
 				return []Customer{}, 0, nil
 			},
@@ -614,7 +614,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 
 	t.Run("search param passed through", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, "john", search)
 				return []Customer{}, 0, nil
 			},
@@ -627,7 +627,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 
 	t.Run("negative offset clamped to zero", func(t *testing.T) {
 		svc := &mockCustomerService{
-			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 				assert.Equal(t, 0, offset)
 				return []Customer{}, 0, nil
 			},

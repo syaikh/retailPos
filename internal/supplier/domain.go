@@ -9,6 +9,8 @@ var (
 	ErrSupplierNotFound      = errors.New("supplier not found")
 	ErrSupplierCodeExists    = errors.New("supplier code already exists")
 	ErrInvalidSupplier       = errors.New("invalid supplier data")
+	ErrInvalidEmail          = errors.New("invalid email format")
+	ErrInvalidPhone          = errors.New("invalid phone format")
 	ErrProductSupplierExists = errors.New("product-supplier link already exists")
 	ErrProductSupplierNotFound = errors.New("product-supplier link not found")
 	ErrMultiplePreferred     = errors.New("only one preferred supplier allowed per product")
