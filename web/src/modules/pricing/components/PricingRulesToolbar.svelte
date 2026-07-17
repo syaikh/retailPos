@@ -7,28 +7,38 @@
     searchQuery = $bindable(''),
     statusFilter = $bindable('all'),
     typeFilter = $bindable('all'),
+    methodFilter = $bindable('all'),
     canCreate = false,
     pricingTypes = [],
+    pricingMethods = [],
     typeLabel = 'All Types',
+    methodLabel = 'Semua Metode',
     oncreate = () => {},
+    onfilter = () => {},
   }: {
     searchQuery: string;
     statusFilter: string;
     typeFilter: string;
+    methodFilter: string;
     canCreate: boolean;
     pricingTypes: { value: string; label: string }[];
+    pricingMethods: { value: string; label: string }[];
     typeLabel: string;
+    methodLabel: string;
     oncreate?: () => void;
+    onfilter?: () => void;
   } = $props();
 
-  const debouncedSearch = debounce(() => {}, 300);
+  const debouncedSearch = debounce(() => {
+    onfilter();
+  }, 300);
 
   function handleSearch() {
     debouncedSearch();
   }
 
   function handleFilterChange() {
-    searchQuery = searchQuery;
+    onfilter();
   }
 </script>
 
@@ -69,6 +79,25 @@
           onclick={toggle}
         >
           <span class="flex-1 text-left truncate">{typeLabel}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+    </Dropdown>
+    <Dropdown placement="bottom-start" items={[
+      { label: 'Semua Metode', checked: methodFilter === 'all', onclick: () => { methodFilter = 'all'; handleFilterChange(); } },
+      ...pricingMethods.map(pm => ({
+        label: pm.label,
+        checked: methodFilter === pm.value,
+        onclick: () => { methodFilter = pm.value; handleFilterChange(); }
+      }))
+    ]}>
+      {#snippet trigger({ toggle })}
+        <button
+          class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {methodFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
+          style="min-width: 130px;"
+          onclick={toggle}
+        >
+          <span class="flex-1 text-left truncate">{methodLabel}</span>
           <ChevronDown size={14} class="text-text-muted shrink-0" />
         </button>
       {/snippet}

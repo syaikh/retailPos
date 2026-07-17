@@ -27,6 +27,7 @@
   let sortDir = $state<'asc' | 'desc'>('asc');
   let statusFilter = $state('all');
   let typeFilter = $state('all');
+  let methodFilter = $state('all');
 
   let customerGroups = $state<{ id: number; name: string }[]>([]);
   let stores = $state<{ id: number; name: string }[]>([]);
@@ -97,6 +98,7 @@
   ];
 
   let typeLabel = $derived(typeFilter === 'all' ? 'All Types' : pricingTypes.find(t => t.value === typeFilter)?.label || typeFilter);
+  let methodLabel = $derived(methodFilter === 'all' ? 'Semua Metode' : pricingMethods.find(m => m.value === methodFilter)?.label || methodFilter);
 
   let sortedRules = $derived.by(() => {
     const sorted = [...rules];
@@ -118,6 +120,7 @@
     if (statusFilter === 'active') params.is_active = true;
     else if (statusFilter === 'inactive') params.is_active = false;
     if (typeFilter !== 'all') params.pricing_type = typeFilter;
+    if (methodFilter !== 'all') params.pricing_method = methodFilter;
     const result = await getPricingRules(params);
     rules = result.data;
     total = result.total;
@@ -434,10 +437,14 @@
     bind:searchQuery
     bind:statusFilter
     bind:typeFilter
+    bind:methodFilter
     {canCreate}
     {pricingTypes}
+    {pricingMethods}
     {typeLabel}
+    {methodLabel}
     oncreate={openAdd}
+    onfilter={fetchRules}
   />
 
   <div class="card overflow-hidden">

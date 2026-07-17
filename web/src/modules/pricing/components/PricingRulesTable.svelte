@@ -48,9 +48,9 @@
 
   function valueLabel(rule: PricingRule): string {
     switch (rule.pricing_method) {
-      case 'fixed_price': return `Rp ${formatPrice(rule.pricing_value)}`;
+      case 'fixed_price': return formatPrice(rule.pricing_value);
       case 'discount_percent': return `${rule.pricing_value}%`;
-      case 'discount_amount': return `-Rp ${formatPrice(rule.pricing_value)}`;
+      case 'discount_amount': return `-${formatPrice(rule.pricing_value)}`;
       case 'markup_percent': return `+${rule.pricing_value}%`;
       default: return String(rule.pricing_value);
     }
@@ -61,17 +61,18 @@
   <div class="overflow-x-auto">
   <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading pricing rules">
     <colgroup>
-      <col style="width: 20%;" />
-      <col style="width: 10%;" />
+      <col style="width: 18%;" />
+      <col style="width: 9%;" />
+      <col style="width: 13%;" />
       <col style="width: 12%;" />
-      <col style="width: 15%;" />
-      <col style="width: 10%;" />
+      <col style="width: 11%;" />
       <col style="width: 8%;" />
-      <col style="width: 8%;" />
-      <col style="width: 17%;" />
+      <col style="width: 7%;" />
+      <col style="width: 7%;" />
+      <col style="width: 6%;" />
     </colgroup>
-    <thead><tr><th>Nama</th><th>Tipe</th><th>Target</th><th>Metode & Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead>
-    <tbody>{#each Array(5) as _}<tr>{#each Array(8) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
+    <thead><tr><th>Nama</th><th>Target</th><th>Tipe</th><th>Metode</th><th class="text-right">Nilai (Rp)</th><th>Min Qty</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead>
+    <tbody>{#each Array(5) as _}<tr>{#each Array(9) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
   </table>
   </div>
 {:else if rules.length === 0}
@@ -81,27 +82,29 @@
   </div>
 {:else}
   <div class="overflow-x-auto">
-  <table class="w-full min-w-[900px]" style="table-layout: fixed;" role="grid" aria-label="Pricing rules">
+  <table class="w-full min-w-[950px]" style="table-layout: fixed;" role="grid" aria-label="Pricing rules">
     <colgroup>
-      <col style="width: 20%;" />
-      <col style="width: 10%;" />
+      <col style="width: 18%;" />
+      <col style="width: 13%;" />
+      <col style="width: 9%;" />
       <col style="width: 12%;" />
-      <col style="width: 15%;" />
-      <col style="width: 10%;" />
+      <col style="width: 11%;" />
       <col style="width: 8%;" />
-      <col style="width: 8%;" />
-      <col style="width: 17%;" />
+      <col style="width: 7%;" />
+      <col style="width: 7%;" />
+      <col style="width: 6%;" />
     </colgroup>
     <thead class="bg-muted/50">
       <tr class="border-b text-left text-sm text-text-muted">
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="NAMA" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
+        <th class="px-4 py-3 font-semibold" scope="col">TARGET</th>
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="TIPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold" scope="col">TARGET</th>
-        <th class="px-4 py-3 font-semibold" scope="col">METODE & NILAI</th>
+        <th class="px-4 py-3 font-semibold" scope="col">METODE</th>
+        <th class="px-4 py-3 font-semibold text-right" scope="col">NILAI (Rp)</th>
         <th class="px-4 py-3 font-semibold text-right">
           <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
@@ -111,21 +114,19 @@
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold text-right" scope="col">AKSI</th>
+        <th class="px-4 py-3 font-semibold text-center" scope="col">AKSI</th>
       </tr>
     </thead>
     <tbody>
       {#each rules as rule (rule.id)}
         <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
-          <td class="px-4 py-3 font-medium truncate">{rule.name}</td>
+          <td class="px-4 py-3 font-medium text-sm truncate max-w-0" title={rule.name}>{rule.name}</td>
+          <td class="px-4 py-3 text-xs truncate max-w-0" title={targetLabel(rule)}>{targetLabel(rule)}</td>
           <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 truncate">{pricingTypes.find(t => t.value === rule.pricing_type)?.label || rule.pricing_type}</span></td>
-          <td class="px-4 py-3 text-xs truncate">{targetLabel(rule)}</td>
-          <td class="px-4 py-3 text-xs">
-            <span class="text-text-muted">{methodLabel(rule.pricing_method)}</span>
-            <span class="font-medium tabular-nums">{valueLabel(rule)}</span>
-          </td>
-          <td class="px-4 py-3 text-right tabular-nums">{rule.minimum_quantity}{rule.maximum_quantity ? `-${rule.maximum_quantity}` : ''}</td>
-          <td class="px-4 py-3 text-right tabular-nums">{rule.priority}</td>
+          <td class="px-4 py-3 text-xs text-text-muted">{methodLabel(rule.pricing_method)}</td>
+          <td class="px-4 py-3 text-xs text-right font-medium tabular-nums">{valueLabel(rule)}</td>
+          <td class="px-4 py-3 text-right text-xs tabular-nums">{rule.minimum_quantity}{rule.maximum_quantity ? `–${rule.maximum_quantity}` : ''}</td>
+          <td class="px-4 py-3 text-right text-xs tabular-nums">{rule.priority}</td>
           <td class="px-4 py-3">
             {#if rule.is_active}
               <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Aktif</span>
@@ -133,8 +134,8 @@
               <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Nonaktif</span>
             {/if}
           </td>
-          <td class="px-4 py-3 text-right">
-            <div class="flex items-center justify-end gap-1" role="group" aria-label="Actions for {rule.name}">
+          <td class="px-4 py-3">
+            <div class="flex items-center justify-center gap-1" role="group" aria-label="Actions for {rule.name}">
               {#if canEdit}
                 <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => onedit(rule)} aria-label="Edit {rule.name}"><Pencil class="w-4 h-4" /></Button>
               {/if}
