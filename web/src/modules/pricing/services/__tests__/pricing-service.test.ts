@@ -167,4 +167,74 @@ describe('pricing-service', () => {
       expect(result[0].name).toBe('Main Store');
     });
   });
+
+  describe('getPricingRule', () => {
+    it('returns single rule', async () => {
+      const rule = { id: 1, name: 'Rule 1', pricing_type: 'promotion' };
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: rule }),
+      });
+
+      const { getPricingRule } = await import('../pricing-service');
+      const result = await getPricingRule(1);
+
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/pricing-rules/1');
+      expect(result).toEqual(rule);
+    });
+
+    it('returns null on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { getPricingRule } = await import('../pricing-service');
+      const result = await getPricingRule(1);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('updatePricingRule', () => {
+    it('sends PUT with correct payload', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true });
+
+      const { updatePricingRule } = await import('../pricing-service');
+      const payload = { pricing_value: 20, name: 'Updated Rule' };
+      const result = await updatePricingRule(1, payload);
+
+      expect(result).toBe(true);
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/pricing-rules/1', expect.objectContaining({
+        method: 'PUT',
+      }));
+      const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
+      expect(body.pricing_value).toBe(20);
+      expect(body.name).toBe('Updated Rule');
+    });
+
+    it('returns false on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { updatePricingRule } = await import('../pricing-service');
+      const result = await updatePricingRule(1, { pricing_value: 20 });
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('deletePricingRule', () => {
+    it('sends DELETE request', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true });
+
+      const { deletePricingRule } = await import('../pricing-service');
+      const result = await deletePricingRule(1);
+
+      expect(result).toBe(true);
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/pricing-rules/1', { method: 'DELETE' });
+    });
+
+    it('returns false on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { deletePricingRule } = await import('../pricing-service');
+      const result = await deletePricingRule(1);
+      expect(result).toBe(false);
+    });
+  });
 });

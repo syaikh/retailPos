@@ -1,47 +1,50 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { toast } from '$shared/stores/toast.svelte.ts';
+  import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
-  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service.ts';
-  import { getCategories, getBrands } from '$modules/product/services/product-service.ts';
-  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader, Dropdown, Badge } from '$shared/ui';
-  import { Plus, Pencil, Trash2, DollarSign, Loader2, ChevronDown } from 'lucide-svelte';
+  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service';
+  import { getCategories, getBrands } from '$modules/product/services/product-service';
+  import type { PricingRule } from '../types';
+  import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge } from '$shared/ui';
+  import { Loader2 } from 'lucide-svelte';
+  import PricingRulesToolbar from './PricingRulesToolbar.svelte';
+  import PricingRulesTable from './PricingRulesTable.svelte';
 
   const authStore = useAuthStore();
 
   let loading = $state(true);
-  let rules = $state([]);
+  let rules = $state<PricingRule[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
   let searchQuery = $state('');
   let showModal = $state(false);
   let showDeleteModal = $state(false);
-  let selectedRule = $state(null);
-  let modalMode = $state('add');
+  let selectedRule = $state<PricingRule | null>(null);
+  let modalMode = $state<'add' | 'edit'>('add');
   let saving = $state(false);
   let sortBy = $state('name');
-  let sortDir = $state('asc');
+  let sortDir = $state<'asc' | 'desc'>('asc');
   let statusFilter = $state('all');
   let typeFilter = $state('all');
 
-  let customerGroups = $state([]);
-  let stores = $state([]);
-  let productSearchResults = $state([]);
+  let customerGroups = $state<{ id: number; name: string }[]>([]);
+  let stores = $state<{ id: number; name: string }[]>([]);
+  let productSearchResults = $state<{ id: number; name: string; sku: string; price: number }[]>([]);
   let productSearchQuery = $state('');
-  let productSearchTimeout = null;
+  let productSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let selectedProductName = $state('');
-  let categories = $state([]);
-  let brands = $state([]);
+  let categories = $state<{ id: number; name: string }[]>([]);
+  let brands = $state<{ id: number; name: string }[]>([]);
   let categorySearchQuery = $state('');
   let brandSearchQuery = $state('');
-  let categorySearchResults = $state([]);
-  let brandSearchResults = $state([]);
-  let categorySearchTimeout = null;
-  let brandSearchTimeout = null;
+  let categorySearchResults = $state<{ id: number; name: string }[]>([]);
+  let brandSearchResults = $state<{ id: number; name: string }[]>([]);
+  let categorySearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let brandSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let selectedCategoryName = $state('');
   let selectedBrandName = $state('');
-  let formErrors = $state({});
+  let formErrors = $state<Record<string, string>>({});
   let showErrors = $state(false);
 
   const dayOptions = [
@@ -55,19 +58,19 @@
   ];
 
   let form = $state({
-    product_id: null,
-    category_id: null,
-    brand_id: null,
-    pricing_type: 'default',
-    pricing_method: 'fixed_price',
+    product_id: null as number | null,
+    category_id: null as number | null,
+    brand_id: null as number | null,
+    pricing_type: 'default' as string,
+    pricing_method: 'fixed_price' as string,
     pricing_value: 0,
     name: '',
     minimum_quantity: 1,
-    maximum_quantity: null,
+    maximum_quantity: undefined as number | undefined,
     priority: 0,
-    customer_group_id: null,
-    store_id: null,
-    recurrence_days: [],
+    customer_group_id: null as number | null,
+    store_id: null as number | null,
+    recurrence_days: [] as string[],
     time_from: '',
     time_to: '',
     allow_combine: false,
@@ -98,8 +101,8 @@
   let sortedRules = $derived.by(() => {
     const sorted = [...rules];
     sorted.sort((a, b) => {
-      let av = a[sortBy];
-      let bv = b[sortBy];
+      let av: any = a[sortBy as keyof PricingRule];
+      let bv: any = b[sortBy as keyof PricingRule];
       if (typeof av === 'string') av = av.toLowerCase();
       if (typeof bv === 'string') bv = bv.toLowerCase();
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
@@ -109,30 +112,9 @@
     return sorted;
   });
 
-  function targetLabel(rule) {
-    if (rule.product_id) return `Product #${rule.product_id}`;
-    if (rule.category_id) return `Category #${rule.category_id}`;
-    if (rule.brand_id) return `Brand #${rule.brand_id}`;
-    return '-';
-  }
-
-  function methodLabel(method) {
-    return pricingMethods.find(m => m.value === method)?.label || method;
-  }
-
-  function valueLabel(rule) {
-    switch (rule.pricing_method) {
-      case 'fixed_price': return `Rp ${formatPrice(rule.pricing_value)}`;
-      case 'discount_percent': return `${rule.pricing_value}%`;
-      case 'discount_amount': return `-Rp ${formatPrice(rule.pricing_value)}`;
-      case 'markup_percent': return `+${rule.pricing_value}%`;
-      default: return rule.pricing_value;
-    }
-  }
-
   async function fetchRules() {
     loading = true;
-    const params = { limit, offset, search: searchQuery };
+    const params: any = { limit, offset, search: searchQuery, sort_by: sortBy, sort_dir: sortDir };
     if (statusFilter === 'active') params.is_active = true;
     else if (statusFilter === 'inactive') params.is_active = false;
     if (typeFilter !== 'all') params.pricing_type = typeFilter;
@@ -142,20 +124,21 @@
     loading = false;
   }
 
-  function handleSort(col) {
+  function handleSort(col: string) {
     if (sortBy === col) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {
       sortBy = col;
       sortDir = 'asc';
     }
+    fetchRules();
   }
 
   function resetForm() {
     form = {
       product_id: null, category_id: null, brand_id: null,
       pricing_type: 'default', pricing_method: 'fixed_price', pricing_value: 0,
-      name: '', minimum_quantity: 1, maximum_quantity: null, priority: 0,
+      name: '', minimum_quantity: 1, maximum_quantity: undefined, priority: 0,
       customer_group_id: null, store_id: null, recurrence_days: [],
       time_from: '', time_to: '', allow_combine: false, is_active: true,
       effective_from: '', effective_until: ''
@@ -179,7 +162,7 @@
     showModal = true;
   }
 
-  function openEdit(rule) {
+  function openEdit(rule: PricingRule) {
     modalMode = 'edit';
     selectedRule = rule;
     form = {
@@ -191,7 +174,7 @@
       pricing_value: rule.pricing_value,
       name: rule.name,
       minimum_quantity: rule.minimum_quantity,
-      maximum_quantity: rule.maximum_quantity || null,
+      maximum_quantity: rule.maximum_quantity || undefined,
       priority: rule.priority,
       customer_group_id: rule.customer_group_id || null,
       store_id: rule.store_id || null,
@@ -200,8 +183,8 @@
       time_to: rule.time_to || '',
       allow_combine: rule.allow_combine || false,
       is_active: rule.is_active,
-      effective_from: rule.effective_from ? rule.effective_from.split('T')[0] : '',
-      effective_until: rule.effective_until ? rule.effective_until.split('T')[0] : ''
+      effective_from: rule.effective_from ? String(rule.effective_from).split('T')[0] : '',
+      effective_until: rule.effective_until ? String(rule.effective_until).split('T')[0] : ''
     };
     selectedProductName = rule.product_id ? `Product #${rule.product_id}` : '';
     selectedCategoryName = rule.category_id ? categories.find(c => c.id === rule.category_id)?.name || `#${rule.category_id}` : '';
@@ -211,20 +194,20 @@
     showModal = true;
   }
 
-  function openDelete(rule) {
+  function openDelete(rule: PricingRule) {
     selectedRule = rule;
     showDeleteModal = true;
   }
 
   function handleProductSearch() {
-    clearTimeout(productSearchTimeout);
+    if (productSearchTimeout) clearTimeout(productSearchTimeout);
     productSearchTimeout = setTimeout(async () => {
       if (productSearchQuery.length < 2) { productSearchResults = []; return; }
       productSearchResults = await searchProducts(productSearchQuery, 10);
     }, 300);
   }
 
-  function selectProduct(product) {
+  function selectProduct(product: { id: number; name: string; sku: string }) {
     form.product_id = product.id;
     selectedProductName = `${product.name} (${product.sku})`;
     productSearchResults = [];
@@ -237,7 +220,7 @@
   }
 
   function handleCategorySearch() {
-    clearTimeout(categorySearchTimeout);
+    if (categorySearchTimeout) clearTimeout(categorySearchTimeout);
     categorySearchTimeout = setTimeout(() => {
       const q = categorySearchQuery.toLowerCase();
       if (q.length < 1) { categorySearchResults = []; return; }
@@ -245,7 +228,7 @@
     }, 200);
   }
 
-  function selectCategory(cat) {
+  function selectCategory(cat: { id: number; name: string }) {
     form.category_id = cat.id;
     selectedCategoryName = cat.name;
     categorySearchResults = [];
@@ -258,7 +241,7 @@
   }
 
   function handleBrandSearch() {
-    clearTimeout(brandSearchTimeout);
+    if (brandSearchTimeout) clearTimeout(brandSearchTimeout);
     brandSearchTimeout = setTimeout(() => {
       const q = brandSearchQuery.toLowerCase();
       if (q.length < 1) { brandSearchResults = []; return; }
@@ -266,7 +249,7 @@
     }, 200);
   }
 
-  function selectBrand(brand) {
+  function selectBrand(brand: { id: number; name: string }) {
     form.brand_id = brand.id;
     selectedBrandName = brand.name;
     brandSearchResults = [];
@@ -278,7 +261,7 @@
     selectedBrandName = '';
   }
 
-  function toggleDay(day) {
+  function toggleDay(day: string) {
     if (form.recurrence_days.includes(day)) {
       form.recurrence_days = form.recurrence_days.filter(d => d !== day);
     } else {
@@ -286,7 +269,7 @@
     }
   }
 
-  async function saveRule(e) {
+  async function saveRule(e: Event) {
     e.preventDefault();
     const errors = validateForm();
     formErrors = errors;
@@ -296,7 +279,7 @@
       return;
     }
     saving = true;
-    const payload = { ...form };
+    const payload: any = { ...form };
     if (payload.effective_from) {
       payload.effective_from = payload.effective_from + 'T00:00:00Z';
     } else {
@@ -307,18 +290,18 @@
     } else {
       delete payload.effective_until;
     }
-    if (payload.maximum_quantity === null || payload.maximum_quantity === '') delete payload.maximum_quantity;
+    if (payload.maximum_quantity === undefined || payload.maximum_quantity === '') delete payload.maximum_quantity;
     if (payload.customer_group_id === null) delete payload.customer_group_id;
     if (payload.store_id === null) delete payload.store_id;
     if (!payload.time_from) delete payload.time_from;
     if (!payload.time_to) delete payload.time_to;
     if (payload.recurrence_days.length === 0) delete payload.recurrence_days;
 
-    let ok;
+    let ok: boolean;
     if (modalMode === 'add') {
       ok = await createPricingRule(payload);
     } else {
-      ok = await updatePricingRule(selectedRule.id, payload);
+      ok = await updatePricingRule(selectedRule!.id, payload);
     }
     saving = false;
 
@@ -343,28 +326,17 @@
     }
   }
 
-  function handlePageChange(newOffset, newLimit) {
+  function handlePageChange(newOffset: number, newLimit: number) {
     offset = newOffset;
     limit = newLimit;
     fetchRules();
   }
 
-  let searchTimeout;
-  function handleSearch() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => { offset = 0; fetchRules(); }, 300);
-  }
-
-  function handleFilterChange() {
-    offset = 0;
-    fetchRules();
-  }
-
-  function formatPrice(v) {
+  function formatPrice(v: number): string {
     return v?.toLocaleString('id-ID') || '0';
   }
 
-  function getMethodConfig(method) {
+  function getMethodConfig(method: string) {
     switch (method) {
       case 'fixed_price': return { prefix: 'Rp', suffix: '', placeholder: '150000', helper: 'Harga tetap per unit.' };
       case 'discount_percent': return { prefix: '', suffix: '%', placeholder: '10', helper: 'Persentase diskon (0-100).' };
@@ -391,10 +363,10 @@
   const workDaysSelected = $derived(() => ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => form.recurrence_days.includes(d)));
   const weekendSelected = $derived(() => ['sat', 'sun'].every(d => form.recurrence_days.includes(d)));
 
-  function formatDayRange(days) {
+  function formatDayRange(days: string[]): string {
     if (!days || days.length === 0) return 'Setiap hari';
     if (days.length === 7) return 'Setiap hari';
-    const shortMap = { mon: 'Sen', tue: 'Sel', wed: 'Rab', thu: 'Kam', fri: 'Jum', sat: 'Sab', sun: 'Min' };
+    const shortMap: Record<string, string> = { mon: 'Sen', tue: 'Sel', wed: 'Rab', thu: 'Kam', fri: 'Jum', sat: 'Sab', sun: 'Min' };
     const ordered = dayOptions.map(d => d.value).filter(d => days.includes(d));
     if (ordered.length === 0) return '-';
     const labels = ordered.map(d => shortMap[d] || d);
@@ -438,8 +410,8 @@
     };
   });
 
-  function validateForm() {
-    const errors = {};
+  function validateForm(): Record<string, string> {
+    const errors: Record<string, string> = {};
     if (!form.name || !form.name.trim()) errors.name = 'Nama rule wajib diisi.';
     if (!form.product_id && !form.category_id && !form.brand_id) errors.target = 'Pilih minimal satu target.';
     if (form.maximum_quantity && form.minimum_quantity > form.maximum_quantity) errors.qty = 'Max Qty harus lebih besar dari Min Qty.';
@@ -458,150 +430,36 @@
 </script>
 
 <div class="space-y-5">
-  <div class="card p-4">
-    <div class="flex items-center gap-3">
-      <div class="flex-1">
-        <SearchBar bind:value={searchQuery} placeholder="Cari rule..." oninput={handleSearch} inputClass="h-10" />
-      </div>
-      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'all'; handleFilterChange(); }}
-        >Semua</button>
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'active'; handleFilterChange(); }}
-        >Aktif</button>
-        <button
-          class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-          onclick={() => { statusFilter = 'inactive'; handleFilterChange(); }}
-        >Nonaktif</button>
-      </div>
-      <Dropdown placement="bottom-start" items={[
-        { label: 'Semua Tipe', checked: typeFilter === 'all', onclick: () => { typeFilter = 'all'; handleFilterChange(); } },
-        ...pricingTypes.map(pt => ({
-          label: pt.label,
-          checked: typeFilter === pt.value,
-          onclick: () => { typeFilter = pt.value; handleFilterChange(); }
-        }))
-      ]}>
-        {#snippet trigger({ toggle })}
-          <button
-            class="flex items-center gap-2 px-3 h-10 rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors {typeFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}"
-            style="min-width: 130px;"
-            onclick={toggle}
-          >
-            <span class="flex-1 text-left truncate">{typeLabel}</span>
-            <ChevronDown size={14} class="text-text-muted shrink-0" />
-          </button>
-        {/snippet}
-      </Dropdown>
-      {#if canCreate}
-        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
-          <Plus size={18} /> Tambah Rule
-        </Button>
-      {/if}
-    </div>
-  </div>
+  <PricingRulesToolbar
+    bind:searchQuery
+    bind:statusFilter
+    bind:typeFilter
+    {canCreate}
+    {pricingTypes}
+    {typeLabel}
+    oncreate={openAdd}
+  />
 
   <div class="card overflow-hidden">
-    {#if loading}
-      <div class="overflow-x-auto">
-      <table class="w-full" style="table-layout: fixed;">
-        <colgroup>
-          <col style="width: 20%;" />
-          <col style="width: 10%;" />
-          <col style="width: 12%;" />
-          <col style="width: 15%;" />
-          <col style="width: 10%;" />
-          <col style="width: 8%;" />
-          <col style="width: 8%;" />
-          <col style="width: 17%;" />
-        </colgroup>
-        <thead><tr><th>Nama</th><th>Tipe</th><th>Target</th><th>Metode & Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead>
-        <tbody>{#each Array(5) as _}<tr>{#each Array(8) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
-      </table>
-      </div>
-    {:else if rules.length === 0}
-      <div class="flex flex-col items-center justify-center py-12 text-gray-400">
-        <DollarSign class="w-12 h-12 mb-3" />
-        <p>Belum ada pricing rules</p>
-      </div>
-    {:else}
-      <div class="overflow-x-auto">
-      <table class="w-full min-w-[900px]" style="table-layout: fixed;">
-        <colgroup>
-          <col style="width: 20%;" />
-          <col style="width: 10%;" />
-          <col style="width: 12%;" />
-          <col style="width: 15%;" />
-          <col style="width: 10%;" />
-          <col style="width: 8%;" />
-          <col style="width: 8%;" />
-          <col style="width: 17%;" />
-        </colgroup>
-        <thead class="bg-muted/50">
-          <tr class="border-b text-left text-sm text-text-muted">
-            <th class="px-4 py-3 font-semibold">
-              <SortableHeader label="NAMA" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
-            </th>
-            <th class="px-4 py-3 font-semibold">
-              <SortableHeader label="TIPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
-            </th>
-            <th class="px-4 py-3 font-semibold">TARGET</th>
-            <th class="px-4 py-3 font-semibold">METODE & NILAI</th>
-            <th class="px-4 py-3 font-semibold text-right">
-              <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
-            </th>
-            <th class="px-4 py-3 font-semibold text-right">
-              <SortableHeader label="PRIORITAS" column="priority" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
-            </th>
-            <th class="px-4 py-3 font-semibold">
-              <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
-            </th>
-            <th class="px-4 py-3 font-semibold text-right">AKSI</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each sortedRules as rule (rule.id)}
-            <tr class="border-b border-border hover:bg-surface-hover/50 transition-colors">
-              <td class="px-4 py-3 font-medium truncate">{rule.name}</td>
-              <td class="px-4 py-3"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 truncate">{pricingTypes.find(t => t.value === rule.pricing_type)?.label || rule.pricing_type}</span></td>
-              <td class="px-4 py-3 text-xs truncate">{targetLabel(rule)}</td>
-              <td class="px-4 py-3 text-xs">
-                <span class="text-text-muted">{methodLabel(rule.pricing_method)}</span>
-                <span class="font-medium tabular-nums">{valueLabel(rule)}</span>
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">{rule.minimum_quantity}{rule.maximum_quantity ? `-${rule.maximum_quantity}` : ''}</td>
-              <td class="px-4 py-3 text-right tabular-nums">{rule.priority}</td>
-              <td class="px-4 py-3">
-                {#if rule.is_active}
-                  <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Aktif</span>
-                {:else}
-                  <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Nonaktif</span>
-                {/if}
-              </td>
-              <td class="px-4 py-3 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  {#if canEdit}
-                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => openEdit(rule)}><Pencil class="w-4 h-4" /></Button>
-                  {/if}
-                  {#if canDelete}
-                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => openDelete(rule)}><Trash2 class="w-4 h-4" /></Button>
-                  {/if}
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-      </div>
+    <PricingRulesTable
+      rules={sortedRules}
+      {loading}
+      {searchQuery}
+      {sortBy}
+      {sortDir}
+      {canEdit}
+      {canDelete}
+      {pricingTypes}
+      {pricingMethods}
+      onsort={handleSort}
+      onedit={openEdit}
+      ondelete={openDelete}
+    />
 
-      {#if !loading && rules.length > 0}
-        <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
-        </div>
-      {/if}
+    {#if !loading && rules.length > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+      </div>
     {/if}
   </div>
 </div>
@@ -609,7 +467,7 @@
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Pricing Rule' : 'Edit Pricing Rule'} size="xl">
   <form onsubmit={saveRule} class="space-y-5">
 
-    <!-- ═══════════════════════ SECTION 1: Informasi Rule ═══════════════════════ -->
+    <!-- Section 1: Informasi Rule -->
     <div>
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">1</span>
@@ -664,7 +522,7 @@
       </div>
     </div>
 
-    <!-- ═══════════════════════ SECTION 2: Kondisi ═══════════════════════ -->
+    <!-- Section 2: Kondisi -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">2</span>
@@ -702,7 +560,7 @@
       </div>
     </div>
 
-    <!-- ═══════════════════════ SECTION 3: Target ═══════════════════════ -->
+    <!-- Section 3: Target -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">3</span>
@@ -782,7 +640,7 @@
       {/if}
     </div>
 
-    <!-- ═══════════════════════ SECTION 4: Jadwal ═══════════════════════ -->
+    <!-- Section 4: Jadwal -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">4</span>
@@ -843,7 +701,7 @@
       </div>
     </div>
 
-    <!-- ═══════════════════════ SECTION 5: Ringkasan ═══════════════════════ -->
+    <!-- Section 5: Ringkasan -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">5</span>
@@ -903,7 +761,7 @@
       </div>
     </div>
 
-    <!-- ═══════════════════════ Opsi Tambahan ═══════════════════════ -->
+    <!-- Opsi Tambahan -->
     <div class="flex items-center gap-5">
       <label class="flex items-center gap-2 cursor-pointer group">
         <input type="checkbox" bind:checked={form.allow_combine} class="rounded border-border-default text-primary-default focus:ring-primary-default/30" />

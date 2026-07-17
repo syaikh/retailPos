@@ -1,11 +1,13 @@
 import { apiFetch } from '$shared/api/http-client';
-import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload } from '../types';
+import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload, ProductSupplier } from '../types';
 
 export interface SupplierListParams {
   limit: number;
   offset: number;
   search?: string;
   is_active?: boolean;
+  sort_by?: string;
+  sort_dir?: string;
 }
 
 export interface SupplierListResponse {
@@ -20,6 +22,8 @@ export async function getSuppliers(params: SupplierListParams): Promise<Supplier
   });
   if (params.search) urlParams.append('search', params.search);
   if (params.is_active !== undefined) urlParams.append('is_active', params.is_active.toString());
+  if (params.sort_by) urlParams.append('sort_by', params.sort_by);
+  if (params.sort_dir) urlParams.append('sort_dir', params.sort_dir);
 
   const r = await apiFetch(`/api/suppliers?${urlParams.toString()}`);
   if (r.ok) {
@@ -59,7 +63,7 @@ export async function deleteSupplier(id: number): Promise<boolean> {
   return r.ok;
 }
 
-export async function getSuppliersByProduct(productId: number): Promise<any[]> {
+export async function getSuppliersByProduct(productId: number): Promise<ProductSupplier[]> {
   const r = await apiFetch(`/api/products/${productId}/suppliers`);
   if (r.ok) {
     const data = await r.json();
