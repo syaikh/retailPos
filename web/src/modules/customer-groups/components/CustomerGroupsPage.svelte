@@ -4,6 +4,7 @@
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { getCustomerGroups, createCustomerGroup, updateCustomerGroup, deleteCustomerGroup } from '../services/customer-group-service';
+  import type { CustomerGroup } from '../types';
   import { Pagination } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import CustomerGroupsToolbar from './CustomerGroupsToolbar.svelte';
@@ -20,7 +21,7 @@
   const canDelete = $derived(userPermissions.includes('customer_group:delete'));
 
   let loading = $state(true);
-  let groups = $state<any[]>([]);
+  let groups = $state<CustomerGroup[]>([]);
   let total = $state(0);
   let limit = $state(20);
   let offset = $state(0);
@@ -32,7 +33,7 @@
   let showCreateModal = $state(false);
   let creating = $state(false);
   let showEditModal = $state(false);
-  let selectedGroup = $state<any>(null);
+  let selectedGroup = $state<CustomerGroup | null>(null);
   let saving = $state(false);
   let showDeleteModal = $state(false);
   let deleteTargetName = $state('');
@@ -93,17 +94,17 @@
     }
   }
 
-  function viewMembers(g: any) {
+  function viewMembers(g: CustomerGroup) {
     sessionStorage.setItem('customerGroupFilter', String(g.id));
     goto('/customers');
   }
 
-  function openEdit(g: any) {
+  function openEdit(g: CustomerGroup) {
     selectedGroup = g;
     showEditModal = true;
   }
 
-  async function handleEditSave(data: any) {
+  async function handleEditSave(data: { id: number; name: string; description?: string; is_active: boolean }) {
     saving = true;
     try {
       await updateCustomerGroup(data.id, data);
@@ -118,7 +119,7 @@
     }
   }
 
-  function openDelete(g: any) {
+  function openDelete(g: CustomerGroup) {
     selectedGroup = g;
     deleteTargetName = g.name;
     showDeleteModal = true;

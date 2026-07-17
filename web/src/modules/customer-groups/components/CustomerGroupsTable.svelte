@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { Pencil, Trash2, Search, Users } from 'lucide-svelte';
+  import type { CustomerGroup } from '../types';
 
   let {
     groups = [],
@@ -11,11 +12,11 @@
     sortBy = $bindable('name'),
     sortDir = $bindable<'asc' | 'desc'>('asc'),
     onsort = (col: string) => {},
-    onviewmembers = (g: any) => {},
-    onedit = (g: any) => {},
-    ondelete = (g: any) => {},
+    onviewmembers = (_g: CustomerGroup) => {},
+    onedit = (_g: CustomerGroup) => {},
+    ondelete = (_g: CustomerGroup) => {},
   }: {
-    groups: any[];
+    groups: CustomerGroup[];
     loading: boolean;
     searchQuery: string;
     canUpdate: boolean;
@@ -23,9 +24,9 @@
     sortBy: string;
     sortDir: 'asc' | 'desc';
     onsort?: (col: string) => void;
-    onviewmembers?: (g: any) => void;
-    onedit?: (g: any) => void;
-    ondelete?: (g: any) => void;
+    onviewmembers?: (g: CustomerGroup) => void;
+    onedit?: (g: CustomerGroup) => void;
+    ondelete?: (g: CustomerGroup) => void;
   } = $props();
 
   function formatDate(dateStr?: string): string {
