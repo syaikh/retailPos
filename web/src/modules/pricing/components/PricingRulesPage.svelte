@@ -3,7 +3,8 @@
   import { toast } from '$shared/stores/toast.svelte.ts';
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service.ts';
-  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader, Dropdown } from '$shared/ui';
+  import { getCategories, getBrands } from '$modules/product/services/product-service.ts';
+  import { Button, Input, Modal, Skeleton, SearchBar, Pagination, ConfirmDeleteModal, SortableHeader, Dropdown, Badge } from '$shared/ui';
   import { Plus, Pencil, Trash2, DollarSign, Loader2, ChevronDown } from 'lucide-svelte';
 
   const authStore = useAuthStore();
@@ -30,6 +31,18 @@
   let productSearchQuery = $state('');
   let productSearchTimeout = null;
   let selectedProductName = $state('');
+  let categories = $state([]);
+  let brands = $state([]);
+  let categorySearchQuery = $state('');
+  let brandSearchQuery = $state('');
+  let categorySearchResults = $state([]);
+  let brandSearchResults = $state([]);
+  let categorySearchTimeout = null;
+  let brandSearchTimeout = null;
+  let selectedCategoryName = $state('');
+  let selectedBrandName = $state('');
+  let formErrors = $state({});
+  let showErrors = $state(false);
 
   const dayOptions = [
     { value: 'mon', label: 'Senin' },
@@ -68,16 +81,16 @@
   let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
 
   const pricingTypes = [
-    { value: 'default', label: 'Default' },
-    { value: 'price_list', label: 'Daftar Harga' },
-    { value: 'promotion', label: 'Promosi' }
+    { value: 'default', label: 'Default', description: 'Harga normal yang berlaku tanpa kondisi khusus.' },
+    { value: 'price_list', label: 'Daftar Harga', description: 'Harga khusus untuk daftar harga tertentu (mis. grosir, member).' },
+    { value: 'promotion', label: 'Promosi', description: 'Harga promo terbatas waktu (diskon, flash sale, event).' }
   ];
 
   const pricingMethods = [
-    { value: 'fixed_price', label: 'Harga Tetap' },
-    { value: 'discount_percent', label: 'Diskon (%)' },
-    { value: 'discount_amount', label: 'Diskon (Rp)' },
-    { value: 'markup_percent', label: 'Markup (%)' }
+    { value: 'fixed_price', label: 'Harga Tetap', description: 'Tetapkan harga jual langsung, menggantikan harga normal.' },
+    { value: 'discount_percent', label: 'Diskon (%)', description: 'Potongan harga berupa persentase dari harga normal.' },
+    { value: 'discount_amount', label: 'Diskon (Rp)', description: 'Potongan harga berupa nominal tetap (Rupiah).' },
+    { value: 'markup_percent', label: 'Markup (%)', description: 'Penambahan harga berupa persentase dari harga normal.' }
   ];
 
   let typeLabel = $derived(typeFilter === 'all' ? 'All Types' : pricingTypes.find(t => t.value === typeFilter)?.label || typeFilter);
@@ -150,11 +163,19 @@
     selectedProductName = '';
     productSearchResults = [];
     productSearchQuery = '';
+    selectedCategoryName = '';
+    categorySearchResults = [];
+    categorySearchQuery = '';
+    selectedBrandName = '';
+    brandSearchResults = [];
+    brandSearchQuery = '';
   }
 
   function openAdd() {
     modalMode = 'add';
     resetForm();
+    formErrors = {};
+    showErrors = false;
     showModal = true;
   }
 
@@ -183,6 +204,10 @@
       effective_until: rule.effective_until ? rule.effective_until.split('T')[0] : ''
     };
     selectedProductName = rule.product_id ? `Product #${rule.product_id}` : '';
+    selectedCategoryName = rule.category_id ? categories.find(c => c.id === rule.category_id)?.name || `#${rule.category_id}` : '';
+    selectedBrandName = rule.brand_id ? brands.find(b => b.id === rule.brand_id)?.name || `#${rule.brand_id}` : '';
+    formErrors = {};
+    showErrors = false;
     showModal = true;
   }
 
@@ -211,6 +236,48 @@
     selectedProductName = '';
   }
 
+  function handleCategorySearch() {
+    clearTimeout(categorySearchTimeout);
+    categorySearchTimeout = setTimeout(() => {
+      const q = categorySearchQuery.toLowerCase();
+      if (q.length < 1) { categorySearchResults = []; return; }
+      categorySearchResults = categories.filter(c => c.name.toLowerCase().includes(q)).slice(0, 10);
+    }, 200);
+  }
+
+  function selectCategory(cat) {
+    form.category_id = cat.id;
+    selectedCategoryName = cat.name;
+    categorySearchResults = [];
+    categorySearchQuery = '';
+  }
+
+  function clearCategory() {
+    form.category_id = null;
+    selectedCategoryName = '';
+  }
+
+  function handleBrandSearch() {
+    clearTimeout(brandSearchTimeout);
+    brandSearchTimeout = setTimeout(() => {
+      const q = brandSearchQuery.toLowerCase();
+      if (q.length < 1) { brandSearchResults = []; return; }
+      brandSearchResults = brands.filter(b => b.name.toLowerCase().includes(q)).slice(0, 10);
+    }, 200);
+  }
+
+  function selectBrand(brand) {
+    form.brand_id = brand.id;
+    selectedBrandName = brand.name;
+    brandSearchResults = [];
+    brandSearchQuery = '';
+  }
+
+  function clearBrand() {
+    form.brand_id = null;
+    selectedBrandName = '';
+  }
+
   function toggleDay(day) {
     if (form.recurrence_days.includes(day)) {
       form.recurrence_days = form.recurrence_days.filter(d => d !== day);
@@ -221,12 +288,11 @@
 
   async function saveRule(e) {
     e.preventDefault();
-    if (!form.name) {
-      toast.error('Nama rule wajib diisi');
-      return;
-    }
-    if (!form.product_id && !form.category_id && !form.brand_id) {
-      toast.error('Pilih minimal satu target (product, kategori, atau brand)');
+    const errors = validateForm();
+    formErrors = errors;
+    showErrors = true;
+    if (Object.keys(errors).length > 0) {
+      toast.error(Object.values(errors)[0]);
       return;
     }
     saving = true;
@@ -298,11 +364,96 @@
     return v?.toLocaleString('id-ID') || '0';
   }
 
+  function getMethodConfig(method) {
+    switch (method) {
+      case 'fixed_price': return { prefix: 'Rp', suffix: '', placeholder: '150000', helper: 'Harga tetap per unit.' };
+      case 'discount_percent': return { prefix: '', suffix: '%', placeholder: '10', helper: 'Persentase diskon (0-100).' };
+      case 'discount_amount': return { prefix: 'Rp', suffix: '', placeholder: '20000', helper: 'Potongan nominal.' };
+      case 'markup_percent': return { prefix: '', suffix: '%', placeholder: '5', helper: 'Persentase markup (0-500).' };
+      default: return { prefix: '', suffix: '', placeholder: '0', helper: '' };
+    }
+  }
+
+  function selectAllDays() {
+    form.recurrence_days = dayOptions.map(d => d.value);
+  }
+  function selectWorkDays() {
+    form.recurrence_days = ['mon', 'tue', 'wed', 'thu', 'fri'];
+  }
+  function selectWeekend() {
+    form.recurrence_days = ['sat', 'sun'];
+  }
+  function clearDays() {
+    form.recurrence_days = [];
+  }
+
+  const allDaysSelected = $derived(form.recurrence_days.length === dayOptions.length);
+  const workDaysSelected = $derived(() => ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => form.recurrence_days.includes(d)));
+  const weekendSelected = $derived(() => ['sat', 'sun'].every(d => form.recurrence_days.includes(d)));
+
+  function formatDayRange(days) {
+    if (!days || days.length === 0) return 'Setiap hari';
+    if (days.length === 7) return 'Setiap hari';
+    const shortMap = { mon: 'Sen', tue: 'Sel', wed: 'Rab', thu: 'Kam', fri: 'Jum', sat: 'Sab', sun: 'Min' };
+    const ordered = dayOptions.map(d => d.value).filter(d => days.includes(d));
+    if (ordered.length === 0) return '-';
+    const labels = ordered.map(d => shortMap[d] || d);
+    if (labels.length <= 3) return labels.join(', ');
+    return `${labels[0]} - ${labels[labels.length - 1]} (${labels.length} hari)`;
+  }
+
+  let summaryPreview = $derived.by(() => {
+    const method = getMethodConfig(form.pricing_method);
+    let valueStr = '';
+    if (form.pricing_method === 'fixed_price') valueStr = `Rp${formatPrice(form.pricing_value)}`;
+    else if (form.pricing_method === 'discount_percent') valueStr = `${form.pricing_value}%`;
+    else if (form.pricing_method === 'discount_amount') valueStr = `-Rp${formatPrice(form.pricing_value)}`;
+    else if (form.pricing_method === 'markup_percent') valueStr = `+${form.pricing_value}%`;
+
+    const catLabel = selectedCategoryName || '-';
+    const brandLabel = selectedBrandName || '-';
+    const cgLabel = form.customer_group_id ? customerGroups.find(cg => cg.id === form.customer_group_id)?.name || 'Dipilih' : 'Semua Group';
+    const storeLabel = form.store_id ? stores.find(s => s.id === form.store_id)?.name || 'Dipilih' : 'Semua Outlet';
+    const qtyMax = form.maximum_quantity ? form.maximum_quantity : 'Tanpa batas';
+    const days = formatDayRange(form.recurrence_days);
+    const timeStr = form.time_from && form.time_to ? `${form.time_from} - ${form.time_to}` : form.time_from ? `${form.time_from} - ...` : 'Sepanjang hari';
+    let periode = 'Selamanya';
+    if (form.effective_from && form.effective_until) periode = `${form.effective_from} s/d ${form.effective_until}`;
+    else if (form.effective_from) periode = `${form.effective_from} s/d ...`;
+    else if (form.effective_until) periode = `... s/d ${form.effective_until}`;
+
+    return {
+      product: selectedProductName || '-',
+      category: catLabel,
+      brand: brandLabel,
+      customerGroup: cgLabel,
+      store: storeLabel,
+      qty: `${form.minimum_quantity} - ${qtyMax}`,
+      days,
+      time: timeStr,
+      periode,
+      method: pricingMethods.find(m => m.value === form.pricing_method)?.label || form.pricing_method,
+      value: valueStr,
+      type: pricingTypes.find(t => t.value === form.pricing_type)?.label || form.pricing_type
+    };
+  });
+
+  function validateForm() {
+    const errors = {};
+    if (!form.name || !form.name.trim()) errors.name = 'Nama rule wajib diisi.';
+    if (!form.product_id && !form.category_id && !form.brand_id) errors.target = 'Pilih minimal satu target.';
+    if (form.maximum_quantity && form.minimum_quantity > form.maximum_quantity) errors.qty = 'Max Qty harus lebih besar dari Min Qty.';
+    if (form.effective_from && form.effective_until && form.effective_from > form.effective_until) errors.dates = 'Tanggal selesai tidak boleh sebelum tanggal mulai.';
+    return errors;
+  }
+
   onMount(async () => {
     fetchRules();
-    const [cg, st] = await Promise.all([getCustomerGroups(), getStores()]);
+    const [cg, st, cat, br] = await Promise.all([getCustomerGroups(), getStores(), getCategories(), getBrands()]);
     customerGroups = cg;
     stores = st;
+    categories = cat;
+    brands = br;
   });
 </script>
 
@@ -455,68 +606,124 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Pricing Rule' : 'Edit Pricing Rule'} size="lg">
-  <form onsubmit={saveRule} class="space-y-4">
+<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Pricing Rule' : 'Edit Pricing Rule'} size="xl">
+  <form onsubmit={saveRule} class="space-y-5">
+
+    <!-- ═══════════════════════ SECTION 1: Informasi Rule ═══════════════════════ -->
     <div>
-      <label for="rule-name" class="block text-xs font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
-      <Input id="rule-name" bind:value={form.name} required placeholder="Diskon Member VIP" class="h-9 text-sm" />
-    </div>
-
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label for="pricing-type" class="block text-xs font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
-        <select id="pricing-type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
-          {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
-        </select>
-      </div>
-      <div>
-        <label for="pricing-method" class="block text-xs font-medium text-text-secondary mb-1">Metode Harga <span class="text-danger">*</span></label>
-        <select id="pricing-method" bind:value={form.pricing_method} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
-          {#each pricingMethods as pm}<option value={pm.value}>{pm.label}</option>{/each}
-        </select>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-3 gap-3">
-      <div>
-        <label for="pricing-value" class="block text-xs font-medium text-text-secondary mb-1">Nilai Harga <span class="text-danger">*</span></label>
-        <Input id="pricing-value" type="number" bind:value={form.pricing_value} required min="0" step="0.01" placeholder="0" class="h-9 text-sm" />
-        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">
-          {#if form.pricing_method === 'fixed_price'}Harga tetap per unit
-          {:else if form.pricing_method === 'discount_percent'}Persentase diskon (0-100)
-          {:else if form.pricing_method === 'discount_amount'}Nominal diskon (Rp)
-          {:else if form.pricing_method === 'markup_percent'}Persentase markup (0-500){/if}
-        </p>
-      </div>
-      <div>
-        <label for="min-qty" class="block text-xs font-medium text-text-secondary mb-1">Min Qty</label>
-        <Input id="min-qty" type="number" bind:value={form.minimum_quantity} min="1" placeholder="1" class="h-9 text-sm" />
-      </div>
-      <div>
-        <label for="max-qty" class="block text-xs font-medium text-text-secondary mb-1">Max Qty</label>
-        <Input id="max-qty" type="number" bind:value={form.maximum_quantity} min="1" placeholder="Tanpa batas" class="h-9 text-sm" />
-        <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Kosongkan = tanpa batas</p>
-      </div>
-    </div>
-
-    <div class="border-t pt-3">
-      <p class="text-xs font-medium text-text-secondary mb-2">Target</p>
-      <div class="grid grid-cols-2 gap-3">
+      <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">1</span>
+        Informasi Rule
+      </h3>
+      <div class="space-y-3">
         <div>
-          <label for="product-search" class="block text-xs text-text-muted mb-1">Produk</label>
+          <label for="rule-name" class="block text-xs font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
+          <Input id="rule-name" bind:value={form.name} required placeholder="Diskon Member VIP" class="h-9 text-sm" />
+          {#if showErrors && formErrors.name}
+            <p class="mt-1 text-[11px] text-danger">{formErrors.name}</p>
+          {/if}
+        </div>
+        <div class="grid grid-cols-4 gap-3">
+          <div>
+            <label for="pricing-type" class="block text-xs font-medium text-text-secondary mb-1">Tipe Harga <span class="text-danger">*</span></label>
+            <select id="pricing-type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
+              {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
+            </select>
+            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingTypes.find(t => t.value === form.pricing_type)?.description || ''}</p>
+          </div>
+          <div>
+            <label for="pricing-method" class="block text-xs font-medium text-text-secondary mb-1">Metode <span class="text-danger">*</span></label>
+            <select id="pricing-method" bind:value={form.pricing_method} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
+              {#each pricingMethods as pm}<option value={pm.value}>{pm.label}</option>{/each}
+            </select>
+            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingMethods.find(m => m.value === form.pricing_method)?.description || ''}</p>
+          </div>
+          <div class="col-span-2">
+            <label for="pricing-value" class="block text-xs font-medium text-text-secondary mb-1">Nilai <span class="text-danger">*</span></label>
+            <div class="relative">
+              {#if getMethodConfig(form.pricing_method).prefix}
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted pointer-events-none select-none">{getMethodConfig(form.pricing_method).prefix}</span>
+              {/if}
+              <Input
+                id="pricing-value"
+                type="number"
+                bind:value={form.pricing_value}
+                required
+                min="0"
+                step="0.01"
+                placeholder={getMethodConfig(form.pricing_method).placeholder}
+                class="h-9 text-sm {getMethodConfig(form.pricing_method).prefix ? 'pl-7' : ''} {getMethodConfig(form.pricing_method).suffix ? 'pr-7' : ''}"
+              />
+              {#if getMethodConfig(form.pricing_method).suffix}
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted pointer-events-none select-none">{getMethodConfig(form.pricing_method).suffix}</span>
+              {/if}
+            </div>
+            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{getMethodConfig(form.pricing_method).helper}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ SECTION 2: Kondisi ═══════════════════════ -->
+    <div class="border-t border-border-default pt-4">
+      <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">2</span>
+        Kondisi
+      </h3>
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label for="min-qty" class="block text-xs font-medium text-text-secondary mb-1">Min Qty</label>
+          <Input id="min-qty" type="number" bind:value={form.minimum_quantity} min="1" placeholder="1" class="h-9 text-sm" />
+        </div>
+        <div>
+          <label for="max-qty" class="block text-xs font-medium text-text-secondary mb-1">Max Qty</label>
+          <Input id="max-qty" type="number" bind:value={form.maximum_quantity} min="1" placeholder="Tanpa batas" class="h-9 text-sm" />
+          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Kosong = tanpa batas</p>
+          {#if showErrors && formErrors.qty}
+            <p class="mt-0.5 text-[11px] text-danger">{formErrors.qty}</p>
+          {/if}
+        </div>
+        <div>
+          <label for="customer-group" class="block text-xs font-medium text-text-secondary mb-1">Customer Group</label>
+          <select id="customer-group" bind:value={form.customer_group_id} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
+            <option value={null}>Semua Group</option>
+            {#each customerGroups as cg}<option value={cg.id}>{cg.name}</option>{/each}
+          </select>
+          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Pilih "Semua Group" untuk semua customer.</p>
+        </div>
+        <div>
+          <label for="store-id" class="block text-xs font-medium text-text-secondary mb-1">Outlet</label>
+          <select id="store-id" bind:value={form.store_id} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
+            <option value={null}>Semua Outlet</option>
+            {#each stores as s}<option value={s.id}>{s.name}</option>{/each}
+          </select>
+          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Pilih "Semua Outlet" untuk semua toko.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ SECTION 3: Target ═══════════════════════ -->
+    <div class="border-t border-border-default pt-4">
+      <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">3</span>
+        Target
+      </h3>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label for="product-search" class="block text-xs font-medium text-text-secondary mb-1">Produk</label>
           {#if selectedProductName}
-            <div class="flex items-center gap-2 h-9 px-3 rounded-xl border border-border bg-surface text-sm">
-              <span class="flex-1 truncate">{selectedProductName}</span>
-              <button type="button" onclick={clearProduct} class="text-text-muted hover:text-danger text-xs">x</button>
+            <div class="flex items-center gap-2 h-9 px-3 rounded-xl border border-border-default bg-bg-secondary text-sm">
+              <span class="flex-1 truncate text-text-primary">{selectedProductName}</span>
+              <button type="button" onclick={clearProduct} class="text-text-muted hover:text-danger text-xs shrink-0">x</button>
             </div>
           {:else}
             <div class="relative">
               <Input id="product-search" bind:value={productSearchQuery} oninput={handleProductSearch} placeholder="Cari produk..." class="h-9 text-sm" />
               {#if productSearchResults.length > 0}
-                <div class="absolute z-50 mt-1 w-full bg-surface border border-border rounded-xl shadow-lg max-h-48 overflow-auto">
+                <div class="absolute z-50 mt-1 w-full bg-surface-default border border-border rounded-xl shadow-xl max-h-48 overflow-auto">
                   {#each productSearchResults as p}
                     <button type="button" onclick={() => selectProduct(p)} class="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover truncate">
-                      {p.name} <span class="text-text-muted">({p.sku})</span>
+                      <span class="text-text-primary">{p.name}</span> <span class="text-text-muted">({p.sku})</span>
                     </button>
                   {/each}
                 </div>
@@ -525,78 +732,191 @@
           {/if}
         </div>
         <div>
-          <label for="category-id" class="block text-xs text-text-muted mb-1">Atau pilih kategori / brand</label>
-          <div class="grid grid-cols-2 gap-2">
-            <Input id="category-id" type="number" bind:value={form.category_id} placeholder="Category ID" class="h-9 text-sm" />
-            <Input id="brand-id" type="number" bind:value={form.brand_id} placeholder="Brand ID" class="h-9 text-sm" />
+          <label for="category-search" class="block text-xs font-medium text-text-secondary mb-1">Kategori</label>
+          {#if selectedCategoryName}
+            <div class="flex items-center gap-2 h-9 px-3 rounded-xl border border-border-default bg-bg-secondary text-sm">
+              <span class="flex-1 truncate text-text-primary">{selectedCategoryName}</span>
+              <button type="button" onclick={clearCategory} class="text-text-muted hover:text-danger text-xs shrink-0">x</button>
+            </div>
+          {:else}
+            <div class="relative">
+              <Input id="category-search" bind:value={categorySearchQuery} oninput={handleCategorySearch} placeholder="Cari kategori..." class="h-9 text-sm" />
+              {#if categorySearchResults.length > 0}
+                <div class="absolute z-50 mt-1 w-full bg-surface-default border border-border rounded-xl shadow-xl max-h-48 overflow-auto">
+                  {#each categorySearchResults as c}
+                    <button type="button" onclick={() => selectCategory(c)} class="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover truncate">
+                      <span class="text-text-primary">{c.name}</span>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+        <div>
+          <label for="brand-search" class="block text-xs font-medium text-text-secondary mb-1">Brand</label>
+          {#if selectedBrandName}
+            <div class="flex items-center gap-2 h-9 px-3 rounded-xl border border-border-default bg-bg-secondary text-sm">
+              <span class="flex-1 truncate text-text-primary">{selectedBrandName}</span>
+              <button type="button" onclick={clearBrand} class="text-text-muted hover:text-danger text-xs shrink-0">x</button>
+            </div>
+          {:else}
+            <div class="relative">
+              <Input id="brand-search" bind:value={brandSearchQuery} oninput={handleBrandSearch} placeholder="Cari brand..." class="h-9 text-sm" />
+              {#if brandSearchResults.length > 0}
+                <div class="absolute z-50 mt-1 w-full bg-surface-default border border-border rounded-xl shadow-xl max-h-48 overflow-auto">
+                  {#each brandSearchResults as b}
+                    <button type="button" onclick={() => selectBrand(b)} class="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover truncate">
+                      <span class="text-text-primary">{b.name}</span>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+      <p class="mt-1.5 text-[11px] text-text-muted">Kosongkan field yang tidak digunakan.</p>
+      {#if showErrors && formErrors.target}
+        <p class="mt-0.5 text-[11px] text-danger">{formErrors.target}</p>
+      {/if}
+    </div>
+
+    <!-- ═══════════════════════ SECTION 4: Jadwal ═══════════════════════ -->
+    <div class="border-t border-border-default pt-4">
+      <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">4</span>
+        Jadwal
+      </h3>
+      <div class="space-y-3">
+        <div class="flex items-center gap-2">
+          <button type="button" onclick={allDaysSelected ? clearDays : selectAllDays}
+            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {allDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            Semua Hari
+          </button>
+          <button type="button" onclick={workDaysSelected() ? clearDays : selectWorkDays}
+            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {workDaysSelected() ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            Hari Kerja
+          </button>
+          <button type="button" onclick={weekendSelected() ? clearDays : selectWeekend}
+            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {weekendSelected() ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            Weekend
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          {#each dayOptions as day}
+            <button type="button" onclick={() => toggleDay(day.value)}
+              class="h-7 px-2.5 rounded-lg text-xs font-medium transition-all {form.recurrence_days.includes(day.value) ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+              {day.label}
+            </button>
+          {/each}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="time-from" class="block text-xs font-medium text-text-secondary mb-1">Dari Jam</label>
+            <Input id="time-from" type="time" bind:value={form.time_from} class="h-9 text-sm" />
+          </div>
+          <div>
+            <label for="time-to" class="block text-xs font-medium text-text-secondary mb-1">Sampai Jam</label>
+            <Input id="time-to" type="time" bind:value={form.time_to} class="h-9 text-sm" />
+          </div>
+        </div>
+        {#if !form.time_from && !form.time_to}
+          <p class="text-[11px] leading-tight text-text-muted">Kosong = berlaku sepanjang hari.</p>
+        {/if}
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="effective-from" class="block text-xs font-medium text-text-secondary mb-1">Berlaku Dari</label>
+            <Input id="effective-from" type="date" bind:value={form.effective_from} class="h-9 text-sm" />
+          </div>
+          <div>
+            <label for="effective-until" class="block text-xs font-medium text-text-secondary mb-1">Berlaku Sampai</label>
+            <Input id="effective-until" type="date" bind:value={form.effective_until} class="h-9 text-sm" />
+          </div>
+        </div>
+        {#if !form.effective_from && !form.effective_until}
+          <p class="text-[11px] leading-tight text-text-muted">Kosong = berlaku selamanya.</p>
+        {/if}
+        {#if showErrors && formErrors.dates}
+          <p class="text-[11px] text-danger">{formErrors.dates}</p>
+        {/if}
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ SECTION 5: Ringkasan ═══════════════════════ -->
+    <div class="border-t border-border-default pt-4">
+      <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">5</span>
+        Ringkasan Rule
+      </h3>
+      <div class="bg-bg-secondary/60 border border-border-default rounded-xl p-4">
+        <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Tipe</span>
+            <Badge variant="primary" size="sm">{summaryPreview.type}</Badge>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Metode</span>
+            <span class="text-text-primary font-medium">{summaryPreview.method}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Nilai</span>
+            <span class="text-primary-light font-semibold">{summaryPreview.value}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Qty</span>
+            <span class="text-text-primary">{summaryPreview.qty}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Produk</span>
+            <span class="text-text-primary truncate">{summaryPreview.product}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Kategori</span>
+            <span class="text-text-primary">{summaryPreview.category}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Brand</span>
+            <span class="text-text-primary">{summaryPreview.brand}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Customer</span>
+            <span class="text-text-primary">{summaryPreview.customerGroup}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Outlet</span>
+            <span class="text-text-primary">{summaryPreview.store}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Hari</span>
+            <span class="text-text-primary">{summaryPreview.days}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Jam</span>
+            <span class="text-text-primary">{summaryPreview.time}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-muted w-20 shrink-0">Periode</span>
+            <span class="text-text-primary">{summaryPreview.periode}</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3 border-t pt-3">
-      <div>
-        <label for="customer-group" class="block text-xs text-text-muted mb-1">Customer Group</label>
-        <select id="customer-group" bind:value={form.customer_group_id} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
-          <option value={null}>Semua Group</option>
-          {#each customerGroups as cg}<option value={cg.id}>{cg.name}</option>{/each}
-        </select>
-      </div>
-      <div>
-        <label for="store-id" class="block text-xs text-text-muted mb-1">Toko / Outlet</label>
-        <select id="store-id" bind:value={form.store_id} class="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-9">
-          <option value={null}>Semua Toko</option>
-          {#each stores as s}<option value={s.id}>{s.name}</option>{/each}
-        </select>
-      </div>
-    </div>
-
-    <div class="border-t pt-3">
-      <p class="text-xs font-medium text-text-secondary mb-2">Jadwal</p>
-      <div class="flex flex-wrap gap-1 mb-2">
-        {#each dayOptions as day}
-          <button type="button" onclick={() => toggleDay(day.value)}
-            class="h-7 px-2 rounded-lg text-xs font-medium transition-all {form.recurrence_days.includes(day.value) ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
-            {day.label}
-          </button>
-        {/each}
-      </div>
-      <p class="text-[11px] text-text-muted mb-2">Kosongkan = setiap hari</p>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label for="time-from" class="block text-xs text-text-muted mb-1">Dari Jam</label>
-          <Input id="time-from" type="time" bind:value={form.time_from} class="h-9 text-sm" />
-        </div>
-        <div>
-          <label for="time-to" class="block text-xs text-text-muted mb-1">Sampai Jam</label>
-          <Input id="time-to" type="time" bind:value={form.time_to} class="h-9 text-sm" />
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-3 border-t pt-3">
-      <div>
-        <label for="effective-from" class="block text-xs text-text-muted mb-1">Berlaku Dari</label>
-        <Input id="effective-from" type="date" bind:value={form.effective_from} class="h-9 text-sm" />
-      </div>
-      <div>
-        <label for="effective-until" class="block text-xs text-text-muted mb-1">Berlaku Sampai</label>
-        <Input id="effective-until" type="date" bind:value={form.effective_until} class="h-9 text-sm" />
-      </div>
-    </div>
-
-    <div class="flex items-center gap-4">
-      <label class="flex items-center gap-2">
-        <input type="checkbox" bind:checked={form.allow_combine} class="rounded" />
-        <span class="text-sm text-text-secondary">Boleh digabung (stacking)</span>
+    <!-- ═══════════════════════ Opsi Tambahan ═══════════════════════ -->
+    <div class="flex items-center gap-5">
+      <label class="flex items-center gap-2 cursor-pointer group">
+        <input type="checkbox" bind:checked={form.allow_combine} class="rounded border-border-default text-primary-default focus:ring-primary-default/30" />
+        <span class="text-sm text-text-secondary group-hover:text-text-primary transition-colors">Boleh digabung (stacking)</span>
       </label>
       {#if modalMode === 'edit'}
-        <label class="flex items-center gap-2">
-          <input type="checkbox" bind:checked={form.is_active} class="rounded" />
-          <span class="text-sm text-text-secondary">Aktif</span>
+        <label class="flex items-center gap-2 cursor-pointer group">
+          <input type="checkbox" bind:checked={form.is_active} class="rounded border-border-default text-primary-default focus:ring-primary-default/30" />
+          <span class="text-sm text-text-secondary group-hover:text-text-primary transition-colors">Aktif</span>
         </label>
       {/if}
     </div>
+
   </form>
   {#snippet footer()}
     <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
