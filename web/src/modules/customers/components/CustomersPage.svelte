@@ -322,8 +322,9 @@
   }
 
   onMount(async () => {
-    const urlGroup = new URLSearchParams(window.location.search).get('group');
+    const urlGroup = sessionStorage.getItem('customerGroupFilter');
     if (urlGroup) {
+      sessionStorage.removeItem('customerGroupFilter');
       groupFilter = urlGroup;
     }
     load();

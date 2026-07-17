@@ -94,7 +94,8 @@
   }
 
   function viewMembers(g: any) {
-    goto(`/customers?group=${g.id}`);
+    sessionStorage.setItem('customerGroupFilter', String(g.id));
+    goto('/customers');
   }
 
   function openEdit(g: any) {
