@@ -121,7 +121,7 @@ func TestHandler_UpdateRule(t *testing.T) {
 	require.NoError(t, repo.Create(t.Context(), rule))
 
 	t.Run("success", func(t *testing.T) {
-		body := `{"product_id":` + strconv.Itoa(productID) + `,"name":"After Update","pricing_type":"price_list","pricing_method":"fixed_price","pricing_value":10000,"minimum_quantity":3,"priority":1,"is_active":true}`
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"name":"After Update","pricing_type":"special_price","pricing_method":"fixed_price","pricing_value":10000,"minimum_quantity":3,"priority":1,"is_active":true}`
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", "/pricing-rules/"+strconv.Itoa(rule.ID), strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -134,7 +134,7 @@ func TestHandler_UpdateRule(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "After Update", resp.Data.Name)
-		assert.Equal(t, PricingTypePriceList, resp.Data.PricingType)
+		assert.Equal(t, PricingTypeSpecialPrice, resp.Data.PricingType)
 	})
 
 	t.Run("invalid id", func(t *testing.T) {

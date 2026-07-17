@@ -555,7 +555,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by type (default|price_list|promotion)",
+                        "description": "Filter by type (special_price|promotion)",
                         "name": "pricing_type",
                         "in": "query"
                     },
@@ -2015,12 +2015,20 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "default",
-                "price_list",
+                "special_price",
                 "promotion"
+            ],
+            "x-enum-comments": {
+                "PricingTypeDefault": "fallback only — not creatable"
+            },
+            "x-enum-descriptions": [
+                "fallback only — not creatable",
+                "",
+                ""
             ],
             "x-enum-varnames": [
                 "PricingTypeDefault",
-                "PricingTypePriceList",
+                "PricingTypeSpecialPrice",
                 "PricingTypePromotion"
             ]
         },

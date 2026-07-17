@@ -1,6 +1,6 @@
 export type PricingMethod = 'fixed_price' | 'discount_percent' | 'discount_amount' | 'markup_percent';
 
-export type PricingType = 'default' | 'price_list' | 'promotion';
+export type PricingType = 'special_price' | 'promotion';
 
 export interface PricingRule {
   id: number;

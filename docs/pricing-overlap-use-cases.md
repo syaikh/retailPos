@@ -1,6 +1,8 @@
-# Overlap: Produk Price vs Pricing Rules — Use Case
+# Overlap: Produk Price vs Pricing Rules — Use Case (SOLVED)
 
 Dokumen ini menunjukkan secara detail bagaimana `products.price` dan pricing rules saling tumpang tindih, dengan contoh nyata yang bisa diverifikasi di UI.
+
+> **Status: SOLVED** — Type `default` sudah dihapus. `products.price` menjadi single source of truth. Pricing rules hanya bisa `special_price` atau `promotion`.
 
 ---
 
@@ -20,13 +22,13 @@ products.cost  = Rp 2.800
 ├─────────────────────────────────────────────┤
 │  PRICING RULES (2)                          │  ← section di bawah form
 │  ┌───────────────────────────────────────┐  │
-│  │ default  Diskon Member     Rp 3.000  │  │  ← tampil sebagai informasi
+│  │ special_price Harga Grosir Rp 3.000  │  │  ← tampil sebagai informasi
 │  │ promotion Flash Sale       Rp 2.800  │  │
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
 ```
 
-**Masalah:** User lihat `Price = Rp 3.500` di form, tapi harga jual aktual bisa **Rp 2.800** (karena rule). Tidak ada indikasi di form bahwa harga produk ini sudah di-override.
+**Status: RESOLVED** — Dengan type `default` dihapus, `products.price` menjadi satu-satunya harga jual normal. Pricing rules hanya berlaku untuk `special_price` (harga khusus) dan `promotion` (diskon/promosi). Tidak ada lagi overlap yang membingungkan.
 
 ---
 

@@ -21,9 +21,10 @@ test.describe('POS Wholesale Flow', () => {
         headers: authHeader(token),
         data: {
           product_id: productId,
-          pricing_type: 'wholesale',
+          pricing_type: 'special_price',
+          pricing_method: 'fixed_price',
+          pricing_value: 10000,
           name: 'E2E Wholesale Test',
-          price: 10000,
           minimum_quantity: 3,
           priority: 0,
           is_active: true,
@@ -57,11 +58,11 @@ test.describe('POS Wholesale Flow', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     const resolved = body.data[0];
-    expect(resolved.pricing_type).toBe('normal');
+    expect(resolved.pricing_type).toBe('default');
     expect(resolved.unit_price).toBe(resolved.original_price);
   });
 
-  test('resolve returns wholesale price for quantity meeting minimum', async ({ request }) => {
+  test('resolve returns special_price for quantity meeting minimum', async ({ request }) => {
     if (!productId) return;
     const token = await getToken(request);
     const res = await request.post(`${API_BASE}/api/pricing/resolve`, {
@@ -73,7 +74,7 @@ test.describe('POS Wholesale Flow', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     const resolved = body.data[0];
-    expect(resolved.pricing_type).toBe('wholesale');
+    expect(resolved.pricing_type).toBe('special_price');
     expect(resolved.unit_price).toBe(10000);
     expect(resolved.original_price).toBeGreaterThan(10000);
   });
@@ -93,7 +94,7 @@ test.describe('POS Wholesale Flow', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.data.length).toBe(2);
-    expect(body.data[0].pricing_type).toBe('normal');
-    expect(body.data[1].pricing_type).toBe('wholesale');
+    expect(body.data[0].pricing_type).toBe('default');
+    expect(body.data[1].pricing_type).toBe('special_price');
   });
 });

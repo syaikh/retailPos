@@ -65,7 +65,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Param        offset            query   int     false  "Offset"             default(0)
 // @Param        search            query   string  false  "Search rule name"
 // @Param        product_id        query   int     false  "Filter by product ID"
-// @Param        pricing_type      query   string  false  "Filter by type (default|price_list|promotion)"
+// @Param        pricing_type      query   string  false  "Filter by type (special_price|promotion)"
 // @Param        pricing_method    query   string  false  "Filter by method (fixed_price|discount_percent|discount_amount|markup_percent)"
 // @Param        category_id       query   int     false  "Filter by category ID"
 // @Param        brand_id          query   int     false  "Filter by brand ID"

@@ -18,16 +18,17 @@ test.describe('Pricing Rules API', () => {
     }
   });
 
-  test('POST /api/pricing-rules creates a discount rule', async ({ request }) => {
+  test('POST /api/pricing-rules creates a promotion rule', async ({ request }) => {
     if (!createdProductId) return;
     const token = await getToken(request);
     const res = await request.post(`${API_BASE}/api/pricing-rules`, {
       headers: authHeader(token),
       data: {
         product_id: createdProductId,
-        pricing_type: 'discount',
-        name: 'E2E Discount Rule',
-        price: 10000,
+        pricing_type: 'promotion',
+        pricing_method: 'fixed_price',
+        pricing_value: 10000,
+        name: 'E2E Promotion Rule',
         minimum_quantity: 1,
         priority: 0,
         is_active: true,
@@ -37,8 +38,8 @@ test.describe('Pricing Rules API', () => {
     const body = await res.json();
     expect(body.data).toBeTruthy();
     expect(body.data.id).toBeTruthy();
-    expect(body.data.pricing_type).toBe('discount');
-    expect(body.data.price).toBe(10000);
+    expect(body.data.pricing_type).toBe('promotion');
+    expect(body.data.pricing_value).toBe(10000);
     createdRuleId = body.data.id;
   });
 
@@ -74,7 +75,7 @@ test.describe('Pricing Rules API', () => {
       headers: authHeader(token),
       data: {
         name: 'E2E Updated Rule',
-        price: 9000,
+        pricing_value: 9000,
         minimum_quantity: 2,
         priority: 1,
       },
@@ -82,7 +83,7 @@ test.describe('Pricing Rules API', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.data.name).toBe('E2E Updated Rule');
-    expect(body.data.price).toBe(9000);
+    expect(body.data.pricing_value).toBe(9000);
   });
 
   test('POST /api/pricing/resolve resolves prices', async ({ request }) => {
@@ -114,7 +115,7 @@ test.describe('Pricing Rules API', () => {
 
   test('POST /api/pricing-rules without auth returns 401', async ({ request }) => {
     const res = await request.post(`${API_BASE}/api/pricing-rules`, {
-      data: { product_id: 1, pricing_type: 'discount', name: 'Test', price: 1000 },
+      data: { product_id: 1, pricing_type: 'promotion', pricing_method: 'fixed_price', pricing_value: 10000, name: 'Test', minimum_quantity: 1, priority: 0 },
     });
     expect(res.status()).toBe(401);
   });

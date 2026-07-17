@@ -103,7 +103,7 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	t.Run("Update rule", func(t *testing.T) {
 		rule := &PricingRule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePriceList,
+			PricingType:     PricingTypeSpecialPrice,
 			PricingMethod:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "Updated Rule",

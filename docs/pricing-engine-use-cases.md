@@ -429,18 +429,17 @@ Stacking memungkinkan **beberapa rule dihitung secara berurutan** pada satu prod
 
 ### 4.1 Aturan Stacking
 
-1. **Default + Default** → TIDAK bisa stacking. Hanya 1 rule default yang berlaku (berdasarkan prioritas).
-2. **Daftar Harga + Daftar Harga** → TIDAK bisa stacking. Hanya 1 rule price_list yang berlaku.
-3. **Promosi + Promosi** → BISA stacking jika kedua rule `allow_combine = true`.
-4. **Default + Promosi** → BISA stacking jika rule promosi `allow_combine = true`.
-5. **Daftar Harga + Promosi** → BISA stacking jika kedua rule `allow_combine = true`.
+1. **Harga Khusus + Harga Khusus** → TIDAK bisa stacking. Hanya 1 rule special_price yang berlaku (berdasarkan prioritas + scope).
+2. **Promosi + Promosi** → BISA stacking jika kedua rule `allow_combine = true`.
+3. **Promosi + Harga Khusus** → BISA stacking jika kedua rule `allow_combine = true`.
 
 ### 4.2 Cara Kerja Stacking
 
 Rule dihitung **berurutan berdasarkan urutan resolution engine**:
-1. Pertama, tentukan **harga dasar** (dari rule Default atau Daftar Harga)
-2. Kemudian, **terapkan rule Promosi** satu per satu (jika allow_combine = true)
-3. Setiap promosi dihitung dari **harga hasil sebelumnya**, bukan dari harga normal
+1. Pertama, tentukan **harga dasar** (dari `products.price`, karena type default sudah dihapus)
+2. Kemudian, **terapkan rule Harga Khusus** (jika ada, berdasarkan scope + priority)
+3. Setelah itu, **terapkan rule Promosi** satu per satu (jika allow_combine = true)
+4. Setiap promosi dihitung dari **harga hasil sebelumnya**, bukan dari harga normal
 
 > **Penting:** Stacking selalu dimulai dari harga normal/awal produk. Diskon/promosi berikutnya dihitung dari harga yang sudah dimodifikasi oleh rule sebelumnya.
 

@@ -766,7 +766,6 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 		return nil
 	}
 
-	// Check if pricing rules already exist
 	var count int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pricing_rules").Scan(&count); err == nil && count > 0 {
 		fmt.Printf("   Found %d existing pricing rules, skipping creation\n", count)
@@ -784,8 +783,8 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO pricing_rules (product_id, pricing_type, pricing_method, pricing_value, name, minimum_quantity, priority, is_active, effective_from, effective_until, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)`)
+		`INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method, pricing_value, name, minimum_quantity, maximum_quantity, priority, is_active, allow_combine, customer_group_id, store_id, recurrence_days, time_from, time_to, effective_from, effective_until, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17, $18, $19)`)
 	if err != nil {
 		return fmt.Errorf("prepare pricing rule stmt: %w", err)
 	}
@@ -794,69 +793,111 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	ref := time.Now().In(jakartaTZ)
 	ruleCount := 0
 
-	// Create rules for ~20% of products
-	numProductsToTag := len(products) / 5
-	if numProductsToTag < 10 {
-		numProductsToTag = 10
-	}
-	if numProductsToTag > len(products) {
-		numProductsToTag = len(products)
-	}
+	// Pick 3 products for detailed rule demos
+	p1, p2, p3 := products[0], products[1], products[2]
+	effectiveFrom := ref.AddDate(0, 0, -30)
+	effectiveUntil := ref.AddDate(0, 6, 0)
 
-	// Shuffle and pick products
-	shuffled := make([]ProductInfo, len(products))
-	copy(shuffled, products)
-	rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-
-	for i := 0; i < numProductsToTag; i++ {
-		p := shuffled[i]
-
-		// Create a price_list rule (min qty 5-10, fixed price 15-30% lower)
-		if rand.Intn(100) < 70 {
-			minQty := 5 + rand.Intn(6)
-			discount := 0.15 + rand.Float64()*0.15
-			wholesalePrice := float64(p.Price) * (1.0 - discount)
-			if wholesalePrice < 1000 {
-				wholesalePrice = 1000
-			}
-			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(30))
-			effectiveUntil := ref.AddDate(0, 3, rand.Intn(3))
-			createdAt := ref.AddDate(0, 0, -rand.Intn(30))
-
-			if _, err := stmt.ExecContext(ctx, p.ID, "price_list", "fixed_price",
-				wholesalePrice,
-				fmt.Sprintf("Wholesale min %d", minQty),
-				minQty, 0,
-				effectiveFrom, effectiveUntil, createdAt); err != nil {
-				continue
-			}
-			ruleCount++
-		}
-
-		// Create a promotion rule with discount_percent
-		if rand.Intn(100) < 50 {
-			discount := 5 + rand.Float64()*10 // 5-15%
-			effectiveFrom := ref.AddDate(0, 0, -rand.Intn(15))
-			effectiveUntil := ref.AddDate(0, 1, rand.Intn(2))
-			createdAt := ref.AddDate(0, 0, -rand.Intn(15))
-
-			if _, err := stmt.ExecContext(ctx, p.ID, "promotion", "discount_percent",
-				discount,
-				fmt.Sprintf("Diskon %d%%", int(discount)),
-				1, 1,
-				effectiveFrom, effectiveUntil, createdAt); err != nil {
-				continue
-			}
+	exec := func(pType, method, name string, val float64, pid, catID, brandID, minQty, maxQty, priority int, combine bool, custGroup, store int, days, tFrom, tTo string) {
+		if _, err := stmt.ExecContext(ctx,
+			pid, nullableInt(catID), nullableInt(brandID),
+			pType, method, val, name, minQty, nullableInt(maxQty), priority,
+			combine, nullableInt(custGroup), nullableInt(store),
+			nullableTextArray(days), nullableStr(tFrom), nullableStr(tTo),
+			effectiveFrom, effectiveUntil, ref); err == nil {
 			ruleCount++
 		}
 	}
+
+	// === SPECIAL_PRICE rules (6) ===
+
+	// 1. fixed_price wholesale
+	exec("special_price", "fixed_price", "Harga Grosir Min 5", float64(p1.Price)*0.85, p1.ID, 0, 0, 5, 0, 0, false, 0, 0, "", "", "")
+
+	// 2. discount_percent bulk
+	exec("special_price", "discount_percent", "Diskon 10% Min 3", 10, p2.ID, 0, 0, 3, 0, 0, false, 0, 0, "", "", "")
+
+	// 3. discount_amount member
+	exec("special_price", "discount_amount", "Potongan Rp 5.000", 5000, p3.ID, 0, 0, 1, 0, 0, false, 2, 0, "", "", "")
+
+	// 4. markup_percent reseller
+	exec("special_price", "markup_percent", "Harga Reseller +5%", 5, p1.ID, 0, 0, 2, 0, 0, false, 3, 0, "", "", "")
+
+	// 5. category-wide (category_id = 1, Smartphones)
+	exec("special_price", "fixed_price", "Harga Khusus Elektronik", 1500000, 0, 1, 0, 1, 0, 0, false, 0, 0, "", "", "")
+
+	// 6. brand-wide (brand_id = 1, Indofood)
+	exec("special_price", "discount_percent", "Diskon Brand Indofood", 8, 0, 0, 1, 1, 0, 0, false, 0, 0, "", "", "")
+
+	// === PROMOTION rules (6) ===
+
+	// 7. fixed_price flash sale
+	exec("promotion", "fixed_price", "Flash Sale Rp 99.000", 99000, p1.ID, 0, 0, 1, 10, 1, false, 0, 0, "", "", "")
+
+	// 8. discount_percent weekend
+	exec("promotion", "discount_percent", "Diskon Weekend 15%", 15, p2.ID, 0, 0, 1, 0, 1, true, 0, 0, "fri,sat,sun", "", "")
+
+	// 9. discount_amount happy hour
+	exec("promotion", "discount_amount", "Happy Hour Rp 10.000 Off", 10000, p3.ID, 0, 0, 1, 0, 1, true, 0, 0, "", "12:00", "14:00")
+
+	// 10. markup_percent bundle
+	exec("promotion", "markup_percent", "Bundle Premium +10%", 10, p1.ID, 0, 0, 2, 0, 1, false, 0, 0, "", "", "")
+
+	// 11. promotion category-wide
+	exec("promotion", "discount_percent", "Promo Kategori Laptops 12%", 12, 0, 2, 0, 1, 0, 1, true, 0, 0, "mon,tue,wed,thu,fri", "", "")
+
+	// 12. promotion brand-wide
+	exec("promotion", "discount_amount", "Cashback Brand Sosro Rp 2.000", 2000, 0, 0, 2, 1, 0, 1, false, 0, 0, "", "", "")
+
+	// === STACKING rules (2) — promotion chain on same product ===
+
+	// 13. stacking: extra 5% off on top of special_price
+	exec("promotion", "discount_percent", "Extra 5% Off (Stack)", 5, p1.ID, 0, 0, 1, 0, 2, true, 0, 0, "", "", "")
+
+	// 14. stacking: Rp 3.000 cashback (stacks with above)
+	exec("promotion", "discount_amount", "Cashback Rp 3.000 (Stack)", 3000, p1.ID, 0, 0, 1, 0, 3, true, 0, 0, "", "", "")
+
+	// === EDGE CASE rules (4) ===
+
+	// 15. store-specific (store_id = 1, Main Store)
+	exec("special_price", "fixed_price", "Harga Khusus Main Store", 85000, p2.ID, 0, 0, 1, 0, 0, false, 0, 1, "", "", "")
+
+	// 16. customer_group VIP only
+	exec("special_price", "discount_percent", "VIP Exclusive 20%", 20, p3.ID, 0, 0, 1, 0, 0, false, 3, 0, "", "", "")
+
+	// 17. max quantity limit
+	exec("special_price", "discount_amount", "Diskon Rp 2.000 (Max 10)", 2000, p1.ID, 0, 0, 1, 10, 0, false, 0, 0, "", "", "")
+
+	// 18. weekday-only promotion
+	exec("promotion", "discount_percent", "Promo Weekday 8%", 8, p2.ID, 0, 0, 1, 0, 1, false, 0, 0, "mon,tue,wed,thu,fri", "09:00", "17:00")
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit pricing rules: %w", err)
 	}
 
-	fmt.Printf("   🎲 Created %d pricing rules for %d products\n", ruleCount, numProductsToTag)
+	fmt.Printf("   🎲 Created %d pricing rules (special_price:6, promotion:6+2 stack, edge:4)\n", ruleCount)
 	return nil
+}
+
+func nullableInt(v int) interface{} {
+	if v == 0 {
+		return nil
+	}
+	return v
+}
+
+func nullableStr(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func nullableTextArray(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return "{" + s + "}"
 }
 
 func cleanupTestRoles(ctx context.Context, db *sql.DB) {

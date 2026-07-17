@@ -17,9 +17,9 @@ var (
 type PricingType string
 
 const (
-	PricingTypeDefault   PricingType = "default"
-	PricingTypePriceList PricingType = "price_list"
-	PricingTypePromotion PricingType = "promotion"
+	PricingTypeDefault    PricingType = "default"     // fallback only — not creatable
+	PricingTypeSpecialPrice PricingType = "special_price"
+	PricingTypePromotion  PricingType = "promotion"
 )
 
 // PricingMethod defines how the pricing value is applied to the base price.
@@ -107,8 +107,7 @@ func ValidPricingMethods() []PricingMethod {
 // ValidPricingTypes returns all valid pricing types.
 func ValidPricingTypes() []PricingType {
 	return []PricingType{
-		PricingTypeDefault,
-		PricingTypePriceList,
+		PricingTypeSpecialPrice,
 		PricingTypePromotion,
 	}
 }

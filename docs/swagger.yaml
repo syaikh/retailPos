@@ -87,12 +87,18 @@ definitions:
   pricing.PricingType:
     enum:
     - default
-    - price_list
+    - special_price
     - promotion
     type: string
+    x-enum-comments:
+      PricingTypeDefault: fallback only — not creatable
+    x-enum-descriptions:
+    - fallback only — not creatable
+    - ""
+    - ""
     x-enum-varnames:
     - PricingTypeDefault
-    - PricingTypePriceList
+    - PricingTypeSpecialPrice
     - PricingTypePromotion
   pricing.ResolveItem:
     properties:
@@ -606,7 +612,7 @@ paths:
         in: query
         name: product_id
         type: integer
-      - description: Filter by type (default|price_list|promotion)
+      - description: Filter by type (special_price|promotion)
         in: query
         name: pricing_type
         type: string

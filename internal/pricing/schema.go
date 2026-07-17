@@ -13,7 +13,7 @@ var Schema = importexportshared.ModuleSchema{
 		{Name: "ProductID", Type: importexportshared.ColNumber, Label: "Product ID", Required: false, Editable: false, Exportable: true, Template: false},
 		{Name: "CategoryID", Type: importexportshared.ColNumber, Label: "Category ID", Required: false, Editable: false, Exportable: true, Template: false},
 		{Name: "BrandID", Type: importexportshared.ColNumber, Label: "Brand ID", Required: false, Editable: false, Exportable: true, Template: false},
-		{Name: "PricingType", Type: importexportshared.ColString, Label: "Pricing Type", Required: true, AllowedValues: []string{"default", "price_list", "promotion"}, Editable: true, Exportable: true, Template: true},
+		{Name: "PricingType", Type: importexportshared.ColString, Label: "Pricing Type", Required: true, AllowedValues: []string{"special_price", "promotion"}, Editable: true, Exportable: true, Template: true},
 		{Name: "PricingMethod", Type: importexportshared.ColString, Label: "Pricing Method", Required: true, AllowedValues: []string{"fixed_price", "discount_percent", "discount_amount", "markup_percent"}, Editable: true, Exportable: true, Template: true},
 		{Name: "PricingValue", Type: importexportshared.ColNumber, Label: "Pricing Value", Required: true, MinValue: importexportshared.Float64Ptr(0), Editable: true, Exportable: true, Template: true},
 		{Name: "Name", Type: importexportshared.ColString, Label: "Rule Name", Required: true, MaxLength: importexportshared.IntPtr(200), Editable: true, Exportable: true, Template: true},

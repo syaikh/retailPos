@@ -82,7 +82,7 @@
 
   const pricingTypes = [
     { value: 'default', label: 'Default', description: 'Harga normal yang berlaku tanpa kondisi khusus.' },
-    { value: 'price_list', label: 'Daftar Harga', description: 'Harga khusus untuk daftar harga tertentu (mis. grosir, member).' },
+    { value: 'special_price', label: 'Harga Khusus', description: 'Harga khusus untuk grosir, member, reseller, atau outlet tertentu.' },
     { value: 'promotion', label: 'Promosi', description: 'Harga promo terbatas waktu (diskon, flash sale, event).' }
   ];
 
