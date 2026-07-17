@@ -9,8 +9,10 @@
     formEmail = $bindable(''),
     formAddress = $bindable(''),
     formNote = $bindable(''),
+    formGroupId = $bindable(null as number | null),
     fieldErrors = $bindable({ name: '', phone: '', email: '', address: '', note: '' }),
     creating = $bindable(false),
+    groups = [] as { id: number; name: string }[],
     oncreate = () => {},
   }: {
     open: boolean;
@@ -19,8 +21,10 @@
     formEmail?: string;
     formAddress?: string;
     formNote?: string;
+    formGroupId?: number | null;
     fieldErrors?: { name: string; phone: string; email: string; address: string; note: string };
     creating?: boolean;
+    groups?: { id: number; name: string }[];
     oncreate?: () => void;
   } = $props();
 </script>
@@ -72,6 +76,19 @@
         placeholder="e.g. 123 Main St"
         bind:value={formAddress}
       />
+    </div>
+    <div class="space-y-1">
+      <label for="customer-group" class="text-xs font-semibold text-text-secondary">Customer Group</label>
+      <select
+        id="customer-group"
+        class="w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 transition-colors duration-200"
+        bind:value={formGroupId}
+      >
+        <option value={null}>— No Group —</option>
+        {#each groups as g}
+          <option value={g.id}>{g.name}</option>
+        {/each}
+      </select>
     </div>
     <div class="space-y-1">
       <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>

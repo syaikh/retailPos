@@ -5,6 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
+  import { getCustomerGroups } from '$modules/customer-groups';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
   import EditCustomerModal from './EditCustomerModal.svelte';
   import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
@@ -29,6 +30,8 @@
   let offset = $state(0);
   let searchQuery = $state('');
   let statusFilter = $state('all');
+  let groupFilter = $state('all');
+  let availableGroups = $state<{ id: number; name: string }[]>([]);
 
   let selectedIds = $state(new Set<number>());
   let showBulkStatusModal = $state(false);
@@ -97,6 +100,7 @@
   let formEmail = $state('');
   let formAddress = $state('');
   let formNote = $state('');
+  let formGroupId = $state<number | null>(null);
   let fieldErrors = $state({ name: '', phone: '', email: '', address: '', note: '' });
 
   let deactivateTarget = $state<any>(null);
@@ -151,6 +155,7 @@
     formEmail = '';
     formAddress = '';
     formNote = '';
+    formGroupId = null;
     fieldErrors = { name: '', phone: '', email: '', address: '', note: '' };
   }
 
@@ -169,6 +174,7 @@
       const params: any = { limit, offset, search: searchQuery || undefined };
       const activeParam = getStatusFilterParams();
       if (activeParam !== undefined) params.is_active = activeParam;
+      if (groupFilter !== 'all') params.customer_group_id = groupFilter;
       const r = await apiClient.get('/customers', { params });
       customers = r.data.data || [];
       total = r.data.total || 0;
@@ -196,6 +202,11 @@
     load(0, limit);
   }
 
+  function handleGroupFilterChange() {
+    offset = 0;
+    load(0, limit);
+  }
+
   function handleSort(column: string) {
     if (sortBy === column) {
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
@@ -213,6 +224,7 @@
         case 'name': aVal = (a.name || '').toLowerCase(); bVal = (b.name || '').toLowerCase(); break;
         case 'phone': aVal = (a.phone || '').toLowerCase(); bVal = (b.phone || '').toLowerCase(); break;
         case 'email': aVal = (a.email || '').toLowerCase(); bVal = (b.email || '').toLowerCase(); break;
+        case 'group': aVal = (a.customer_group_name || '').toLowerCase(); bVal = (b.customer_group_name || '').toLowerCase(); break;
         case 'status': aVal = a.is_active !== false ? 1 : 0; bVal = b.is_active !== false ? 1 : 0; break;
         default: return 0;
       }
@@ -234,6 +246,7 @@
         email: formEmail.trim(),
         address: formAddress.trim() || null,
         note: formNote.trim() || null,
+        customer_group_id: formGroupId,
       });
       toast.success(`Customer "${formName.trim()}" created successfully`);
       resetForm();
@@ -262,6 +275,7 @@
         address: data.address,
         note: data.note,
         is_active: data.is_active,
+        customer_group_id: data.customer_group_id,
       });
       toast.success('Customer updated successfully');
       showEditModal = false;
@@ -307,8 +321,12 @@
     toast.success('Customer import completed');
   }
 
-  onMount(() => {
+  onMount(async () => {
     load();
+    try {
+      const result = await getCustomerGroups({ limit: 100, offset: 0 });
+      availableGroups = result.data.filter(g => g.is_active);
+    } catch { /* ignore */ }
   });
 </script>
 
@@ -316,9 +334,12 @@
   <CustomerToolbar
     bind:searchQuery
     bind:statusFilter
+    bind:groupFilter
     {canCreate}
+    groups={availableGroups}
     onsearch={handleSearchInput}
     onstatuschange={handleStatusFilterChange}
+    ongroupchange={handleGroupFilterChange}
     oncreate={() => { resetForm(); showCreateModal = true; }}
     onImport={() => showImportWizard = true}
   />
@@ -362,8 +383,10 @@
   bind:formEmail
   bind:formAddress
   bind:formNote
+  bind:formGroupId
   bind:fieldErrors
   bind:creating
+  groups={availableGroups}
   oncreate={createCustomer}
 />
 
@@ -371,6 +394,7 @@
   bind:open={showEditModal}
   customer={editTarget}
   bind:saving={isSaving}
+  groups={availableGroups}
   onsave={handleEditSave}
   oncancel={handleEditCancel}
 />

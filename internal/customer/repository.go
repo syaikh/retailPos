@@ -35,12 +35,14 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int)
 	var createdAt, updatedAt time.Time
 	var storeIDVal int
 	query := `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
-		FROM customers
-		WHERE phone = $1`
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
+		FROM customers c
+		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
+		WHERE c.phone = $1`
 	args := []interface{}{phone}
 	if storeID != nil {
-		query += " AND (store_id = $2 OR is_walk_in = true)"
+		query += " AND (c.store_id = $2 OR c.is_walk_in = true)"
 		args = append(args, *storeID)
 	}
 	err := scanCustomerRow(r.db.QueryRow(ctx, query, args...), &c, &createdAt, &updatedAt, &storeIDVal)
@@ -63,11 +65,14 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 	var createdAt, updatedAt time.Time
 	var storeIDVal int
 	query := `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
-		FROM customers WHERE id = $1`
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
+		FROM customers c
+		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
+		WHERE c.id = $1`
 	args := []interface{}{id}
 	if storeID != nil {
-		query += " AND (store_id = $2 OR is_walk_in = true)"
+		query += " AND (c.store_id = $2 OR c.is_walk_in = true)"
 		args = append(args, *storeID)
 	}
 	err := scanCustomerRow(r.db.QueryRow(ctx, query, args...), &c, &createdAt, &updatedAt, &storeIDVal)
@@ -85,7 +90,7 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 	return &c, nil
 }
 
-func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
+func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
 	args := []interface{}{}
 	argIdx := 1
 	countQuery := `SELECT COUNT(*) FROM customers WHERE is_walk_in = false`
@@ -102,31 +107,45 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 	if isActive != nil {
 		countQuery += fmt.Sprintf(" AND is_active = $%d", argIdx)
 		args = append(args, *isActive)
+		argIdx++
+	}
+	if customerGroupID != nil {
+		countQuery += fmt.Sprintf(" AND customer_group_id = $%d", argIdx)
+		args = append(args, *customerGroupID)
 	}
 	var total int
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	query := `SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at FROM customers WHERE is_walk_in = false`
+	query := `SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+	                 c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
+	          FROM customers c
+	          LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
+	          WHERE c.is_walk_in = false`
 	queryArgs := []interface{}{}
 	argIdx2 := 1
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx2)
+		query += fmt.Sprintf(" AND c.store_id = $%d", argIdx2)
 		queryArgs = append(queryArgs, *storeID)
 		argIdx2++
 	}
 	if search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR phone ILIKE $%d OR email ILIKE $%d)", argIdx2, argIdx2, argIdx2)
+		query += fmt.Sprintf(" AND (c.name ILIKE $%d OR c.phone ILIKE $%d OR c.email ILIKE $%d)", argIdx2, argIdx2, argIdx2)
 		queryArgs = append(queryArgs, "%"+search+"%")
 		argIdx2++
 	}
 	if isActive != nil {
-		query += fmt.Sprintf(" AND is_active = $%d", argIdx2)
+		query += fmt.Sprintf(" AND c.is_active = $%d", argIdx2)
 		queryArgs = append(queryArgs, *isActive)
 		argIdx2++
 	}
-	query += fmt.Sprintf(" ORDER BY id DESC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
+	if customerGroupID != nil {
+		query += fmt.Sprintf(" AND c.customer_group_id = $%d", argIdx2)
+		queryArgs = append(queryArgs, *customerGroupID)
+		argIdx2++
+	}
+	query += fmt.Sprintf(" ORDER BY c.id DESC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	queryArgs = append(queryArgs, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, queryArgs...)
@@ -158,19 +177,19 @@ func (r *Repository) CreateCustomer(ctx context.Context, customer *Customer) err
 		storeIDVal = *customer.StoreID
 	}
 	return r.db.QueryRow(ctx, `
-		INSERT INTO customers (name, phone, email, address, tax_id, note, is_active, is_walk_in, store_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO customers (name, phone, email, address, tax_id, note, is_active, is_walk_in, store_id, customer_group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at, updated_at
-	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.IsWalkIn, storeIDVal).
+	`, customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.IsWalkIn, storeIDVal, customer.CustomerGroupID).
 		Scan(&customer.ID, &createdAt, &updatedAt)
 }
 
 func (r *Repository) UpdateCustomer(ctx context.Context, customer *Customer, id int, storeID *int) error {
 	query := `
 		UPDATE customers
-		SET name = $1, phone = $2, email = $3, address = $4, tax_id = $5, note = $6, is_active = $7, updated_at = NOW()
-		WHERE id = $8`
-	args := []interface{}{customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, id}
+		SET name = $1, phone = $2, email = $3, address = $4, tax_id = $5, note = $6, is_active = $7, customer_group_id = $8, updated_at = NOW()
+		WHERE id = $9`
+	args := []interface{}{customer.Name, customer.Phone, customer.Email, customer.Address, customer.TaxID, customer.Note, customer.IsActive, customer.CustomerGroupID, id}
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
 		args = append(args, *storeID)
@@ -214,8 +233,11 @@ func (r *Repository) BulkDeleteCustomers(ctx context.Context, ids []int, storeID
 
 func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int) ([]Customer, error) {
 	query := `
-		SELECT id, name, phone, email, address, tax_id, loyalty_points, total_spent, last_purchase_at, note, is_active, is_walk_in, store_id, created_at, updated_at
-		FROM customers WHERE is_walk_in = false`
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
+		FROM customers c
+		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
+		WHERE c.is_walk_in = false`
 	args := []interface{}{}
 	if storeID != nil {
 		query += " AND store_id = $1"
@@ -374,8 +396,11 @@ type scannable interface {
 
 func scanCustomerRow(src scannable, c *Customer, createdAt, updatedAt *time.Time, storeIDVal *int) error {
 	var phone, email, address, taxID, lastPurchaseAt, note sql.NullString
+	var customerGroupID sql.NullInt64
+	var customerGroupName sql.NullString
 	err := src.Scan(
 		&c.ID, &c.Name, &phone, &email, &address, &taxID,
+		&customerGroupID, &customerGroupName,
 		&c.LoyaltyPoints, &c.TotalSpent, &lastPurchaseAt, &note,
 		&c.IsActive, &c.IsWalkIn, storeIDVal, createdAt, updatedAt,
 	)
@@ -388,5 +413,12 @@ func scanCustomerRow(src scannable, c *Customer, createdAt, updatedAt *time.Time
 	c.TaxID = strPtr(taxID.String)
 	c.LastPurchaseAt = strPtr(lastPurchaseAt.String)
 	c.Note = strPtr(note.String)
+	if customerGroupID.Valid {
+		id := int(customerGroupID.Int64)
+		c.CustomerGroupID = &id
+	}
+	if customerGroupName.Valid {
+		c.CustomerGroupName = &customerGroupName.String
+	}
 	return nil
 }

@@ -6,12 +6,14 @@
     open = $bindable(false),
     customer = $bindable(null as any),
     saving = $bindable(false),
+    groups = [] as { id: number; name: string }[],
     onsave = (data: any) => {},
     oncancel = () => {},
   }: {
     open: boolean;
     customer: any;
     saving: boolean;
+    groups?: { id: number; name: string }[];
     onsave?: (data: any) => void;
     oncancel?: () => void;
   } = $props();
@@ -21,6 +23,7 @@
   let email = $state('');
   let address = $state('');
   let note = $state('');
+  let groupId = $state<number | null>(null);
   let isActive = $state(true);
   let fieldErrors = $state({ name: '', phone: '', email: '' });
 
@@ -29,6 +32,7 @@
   let origEmail = $state('');
   let origAddress = $state<string | undefined>();
   let origNote = $state<string | undefined>();
+  let origGroupId = $state<number | null>(null);
 
   $effect(() => {
     if (open && customer) {
@@ -37,12 +41,14 @@
       email = customer.email || '';
       address = customer.address || '';
       note = customer.note || '';
+      groupId = customer.customer_group_id ?? null;
       isActive = customer.is_active !== false;
       origName = customer.name || '';
       origPhone = customer.phone || '';
       origEmail = customer.email || '';
       origAddress = customer.address;
       origNote = customer.note;
+      origGroupId = customer.customer_group_id ?? null;
       fieldErrors = { name: '', phone: '', email: '' };
     }
   });
@@ -97,6 +103,7 @@
     };
     if (address.trim() !== (origAddress ?? '')) payload.address = address.trim();
     if (note.trim() !== (origNote ?? '')) payload.note = note.trim();
+    if (groupId !== origGroupId) payload.customer_group_id = groupId;
     onsave(payload);
   }
 
@@ -153,6 +160,19 @@
         placeholder="e.g. 123 Main St"
         bind:value={address}
       />
+    </div>
+    <div class="space-y-1">
+      <label for="edit-group" class="text-xs font-semibold text-text-secondary">Customer Group</label>
+      <select
+        id="edit-group"
+        class="w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 transition-colors duration-200"
+        bind:value={groupId}
+      >
+        <option value={null}>— No Group —</option>
+        {#each groups as g}
+          <option value={g.id}>{g.name}</option>
+        {/each}
+      </select>
     </div>
     <div class="space-y-1">
       <label for="edit-note" class="text-xs font-semibold text-text-secondary">Note</label>

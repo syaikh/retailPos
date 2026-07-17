@@ -62,24 +62,27 @@
 </script>
 
 <div class="overflow-x-auto">
-<table class="min-w-full text-sm table-fixed min-w-[800px]">
+<table class="min-w-full text-sm table-fixed min-w-[900px]">
   <thead class="bg-muted/50">
     <tr>
       <th class="p-4 font-semibold w-12">
         <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
       </th>
-      <th class="text-left p-4 font-semibold w-[20%]">
+      <th class="text-left p-4 font-semibold w-[18%]">
         <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-left p-4 font-semibold w-[12%]">
+      <th class="text-left p-4 font-semibold w-[11%]">
         <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-left p-4 font-semibold w-[16%]">
+      <th class="text-left p-4 font-semibold w-[14%]">
         <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-left p-4 font-semibold w-[16%]">ADDRESS</th>
-      <th class="text-left p-4 font-semibold w-[14%]">NOTE</th>
-      <th class="text-left p-4 font-semibold w-[12%]">
+      <th class="text-left p-4 font-semibold w-[14%]">ADDRESS</th>
+      <th class="text-left p-4 font-semibold w-[11%]">
+        <SortableHeader label="GROUP" column="group" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+      </th>
+      <th class="text-left p-4 font-semibold w-[11%]">NOTE</th>
+      <th class="text-left p-4 font-semibold w-[10%]">
         <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-center p-4 font-semibold w-20">Actions</th>
@@ -89,7 +92,7 @@
     {#if loading}
       {#each { length: 5 } as _, i}
         <tr class="border-t border-border" aria-hidden="true">
-          <td class="px-4 py-3" colspan={8}>
+          <td class="px-4 py-3" colspan={9}>
             <div class="flex items-center gap-3">
               <Skeleton width="w-8" height="h-8" rounded="rounded-full" />
               <div class="flex-1 space-y-2">
@@ -102,7 +105,7 @@
       {/each}
     {:else if customers.length === 0}
       <tr class="border-t border-border">
-        <td colspan={8}>
+        <td colspan={9}>
           <div class="px-4 py-16 text-center" role="status" aria-live="polite">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Search size={32} class="text-text-muted" />
@@ -135,6 +138,13 @@
           <td class="px-4 py-1.5 h-12 overflow-hidden">
             {#if c.address}
               <span class="truncate block">{c.address}</span>
+            {:else}
+              <span class="text-text-muted">—</span>
+            {/if}
+          </td>
+          <td class="px-4 py-1.5 h-12 overflow-hidden">
+            {#if c.customer_group_name}
+              <Badge variant="primary" size="sm">{c.customer_group_name}</Badge>
             {:else}
               <span class="text-text-muted">—</span>
             {/if}

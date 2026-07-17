@@ -18,7 +18,7 @@ import (
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type CustomerService interface {
-	GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error)
+	GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error)
 	GetCustomerByID(ctx context.Context, id int, storeID *int) (*Customer, error)
 	CreateCustomer(ctx context.Context, customer *Customer, storeID *int) error
 	UpdateCustomer(ctx context.Context, customer *Customer, id int, storeID *int) error
@@ -106,7 +106,14 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 
 	storeIDPtr := shared.GetStoreID(c)
 
-	customers, total, err := h.svc.GetAllCustomers(c.Request.Context(), limit, offset, search, isActive, storeIDPtr)
+	var customerGroupID *int
+	if v := c.Query("customer_group_id"); v != "" {
+		if id, err := strconv.Atoi(v); err == nil {
+			customerGroupID = &id
+		}
+	}
+
+	customers, total, err := h.svc.GetAllCustomers(c.Request.Context(), limit, offset, search, isActive, storeIDPtr, customerGroupID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -136,12 +143,13 @@ func (h *Handler) GetCustomerByID(c *gin.Context) {
 
 func (h *Handler) CreateCustomer(c *gin.Context) {
 	var req struct {
-		Name     string  `json:"name"`
-		Phone    string  `json:"phone"`
-		Email    string  `json:"email"`
-		Address  *string `json:"address"`
-		Note     *string `json:"note"`
-		IsActive *bool   `json:"is_active"`
+		Name            string  `json:"name"`
+		Phone           string  `json:"phone"`
+		Email           string  `json:"email"`
+		Address         *string `json:"address"`
+		Note            *string `json:"note"`
+		IsActive        *bool   `json:"is_active"`
+		CustomerGroupID *int    `json:"customer_group_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -169,12 +177,13 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 	}
 
 	customer := &Customer{
-		Name:     req.Name,
-		Phone:    &req.Phone,
-		Email:    &req.Email,
-		Address:  req.Address,
-		Note:     req.Note,
-		IsActive: isActive,
+		Name:            req.Name,
+		Phone:           &req.Phone,
+		Email:           &req.Email,
+		Address:         req.Address,
+		Note:            req.Note,
+		IsActive:        isActive,
+		CustomerGroupID: req.CustomerGroupID,
 	}
 
 	if err := h.svc.CreateCustomer(c.Request.Context(), customer, storeIDPtr); err != nil {
@@ -208,12 +217,13 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	}
 
 	var req struct {
-		Name     *string `json:"name"`
-		Phone    *string `json:"phone"`
-		Email    *string `json:"email"`
-		Address  *string `json:"address"`
-		Note     *string `json:"note"`
-		IsActive *bool   `json:"is_active"`
+		Name            *string `json:"name"`
+		Phone           *string `json:"phone"`
+		Email           *string `json:"email"`
+		Address         *string `json:"address"`
+		Note            *string `json:"note"`
+		IsActive        *bool   `json:"is_active"`
+		CustomerGroupID *int    `json:"customer_group_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -257,11 +267,12 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 	}
 
 	customer := &Customer{
-		ID:      id,
-		Phone:   req.Phone,
-		Email:   req.Email,
-		Address: req.Address,
-		Note:    req.Note,
+		ID:              id,
+		Phone:           req.Phone,
+		Email:           req.Email,
+		Address:         req.Address,
+		Note:            req.Note,
+		CustomerGroupID: req.CustomerGroupID,
 	}
 	if req.Name != nil {
 		customer.Name = *req.Name

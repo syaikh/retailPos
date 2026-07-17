@@ -5,17 +5,23 @@
   let {
     searchQuery = $bindable(''),
     statusFilter = $bindable('all'),
+    groupFilter = $bindable('all'),
     canCreate = false,
+    groups = [] as { id: number; name: string }[],
     onsearch = () => {},
     onstatuschange = () => {},
+    ongroupchange = () => {},
     oncreate = () => {},
     onImport = () => {},
   }: {
     searchQuery?: string;
     statusFilter?: string;
+    groupFilter?: string;
     canCreate?: boolean;
+    groups?: { id: number; name: string }[];
     onsearch?: () => void;
     onstatuschange?: () => void;
+    ongroupchange?: () => void;
     oncreate?: () => void;
     onImport?: () => void;
   } = $props();
@@ -46,6 +52,16 @@
         Inactive
       </button>
     </div>
+    <select
+      class="h-8 px-3 rounded-lg border border-border-default bg-bg-secondary text-xs font-medium text-text-secondary hover:border-border-strong hover:bg-surface-hover transition-colors"
+      bind:value={groupFilter}
+      onchange={() => ongroupchange()}
+    >
+      <option value="all">All Groups</option>
+      {#each groups as g}
+        <option value={String(g.id)}>{g.name}</option>
+      {/each}
+    </select>
     {#if canCreate}
       <BulkActionDropdown module="customers" canExport={canCreate} canImport={canCreate} {onImport} />
       <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">

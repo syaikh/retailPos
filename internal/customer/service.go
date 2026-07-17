@@ -22,8 +22,8 @@ func (s *Service) GetCustomerByID(ctx context.Context, id int, storeID *int) (*C
 	return s.repo.GetCustomerByID(ctx, id, storeID)
 }
 
-func (s *Service) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int) ([]Customer, int, error) {
-	return s.repo.GetAllCustomers(ctx, limit, offset, search, isActive, storeID)
+func (s *Service) GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
+	return s.repo.GetAllCustomers(ctx, limit, offset, search, isActive, storeID, customerGroupID)
 }
 
 func (s *Service) CreateCustomer(ctx context.Context, customer *Customer, storeID *int) error {
@@ -63,6 +63,9 @@ func (s *Service) UpdateCustomer(ctx context.Context, customer *Customer, id int
 	}
 	if customer.Note == nil {
 		customer.Note = old.Note
+	}
+	if customer.CustomerGroupID == nil {
+		customer.CustomerGroupID = old.CustomerGroupID
 	}
 	return s.repo.UpdateCustomer(ctx, customer, id, storeID)
 }
