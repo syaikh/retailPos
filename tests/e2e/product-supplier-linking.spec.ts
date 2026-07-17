@@ -18,7 +18,7 @@ test.describe('Product-Supplier Linking API', () => {
       supplierId = supBody.data[0].id;
     }
 
-    const prodRes = await request.get(`${API_BASE}/products?limit=1&status=active`, {
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
       headers: authHeader(token),
     });
     const prodBody = await prodRes.json();
@@ -30,7 +30,7 @@ test.describe('Product-Supplier Linking API', () => {
   test('GET /products/:id/suppliers lists linked suppliers for a product', async ({ request }) => {
     if (!productId) return;
     const token = await getToken(request);
-    const res = await request.get(`${API_BASE}/products/${productId}/suppliers`, {
+    const res = await request.get(`${API_BASE}/api/products/${productId}/suppliers`, {
       headers: authHeader(token),
     });
     expect(res.ok()).toBeTruthy();
@@ -42,6 +42,9 @@ test.describe('Product-Supplier Linking API', () => {
   test('POST /suppliers/:id/products links supplier to product', async ({ request }) => {
     if (!productId || !supplierId) return;
     const token = await getToken(request);
+    await request.delete(`${API_BASE}/api/suppliers/${supplierId}/products/${productId}`, {
+      headers: authHeader(token),
+    });
     const res = await request.post(`${API_BASE}/api/suppliers/${supplierId}/products`, {
       headers: authHeader(token),
       data: {
@@ -49,8 +52,7 @@ test.describe('Product-Supplier Linking API', () => {
         supplier_sku: 'E2E-SKU-001',
         unit_cost: 8500,
         lead_time_days: 7,
-        minimum_order_quantity: 10,
-        is_preferred: true,
+        is_preferred: false,
       },
     });
     expect(res.ok()).toBeTruthy();

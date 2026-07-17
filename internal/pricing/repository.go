@@ -201,7 +201,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT pr.id, pr.product_id, pr.category_id, pr.brand_id, pr.pricing_type, pr.pricing_method,
+		SELECT p.id AS matched_product_id, pr.id, pr.product_id, pr.category_id, pr.brand_id, pr.pricing_type, pr.pricing_method,
 		       pr.pricing_value, pr.name, pr.minimum_quantity, pr.maximum_quantity, pr.priority,
 		       pr.customer_group_id, pr.store_id, pr.recurrence_days, pr.time_from, pr.time_to,
 		       pr.allow_combine, pr.is_active, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
@@ -221,6 +221,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 
 	result := make(map[int][]PricingRule)
 	for rows.Next() {
+		var matchedProductID int
 		var rule PricingRule
 		var createdAt, updatedAt time.Time
 		var effectiveFrom, effectiveUntil sql.NullTime
@@ -228,7 +229,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		var recurrenceDays []string
 
 		err := rows.Scan(
-			&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
+			&matchedProductID, &rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
 			&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
 			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
@@ -258,9 +259,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		rule.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		rule.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-		if rule.ProductID != nil {
-			result[*rule.ProductID] = append(result[*rule.ProductID], rule)
-		}
+		result[matchedProductID] = append(result[matchedProductID], rule)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

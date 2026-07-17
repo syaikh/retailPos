@@ -9,7 +9,7 @@ test.describe('Pricing Rules API', () => {
 
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
-    const res = await request.get(`${API_BASE}/products?limit=1&status=active`, {
+    const res = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
       headers: authHeader(token),
     });
     const body = await res.json();
@@ -74,10 +74,14 @@ test.describe('Pricing Rules API', () => {
     const res = await request.put(`${API_BASE}/api/pricing-rules/${createdRuleId}`, {
       headers: authHeader(token),
       data: {
-        name: 'E2E Updated Rule',
+        product_id: createdProductId,
+        pricing_type: 'promotion',
+        pricing_method: 'fixed_price',
         pricing_value: 9000,
+        name: 'E2E Updated Rule',
         minimum_quantity: 2,
         priority: 1,
+        is_active: true,
       },
     });
     expect(res.ok()).toBeTruthy();

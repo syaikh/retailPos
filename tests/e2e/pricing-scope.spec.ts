@@ -11,13 +11,38 @@ test.describe('Pricing Scope Priority E2E', () => {
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
 
-    const prodRes = await request.get(`${API_BASE}/products?limit=1&status=active`, {
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
       headers: authHeader(token),
     });
     const prodBody = await prodRes.json();
     if (!prodBody.data || prodBody.data.length === 0) return;
     productId = prodBody.data[0].id;
     productCategoryId = prodBody.data[0].category_id;
+
+    const existingRes = await request.get(`${API_BASE}/api/pricing-rules?product_id=${productId}&limit=100`, {
+      headers: authHeader(token),
+    });
+    const existingBody = await existingRes.json();
+    if (existingBody.data) {
+      for (const rule of existingBody.data) {
+        await request.delete(`${API_BASE}/api/pricing-rules/${rule.id}`, {
+          headers: authHeader(token),
+        });
+      }
+    }
+    if (productCategoryId) {
+      const catRes = await request.get(`${API_BASE}/api/pricing-rules?category_id=${productCategoryId}&limit=100`, {
+        headers: authHeader(token),
+      });
+      const catBody = await catRes.json();
+      if (catBody.data) {
+        for (const rule of catBody.data) {
+          await request.delete(`${API_BASE}/api/pricing-rules/${rule.id}`, {
+            headers: authHeader(token),
+          });
+        }
+      }
+    }
   });
 
   test.afterAll(async ({ request }) => {
@@ -138,10 +163,9 @@ test.describe('Pricing Scope Priority E2E', () => {
         },
       });
       const resolveBody = await resolveRes.json();
-      // Should not get 50% discount — inactive rule is excluded
       const resolved = resolveBody.data[0];
-      if (resolved.pricing_type === 'promotion') {
-        expect(resolved.discount).toBeLessThan(resolved.original_price * 0.5);
+      if (resolved.rule && resolved.rule.id === inactiveRuleId) {
+        expect.fail('inactive rule should not be applied');
       }
     } finally {
       if (inactiveRuleId) {

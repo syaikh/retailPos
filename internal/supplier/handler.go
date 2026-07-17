@@ -172,10 +172,7 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 		return
 	}
 
-	var oldSupplier *Supplier
-	if h.auditSvc != nil {
-		oldSupplier, _ = h.svc.GetByID(c.Request.Context(), id)
-	}
+	oldSupplier, _ := h.svc.GetByID(c.Request.Context(), id)
 
 	var supplier Supplier
 	if err := c.ShouldBindJSON(&supplier); err != nil {
@@ -183,6 +180,15 @@ func (h *Handler) UpdateSupplier(c *gin.Context) {
 		return
 	}
 	supplier.ID = id
+
+	if oldSupplier != nil {
+		if supplier.Code == "" {
+			supplier.Code = oldSupplier.Code
+		}
+		if supplier.Name == "" {
+			supplier.Name = oldSupplier.Name
+		}
+	}
 
 	if err := h.svc.Update(c.Request.Context(), &supplier); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -10,7 +10,7 @@ test.describe('Pricing Stacking E2E', () => {
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
 
-    const prodRes = await request.get(`${API_BASE}/products?limit=1&status=active`, {
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=1&status=active`, {
       headers: authHeader(token),
     });
     const prodBody = await prodRes.json();
