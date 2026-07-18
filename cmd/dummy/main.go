@@ -301,6 +301,11 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ensurePaymentMethods(ctx, db)
 	fmt.Println("   ✅ Payment methods ready")
 
+	// 3f. Ensure customer groups exist
+	fmt.Printf("👥 Ensuring customer groups...\n")
+	ensureCustomerGroups(ctx, db)
+	fmt.Println("   ✅ Customer groups ready")
+
 	// 3e. Clean up test/dummy roles
 	cleanupTestRoles(ctx, db)
 	fmt.Println("   ✅ Test/dummy roles cleaned up")
@@ -449,6 +454,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"tax_classes",
 		"brands",
 		"categories",
+		"customer_groups",
 		"audit_logs",
 		"refresh_tokens",
 		"users",
@@ -607,6 +613,27 @@ func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
 		ON CONFLICT (code) DO NOTHING`)
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure payment methods: %v\n", err)
+	}
+}
+
+func ensureCustomerGroups(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO customer_groups (name, description, is_active, color, created_at, updated_at)
+		VALUES
+		('Walk-in', 'Pelanggan umum tanpa kartu member', true, '#636E72', NOW(), NOW()),
+		('Member', 'Pelanggan terdaftar dengan kartu member', true, '#00B894', NOW(), NOW()),
+		('VIP', 'Pelanggan prioritas dengan harga khusus', true, '#6C5CE7', NOW(), NOW()),
+		('Reseller', 'Reseller/pengusaha kecil dengan harga grosir', true, '#0984E3', NOW(), NOW()),
+		('Corporate', 'Pelanggan korporat dengan volume besar', true, '#E17055', NOW(), NOW()),
+		('Student', 'Pelajar/mahasiswa dengan diskon khusus', true, '#FFD93D', NOW(), NOW()),
+		('Wholesale', 'Pembeli grosir/toko lain', true, '#00CEC9', NOW(), NOW()),
+		('Online', 'Pelanggan dari channel online/marketplace', true, '#E84393', NOW(), NOW())
+		ON CONFLICT (name) DO UPDATE SET
+			description = EXCLUDED.description,
+			color = EXCLUDED.color,
+			updated_at = NOW()`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure customer groups: %v\n", err)
 	}
 }
 
@@ -2001,17 +2028,15 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	numCustomers := 50 + rand.Intn(51) // 50-100
 	fmt.Printf("   🎲 Generating %d customers\n", numCustomers)
 
-	// Look up customer group IDs from the database (Walk-in=1, Member=2, VIP=3 from migration 034)
-	groupIDs := map[string]int{"walk-in": 0, "member": 0, "vip": 0}
+	// Look up customer group IDs from the database (all groups seeded by ensureCustomerGroups)
+	groupIDs := make(map[string]int)
 	rows, err := db.QueryContext(ctx, `SELECT id, LOWER(name) FROM customer_groups`)
 	if err == nil {
 		for rows.Next() {
 			var id int
 			var gname string
 			if err := rows.Scan(&id, &gname); err == nil {
-				if _, ok := groupIDs[gname]; ok {
-					groupIDs[gname] = id
-				}
+				groupIDs[gname] = id
 			}
 		}
 		rows.Close()
@@ -2081,15 +2106,25 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
 		createdAt := ref.AddDate(0, 0, -daysAgo)
 
-		// Assign customer group: 60% Walk-in, 30% Member, 10% VIP
+		// Assign customer group with realistic distribution
 		groupID := 0
 		switch r := rand.Intn(100); {
-		case r < 60:
+		case r < 35: // 35% Walk-in
 			groupID = groupIDs["walk-in"]
-		case r < 90:
+		case r < 55: // 20% Member
 			groupID = groupIDs["member"]
-		default:
+		case r < 65: // 10% VIP
 			groupID = groupIDs["vip"]
+		case r < 75: // 10% Reseller
+			groupID = groupIDs["reseller"]
+		case r < 83: // 8% Corporate
+			groupID = groupIDs["corporate"]
+		case r < 90: // 7% Student
+			groupID = groupIDs["student"]
+		case r < 95: // 5% Wholesale
+			groupID = groupIDs["wholesale"]
+		default: // 5% Online
+			groupID = groupIDs["online"]
 		}
 
 		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, nullableInt(groupID), createdAt); err != nil {

@@ -23,7 +23,7 @@ export async function getProducts(filters: ProductFilters): Promise<{ data: Prod
 export async function getProductById(id: number): Promise<Product | null> {
   try {
     const r = await apiClient.get(`/products/${id}`);
-    return r.data || null;
+    return r.data?.data || null;
   } catch {
     return null;
   }
