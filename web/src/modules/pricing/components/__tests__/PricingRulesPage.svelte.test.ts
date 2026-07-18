@@ -31,9 +31,10 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain("import type { PricingRule } from '../types'");
   });
 
-  it('imports extracted child components', () => {
+  it('has extracted child components', () => {
     expect(src).toContain("import PricingRulesToolbar from './PricingRulesToolbar.svelte'");
     expect(src).toContain("import PricingRulesTable from './PricingRulesTable.svelte'");
+    expect(src).toContain("import PricingRuleDetailDrawer from './PricingRuleDetailDrawer.svelte'");
   });
 
   it('imports ImportWizard from shared/ui', () => {
@@ -62,8 +63,9 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('let showSimulation = $state');
   });
 
-  it('has showDetailCols state for column visibility toggle', () => {
-    expect(src).toContain('let showDetailCols = $state(false)');
+  it('has showDetailDrawer and detailDrawerRule state for detail drawer', () => {
+    expect(src).toContain('let showDetailDrawer = $state(false)');
+    expect(src).toContain('let detailDrawerRule = $state<PricingRule | null>(null)');
   });
 
   it('uses $derived for sorting', () => {
@@ -246,9 +248,13 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('onsimulate={() => showSimulation = true}');
   });
 
-  it('passes showDetailCols to PricingRulesToolbar and PricingRulesTable', () => {
-    expect(src).toContain('bind:showDetailCols');
-    expect(src).toContain('{showDetailCols}');
+  it('renders PricingRuleDetailDrawer with correct props', () => {
+    expect(src).toContain('<PricingRuleDetailDrawer');
+    expect(src).toContain('bind:open={showDetailDrawer}');
+    expect(src).toContain('rule={detailDrawerRule}');
+    expect(src).toContain('onclose={handleDetailDrawerClose}');
+    expect(src).toContain('onedit=');
+    expect(src).toContain('ondelete=');
   });
 
   it('renders Modal for add/edit', () => {
@@ -335,10 +341,10 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('async function doSave()');
   });
 
-  it('has handleViewAudit function that uses sessionStorage', () => {
-    expect(src).toContain('function handleViewAudit(rule: PricingRule)');
-    expect(src).toContain("sessionStorage.setItem('auditLogFilter'");
-    expect(src).toContain("window.location.href = '/admin/audit-logs'");
+  it('has handleRowClick function that opens detail drawer', () => {
+    expect(src).toContain('function handleRowClick(rule: PricingRule)');
+    expect(src).toContain('detailDrawerRule = rule');
+    expect(src).toContain('showDetailDrawer = true');
   });
 
   it('saveRule checks conflicts before saving', () => {
@@ -355,7 +361,8 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('showConflictWarning ? \'Tetap Simpan\'');
   });
 
-  it('passes onviewaudit handler to table', () => {
-    expect(src).toContain('onviewaudit={handleViewAudit}');
+  it('passes onrowclick handler to table (replaces onviewaudit)', () => {
+    expect(src).toContain('onrowclick={handleRowClick}');
+    expect(src).not.toContain('onviewaudit');
   });
 });

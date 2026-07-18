@@ -15,8 +15,9 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, SearchBar, Dropdown, BulkActionDropdown, FilterChipBar } from '$shared/ui'");
   });
 
-  it('imports Calculator, ChevronDown, Plus, Columns3 icons', () => {
-    expect(src).toContain("import { Plus, ChevronDown, Calculator, Columns3 } from 'lucide-svelte'");
+  it('imports Calculator, ChevronDown, Plus icons (no Columns3)', () => {
+    expect(src).toContain("import { Plus, ChevronDown, Calculator } from 'lucide-svelte'");
+    expect(src).not.toContain('Columns3');
   });
 
   it('imports debounce utility', () => {
@@ -130,16 +131,9 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
     expect(src).toContain("methodFilter !== 'all' ? 'border-primary-default/40 bg-primary-subtle/30 text-text-primary'");
   });
 
-  it('has showDetailCols bindable prop', () => {
-    expect(src).toContain('showDetailCols = $bindable(false)');
-    expect(src).toContain('showDetailCols?: boolean');
-  });
-
-  it('has Columns3 toggle button for detail columns', () => {
-    expect(src).toContain('Columns3');
-    expect(src).toContain('showDetailCols = !showDetailCols');
-    expect(src).toContain('Sembunyikan Detail');
-    expect(src).toContain('Tampilkan Detail');
+  it('does not have showDetailCols prop (removed)', () => {
+    expect(src).not.toContain('showDetailCols');
+    expect(src).not.toContain('Columns3');
   });
 
   it('filter dropdowns use h-8 consistent height', () => {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, SearchBar, Dropdown, BulkActionDropdown, FilterChipBar } from '$shared/ui';
-  import { Plus, ChevronDown, Calculator, Columns3 } from 'lucide-svelte';
+  import { Plus, ChevronDown, Calculator } from 'lucide-svelte';
   import { debounce } from '$shared/utils/debounce';
 
   let {
@@ -9,7 +9,6 @@
     statusFilter = $bindable('all'),
     typeFilter = $bindable('all'),
     methodFilter = $bindable('all'),
-    showDetailCols = $bindable(false),
     canCreate = false,
     pricingTypes = [],
     pricingMethods = [],
@@ -25,7 +24,6 @@
     statusFilter: string;
     typeFilter: string;
     methodFilter: string;
-    showDetailCols?: boolean;
     canCreate: boolean;
     pricingTypes: { value: string; label: string }[];
     pricingMethods: { value: string; label: string }[];
@@ -96,9 +94,6 @@
       <SearchBar bind:value={searchQuery} placeholder="Cari rule..." oninput={handleSearch} inputClass="h-10" id="pricing-search" />
     </div>
     <BulkActionDropdown module="pricing_rules" canExport={canCreate} canImport={canCreate} onImport={onimport} />
-    <Button variant="secondary" class="lg:hidden {showDetailCols ? 'bg-primary-subtle/20 text-primary-light border-primary-default/40' : ''}" onclick={() => showDetailCols = !showDetailCols}>
-      <Columns3 size={14} /> <span class="hidden sm:inline">{showDetailCols ? 'Sembunyikan Detail' : 'Tampilkan Detail'}</span>
-    </Button>
     {#if canCreate}
       <Button variant="secondary" onclick={onsimulate}>
         <Calculator size={14} /> <span class="hidden sm:inline">Simulasi</span>

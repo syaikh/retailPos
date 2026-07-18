@@ -24,8 +24,8 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('MoreVertical');
   });
 
-  it('imports PricingRule, PricingType, PricingMethod types', () => {
-    expect(src).toContain("import type { PricingRule, PricingType, PricingMethod } from '../types'");
+  it('imports PricingRule type only', () => {
+    expect(src).toContain("import type { PricingRule } from '../types'");
   });
 
   it('has canCreate prop', () => {
@@ -86,20 +86,6 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain("targetNames.get(`product:${rule.product_id}`)");
     expect(src).toContain("targetNames.get(`category:${rule.category_id}`)");
     expect(src).toContain("targetNames.get(`brand:${rule.brand_id}`)");
-  });
-
-  it('has timeAgo function', () => {
-    expect(src).toContain('function timeAgo(dateStr: string | undefined): string');
-    expect(src).toContain('Baru saja');
-    expect(src).toContain('menit lalu');
-    expect(src).toContain('jam lalu');
-    expect(src).toContain('hari lalu');
-    expect(src).toContain('bln lalu');
-  });
-
-  it('has formatDateTime function', () => {
-    expect(src).toContain('function formatDateTime(dateStr: string | undefined): string');
-    expect(src).toContain("toLocaleString('id-ID'");
   });
 
   it('has checkbox column in table header', () => {
@@ -175,32 +161,9 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('<Tooltip content={targetLabel(rule)} delay={400}>');
   });
 
-  it('uses Tooltip for updated_at column', () => {
-    expect(src).toContain('<Tooltip content={formatDateTime(rule.updated_at || rule.created_at)} delay={400}>');
-    expect(src).toContain('{timeAgo(rule.updated_at || rule.created_at)}');
-  });
-
-  it('has updated_at sortable column (DIPERBARUI)', () => {
-    expect(src).toContain('DIPERBARUI');
-    expect(src).toContain('column="updated_at"');
-  });
-
-  it('has approval sortable column', () => {
-    expect(src).toContain('column="status"');
-    expect(src).toContain('APPROVAL');
-  });
-
   it('NILAI column is right-aligned', () => {
     expect(src).toContain('NILAI');
     expect(src).toContain('text-right');
-  });
-
-  it('has responsive column classes (hidden lg:table-cell)', () => {
-    expect(src).toContain('hidden lg:table-cell');
-  });
-
-  it('has responsive table min-width', () => {
-    expect(src).toContain('min-w-[700px] lg:min-w-[1100px]');
   });
 
   it('has method column sortable', () => {
@@ -208,8 +171,13 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('METODE');
   });
 
-  it('loading skeleton has 11 columns', () => {
-    expect(src).toContain('{#each Array(11) as _}');
+  it('has status sortable column', () => {
+    expect(src).toContain('column="status"');
+    expect(src).toContain('STATUS');
+  });
+
+  it('loading skeleton has 7 columns', () => {
+    expect(src).toContain('{#each Array(7) as _}');
   });
 
   it('does not use role="grid" on data table', () => {
@@ -237,36 +205,18 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('MoreVertical');
   });
 
-  it('has onviewaudit callback prop', () => {
-    expect(src).toContain('onviewaudit = (_rule: PricingRule) => {}');
-    expect(src).toContain('onviewaudit?: (rule: PricingRule) => void');
+  it('has onrowclick callback prop', () => {
+    expect(src).toContain('onrowclick = (_rule: PricingRule) => {}');
+    expect(src).toContain('onrowclick?: (rule: PricingRule) => void');
   });
 
-  it('kebab menu has audit action', () => {
-    expect(src).toContain('onviewaudit(rule)');
-    expect(src).toContain('Audit');
-  });
-
-  it('action column has 8% width', () => {
-    expect(src).toContain('width: 8%;" />');
-  });
-
-  it('type column has 8% width', () => {
-    expect(src).toContain('width: 8%;" />');
-  });
-
-  it('has showDetailCols prop for toggling detail columns', () => {
-    expect(src).toContain('showDetailCols = false');
-    expect(src).toContain('showDetailCols?: boolean');
+  it('row click triggers onrowclick', () => {
+    expect(src).toContain('onclick={() => onrowclick(rule)}');
   });
 
   it('uses shared Badge component for approval status', () => {
     expect(src).toContain('<Badge variant={approvalVariant');
     expect(src).toContain('approvalLabel(rule.status');
-  });
-
-  it('uses shared Badge component for pricing type', () => {
-    expect(src).toContain('<Badge variant={typeVariant()}');
   });
 
   it('has approvalVariant helper function', () => {
@@ -298,12 +248,18 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('{#if canDelete}');
   });
 
-  it('kebab menu has labeled actions', () => {
+  it('kebab menu has labeled actions without Audit', () => {
     expect(src).toContain('Ajukan');
     expect(src).toContain('Approve');
     expect(src).toContain('Reject');
     expect(src).toContain('Edit');
     expect(src).toContain('Duplikasi');
     expect(src).toContain('Hapus');
+    expect(src).not.toContain('onviewaudit');
+  });
+
+  it('has 7-column layout via colgroup', () => {
+    expect(src).toContain('table-layout: fixed');
+    expect(src).toContain('width: 30%;" />');
   });
 });

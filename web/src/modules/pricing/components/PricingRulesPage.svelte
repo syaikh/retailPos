@@ -10,6 +10,7 @@
   import { Loader2, AlertTriangle } from 'lucide-svelte';
   import PricingRulesToolbar from './PricingRulesToolbar.svelte';
   import PricingRulesTable from './PricingRulesTable.svelte';
+  import PricingRuleDetailDrawer from './PricingRuleDetailDrawer.svelte';
   import PriceSimulationModal from './PriceSimulationModal.svelte';
 
   const authStore = useAuthStore();
@@ -33,7 +34,8 @@
   let approvalFilter = $state('all');
   let typeFilter = $state('all');
   let methodFilter = $state('all');
-  let showDetailCols = $state(false);
+  let showDetailDrawer = $state(false);
+  let detailDrawerRule = $state<PricingRule | null>(null);
 
   let customerGroups = $state<{ id: number; name: string }[]>([]);
   let stores = $state<{ id: number; name: string }[]>([]);
@@ -426,9 +428,13 @@
     doSave();
   }
 
-  function handleViewAudit(rule: PricingRule) {
-    sessionStorage.setItem('auditLogFilter', JSON.stringify({ entity_type: 'pricing_rule', entity_id: rule.id }));
-    window.location.href = '/admin/audit-logs';
+  function handleRowClick(rule: PricingRule) {
+    detailDrawerRule = rule;
+    showDetailDrawer = true;
+  }
+
+  function handleDetailDrawerClose() {
+    showDetailDrawer = false;
   }
 
   async function confirmDelete() {
@@ -641,7 +647,6 @@
     bind:statusFilter
     bind:typeFilter
     bind:methodFilter
-    bind:showDetailCols
     {canCreate}
     {pricingTypes}
     {pricingMethods}
@@ -668,7 +673,6 @@
       {canCreate}
       {pricingTypes}
       {pricingMethods}
-      {showDetailCols}
       onsort={handleSort}
       onedit={openEdit}
       ondelete={openDelete}
@@ -680,7 +684,7 @@
       onsubmitapproval={handleSubmitApproval}
       onapprove={handleApprove}
       onreject={handleReject}
-      onviewaudit={handleViewAudit}
+      onrowclick={handleRowClick}
       {targetNames}
     />
 
@@ -1047,3 +1051,16 @@
 />
 
 <PriceSimulationModal bind:open={showSimulation} />
+
+<PricingRuleDetailDrawer
+  bind:open={showDetailDrawer}
+  rule={detailDrawerRule}
+  {canEdit}
+  {canDelete}
+  {targetNames}
+  {customerGroups}
+  {stores}
+  onclose={handleDetailDrawerClose}
+  onedit={(rule) => { showDetailDrawer = false; openEdit(rule); }}
+  ondelete={(rule) => { showDetailDrawer = false; openDelete(rule); }}
+/>
