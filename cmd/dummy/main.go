@@ -783,8 +783,8 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method, pricing_value, name, minimum_quantity, maximum_quantity, priority, is_active, allow_combine, customer_group_id, store_id, recurrence_days, time_from, time_to, effective_from, effective_until, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17, $18, $19)`)
+		`INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method, pricing_value, name, minimum_quantity, maximum_quantity, priority, is_active, status, allow_combine, customer_group_id, store_id, recurrence_days, time_from, time_to, effective_from, effective_until, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, 'approved', $11, $12, $13, $14, $15, $16, $17, $18, $19)`)
 	if err != nil {
 		return fmt.Errorf("prepare pricing rule stmt: %w", err)
 	}
@@ -793,8 +793,10 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	ref := time.Now().In(jakartaTZ)
 	ruleCount := 0
 
-	// Pick 3 products for detailed rule demos
-	p1, p2, p3 := products[0], products[1], products[2]
+	// Pick 3 products for detailed rule demos — spread across product list
+	p1 := products[0]
+	p2 := products[len(products)/3]
+	p3 := products[(len(products)*2)/3]
 	effectiveFrom := ref.AddDate(0, 0, -30)
 	effectiveUntil := ref.AddDate(0, 6, 0)
 
@@ -1997,6 +1999,22 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	numCustomers := 50 + rand.Intn(51) // 50-100
 	fmt.Printf("   🎲 Generating %d customers\n", numCustomers)
 
+	// Look up customer group IDs from the database (Walk-in=1, Member=2, VIP=3 from migration 034)
+	groupIDs := map[string]int{"walk-in": 0, "member": 0, "vip": 0}
+	rows, err := db.QueryContext(ctx, `SELECT id, LOWER(name) FROM customer_groups`)
+	if err == nil {
+		for rows.Next() {
+			var id int
+			var gname string
+			if err := rows.Scan(&id, &gname); err == nil {
+				if _, ok := groupIDs[gname]; ok {
+					groupIDs[gname] = id
+				}
+			}
+		}
+		rows.Close()
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -2008,8 +2026,8 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	}()
 
 	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
-		 VALUES ($1, $2, $3, $4, $5, true, false, $6)`)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, customer_group_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, true, false, $6, $7)`)
 	if err != nil {
 		return fmt.Errorf("prepare: %w", err)
 	}
@@ -2020,9 +2038,10 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	// Insert a walk-in/general customer first
 	walkInID := 0
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, created_at)
-		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1)
+		`INSERT INTO customers (name, phone, email, address, note, is_active, is_walk_in, customer_group_id, created_at)
+		 VALUES ('Walk-in / General', '', '', NULL, NULL, true, true, $1, $2)
 		 RETURNING id`,
+		nullableInt(groupIDs["walk-in"]),
 		ref,
 	).Scan(&walkInID)
 	if err != nil {
@@ -2060,7 +2079,18 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 		daysAgo := rand.Intn(int(ref.Sub(startDate).Hours()/24)) + 1
 		createdAt := ref.AddDate(0, 0, -daysAgo)
 
-		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, createdAt); err != nil {
+		// Assign customer group: 60% Walk-in, 30% Member, 10% VIP
+		groupID := 0
+		switch r := rand.Intn(100); {
+		case r < 60:
+			groupID = groupIDs["walk-in"]
+		case r < 90:
+			groupID = groupIDs["member"]
+		default:
+			groupID = groupIDs["vip"]
+		}
+
+		if _, err := stmt.ExecContext(ctx, name, phone, email, address, note, nullableInt(groupID), createdAt); err != nil {
 			fmt.Printf("   ⚠️  Skipped customer %s: %v\n", name, err)
 			continue
 		}
