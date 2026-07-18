@@ -2,11 +2,12 @@
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
-  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service';
+  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores, checkConflicts } from '../services/pricing-service';
   import { getCategories, getBrands, getProductById } from '$modules/product/services/product-service';
   import type { PricingRule } from '../types';
+  import type { ConflictRule } from '../services/pricing-service';
   import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
-  import { Loader2 } from 'lucide-svelte';
+  import { Loader2, AlertTriangle } from 'lucide-svelte';
   import PricingRulesToolbar from './PricingRulesToolbar.svelte';
   import PricingRulesTable from './PricingRulesTable.svelte';
   import PriceSimulationModal from './PriceSimulationModal.svelte';
@@ -60,6 +61,9 @@
   let selectedBrandName = $state('');
   let formErrors = $state<Record<string, string>>({});
   let showErrors = $state(false);
+  let conflictRules = $state<ConflictRule[]>([]);
+  let checkingConflicts = $state(false);
+  let showConflictWarning = $state(false);
 
   const dayOptions = [
     { value: 'mon', label: 'Senin' },
@@ -330,16 +334,30 @@
     }
   }
 
-  async function saveRule(e: Event) {
-    e.preventDefault();
-    const errors = validateForm();
-    formErrors = errors;
-    showErrors = true;
-    if (Object.keys(errors).length > 0) {
-      toast.error(Object.values(errors)[0]);
-      return;
+  async function runConflictCheck(): Promise<ConflictRule[]> {
+    checkingConflicts = true;
+    try {
+      const resp = await checkConflicts({
+        product_id: form.product_id,
+        category_id: form.category_id,
+        brand_id: form.brand_id,
+        pricing_type: form.pricing_type,
+        pricing_method: form.pricing_method,
+        pricing_value: form.pricing_value,
+        minimum_quantity: form.minimum_quantity || 1,
+        maximum_quantity: form.maximum_quantity ? Number(form.maximum_quantity) : undefined,
+        priority: form.priority,
+        exclude_id: modalMode === 'edit' ? selectedRule?.id : undefined,
+      });
+      return resp.data || [];
+    } catch {
+      return [];
+    } finally {
+      checkingConflicts = false;
     }
-    saving = true;
+  }
+
+  function buildPayload(): any {
     const payload: any = { ...form };
     if (payload.effective_from) {
       payload.effective_from = payload.effective_from + 'T00:00:00Z';
@@ -357,6 +375,12 @@
     if (!payload.time_from) delete payload.time_from;
     if (!payload.time_to) delete payload.time_to;
     if (payload.recurrence_days.length === 0) delete payload.recurrence_days;
+    return payload;
+  }
+
+  async function doSave() {
+    saving = true;
+    const payload = buildPayload();
 
     let ok: boolean;
     if (modalMode === 'add') {
@@ -369,10 +393,41 @@
     if (ok) {
       toast.success(modalMode === 'add' ? 'Rule berhasil dibuat' : 'Rule berhasil diupdate');
       showModal = false;
+      showConflictWarning = false;
+      conflictRules = [];
       fetchRules();
     } else {
       toast.error('Gagal menyimpan rule');
     }
+  }
+
+  async function saveRule(e: Event) {
+    e.preventDefault();
+    const errors = validateForm();
+    formErrors = errors;
+    showErrors = true;
+    if (Object.keys(errors).length > 0) {
+      toast.error(Object.values(errors)[0]);
+      return;
+    }
+
+    if (!showConflictWarning) {
+      const conflicts = await runConflictCheck();
+      if (conflicts.length > 0) {
+        conflictRules = conflicts;
+        showConflictWarning = true;
+        return;
+      }
+    }
+
+    showConflictWarning = false;
+    conflictRules = [];
+    doSave();
+  }
+
+  function handleViewAudit(rule: PricingRule) {
+    sessionStorage.setItem('auditLogFilter', JSON.stringify({ entity_type: 'pricing_rule', entity_id: rule.id }));
+    window.location.href = '/admin/audit-logs';
   }
 
   async function confirmDelete() {
@@ -627,6 +682,7 @@
       onsubmitapproval={handleSubmitApproval}
       onapprove={handleApprove}
       onreject={handleReject}
+      onviewaudit={handleViewAudit}
       {targetNames}
     />
 
@@ -952,12 +1008,34 @@
       {/if}
     </div>
 
+    {#if showConflictWarning && conflictRules.length > 0}
+      <div class="rounded-xl border border-warning/40 bg-warning-subtle/20 p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <AlertTriangle size={18} class="text-warning shrink-0" />
+          <span class="text-sm font-semibold text-text-primary">Konflik Ditemukan</span>
+        </div>
+        <p class="text-xs text-text-muted">Rule ini memiliki konflik dengan {conflictRules.length} rule aktif lainnya:</p>
+        <div class="space-y-1.5 max-h-32 overflow-y-auto">
+          {#each conflictRules as c}
+            <div class="flex items-center gap-2 text-xs bg-surface-default/60 rounded-lg px-3 py-1.5">
+              <span class="font-medium text-text-primary">{c.name}</span>
+              <span class="text-text-muted">|</span>
+              <span class="text-text-muted">{c.pricing_method}</span>
+              <span class="text-text-muted">|</span>
+              <span class="text-text-muted">Prioritas: {c.priority}</span>
+            </div>
+          {/each}
+        </div>
+        <p class="text-[11px] text-text-muted">Rule dengan scope dan tipe yang sama akan saling menimpa berdasarkan prioritas.</p>
+      </div>
+    {/if}
+
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="secondary" onclick={() => { showModal = false; showConflictWarning = false; conflictRules = []; }} disabled={saving}>Batal</Button>
     <Button variant="primary" class="min-w-32" onclick={saveRule} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
-      {modalMode === 'add' ? 'Buat Rule' : 'Update Rule'}
+      {showConflictWarning ? 'Tetap Simpan' : modalMode === 'add' ? 'Buat Rule' : 'Update Rule'}
     </Button>
   {/snippet}
 </Modal>

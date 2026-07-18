@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Skeleton, SortableHeader, Tooltip } from '$shared/ui';
-  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Send, Check, X, Power, PowerOff } from 'lucide-svelte';
+  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Send, Check, X, Power, PowerOff, Eye } from 'lucide-svelte';
   import type { PricingRule, PricingType, PricingMethod } from '../types';
 
   let {
@@ -25,6 +25,7 @@
     onsubmitapproval = (_rule: PricingRule) => {},
     onapprove = (_rule: PricingRule) => {},
     onreject = (_rule: PricingRule) => {},
+    onviewaudit = (_rule: PricingRule) => {},
     targetNames = new Map<string, string>(),
   }: {
     rules: PricingRule[];
@@ -48,6 +49,7 @@
     onsubmitapproval?: (rule: PricingRule) => void;
     onapprove?: (rule: PricingRule) => void;
     onreject?: (rule: PricingRule) => void;
+    onviewaudit?: (rule: PricingRule) => void;
     targetNames?: Map<string, string>;
   } = $props();
 
@@ -139,16 +141,16 @@
   <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading pricing rules">
     <colgroup>
       <col style="width: 3%;" />
-      <col style="width: 17%;" />
+      <col style="width: 15%;" />
       <col style="width: 10%;" />
-      <col style="width: 7%;" />
+      <col style="width: 8%;" />
       <col style="width: 10%;" />
       <col style="width: 10%;" />
       <col style="width: 6%;" />
       <col style="width: 6%;" />
       <col style="width: 7%;" />
-      <col style="width: 9%;" />
       <col style="width: 7%;" />
+      <col style="width: 10%;" />
     </colgroup>
     <thead><tr><th></th><th>Nama</th><th>Target</th><th>Tipe</th><th>Metode</th><th class="text-right">Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Approval</th><th>Diperbarui</th><th>Aksi</th></tr></thead>
     <tbody>{#each Array(5) as _}<tr>{#each Array(11) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
@@ -167,16 +169,16 @@
   <table class="w-full min-w-[700px] lg:min-w-[1100px]" style="table-layout: fixed;" aria-label="Pricing rules">
     <colgroup>
       <col style="width: 3%;" />
-      <col style="width: 16%;" />
+      <col style="width: 14%;" />
       <col class="hidden lg:table-column" style="width: 10%;" />
-      <col class="hidden lg:table-column" style="width: 7%;" />
+      <col class="hidden lg:table-column" style="width: 8%;" />
       <col style="width: 10%;" />
       <col style="width: 10%;" />
       <col class="hidden lg:table-column" style="width: 6%;" />
       <col class="hidden lg:table-column" style="width: 6%;" />
       <col style="width: 7%;" />
-      <col class="hidden lg:table-column" style="width: 9%;" />
-      <col style="width: 7%;" />
+      <col class="hidden lg:table-column" style="width: 8%;" />
+      <col style="width: 10%;" />
     </colgroup>
     <thead class="bg-muted/50 sticky top-0 z-10">
       <tr class="border-b text-left text-sm text-text-muted">
@@ -269,6 +271,7 @@
               {#if canDelete}
                 <Button variant="ghost" size="sm" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => ondelete(rule)} aria-label="Delete {rule.name}"><Trash2 class="w-4 h-4" /></Button>
               {/if}
+              <Button variant="ghost" size="sm" class="text-text-muted hover:text-text-primary" onclick={() => onviewaudit(rule)} aria-label="Lihat audit {rule.name}"><Eye class="w-4 h-4" /></Button>
             </div>
           </td>
         </tr>

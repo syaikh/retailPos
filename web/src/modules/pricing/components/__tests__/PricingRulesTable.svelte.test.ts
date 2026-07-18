@@ -221,4 +221,26 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   it('button sizes changed to sm', () => {
     expect(src).toContain('size="sm"');
   });
+
+  it('imports Eye icon from lucide-svelte', () => {
+    expect(src).toContain('Eye');
+  });
+
+  it('has onviewaudit callback prop', () => {
+    expect(src).toContain('onviewaudit = (_rule: PricingRule) => {}');
+    expect(src).toContain('onviewaudit?: (rule: PricingRule) => void');
+  });
+
+  it('Eye button calls onviewaudit', () => {
+    expect(src).toContain('onclick={() => onviewaudit(rule)}');
+    expect(src).toContain('Lihat audit {rule.name}');
+  });
+
+  it('action column has 10% width', () => {
+    expect(src).toContain('width: 10%;" />');
+  });
+
+  it('type column has 8% width', () => {
+    expect(src).toContain('width: 8%;" />');
+  });
 });

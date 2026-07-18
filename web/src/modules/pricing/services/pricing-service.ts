@@ -155,3 +155,43 @@ export async function getStores(): Promise<{ id: number; name: string }[]> {
   }
   return [];
 }
+
+export interface CheckConflictsRequest {
+  product_id?: number | null;
+  category_id?: number | null;
+  brand_id?: number | null;
+  pricing_type: string;
+  pricing_method: string;
+  pricing_value: number;
+  minimum_quantity: number;
+  maximum_quantity?: number | null;
+  priority: number;
+  exclude_id?: number;
+}
+
+export interface ConflictRule {
+  id: number;
+  name: string;
+  pricing_type: string;
+  pricing_method: string;
+  pricing_value: number;
+  priority: number;
+  minimum_quantity: number;
+  maximum_quantity: number | null;
+}
+
+export interface CheckConflictsResponse {
+  data: ConflictRule[];
+  has_conflicts: boolean;
+}
+
+export async function checkConflicts(payload: CheckConflictsRequest): Promise<CheckConflictsResponse> {
+  const r = await apiFetch('/api/pricing-rules/check-conflicts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (r.ok) {
+    return await r.json();
+  }
+  return { data: [], has_conflicts: false };
+}

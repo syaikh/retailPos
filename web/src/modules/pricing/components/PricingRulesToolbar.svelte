@@ -35,6 +35,8 @@
     onsimulate?: () => void;
   } = $props();
 
+  const approvalLabels: Record<string, string> = { draft: 'Draft', pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
+
   const debouncedSearch = debounce(() => {
     onfilter();
   }, 300);
@@ -50,7 +52,6 @@
   let activeFilters = $derived.by(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
     if (approvalFilter !== 'all') {
-      const approvalLabels: Record<string, string> = { draft: 'Draft', pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
       chips.push({ key: 'approval', label: `Approval: ${approvalLabels[approvalFilter] || approvalFilter}`, clear: () => { approvalFilter = 'all'; handleFilterChange(); } });
     }
     if (statusFilter !== 'all') {
@@ -80,12 +81,12 @@
 </script>
 
 <div class="card p-4">
-  <div class="flex items-center gap-3">
-    <div class="flex-1">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-[200px]">
       <SearchBar bind:value={searchQuery} placeholder="Cari rule..." oninput={handleSearch} inputClass="h-10" id="pricing-search" />
     </div>
     <Dropdown placement="bottom-start" items={[
-      { label: 'Semua Status', checked: approvalFilter === 'all', onclick: () => { approvalFilter = 'all'; handleFilterChange(); } },
+      { label: 'Semua Approval', checked: approvalFilter === 'all', onclick: () => { approvalFilter = 'all'; handleFilterChange(); } },
       { label: 'Draft', checked: approvalFilter === 'draft', onclick: () => { approvalFilter = 'draft'; handleFilterChange(); } },
       { label: 'Pending', checked: approvalFilter === 'pending', onclick: () => { approvalFilter = 'pending'; handleFilterChange(); } },
       { label: 'Approved', checked: approvalFilter === 'approved', onclick: () => { approvalFilter = 'approved'; handleFilterChange(); } },
@@ -96,14 +97,14 @@
           class="flex items-center gap-2 px-3 h-10 rounded-xl border text-sm transition-colors {approvalFilter !== 'all' ? 'border-primary-default/40 bg-primary-subtle/30 text-text-primary' : 'border-border bg-surface-default text-text-secondary hover:border-border-strong hover:bg-surface-hover'}"
           style="min-width: 120px;"
           onclick={toggle}
-          aria-label="Filter approval"
+          aria-label="Filter approval: {approvalFilter === 'all' ? 'Semua' : approvalLabels[approvalFilter] || approvalFilter}"
         >
-          <span class="flex-1 text-left truncate">{approvalFilter === 'all' ? 'Semua Status' : approvalFilter === 'draft' ? 'Draft' : approvalFilter === 'pending' ? 'Pending' : approvalFilter === 'approved' ? 'Approved' : 'Rejected'}</span>
+          <span class="flex-1 text-left truncate">{approvalFilter === 'all' ? 'Semua Approval' : approvalLabels[approvalFilter] || approvalFilter}</span>
           <ChevronDown size={14} class="text-text-muted shrink-0" />
         </button>
       {/snippet}
     </Dropdown>
-    <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default" role="group" aria-label="Filter status">
+    <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default" role="group" aria-label="Filter status aktif">
       <button
         class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
         onclick={() => { statusFilter = 'all'; handleFilterChange(); }}

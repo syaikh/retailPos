@@ -113,7 +113,7 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
   });
 
   it('has status filter group with aria-label', () => {
-    expect(src).toContain('aria-label="Filter status"');
+    expect(src).toContain('aria-label="Filter status aktif"');
   });
 
   it('has filter chip area with proper structure', () => {

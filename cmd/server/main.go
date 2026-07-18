@@ -211,6 +211,8 @@ func main() {
 	_ = schemaReg.Register(product.Schema)
 	_ = schemaReg.Register(store.Schema)
 	_ = schemaReg.Register(customergroup.Schema)
+	_ = schemaReg.Register(pricing.Schema)
+	_ = schemaReg.Register(supplier.Schema)
 
 	adapterReg := importexport.NewAdapterRegistry()
 	_ = adapterReg.Register(category.NewAdapter(categoryRepo))
@@ -220,6 +222,8 @@ func main() {
 	_ = adapterReg.Register(product.NewAdapter(productRepo, categoryRepo, brandRepo, uomRepo))
 	_ = adapterReg.Register(store.NewAdapter(storeRepo))
 	_ = adapterReg.Register(customergroup.NewAdapter(customerGroupRepo))
+	_ = adapterReg.Register(pricing.NewAdapter(pricingRepo))
+	_ = adapterReg.Register(supplier.NewAdapter(supplierRepo))
 
 	valPipeline := validation.NewDefaultPipeline()
 	progStore := progress.NewPgRepository(dbPool)

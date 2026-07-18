@@ -12,7 +12,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports pricing service functions', () => {
-    expect(src).toContain("import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service'");
+    expect(src).toContain("import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores, checkConflicts } from '../services/pricing-service'");
   });
 
   it('imports product service functions including getProductById', () => {
@@ -298,5 +298,56 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('typeLabel default is Indonesian', () => {
     expect(src).toContain("'Semua Tipe'");
+  });
+
+  it('imports checkConflicts from pricing service', () => {
+    expect(src).toContain('checkConflicts');
+  });
+
+  it('imports ConflictRule type from pricing service', () => {
+    expect(src).toContain("import type { ConflictRule } from '../services/pricing-service'");
+  });
+
+  it('imports AlertTriangle icon for conflict warnings', () => {
+    expect(src).toContain('AlertTriangle');
+  });
+
+  it('has conflict detection state variables', () => {
+    expect(src).toContain('conflictRules = $state<ConflictRule[]>([])');
+    expect(src).toContain('checkingConflicts = $state(false)');
+    expect(src).toContain('showConflictWarning = $state(false)');
+  });
+
+  it('has runConflictCheck function', () => {
+    expect(src).toContain('async function runConflictCheck()');
+    expect(src).toContain('await checkConflicts(');
+  });
+
+  it('has doSave function', () => {
+    expect(src).toContain('async function doSave()');
+  });
+
+  it('has handleViewAudit function that uses sessionStorage', () => {
+    expect(src).toContain('function handleViewAudit(rule: PricingRule)');
+    expect(src).toContain("sessionStorage.setItem('auditLogFilter'");
+    expect(src).toContain("window.location.href = '/admin/audit-logs'");
+  });
+
+  it('saveRule checks conflicts before saving', () => {
+    expect(src).toContain('if (!showConflictWarning)');
+    expect(src).toContain('showConflictWarning = true');
+  });
+
+  it('conflict warning UI shows AlertTriangle and conflict list', () => {
+    expect(src).toContain('showConflictWarning && conflictRules.length > 0');
+    expect(src).toContain('Konflik Ditemukan');
+  });
+
+  it('modal footer changes text when conflict warning shown', () => {
+    expect(src).toContain('showConflictWarning ? \'Tetap Simpan\'');
+  });
+
+  it('passes onviewaudit handler to table', () => {
+    expect(src).toContain('onviewaudit={handleViewAudit}');
   });
 });
