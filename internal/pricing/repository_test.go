@@ -3,6 +3,7 @@ package pricing
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -282,5 +283,49 @@ func TestPricingRepository_SearchProducts(t *testing.T) {
 		results, err := repo.SearchProducts(ctx, "", 10)
 		require.NoError(t, err)
 		assert.Empty(t, results)
+	})
+}
+
+func TestPricingRepository_NameExists(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "NEX-/"+time.Now().Format("0102150405"), "NameExists Product", 10000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypeSpecialPrice,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    5000,
+		Name:            "UniqueName-" + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	t.Run("exists returns true", func(t *testing.T) {
+		exists, err := repo.NameExists(ctx, rule.Name, 0)
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("exists excludes self on update", func(t *testing.T) {
+		exists, err := repo.NameExists(ctx, rule.Name, rule.ID)
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("case insensitive", func(t *testing.T) {
+		exists, err := repo.NameExists(ctx, strings.ToUpper(rule.Name), 0)
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("non-existent name", func(t *testing.T) {
+		exists, err := repo.NameExists(ctx, "non-existent-name-"+time.Now().Format("0102150405"), 0)
+		require.NoError(t, err)
+		assert.False(t, exists)
 	})
 }

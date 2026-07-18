@@ -62,6 +62,10 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('let showSimulation = $state');
   });
 
+  it('has showDetailCols state for column visibility toggle', () => {
+    expect(src).toContain('let showDetailCols = $state(false)');
+  });
+
   it('uses $derived for sorting', () => {
     expect(src).toContain('let sortedRules = $derived');
   });
@@ -242,6 +246,11 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('onsimulate={() => showSimulation = true}');
   });
 
+  it('passes showDetailCols to PricingRulesToolbar and PricingRulesTable', () => {
+    expect(src).toContain('bind:showDetailCols');
+    expect(src).toContain('{showDetailCols}');
+  });
+
   it('renders Modal for add/edit', () => {
     expect(src).toContain('<Modal');
     expect(src).toContain("'Tambah Pricing Rule'");
@@ -286,9 +295,8 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('sr-only');
   });
 
-  it('has page heading', () => {
-    expect(src).toContain('<h1');
-    expect(src).toContain('Pricing Rules');
+  it('has no inline page heading (consistent with other pages)', () => {
+    expect(src).not.toContain('<h1');
   });
 
   it('has aria-live region on table container', () => {

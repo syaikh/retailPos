@@ -118,3 +118,30 @@ func TestValidateRule_NegativeValue(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrInvalidRule))
 	assert.Contains(t, err.Error(), "non-negative")
 }
+
+func TestValidateRule_MarkupPercentOutOfRange(t *testing.T) {
+	r := validRule()
+	r.PricingMethod = PricingMethodMarkupPct
+	r.PricingValue = 600
+	err := validateRule(r)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrInvalidRule))
+	assert.Contains(t, err.Error(), "markup_percent")
+}
+
+func TestValidateRule_MarkupPercentValid(t *testing.T) {
+	r := validRule()
+	r.PricingMethod = PricingMethodMarkupPct
+	r.PricingValue = 500
+	err := validateRule(r)
+	assert.NoError(t, err)
+}
+
+func TestValidateRule_MinimumQuantityZero(t *testing.T) {
+	r := validRule()
+	r.MinimumQuantity = 0
+	err := validateRule(r)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrInvalidRule))
+	assert.Contains(t, err.Error(), "minimum_quantity must be at least 1")
+}

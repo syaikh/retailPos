@@ -29,6 +29,13 @@ func (s *Service) Create(ctx context.Context, rule *PricingRule) error {
 	if err := validateRule(rule); err != nil {
 		return err
 	}
+	exists, err := s.repo.NameExists(ctx, rule.Name, 0)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrDuplicateName
+	}
 	// Default status to approved if not set (backward compat)
 	if rule.Status == "" {
 		rule.Status = StatusApproved
@@ -39,6 +46,13 @@ func (s *Service) Create(ctx context.Context, rule *PricingRule) error {
 func (s *Service) Update(ctx context.Context, rule *PricingRule) error {
 	if err := validateRule(rule); err != nil {
 		return err
+	}
+	exists, err := s.repo.NameExists(ctx, rule.Name, rule.ID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrDuplicateName
 	}
 	// Preserve existing status if not provided
 	if rule.Status == "" {

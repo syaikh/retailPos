@@ -58,20 +58,26 @@ export async function getPricingRule(id: number): Promise<PricingRule | null> {
   return null;
 }
 
-export async function createPricingRule(payload: CreatePricingRulePayload): Promise<boolean> {
+export async function createPricingRule(payload: CreatePricingRulePayload): Promise<{ ok: boolean; error?: string }> {
   const r = await apiFetch('/api/pricing-rules', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
-  return r.ok;
+  if (r.ok) return { ok: true };
+  let data: Record<string, string> = {};
+  try { data = await r.json(); } catch { /* noop */ }
+  return { ok: false, error: data.error || 'Gagal menyimpan rule' };
 }
 
-export async function updatePricingRule(id: number, payload: UpdatePricingRulePayload): Promise<boolean> {
+export async function updatePricingRule(id: number, payload: UpdatePricingRulePayload): Promise<{ ok: boolean; error?: string }> {
   const r = await apiFetch(`/api/pricing-rules/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
-  return r.ok;
+  if (r.ok) return { ok: true };
+  let data: Record<string, string> = {};
+  try { data = await r.json(); } catch { /* noop */ }
+  return { ok: false, error: data.error || 'Gagal menyimpan rule' };
 }
 
 export async function deletePricingRule(id: number): Promise<boolean> {

@@ -33,6 +33,7 @@
   let approvalFilter = $state('all');
   let typeFilter = $state('all');
   let methodFilter = $state('all');
+  let showDetailCols = $state(false);
 
   let customerGroups = $state<{ id: number; name: string }[]>([]);
   let stores = $state<{ id: number; name: string }[]>([]);
@@ -382,22 +383,22 @@
     saving = true;
     const payload = buildPayload();
 
-    let ok: boolean;
+    let result: { ok: boolean; error?: string };
     if (modalMode === 'add') {
-      ok = await createPricingRule(payload);
+      result = await createPricingRule(payload);
     } else {
-      ok = await updatePricingRule(selectedRule!.id, payload);
+      result = await updatePricingRule(selectedRule!.id, payload);
     }
     saving = false;
 
-    if (ok) {
+    if (result.ok) {
       toast.success(modalMode === 'add' ? 'Rule berhasil dibuat' : 'Rule berhasil diupdate');
       showModal = false;
       showConflictWarning = false;
       conflictRules = [];
       fetchRules();
     } else {
-      toast.error('Gagal menyimpan rule');
+      toast.error(result.error || 'Gagal menyimpan rule');
     }
   }
 
@@ -634,17 +635,13 @@
     Lewati ke tabel rules
   </a>
 
-  <div>
-    <h1 class="text-xl font-bold text-text-primary">Pricing Rules</h1>
-    <p class="text-sm text-text-muted mt-1">Kelola aturan harga, diskon, dan promosi untuk produk, kategori, atau brand.</p>
-  </div>
-
   <PricingRulesToolbar
     bind:searchQuery
     bind:approvalFilter
     bind:statusFilter
     bind:typeFilter
     bind:methodFilter
+    bind:showDetailCols
     {canCreate}
     {pricingTypes}
     {pricingMethods}
@@ -656,7 +653,7 @@
     onsimulate={() => showSimulation = true}
   />
 
-  <div id="pricing-rules-table" class="card overflow-hidden" aria-live="polite" aria-atomic="true">
+  <div id="pricing-rules-table" class="card overflow-x-auto" aria-live="polite" aria-atomic="true">
     <span class="sr-only" aria-live="polite">
       {#if loading}Memuat data...{:else if rules.length === 0}Tidak ada rules ditemukan.{:else}Menampilkan {offset + 1} sampai {Math.min(offset + limit, total)} dari {total} rules.{/if}
     </span>
@@ -671,6 +668,7 @@
       {canCreate}
       {pricingTypes}
       {pricingMethods}
+      {showDetailCols}
       onsort={handleSort}
       onedit={openEdit}
       ondelete={openDelete}
@@ -688,8 +686,7 @@
 
     {#if !loading && rules.length > 0}
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <div class="flex items-center justify-between">
-          <span class="text-xs text-text-muted">Menampilkan {offset + 1}–{Math.min(offset + limit, total)} dari {total} rules</span>
+        <div class="flex items-center justify-end">
           <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
         </div>
       </div>
@@ -703,7 +700,7 @@
     <!-- Section 1: Informasi Rule -->
     <div>
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">1</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-xs font-bold">1</span>
         Informasi Rule
       </h3>
       <div class="space-y-3">
@@ -711,7 +708,7 @@
           <label for="rule-name" class="block text-xs font-medium text-text-secondary mb-1">Nama Rule <span class="text-danger">*</span></label>
           <Input id="rule-name" bind:value={form.name} required placeholder="Diskon Member VIP" class="h-9 text-sm" />
           {#if showErrors && formErrors.name}
-            <p class="mt-1 text-[11px] text-danger">{formErrors.name}</p>
+            <p class="mt-1 text-xs text-danger">{formErrors.name}</p>
           {/if}
         </div>
         <div class="grid grid-cols-4 gap-3">
@@ -720,14 +717,14 @@
             <select id="pricing-type" bind:value={form.pricing_type} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
               {#each pricingTypes as pt}<option value={pt.value}>{pt.label}</option>{/each}
             </select>
-            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingTypes.find(t => t.value === form.pricing_type)?.description || ''}</p>
+            <p class="mt-0.5 text-xs leading-tight text-text-muted">{pricingTypes.find(t => t.value === form.pricing_type)?.description || ''}</p>
           </div>
           <div>
             <label for="pricing-method" class="block text-xs font-medium text-text-secondary mb-1">Metode <span class="text-danger">*</span></label>
             <select id="pricing-method" bind:value={form.pricing_method} class="w-full rounded-xl border border-border-default px-3 py-2 text-sm bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-default/30 h-9 transition-colors">
               {#each pricingMethods as pm}<option value={pm.value}>{pm.label}</option>{/each}
             </select>
-            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{pricingMethods.find(m => m.value === form.pricing_method)?.description || ''}</p>
+            <p class="mt-0.5 text-xs leading-tight text-text-muted">{pricingMethods.find(m => m.value === form.pricing_method)?.description || ''}</p>
           </div>
           <div class="col-span-2">
             <label for="pricing-value" class="block text-xs font-medium text-text-secondary mb-1">Nilai <span class="text-danger">*</span></label>
@@ -749,7 +746,7 @@
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted pointer-events-none select-none">{getMethodConfig(form.pricing_method).suffix}</span>
               {/if}
             </div>
-            <p class="mt-0.5 text-[11px] leading-tight text-text-muted">{getMethodConfig(form.pricing_method).helper}</p>
+            <p class="mt-0.5 text-xs leading-tight text-text-muted">{getMethodConfig(form.pricing_method).helper}</p>
           </div>
         </div>
       </div>
@@ -758,7 +755,7 @@
     <!-- Section 2: Kondisi -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">2</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-xs font-bold">2</span>
         Kondisi
       </h3>
       <div class="grid grid-cols-4 gap-3">
@@ -769,9 +766,9 @@
         <div>
           <label for="max-qty" class="block text-xs font-medium text-text-secondary mb-1">Max Qty</label>
           <Input id="max-qty" type="number" bind:value={form.maximum_quantity} min="1" placeholder="Tanpa batas" class="h-9 text-sm" />
-          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Kosong = tanpa batas</p>
+          <p class="mt-0.5 text-xs leading-tight text-text-muted">Kosong = tanpa batas</p>
           {#if showErrors && formErrors.qty}
-            <p class="mt-0.5 text-[11px] text-danger">{formErrors.qty}</p>
+            <p class="mt-0.5 text-xs text-danger">{formErrors.qty}</p>
           {/if}
         </div>
         <div>
@@ -780,7 +777,7 @@
             <option value={null}>Semua Group</option>
             {#each customerGroups as cg}<option value={cg.id}>{cg.name}</option>{/each}
           </select>
-          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Pilih "Semua Group" untuk semua customer.</p>
+          <p class="mt-0.5 text-xs leading-tight text-text-muted">Pilih "Semua Group" untuk semua customer.</p>
         </div>
         <div>
           <label for="store-id" class="block text-xs font-medium text-text-secondary mb-1">Outlet</label>
@@ -788,7 +785,7 @@
             <option value={null}>Semua Outlet</option>
             {#each stores as s}<option value={s.id}>{s.name}</option>{/each}
           </select>
-          <p class="mt-0.5 text-[11px] leading-tight text-text-muted">Pilih "Semua Outlet" untuk semua toko.</p>
+          <p class="mt-0.5 text-xs leading-tight text-text-muted">Pilih "Semua Outlet" untuk semua toko.</p>
         </div>
       </div>
     </div>
@@ -796,7 +793,7 @@
     <!-- Section 3: Target -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">3</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-xs font-bold">3</span>
         Target
       </h3>
       <div class="grid grid-cols-3 gap-3">
@@ -867,30 +864,30 @@
           {/if}
         </div>
       </div>
-      <p class="mt-1.5 text-[11px] text-text-muted">Kosongkan field yang tidak digunakan.</p>
+      <p class="mt-1.5 text-xs text-text-muted">Kosongkan field yang tidak digunakan.</p>
       {#if showErrors && formErrors.target}
-        <p class="mt-0.5 text-[11px] text-danger">{formErrors.target}</p>
+        <p class="mt-0.5 text-xs text-danger">{formErrors.target}</p>
       {/if}
     </div>
 
     <!-- Section 4: Jadwal -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">4</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-xs font-bold">4</span>
         Jadwal
       </h3>
       <div class="space-y-3">
         <div class="flex items-center gap-2">
           <button type="button" onclick={allDaysSelected ? clearDays : selectAllDays}
-            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {allDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            class="h-6 px-2.5 rounded-md text-xs font-medium transition-all {allDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Semua Hari
           </button>
           <button type="button" onclick={workDaysSelected ? clearDays : selectWorkDays}
-            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {workDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            class="h-6 px-2.5 rounded-md text-xs font-medium transition-all {workDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Hari Kerja
           </button>
           <button type="button" onclick={weekendSelected ? clearDays : selectWeekend}
-            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {weekendSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+            class="h-6 px-2.5 rounded-md text-xs font-medium transition-all {weekendSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Weekend
           </button>
         </div>
@@ -913,7 +910,7 @@
           </div>
         </div>
         {#if !form.time_from && !form.time_to}
-          <p class="text-[11px] leading-tight text-text-muted">Kosong = berlaku sepanjang hari.</p>
+          <p class="text-xs leading-tight text-text-muted">Kosong = berlaku sepanjang hari.</p>
         {/if}
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -926,10 +923,10 @@
           </div>
         </div>
         {#if !form.effective_from && !form.effective_until}
-          <p class="text-[11px] leading-tight text-text-muted">Kosong = berlaku selamanya.</p>
+          <p class="text-xs leading-tight text-text-muted">Kosong = berlaku selamanya.</p>
         {/if}
         {#if showErrors && formErrors.dates}
-          <p class="text-[11px] text-danger">{formErrors.dates}</p>
+          <p class="text-xs text-danger">{formErrors.dates}</p>
         {/if}
       </div>
     </div>
@@ -937,7 +934,7 @@
     <!-- Section 5: Ringkasan -->
     <div class="border-t border-border-default pt-4">
       <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-[10px] font-bold">5</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-subtle text-primary-light text-xs font-bold">5</span>
         Ringkasan Rule
       </h3>
       <div class="bg-bg-secondary/60 border border-border-default rounded-xl p-4">
@@ -1026,7 +1023,7 @@
             </div>
           {/each}
         </div>
-        <p class="text-[11px] text-text-muted">Rule dengan scope dan tipe yang sama akan saling menimpa berdasarkan prioritas.</p>
+        <p class="text-xs text-text-muted">Rule dengan scope dan tipe yang sama akan saling menimpa berdasarkan prioritas.</p>
       </div>
     {/if}
 

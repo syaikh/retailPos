@@ -86,7 +86,7 @@ describe('pricing-service', () => {
         is_active: true,
       });
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ ok: true });
       expect(mockApiFetch).toHaveBeenCalledWith('/api/pricing-rules', expect.objectContaining({
         method: 'POST',
       }));
@@ -94,6 +94,42 @@ describe('pricing-service', () => {
       expect(body.pricing_type).toBe('promotion');
       expect(body.pricing_method).toBe('discount_percent');
       expect(body.pricing_value).toBe(10);
+    });
+
+    it('returns error object on failure', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ error: 'nama rule sudah digunakan' }) });
+
+      const { createPricingRule } = await import('../pricing-service');
+      const result = await createPricingRule({
+        product_id: 1,
+        pricing_type: 'promotion',
+        pricing_method: 'discount_percent',
+        pricing_value: 10,
+        name: 'Duplicate Rule',
+        minimum_quantity: 1,
+        priority: 0,
+        is_active: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('nama rule sudah digunakan');
+    });
+
+    it('returns default error when json parse fails', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, json: () => Promise.reject(new Error('not json')) });
+
+      const { createPricingRule } = await import('../pricing-service');
+      const result = await createPricingRule({
+        product_id: 1,
+        pricing_type: 'promotion',
+        pricing_method: 'discount_percent',
+        pricing_value: 10,
+        name: 'Fail Rule',
+        minimum_quantity: 1,
+        priority: 0,
+        is_active: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('Gagal menyimpan rule');
     });
   });
 
@@ -200,7 +236,7 @@ describe('pricing-service', () => {
       const payload = { pricing_value: 20, name: 'Updated Rule' };
       const result = await updatePricingRule(1, payload);
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ ok: true });
       expect(mockApiFetch).toHaveBeenCalledWith('/api/pricing-rules/1', expect.objectContaining({
         method: 'PUT',
       }));
@@ -209,12 +245,22 @@ describe('pricing-service', () => {
       expect(body.name).toBe('Updated Rule');
     });
 
-    it('returns false on error', async () => {
-      mockApiFetch.mockResolvedValueOnce({ ok: false });
+    it('returns error object on failure', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ error: 'nama rule sudah digunakan' }) });
 
       const { updatePricingRule } = await import('../pricing-service');
       const result = await updatePricingRule(1, { pricing_value: 20 });
-      expect(result).toBe(false);
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('nama rule sudah digunakan');
+    });
+
+    it('returns default error when json parse fails', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false, json: () => Promise.reject(new Error('not json')) });
+
+      const { updatePricingRule } = await import('../pricing-service');
+      const result = await updatePricingRule(1, { pricing_value: 20 });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('Gagal menyimpan rule');
     });
   });
 

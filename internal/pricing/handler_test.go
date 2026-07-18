@@ -101,6 +101,20 @@ func TestHandler_CreateRule(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("duplicate name", func(t *testing.T) {
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":12000,"name":"Handler Discount","minimum_quantity":1,"priority":0,"is_active":true}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Contains(t, resp["error"], "nama rule sudah digunakan")
+	})
 }
 
 func TestHandler_UpdateRule(t *testing.T) {
@@ -144,6 +158,31 @@ func TestHandler_UpdateRule(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("duplicate name", func(t *testing.T) {
+		secondRule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    8000,
+			Name:            "Unique Name For Update Test",
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, repo.Create(t.Context(), secondRule))
+
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"name":"After Update","pricing_type":"special_price","pricing_method":"fixed_price","pricing_value":10000,"minimum_quantity":1,"priority":0,"is_active":true}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/pricing-rules/"+strconv.Itoa(secondRule.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Contains(t, resp["error"], "nama rule sudah digunakan")
 	})
 }
 
@@ -257,5 +296,202 @@ func TestHandler_SearchProducts(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_SubmitForApproval(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+	repo := NewRepository(dbPool)
+
+	productID := insertTestProduct(t, t.Context(), "HDL-SUB-"+time.Now().Format("0102150405"), "Submit Test Product", 15000)
+
+	t.Run("submit draft rule", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    12000,
+			Name:            "Submit Test Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusDraft,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/submit", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "pending", resp["status"])
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/abc/submit", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("submit non-draft rule fails", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    11000,
+			Name:            "Non-Draft Submit " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusApproved,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/submit", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_ApproveRule(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+	repo := NewRepository(dbPool)
+
+	productID := insertTestProduct(t, t.Context(), "HDL-APR-"+time.Now().Format("0102150405"), "Approve Test Product", 15000)
+
+	t.Run("approve pending rule", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    12000,
+			Name:            "Approve Test Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusPending,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/approve", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "approved", resp["status"])
+	})
+
+	t.Run("approve non-pending rule fails", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    11000,
+			Name:            "Draft Approve " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusDraft,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/approve", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_RejectRule(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+	repo := NewRepository(dbPool)
+
+	productID := insertTestProduct(t, t.Context(), "HDL-REJ-"+time.Now().Format("0102150405"), "Reject Test Product", 15000)
+
+	t.Run("reject pending rule", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    12000,
+			Name:            "Reject Test Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusPending,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/reject", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "rejected", resp["status"])
+	})
+
+	t.Run("reject non-pending rule fails", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    11000,
+			Name:            "Draft Reject " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+			Status:          StatusDraft,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/"+strconv.Itoa(rule.ID)+"/reject", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_CheckConflicts(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	productID := insertTestProduct(t, t.Context(), "HDL-CHK-"+time.Now().Format("0102150405"), "Conflict Test Product", 15000)
+
+	t.Run("no conflicts", func(t *testing.T) {
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":9999,"minimum_quantity":1,"priority":99}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/check-conflicts", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data         []PricingRule `json:"data"`
+			HasConflicts bool          `json:"has_conflicts"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.False(t, resp.HasConflicts)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/check-conflicts", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

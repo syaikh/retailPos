@@ -12,6 +12,7 @@ var (
 	ErrInvalidRule       = errors.New("invalid pricing rule")
 	ErrDuplicateRuleType = errors.New("duplicate pricing type for this product")
 	ErrRuleConflict      = errors.New("conflicting pricing rule")
+	ErrDuplicateName     = errors.New("nama rule sudah digunakan")
 )
 
 // PricingType is a classification label — it describes what kind of pricing applies.

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, Skeleton, SortableHeader, Tooltip } from '$shared/ui';
-  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Send, Check, X, Power, PowerOff, Eye } from 'lucide-svelte';
+  import { Button, Skeleton, SortableHeader, Tooltip, Badge, Dropdown } from '$shared/ui';
+  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Send, Check, X, Power, PowerOff, MoreVertical } from 'lucide-svelte';
   import type { PricingRule, PricingType, PricingMethod } from '../types';
 
   let {
@@ -14,6 +14,7 @@
     canCreate = false,
     pricingTypes = [],
     pricingMethods = [],
+    showDetailCols = false,
     onsort = (_col: string) => {},
     onedit = (_rule: PricingRule) => {},
     ondelete = (_rule: PricingRule) => {},
@@ -38,6 +39,7 @@
     canCreate: boolean;
     pricingTypes: { value: string; label: string }[];
     pricingMethods: { value: string; label: string }[];
+    showDetailCols?: boolean;
     onsort?: (col: string) => void;
     onedit?: (rule: PricingRule) => void;
     ondelete?: (rule: PricingRule) => void;
@@ -112,6 +114,28 @@
     }
   }
 
+  function approvalVariant(status: string): 'success' | 'warning' | 'danger' | 'muted' {
+    switch (status) {
+      case 'approved': return 'success';
+      case 'pending': return 'warning';
+      case 'rejected': return 'danger';
+      default: return 'muted';
+    }
+  }
+
+  function approvalLabel(status: string): string {
+    switch (status) {
+      case 'approved': return 'Approved';
+      case 'pending': return 'Pending';
+      case 'rejected': return 'Rejected';
+      default: return 'Draft';
+    }
+  }
+
+  function typeVariant(): 'default' {
+    return 'default';
+  }
+
   function timeAgo(dateStr: string | undefined): string {
     if (!dateStr) return '-';
     const now = Date.now();
@@ -141,18 +165,18 @@
   <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading pricing rules">
     <colgroup>
       <col style="width: 3%;" />
-      <col style="width: 15%;" />
+      <col style="width: 16%;" />
+      <col style="width: 10%;" />
+      <col style="width: 10%;" />
       <col style="width: 10%;" />
       <col style="width: 8%;" />
-      <col style="width: 10%;" />
-      <col style="width: 10%;" />
+      <col style="width: 7%;" />
       <col style="width: 6%;" />
       <col style="width: 6%;" />
-      <col style="width: 7%;" />
-      <col style="width: 7%;" />
-      <col style="width: 10%;" />
+      <col style="width: 8%;" />
+      <col style="width: 8%;" />
     </colgroup>
-    <thead><tr><th></th><th>Nama</th><th>Target</th><th>Tipe</th><th>Metode</th><th class="text-right">Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Approval</th><th>Diperbarui</th><th>Aksi</th></tr></thead>
+    <thead><tr><th></th><th>Nama</th><th>Nilai</th><th>Metode</th><th>Target</th><th>Tipe</th><th>Approval</th><th>Min Qty</th><th>Prioritas</th><th>Diperbarui</th><th>Aksi</th></tr></thead>
     <tbody>{#each Array(5) as _}<tr>{#each Array(11) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
   </table>
   </div>
@@ -169,19 +193,19 @@
   <table class="w-full min-w-[700px] lg:min-w-[1100px]" style="table-layout: fixed;" aria-label="Pricing rules">
     <colgroup>
       <col style="width: 3%;" />
-      <col style="width: 14%;" />
-      <col class="hidden lg:table-column" style="width: 10%;" />
-      <col class="hidden lg:table-column" style="width: 8%;" />
+      <col style="width: 16%;" />
       <col style="width: 10%;" />
       <col style="width: 10%;" />
-      <col class="hidden lg:table-column" style="width: 6%;" />
-      <col class="hidden lg:table-column" style="width: 6%;" />
+      <col style="width: 10%;" />
+      <col style="width: 8%;" />
       <col style="width: 7%;" />
+      <col style="width: 6%;" />
+      <col style="width: 6%;" />
       <col class="hidden lg:table-column" style="width: 8%;" />
-      <col style="width: 10%;" />
+      <col style="width: 8%;" />
     </colgroup>
     <thead class="bg-muted/50 sticky top-0 z-10">
-      <tr class="border-b text-left text-sm text-text-muted">
+      <tr class="border-b text-left text-xs text-text-muted">
         <th class="px-3 py-3">
           <button type="button" onclick={toggleSelectAll} class="text-text-muted hover:text-text-primary transition-colors" aria-label={allSelected ? 'Batalkan semua pilihan' : 'Pilih semua'}>
             {#if allSelected}
@@ -199,22 +223,22 @@
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="NAMA" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold hidden lg:table-cell" scope="col">TARGET</th>
-        <th class="px-4 py-3 font-semibold hidden lg:table-cell">
-          <SortableHeader label="TIPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
-        </th>
+        <th class="px-4 py-3 font-semibold text-right" scope="col">NILAI</th>
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="METODE" column="pricing_method" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold text-right" scope="col">NILAI</th>
-        <th class="px-4 py-3 font-semibold text-right hidden lg:table-cell">
-          <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
-        </th>
-        <th class="px-4 py-3 font-semibold text-right hidden lg:table-cell">
-          <SortableHeader label="PRIORITAS" column="priority" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+        <th class="px-4 py-3 font-semibold {showDetailCols ? '' : 'hidden lg:table-cell'}" scope="col">TARGET</th>
+        <th class="px-4 py-3 font-semibold {showDetailCols ? '' : 'hidden lg:table-cell'}">
+          <SortableHeader label="TIPE" column="pricing_type" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="APPROVAL" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        </th>
+        <th class="px-4 py-3 font-semibold text-right {showDetailCols ? '' : 'hidden lg:table-cell'}">
+          <SortableHeader label="MIN QTY" column="minimum_quantity" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+        </th>
+        <th class="px-4 py-3 font-semibold text-right {showDetailCols ? '' : 'hidden lg:table-cell'}">
+          <SortableHeader label="PRIORITAS" column="priority" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="px-4 py-3 font-semibold hidden lg:table-cell">
           <SortableHeader label="DIPERBARUI" column="updated_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
@@ -234,44 +258,57 @@
               {/if}
             </button>
           </td>
-          <td class="px-4 py-3 font-medium text-sm truncate max-w-0"><Tooltip content={rule.name} delay={400}><span class="truncate block">{rule.name}</span></Tooltip></td>
-          <td class="px-4 py-3 text-xs truncate max-w-0 hidden lg:table-cell"><Tooltip content={targetLabel(rule)} delay={400}><span class="truncate block">{targetLabel(rule)}</span></Tooltip></td>
-          <td class="px-4 py-3 hidden lg:table-cell"><span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 truncate">{pricingTypes.find(t => t.value === rule.pricing_type)?.label || rule.pricing_type}</span></td>
-          <td class="px-4 py-3 text-xs text-text-muted">{methodLabel(rule.pricing_method)}</td>
-          <td class="px-4 py-3 text-xs text-right font-medium tabular-nums">{valueLabel(rule)}</td>
-          <td class="px-4 py-3 text-right text-xs tabular-nums hidden lg:table-cell">{rule.minimum_quantity}{rule.maximum_quantity ? `–${rule.maximum_quantity}` : ''}</td>
-          <td class="px-4 py-3 text-right text-xs tabular-nums hidden lg:table-cell">{rule.priority}</td>
-          <td class="px-4 py-3">
-            {#if rule.status === 'approved'}
-              <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Approved</span>
-            {:else if rule.status === 'pending'}
-              <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-700">Pending</span>
-            {:else if rule.status === 'rejected'}
-              <span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700">Rejected</span>
-            {:else}
-              <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Draft</span>
-            {/if}
-          </td>
-          <td class="px-4 py-3 text-xs text-text-muted hidden lg:table-cell"><Tooltip content={formatDateTime(rule.updated_at || rule.created_at)} delay={400}><span class="truncate block">{timeAgo(rule.updated_at || rule.created_at)}</span></Tooltip></td>
-          <td class="px-4 py-3">
-            <div class="flex items-center justify-center gap-1" role="group" aria-label="Actions for {rule.name}">
-              {#if rule.status === 'draft' && canEdit}
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-primary-light" onclick={() => onsubmitapproval(rule)} aria-label="Ajukan {rule.name}"><Send class="w-4 h-4" /></Button>
-              {/if}
-              {#if rule.status === 'pending' && canEdit}
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-success-light" onclick={() => onapprove(rule)} aria-label="Approve {rule.name}"><Check class="w-4 h-4" /></Button>
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-danger" onclick={() => onreject(rule)} aria-label="Reject {rule.name}"><X class="w-4 h-4" /></Button>
-              {/if}
-              {#if canEdit}
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-primary-light" onclick={() => onedit(rule)} aria-label="Edit {rule.name}"><Pencil class="w-4 h-4" /></Button>
-              {/if}
-              {#if canCreate}
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-accent-light" onclick={() => onduplicate(rule)} aria-label="Duplikasi {rule.name}"><Copy class="w-4 h-4" /></Button>
-              {/if}
-              {#if canDelete}
-                <Button variant="ghost" size="sm" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => ondelete(rule)} aria-label="Delete {rule.name}"><Trash2 class="w-4 h-4" /></Button>
-              {/if}
-              <Button variant="ghost" size="sm" class="text-text-muted hover:text-text-primary" onclick={() => onviewaudit(rule)} aria-label="Lihat audit {rule.name}"><Eye class="w-4 h-4" /></Button>
+          <td class="px-4 py-4 font-medium text-sm truncate max-w-0"><Tooltip content={rule.name} delay={400}><span class="truncate block">{rule.name}</span></Tooltip></td>
+          <td class="px-4 py-4 text-sm text-right font-semibold tabular-nums text-primary-light">{valueLabel(rule)}</td>
+          <td class="px-4 py-4 text-sm text-text-secondary">{methodLabel(rule.pricing_method)}</td>
+          <td class="px-4 py-4 text-sm truncate max-w-0 {showDetailCols ? '' : 'hidden lg:table-cell'}"><Tooltip content={targetLabel(rule)} delay={400}><span class="truncate block">{targetLabel(rule)}</span></Tooltip></td>
+          <td class="px-4 py-4 {showDetailCols ? '' : 'hidden lg:table-cell'}"><Badge variant={typeVariant()} size="sm">{pricingTypes.find(t => t.value === rule.pricing_type)?.label || rule.pricing_type}</Badge></td>
+          <td class="px-4 py-4"><Badge variant={approvalVariant(rule.status || 'draft')} size="sm">{approvalLabel(rule.status || 'draft')}</Badge></td>
+          <td class="px-4 py-4 text-right text-sm tabular-nums {showDetailCols ? '' : 'hidden lg:table-cell'}">{rule.minimum_quantity}{rule.maximum_quantity ? `–${rule.maximum_quantity}` : ''}</td>
+          <td class="px-4 py-4 text-right text-sm tabular-nums {showDetailCols ? '' : 'hidden lg:table-cell'}">{rule.priority}</td>
+          <td class="px-4 py-4 text-sm text-text-muted hidden lg:table-cell"><Tooltip content={formatDateTime(rule.updated_at || rule.created_at)} delay={400}><span class="truncate block">{timeAgo(rule.updated_at || rule.created_at)}</span></Tooltip></td>
+          <td class="px-4 py-4">
+            <div class="flex items-center justify-center" role="group" aria-label="Actions for {rule.name}">
+              <Dropdown placement="bottom-end" items={[]}>
+                {#snippet content({ close })}
+                  {#if rule.status === 'draft' && canEdit}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-primary-light hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onsubmitapproval(rule); close(); }}>
+                      <Send size={14} /> Ajukan
+                    </button>
+                  {/if}
+                  {#if rule.status === 'pending' && canEdit}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-success-light hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onapprove(rule); close(); }}>
+                      <Check size={14} /> Approve
+                    </button>
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onreject(rule); close(); }}>
+                      <X size={14} /> Reject
+                    </button>
+                  {/if}
+                  {#if canEdit}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onedit(rule); close(); }}>
+                      <Pencil size={14} /> Edit
+                    </button>
+                  {/if}
+                  {#if canCreate}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onduplicate(rule); close(); }}>
+                      <Copy size={14} /> Duplikasi
+                    </button>
+                  {/if}
+                  {#if canDelete}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem" onclick={() => { ondelete(rule); close(); }}>
+                      <Trash2 size={14} /> Hapus
+                    </button>
+                  {/if}
+                  <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onviewaudit(rule); close(); }}>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span> Audit
+                  </button>
+                {/snippet}
+                {#snippet trigger({ toggle })}
+                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={toggle} aria-label="Aksi untuk {rule.name}">
+                    <MoreVertical size={16} />
+                  </Button>
+                {/snippet}
+              </Dropdown>
             </div>
           </td>
         </tr>

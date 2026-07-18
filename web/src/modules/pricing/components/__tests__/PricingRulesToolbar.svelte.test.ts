@@ -11,12 +11,12 @@ function getSource(): string {
 describe('PricingRulesToolbar.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports BulkActionDropdown from shared/ui', () => {
-    expect(src).toContain("import { Button, SearchBar, Dropdown, BulkActionDropdown } from '$shared/ui'");
+  it('imports FilterChipBar from shared/ui', () => {
+    expect(src).toContain("import { Button, SearchBar, Dropdown, BulkActionDropdown, FilterChipBar } from '$shared/ui'");
   });
 
-  it('imports Calculator, X, ChevronDown, Plus icons', () => {
-    expect(src).toContain("import { Plus, ChevronDown, X, Calculator } from 'lucide-svelte'");
+  it('imports Calculator, ChevronDown, Plus, Columns3 icons', () => {
+    expect(src).toContain("import { Plus, ChevronDown, Calculator, Columns3 } from 'lucide-svelte'");
   });
 
   it('imports debounce utility', () => {
@@ -37,46 +37,47 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
     expect(src).toContain('let activeFilters = $derived.by');
   });
 
+  it('builds filter chips for approval', () => {
+    expect(src).toContain("type: 'approval'");
+    expect(src).toContain("label: `Approval: ${approvalLabels[approvalFilter] || approvalFilter}`");
+  });
+
   it('builds filter chips for status', () => {
-    expect(src).toContain("key: 'status'");
+    expect(src).toContain("type: 'status'");
     expect(src).toContain("label: `Status: ${statusLabels[statusFilter] || statusFilter}`");
   });
 
   it('builds filter chips for type', () => {
-    expect(src).toContain("key: 'type'");
+    expect(src).toContain("type: 'type'");
     expect(src).toContain("label: `Tipe: ${label}`");
   });
 
   it('builds filter chips for method', () => {
-    expect(src).toContain("key: 'method'");
+    expect(src).toContain("type: 'method'");
     expect(src).toContain("label: `Metode: ${label}`");
-  });
-
-  it('has hasActiveFilters derived', () => {
-    expect(src).toContain('let hasActiveFilters = $derived(activeFilters.length > 0)');
   });
 
   it('has clearAllFilters function', () => {
     expect(src).toContain('function clearAllFilters()');
+    expect(src).toContain("approvalFilter = 'all'");
     expect(src).toContain("statusFilter = 'all'");
     expect(src).toContain("typeFilter = 'all'");
     expect(src).toContain("methodFilter = 'all'");
   });
 
-  it('each filter chip has a clear callback', () => {
-    expect(src).toContain('clear: () => { statusFilter = \'all\'; handleFilterChange(); }');
-    expect(src).toContain('clear: () => { typeFilter = \'all\'; handleFilterChange(); }');
-    expect(src).toContain('clear: () => { methodFilter = \'all\'; handleFilterChange(); }');
+  it('has clearFilterChip function for individual chip clearing', () => {
+    expect(src).toContain('function clearFilterChip(type: string)');
+    expect(src).toContain("case 'approval': approvalFilter = 'all'");
+    expect(src).toContain("case 'status': statusFilter = 'all'");
+    expect(src).toContain("case 'type': typeFilter = 'all'");
+    expect(src).toContain("case 'method': methodFilter = 'all'");
   });
 
-  it('renders filter chips when hasActiveFilters', () => {
-    expect(src).toContain('{#if hasActiveFilters}');
-    expect(src).toContain('Filter aktif:');
-  });
-
-  it('renders clear all button when more than 1 active filter', () => {
-    expect(src).toContain('{#if activeFilters.length > 1}');
-    expect(src).toContain('Hapus semua');
+  it('renders FilterChipBar with active filters', () => {
+    expect(src).toContain('<FilterChipBar');
+    expect(src).toContain('chips={activeFilters}');
+    expect(src).toContain('onclear={clearFilterChip}');
+    expect(src).toContain('onclearall={clearAllFilters}');
   });
 
   it('renders BulkActionDropdown for import/export', () => {
@@ -88,7 +89,7 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
 
   it('renders simulate button with Calculator icon', () => {
     expect(src).toContain('onclick={onsimulate}');
-    expect(src).toContain('Simulasi harga');
+    expect(src).toContain('Simulasi');
     expect(src).toContain('Calculator');
   });
 
@@ -108,17 +109,17 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
     expect(src).toContain('id="pricing-search"');
   });
 
-  it('filter chips have aria-label for individual chip clear buttons', () => {
-    expect(src).toContain('aria-label="Hapus filter {chip.label}"');
+  it('filter chip clear buttons have aria-labels handled by FilterChipBar', () => {
+    expect(src).toContain('FilterChipBar');
   });
 
   it('has status filter group with aria-label', () => {
     expect(src).toContain('aria-label="Filter status aktif"');
   });
 
-  it('has filter chip area with proper structure', () => {
-    expect(src).toContain('activeFilters as chip (chip.key)');
-    expect(src).toContain('px-2 py-0.5 rounded-full');
+  it('filter chips use FilterChipBar component', () => {
+    expect(src).toContain('chips={activeFilters}');
+    expect(src).toContain('FilterChipBar');
   });
 
   it('type filter button changes style when active', () => {
@@ -127,5 +128,21 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
 
   it('method filter button changes style when active', () => {
     expect(src).toContain("methodFilter !== 'all' ? 'border-primary-default/40 bg-primary-subtle/30 text-text-primary'");
+  });
+
+  it('has showDetailCols bindable prop', () => {
+    expect(src).toContain('showDetailCols = $bindable(false)');
+    expect(src).toContain('showDetailCols?: boolean');
+  });
+
+  it('has Columns3 toggle button for detail columns', () => {
+    expect(src).toContain('Columns3');
+    expect(src).toContain('showDetailCols = !showDetailCols');
+    expect(src).toContain('Sembunyikan Detail');
+    expect(src).toContain('Tampilkan Detail');
+  });
+
+  it('filter dropdowns use h-8 consistent height', () => {
+    expect(src).toContain('h-8 px-3 rounded-lg');
   });
 });

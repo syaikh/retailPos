@@ -325,6 +325,17 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+func (r *Repository) NameExists(ctx context.Context, name string, excludeID int) (bool, error) {
+	var count int
+	err := r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM pricing_rules WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) AND id != $2`,
+		name, excludeID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check name exists: %w", err)
+	}
+	return count > 0, nil
+}
+
 // FindConflicts returns active rules that overlap with the given rule's scope
 // (product/category/brand), pricing type, priority, and quantity range.
 func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {

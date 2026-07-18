@@ -11,8 +11,8 @@ function getSource(): string {
 describe('PricingRulesTable.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Tooltip from shared/ui', () => {
-    expect(src).toContain("import { Button, Skeleton, SortableHeader, Tooltip } from '$shared/ui'");
+  it('imports Tooltip, Badge, Dropdown from shared/ui', () => {
+    expect(src).toContain("import { Button, Skeleton, SortableHeader, Tooltip, Badge, Dropdown } from '$shared/ui'");
   });
 
   it('imports checkbox and bulk action icons', () => {
@@ -21,6 +21,7 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('Power');
     expect(src).toContain('PowerOff');
     expect(src).toContain('Copy');
+    expect(src).toContain('MoreVertical');
   });
 
   it('imports PricingRule, PricingType, PricingMethod types', () => {
@@ -122,10 +123,10 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain("selectedIds.has(rule.id) ? 'bg-primary-subtle/10' : ''");
   });
 
-  it('has duplicate button visible when canCreate', () => {
+  it('has duplicate action in kebab menu when canCreate', () => {
     expect(src).toContain('{#if canCreate}');
     expect(src).toContain('onduplicate(rule)');
-    expect(src).toContain('Duplikasi {rule.name}');
+    expect(src).toContain('Duplikasi');
   });
 
   it('shows empty state hint when canCreate', () => {
@@ -184,6 +185,16 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('column="updated_at"');
   });
 
+  it('has approval sortable column', () => {
+    expect(src).toContain('column="status"');
+    expect(src).toContain('APPROVAL');
+  });
+
+  it('NILAI column is right-aligned', () => {
+    expect(src).toContain('NILAI');
+    expect(src).toContain('text-right');
+  });
+
   it('has responsive column classes (hidden lg:table-cell)', () => {
     expect(src).toContain('hidden lg:table-cell');
   });
@@ -218,12 +229,12 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('aria-label="Actions for {rule.name}"');
   });
 
-  it('button sizes changed to sm', () => {
-    expect(src).toContain('size="sm"');
+  it('action buttons use icon size', () => {
+    expect(src).toContain('size="icon"');
   });
 
-  it('imports Eye icon from lucide-svelte', () => {
-    expect(src).toContain('Eye');
+  it('imports MoreVertical icon from lucide-svelte for kebab menu', () => {
+    expect(src).toContain('MoreVertical');
   });
 
   it('has onviewaudit callback prop', () => {
@@ -231,16 +242,68 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('onviewaudit?: (rule: PricingRule) => void');
   });
 
-  it('Eye button calls onviewaudit', () => {
-    expect(src).toContain('onclick={() => onviewaudit(rule)}');
-    expect(src).toContain('Lihat audit {rule.name}');
+  it('kebab menu has audit action', () => {
+    expect(src).toContain('onviewaudit(rule)');
+    expect(src).toContain('Audit');
   });
 
-  it('action column has 10% width', () => {
-    expect(src).toContain('width: 10%;" />');
+  it('action column has 8% width', () => {
+    expect(src).toContain('width: 8%;" />');
   });
 
   it('type column has 8% width', () => {
     expect(src).toContain('width: 8%;" />');
+  });
+
+  it('has showDetailCols prop for toggling detail columns', () => {
+    expect(src).toContain('showDetailCols = false');
+    expect(src).toContain('showDetailCols?: boolean');
+  });
+
+  it('uses shared Badge component for approval status', () => {
+    expect(src).toContain('<Badge variant={approvalVariant');
+    expect(src).toContain('approvalLabel(rule.status');
+  });
+
+  it('uses shared Badge component for pricing type', () => {
+    expect(src).toContain('<Badge variant={typeVariant()}');
+  });
+
+  it('has approvalVariant helper function', () => {
+    expect(src).toContain('function approvalVariant(status: string)');
+    expect(src).toContain("case 'approved': return 'success'");
+    expect(src).toContain("case 'pending': return 'warning'");
+    expect(src).toContain("case 'rejected': return 'danger'");
+    expect(src).toContain("default: return 'muted'");
+  });
+
+  it('has approvalLabel helper function', () => {
+    expect(src).toContain('function approvalLabel(status: string)');
+    expect(src).toContain("case 'approved': return 'Approved'");
+    expect(src).toContain("case 'pending': return 'Pending'");
+    expect(src).toContain("case 'rejected': return 'Rejected'");
+    expect(src).toContain("default: return 'Draft'");
+  });
+
+  it('uses Dropdown for kebab action menu', () => {
+    expect(src).toContain('<Dropdown placement="bottom-end"');
+    expect(src).toContain('{#snippet content({ close })}');
+  });
+
+  it('kebab menu items are conditional on permissions', () => {
+    expect(src).toContain("rule.status === 'draft' && canEdit");
+    expect(src).toContain("rule.status === 'pending' && canEdit");
+    expect(src).toContain('{#if canEdit}');
+    expect(src).toContain('{#if canCreate}');
+    expect(src).toContain('{#if canDelete}');
+  });
+
+  it('kebab menu has labeled actions', () => {
+    expect(src).toContain('Ajukan');
+    expect(src).toContain('Approve');
+    expect(src).toContain('Reject');
+    expect(src).toContain('Edit');
+    expect(src).toContain('Duplikasi');
+    expect(src).toContain('Hapus');
   });
 });
