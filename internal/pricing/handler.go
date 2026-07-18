@@ -21,6 +21,10 @@ type PricingService interface {
 	Create(ctx context.Context, rule *PricingRule) error
 	Update(ctx context.Context, rule *PricingRule) error
 	Delete(ctx context.Context, id int) error
+	FindConflictsForRule(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error)
+	SubmitForApproval(ctx context.Context, id int) error
+	Approve(ctx context.Context, id int) error
+	Reject(ctx context.Context, id int) error
 }
 
 // ProductSearcher is an optional interface for product autocomplete search.
@@ -50,6 +54,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/pricing-rules", auth, perm("pricing:create"), h.CreateRule)
 	r.PUT("/pricing-rules/:id", auth, perm("pricing:update"), h.UpdateRule)
 	r.DELETE("/pricing-rules/:id", auth, perm("pricing:delete"), h.DeleteRule)
+	r.POST("/pricing-rules/check-conflicts", auth, perm("pricing:read"), h.CheckConflicts)
+	r.POST("/pricing-rules/:id/submit", auth, perm("pricing:update"), h.SubmitForApproval)
+	r.POST("/pricing-rules/:id/approve", auth, perm("pricing:update"), h.ApproveRule)
+	r.POST("/pricing-rules/:id/reject", auth, perm("pricing:update"), h.RejectRule)
 	r.POST("/pricing/resolve", auth, perm("pricing:read"), h.ResolvePrices)
 	r.GET("/products/search", auth, perm("pricing:read"), h.SearchProducts)
 }
@@ -301,6 +309,135 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// SubmitForApproval godoc
+// @Summary      Submit rule for approval
+// @Description  Transition a draft rule to pending status
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Rule ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules/{id}/submit [post]
+func (h *Handler) SubmitForApproval(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
+		return
+	}
+
+	if err := h.svc.SubmitForApproval(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "pending"})
+}
+
+// ApproveRule godoc
+// @Summary      Approve a pricing rule
+// @Description  Transition a pending rule to approved status
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Rule ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules/{id}/approve [post]
+func (h *Handler) ApproveRule(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
+		return
+	}
+
+	if err := h.svc.Approve(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "approved"})
+}
+
+// RejectRule godoc
+// @Summary      Reject a pricing rule
+// @Description  Transition a pending rule to rejected status
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "Rule ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /pricing-rules/{id}/reject [post]
+func (h *Handler) RejectRule(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule id"})
+		return
+	}
+
+	if err := h.svc.Reject(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "rejected"})
+}
+
+type checkConflictsRequest struct {
+	ProductID       *int          `json:"product_id"`
+	CategoryID      *int          `json:"category_id"`
+	BrandID         *int          `json:"brand_id"`
+	PricingType     PricingType   `json:"pricing_type" binding:"required"`
+	PricingMethod   PricingMethod `json:"pricing_method" binding:"required"`
+	PricingValue    float64       `json:"pricing_value"`
+	MinimumQuantity int           `json:"minimum_quantity"`
+	MaximumQuantity *int          `json:"maximum_quantity"`
+	Priority        int           `json:"priority"`
+	ExcludeID       int           `json:"exclude_id"`
+}
+
+// CheckConflicts godoc
+// @Summary      Check for conflicting pricing rules
+// @Description  Check if a proposed rule would conflict with existing active rules
+// @Tags         Pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      checkConflictsRequest  true  "Rule to check"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /pricing-rules/check-conflicts [post]
+func (h *Handler) CheckConflicts(c *gin.Context) {
+	var req checkConflictsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.MinimumQuantity < 1 {
+		req.MinimumQuantity = 1
+	}
+
+	rule := &PricingRule{
+		ProductID:       req.ProductID,
+		CategoryID:      req.CategoryID,
+		BrandID:         req.BrandID,
+		PricingType:     req.PricingType,
+		PricingMethod:   req.PricingMethod,
+		PricingValue:    req.PricingValue,
+		MinimumQuantity: req.MinimumQuantity,
+		MaximumQuantity: req.MaximumQuantity,
+		Priority:        req.Priority,
+	}
+
+	conflicts, err := h.svc.FindConflictsForRule(c.Request.Context(), rule, req.ExcludeID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+	if conflicts == nil {
+		conflicts = []PricingRule{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": conflicts, "has_conflicts": len(conflicts) > 0})
 }
 
 type resolveRequest struct {

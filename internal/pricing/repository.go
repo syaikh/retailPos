@@ -118,7 +118,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules WHERE id = $1
 	`, id).Scan(
 		&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
@@ -126,7 +126,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 		&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 		&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 		&recurrenceDays, &timeFrom, &timeTo,
-		&rule.AllowCombine, &rule.IsActive,
+		&rule.AllowCombine, &rule.IsActive, &rule.Status,
 		&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -161,7 +161,7 @@ func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]Prici
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules WHERE product_id = $1 ORDER BY priority DESC, pricing_value ASC, id ASC
 	`, productID)
 	if err != nil {
@@ -177,9 +177,10 @@ func (r *Repository) GetActiveRules(ctx context.Context, productID int, category
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules
 		WHERE is_active = true
+		  AND status = 'approved'
 		  AND (product_id = $1 OR (category_id IS NOT NULL AND category_id = $2) OR (brand_id IS NOT NULL AND brand_id = $3))
 		  AND (effective_from IS NULL OR effective_from <= $4)
 		  AND (effective_until IS NULL OR effective_until >= $4)
@@ -204,12 +205,13 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		SELECT p.id AS matched_product_id, pr.id, pr.product_id, pr.category_id, pr.brand_id, pr.pricing_type, pr.pricing_method,
 		       pr.pricing_value, pr.name, pr.minimum_quantity, pr.maximum_quantity, pr.priority,
 		       pr.customer_group_id, pr.store_id, pr.recurrence_days, pr.time_from, pr.time_to,
-		       pr.allow_combine, pr.is_active, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
+		       pr.allow_combine, pr.is_active, pr.status, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
 		FROM pricing_rules pr
 		JOIN products p ON (pr.product_id = p.id OR pr.category_id = p.category_id OR pr.brand_id = p.brand_id)
 		WHERE p.id = ANY($1)
 		  AND p.deleted_at IS NULL
 		  AND pr.is_active = true
+		  AND pr.status = 'approved'
 		  AND (pr.effective_from IS NULL OR pr.effective_from <= $2)
 		  AND (pr.effective_until IS NULL OR pr.effective_until >= $2)
 		ORDER BY p.id, pr.priority DESC, pr.pricing_value ASC, pr.id ASC
@@ -234,7 +236,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 			&recurrenceDays, &timeFrom, &timeTo,
-			&rule.AllowCombine, &rule.IsActive,
+			&rule.AllowCombine, &rule.IsActive, &rule.Status,
 			&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -268,19 +270,22 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 }
 
 func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
+	if rule.Status == "" {
+		rule.Status = StatusApproved
+	}
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		       allow_combine, is_active, status, effective_from, effective_until)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id, created_at, updated_at
 	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
 		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
 		rule.Priority, rule.CustomerGroupID, rule.StoreID,
 		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
-		rule.AllowCombine, rule.IsActive, rule.EffectiveFrom, rule.EffectiveUntil,
+		rule.AllowCombine, rule.IsActive, rule.Status, rule.EffectiveFrom, rule.EffectiveUntil,
 	).Scan(&rule.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("insert pricing rule: %w", err)
@@ -297,14 +302,14 @@ func (r *Repository) Update(ctx context.Context, rule *PricingRule) error {
 		    pricing_value = $6, name = $7, minimum_quantity = $8, maximum_quantity = $9,
 		    priority = $10, customer_group_id = $11, store_id = $12,
 		    recurrence_days = $13, time_from = $14, time_to = $15,
-		    allow_combine = $16, is_active = $17, effective_from = $18, effective_until = $19,
+		    allow_combine = $16, is_active = $17, status = $18, effective_from = $19, effective_until = $20,
 		    updated_at = NOW()
-		WHERE id = $20
+		WHERE id = $21
 	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
 		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
 		rule.Priority, rule.CustomerGroupID, rule.StoreID,
 		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
-		rule.AllowCombine, rule.IsActive, rule.EffectiveFrom, rule.EffectiveUntil,
+		rule.AllowCombine, rule.IsActive, rule.Status, rule.EffectiveFrom, rule.EffectiveUntil,
 		rule.ID)
 	if err != nil {
 		return fmt.Errorf("update pricing rule: %w", err)
@@ -320,22 +325,81 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+// FindConflicts returns active rules that overlap with the given rule's scope
+// (product/category/brand), pricing type, priority, and quantity range.
+func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+	query := `
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
+		FROM pricing_rules
+		WHERE is_active = true
+		  AND id != $1
+		  AND pricing_type = $2
+		  AND priority = $3
+		  AND (
+		    product_id = $4
+		    OR (category_id IS NOT NULL AND category_id = $5)
+		    OR (brand_id IS NOT NULL AND brand_id = $6)
+		  )
+		  AND (
+		    maximum_quantity IS NULL OR minimum_quantity <= $8
+		  )
+		  AND (
+		    $7 <= maximum_quantity OR maximum_quantity IS NULL
+		  )
+		ORDER BY priority DESC, id ASC
+	`
+
+	var productID, categoryID, brandID interface{}
+	if rule.ProductID != nil {
+		productID = *rule.ProductID
+	}
+	if rule.CategoryID != nil {
+		categoryID = *rule.CategoryID
+	}
+	if rule.BrandID != nil {
+		brandID = *rule.BrandID
+	}
+
+	maxQty := rule.MinimumQuantity
+	if rule.MaximumQuantity != nil {
+		maxQty = *rule.MaximumQuantity
+	}
+
+	rows, err := r.db.Query(ctx, query, excludeID, rule.PricingType, rule.Priority,
+		productID, categoryID, brandID, rule.MinimumQuantity, maxQty)
+	if err != nil {
+		return nil, fmt.Errorf("find conflicts: %w", err)
+	}
+	defer rows.Close()
+
+	return scanRules(rows)
+}
+
 func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error) {
 	countQuery := `SELECT COUNT(*) FROM pricing_rules WHERE 1=1`
 	dataQuery := `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules WHERE 1=1`
 
 	var args []interface{}
 	argIdx := 1
 
 	if search != "" {
-		filter := fmt.Sprintf(" AND (name ILIKE $%d OR pricing_type ILIKE $%d)", argIdx, argIdx)
-		countQuery += filter
-		dataQuery += filter
+		searchFilter := fmt.Sprintf(` AND (
+			name ILIKE $%d
+			OR pricing_type ILIKE $%d
+			OR EXISTS (SELECT 1 FROM products p WHERE p.id = pricing_rules.product_id AND p.deleted_at IS NULL AND p.name ILIKE $%d)
+			OR EXISTS (SELECT 1 FROM categories c WHERE c.id = pricing_rules.category_id AND c.name ILIKE $%d)
+			OR EXISTS (SELECT 1 FROM brands b WHERE b.id = pricing_rules.brand_id AND b.name ILIKE $%d)
+		)`, argIdx, argIdx, argIdx, argIdx, argIdx)
+		countQuery += searchFilter
+		dataQuery += searchFilter
 		args = append(args, "%"+search+"%")
 		argIdx++
 	}
@@ -433,7 +497,7 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 			&recurrenceDays, &timeFrom, &timeTo,
-			&rule.AllowCombine, &rule.IsActive,
+			&rule.AllowCombine, &rule.IsActive, &rule.Status,
 			&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -587,7 +651,7 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]PricingRule, error)
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 		       customer_group_id, store_id, recurrence_days, time_from, time_to,
-		       allow_combine, is_active, effective_from, effective_until, created_at, updated_at
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules ORDER BY id ASC
 	`)
 	if err != nil {

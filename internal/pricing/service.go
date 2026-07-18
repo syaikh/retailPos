@@ -29,6 +29,10 @@ func (s *Service) Create(ctx context.Context, rule *PricingRule) error {
 	if err := validateRule(rule); err != nil {
 		return err
 	}
+	// Default status to approved if not set (backward compat)
+	if rule.Status == "" {
+		rule.Status = StatusApproved
+	}
 	return s.repo.Create(ctx, rule)
 }
 
@@ -36,11 +40,63 @@ func (s *Service) Update(ctx context.Context, rule *PricingRule) error {
 	if err := validateRule(rule); err != nil {
 		return err
 	}
+	// Preserve existing status if not provided
+	if rule.Status == "" {
+		existing, err := s.repo.GetByID(ctx, rule.ID)
+		if err == nil {
+			rule.Status = existing.Status
+		}
+	}
 	return s.repo.Update(ctx, rule)
 }
 
 func (s *Service) Delete(ctx context.Context, id int) error {
 	return s.repo.Delete(ctx, id)
+}
+
+// FindConflictsForRule returns active rules that conflict with the given rule.
+func (s *Service) FindConflictsForRule(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+	return s.repo.FindConflicts(ctx, rule, excludeID)
+}
+
+// SubmitForApproval transitions a rule from draft to pending.
+func (s *Service) SubmitForApproval(ctx context.Context, id int) error {
+	rule, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rule.Status != StatusDraft {
+		return fmt.Errorf("%w: can only submit draft rules, current status: %s", ErrInvalidRule, rule.Status)
+	}
+	rule.Status = StatusPending
+	return s.repo.Update(ctx, rule)
+}
+
+// Approve transitions a rule from pending to approved.
+func (s *Service) Approve(ctx context.Context, id int) error {
+	rule, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rule.Status != StatusPending {
+		return fmt.Errorf("%w: can only approve pending rules, current status: %s", ErrInvalidRule, rule.Status)
+	}
+	rule.Status = StatusApproved
+	rule.IsActive = true
+	return s.repo.Update(ctx, rule)
+}
+
+// Reject transitions a rule from pending to rejected.
+func (s *Service) Reject(ctx context.Context, id int) error {
+	rule, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rule.Status != StatusPending {
+		return fmt.Errorf("%w: can only reject pending rules, current status: %s", ErrInvalidRule, rule.Status)
+	}
+	rule.Status = StatusRejected
+	return s.repo.Update(ctx, rule)
 }
 
 func validateRule(rule *PricingRule) error {
