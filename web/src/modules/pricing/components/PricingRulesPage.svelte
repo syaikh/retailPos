@@ -361,12 +361,12 @@
   function buildPayload(): any {
     const payload: any = { ...form };
     if (payload.effective_from) {
-      payload.effective_from = payload.effective_from + 'T00:00:00Z';
+      payload.effective_from = payload.effective_from + 'T00:00:00+07:00';
     } else {
       delete payload.effective_from;
     }
     if (payload.effective_until) {
-      payload.effective_until = payload.effective_until + 'T23:59:59Z';
+      payload.effective_until = payload.effective_until + 'T23:59:59+07:00';
     } else {
       delete payload.effective_until;
     }

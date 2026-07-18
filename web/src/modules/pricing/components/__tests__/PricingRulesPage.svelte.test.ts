@@ -277,12 +277,12 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('let summaryPreview = $derived');
   });
 
-  it('uses payload.effective_from with T00:00:00Z suffix', () => {
-    expect(src).toContain("payload.effective_from = payload.effective_from + 'T00:00:00Z'");
+  it('uses payload.effective_from with T00:00:00+07:00 suffix (Jakarta timezone)', () => {
+    expect(src).toContain("payload.effective_from = payload.effective_from + 'T00:00:00+07:00'");
   });
 
-  it('uses payload.effective_until with T23:59:59Z suffix', () => {
-    expect(src).toContain("payload.effective_until = payload.effective_until + 'T23:59:59Z'");
+  it('uses payload.effective_until with T23:59:59+07:00 suffix (Jakarta timezone)', () => {
+    expect(src).toContain("payload.effective_until = payload.effective_until + 'T23:59:59+07:00'");
   });
 
   it('has workDaysSelected and weekendSelected as $derived (not $derived with function call)', () => {

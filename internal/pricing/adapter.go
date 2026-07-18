@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"retail-pos-system/internal/shared"
 	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
@@ -89,13 +90,13 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 
 	var effectiveFrom, effectiveUntil *time.Time
 	if v, ok := row["EffectiveFrom"]; ok && v != nil {
-		t, err := time.Parse("2006-01-02", fmt.Sprintf("%v", v))
+		t, err := time.ParseInLocation("2006-01-02", fmt.Sprintf("%v", v), shared.JakartaLocation())
 		if err == nil {
 			effectiveFrom = &t
 		}
 	}
 	if v, ok := row["EffectiveUntil"]; ok && v != nil {
-		t, err := time.Parse("2006-01-02", fmt.Sprintf("%v", v))
+		t, err := time.ParseInLocation("2006-01-02", fmt.Sprintf("%v", v), shared.JakartaLocation())
 		if err == nil {
 			effectiveUntil = &t
 		}
@@ -199,10 +200,10 @@ func (r *pricingRepoAdapter) ExportData(ctx context.Context, _ importexportshare
 			item["BrandID"] = *rule.BrandID
 		}
 		if rule.EffectiveFrom != nil {
-			item["EffectiveFrom"] = rule.EffectiveFrom.Format("2006-01-02")
+			item["EffectiveFrom"] = rule.EffectiveFrom.In(shared.JakartaLocation()).Format("2006-01-02")
 		}
 		if rule.EffectiveUntil != nil {
-			item["EffectiveUntil"] = rule.EffectiveUntil.Format("2006-01-02")
+			item["EffectiveUntil"] = rule.EffectiveUntil.In(shared.JakartaLocation()).Format("2006-01-02")
 		}
 		result[i] = item
 	}

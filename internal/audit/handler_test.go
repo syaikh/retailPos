@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -296,4 +298,63 @@ func TestHandler_ListEntityTypes(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Contains(t, resp.Data, "widget")
+}
+
+func TestHandler_ListAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	r := setupAuditRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	al := &AuditLog{
+		Role:       "admin",
+		Action:     "handler_tz_test_" + time.Now().Format("0102150405"),
+		EntityType: "product",
+	}
+	require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/audit-logs?limit=10&action="+al.Action, nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data  []AuditLogListItem `json:"data"`
+		Total int                `json:"total"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	require.Len(t, resp.Data, 1)
+
+	jakartaFormat := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+07:00$`)
+	assert.Regexp(t, jakartaFormat, resp.Data[0].CreatedAt, "CreatedAt should be in Jakarta timezone format")
+}
+
+func TestHandler_ExportCSV_CreatedAtJakartaTimezone(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	r := setupAuditRouter()
+
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	al := &AuditLog{
+		Role:       "admin",
+		Action:     "export_tz_test_" + time.Now().Format("0102150405"),
+		EntityType: "product",
+		IPAddress:  "10.0.0.99",
+	}
+	require.NoError(t, repo.CreateAuditLog(ctx, al))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/audit-logs/export?format=csv&action="+al.Action, nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+
+	jakartaTimestamp := regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`)
+	assert.Regexp(t, jakartaTimestamp, body, "CSV export should contain Jakarta timezone formatted timestamp")
 }

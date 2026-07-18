@@ -88,7 +88,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 		return nil, 0, err
 	}
 
-	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), al.created_at::text, COALESCE(al.description, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
+	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
 	args2 := []interface{}{}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
@@ -145,7 +145,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*AuditLog, error) {
 	var al AuditLog
 	err := r.db.QueryRow(ctx, `
-		SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), al.created_at::text, COALESCE(al.description, '')
+		SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '')
 		FROM audit_logs al
 		LEFT JOIN users u ON al.user_id = u.id
 		WHERE al.id = $1
