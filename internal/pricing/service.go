@@ -21,8 +21,8 @@ func (s *Service) GetByProductID(ctx context.Context, productID int) ([]PricingR
 	return s.repo.GetByProductID(ctx, productID)
 }
 
-func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error) {
-	return s.repo.GetAll(ctx, limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive)
+func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error) {
+	return s.repo.GetAll(ctx, limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive, status)
 }
 
 func (s *Service) Create(ctx context.Context, rule *PricingRule) error {

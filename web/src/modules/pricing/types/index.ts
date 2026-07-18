@@ -21,6 +21,7 @@ export interface PricingRule {
   time_to?: string;
   allow_combine: boolean;
   is_active: boolean;
+  status: 'draft' | 'pending' | 'approved' | 'rejected';
   effective_from?: string;
   effective_until?: string;
   created_at?: string;
@@ -45,6 +46,7 @@ export interface CreatePricingRulePayload {
   time_to?: string;
   allow_combine?: boolean;
   is_active: boolean;
+  status?: 'draft' | 'pending' | 'approved' | 'rejected';
   effective_from?: string;
   effective_until?: string;
 }
@@ -67,6 +69,7 @@ export interface UpdatePricingRulePayload {
   time_to?: string;
   allow_combine?: boolean;
   is_active?: boolean;
+  status?: 'draft' | 'pending' | 'approved' | 'rejected';
   effective_from?: string;
   effective_until?: string;
 }

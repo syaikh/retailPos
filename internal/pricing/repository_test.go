@@ -144,33 +144,33 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAll with filters", func(t *testing.T) {
-		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil)
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with search", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "Updated", nil, "", "", nil, nil, nil, nil, nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "Updated", nil, "", "", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with product filter", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", &productID, "", "", nil, nil, nil, nil, nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", &productID, "", "", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with type filter", func(t *testing.T) {
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "promotion", "", nil, nil, nil, nil, nil)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "promotion", "", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})
 
 	t.Run("GetAll with active filter", func(t *testing.T) {
 		active := true
-		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, &active)
+		rules, _, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, &active, "")
 		require.NoError(t, err)
 		assert.NotNil(t, rules)
 	})

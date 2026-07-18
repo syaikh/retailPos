@@ -17,7 +17,7 @@ import (
 type PricingService interface {
 	GetByID(ctx context.Context, id int) (*PricingRule, error)
 	GetByProductID(ctx context.Context, productID int) ([]PricingRule, error)
-	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error)
+	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error)
 	Create(ctx context.Context, rule *PricingRule) error
 	Update(ctx context.Context, rule *PricingRule) error
 	Delete(ctx context.Context, id int) error
@@ -80,6 +80,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Param        customer_group_id query   int     false  "Filter by customer group ID"
 // @Param        store_id          query   int     false  "Filter by store ID"
 // @Param        is_active         query   bool    false  "Filter by active status"
+// @Param        status            query   string  false  "Filter by approval status (draft|pending|approved|rejected)"
 // @Success      200  {object}  map[string]interface{}
 // @Router       /pricing-rules [get]
 func (h *Handler) ListRules(c *gin.Context) {
@@ -129,7 +130,9 @@ func (h *Handler) ListRules(c *gin.Context) {
 		isActive = &b
 	}
 
-	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive)
+	status := c.Query("status")
+
+	rules, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive, status)
 	if err != nil {
 		shared.InternalError(c, err)
 		return

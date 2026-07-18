@@ -378,7 +378,7 @@ func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, exclu
 	return scanRules(rows)
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool) ([]PricingRule, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error) {
 	countQuery := `SELECT COUNT(*) FROM pricing_rules WHERE 1=1`
 	dataQuery := `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
@@ -457,6 +457,13 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		countQuery += filter
 		dataQuery += filter
 		args = append(args, *isActive)
+		argIdx++
+	}
+	if status != "" {
+		filter := fmt.Sprintf(" AND status = $%d", argIdx)
+		countQuery += filter
+		dataQuery += filter
+		args = append(args, status)
 		argIdx++
 	}
 

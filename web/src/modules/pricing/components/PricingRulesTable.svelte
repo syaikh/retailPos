@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Skeleton, SortableHeader, Tooltip } from '$shared/ui';
-  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Power, PowerOff } from 'lucide-svelte';
+  import { Pencil, Trash2, DollarSign, Copy, CheckSquare, Square, Send, Check, X, Power, PowerOff } from 'lucide-svelte';
   import type { PricingRule, PricingType, PricingMethod } from '../types';
 
   let {
@@ -22,6 +22,9 @@
     onbulkdeactivate = (_ids: number[]) => {},
     onbulkdelete = (_ids: number[]) => {},
     oncreate = () => {},
+    onsubmitapproval = (_rule: PricingRule) => {},
+    onapprove = (_rule: PricingRule) => {},
+    onreject = (_rule: PricingRule) => {},
     targetNames = new Map<string, string>(),
   }: {
     rules: PricingRule[];
@@ -42,6 +45,9 @@
     onbulkdeactivate?: (ids: number[]) => void;
     onbulkdelete?: (ids: number[]) => void;
     oncreate?: () => void;
+    onsubmitapproval?: (rule: PricingRule) => void;
+    onapprove?: (rule: PricingRule) => void;
+    onreject?: (rule: PricingRule) => void;
     targetNames?: Map<string, string>;
   } = $props();
 
@@ -144,7 +150,7 @@
       <col style="width: 9%;" />
       <col style="width: 7%;" />
     </colgroup>
-    <thead><tr><th></th><th>Nama</th><th>Target</th><th>Tipe</th><th>Metode</th><th class="text-right">Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Status</th><th>Diperbarui</th><th>Aksi</th></tr></thead>
+    <thead><tr><th></th><th>Nama</th><th>Target</th><th>Tipe</th><th>Metode</th><th class="text-right">Nilai</th><th>Min Qty</th><th>Prioritas</th><th>Approval</th><th>Diperbarui</th><th>Aksi</th></tr></thead>
     <tbody>{#each Array(5) as _}<tr>{#each Array(11) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
   </table>
   </div>
@@ -206,7 +212,7 @@
           <SortableHeader label="PRIORITAS" column="priority" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label="APPROVAL" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="px-4 py-3 font-semibold hidden lg:table-cell">
           <SortableHeader label="DIPERBARUI" column="updated_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
@@ -234,15 +240,26 @@
           <td class="px-4 py-3 text-right text-xs tabular-nums hidden lg:table-cell">{rule.minimum_quantity}{rule.maximum_quantity ? `–${rule.maximum_quantity}` : ''}</td>
           <td class="px-4 py-3 text-right text-xs tabular-nums hidden lg:table-cell">{rule.priority}</td>
           <td class="px-4 py-3">
-            {#if rule.is_active}
-              <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Aktif</span>
+            {#if rule.status === 'approved'}
+              <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Approved</span>
+            {:else if rule.status === 'pending'}
+              <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-700">Pending</span>
+            {:else if rule.status === 'rejected'}
+              <span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700">Rejected</span>
             {:else}
-              <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Nonaktif</span>
+              <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Draft</span>
             {/if}
           </td>
           <td class="px-4 py-3 text-xs text-text-muted hidden lg:table-cell"><Tooltip content={formatDateTime(rule.updated_at || rule.created_at)} delay={400}><span class="truncate block">{timeAgo(rule.updated_at || rule.created_at)}</span></Tooltip></td>
           <td class="px-4 py-3">
             <div class="flex items-center justify-center gap-1" role="group" aria-label="Actions for {rule.name}">
+              {#if rule.status === 'draft' && canEdit}
+                <Button variant="ghost" size="sm" class="text-text-muted hover:text-primary-light" onclick={() => onsubmitapproval(rule)} aria-label="Ajukan {rule.name}"><Send class="w-4 h-4" /></Button>
+              {/if}
+              {#if rule.status === 'pending' && canEdit}
+                <Button variant="ghost" size="sm" class="text-text-muted hover:text-success-light" onclick={() => onapprove(rule)} aria-label="Approve {rule.name}"><Check class="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" class="text-text-muted hover:text-danger" onclick={() => onreject(rule)} aria-label="Reject {rule.name}"><X class="w-4 h-4" /></Button>
+              {/if}
               {#if canEdit}
                 <Button variant="ghost" size="sm" class="text-text-muted hover:text-primary-light" onclick={() => onedit(rule)} aria-label="Edit {rule.name}"><Pencil class="w-4 h-4" /></Button>
               {/if}

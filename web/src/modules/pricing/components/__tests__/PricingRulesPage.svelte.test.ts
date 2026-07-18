@@ -12,7 +12,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports pricing service functions', () => {
-    expect(src).toContain("import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service'");
+    expect(src).toContain("import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service'");
   });
 
   it('imports product service functions including getProductById', () => {
@@ -108,7 +108,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   it('calls resolveProductNames after fetching rules', () => {
     const fetchIdx = src.indexOf('async function fetchRules()');
     expect(fetchIdx).toBeGreaterThan(-1);
-    const fetchBlock = src.substring(fetchIdx, fetchIdx + 600);
+    const fetchBlock = src.substring(fetchIdx, fetchIdx + 800);
     expect(fetchBlock).toContain('resolveProductNames()');
   });
 

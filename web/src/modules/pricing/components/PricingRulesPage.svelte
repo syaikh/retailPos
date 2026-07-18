@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
-  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service';
+  import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service';
   import { getCategories, getBrands, getProductById } from '$modules/product/services/product-service';
   import type { PricingRule } from '../types';
   import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
@@ -29,6 +29,7 @@
   let sortBy = $state('name');
   let sortDir = $state<'asc' | 'desc'>('asc');
   let statusFilter = $state('all');
+  let approvalFilter = $state('all');
   let typeFilter = $state('all');
   let methodFilter = $state('all');
 
@@ -131,6 +132,7 @@
     const params: any = { limit, offset, search: searchQuery, sort_by: sortBy, sort_dir: sortDir };
     if (statusFilter === 'active') params.is_active = true;
     else if (statusFilter === 'inactive') params.is_active = false;
+    if (approvalFilter !== 'all') params.status = approvalFilter;
     if (typeFilter !== 'all') params.pricing_type = typeFilter;
     if (methodFilter !== 'all') params.pricing_method = methodFilter;
     const result = await getPricingRules(params);
@@ -516,6 +518,36 @@
     fetchRules();
   }
 
+  async function handleSubmitApproval(rule: PricingRule) {
+    const ok = await submitPricingRule(rule.id);
+    if (ok) {
+      toast.success(`Rule "${rule.name}" berhasil diajukan untuk approval.`);
+      fetchRules();
+    } else {
+      toast.error('Gagal mengajukan rule untuk approval.');
+    }
+  }
+
+  async function handleApprove(rule: PricingRule) {
+    const ok = await approvePricingRule(rule.id);
+    if (ok) {
+      toast.success(`Rule "${rule.name}" berhasil di-approve.`);
+      fetchRules();
+    } else {
+      toast.error('Gagal approve rule.');
+    }
+  }
+
+  async function handleReject(rule: PricingRule) {
+    const ok = await rejectPricingRule(rule.id);
+    if (ok) {
+      toast.success(`Rule "${rule.name}" berhasil ditolak.`);
+      fetchRules();
+    } else {
+      toast.error('Gagal menolak rule.');
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
@@ -554,6 +586,7 @@
 
   <PricingRulesToolbar
     bind:searchQuery
+    bind:approvalFilter
     bind:statusFilter
     bind:typeFilter
     bind:methodFilter
@@ -591,6 +624,9 @@
       onbulkdeactivate={handleBulkDeactivate}
       onbulkdelete={handleBulkDelete}
       oncreate={openAdd}
+      onsubmitapproval={handleSubmitApproval}
+      onapprove={handleApprove}
+      onreject={handleReject}
       {targetNames}
     />
 

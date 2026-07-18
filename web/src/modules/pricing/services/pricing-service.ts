@@ -13,6 +13,7 @@ export interface PricingRuleListParams {
   customer_group_id?: number;
   store_id?: number;
   is_active?: boolean;
+  status?: string;
   sort_by?: string;
   sort_dir?: string;
 }
@@ -36,6 +37,7 @@ export async function getPricingRules(params: PricingRuleListParams): Promise<Pr
   if (params.customer_group_id) urlParams.append('customer_group_id', params.customer_group_id.toString());
   if (params.store_id) urlParams.append('store_id', params.store_id.toString());
   if (params.is_active !== undefined) urlParams.append('is_active', params.is_active.toString());
+  if (params.status) urlParams.append('status', params.status);
   if (params.sort_by) urlParams.append('sort_by', params.sort_by);
   if (params.sort_dir) urlParams.append('sort_dir', params.sort_dir);
 
@@ -74,6 +76,21 @@ export async function updatePricingRule(id: number, payload: UpdatePricingRulePa
 
 export async function deletePricingRule(id: number): Promise<boolean> {
   const r = await apiFetch(`/api/pricing-rules/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+export async function submitPricingRule(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/pricing-rules/${id}/submit`, { method: 'POST' });
+  return r.ok;
+}
+
+export async function approvePricingRule(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/pricing-rules/${id}/approve`, { method: 'POST' });
+  return r.ok;
+}
+
+export async function rejectPricingRule(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/pricing-rules/${id}/reject`, { method: 'POST' });
   return r.ok;
 }
 
