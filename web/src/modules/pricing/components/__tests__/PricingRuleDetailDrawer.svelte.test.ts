@@ -11,13 +11,19 @@ function getSource(): string {
 describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports Drawer, Button, Badge, Skeleton from shared/ui', () => {
-    expect(src).toContain("import { Drawer, Button, Badge, Skeleton } from '$shared/ui'");
+  it('imports Drawer, Button, Badge from shared/ui', () => {
+    expect(src).toContain("import { Drawer, Button, Badge } from '$shared/ui'");
   });
 
-  it('imports Pencil and Trash2 icons from lucide-svelte', () => {
+  it('imports lucide-svelte icons', () => {
     expect(src).toContain('Pencil');
     expect(src).toContain('Trash2');
+    expect(src).toContain('DollarSign');
+    expect(src).toContain('Target');
+    expect(src).toContain('Hash');
+    expect(src).toContain('Clock');
+    expect(src).toContain('Settings');
+    expect(src).toContain('CalendarDays');
   });
 
   it('imports PricingRule type', () => {
@@ -62,30 +68,14 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('ondelete?: (rule: PricingRule) => void');
   });
 
-  it('has timeAgo function', () => {
+  it('has timeAgo function with Indonesian labels', () => {
     expect(src).toContain('function timeAgo(dateStr: string | undefined): string');
     expect(src).toContain('Baru saja');
-    expect(src).toContain('menit lalu');
-    expect(src).toContain('jam lalu');
-    expect(src).toContain('hari lalu');
-    expect(src).toContain('bln lalu');
-    expect(src).toContain('thn lalu');
+    expect(src).toContain('lalu');
   });
 
   it('timeAgo returns dash for undefined', () => {
     expect(src).toContain("if (!dateStr) return '-'");
-  });
-
-  it('has formatDate function', () => {
-    expect(src).toContain('function formatDate(dateStr: string | undefined): string');
-    expect(src).toContain("toLocaleDateString('id-ID'");
-  });
-
-  it('formatDate returns dash for undefined', () => {
-    const fnIdx = src.indexOf('function formatDate(');
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fnBody = src.substring(fnIdx, fnIdx + 100);
-    expect(fnBody).toContain("return '-'");
   });
 
   it('has formatDateTime function', () => {
@@ -104,6 +94,13 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain("case 'discount_percent': return `${r.pricing_value}%`");
     expect(src).toContain("case 'discount_amount': return `-Rp ${formatPrice(r.pricing_value)}`");
     expect(src).toContain("case 'markup_percent': return `+${r.pricing_value}%`");
+  });
+
+  it('has valueSubLabel function for stat card subtitle', () => {
+    expect(src).toContain('function valueSubLabel(r: PricingRule): string');
+    expect(src).toContain('Diskon Persen');
+    expect(src).toContain('Diskon nominal');
+    expect(src).toContain('Markup Persen');
   });
 
   it('has methodLabel function with Indonesian labels', () => {
@@ -149,20 +146,30 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain("default: return 'Draft'");
   });
 
-  it('has dayLabel function for Indonesian day abbreviations', () => {
-    expect(src).toContain('function dayLabel(d: string): string');
-    expect(src).toContain("mon: 'Sen'");
-    expect(src).toContain("tue: 'Sel'");
-    expect(src).toContain("wed: 'Rab'");
-    expect(src).toContain("thu: 'Kam'");
-    expect(src).toContain("fri: 'Jum'");
-    expect(src).toContain("sat: 'Sab'");
-    expect(src).toContain("sun: 'Min'");
+  it('has dayShort function for day chip abbreviations', () => {
+    expect(src).toContain('function dayShort(d: string): string');
+    expect(src).toContain("mon: 'Sn'");
+    expect(src).toContain("tue: 'Sl'");
+    expect(src).toContain("wed: 'Rb'");
+    expect(src).toContain("thu: 'Km'");
+    expect(src).toContain("fri: 'Jm'");
+    expect(src).toContain("sat: 'Sb'");
+    expect(src).toContain("sun: 'Mg'");
   });
 
-  it('has dayLabels derived from recurrence_days', () => {
-    expect(src).toContain('const dayLabels = $derived');
-    expect(src).toContain('rule?.recurrence_days?.map(dayLabel).join');
+  it('has dayFull function for full day names', () => {
+    expect(src).toContain('function dayFull(d: string): string');
+    expect(src).toContain("mon: 'Senin'");
+    expect(src).toContain("sun: 'Minggu'");
+  });
+
+  it('has activeDays and inactiveDays derived', () => {
+    expect(src).toContain('const activeDays = $derived');
+    expect(src).toContain('const inactiveDays = $derived');
+  });
+
+  it('has ALL_DAYS constant', () => {
+    expect(src).toContain("const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const");
   });
 
   it('has handleClose function that calls onclose', () => {
@@ -187,45 +194,65 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('{rule.name}');
   });
 
-  it('shows approval and active status badges', () => {
+  it('shows approval, active, and type badges in header', () => {
     expect(src).toContain('approvalVariant(rule.status)');
     expect(src).toContain('approvalLabel(rule.status)');
     expect(src).toContain("rule.is_active ? 'Aktif' : 'Nonaktif'");
-  });
-
-  it('has Harga section showing value, method, type', () => {
-    expect(src).toContain('>Harga<');
-    expect(src).toContain('valueLabel(rule)');
-    expect(src).toContain('methodLabel(rule.pricing_method)');
     expect(src).toContain('typeLabel(rule.pricing_type)');
   });
 
-  it('has Target section showing scope and name', () => {
-    expect(src).toContain('>Target<');
+  it('has 2x2 stat cards grid at top', () => {
+    expect(src).toContain('grid grid-cols-2');
+    expect(src).toContain('bg-surface-default rounded-xl');
+  });
+
+  it('stat card shows value and valueSubLabel', () => {
+    expect(src).toContain('valueLabel(rule)');
+    expect(src).toContain('valueSubLabel(rule)');
+  });
+
+  it('stat card shows target scope and name', () => {
     expect(src).toContain('targetScope(rule)');
     expect(src).toContain('targetLabel(rule)');
   });
 
-  it('has Kuantitas section showing min qty, max qty (conditional), priority', () => {
-    expect(src).toContain('>Kuantitas<');
+  it('stat card shows quantity range inline', () => {
     expect(src).toContain('rule.minimum_quantity');
-    expect(src).toContain('{#if rule.maximum_quantity}');
     expect(src).toContain('rule.priority');
   });
 
-  it('has Jadwal section with conditional day and time ranges', () => {
-    expect(src).toContain('>Jadwal<');
-    expect(src).toContain('{#if dayLabels}');
+  it('stat card shows updated time', () => {
+    expect(src).toContain('timeAgo(rule.updated_at)');
+    expect(src).toContain('formatDateTime(rule.updated_at)');
+  });
+
+  it('has card-based sections with dividers', () => {
+    expect(src).toContain('divide-y divide-border/30');
+  });
+
+  it('has Harga section with method and allow_combine', () => {
+    expect(src).toContain('Harga');
+    expect(src).toContain('methodLabel(rule.pricing_method)');
+    expect(src).toContain("rule.allow_combine ? 'Ya' : 'Tidak'");
+  });
+
+  it('has Jadwal section with day chips', () => {
+    expect(src).toContain('Jadwal');
+    expect(src).toContain('activeDays.includes(day)');
+    expect(src).toContain('dayShort(day)');
+    expect(src).toContain('dayFull(day)');
+  });
+
+  it('Jadwal has time range and effective dates', () => {
     expect(src).toContain('{#if rule.time_from || rule.time_to}');
     expect(src).toContain('rule.time_from');
     expect(src).toContain('rule.time_to');
-    expect(src).toContain('formatDate(rule.effective_from)');
-    expect(src).toContain('formatDate(rule.effective_until)');
+    expect(src).toContain('formatDateTime(rule.effective_from)');
+    expect(src).toContain('formatDateTime(rule.effective_until)');
   });
 
-  it('has Kondisi section with combine, customer group, and store', () => {
-    expect(src).toContain('>Kondisi<');
-    expect(src).toContain("rule.allow_combine ? 'Ya' : 'Tidak'");
+  it('has Kondisi section with customer group and store', () => {
+    expect(src).toContain('Kondisi');
     expect(src).toContain('{#if rule.customer_group_id}');
     expect(src).toContain('{#if rule.store_id}');
   });
@@ -238,10 +265,14 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('stores.find(s => s.id === rule.store_id)');
   });
 
-  it('has Waktu section showing created and updated timestamps', () => {
-    expect(src).toContain('>Waktu<');
+  it('has fallback text when no customer group or store', () => {
+    expect(src).toContain('Berlaku untuk semua group');
+  });
+
+  it('has Riwayat section showing created timestamp and rule ID', () => {
+    expect(src).toContain('Riwayat');
     expect(src).toContain('formatDateTime(rule.created_at)');
-    expect(src).toContain('timeAgo(rule.updated_at)');
+    expect(src).toContain('rule.id');
   });
 
   it('renders footer snippet with Edit button when canEdit', () => {
@@ -255,12 +286,5 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('{#if canDelete}');
     expect(src).toContain('ondelete(rule!)');
     expect(src).toContain('Hapus');
-  });
-
-  it('does not show max qty when rule.maximum_quantity is falsy', () => {
-    const maxIdx = src.indexOf('{#if rule.maximum_quantity}');
-    expect(maxIdx).toBeGreaterThan(-1);
-    const block = src.substring(maxIdx, maxIdx + 300);
-    expect(block).toContain('Max. Qty');
   });
 });

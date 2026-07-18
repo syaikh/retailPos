@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Drawer, Button, Badge, Skeleton } from '$shared/ui';
-  import { Pencil, Trash2 } from 'lucide-svelte';
+  import { Drawer, Button, Badge } from '$shared/ui';
+  import { Pencil, Trash2, DollarSign, Target, Hash, Clock, Settings, CalendarDays } from 'lucide-svelte';
   import type { PricingRule } from '../types';
 
   let {
@@ -27,6 +27,8 @@
     ondelete?: (rule: PricingRule) => void;
   } = $props();
 
+  const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
   function timeAgo(dateStr: string | undefined): string {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
@@ -34,22 +36,15 @@
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     if (seconds < 60) return 'Baru saja';
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} menit lalu`;
+    if (minutes < 60) return `${minutes}m lalu`;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} jam lalu`;
+    if (hours < 24) return `${hours}j lalu`;
     const days = Math.floor(hours / 24);
-    if (days < 30) return `${days} hari lalu`;
+    if (days < 30) return `${days}h lalu`;
     const months = Math.floor(days / 30);
-    if (months < 12) return `${months} bln lalu`;
+    if (months < 12) return `${months}bln lalu`;
     const years = Math.floor(months / 12);
-    return `${years} thn lalu`;
-  }
-
-  function formatDate(dateStr: string | undefined): string {
-    if (!dateStr) return '-';
-    try {
-      return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch { return dateStr; }
+    return `${years}thn lalu`;
   }
 
   function formatDateTime(dateStr: string | undefined): string {
@@ -70,6 +65,16 @@
       case 'discount_amount': return `-Rp ${formatPrice(r.pricing_value)}`;
       case 'markup_percent': return `+${r.pricing_value}%`;
       default: return String(r.pricing_value);
+    }
+  }
+
+  function valueSubLabel(r: PricingRule): string {
+    switch (r.pricing_method) {
+      case 'fixed_price': return 'Harga Tetap';
+      case 'discount_percent': return 'Diskon Persen';
+      case 'discount_amount': return 'Diskon nominal';
+      case 'markup_percent': return 'Markup Persen';
+      default: return r.pricing_method;
     }
   }
 
@@ -119,16 +124,22 @@
     }
   }
 
-  function dayLabel(d: string): string {
+  function dayShort(d: string): string {
     const map: Record<string, string> = {
-      mon: 'Sen', tue: 'Sel', wed: 'Rab', thu: 'Kam', fri: 'Jum', sat: 'Sab', sun: 'Min',
+      mon: 'Sn', tue: 'Sl', wed: 'Rb', thu: 'Km', fri: 'Jm', sat: 'Sb', sun: 'Mg',
     };
     return map[d] || d;
   }
 
-  const dayLabels = $derived(
-    rule?.recurrence_days?.map(dayLabel).join(', ') || null
-  );
+  function dayFull(d: string): string {
+    const map: Record<string, string> = {
+      mon: 'Senin', tue: 'Selasa', wed: 'Rabu', thu: 'Kamis', fri: 'Jumat', sat: 'Sabtu', sun: 'Minggu',
+    };
+    return map[d] || d;
+  }
+
+  const activeDays = $derived(rule?.recurrence_days || []);
+  const inactiveDays = $derived(ALL_DAYS.filter(d => !activeDays.includes(d)));
 
   function handleClose() {
     onclose();
@@ -137,131 +148,144 @@
 
 <Drawer bind:open title={rule?.name || 'Detail Rule'} onclose={handleClose}>
   {#if rule}
-    <div class="space-y-6">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 rounded-xl bg-primary-subtle flex items-center justify-center text-primary-light text-lg font-bold shrink-0">
+    <div class="space-y-5">
+      <div class="flex items-start gap-3.5">
+        <div class="w-11 h-11 rounded-xl bg-primary-subtle flex items-center justify-center text-primary-light text-base font-bold shrink-0">
           {rule.name.charAt(0).toUpperCase()}
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="text-base font-semibold text-text-primary truncate">{rule.name}</h3>
-          <div class="mt-1.5 flex items-center gap-2">
+          <h3 class="text-sm font-semibold text-text-primary truncate leading-snug">{rule.name}</h3>
+          <div class="mt-1.5 flex items-center gap-1.5 flex-wrap">
             <Badge variant={approvalVariant(rule.status)} size="sm">{approvalLabel(rule.status)}</Badge>
             <Badge variant={rule.is_active ? 'success' : 'muted'} size="sm">{rule.is_active ? 'Aktif' : 'Nonaktif'}</Badge>
+            <Badge variant="default" size="sm">{typeLabel(rule.pricing_type)}</Badge>
           </div>
         </div>
       </div>
 
-      <div class="space-y-5">
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Harga</h4>
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="bg-surface-default rounded-xl p-3 border border-border/40">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1.5 flex items-center gap-1">
+            <DollarSign size={10} /> Nilai
+          </p>
+          <p class="text-base font-bold text-primary-light tabular-nums leading-tight">{valueLabel(rule)}</p>
+          <p class="text-[11px] text-text-muted mt-0.5">{valueSubLabel(rule)}</p>
+        </div>
+        <div class="bg-surface-default rounded-xl p-3 border border-border/40">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1.5 flex items-center gap-1">
+            <Target size={10} /> Target
+          </p>
+          <p class="text-sm font-semibold text-text-primary leading-tight truncate">{targetScope(rule)}</p>
+          <p class="text-[11px] text-text-muted mt-0.5 truncate">{targetLabel(rule)}</p>
+        </div>
+        <div class="bg-surface-default rounded-xl p-3 border border-border/40">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1.5 flex items-center gap-1">
+            <Hash size={10} /> Kuantitas
+          </p>
+          <p class="text-sm font-semibold text-text-primary tabular-nums leading-tight">
+            {rule.minimum_quantity}{#if rule.maximum_quantity} – {rule.maximum_quantity}{:else}+{/if}
+          </p>
+          <p class="text-[11px] text-text-muted mt-0.5">Prioritas {rule.priority}</p>
+        </div>
+        <div class="bg-surface-default rounded-xl p-3 border border-border/40">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1.5 flex items-center gap-1">
+            <Clock size={10} /> Diperbarui
+          </p>
+          <p class="text-sm font-semibold text-text-primary leading-tight">{timeAgo(rule.updated_at)}</p>
+          <p class="text-[11px] text-text-muted mt-0.5 font-mono">{formatDateTime(rule.updated_at)}</p>
+        </div>
+      </div>
+
+      <div class="bg-surface-default rounded-xl border border-border/40 divide-y divide-border/30">
+        <div class="px-3.5 py-3">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2.5 flex items-center gap-1.5">
+            <DollarSign size={10} /> Harga
+          </p>
           <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-text-muted">Nilai</span>
-              <span class="text-text-secondary font-semibold">{valueLabel(rule)}</span>
-            </div>
-            <div class="flex justify-between">
+            <div class="flex items-center justify-between">
               <span class="text-text-muted">Metode</span>
-              <span class="text-text-secondary">{methodLabel(rule.pricing_method)}</span>
+              <span class="text-text-secondary font-medium">{methodLabel(rule.pricing_method)}</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Tipe</span>
-              <Badge variant="default" size="sm">{typeLabel(rule.pricing_type)}</Badge>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Target</h4>
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-text-muted">Cakupan</span>
-              <span class="text-text-secondary">{targetScope(rule)}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Nama</span>
-              <span class="text-text-secondary text-right max-w-[220px] truncate">{targetLabel(rule)}</span>
+            <div class="flex items-center justify-between">
+              <span class="text-text-muted">Gabungkan Rule</span>
+              <span class="text-text-secondary font-medium">{rule.allow_combine ? 'Ya' : 'Tidak'}</span>
             </div>
           </div>
         </div>
 
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Kuantitas</h4>
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-text-muted">Min. Qty</span>
-              <span class="text-text-secondary tabular-nums">{rule.minimum_quantity}</span>
-            </div>
-            {#if rule.maximum_quantity}
-              <div class="flex justify-between">
-                <span class="text-text-muted">Max. Qty</span>
-                <span class="text-text-secondary tabular-nums">{rule.maximum_quantity}</span>
-              </div>
-            {/if}
-            <div class="flex justify-between">
-              <span class="text-text-muted">Prioritas</span>
-              <span class="text-text-secondary tabular-nums">{rule.priority}</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Jadwal</h4>
-          <div class="space-y-2 text-sm">
-            {#if dayLabels}
-              <div class="flex justify-between">
-                <span class="text-text-muted">Hari Aktif</span>
-                <span class="text-text-secondary">{dayLabels}</span>
+        <div class="px-3.5 py-3">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2.5 flex items-center gap-1.5">
+            <CalendarDays size={10} /> Jadwal
+          </p>
+          <div class="space-y-3 text-sm">
+            {#if activeDays.length > 0}
+              <div>
+                <span class="text-text-muted text-xs block mb-1.5">Hari Aktif</span>
+                <div class="flex flex-wrap gap-1">
+                  {#each ALL_DAYS as day}
+                    {@const isActive = activeDays.includes(day)}
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-semibold transition-colors
+                      {isActive ? 'bg-primary-subtle text-primary-light' : 'bg-bg-secondary text-text-muted/40 line-through'}"
+                      title={dayFull(day)}
+                    >
+                      {dayShort(day)}
+                    </span>
+                  {/each}
+                </div>
               </div>
             {/if}
             {#if rule.time_from || rule.time_to}
-              <div class="flex justify-between">
+              <div class="flex items-center justify-between">
                 <span class="text-text-muted">Jam Aktif</span>
-                <span class="text-text-secondary">{rule.time_from || '00:00'} – {rule.time_to || '23:59'}</span>
+                <span class="text-text-secondary font-medium font-mono text-xs">{rule.time_from || '00:00'} – {rule.time_to || '23:59'}</span>
               </div>
             {/if}
-            <div class="flex justify-between">
+            <div class="flex items-center justify-between">
               <span class="text-text-muted">Berlaku Dari</span>
-              <span class="text-text-secondary">{formatDate(rule.effective_from)}</span>
+              <span class="text-text-secondary font-medium text-xs">{formatDateTime(rule.effective_from)}</span>
             </div>
-            <div class="flex justify-between">
+            <div class="flex items-center justify-between">
               <span class="text-text-muted">Berlaku Sampai</span>
-              <span class="text-text-secondary">{formatDate(rule.effective_until)}</span>
+              <span class="text-text-secondary font-medium text-xs">{formatDateTime(rule.effective_until)}</span>
             </div>
           </div>
         </div>
 
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Kondisi</h4>
+        <div class="px-3.5 py-3">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2.5 flex items-center gap-1.5">
+            <Settings size={10} /> Kondisi
+          </p>
           <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-text-muted">Gabungkan Rule</span>
-              <span class="text-text-secondary">{rule.allow_combine ? 'Ya' : 'Tidak'}</span>
-            </div>
             {#if rule.customer_group_id}
-              <div class="flex justify-between">
+              <div class="flex items-center justify-between">
                 <span class="text-text-muted">Group Pelanggan</span>
-                <span class="text-text-secondary">{customerGroups.find(cg => cg.id === rule.customer_group_id)?.name || `#${rule.customer_group_id}`}</span>
+                <span class="text-text-secondary font-medium">{customerGroups.find(cg => cg.id === rule.customer_group_id)?.name || `#${rule.customer_group_id}`}</span>
               </div>
             {/if}
             {#if rule.store_id}
-              <div class="flex justify-between">
+              <div class="flex items-center justify-between">
                 <span class="text-text-muted">Outlet</span>
-                <span class="text-text-secondary">{stores.find(s => s.id === rule.store_id)?.name || `#${rule.store_id}`}</span>
+                <span class="text-text-secondary font-medium">{stores.find(s => s.id === rule.store_id)?.name || `#${rule.store_id}`}</span>
               </div>
+            {/if}
+            {#if !rule.customer_group_id && !rule.store_id}
+              <p class="text-xs text-text-muted italic">Berlaku untuk semua group & outlet</p>
             {/if}
           </div>
         </div>
 
-        <div>
-          <h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Waktu</h4>
+        <div class="px-3.5 py-3">
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2.5 flex items-center gap-1.5">
+            <Clock size={10} /> Riwayat
+          </p>
           <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
+            <div class="flex items-center justify-between">
               <span class="text-text-muted">Dibuat</span>
-              <span class="text-text-secondary">{formatDateTime(rule.created_at)}</span>
+              <span class="text-text-secondary font-medium text-xs">{formatDateTime(rule.created_at)}</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Diperbarui</span>
-              <span class="text-text-secondary">{timeAgo(rule.updated_at)}</span>
+            <div class="flex items-center justify-between">
+              <span class="text-text-muted">ID Rule</span>
+              <span class="text-text-muted font-mono text-xs">#{rule.id}</span>
             </div>
           </div>
         </div>
