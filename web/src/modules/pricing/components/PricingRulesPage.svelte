@@ -3,12 +3,13 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, searchProducts, getCustomerGroups, getStores } from '../services/pricing-service';
-  import { getCategories, getBrands } from '$modules/product/services/product-service';
+  import { getCategories, getBrands, getProductById } from '$modules/product/services/product-service';
   import type { PricingRule } from '../types';
-  import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge } from '$shared/ui';
+  import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
   import { Loader2 } from 'lucide-svelte';
   import PricingRulesToolbar from './PricingRulesToolbar.svelte';
   import PricingRulesTable from './PricingRulesTable.svelte';
+  import PriceSimulationModal from './PriceSimulationModal.svelte';
 
   const authStore = useAuthStore();
 
@@ -20,6 +21,8 @@
   let searchQuery = $state('');
   let showModal = $state(false);
   let showDeleteModal = $state(false);
+  let showImportWizard = $state(false);
+  let showSimulation = $state(false);
   let selectedRule = $state<PricingRule | null>(null);
   let modalMode = $state<'add' | 'edit'>('add');
   let saving = $state(false);
@@ -37,6 +40,15 @@
   let selectedProductName = $state('');
   let categories = $state<{ id: number; name: string }[]>([]);
   let brands = $state<{ id: number; name: string }[]>([]);
+  let productNames = $state<Map<number, string>>(new Map());
+
+  let targetNames = $derived((() => {
+    const map = new Map<string, string>();
+    for (const c of categories) map.set(`category:${c.id}`, c.name);
+    for (const b of brands) map.set(`brand:${b.id}`, b.name);
+    for (const [id, name] of productNames) map.set(`product:${id}`, name);
+    return map;
+  })());
   let categorySearchQuery = $state('');
   let brandSearchQuery = $state('');
   let categorySearchResults = $state<{ id: number; name: string }[]>([]);
@@ -67,7 +79,7 @@
     pricing_value: 0,
     name: '',
     minimum_quantity: 1,
-    maximum_quantity: undefined as number | undefined,
+    maximum_quantity: '' as number | string,
     priority: 0,
     customer_group_id: null as number | null,
     store_id: null as number | null,
@@ -97,7 +109,7 @@
     { value: 'markup_percent', label: 'Markup (%)', description: 'Penambahan harga berupa persentase dari harga normal.' }
   ];
 
-  let typeLabel = $derived(typeFilter === 'all' ? 'All Types' : pricingTypes.find(t => t.value === typeFilter)?.label || typeFilter);
+  let typeLabel = $derived(typeFilter === 'all' ? 'Semua Tipe' : pricingTypes.find(t => t.value === typeFilter)?.label || typeFilter);
   let methodLabel = $derived(methodFilter === 'all' ? 'Semua Metode' : pricingMethods.find(m => m.value === methodFilter)?.label || methodFilter);
 
   let sortedRules = $derived.by(() => {
@@ -125,6 +137,18 @@
     rules = result.data;
     total = result.total;
     loading = false;
+    resolveProductNames();
+  }
+
+  async function resolveProductNames() {
+    const productIds = rules.filter(r => r.product_id).map(r => r.product_id!).filter(id => !productNames.has(id));
+    if (productIds.length === 0) return;
+    const results = await Promise.allSettled(productIds.map(id => getProductById(id)));
+    const next = new Map(productNames);
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value) next.set(productIds[i], r.value.name);
+    });
+    productNames = next;
   }
 
   function handleSort(col: string) {
@@ -141,7 +165,7 @@
     form = {
       product_id: null, category_id: null, brand_id: null,
       pricing_type: 'default', pricing_method: 'fixed_price', pricing_value: 0,
-      name: '', minimum_quantity: 1, maximum_quantity: undefined, priority: 0,
+      name: '', minimum_quantity: 1, maximum_quantity: '', priority: 0,
       customer_group_id: null, store_id: null, recurrence_days: [],
       time_from: '', time_to: '', allow_combine: false, is_active: true,
       effective_from: '', effective_until: ''
@@ -177,7 +201,7 @@
       pricing_value: rule.pricing_value,
       name: rule.name,
       minimum_quantity: rule.minimum_quantity,
-      maximum_quantity: rule.maximum_quantity || undefined,
+      maximum_quantity: rule.maximum_quantity || '',
       priority: rule.priority,
       customer_group_id: rule.customer_group_id || null,
       store_id: rule.store_id || null,
@@ -200,6 +224,38 @@
   function openDelete(rule: PricingRule) {
     selectedRule = rule;
     showDeleteModal = true;
+  }
+
+  function handleDuplicate(rule: PricingRule) {
+    modalMode = 'add';
+    selectedRule = null;
+    form = {
+      product_id: rule.product_id || null,
+      category_id: rule.category_id || null,
+      brand_id: rule.brand_id || null,
+      pricing_type: rule.pricing_type,
+      pricing_method: rule.pricing_method,
+      pricing_value: rule.pricing_value,
+      name: `${rule.name} (Salinan)`,
+      minimum_quantity: rule.minimum_quantity,
+      maximum_quantity: rule.maximum_quantity || '',
+      priority: rule.priority,
+      customer_group_id: rule.customer_group_id || null,
+      store_id: rule.store_id || null,
+      recurrence_days: rule.recurrence_days ? [...rule.recurrence_days] : [],
+      time_from: rule.time_from || '',
+      time_to: rule.time_to || '',
+      allow_combine: rule.allow_combine,
+      is_active: rule.is_active,
+      effective_from: '',
+      effective_until: ''
+    };
+    selectedProductName = rule.product_id ? `Product #${rule.product_id}` : '';
+    selectedCategoryName = rule.category_id ? categories.find(c => c.id === rule.category_id)?.name || `#${rule.category_id}` : '';
+    selectedBrandName = rule.brand_id ? brands.find(b => b.id === rule.brand_id)?.name || `#${rule.brand_id}` : '';
+    formErrors = {};
+    showErrors = false;
+    showModal = true;
   }
 
   function handleProductSearch() {
@@ -363,8 +419,8 @@
   }
 
   const allDaysSelected = $derived(form.recurrence_days.length === dayOptions.length);
-  const workDaysSelected = $derived(() => ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => form.recurrence_days.includes(d)));
-  const weekendSelected = $derived(() => ['sat', 'sun'].every(d => form.recurrence_days.includes(d)));
+  const workDaysSelected = $derived(['mon', 'tue', 'wed', 'thu', 'fri'].every(d => form.recurrence_days.includes(d)));
+  const weekendSelected = $derived(['sat', 'sun'].every(d => form.recurrence_days.includes(d)));
 
   function formatDayRange(days: string[]): string {
     if (!days || days.length === 0) return 'Setiap hari';
@@ -417,22 +473,85 @@
     const errors: Record<string, string> = {};
     if (!form.name || !form.name.trim()) errors.name = 'Nama rule wajib diisi.';
     if (!form.product_id && !form.category_id && !form.brand_id) errors.target = 'Pilih minimal satu target.';
-    if (form.maximum_quantity && form.minimum_quantity > form.maximum_quantity) errors.qty = 'Max Qty harus lebih besar dari Min Qty.';
+    if (form.maximum_quantity && form.minimum_quantity > Number(form.maximum_quantity)) errors.qty = 'Max Qty harus lebih besar dari Min Qty.';
     if (form.effective_from && form.effective_until && form.effective_from > form.effective_until) errors.dates = 'Tanggal selesai tidak boleh sebelum tanggal mulai.';
     return errors;
   }
 
-  onMount(async () => {
+  function handleImportComplete() {
     fetchRules();
-    const [cg, st, cat, br] = await Promise.all([getCustomerGroups(), getStores(), getCategories(), getBrands()]);
-    customerGroups = cg;
-    stores = st;
-    categories = cat;
-    brands = br;
+    toast.success('Import pricing rules selesai.');
+  }
+
+  async function handleBulkActivate(ids: number[]) {
+    const results = await Promise.allSettled(
+      ids.map(id => updatePricingRule(id, { is_active: true }))
+    );
+    const ok = results.filter(r => r.status === 'fulfilled' && r.value).length;
+    const fail = ids.length - ok;
+    if (ok > 0) toast.success(`${ok} rule berhasil diaktifkan.`);
+    if (fail > 0) toast.error(`${fail} rule gagal diaktifkan.`);
+    fetchRules();
+  }
+
+  async function handleBulkDeactivate(ids: number[]) {
+    const results = await Promise.allSettled(
+      ids.map(id => updatePricingRule(id, { is_active: false }))
+    );
+    const ok = results.filter(r => r.status === 'fulfilled' && r.value).length;
+    const fail = ids.length - ok;
+    if (ok > 0) toast.success(`${ok} rule berhasil dinonaktifkan.`);
+    if (fail > 0) toast.error(`${fail} rule gagal dinonaktifkan.`);
+    fetchRules();
+  }
+
+  async function handleBulkDelete(ids: number[]) {
+    const results = await Promise.allSettled(
+      ids.map(id => deletePricingRule(id))
+    );
+    const ok = results.filter(r => r.status === 'fulfilled' && r.value).length;
+    const fail = ids.length - ok;
+    if (ok > 0) toast.success(`${ok} rule berhasil dihapus.`);
+    if (fail > 0) toast.error(`${fail} rule gagal dihapus.`);
+    fetchRules();
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      if (canCreate) openAdd();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      document.querySelector<HTMLInputElement>('#pricing-search')?.focus();
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeydown);
+    fetchRules();
+    (async () => {
+      const [cg, st, cat, br] = await Promise.all([getCustomerGroups(), getStores(), getCategories(), getBrands()]);
+      customerGroups = cg;
+      stores = st;
+      categories = cat;
+      brands = br;
+    })();
+    return () => window.removeEventListener('keydown', handleKeydown);
   });
 </script>
 
 <div class="space-y-5">
+  <a href="#pricing-rules-table" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary-default focus:text-white focus:outline-none focus:ring-2 focus:ring-primary-light">
+    Lewati ke tabel rules
+  </a>
+
+  <div>
+    <h1 class="text-xl font-bold text-text-primary">Pricing Rules</h1>
+    <p class="text-sm text-text-muted mt-1">Kelola aturan harga, diskon, dan promosi untuk produk, kategori, atau brand.</p>
+  </div>
+
   <PricingRulesToolbar
     bind:searchQuery
     bind:statusFilter
@@ -445,9 +564,14 @@
     {methodLabel}
     oncreate={openAdd}
     onfilter={fetchRules}
+    onimport={() => showImportWizard = true}
+    onsimulate={() => showSimulation = true}
   />
 
-  <div class="card overflow-hidden">
+  <div id="pricing-rules-table" class="card overflow-hidden" aria-live="polite" aria-atomic="true">
+    <span class="sr-only" aria-live="polite">
+      {#if loading}Memuat data...{:else if rules.length === 0}Tidak ada rules ditemukan.{:else}Menampilkan {offset + 1} sampai {Math.min(offset + limit, total)} dari {total} rules.{/if}
+    </span>
     <PricingRulesTable
       rules={sortedRules}
       {loading}
@@ -456,16 +580,26 @@
       {sortDir}
       {canEdit}
       {canDelete}
+      {canCreate}
       {pricingTypes}
       {pricingMethods}
       onsort={handleSort}
       onedit={openEdit}
       ondelete={openDelete}
+      onduplicate={handleDuplicate}
+      onbulkactivate={handleBulkActivate}
+      onbulkdeactivate={handleBulkDeactivate}
+      onbulkdelete={handleBulkDelete}
+      oncreate={openAdd}
+      {targetNames}
     />
 
     {#if !loading && rules.length > 0}
       <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
-        <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-text-muted">Menampilkan {offset + 1}–{Math.min(offset + limit, total)} dari {total} rules</span>
+          <Pagination {total} {limit} {offset} onPageChange={handlePageChange} />
+        </div>
       </div>
     {/if}
   </div>
@@ -659,12 +793,12 @@
             class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {allDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Semua Hari
           </button>
-          <button type="button" onclick={workDaysSelected() ? clearDays : selectWorkDays}
-            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {workDaysSelected() ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+          <button type="button" onclick={workDaysSelected ? clearDays : selectWorkDays}
+            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {workDaysSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Hari Kerja
           </button>
-          <button type="button" onclick={weekendSelected() ? clearDays : selectWeekend}
-            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {weekendSelected() ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
+          <button type="button" onclick={weekendSelected ? clearDays : selectWeekend}
+            class="h-6 px-2.5 rounded-md text-[11px] font-medium transition-all {weekendSelected ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'bg-bg-secondary text-text-muted border border-border-default hover:bg-surface-hover'}">
             Weekend
           </button>
         </div>
@@ -793,3 +927,12 @@
 </Modal>
 
 <ConfirmDeleteModal bind:open={showDeleteModal} onconfirm={confirmDelete} />
+
+<ImportWizard
+  bind:open={showImportWizard}
+  module="pricing_rules"
+  displayName="Pricing Rules"
+  onComplete={handleImportComplete}
+/>
+
+<PriceSimulationModal bind:open={showSimulation} />

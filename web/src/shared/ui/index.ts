@@ -28,4 +28,5 @@ export { default as StatCard } from './StatCard.svelte';
 export { default as TableSkeleton } from './TableSkeleton.svelte';
 export { default as ToggleSwitch } from './ToggleSwitch.svelte';
 export { default as Toast } from './Toast.svelte';
+export { default as Tooltip } from './Tooltip.svelte';
 export { default as ValidationSummary } from './ValidationSummary.svelte';
