@@ -46,4 +46,6 @@ export interface ProductSupplier {
   created_at?: string;
   supplier_name?: string;
   supplier_code?: string;
+  product_name?: string;
+  product_sku?: string;
 }

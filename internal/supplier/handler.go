@@ -29,6 +29,8 @@ type SupplierService interface {
 	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error
 	GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error)
 	GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error)
+	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
+	BulkDelete(ctx context.Context, ids []int) (int, error)
 }
 
 type Handler struct {
@@ -46,6 +48,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/suppliers", auth, perm("pricing:create"), h.CreateSupplier)
 	r.PUT("/suppliers/:id", auth, perm("pricing:update"), h.UpdateSupplier)
 	r.DELETE("/suppliers/:id", auth, perm("pricing:delete"), h.DeleteSupplier)
+
+	r.PUT("/suppliers/bulk", auth, perm("pricing:update"), h.BulkUpdate)
+	r.DELETE("/suppliers/bulk", auth, perm("pricing:delete"), h.BulkDelete)
 
 	r.GET("/suppliers/:id/products", auth, perm("pricing:read"), h.GetProductsBySupplier)
 	r.POST("/suppliers/:id/products", auth, perm("pricing:update"), h.LinkProduct)
@@ -470,4 +475,87 @@ func (h *Handler) SetPreferredSupplier(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+}
+
+// BulkUpdate godoc
+// @Summary Bulk update suppliers
+// @Description Bulk update supplier active status
+// @Tags suppliers
+// @Accept json
+// @Produce json
+// @Param body body object true "Bulk update payload"
+// @Success 200 {object} map[string]interface{}
+// @Router /suppliers/bulk [put]
+func (h *Handler) BulkUpdate(c *gin.Context) {
+	var req struct {
+		IDs      []int `json:"ids" binding:"required"`
+		IsActive bool  `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "bulk_update",
+			EntityType:  "supplier",
+			NewValues:   map[string]interface{}{"ids": req.IDs, "is_active": req.IsActive},
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Bulk updated %d suppliers", updated),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
+// BulkDelete godoc
+// @Summary Bulk delete suppliers
+// @Description Soft delete multiple suppliers
+// @Tags suppliers
+// @Accept json
+// @Produce json
+// @Param body body object true "Bulk delete payload"
+// @Success 200 {object} map[string]interface{}
+// @Router /suppliers/bulk [delete]
+func (h *Handler) BulkDelete(c *gin.Context) {
+	var req struct {
+		IDs []int `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	deleted, err := h.svc.BulkDelete(c.Request.Context(), req.IDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "bulk_delete",
+			EntityType:  "supplier",
+			NewValues:   map[string]interface{}{"ids": req.IDs},
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Bulk deleted %d suppliers", deleted),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": deleted})
 }

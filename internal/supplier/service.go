@@ -87,6 +87,14 @@ func (s *Service) GetProductsBySupplierID(ctx context.Context, supplierID int) (
 	return s.repo.GetProductsBySupplierID(ctx, supplierID)
 }
 
+func (s *Service) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {
+	return s.repo.BulkUpdate(ctx, ids, isActive)
+}
+
+func (s *Service) BulkDelete(ctx context.Context, ids []int) (int, error) {
+	return s.repo.BulkDelete(ctx, ids)
+}
+
 func validateSupplier(supplier *Supplier) error {
 	if supplier.Name == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalidSupplier)

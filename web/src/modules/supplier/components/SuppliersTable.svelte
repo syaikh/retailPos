@@ -1,0 +1,234 @@
+<script lang="ts">
+  import { Button, Skeleton, SortableHeader, Badge, Tooltip } from '$shared/ui';
+  import { Pencil, Trash2, Truck } from 'lucide-svelte';
+  import type { Supplier } from '../types';
+
+  function timeAgo(dateStr: string | undefined): string {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+  }
+
+  function formatDateTime(dateStr: string | undefined): string {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('id-ID', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  let {
+    suppliers = [],
+    loading = false,
+    searchQuery = '',
+    canEdit = false,
+    canDelete = false,
+    canCreate = false,
+    sortBy = 'name',
+    sortDir = 'asc',
+    onsort = () => {},
+    onedit = () => {},
+    ondelete = () => {},
+    onduplicate = () => {},
+    onviewproducts = () => {},
+    onrowclick = () => {},
+    onbulkactivate = () => {},
+    onbulkdeactivate = () => {},
+    onbulkdelete = () => {},
+  }: {
+    suppliers?: Supplier[];
+    loading?: boolean;
+    searchQuery?: string;
+    canEdit?: boolean;
+    canDelete?: boolean;
+    canCreate?: boolean;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+    onsort?: (col: string) => void;
+    onedit?: (supplier: Supplier) => void;
+    ondelete?: (supplier: Supplier) => void;
+    onduplicate?: (supplier: Supplier) => void;
+    onviewproducts?: (supplier: Supplier) => void;
+    onrowclick?: (supplier: Supplier) => void;
+    onbulkactivate?: (ids: number[]) => void;
+    onbulkdeactivate?: (ids: number[]) => void;
+    onbulkdelete?: (ids: number[]) => void;
+  } = $props();
+
+  let selectedIds = $state<number[]>([]);
+  let openMenuId = $state<number | null>(null);
+
+  let allSelected = $derived(
+    suppliers.length > 0 && selectedIds.length === suppliers.length
+  );
+  let someSelected = $derived(
+    selectedIds.length > 0 && selectedIds.length < suppliers.length
+  );
+
+  function toggleAll() {
+    if (allSelected) {
+      selectedIds = [];
+    } else {
+      selectedIds = suppliers.map(s => s.id);
+    }
+  }
+
+  function toggleOne(id: number) {
+    if (selectedIds.includes(id)) {
+      selectedIds = selectedIds.filter(i => i !== id);
+    } else {
+      selectedIds = [...selectedIds, id];
+    }
+  }
+
+  function handleRowKeydown(e: KeyboardEvent, supplier: Supplier) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onrowclick(supplier);
+    }
+  }
+
+  function handleActionKeydown(e: KeyboardEvent, action: () => void) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      action();
+    }
+  }
+</script>
+
+{#if loading}
+  <div class="overflow-x-auto">
+    <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading suppliers">
+      <colgroup>
+        <col style="width: 3%;" />
+        <col style="width: 22%;" />
+        <col style="width: 18%;" />
+        <col style="width: 15%;" />
+        <col style="width: 20%;" />
+        <col style="width: 10%;" />
+        <col style="width: 12%;" />
+      </colgroup>
+      <thead><tr><th></th><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead>
+      <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
+    </table>
+  </div>
+{:else if suppliers.length === 0}
+  <div class="flex flex-col items-center justify-center py-12 text-gray-400" role="status">
+    <Truck class="w-12 h-12 mb-3" aria-hidden="true" />
+    <p>No suppliers found</p>
+    {#if searchQuery}
+      <p class="text-sm text-text-muted mt-1">Try adjusting your search or filters</p>
+    {/if}
+  </div>
+{:else}
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[800px]" style="table-layout: fixed;" role="grid" aria-label="Suppliers">
+      <colgroup>
+        <col style="width: 3%;" />
+        <col style="width: 22%;" />
+        <col style="width: 18%;" />
+        <col style="width: 15%;" />
+        <col style="width: 20%;" />
+        <col style="width: 10%;" />
+        <col style="width: 12%;" />
+      </colgroup>
+      <thead class="bg-muted/50">
+        <tr class="border-b text-left text-sm text-text-muted">
+          <th class="px-4 py-3" scope="col">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              indeterminate={someSelected}
+              onchange={toggleAll}
+              class="rounded"
+              aria-label="Select all suppliers"
+            />
+          </th>
+          <th class="px-4 py-3 font-semibold" scope="col">
+            <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+          </th>
+          <th class="px-4 py-3 font-semibold" scope="col">
+            <SortableHeader label="CONTACT" column="contact_name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+          </th>
+          <th class="px-4 py-3 font-semibold" scope="col">
+            <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+          </th>
+          <th class="px-4 py-3 font-semibold" scope="col">
+            <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+          </th>
+          <th class="px-4 py-3 font-semibold" scope="col">
+            <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+          </th>
+          <th class="px-4 py-3 font-semibold text-right" scope="col">ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each suppliers as supplier (supplier.id)}
+          <tr
+            class="border-b border-border hover:bg-surface-hover/50 transition-colors {selectedIds.includes(supplier.id) ? 'bg-primary-subtle/30' : ''}"
+          >
+            <td class="px-4 py-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(supplier.id)}
+                onchange={() => toggleOne(supplier.id)}
+                class="rounded"
+                aria-label="Select {supplier.name}"
+              />
+            </td>
+            <td
+              class="px-4 py-3 font-medium truncate cursor-pointer hover:text-primary-light"
+              onclick={() => onrowclick(supplier)}
+              onkeydown={(e) => handleRowKeydown(e, supplier)}
+              role="button"
+              tabindex="0"
+            >
+              <Tooltip content={supplier.name}>
+                {supplier.name}
+              </Tooltip>
+            </td>
+            <td class="px-4 py-3 text-text-secondary truncate">{supplier.contact_name || '-'}</td>
+            <td class="px-4 py-3 text-text-secondary tabular-nums">{supplier.phone || '-'}</td>
+            <td class="px-4 py-3 text-text-secondary text-sm truncate">{supplier.email || '-'}</td>
+            <td class="px-4 py-3">
+              <Badge variant={supplier.is_active ? 'success' : 'muted'}>
+                {supplier.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-1" role="group" aria-label="Actions for {supplier.name}">
+                {#if canEdit}
+                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => onedit(supplier)} aria-label="Edit {supplier.name}"><Pencil class="w-4 h-4" /></Button>
+                {/if}
+                {#if canDelete}
+                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => ondelete(supplier)} aria-label="Delete {supplier.name}"><Trash2 class="w-4 h-4" /></Button>
+                {/if}
+              </div>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+
+  {#if selectedIds.length > 0}
+    <div class="px-4 py-3 bg-primary-subtle/20 border-t border-primary-default/20 flex items-center gap-3">
+      <span class="text-sm text-text-secondary">{selectedIds.length} selected</span>
+      <Button variant="secondary" size="sm" onclick={() => onbulkactivate(selectedIds)}>Activate</Button>
+      <Button variant="secondary" size="sm" onclick={() => onbulkdeactivate(selectedIds)}>Deactivate</Button>
+      <Button variant="danger" size="sm" onclick={() => onbulkdelete(selectedIds)}>Delete</Button>
+    </div>
+  {/if}
+{/if}

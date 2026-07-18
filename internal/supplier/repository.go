@@ -464,3 +464,65 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Supplier, error) {
 	defer rows.Close()
 	return scanSuppliers(rows)
 }
+
+func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	count := 0
+	for _, id := range ids {
+		tag, err := tx.Exec(ctx, `
+			UPDATE suppliers SET is_active = $1, updated_at = NOW()
+			WHERE id = $2 AND deleted_at IS NULL
+		`, isActive, id)
+		if err != nil {
+			return count, fmt.Errorf("update supplier: %w", err)
+		}
+		if tag.RowsAffected() > 0 {
+			count++
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return count, nil
+}
+
+func (r *Repository) BulkDelete(ctx context.Context, ids []int) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	count := 0
+	for _, id := range ids {
+		tag, err := tx.Exec(ctx, `
+			UPDATE suppliers SET deleted_at = NOW(), updated_at = NOW()
+			WHERE id = $1 AND deleted_at IS NULL
+		`, id)
+		if err != nil {
+			return count, fmt.Errorf("delete supplier: %w", err)
+		}
+		if tag.RowsAffected() > 0 {
+			count++
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return count, nil
+}

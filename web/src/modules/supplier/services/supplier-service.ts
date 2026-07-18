@@ -72,6 +72,15 @@ export async function getSuppliersByProduct(productId: number): Promise<ProductS
   return [];
 }
 
+export async function getProductsBySupplier(supplierId: number): Promise<ProductSupplier[]> {
+  const r = await apiFetch(`/api/suppliers/${supplierId}/products`);
+  if (r.ok) {
+    const data = await r.json();
+    return data.data || [];
+  }
+  return [];
+}
+
 export async function linkProduct(supplierId: number, payload: { product_id: number; unit_cost: number; lead_time_days: number; is_preferred: boolean }): Promise<boolean> {
   const r = await apiFetch(`/api/suppliers/${supplierId}/products`, {
     method: 'POST',
@@ -83,4 +92,28 @@ export async function linkProduct(supplierId: number, payload: { product_id: num
 export async function unlinkProduct(supplierId: number, productId: number): Promise<boolean> {
   const r = await apiFetch(`/api/suppliers/${supplierId}/products/${productId}`, { method: 'DELETE' });
   return r.ok;
+}
+
+export async function bulkUpdateSuppliers(ids: number[], isActive: boolean): Promise<number> {
+  const r = await apiFetch('/api/suppliers/bulk', {
+    method: 'PUT',
+    body: JSON.stringify({ ids, is_active: isActive }),
+  });
+  if (r.ok) {
+    const data = await r.json();
+    return data.updated || 0;
+  }
+  return 0;
+}
+
+export async function bulkDeleteSuppliers(ids: number[]): Promise<number> {
+  const r = await apiFetch('/api/suppliers/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  });
+  if (r.ok) {
+    const data = await r.json();
+    return data.deleted || 0;
+  }
+  return 0;
 }
