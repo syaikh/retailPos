@@ -24,10 +24,6 @@ describe('CustomerGroupsToolbar.svelte source-structure guards', () => {
     expect(src).toContain('hasCustomersFilter = $bindable');
   });
 
-  it('has stats prop with customerCount', () => {
-    expect(src).toContain('customerCount: number');
-  });
-
   it('has activeFilters derived with has_customers chip', () => {
     expect(src).toContain("type: 'has_customers'");
     expect(src).toContain("'Punya Customer'");
@@ -57,10 +53,6 @@ describe('CustomerGroupsToolbar.svelte source-structure guards', () => {
 
   it('has card wrapper class', () => {
     expect(src).toContain('class="card px-4 py-3"');
-  });
-
-  it('has grid stats layout', () => {
-    expect(src).toContain('grid grid-cols-2 lg:grid-cols-4 gap-3');
   });
 
   it('has BulkActionDropdown with customer_groups module', () => {

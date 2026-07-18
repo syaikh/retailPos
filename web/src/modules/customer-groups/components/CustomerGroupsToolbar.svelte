@@ -7,7 +7,6 @@
     statusFilter = $bindable('all'),
     hasCustomersFilter = $bindable('all'),
     canCreate = false,
-    stats = { total: 0, activeCount: 0, inactiveCount: 0, customerCount: 0 },
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
@@ -17,7 +16,6 @@
     statusFilter?: string;
     hasCustomersFilter?: string;
     canCreate?: boolean;
-    stats?: { total: number; activeCount: number; inactiveCount: number; customerCount: number };
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
@@ -54,47 +52,7 @@
   }
 </script>
 
-<div class="space-y-4">
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-    <div class="card px-4 py-3 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-primary-subtle/20 flex items-center justify-center">
-        <span class="text-lg font-bold text-primary-light">{stats.total}</span>
-      </div>
-      <div>
-        <p class="text-xs text-text-muted">Total Group</p>
-        <p class="text-sm font-semibold text-text-primary">{stats.total}</p>
-      </div>
-    </div>
-    <div class="card px-4 py-3 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-success-subtle/20 flex items-center justify-center">
-        <span class="text-lg font-bold text-success-light">{stats.activeCount}</span>
-      </div>
-      <div>
-        <p class="text-xs text-text-muted">Aktif</p>
-        <p class="text-sm font-semibold text-text-primary">{stats.activeCount}</p>
-      </div>
-    </div>
-    <div class="card px-4 py-3 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-danger-subtle/20 flex items-center justify-center">
-        <span class="text-lg font-bold text-danger-light">{stats.inactiveCount}</span>
-      </div>
-      <div>
-        <p class="text-xs text-text-muted">Nonaktif</p>
-        <p class="text-sm font-semibold text-text-primary">{stats.inactiveCount}</p>
-      </div>
-    </div>
-    <div class="card px-4 py-3 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-warning-subtle/20 flex items-center justify-center">
-        <span class="text-lg font-bold text-warning-light">{stats.customerCount.toLocaleString('id-ID')}</span>
-      </div>
-      <div>
-        <p class="text-xs text-text-muted">Total Customer</p>
-        <p class="text-sm font-semibold text-text-primary">{stats.customerCount.toLocaleString('id-ID')}</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="card px-4 py-3">
+<div class="card px-4 py-3">
     <div class="flex flex-wrap items-center gap-3 mb-3">
       <div class="flex-1 min-w-[200px]">
         <SearchBar bind:value={searchQuery} placeholder="Cari nama group..." oninput={onsearch} inputClass="h-10" id="customer-group-search" />
@@ -152,4 +110,3 @@
       clearLabel="Hapus semua"
     />
   </div>
-</div>

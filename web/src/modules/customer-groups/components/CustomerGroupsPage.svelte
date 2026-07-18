@@ -45,13 +45,6 @@
   let showDetailDrawer = $state(false);
   let detailGroup = $state<CustomerGroup | null>(null);
 
-  const stats = $derived.by(() => {
-    const activeCount = groups.filter(g => g.is_active).length;
-    const inactiveCount = groups.filter(g => !g.is_active).length;
-    const customerCount = groups.reduce((sum, g) => sum + (g.customer_count || 0), 0);
-    return { total, activeCount, inactiveCount, customerCount };
-  });
-
   async function load() {
     loading = true;
     try {
@@ -207,17 +200,11 @@
 </script>
 
 <div class="space-y-5">
-  <div>
-    <h1 class="text-xl font-bold text-text-primary">Customer Groups</h1>
-    <p class="text-sm text-text-muted mt-1">Kelompokkan customer untuk segmentasi dan pricing</p>
-  </div>
-
   <CustomerGroupsToolbar
     bind:searchQuery
     bind:statusFilter
     bind:hasCustomersFilter
     {canCreate}
-    {stats}
     onsearch={handleSearch}
     onstatuschange={handleStatusChange}
     oncreate={() => showCreateModal = true}
