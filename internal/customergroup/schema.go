@@ -13,6 +13,7 @@ var Schema = importexportshared.ModuleSchema{
 		{Name: "Name", Type: importexportshared.ColString, Label: "Group Name", Required: true, MaxLength: importexportshared.IntPtr(100), Editable: true, Exportable: true, Template: true},
 		{Name: "Description", Type: importexportshared.ColString, Label: "Description", Required: false, Editable: true, Exportable: true, Template: true},
 		{Name: "IsActive", Type: importexportshared.ColBoolean, Label: "Active", Required: false, Default: "true", AllowedValues: []string{"Yes", "No"}, Editable: true, Exportable: true, Template: true},
+		{Name: "Color", Type: importexportshared.ColString, Label: "Color", Required: false, Default: "#6C5CE7", Editable: true, Exportable: true, Template: true},
 	},
 	Features: importexportshared.ModuleFeatures{
 		ImportEnabled:   true,

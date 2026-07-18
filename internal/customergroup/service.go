@@ -14,8 +14,8 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]CustomerGroup, int, error) {
-	return s.repo.GetAll(ctx, limit, offset, search, isActive)
+func (s *Service) GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, hasCustomers *bool) ([]CustomerGroup, int, error) {
+	return s.repo.GetAll(ctx, limit, offset, search, isActive, hasCustomers)
 }
 
 func (s *Service) GetByID(ctx context.Context, id int) (*CustomerGroup, error) {
@@ -44,6 +44,7 @@ func (s *Service) Create(ctx context.Context, req CustomerGroupCreateRequest) (*
 		Name:        name,
 		Description: strings.TrimSpace(req.Description),
 		IsActive:    true,
+		Color:       req.Color,
 	}
 	if err := s.repo.Create(ctx, cg); err != nil {
 		return nil, err
@@ -77,6 +78,9 @@ func (s *Service) Update(ctx context.Context, id int, req CustomerGroupUpdateReq
 	if req.IsActive != nil {
 		existing.IsActive = *req.IsActive
 	}
+	if req.Color != nil {
+		existing.Color = *req.Color
+	}
 
 	if err := s.repo.Update(ctx, existing); err != nil {
 		return nil, err
@@ -89,4 +93,18 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("customer group not found")
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *Service) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("no IDs provided")
+	}
+	return s.repo.BulkUpdate(ctx, ids, isActive)
+}
+
+func (s *Service) BulkDelete(ctx context.Context, ids []int) (int, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("no IDs provided")
+	}
+	return s.repo.BulkDelete(ctx, ids)
 }

@@ -2,24 +2,28 @@
   import { Button, Input, Modal } from '$shared/ui';
   import { UserPlus, Loader2 } from 'lucide-svelte';
 
+  const COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#E17055', '#FFD93D', '#636E72', '#E84393', '#00CEC9'];
+
   let {
     open = $bindable(false),
     creating = $bindable(false),
-    oncreate = (data: { name: string; description?: string }) => {},
+    oncreate = (data: { name: string; description?: string; color?: string }) => {},
   }: {
     open: boolean;
     creating?: boolean;
-    oncreate?: (data: { name: string; description?: string }) => void;
+    oncreate?: (data: { name: string; description?: string; color?: string }) => void;
   } = $props();
 
   let name = $state('');
   let description = $state('');
+  let color = $state(COLORS[0]);
   let fieldErrors = $state({ name: '' });
 
   $effect(() => {
     if (open) {
       name = '';
       description = '';
+      color = COLORS[0];
       fieldErrors = { name: '' };
     }
   });
@@ -42,6 +46,7 @@
     oncreate({
       name: name.trim(),
       description: description.trim() || undefined,
+      color,
     });
   }
 </script>
@@ -69,6 +74,21 @@
         placeholder="Optional description for this group"
         bind:value={description}
       />
+    </div>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-text-secondary">Warna Avatar</label>
+      <div class="flex gap-2">
+        {#each COLORS as c}
+          <button
+            type="button"
+            class="w-7 h-7 rounded-full border-2 transition-all {color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}"
+            style="background-color: {c};"
+            onclick={() => color = c}
+            aria-label="Pilih warna {c}"
+            aria-pressed={color === c}
+          ></button>
+        {/each}
+      </div>
     </div>
   </div>
   {#snippet footer()}

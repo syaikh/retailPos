@@ -27,12 +27,12 @@ func (s *Service) GetAuditLogByID(ctx context.Context, id int) (*AuditLog, error
 	return s.repo.GetAuditLogByID(ctx, id)
 }
 
-func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType, startDate, endDate string) ([]AuditLogListItem, int, error) {
+func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType string, entityID *int, startDate, endDate string) ([]AuditLogListItem, int, error) {
 	start, end, err := parseDateRange(startDate, endDate)
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.repo.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType, start, end)
+	return s.repo.GetAuditLogs(ctx, limit, offset, userID, search, action, entityType, entityID, start, end)
 }
 
 func parseDateRange(startDate, endDate string) (start, end *time.Time, err error) {

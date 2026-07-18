@@ -15,23 +15,51 @@
 
   let visible = $state(false);
   let timeout: ReturnType<typeof setTimeout> | null = null;
+  let triggerEl: HTMLSpanElement | null = null;
+  let tooltipStyle = $state('');
+
+  function computePosition() {
+    if (!triggerEl) return;
+    const r = triggerEl.getBoundingClientRect();
+    const gap = 8;
+    let top = 0, left = 0;
+
+    switch (placement) {
+      case 'top':
+        top = r.top - gap;
+        left = r.left + r.width / 2;
+        tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-50%,-100%);`;
+        break;
+      case 'bottom':
+        top = r.bottom + gap;
+        left = r.left + r.width / 2;
+        tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-50%,0);`;
+        break;
+      case 'left':
+        top = r.top + r.height / 2;
+        left = r.left - gap;
+        tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(-100%,-50%);`;
+        break;
+      case 'right':
+        top = r.top + r.height / 2;
+        left = r.right + gap;
+        tooltipStyle = `position:fixed;bottom:auto;right:auto;top:${top}px;left:${left}px;transform:translate(0,-50%);`;
+        break;
+    }
+  }
 
   function show() {
     if (!content) return;
-    timeout = setTimeout(() => { visible = true; }, delay);
+    timeout = setTimeout(() => {
+      computePosition();
+      visible = true;
+    }, delay);
   }
 
   function hide() {
     if (timeout) { clearTimeout(timeout); timeout = null; }
     visible = false;
   }
-
-  const placementClasses: Record<string, string> = {
-    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-2',
-  };
 </script>
 
 <span
@@ -41,11 +69,13 @@
   onfocus={show}
   onblur={hide}
   role="presentation"
+  bind:this={triggerEl}
 >
   {@render children()}
   {#if visible && content}
     <span
-      class="absolute z-50 pointer-events-none px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-default/95 text-text-primary border border-border-default/50 shadow-lg backdrop-blur-sm whitespace-nowrap {placementClasses[placement]}"
+      class="fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-default/95 text-text-primary border border-border-default/50 shadow-lg backdrop-blur-sm whitespace-nowrap"
+      style={tooltipStyle}
       role="tooltip"
     >
       {content}

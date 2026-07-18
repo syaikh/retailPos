@@ -56,10 +56,17 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	action := c.Query("action")
 	entityType := c.Query("entity_type")
 
+	var entityID *int
+	if eid := c.Query("entity_id"); eid != "" {
+		if val, err := strconv.Atoi(eid); err == nil {
+			entityID = &val
+		}
+	}
+
 	startDate := parseDateParam(c.Query("start_date"))
 	endDate := parseDateParam(c.Query("end_date"))
 
-	logs, total, err := h.svc.GetAuditLogs(c.Request.Context(), limit, offset, userID, search, action, entityType, startDate, endDate)
+	logs, total, err := h.svc.GetAuditLogs(c.Request.Context(), limit, offset, userID, search, action, entityType, entityID, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return
@@ -113,11 +120,18 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		}
 	}
 
+	var entityID *int
+	if eid := c.Query("entity_id"); eid != "" {
+		if val, err := strconv.Atoi(eid); err == nil {
+			entityID = &val
+		}
+	}
+
 	startDate := parseDateParam(c.Query("start_date"))
 	endDate := parseDateParam(c.Query("end_date"))
 
 	const maxExportRows = 10000
-	logs, _, err := h.svc.GetAuditLogs(c.Request.Context(), maxExportRows, 0, userID, search, action, entityType, startDate, endDate)
+	logs, _, err := h.svc.GetAuditLogs(c.Request.Context(), maxExportRows, 0, userID, search, action, entityType, entityID, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch audit logs"})
 		return

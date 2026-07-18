@@ -2,6 +2,8 @@
   import { Button, Input, Modal } from '$shared/ui';
   import { Save, Loader2 } from 'lucide-svelte';
 
+  const COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#E17055', '#FFD93D', '#636E72', '#E84393', '#00CEC9'];
+
   let {
     open = $bindable(false),
     group = $bindable(null as any),
@@ -19,18 +21,22 @@
   let name = $state('');
   let description = $state('');
   let isActive = $state(true);
+  let color = $state(COLORS[0]);
   let fieldErrors = $state({ name: '' });
 
   let origName = $state('');
   let origDescription = $state<string | undefined>();
+  let origColor = $state(COLORS[0]);
 
   $effect(() => {
     if (open && group) {
       name = group.name || '';
       description = group.description || '';
       isActive = group.is_active !== false;
+      color = group.color || COLORS[0];
       origName = group.name || '';
       origDescription = group.description;
+      origColor = color;
       fieldErrors = { name: '' };
     }
   });
@@ -54,6 +60,7 @@
     if (name.trim() !== origName) payload.name = name.trim();
     if ((description.trim() || undefined) !== (origDescription || undefined)) payload.description = description.trim() || null;
     if (isActive !== group.is_active) payload.is_active = isActive;
+    if (color !== origColor) payload.color = color;
     onsave(payload);
   }
 
@@ -86,6 +93,21 @@
         placeholder="Optional description"
         bind:value={description}
       />
+    </div>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-text-secondary">Warna Avatar</label>
+      <div class="flex gap-2">
+        {#each COLORS as c}
+          <button
+            type="button"
+            class="w-7 h-7 rounded-full border-2 transition-all {color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}"
+            style="background-color: {c};"
+            onclick={() => color = c}
+            aria-label="Pilih warna {c}"
+            aria-pressed={color === c}
+          ></button>
+        {/each}
+      </div>
     </div>
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" bind:checked={isActive} />

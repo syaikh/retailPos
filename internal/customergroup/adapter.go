@@ -35,11 +35,13 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	if v, ok := row["IsActive"]; ok {
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
+	color, _ := row["Color"].(string)
 	return CustomerGroupImportRow{
 		Row:         rowNum,
 		Name:        name,
 		Description: desc,
 		IsActive:    isActive,
+		Color:       color,
 	}, nil
 }
 
@@ -52,57 +54,45 @@ type cgRepoAdapter struct {
 }
 
 func (r *cgRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	count := 0
-	for _, e := range entities {
-		row := e.(CustomerGroupImportRow)
-		cg := &CustomerGroup{
-			Name:        row.Name,
-			Description: row.Description,
-			IsActive:    row.IsActive,
-		}
-		if err := r.repo.Create(ctx, cg); err != nil {
-			return count, fmt.Errorf("insert customer group at row %d: %w", row.Row, err)
-		}
-		count++
+	rows := make([]CustomerGroupImportRow, len(entities))
+	for i, e := range entities {
+		rows[i] = e.(CustomerGroupImportRow)
 	}
-	return count, nil
+	result := r.repo.BulkUpsertCustomerGroups(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Inserted, fmt.Errorf("customer group import errors: %s", strings.Join(result.Errors, "; "))
+	}
+	return result.Inserted, nil
 }
 
 func (r *cgRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	count := 0
-	for _, e := range entities {
-		row := e.(CustomerGroupImportRow)
-		existing, err := r.repo.GetByName(ctx, row.Name)
-		if err != nil {
-			cg := &CustomerGroup{Name: row.Name, Description: row.Description, IsActive: row.IsActive}
-			if err := r.repo.Create(ctx, cg); err != nil {
-				return count, fmt.Errorf("insert customer group at row %d: %w", row.Row, err)
-			}
-			count++
-			continue
-		}
-		existing.Description = row.Description
-		existing.IsActive = row.IsActive
-		if err := r.repo.Update(ctx, existing); err != nil {
-			return count, fmt.Errorf("update customer group at row %d: %w", row.Row, err)
-		}
-		count++
+	rows := make([]CustomerGroupImportRow, len(entities))
+	for i, e := range entities {
+		rows[i] = e.(CustomerGroupImportRow)
 	}
-	return count, nil
+	result := r.repo.BulkUpsertCustomerGroups(ctx, rows)
+	if len(result.Errors) > 0 {
+		return result.Updated, fmt.Errorf("customer group import errors: %s", strings.Join(result.Errors, "; "))
+	}
+	return result.Updated, nil
 }
 
 func (r *cgRepoAdapter) ExportData(ctx context.Context, _ importexportshared.ModuleSchema) ([]map[string]interface{}, error) {
-	groups, _, err := r.repo.GetAll(ctx, 10000, 0, "", nil)
+	groups, err := r.repo.GetAllForExport(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]map[string]interface{}, len(groups))
 	for i, g := range groups {
-		result[i] = map[string]interface{}{
+		item := map[string]interface{}{
 			"Name":        g.Name,
 			"Description": g.Description,
 			"IsActive":    fmt.Sprintf("%v", g.IsActive),
 		}
+		if g.Color != "" {
+			item["Color"] = g.Color
+		}
+		result[i] = item
 	}
 	return result, nil
 }

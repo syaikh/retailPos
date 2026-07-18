@@ -145,6 +145,40 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 			assert.Equal(t, 999, *l.UserID)
 		}
 	})
+
+	t.Run("filters by entity_id", func(t *testing.T) {
+		eid := 42
+		require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+			Role:       "admin",
+			Action:     "handler_eid_filter",
+			EntityType: "order",
+			EntityID:   &eid,
+		}))
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs?entity_id=42&entity_type=order", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []AuditLog `json:"data"`
+			Total int        `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, resp.Total, 1)
+		for _, l := range resp.Data {
+			require.NotNil(t, l.EntityID)
+			assert.Equal(t, 42, *l.EntityID)
+		}
+	})
+
+	t.Run("filters by invalid entity_id ignores gracefully", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs?entity_id=abc", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestHandler_ExportAuditLogs(t *testing.T) {

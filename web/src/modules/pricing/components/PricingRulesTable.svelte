@@ -258,10 +258,10 @@
               {/if}
             </button>
           </td>
-          <td class="px-4 py-4 font-medium text-sm truncate max-w-0"><Tooltip content={rule.name} delay={400}><span class="truncate block">{rule.name}</span></Tooltip></td>
+          <td class="px-4 py-4 font-medium text-sm truncate"><Tooltip content={rule.name} delay={400}><span class="truncate block">{rule.name}</span></Tooltip></td>
           <td class="px-4 py-4 text-sm text-right font-semibold tabular-nums text-primary-light">{valueLabel(rule)}</td>
           <td class="px-4 py-4 text-sm text-text-secondary">{methodLabel(rule.pricing_method)}</td>
-          <td class="px-4 py-4 text-sm truncate max-w-0 {showDetailCols ? '' : 'hidden lg:table-cell'}"><Tooltip content={targetLabel(rule)} delay={400}><span class="truncate block">{targetLabel(rule)}</span></Tooltip></td>
+          <td class="px-4 py-4 text-sm truncate {showDetailCols ? '' : 'hidden lg:table-cell'}"><Tooltip content={targetLabel(rule)} delay={400}><span class="truncate block">{targetLabel(rule)}</span></Tooltip></td>
           <td class="px-4 py-4 {showDetailCols ? '' : 'hidden lg:table-cell'}"><Badge variant={typeVariant()} size="sm">{pricingTypes.find(t => t.value === rule.pricing_type)?.label || rule.pricing_type}</Badge></td>
           <td class="px-4 py-4"><Badge variant={approvalVariant(rule.status || 'draft')} size="sm">{approvalLabel(rule.status || 'draft')}</Badge></td>
           <td class="px-4 py-4 text-right text-sm tabular-nums {showDetailCols ? '' : 'hidden lg:table-cell'}">{rule.minimum_quantity}{rule.maximum_quantity ? `–${rule.maximum_quantity}` : ''}</td>

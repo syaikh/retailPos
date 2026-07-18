@@ -1,54 +1,155 @@
 <script lang="ts">
-  import { Button, SearchBar } from '$shared/ui';
-  import { Plus } from 'lucide-svelte';
+  import { Button, SearchBar, BulkActionDropdown, FilterChipBar } from '$shared/ui';
+  import { Plus, Users, UsersRound } from 'lucide-svelte';
 
   let {
     searchQuery = $bindable(''),
     statusFilter = $bindable('all'),
+    hasCustomersFilter = $bindable('all'),
     canCreate = false,
+    stats = { total: 0, activeCount: 0, inactiveCount: 0, customerCount: 0 },
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
+    onimport = () => {},
   }: {
     searchQuery?: string;
     statusFilter?: string;
+    hasCustomersFilter?: string;
     canCreate?: boolean;
+    stats?: { total: number; activeCount: number; inactiveCount: number; customerCount: number };
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
+    onimport?: () => void;
   } = $props();
+
+  let activeFilters = $derived.by(() => {
+    const chips: { type: string; label: string }[] = [];
+    if (searchQuery.trim()) {
+      chips.push({ type: 'search', label: `Pencarian: ${searchQuery.trim()}` });
+    }
+    if (statusFilter !== 'all') {
+      const labels: Record<string, string> = { active: 'Aktif', inactive: 'Nonaktif' };
+      chips.push({ type: 'status', label: `Status: ${labels[statusFilter] || statusFilter}` });
+    }
+    if (hasCustomersFilter !== 'all') {
+      chips.push({ type: 'has_customers', label: hasCustomersFilter === 'yes' ? 'Punya Customer' : 'Tanpa Customer' });
+    }
+    return chips;
+  });
+
+  function clearFilterChip(type: string) {
+    if (type === 'search') searchQuery = '';
+    else if (type === 'status') statusFilter = 'all';
+    else if (type === 'has_customers') hasCustomersFilter = 'all';
+    onstatuschange();
+  }
+
+  function clearAllFilters() {
+    searchQuery = '';
+    statusFilter = 'all';
+    hasCustomersFilter = 'all';
+    onstatuschange();
+  }
 </script>
 
-<div class="card p-4 space-y-3">
-  <div class="flex items-center gap-3">
-    <div class="flex-1">
-      <SearchBar bind:value={searchQuery} placeholder="Search by group name..." oninput={onsearch} />
+<div class="space-y-4">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="card px-4 py-3 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-primary-subtle/20 flex items-center justify-center">
+        <span class="text-lg font-bold text-primary-light">{stats.total}</span>
+      </div>
+      <div>
+        <p class="text-xs text-text-muted">Total Group</p>
+        <p class="text-sm font-semibold text-text-primary">{stats.total}</p>
+      </div>
     </div>
-    <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default">
-      <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'all'; onstatuschange(); }}
-      >
-        All
-      </button>
-      <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'active'; onstatuschange(); }}
-      >
-        Active
-      </button>
-      <button
-        class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
-        onclick={() => { statusFilter = 'inactive'; onstatuschange(); }}
-      >
-        Inactive
-      </button>
+    <div class="card px-4 py-3 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-success-subtle/20 flex items-center justify-center">
+        <span class="text-lg font-bold text-success-light">{stats.activeCount}</span>
+      </div>
+      <div>
+        <p class="text-xs text-text-muted">Aktif</p>
+        <p class="text-sm font-semibold text-text-primary">{stats.activeCount}</p>
+      </div>
     </div>
-    {#if canCreate}
-      <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
-        <Plus size={18} />
-        Add Group
-      </Button>
-    {/if}
+    <div class="card px-4 py-3 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-danger-subtle/20 flex items-center justify-center">
+        <span class="text-lg font-bold text-danger-light">{stats.inactiveCount}</span>
+      </div>
+      <div>
+        <p class="text-xs text-text-muted">Nonaktif</p>
+        <p class="text-sm font-semibold text-text-primary">{stats.inactiveCount}</p>
+      </div>
+    </div>
+    <div class="card px-4 py-3 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-warning-subtle/20 flex items-center justify-center">
+        <span class="text-lg font-bold text-warning-light">{stats.customerCount.toLocaleString('id-ID')}</span>
+      </div>
+      <div>
+        <p class="text-xs text-text-muted">Total Customer</p>
+        <p class="text-sm font-semibold text-text-primary">{stats.customerCount.toLocaleString('id-ID')}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card px-4 py-3">
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <div class="flex-1 min-w-[200px]">
+        <SearchBar bind:value={searchQuery} placeholder="Cari nama group..." oninput={onsearch} inputClass="h-10" id="customer-group-search" />
+      </div>
+      <BulkActionDropdown module="customer_groups" canExport={canCreate} canImport={canCreate} onImport={onimport} />
+      {#if canCreate}
+        <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={oncreate}>
+          <Plus size={18} /> Tambah Group
+        </Button>
+      {/if}
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30" role="group" aria-label="Filter status">
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'all'; onstatuschange(); }}
+          aria-pressed={statusFilter === 'all'}
+        >Semua</button>
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'active' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'active'; onstatuschange(); }}
+          aria-pressed={statusFilter === 'active'}
+        >Aktif</button>
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {statusFilter === 'inactive' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { statusFilter = 'inactive'; onstatuschange(); }}
+          aria-pressed={statusFilter === 'inactive'}
+        >Nonaktif</button>
+      </div>
+
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30" role="group" aria-label="Filter customer">
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 {hasCustomersFilter === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { hasCustomersFilter = 'all'; onstatuschange(); }}
+          aria-pressed={hasCustomersFilter === 'all'}
+        >Semua</button>
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 {hasCustomersFilter === 'yes' ? 'bg-success-subtle text-success-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { hasCustomersFilter = 'yes'; onstatuschange(); }}
+          aria-pressed={hasCustomersFilter === 'yes'}
+        ><Users size={14} /> Ada</button>
+        <button
+          class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 {hasCustomersFilter === 'no' ? 'bg-danger-subtle text-danger-light' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
+          onclick={() => { hasCustomersFilter = 'no'; onstatuschange(); }}
+          aria-pressed={hasCustomersFilter === 'no'}
+        ><UsersRound size={14} /> Kosong</button>
+      </div>
+    </div>
+
+    <FilterChipBar
+      chips={activeFilters}
+      onclear={clearFilterChip}
+      onclearall={clearAllFilters}
+      clearLabel="Hapus semua"
+    />
   </div>
 </div>

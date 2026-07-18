@@ -16,11 +16,6 @@ const (
 	SaleCreated    EventType = "sale.created"
 	ProductUpdated EventType = "product.updated"
 	StockAdjusted  EventType = "stock.adjusted"
-	LowStock       EventType = "stock.low"
-	UserLoggedIn   EventType = "user.logged_in"
-	EntityCreated  EventType = "entity.created"
-	EntityUpdated  EventType = "entity.updated"
-	EntityDeleted  EventType = "entity.deleted"
 )
 
 // Event bersifat IMMUTABLE setelah dipublikasikan.

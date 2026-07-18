@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,18 +27,23 @@ func (m *mockDeadLetterStore) Store(_ context.Context, eventType string, payload
 	return m.storeErr
 }
 
+// probeEvent is a private event type used only by waitForBus to avoid
+// interfering with metrics in tests that also subscribe to SaleCreated.
+const probeEvent EventType = "__probe__"
+
 // waitForBus ensures Run() has started by publishing a probe event.
 func waitForBus(bus *Bus) {
 	done := make(chan struct{})
+	var once sync.Once
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{EntityCreated},
+		[]EventType{probeEvent},
 		func(ctx context.Context, event Event) error {
-			close(done)
+			once.Do(func() { close(done) })
 			return nil
 		},
 	))
 	go bus.Run()
-	_ = bus.Publish(context.Background(), "entity.created", nil)
+	_ = bus.Publish(context.Background(), string(probeEvent), nil)
 	<-done
 }
 

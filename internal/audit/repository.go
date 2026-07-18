@@ -48,7 +48,7 @@ func (r *Repository) GetDistinctEntityTypes(ctx context.Context) ([]string, erro
 	return types, nil
 }
 
-func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, startDate *time.Time, endDate *time.Time) ([]AuditLogListItem, int, error) {
+func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]AuditLogListItem, int, error) {
 	var logs []AuditLogListItem
 	var total int
 
@@ -69,6 +69,10 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 	if entityType != "" {
 		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args)+1)
 		args = append(args, entityType)
+	}
+	if entityID != nil {
+		query += fmt.Sprintf(" AND al.entity_id = $%d", len(args)+1)
+		args = append(args, *entityID)
 	}
 	if startDate != nil {
 		query += fmt.Sprintf(" AND al.created_at >= $%d", len(args)+1)
@@ -101,6 +105,10 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 	if entityType != "" {
 		query += fmt.Sprintf(" AND al.entity_type = $%d", len(args2)+1)
 		args2 = append(args2, entityType)
+	}
+	if entityID != nil {
+		query += fmt.Sprintf(" AND al.entity_id = $%d", len(args2)+1)
+		args2 = append(args2, *entityID)
 	}
 	if startDate != nil {
 		query += fmt.Sprintf(" AND al.created_at >= $%d", len(args2)+1)

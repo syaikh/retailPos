@@ -28,6 +28,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	cg.POST("", auth, perm("customer_group:create"), h.Create)
 	cg.PUT("/:id", auth, perm("customer_group:update"), h.Update)
 	cg.DELETE("/:id", auth, perm("customer_group:delete"), h.Delete)
+	cg.PUT("/bulk", auth, perm("customer_group:update"), h.BulkUpdate)
+	cg.DELETE("/bulk", auth, perm("customer_group:delete"), h.BulkDelete)
 }
 
 // List godoc
@@ -39,7 +41,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Security     BearerAuth
 // @Param        limit    query   int     false  "Page size"  default(20)
 // @Param        offset   query   int     false  "Offset"     default(0)
-// @Param        search   query   string  false  "Search name"
+// @Param        search   query   string  false  "Search name or description"
 // @Param        is_active query  bool    false  "Filter by active status"
 // @Success      200  {object}  map[string]interface{}
 // @Router       /customer-groups [get]
@@ -54,7 +56,13 @@ func (h *Handler) List(c *gin.Context) {
 		isActive = &b
 	}
 
-	groups, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive)
+	var hasCustomers *bool
+	if v := c.Query("has_customers"); v != "" {
+		b := v == "true" || v == "1"
+		hasCustomers = &b
+	}
+
+	groups, total, err := h.svc.GetAll(c.Request.Context(), limit, offset, search, isActive, hasCustomers)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -213,4 +221,89 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// BulkUpdate godoc
+// @Summary      Bulk update customer groups
+// @Description  Activate or deactivate multiple customer groups
+// @Tags         Customer Groups
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      object  true  "Bulk update payload"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /customer-groups/bulk [put]
+func (h *Handler) BulkUpdate(c *gin.Context) {
+	var req struct {
+		IDs      []int `json:"ids" binding:"required"`
+		IsActive bool  `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.BulkUpdate(c.Request.Context(), req.IDs, req.IsActive)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "bulk_update",
+			EntityType:  "customer_group",
+			NewValues:   map[string]interface{}{"ids": req.IDs, "is_active": req.IsActive},
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Bulk updated %d customer groups", updated),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
+// BulkDelete godoc
+// @Summary      Bulk delete customer groups
+// @Description  Delete multiple customer groups
+// @Tags         Customer Groups
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      object  true  "Bulk delete payload"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /customer-groups/bulk [delete]
+func (h *Handler) BulkDelete(c *gin.Context) {
+	var req struct {
+		IDs []int `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	deleted, err := h.svc.BulkDelete(c.Request.Context(), req.IDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "bulk_delete",
+			EntityType:  "customer_group",
+			NewValues:   map[string]interface{}{"ids": req.IDs},
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Bulk deleted %d customer groups", deleted),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": deleted})
 }
