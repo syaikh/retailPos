@@ -802,11 +802,13 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 
 	exec := func(pType, method, name string, val float64, pid, catID, brandID, minQty, maxQty, priority int, combine bool, custGroup, store int, days, tFrom, tTo string) {
 		if _, err := stmt.ExecContext(ctx,
-			pid, nullableInt(catID), nullableInt(brandID),
+			nullableInt(pid), nullableInt(catID), nullableInt(brandID),
 			pType, method, val, name, minQty, nullableInt(maxQty), priority,
 			combine, nullableInt(custGroup), nullableInt(store),
 			nullableTextArray(days), nullableStr(tFrom), nullableStr(tTo),
-			effectiveFrom, effectiveUntil, ref); err == nil {
+			effectiveFrom, effectiveUntil, ref); err != nil {
+			fmt.Printf("   ⚠️  Pricing rule '%s' failed: %v\n", name, err)
+		} else {
 			ruleCount++
 		}
 	}
