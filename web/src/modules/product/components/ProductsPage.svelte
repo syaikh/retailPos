@@ -557,8 +557,8 @@
     bind:lowStockOnly
     {canManageInventory}
     {canCreate}
-    {supplierFilterId}
-    {supplierFilterName}
+    bind:supplierFilterId
+    bind:supplierFilterName
     onsearch={handleSearchInput}
     onfiltercategory={() => showCategoryFilterModal = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
