@@ -79,17 +79,7 @@ func validateCustomerPhone(phone string) error {
 }
 
 func (h *Handler) GetCustomers(c *gin.Context) {
-	limit := 50
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "50")); err == nil && l > 0 {
-		limit = l
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 	search := strings.TrimSpace(c.Query("search"))
 
 	var isActive *bool
@@ -121,7 +111,7 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 	if customers == nil {
 		customers = []Customer{}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": customers, "total": total})
+	shared.JSONPaginated(c, customers, total, limit, offset)
 }
 
 func (h *Handler) GetCustomerByID(c *gin.Context) {

@@ -102,7 +102,7 @@ func TestMockHandler_ListCategoriesManagement(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockCategoryService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
-				assert.Equal(t, 50, limit)
+				assert.Equal(t, 20, limit)
 				assert.Equal(t, 0, offset)
 				return []Category{}, 0, nil
 			},
@@ -116,13 +116,13 @@ func TestMockHandler_ListCategoriesManagement(t *testing.T) {
 	t.Run("limit clamped", func(t *testing.T) {
 		svc := &mockCategoryService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
-				assert.Equal(t, 200, limit)
+				assert.Equal(t, 20, limit)
 				return []Category{}, 0, nil
 			},
 		}
 		r := setupMockRouter(svc)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest("GET", "/categories/manage?limit=999", nil))
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/categories/manage?limit=300", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 

@@ -97,13 +97,13 @@ func TestMockHandler_GetCustomers(t *testing.T) {
 	t.Run("limit clamped to 200", func(t *testing.T) {
 		svc := &mockCustomerService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
-				assert.Equal(t, 200, limit)
+				assert.Equal(t, 20, limit)
 				return []Customer{}, 0, nil
 			},
 		}
 		r := setupMockRouter(svc)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?limit=500", nil))
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/customers?limit=300", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
@@ -589,7 +589,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 	t.Run("default limit when no param", func(t *testing.T) {
 		svc := &mockCustomerService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
-				assert.Equal(t, 50, limit)
+				assert.Equal(t, 20, limit)
 				return []Customer{}, 0, nil
 			},
 		}
@@ -602,7 +602,7 @@ func TestMockHandler_GetCustomers_ExtraPaths(t *testing.T) {
 	t.Run("invalid limit falls back to default", func(t *testing.T) {
 		svc := &mockCustomerService{
 			getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error) {
-				assert.Equal(t, 50, limit)
+				assert.Equal(t, 20, limit)
 				return []Customer{}, 0, nil
 			},
 		}

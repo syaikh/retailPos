@@ -32,18 +32,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 }
 
 func (h *Handler) ListAuditLogs(c *gin.Context) {
-	limit := 50
-	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 100000 {
-			limit = val
-		}
-	}
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
-			offset = val
-		}
-	}
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 
 	var userID *int
 	if uid := c.Query("user_id"); uid != "" {
@@ -76,7 +65,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		logs = []AuditLogListItem{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": logs, "total": total})
+	shared.JSONPaginated(c, logs, total, limit, offset)
 }
 
 func (h *Handler) GetAuditLog(c *gin.Context) {

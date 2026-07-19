@@ -126,18 +126,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	limit := 50
-	if l := c.Query("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {
-			limit = val
-		}
-	}
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
-			offset = val
-		}
-	}
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 
 	search := c.Query("search")
 	sortBy := c.Query("sortBy")
@@ -182,7 +171,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	if products == nil {
 		products = []Product{}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": products, "total": total})
+	shared.JSONPaginated(c, products, total, limit, offset)
 }
 
 func (h *Handler) GetProductByID(c *gin.Context) {

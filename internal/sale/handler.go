@@ -202,14 +202,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 func (h *Handler) GetSalesHistory(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	if limit <= 0 || limit > 200 {
-		limit = 50
-	}
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 
 	search := c.Query("search")
 	paymentMethods := c.Query("payment_methods")
@@ -268,7 +261,7 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": sales, "total": total})
+	shared.JSONPaginated(c, sales, total, limit, offset)
 }
 
 // GetSaleByID godoc

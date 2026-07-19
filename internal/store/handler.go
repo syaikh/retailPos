@@ -45,8 +45,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 // @Success      200  {object}  map[string]interface{}
 // @Router       /stores [get]
 func (h *Handler) List(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
 
 	var isActive *bool
@@ -60,7 +59,7 @@ func (h *Handler) List(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": stores, "total": total})
+	shared.JSONPaginated(c, stores, total, limit, offset)
 }
 
 // ListActive godoc

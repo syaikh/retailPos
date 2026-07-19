@@ -52,17 +52,7 @@ func (h *Handler) ListCategories(c *gin.Context) {
 }
 
 func (h *Handler) ListCategoriesManagement(c *gin.Context) {
-	limit := 50
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "50")); err == nil && l > 0 {
-		limit = l
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
 
 	categories, total, err := h.svc.GetAllCategories(c.Request.Context(), limit, offset, search)
@@ -70,7 +60,7 @@ func (h *Handler) ListCategoriesManagement(c *gin.Context) {
 		shared.InternalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": categories, "total": total})
+	shared.JSONPaginated(c, categories, total, limit, offset)
 }
 
 func (h *Handler) CreateCategoryHandler(c *gin.Context) {

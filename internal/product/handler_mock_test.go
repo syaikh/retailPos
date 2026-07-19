@@ -108,7 +108,7 @@ func TestMockHandler_GetProducts(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockProductService{
 			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
-				assert.Equal(t, 50, limit)
+				assert.Equal(t, 20, limit)
 				return []Product{{ID: 1, Name: "Widget"}}, 1, nil
 			},
 		}
