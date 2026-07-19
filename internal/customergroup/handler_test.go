@@ -222,6 +222,166 @@ func TestHandler_BulkDeleteEmptyIds(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestHandler_GetByID_Success(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	id := createGroupViaHandler(t, r, "GetByID Success")
+	defer deleteGroupByID(r, id)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/customer-groups/%d", id), nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data CustomerGroup `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, id, resp.Data.ID)
+}
+
+func TestHandler_GetByID_InvalidID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/customer-groups/abc", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetByID_NotFound(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/customer-groups/999999", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_Create_InvalidJSON(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/customer-groups", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Create_MissingName(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/customer-groups", strings.NewReader(`{"description":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Update_Success(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	id := createGroupViaHandler(t, r, "Update Success")
+	defer deleteGroupByID(r, id)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/customer-groups/%d", id), strings.NewReader(`{"name":"Updated"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_Update_InvalidID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/customer-groups/abc", strings.NewReader(`{"name":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Update_NotFound(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/customer-groups/999999", strings.NewReader(`{"name":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Update_InvalidJSON(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	id := createGroupViaHandler(t, r, "Update InvalidJSON")
+	defer deleteGroupByID(r, id)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/customer-groups/%d", id), strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Delete_InvalidID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/customer-groups/abc", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_Delete_NotFound(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/customer-groups/999999", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_ListWithIsActiveFilter(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupCGRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/customer-groups?is_active=true", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data  []CustomerGroup `json:"data"`
+		Total int             `json:"total"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, resp.Total, 0)
+}
+
 func createGroupViaHandler(t *testing.T, r *gin.Engine, name string) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"name":"%s","description":"test"}`, name)

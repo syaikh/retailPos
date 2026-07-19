@@ -169,6 +169,32 @@ func TestReportService_SalesMonthlyReport(t *testing.T) {
 	assert.NotNil(t, result)
 }
 
+func TestReportService_GetPricingBreakdown(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	now := time.Now()
+	start := now.AddDate(0, -1, 0)
+
+	t.Run("nil storeID", func(t *testing.T) {
+		items, err := svc.GetPricingBreakdown(ctx, start, now, nil)
+		require.NoError(t, err)
+		_ = items
+	})
+
+	t.Run("with storeID", func(t *testing.T) {
+		sid := 1
+		items, err := svc.GetPricingBreakdown(ctx, start, now, &sid)
+		require.NoError(t, err)
+		_ = items
+	})
+}
+
 func TestReportService_GetDualMonthlyReport(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()

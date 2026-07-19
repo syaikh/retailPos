@@ -207,13 +207,17 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 		       pr.customer_group_id, pr.store_id, pr.recurrence_days, pr.time_from, pr.time_to,
 		       pr.allow_combine, pr.is_active, pr.status, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
 		FROM pricing_rules pr
-		JOIN products p ON (pr.product_id = p.id OR pr.category_id = p.category_id OR pr.brand_id = p.brand_id)
-		WHERE p.id = ANY($1)
-		  AND p.deleted_at IS NULL
+		JOIN products p ON p.id = ANY($1)
+		WHERE p.deleted_at IS NULL
 		  AND pr.is_active = true
 		  AND pr.status = 'approved'
 		  AND (pr.effective_from IS NULL OR pr.effective_from <= $2)
 		  AND (pr.effective_until IS NULL OR pr.effective_until >= $2)
+		  AND (
+		    (pr.product_id IS NOT NULL AND pr.product_id = p.id)
+		    OR (pr.category_id IS NOT NULL AND pr.category_id = p.category_id)
+		    OR (pr.brand_id IS NOT NULL AND pr.brand_id = p.brand_id)
+		  )
 		ORDER BY p.id, pr.priority DESC, pr.pricing_value ASC, pr.id ASC
 	`, productIDs, now)
 	if err != nil {
@@ -346,6 +350,7 @@ func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, exclu
 		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
 		FROM pricing_rules
 		WHERE is_active = true
+		  AND status = 'approved'
 		  AND id != $1
 		  AND pricing_type = $2
 		  AND priority = $3
@@ -609,13 +614,13 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Pric
 			INSERT INTO pricing_rules (product_id, category_id, brand_id, pricing_type, pricing_method,
 			       pricing_value, name, minimum_quantity, maximum_quantity, priority,
 			       customer_group_id, store_id, recurrence_days, time_from, time_to,
-			       allow_combine, is_active, effective_from, effective_until)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			       allow_combine, is_active, status, effective_from, effective_until)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		`, p.ProductID, p.CategoryID, p.BrandID, p.PricingType, p.PricingMethod,
 			p.PricingValue, p.Name, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.CustomerGroupID, p.StoreID,
 			p.RecurrenceDays, p.TimeFrom, p.TimeTo,
-			p.AllowCombine, p.IsActive, p.EffectiveFrom, p.EffectiveUntil)
+			p.AllowCombine, p.IsActive, StatusApproved, p.EffectiveFrom, p.EffectiveUntil)
 		if err != nil {
 			return count, fmt.Errorf("insert pricing rule: %w", err)
 		}
@@ -643,12 +648,15 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Pric
 	for _, p := range payloads {
 		tag, err := tx.Exec(ctx, `
 			UPDATE pricing_rules
-			SET pricing_method = $1, pricing_value = $2, minimum_quantity = $3, maximum_quantity = $4,
-			    priority = $5, is_active = $6, effective_from = $7, effective_until = $8,
-			    updated_at = NOW()
-			WHERE product_id = $9 AND pricing_type = $10 AND name = $11
-		`, p.PricingMethod, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
+			SET category_id = $1, brand_id = $2, pricing_method = $3, pricing_value = $4, minimum_quantity = $5, maximum_quantity = $6,
+			    priority = $7, is_active = $8, effective_from = $9, effective_until = $10,
+			    customer_group_id = $11, store_id = $12, recurrence_days = $13, time_from = $14, time_to = $15,
+			    allow_combine = $16, status = $17, updated_at = NOW()
+			WHERE product_id = $18 AND pricing_type = $19 AND name = $20
+		`, p.CategoryID, p.BrandID, p.PricingMethod, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil,
+			p.CustomerGroupID, p.StoreID, p.RecurrenceDays, p.TimeFrom, p.TimeTo,
+			p.AllowCombine, StatusApproved,
 			p.ProductID, p.PricingType, p.Name)
 		if err != nil {
 			return count, fmt.Errorf("update pricing rule: %w", err)

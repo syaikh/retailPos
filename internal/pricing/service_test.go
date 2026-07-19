@@ -3,8 +3,10 @@ package pricing
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func validRule() *PricingRule {
@@ -144,4 +146,186 @@ func TestValidateRule_MinimumQuantityZero(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidRule))
 	assert.Contains(t, err.Error(), "minimum_quantity must be at least 1")
+}
+
+func TestService_GetByID(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "SVC-GID-"+time.Now().Format("0102150405"), "Service GetByID Product", 15000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    12000,
+		Name:            "SVC GetByID Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	t.Run("found", func(t *testing.T) {
+		got, err := svc.GetByID(ctx, rule.ID)
+		require.NoError(t, err)
+		assert.Equal(t, rule.Name, got.Name)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := svc.GetByID(ctx, 999999)
+		assert.Error(t, err)
+	})
+}
+
+func TestService_GetByProductID(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "SVC-GBPID-"+time.Now().Format("0102150405"), "Service GetByProductID Product", 15000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypeSpecialPrice,
+		PricingMethod:   PricingMethodDiscountAmt,
+		PricingValue:    3000,
+		Name:            "SVC GetByProductID Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	t.Run("found", func(t *testing.T) {
+		rules, err := svc.GetByProductID(ctx, productID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, rules)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		rules, err := svc.GetByProductID(ctx, -99999)
+		require.NoError(t, err)
+		assert.Empty(t, rules)
+	})
+}
+
+func TestService_Delete(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "SVC-DEL-"+time.Now().Format("0102150405"), "Service Delete Product", 15000)
+
+	t.Run("success", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "SVC Delete Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, repo.Create(ctx, rule))
+		err := svc.Delete(ctx, rule.ID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		err := svc.Delete(ctx, 999999)
+		assert.NoError(t, err)
+	})
+}
+
+func TestService_Update(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "SVC-UPD-"+time.Now().Format("0102150405"), "Service Update Product", 15000)
+
+	t.Run("success", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    15000,
+			Name:            "SVC Update Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, repo.Create(ctx, rule))
+		rule.Name = "SVC Updated Rule"
+		rule.PricingValue = 12000
+		err := svc.Update(ctx, rule)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		rule := &PricingRule{
+			ID:              999999,
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "Non-existent Update",
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		err := svc.Update(ctx, rule)
+		assert.NoError(t, err)
+	})
+
+	t.Run("validation fails", func(t *testing.T) {
+		rule := &PricingRule{
+			ID:              999999,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "",
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		err := svc.Update(ctx, rule)
+		assert.Error(t, err)
+	})
+}
+
+func TestService_Create(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "SVC-CRT-"+time.Now().Format("0102150405"), "Service Create Product", 15000)
+
+	t.Run("success", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "SVC Create Rule " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		err := svc.Create(ctx, rule)
+		assert.NoError(t, err)
+		assert.Greater(t, rule.ID, 0)
+	})
+
+	t.Run("validation fails", func(t *testing.T) {
+		rule := &PricingRule{
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    10000,
+			Name:            "",
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		err := svc.Create(ctx, rule)
+		assert.Error(t, err)
+	})
 }

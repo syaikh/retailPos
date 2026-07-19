@@ -104,4 +104,94 @@ func TestStoreRepository_CRUD(t *testing.T) {
 		_, err = repo.GetByID(ctx, s.ID)
 		assert.Error(t, err)
 	})
+
+	t.Run("GetByName success", func(t *testing.T) {
+		s := &Store{Name: "Repo GetByName Target", Address: "Target Addr", Phone: "333", IsActive: true}
+		err := repo.Create(ctx, s)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByName(ctx, "Repo GetByName Target")
+		require.NoError(t, err)
+		assert.Equal(t, "Repo GetByName Target", fetched.Name)
+		assert.Equal(t, "Target Addr", fetched.Address)
+		assert.Equal(t, "333", fetched.Phone)
+	})
+
+	t.Run("GetByName case insensitive", func(t *testing.T) {
+		s := &Store{Name: "Repo CaseStore", IsActive: true}
+		err := repo.Create(ctx, s)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByName(ctx, "repo casestore")
+		require.NoError(t, err)
+		assert.Equal(t, s.ID, fetched.ID)
+
+		fetched2, err := repo.GetByName(ctx, "REPO CASESTORE")
+		require.NoError(t, err)
+		assert.Equal(t, s.ID, fetched2.ID)
+	})
+
+	t.Run("GetByName not found", func(t *testing.T) {
+		_, err := repo.GetByName(ctx, "Nonexistent Store XYZ 999")
+		assert.Error(t, err)
+	})
+
+	t.Run("GetAll with is_active false", func(t *testing.T) {
+		s := &Store{Name: "Repo Inactive Filter", IsActive: false}
+		err := repo.Create(ctx, s)
+		require.NoError(t, err)
+
+		ff := false
+		stores, total, err := repo.GetAll(ctx, 10, 0, "", &ff)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 1)
+		for _, st := range stores {
+			assert.False(t, st.IsActive)
+		}
+	})
+
+	t.Run("GetAll with is_active true", func(t *testing.T) {
+		tf := true
+		stores, _, err := repo.GetAll(ctx, 10, 0, "", &tf)
+		require.NoError(t, err)
+		for _, st := range stores {
+			assert.True(t, st.IsActive)
+		}
+	})
+
+	t.Run("GetAll with search and is_active", func(t *testing.T) {
+		s := &Store{Name: "Repo DualFilter", IsActive: true}
+		err := repo.Create(ctx, s)
+		require.NoError(t, err)
+
+		tf := true
+		stores, total, err := repo.GetAll(ctx, 10, 0, "DualFilter", &tf)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		assert.Equal(t, "Repo DualFilter", stores[0].Name)
+	})
+
+	t.Run("GetAll empty result", func(t *testing.T) {
+		stores, total, err := repo.GetAll(ctx, 10, 0, "ZZZNonexistentXYZ", nil)
+		require.NoError(t, err)
+		assert.Equal(t, 0, total)
+		assert.NotNil(t, stores)
+		assert.Equal(t, 0, len(stores))
+	})
+
+	t.Run("GetAllActive", func(t *testing.T) {
+		stores, err := repo.GetAllActive(ctx)
+		require.NoError(t, err)
+		assert.NotNil(t, stores)
+	})
+
+	t.Run("Delete non-existent", func(t *testing.T) {
+		err := repo.Delete(ctx, 999999)
+		assert.NoError(t, err)
+	})
+
+	t.Run("GetByID not found", func(t *testing.T) {
+		_, err := repo.GetByID(ctx, 999999)
+		assert.Error(t, err)
+	})
 }

@@ -463,6 +463,220 @@ func TestHandler_RejectRule(t *testing.T) {
 	})
 }
 
+func TestHandler_GetRule(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+	repo := NewRepository(dbPool)
+
+	productID := insertTestProduct(t, t.Context(), "HDL-GR-"+time.Now().Format("0102150405"), "GetRule Test Product", 15000)
+
+	t.Run("success", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    12000,
+			Name:            "GetRule Success " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, repo.Create(t.Context(), rule))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/"+strconv.Itoa(rule.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data PricingRule `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, rule.ID, resp.Data.ID)
+		assert.Equal(t, rule.Name, resp.Data.Name)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules/abc", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("not found still returns ok", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/pricing-rules/999999", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_GetRule_NotFound(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/pricing-rules/999999", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_ListRules_WithFilters(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+	repo := NewRepository(dbPool)
+
+	productID := insertTestProduct(t, t.Context(), "HDL-LF-"+time.Now().Format("0102150405"), "Filter Test Product", 15000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Filter Test Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusDraft,
+	}
+	require.NoError(t, repo.Create(t.Context(), rule))
+
+	t.Run("filter by product_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?product_id="+strconv.Itoa(productID), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by pricing_method", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?pricing_method=fixed_price", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by is_active true", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?is_active=true", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by is_active false", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?is_active=false", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by status", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?status=draft", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by invalid product_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?product_id=abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by invalid category_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?category_id=abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by invalid brand_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?brand_id=abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by invalid customer_group_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?customer_group_id=abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by invalid store_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?store_id=abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by search", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?search=Filter", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_DeleteRule_NotFound(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/pricing-rules/999999", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_SearchProducts_NilSearcher(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "testuser")
+		c.Set("roleID", 1)
+		c.Set("role", "superadmin")
+		c.Set("permissions", []string{"pricing:read"})
+		c.Set("storeID", nil)
+		c.Next()
+	})
+	h := NewHandler(nil, nil, nil)
+	r.GET("/products/search", testPermMiddleware("pricing:read"), h.SearchProducts)
+
+	t.Run("nil searcher returns empty", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=test&limit=10", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []ProductSearchResult `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Empty(t, resp.Data)
+	})
+
+	t.Run("nil searcher with invalid limit", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=test&limit=abc", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("nil searcher with out-of-range limit", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=test&limit=100", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
 func TestHandler_CheckConflicts(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()

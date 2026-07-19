@@ -233,6 +233,162 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	})
 }
 
+func TestPricingRepository_GetAll_Filters(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	productID := insertTestProduct(t, ctx, "PRC-GAF-"+time.Now().Format("0102150405"), "GetAll Filter Product", 15000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "GetAll Filter Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		Status:          StatusApproved,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	t.Run("filter by pricing_method", func(t *testing.T) {
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "fixed_price", nil, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		for _, r := range rules {
+			assert.Equal(t, PricingMethodFixedPrice, r.PricingMethod)
+		}
+	})
+
+	t.Run("filter by status", func(t *testing.T) {
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil, "approved")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		for _, r := range rules {
+			assert.Equal(t, StatusApproved, r.Status)
+		}
+	})
+
+	t.Run("filter by category_id", func(t *testing.T) {
+		catID := 1
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", &catID, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		_ = rules
+	})
+
+	t.Run("filter by brand_id", func(t *testing.T) {
+		brandID := 1
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, &brandID, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		_ = rules
+	})
+
+	t.Run("filter by customer_group_id", func(t *testing.T) {
+		cgID := 1
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, &cgID, nil, nil, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		_ = rules
+	})
+
+	t.Run("filter by store_id", func(t *testing.T) {
+		sid := 1
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, &sid, nil, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		_ = rules
+	})
+
+	t.Run("filter by is_active false", func(t *testing.T) {
+		inactive := false
+		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, &inactive, "")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 0)
+		_ = rules
+	})
+}
+
+func TestPricingRepository_GetByID_Fields(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	productID := insertTestProduct(t, ctx, "PRC-FID-"+time.Now().Format("0102150405"), "GetByID Fields Product", 15000)
+	now := time.Now().In(shared.JakartaLocation())
+	from := now.Add(24 * time.Hour)
+	until := now.Add(7 * 24 * time.Hour)
+	fromStr := from.Format("15:04:05")
+	untilStr := until.Format("15:04:05")
+
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypeSpecialPrice,
+		PricingMethod:   PricingMethodDiscountPct,
+		PricingValue:    15.0,
+		Name:            "Full Fields Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 2,
+		Priority:        5,
+		IsActive:        true,
+		Status:          StatusApproved,
+		EffectiveFrom:   &from,
+		EffectiveUntil:  &until,
+		RecurrenceDays:  []string{"monday", "tuesday"},
+		TimeFrom:        &fromStr,
+		TimeTo:          &untilStr,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+	require.Greater(t, rule.ID, 0)
+
+	got, err := repo.GetByID(ctx, rule.ID)
+	require.NoError(t, err)
+	assert.Equal(t, rule.ID, got.ID)
+	assert.Equal(t, PricingTypeSpecialPrice, got.PricingType)
+	assert.Equal(t, PricingMethodDiscountPct, got.PricingMethod)
+	assert.Equal(t, 15.0, got.PricingValue)
+	assert.Equal(t, 2, got.MinimumQuantity)
+	assert.Equal(t, 5, got.Priority)
+	assert.True(t, got.IsActive)
+	assert.NotNil(t, got.EffectiveFrom)
+	assert.NotNil(t, got.EffectiveUntil)
+	assert.Equal(t, []string{"monday", "tuesday"}, got.RecurrenceDays)
+	assert.NotNil(t, got.TimeFrom)
+	assert.NotNil(t, got.TimeTo)
+}
+
+func TestPricingRepository_GetByProductID_Empty(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	rules, err := repo.GetByProductID(ctx, -99999)
+	require.NoError(t, err)
+	assert.Empty(t, rules)
+}
+
+func TestPricingRepository_GetBasePricesBatch_Multiple(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	id1 := insertTestProduct(t, ctx, "BATCH1-"+time.Now().Format("0102150405"), "Batch Product 1", 10000)
+	id2 := insertTestProduct(t, ctx, "BATCH2-"+time.Now().Format("0102150405"), "Batch Product 2", 20000)
+
+	prices, err := repo.GetBasePricesBatch(ctx, []int{id1, id2})
+	require.NoError(t, err)
+	assert.Equal(t, 10000, prices[id1])
+	assert.Equal(t, 20000, prices[id2])
+}
+
 func TestPricingRepository_ProductScope(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
@@ -328,4 +484,135 @@ func TestPricingRepository_NameExists(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
+}
+
+func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "BIPR-"+time.Now().Format("0102150405"), "BulkInsert Product", 15000)
+
+	t.Run("bulk insert", func(t *testing.T) {
+		payloads := []PricingRuleImportPayload{
+			{
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    10000,
+				Name:            "Bulk Insert 1 " + time.Now().Format("0102150405.000"),
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+			{
+				ProductID:       &productID,
+				PricingType:     string(PricingTypeSpecialPrice),
+				PricingMethod:   string(PricingMethodDiscountAmt),
+				PricingValue:    2000,
+				Name:            "Bulk Insert 2 " + time.Now().Format("0102150405.000"),
+				MinimumQuantity: 5,
+				IsActive:        true,
+			},
+		}
+		count, err := repo.BulkInsertPricingRules(ctx, payloads)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("empty payloads", func(t *testing.T) {
+		count, err := repo.BulkInsertPricingRules(ctx, []PricingRuleImportPayload{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "BUPR-"+time.Now().Format("0102150405"), "BulkUpdate Product", 20000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    15000,
+		Name:            "BulkUpdate Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	t.Run("bulk update", func(t *testing.T) {
+		payloads := []PricingRuleImportPayload{
+			{
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    12000,
+				Name:            rule.Name,
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+		}
+		count, err := repo.BulkUpdatePricingRules(ctx, payloads)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		got, err := repo.GetByID(ctx, rule.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 12000.0, got.PricingValue)
+	})
+
+	t.Run("empty payloads", func(t *testing.T) {
+		count, err := repo.BulkUpdatePricingRules(ctx, []PricingRuleImportPayload{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("no matching rule", func(t *testing.T) {
+		nonExistent := -99999
+		payloads := []PricingRuleImportPayload{
+			{
+				ProductID:       &nonExistent,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    5000,
+				Name:            "Non-existent",
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+		}
+		count, err := repo.BulkUpdatePricingRules(ctx, payloads)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestPricingRepository_GetAllForExport(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "EXP-"+time.Now().Format("0102150405"), "Export Product", 15000)
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Export Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	rules, err := repo.GetAllForExport(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(rules), 1)
 }

@@ -1051,3 +1051,120 @@ func TestStoreIDPtr(t *testing.T) {
 		assert.Equal(t, -1, *result)
 	})
 }
+
+func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
+	svc := &mockReportService{
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+			return []PricingBreakdownItem{
+				{PricingType: "normal", Revenue: 50000, OrderCount: 10, ItemCount: 25},
+				{PricingType: "special_price", Revenue: 30000, OrderCount: 5, ItemCount: 12},
+			}, nil
+		},
+	}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown?start=2024-01-01&end=2024-01-31", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []PricingBreakdownItem `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Len(t, resp.Data, 2)
+	assert.Equal(t, "normal", resp.Data[0].PricingType)
+}
+
+func TestReportHandler_GetPricingBreakdown_NoDates(t *testing.T) {
+	svc := &mockReportService{
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+			return []PricingBreakdownItem{}, nil
+		},
+	}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestReportHandler_GetPricingBreakdown_InvalidStart(t *testing.T) {
+	svc := &mockReportService{}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown?start=bad&end=2024-01-31", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid start date")
+}
+
+func TestReportHandler_GetPricingBreakdown_InvalidEnd(t *testing.T) {
+	svc := &mockReportService{}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown?start=2024-01-01&end=bad", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid end date")
+}
+
+func TestReportHandler_GetPricingBreakdown_SvcError(t *testing.T) {
+	svc := &mockReportService{
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+			return nil, assert.AnError
+		},
+	}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown?start=2024-01-01&end=2024-01-31", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestReportHandler_GetPricingBreakdown_WithStoreID(t *testing.T) {
+	var capturedStoreID *int
+	svc := &mockReportService{
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+			capturedStoreID = storeID
+			return []PricingBreakdownItem{}, nil
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		sid := 9
+		c.Set("storeID", &sid)
+		c.Next()
+	})
+	h := &Handler{svc: svc}
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/pricing-breakdown?start=2024-01-01&end=2024-01-31", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, capturedStoreID)
+	assert.Equal(t, 9, *capturedStoreID)
+}
+
+func TestReportHandler_GetSalesChartData_Daily_Dual_InvalidPrevEnd(t *testing.T) {
+	svc := &mockReportService{
+		getDailySalesFn: func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error) {
+			return []ChartDataPoint{}, nil
+		},
+	}
+	r := setupReportHandler(svc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/dashboard/chart?startDate=2024-01-10&endDate=2024-01-15&prevStart=2024-01-03&prevEnd=bad", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid prevEnd")
+}

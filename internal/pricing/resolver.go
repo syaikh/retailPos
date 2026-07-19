@@ -48,79 +48,8 @@ func (r *Resolver) Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPri
 	}
 
 	eligible := filterEligible(rules, rc.Quantity, now, rc.CustomerGroupID, rc.StoreID)
-	if len(eligible) == 0 {
-		return &ResolvedPrice{
-			UnitPrice:     basePrice,
-			OriginalPrice: basePrice,
-			Discount:      0,
-			PricingType:   PricingTypeDefault,
-			PricingMethod: PricingMethodFixedPrice,
-			Rule:          nil,
-		}, nil
-	}
-
-	combinable, nonCombinable := splitByCombine(eligible)
-	if len(nonCombinable) > 0 && len(combinable) > 0 {
-		bestNon := selectBestRule(nonCombinable, rc.ProductID, categoryID, brandID)
-		running := float64(computePrice(basePrice, bestNon))
-		chainCombinable(combinable, rc.ProductID, categoryID, brandID, &running)
-		discount := basePrice - int(running+0.5)
-		if discount < 0 {
-			discount = 0
-		}
-		return &ResolvedPrice{
-			UnitPrice:     int(running + 0.5),
-			OriginalPrice: basePrice,
-			Discount:      discount,
-			PricingType:   bestNon.PricingType,
-			PricingMethod: bestNon.PricingMethod,
-			Rule:          bestNon,
-		}, nil
-	}
-
-	if len(combinable) > 0 {
-		running := float64(basePrice)
-		chainCombinable(combinable, rc.ProductID, categoryID, brandID, &running)
-		discount := basePrice - int(running+0.5)
-		if discount < 0 {
-			discount = 0
-		}
-		return &ResolvedPrice{
-			UnitPrice:     int(running + 0.5),
-			OriginalPrice: basePrice,
-			Discount:      discount,
-			PricingType:   combinable[0].PricingType,
-			PricingMethod: combinable[0].PricingMethod,
-			Rule:          &combinable[0],
-		}, nil
-	}
-
-	best := selectBestRule(nonCombinable, rc.ProductID, categoryID, brandID)
-	if best == nil {
-		return &ResolvedPrice{
-			UnitPrice:     basePrice,
-			OriginalPrice: basePrice,
-			Discount:      0,
-			PricingType:   PricingTypeDefault,
-			PricingMethod: PricingMethodFixedPrice,
-			Rule:          nil,
-		}, nil
-	}
-
-	unitPrice := computePrice(basePrice, best)
-	discount := basePrice - unitPrice
-	if discount < 0 {
-		discount = 0
-	}
-
-	return &ResolvedPrice{
-		UnitPrice:     unitPrice,
-		OriginalPrice: basePrice,
-		Discount:      discount,
-		PricingType:   best.PricingType,
-		PricingMethod: best.PricingMethod,
-		Rule:          best,
-	}, nil
+	result := resolvePricing(basePrice, eligible, rc.ProductID, categoryID, brandID)
+	return &result, nil
 }
 
 // ResolveBatch returns effective selling prices for multiple products.
@@ -161,46 +90,88 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 		rules := rulesByProduct[item.ProductID]
 
 		eligible := filterEligible(rules, item.Quantity, now, item.CustomerGroupID, item.StoreID)
-		if len(eligible) == 0 {
-			results[i] = ResolvedPrice{
-				UnitPrice:     basePrice,
-				OriginalPrice: basePrice,
-				Discount:      0,
-				PricingType:   PricingTypeDefault,
-				PricingMethod: PricingMethodFixedPrice,
-				Rule:          nil,
-			}
-			continue
-		}
-
-		best := selectBestRule(eligible, item.ProductID, scope.CategoryID, scope.BrandID)
-		if best == nil {
-			results[i] = ResolvedPrice{
-				UnitPrice:     basePrice,
-				OriginalPrice: basePrice,
-				Discount:      0,
-				PricingType:   PricingTypeDefault,
-				PricingMethod: PricingMethodFixedPrice,
-				Rule:          nil,
-			}
-		} else {
-			unitPrice := computePrice(basePrice, best)
-			discount := basePrice - unitPrice
-			if discount < 0 {
-				discount = 0
-			}
-			results[i] = ResolvedPrice{
-				UnitPrice:     unitPrice,
-				OriginalPrice: basePrice,
-				Discount:      discount,
-				PricingType:   best.PricingType,
-				PricingMethod: best.PricingMethod,
-				Rule:          best,
-			}
-		}
+		results[i] = resolvePricing(basePrice, eligible, item.ProductID, scope.CategoryID, scope.BrandID)
 	}
 
 	return results, nil
+}
+
+// resolvePricing applies the deterministic resolution algorithm to a single product's
+// eligible rules and base price. This is the shared core used by both Resolve and ResolveBatch.
+func resolvePricing(basePrice int, eligible []PricingRule, productID int, categoryID, brandID *int) ResolvedPrice {
+	if len(eligible) == 0 {
+		return ResolvedPrice{
+			UnitPrice:     basePrice,
+			OriginalPrice: basePrice,
+			Discount:      0,
+			PricingType:   PricingTypeDefault,
+			PricingMethod: PricingMethodFixedPrice,
+			Rule:          nil,
+		}
+	}
+
+	combinable, nonCombinable := splitByCombine(eligible)
+	if len(nonCombinable) > 0 && len(combinable) > 0 {
+		bestNon := selectBestRule(nonCombinable, productID, categoryID, brandID)
+		running := float64(computePrice(basePrice, bestNon))
+		chainCombinable(combinable, productID, categoryID, brandID, &running)
+		discount := basePrice - int(running+0.5)
+		if discount < 0 {
+			discount = 0
+		}
+		return ResolvedPrice{
+			UnitPrice:     int(running + 0.5),
+			OriginalPrice: basePrice,
+			Discount:      discount,
+			PricingType:   bestNon.PricingType,
+			PricingMethod: bestNon.PricingMethod,
+			Rule:          bestNon,
+		}
+	}
+
+	if len(combinable) > 0 {
+		running := float64(basePrice)
+		chainCombinable(combinable, productID, categoryID, brandID, &running)
+		discount := basePrice - int(running+0.5)
+		if discount < 0 {
+			discount = 0
+		}
+		return ResolvedPrice{
+			UnitPrice:     int(running + 0.5),
+			OriginalPrice: basePrice,
+			Discount:      discount,
+			PricingType:   combinable[0].PricingType,
+			PricingMethod: combinable[0].PricingMethod,
+			Rule:          &combinable[0],
+		}
+	}
+
+	best := selectBestRule(nonCombinable, productID, categoryID, brandID)
+	if best == nil {
+		return ResolvedPrice{
+			UnitPrice:     basePrice,
+			OriginalPrice: basePrice,
+			Discount:      0,
+			PricingType:   PricingTypeDefault,
+			PricingMethod: PricingMethodFixedPrice,
+			Rule:          nil,
+		}
+	}
+
+	unitPrice := computePrice(basePrice, best)
+	discount := basePrice - unitPrice
+	if discount < 0 {
+		discount = 0
+	}
+
+	return ResolvedPrice{
+		UnitPrice:     unitPrice,
+		OriginalPrice: basePrice,
+		Discount:      discount,
+		PricingType:   best.PricingType,
+		PricingMethod: best.PricingMethod,
+		Rule:          best,
+	}
 }
 
 // filterEligible filters rules by schedule, quantity range, scope, and active status.

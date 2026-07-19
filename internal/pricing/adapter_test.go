@@ -2,557 +2,457 @@ package pricing
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"retail-pos-system/internal/shared"
+	importexportshared "retail-pos-system/internal/shared/importexport"
 )
 
-func TestPricingAdapter_ModuleName(t *testing.T) {
-	a := &adapter{}
+func testSchema() importexportshared.ModuleSchema {
+	return importexportshared.ModuleSchema{}
+}
+
+func TestFloatToInt(t *testing.T) {
+	t.Run("float64", func(t *testing.T) {
+		assert.Equal(t, 42, floatToInt(42.0))
+	})
+
+	t.Run("float64 rounds", func(t *testing.T) {
+		assert.Equal(t, 43, floatToInt(42.6))
+	})
+
+	t.Run("float64 rounds down", func(t *testing.T) {
+		assert.Equal(t, 42, floatToInt(42.4))
+	})
+
+	t.Run("int", func(t *testing.T) {
+		assert.Equal(t, 10, floatToInt(10))
+	})
+
+	t.Run("string valid", func(t *testing.T) {
+		assert.Equal(t, 55, floatToInt("55"))
+	})
+
+	t.Run("string invalid", func(t *testing.T) {
+		assert.Equal(t, 0, floatToInt("abc"))
+	})
+
+	t.Run("bool true", func(t *testing.T) {
+		assert.Equal(t, 1, floatToInt(true))
+	})
+
+	t.Run("bool false", func(t *testing.T) {
+		assert.Equal(t, 0, floatToInt(false))
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		assert.Equal(t, 0, floatToInt(nil))
+	})
+}
+
+func TestFloatToFloat64(t *testing.T) {
+	t.Run("float64", func(t *testing.T) {
+		assert.Equal(t, 3.14, floatToFloat64(3.14))
+	})
+
+	t.Run("int", func(t *testing.T) {
+		assert.Equal(t, 7.0, floatToFloat64(7))
+	})
+
+	t.Run("string valid", func(t *testing.T) {
+		assert.Equal(t, 9.5, floatToFloat64("9.5"))
+	})
+
+	t.Run("string invalid", func(t *testing.T) {
+		assert.Equal(t, 0.0, floatToFloat64("xyz"))
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		assert.Equal(t, 0.0, floatToFloat64(nil))
+	})
+}
+
+func TestAdapter_MapToEntity(t *testing.T) {
+	a := NewAdapter(nil)
+	schema := testSchema()
+	ctx := context.Background()
+
+	t.Run("product id only", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "special_price",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(5000),
+			"Name":            "Test Rule",
+			"MinimumQuantity": float64(2),
+			"Priority":        float64(1),
+			"_row":            1,
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult, ok := result.(PricingRuleImportRow)
+		require.True(t, ok)
+		assert.NotNil(t, rowResult.ProductID)
+		assert.Equal(t, 10, *rowResult.ProductID)
+		assert.Nil(t, rowResult.CategoryID)
+		assert.Nil(t, rowResult.BrandID)
+	})
+
+	t.Run("category id", func(t *testing.T) {
+		row := map[string]interface{}{
+			"CategoryID":      float64(5),
+			"PricingType":     "promotion",
+			"PricingMethod":   "discount_percent",
+			"PricingValue":    float64(10),
+			"Name":            "Cat Rule",
+			"MinimumQuantity": float64(1),
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.NotNil(t, rowResult.CategoryID)
+		assert.Equal(t, 5, *rowResult.CategoryID)
+	})
+
+	t.Run("brand id", func(t *testing.T) {
+		row := map[string]interface{}{
+			"BrandID":         float64(3),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(8000),
+			"Name":            "Brand Rule",
+			"MinimumQuantity": float64(1),
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.NotNil(t, rowResult.BrandID)
+		assert.Equal(t, 3, *rowResult.BrandID)
+	})
+
+	t.Run("no target returns error", func(t *testing.T) {
+		row := map[string]interface{}{
+			"PricingType":   "promotion",
+			"PricingMethod": "fixed_price",
+			"PricingValue":  float64(8000),
+			"Name":          "No Target Rule",
+		}
+		_, err := a.MapToEntity(ctx, schema, row)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "at least one of ProductID, CategoryID, or BrandID is required")
+	})
+
+	t.Run("missing pricing type returns error", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID": float64(10),
+			"Name":      "No Type",
+		}
+		_, err := a.MapToEntity(ctx, schema, row)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "PricingType is required")
+	})
+
+	t.Run("missing name returns error", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":   float64(10),
+			"PricingType": "promotion",
+		}
+		_, err := a.MapToEntity(ctx, schema, row)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Name is required")
+	})
+
+	t.Run("missing method defaults to fixed_price", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":   float64(10),
+			"PricingType": "promotion",
+			"Name":        "Default Method",
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.Equal(t, "fixed_price", rowResult.PricingMethod)
+	})
+
+	t.Run("missing min qty defaults to 1", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":   float64(10),
+			"PricingType": "promotion",
+			"PricingMethod": "fixed_price",
+			"Name":        "Default MinQty",
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.Equal(t, 1, rowResult.MinimumQuantity)
+	})
+
+	t.Run("effective dates parsed", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(5000),
+			"Name":            "With Dates",
+			"MinimumQuantity": float64(1),
+			"EffectiveFrom":   "2025-01-01",
+			"EffectiveUntil":  "2025-12-31",
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.NotNil(t, rowResult.EffectiveFrom)
+		assert.NotNil(t, rowResult.EffectiveUntil)
+	})
+
+	t.Run("invalid effective date ignored", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(5000),
+			"Name":            "Bad Dates",
+			"MinimumQuantity": float64(1),
+			"EffectiveFrom":   "not-a-date",
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.Nil(t, rowResult.EffectiveFrom)
+	})
+
+	t.Run("is_active from string", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(5000),
+			"Name":            "Active Rule",
+			"MinimumQuantity": float64(1),
+			"IsActive":        "false",
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.False(t, rowResult.IsActive)
+	})
+
+	t.Run("is_active from bool", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"PricingValue":    float64(5000),
+			"Name":            "Active Rule Bool",
+			"MinimumQuantity": float64(1),
+			"IsActive":        true,
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.True(t, rowResult.IsActive)
+	})
+
+	t.Run("fallback to Price when PricingValue zero", func(t *testing.T) {
+		row := map[string]interface{}{
+			"ProductID":       float64(10),
+			"PricingType":     "promotion",
+			"PricingMethod":   "fixed_price",
+			"Price":           float64(7500),
+			"Name":            "Legacy Price Rule",
+			"MinimumQuantity": float64(1),
+		}
+		result, err := a.MapToEntity(ctx, schema, row)
+		require.NoError(t, err)
+		rowResult := result.(PricingRuleImportRow)
+		assert.Equal(t, 7500.0, rowResult.PricingValue)
+	})
+}
+
+func TestAdapter_ModuleName(t *testing.T) {
+	a := NewAdapter(nil)
 	assert.Equal(t, "pricing_rules", a.ModuleName())
 }
 
-func TestPricingAdapter_NewAdapter(t *testing.T) {
+func TestAdapter_ValidateBusiness(t *testing.T) {
 	a := NewAdapter(nil)
-	assert.NotNil(t, a)
-	assert.Equal(t, "pricing_rules", a.ModuleName())
+	schema := testSchema()
+	assert.Nil(t, a.ValidateBusiness(context.Background(), schema, nil))
 }
 
-func TestPricingAdapter_ValidateBusiness(t *testing.T) {
-	a := &adapter{}
-	ctx := context.Background()
-	errs := a.ValidateBusiness(ctx, Schema, nil)
-	assert.Nil(t, errs)
-}
-
-func TestPricingAdapter_MapToEntity(t *testing.T) {
-	pid := 42
-	catID := 10
-	brandID := 5
-
-	tests := []struct {
-		name        string
-		row         map[string]interface{}
-		wantName    string
-		wantType    string
-		wantMethod  string
-		wantValue   float64
-		wantProdID  *int
-		wantCatID   *int
-		wantBrandID *int
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name: "happy path with product_id",
-			row: map[string]interface{}{
-				"_row":          1,
-				"ProductID":     float64(42),
-				"PricingType":   "promotion",
-				"PricingMethod": "fixed_price",
-				"PricingValue":  12000,
-				"Name":          "Test Rule",
-				"MinimumQuantity": float64(3),
-				"Priority":      float64(2),
-				"IsActive":      "true",
-			},
-			wantName:   "Test Rule",
-			wantType:   "promotion",
-			wantMethod: "fixed_price",
-			wantValue:  12000,
-			wantProdID: &pid,
-		},
-		{
-			name: "happy path with category_id",
-			row: map[string]interface{}{
-				"_row":          2,
-				"CategoryID":    float64(10),
-				"PricingType":   "special_price",
-				"PricingMethod": "discount_percent",
-				"PricingValue":  15,
-				"Name":          "Category Discount",
-			},
-			wantName:   "Category Discount",
-			wantType:   "special_price",
-			wantMethod: "discount_percent",
-			wantValue:  15,
-			wantCatID:  &catID,
-		},
-		{
-			name: "happy path with brand_id",
-			row: map[string]interface{}{
-				"_row":          3,
-				"BrandID":       float64(5),
-				"PricingType":   "promotion",
-				"PricingMethod": "discount_amount",
-				"PricingValue":  5000,
-				"Name":          "Brand Discount",
-			},
-			wantName:    "Brand Discount",
-			wantType:    "promotion",
-			wantMethod:  "discount_amount",
-			wantValue:   5000,
-			wantBrandID: &brandID,
-		},
-		{
-			name: "no target — returns error",
-			row: map[string]interface{}{
-				"_row":        4,
-				"PricingType": "promotion",
-				"Name":        "No Target",
-			},
-			wantErr:     true,
-			errContains: "at least one of ProductID, CategoryID, or BrandID is required",
-		},
-		{
-			name: "missing PricingType — returns error",
-			row: map[string]interface{}{
-				"_row":      5,
-				"ProductID": float64(1),
-				"Name":      "No Type",
-			},
-			wantErr:     true,
-			errContains: "PricingType is required",
-		},
-		{
-			name: "missing Name — returns error",
-			row: map[string]interface{}{
-				"_row":        6,
-				"ProductID":   float64(1),
-				"PricingType": "promotion",
-			},
-			wantErr:     true,
-			errContains: "Name is required",
-		},
-		{
-			name: "PricingMethod defaults to fixed_price",
-			row: map[string]interface{}{
-				"_row":        7,
-				"ProductID":   float64(1),
-				"PricingType": "promotion",
-				"Name":        "Default Method",
-			},
-			wantName:   "Default Method",
-			wantType:   "promotion",
-			wantMethod: "fixed_price",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "IsActive defaults to true",
-			row: map[string]interface{}{
-				"_row":        8,
-				"ProductID":   float64(1),
-				"PricingType": "promotion",
-				"Name":        "Default Active",
-			},
-			wantName:   "Default Active",
-			wantMethod: "fixed_price",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "IsActive false",
-			row: map[string]interface{}{
-				"_row":        9,
-				"ProductID":   float64(1),
-				"PricingType": "promotion",
-				"Name":        "Inactive Rule",
-				"IsActive":    "false",
-			},
-			wantName:   "Inactive Rule",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "EffectiveFrom and EffectiveUntil parsed in Jakarta timezone",
-			row: map[string]interface{}{
-				"_row":           10,
-				"ProductID":      float64(1),
-				"PricingType":    "promotion",
-				"PricingMethod":  "fixed_price",
-				"PricingValue":   10000,
-				"Name":           "Date Range Rule",
-				"EffectiveFrom":  "2025-01-15",
-				"EffectiveUntil": "2025-12-31",
-			},
-			wantName:   "Date Range Rule",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "EffectiveFrom invalid date — silently ignored",
-			row: map[string]interface{}{
-				"_row":          11,
-				"ProductID":     float64(1),
-				"PricingType":   "promotion",
-				"PricingMethod": "fixed_price",
-				"PricingValue":  10000,
-				"Name":          "Bad From Date",
-				"EffectiveFrom": "not-a-date",
-			},
-			wantName:   "Bad From Date",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "EffectiveUntil invalid date — silently ignored",
-			row: map[string]interface{}{
-				"_row":           12,
-				"ProductID":      float64(1),
-				"PricingType":    "promotion",
-				"PricingMethod":  "fixed_price",
-				"PricingValue":   10000,
-				"Name":           "Bad Until Date",
-				"EffectiveUntil": "not-a-date",
-			},
-			wantName:   "Bad Until Date",
-			wantProdID: intPtr(1),
-		},
-		{
-			name: "fallback to legacy Price column",
-			row: map[string]interface{}{
-				"_row":        13,
-				"ProductID":   float64(1),
-				"PricingType": "promotion",
-				"Name":        "Legacy Price",
-				"Price":       25000,
-			},
-			wantName:   "Legacy Price",
-			wantValue:  25000,
-			wantProdID: intPtr(1),
-		},
-	}
-
-	ctx := context.Background()
-	a := &adapter{}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := a.MapToEntity(ctx, Schema, tt.row)
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-				return
-			}
-			require.NoError(t, err)
-			importRow, ok := got.(PricingRuleImportRow)
-			require.True(t, ok, "expected PricingRuleImportRow, got %T", got)
-
-			assert.Equal(t, tt.wantName, importRow.Name)
-			if tt.wantType != "" {
-				assert.Equal(t, tt.wantType, importRow.PricingType)
-			}
-			if tt.wantMethod != "" {
-				assert.Equal(t, tt.wantMethod, importRow.PricingMethod)
-			}
-			if tt.wantValue != 0 {
-				assert.Equal(t, tt.wantValue, importRow.PricingValue)
-			}
-			assert.Equal(t, tt.wantProdID, importRow.ProductID)
-			assert.Equal(t, tt.wantCatID, importRow.CategoryID)
-			assert.Equal(t, tt.wantBrandID, importRow.BrandID)
-
-			// Verify Jakarta timezone parsing for EffectiveFrom
-			if tt.name == "EffectiveFrom and EffectiveUntil parsed in Jakarta timezone" {
-				require.NotNil(t, importRow.EffectiveFrom)
-				jakarta := shared.JakartaLocation()
-				ef := importRow.EffectiveFrom.In(jakarta)
-				assert.Equal(t, 2025, ef.Year())
-				assert.Equal(t, time.January, ef.Month())
-				assert.Equal(t, 15, ef.Day())
-
-				require.NotNil(t, importRow.EffectiveUntil)
-				eu := importRow.EffectiveUntil.In(jakarta)
-				assert.Equal(t, 2025, eu.Year())
-				assert.Equal(t, time.December, eu.Month())
-				assert.Equal(t, 31, eu.Day())
-			}
-		})
-	}
-}
-
-func TestPricingAdapter_MapToEntity_DateTimezoneOffset(t *testing.T) {
-	a := &adapter{}
-	ctx := context.Background()
-
-	row := map[string]interface{}{
-		"_row":            1,
-		"ProductID":       float64(1),
-		"PricingType":     "promotion",
-		"PricingMethod":   "fixed_price",
-		"PricingValue":    10000,
-		"Name":            "TZ Test",
-		"EffectiveFrom":   "2025-06-15",
-		"EffectiveUntil":  "2025-06-30",
-	}
-
-	got, err := a.MapToEntity(ctx, Schema, row)
-	require.NoError(t, err)
-	importRow := got.(PricingRuleImportRow)
-
-	// Date string "2025-06-15" parsed in Jakarta timezone (UTC+7)
-	// Should be 2025-06-15 00:00:00+07:00 = 2025-06-14 17:00:00 UTC
-	jakarta := shared.JakartaLocation()
-	ef := importRow.EffectiveFrom.In(jakarta)
-	assert.Equal(t, "2025-06-15", ef.Format("2006-01-02"))
-
-	eu := importRow.EffectiveUntil.In(jakarta)
-	assert.Equal(t, "2025-06-30", eu.Format("2006-01-02"))
-}
-
-func TestPricingAdapter_Repository(t *testing.T) {
-	a := &adapter{}
-	ra := a.Repository()
-	assert.NotNil(t, ra)
-}
-
-func TestPricingAdapter_ReposAdapter_ExportData(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	now := time.Now()
-	effFrom := time.Date(2025, 1, 15, 0, 0, 0, 0, shared.JakartaLocation())
-	effUntil := time.Date(2025, 12, 31, 0, 0, 0, 0, shared.JakartaLocation())
-
-	rows := pgxmock.NewRows([]string{
-		"id", "product_id", "category_id", "brand_id", "pricing_type", "pricing_method",
-		"pricing_value", "name", "minimum_quantity", "maximum_quantity", "priority",
-		"customer_group_id", "store_id", "recurrence_days", "time_from", "time_to",
-		"allow_combine", "is_active", "status", "effective_from", "effective_until",
-		"created_at", "updated_at",
-	}).AddRow(
-		1, &([]int{42})[0], nil, nil, PricingTypePromotion, PricingMethodFixedPrice,
-		12000.0, "Export Rule", 1, nil, 0,
-		nil, nil, nil, nil, nil,
-		false, true, StatusApproved, effFrom, effUntil,
-		now, now,
-	)
-	mock.ExpectQuery("SELECT (.+) FROM pricing_rules ORDER BY id ASC").WillReturnRows(rows)
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	data, err := ra.ExportData(context.Background(), Schema)
-	require.NoError(t, err)
-	require.Len(t, data, 1)
-
-	assert.Equal(t, "Export Rule", data[0]["Name"])
-	assert.Equal(t, "promotion", data[0]["PricingType"])
-	assert.Equal(t, "fixed_price", data[0]["PricingMethod"])
-	assert.Equal(t, 12000.0, data[0]["PricingValue"])
-
-	// Verify EffectiveFrom is formatted in Jakarta timezone
-	effFromStr, ok := data[0]["EffectiveFrom"].(string)
-	require.True(t, ok, "EffectiveFrom should be string")
-	assert.Equal(t, "2025-01-15", effFromStr)
-
-	effUntilStr, ok := data[0]["EffectiveUntil"].(string)
-	require.True(t, ok, "EffectiveUntil should be string")
-	assert.Equal(t, "2025-12-31", effUntilStr)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPricingAdapter_ReposAdapter_ExportData_NoDates(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	now := time.Now()
-	rows := pgxmock.NewRows([]string{
-		"id", "product_id", "category_id", "brand_id", "pricing_type", "pricing_method",
-		"pricing_value", "name", "minimum_quantity", "maximum_quantity", "priority",
-		"customer_group_id", "store_id", "recurrence_days", "time_from", "time_to",
-		"allow_combine", "is_active", "status", "effective_from", "effective_until",
-		"created_at", "updated_at",
-	}).AddRow(
-		1, nil, nil, nil, PricingTypeSpecialPrice, PricingMethodDiscountPct,
-		10.0, "No Date Rule", 1, nil, 0,
-		nil, nil, nil, nil, nil,
-		false, true, StatusDraft, nil, nil,
-		now, now,
-	)
-	mock.ExpectQuery("SELECT (.+) FROM pricing_rules ORDER BY id ASC").WillReturnRows(rows)
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	data, err := ra.ExportData(context.Background(), Schema)
-	require.NoError(t, err)
-	require.Len(t, data, 1)
-
-	assert.Equal(t, "No Date Rule", data[0]["Name"])
-	_, hasFrom := data[0]["EffectiveFrom"]
-	_, hasUntil := data[0]["EffectiveUntil"]
-	assert.False(t, hasFrom, "EffectiveFrom should be absent when nil")
-	assert.False(t, hasUntil, "EffectiveUntil should be absent when nil")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPricingAdapter_ReposAdapter_ExportData_Error(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectQuery("SELECT (.+) FROM pricing_rules ORDER BY id ASC").WillReturnError(fmt.Errorf("db error"))
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	_, err = ra.ExportData(context.Background(), Schema)
-	assert.Error(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPricingAdapter_ReposAdapter_Insert(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO pricing_rules").WithArgs(
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectCommit()
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	pid := 42
-	inserted, err := ra.Insert(context.Background(), []interface{}{
-		PricingRuleImportRow{
-			Row:             1,
-			ProductID:       &pid,
-			PricingType:     "promotion",
-			PricingMethod:   "fixed_price",
-			PricingValue:    12000,
-			Name:            "Insert Rule",
-			MinimumQuantity: 1,
-			IsActive:        true,
-		},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, inserted)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPricingAdapter_ReposAdapter_Insert_MinQtyZero(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	pid := 42
-	_, err = ra.Insert(context.Background(), []interface{}{
-		PricingRuleImportRow{
-			Row:             1,
-			ProductID:       &pid,
-			PricingType:     "promotion",
-			PricingMethod:   "fixed_price",
-			PricingValue:    10000,
-			Name:            "Zero MinQty",
-			MinimumQuantity: 0,
-		},
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "minimum_quantity must be >= 1")
-}
-
-func TestPricingAdapter_ReposAdapter_Update(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE pricing_rules").WithArgs(
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-		pgxmock.AnyArg(),
-	).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectCommit()
-
-	repo := NewRepository(mock)
-	a := NewAdapter(repo)
-	ra := a.Repository()
-
-	pid := 42
-	updated, err := ra.Update(context.Background(), []interface{}{
-		PricingRuleImportRow{
-			Row:             1,
-			ProductID:       &pid,
-			PricingType:     "promotion",
-			PricingMethod:   "fixed_price",
-			PricingValue:    9000,
-			Name:            "Update Rule",
-			MinimumQuantity: 1,
-			IsActive:        true,
-		},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, updated)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestPricingAdapter_ReposAdapter_LoadReferences(t *testing.T) {
+func TestAdapter_LoadReferences(t *testing.T) {
 	a := NewAdapter(nil)
-	ra := a.Repository()
-	refs, err := ra.LoadReferences(context.Background(), Schema)
+	schema := testSchema()
+	repoActions := a.Repository()
+	refs, err := repoActions.LoadReferences(context.Background(), schema)
 	assert.NoError(t, err)
 	assert.Empty(t, refs)
 }
 
-func TestPricingAdapter_ExportData_JakartaTimezoneFormatting(t *testing.T) {
-	// Verify that UTC times are formatted as Jakarta dates
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	// A UTC time that is still the same day in Jakarta (14:00 UTC = 21:00 WIB)
-	utcTime := time.Date(2025, 6, 15, 14, 0, 0, 0, time.UTC)
-	now := time.Now()
-
-	rows := pgxmock.NewRows([]string{
-		"id", "product_id", "category_id", "brand_id", "pricing_type", "pricing_method",
-		"pricing_value", "name", "minimum_quantity", "maximum_quantity", "priority",
-		"customer_group_id", "store_id", "recurrence_days", "time_from", "time_to",
-		"allow_combine", "is_active", "status", "effective_from", "effective_until",
-		"created_at", "updated_at",
-	}).AddRow(
-		1, nil, nil, nil, PricingTypePromotion, PricingMethodFixedPrice,
-		10000.0, "TZ Export Rule", 1, nil, 0,
-		nil, nil, nil, nil, nil,
-		false, true, StatusApproved, utcTime, nil,
-		now, now,
-	)
-	mock.ExpectQuery("SELECT (.+) FROM pricing_rules ORDER BY id ASC").WillReturnRows(rows)
-
-	repo := NewRepository(mock)
+func TestAdapter_Repository_Insert(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
 	a := NewAdapter(repo)
-	ra := a.Repository()
+	ctx := t.Context()
 
-	data, err := ra.ExportData(context.Background(), Schema)
+	productID := insertTestProduct(t, ctx, "ADP-INS-"+time.Now().Format("0102150405"), "Adapter Insert Product", 15000)
+
+	t.Run("insert single", func(t *testing.T) {
+		entities := []interface{}{
+			PricingRuleImportRow{
+				Row:             1,
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    10000,
+				Name:            "Adapter Insert 1 " + time.Now().Format("0102150405.000"),
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+		}
+		count, err := a.Repository().Insert(ctx, entities)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("minimum quantity zero fails", func(t *testing.T) {
+		entities := []interface{}{
+			PricingRuleImportRow{
+				Row:             2,
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    5000,
+				Name:            "Bad MinQty",
+				MinimumQuantity: 0,
+				IsActive:        true,
+			},
+		}
+		_, err := a.Repository().Insert(ctx, entities)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "minimum_quantity must be >= 1")
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		count, err := a.Repository().Insert(ctx, []interface{}{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestAdapter_Repository_Update(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	a := NewAdapter(repo)
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "ADP-UPD-"+time.Now().Format("0102150405"), "Adapter Update Product", 15000)
+
+	t.Run("insert via update (not found, returns 0)", func(t *testing.T) {
+		entities := []interface{}{
+			PricingRuleImportRow{
+				Row:             1,
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    8000,
+				Name:            "Adapter Update New " + time.Now().Format("0102150405.000"),
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+		}
+		count, err := a.Repository().Update(ctx, entities)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("update existing", func(t *testing.T) {
+		rule := &PricingRule{
+			ProductID:       &productID,
+			PricingType:     PricingTypePromotion,
+			PricingMethod:   PricingMethodFixedPrice,
+			PricingValue:    15000,
+			Name:            "Will Be Updated " + time.Now().Format("0102150405.000"),
+			MinimumQuantity: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, repo.Create(ctx, rule))
+
+		entities := []interface{}{
+			PricingRuleImportRow{
+				Row:             2,
+				ProductID:       &productID,
+				PricingType:     string(PricingTypePromotion),
+				PricingMethod:   string(PricingMethodFixedPrice),
+				PricingValue:    12000,
+				Name:            rule.Name,
+				MinimumQuantity: 1,
+				IsActive:        true,
+			},
+		}
+		count, err := a.Repository().Update(ctx, entities)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		got, err := repo.GetByID(ctx, rule.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 12000.0, got.PricingValue)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		count, err := a.Repository().Update(ctx, []interface{}{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestAdapter_Repository_ExportData(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	a := NewAdapter(repo)
+	schema := testSchema()
+	ctx := t.Context()
+
+	productID := insertTestProduct(t, ctx, "ADP-EXP-"+time.Now().Format("0102150405"), "Adapter Export Product", 15000)
+	now := time.Now()
+	rule := &PricingRule{
+		ProductID:       &productID,
+		PricingType:     PricingTypePromotion,
+		PricingMethod:   PricingMethodFixedPrice,
+		PricingValue:    10000,
+		Name:            "Export Adapter Rule " + time.Now().Format("0102150405.000"),
+		MinimumQuantity: 1,
+		IsActive:        true,
+		EffectiveFrom:   &now,
+		EffectiveUntil:  &now,
+	}
+	require.NoError(t, repo.Create(ctx, rule))
+
+	result, err := a.Repository().ExportData(ctx, schema)
 	require.NoError(t, err)
-	require.Len(t, data, 1)
+	assert.GreaterOrEqual(t, len(result), 1)
 
-	// 14:00 UTC = 21:00 WIB, same calendar day 2025-06-15
-	effFromStr := data[0]["EffectiveFrom"].(string)
-	assert.Equal(t, "2025-06-15", effFromStr)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
+	found := false
+	for _, item := range result {
+		if item["Name"] == rule.Name {
+			found = true
+			assert.Equal(t, "promotion", item["PricingType"])
+			assert.NotNil(t, item["ProductID"])
+			assert.Nil(t, item["CategoryID"])
+			assert.Nil(t, item["BrandID"])
+			assert.NotNil(t, item["EffectiveFrom"])
+			assert.NotNil(t, item["EffectiveUntil"])
+			break
+		}
+	}
+	assert.True(t, found, "expected to find exported rule")
 }

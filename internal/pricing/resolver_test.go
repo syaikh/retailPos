@@ -2,8 +2,11 @@ package pricing
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"retail-pos-system/internal/shared"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -522,6 +525,41 @@ func TestResolver_ResolveBatch_DuplicateProducts(t *testing.T) {
 	assert.Equal(t, PricingTypeSpecialPrice, results[1].PricingType)
 }
 
+func TestResolver_ResolveBatch_CombinableRules(t *testing.T) {
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 100000, 2: 50000},
+		scopes:     map[int]ProductScope{1: {}, 2: {}},
+		rules: map[int][]PricingRule{
+			1: {
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),  // combinable 10%
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // combinable 5000 off
+			},
+			2: {
+				ruleAdvanced(20, PricingTypeSpecialPrice, PricingMethodFixedPrice, 30000, 1, nil, 5, true, false, nil, nil, nil, nil, nil, nil, nil), // non-combinable fixed
+				ruleAdvanced(21, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),     // combinable 10%
+			},
+		},
+	}
+	resolver := NewResolver(repo)
+
+	items := []ResolveItem{
+		{ProductID: 1, Quantity: 1}, // all combinable → chain
+		{ProductID: 2, Quantity: 1}, // non-combinable + combinable → best non + chain
+	}
+
+	results, err := resolver.ResolveBatch(context.Background(), items)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	// Product 1: 100000 → 5000 off (pri 2) = 95000 → 10% off (pri 1) = 85500
+	assert.Equal(t, 85500, results[0].UnitPrice)
+	assert.Equal(t, 14500, results[0].Discount)
+
+	// Product 2: best non-combinable = 30000, then 10% combinable → 27000
+	assert.Equal(t, 27000, results[1].UnitPrice)
+	assert.Equal(t, 23000, results[1].Discount)
+}
+
 // ============================================================
 // Stacking (allow_combine)
 // ============================================================
@@ -613,11 +651,11 @@ func TestResolver_Resolve_StackingTwoPromotions(t *testing.T) {
 }
 
 func TestResolver_Resolve_RecurrenceDayAllowed(t *testing.T) {
-	// Today is Friday (2026-07-17) — include friday in recurrence_days
+	today := strings.ToLower(time.Now().In(shared.JakartaLocation()).Weekday().String())
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{
-			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, []string{"thursday", "friday", "saturday"}, nil, nil)},
+			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, []string{today}, nil, nil)},
 		},
 	}
 	resolver := NewResolver(repo)
@@ -628,19 +666,25 @@ func TestResolver_Resolve_RecurrenceDayAllowed(t *testing.T) {
 }
 
 func TestResolver_Resolve_RecurrenceDayBlocked(t *testing.T) {
-	// Today is Friday (2026-07-17) — rule only applies on mon/tue/wed
+	today := strings.ToLower(time.Now().In(shared.JakartaLocation()).Weekday().String())
+	blocked := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+	withoutToday := make([]string, 0, len(blocked)-1)
+	for _, d := range blocked {
+		if d != today {
+			withoutToday = append(withoutToday, d)
+		}
+	}
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{
-			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, []string{"monday", "tuesday", "wednesday"}, nil, nil)},
+			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, withoutToday, nil, nil)},
 		},
 	}
 	resolver := NewResolver(repo)
 
-	// Today is Friday (2026-07-17) — weekday-only rules for mon/tue/wed should NOT apply
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
-	assert.Equal(t, 100000, result.UnitPrice) // fallback to base price
+	assert.Equal(t, 100000, result.UnitPrice)
 	assert.Equal(t, PricingTypeDefault, result.PricingType)
 }
 
@@ -852,7 +896,7 @@ func TestResolver_Resolve_NoStackingWhenAllowCombineFalse(t *testing.T) {
 	assert.Equal(t, 95000, result.UnitPrice)
 }
 
-func TestResolver_Resolve_StackingSingleCombinable(t *testing.T) {
+func TestResolver_Resolve_SingleCombinableRule(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{

@@ -325,3 +325,31 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		assert.True(t, found, "created group should appear in export")
 	})
 }
+
+func TestCustomerGroupRepository_GetByID_NotFound(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	_, err := repo.GetByID(ctx, 999999)
+	assert.Error(t, err)
+}
+
+func TestCustomerGroupRepository_GetAll_AllFiltersCombined(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	cg := &CustomerGroup{Name: "AllFiltersCG", Description: "combo test", IsActive: true}
+	require.NoError(t, repo.Create(ctx, cg))
+	defer repo.Delete(ctx, cg.ID)
+
+	active := true
+	hasCust := false
+	groups, total, err := repo.GetAll(ctx, 10, 0, "AllFiltersCG", &active, &hasCust)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, total, 1)
+	assert.GreaterOrEqual(t, len(groups), 1)
+	for _, g := range groups {
+		assert.True(t, g.IsActive)
+		assert.Equal(t, 0, g.CustomerCount)
+	}
+}

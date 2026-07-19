@@ -164,6 +164,7 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
+	var s2 *Supplier
 	productID := insertTestProduct(t, ctx, "SUP-PROD-"+time.Now().Format("0102150405"), "Supplier Link Product", 10000)
 
 	t.Run("Link product", func(t *testing.T) {
@@ -200,7 +201,7 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 	})
 
 	t.Run("Set preferred supplier", func(t *testing.T) {
-		s2 := &Supplier{
+		s2 = &Supplier{
 			Name:     "Preferred Test 2",
 			Code:     "SUP-PREF-" + time.Now().Format("0102150405"),
 			IsActive: true,
@@ -237,6 +238,21 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 		assert.NotNil(t, products[0].ProductName)
 	})
 
+	t.Run("Update product supplier", func(t *testing.T) {
+		ps, err := repo.GetProductSupplier(ctx, productID, s2.ID)
+		require.NoError(t, err)
+
+		ps.UnitCost = 9500
+		ps.LeadTimeDays = 10
+		err = repo.UpdateProductSupplier(ctx, ps)
+		require.NoError(t, err)
+
+		got, err := repo.GetProductSupplier(ctx, productID, s2.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 9500, got.UnitCost)
+		assert.Equal(t, 10, got.LeadTimeDays)
+	})
+
 	t.Run("Unlink product", func(t *testing.T) {
 		err := repo.UnlinkProduct(ctx, productID, s.ID)
 		require.NoError(t, err)
@@ -244,4 +260,200 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 		_, err = repo.GetProductSupplier(ctx, productID, s.ID)
 		assert.Error(t, err)
 	})
+}
+
+func TestSupplierRepository_GetAllInactiveFilter(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	s := &Supplier{
+		Name:     "Inactive Filter Supplier",
+		Code:     "SUP-INACT-" + time.Now().Format("0102150405"),
+		IsActive: false,
+	}
+	require.NoError(t, repo.Create(ctx, s))
+
+	inactive := false
+	suppliers, total, err := repo.GetAll(ctx, 10, 0, "", &inactive)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, total, 0)
+	assert.NotNil(t, suppliers)
+
+	found := false
+	for _, sup := range suppliers {
+		if sup.ID == s.ID {
+			found = true
+			assert.False(t, sup.IsActive)
+			break
+		}
+	}
+	assert.True(t, found, "inactive supplier should be in results")
+}
+
+func TestSupplierRepository_BulkUpdate(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	s1 := &Supplier{Name: "Bulk Upd 1", Code: "SUP-BU1-" + time.Now().Format("0102150405"), IsActive: true}
+	s2 := &Supplier{Name: "Bulk Upd 2", Code: "SUP-BU2-" + time.Now().Format("0102150405"), IsActive: true}
+	require.NoError(t, repo.Create(ctx, s1))
+	require.NoError(t, repo.Create(ctx, s2))
+
+	t.Run("activate multiple", func(t *testing.T) {
+		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, true)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("deactivate multiple", func(t *testing.T) {
+		count, err := repo.BulkUpdate(ctx, []int{s1.ID, s2.ID}, false)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+
+		got, err := repo.GetByID(ctx, s1.ID)
+		require.NoError(t, err)
+		assert.False(t, got.IsActive)
+	})
+
+	t.Run("empty ids", func(t *testing.T) {
+		count, err := repo.BulkUpdate(ctx, []int{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestSupplierRepository_BulkDelete(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	s1 := &Supplier{Name: "Bulk Del 1", Code: "SUP-BD1-" + time.Now().Format("0102150405"), IsActive: true}
+	s2 := &Supplier{Name: "Bulk Del 2", Code: "SUP-BD2-" + time.Now().Format("0102150405"), IsActive: true}
+	require.NoError(t, repo.Create(ctx, s1))
+	require.NoError(t, repo.Create(ctx, s2))
+
+	count, err := repo.BulkDelete(ctx, []int{s1.ID, s2.ID})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, err = repo.GetByID(ctx, s1.ID)
+	assert.Error(t, err)
+	_, err = repo.GetByID(ctx, s2.ID)
+	assert.Error(t, err)
+
+	t.Run("empty ids", func(t *testing.T) {
+		count, err := repo.BulkDelete(ctx, []int{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestSupplierRepository_BulkInsertSuppliers(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("insert multiple", func(t *testing.T) {
+		payloads := []SupplierImportPayload{
+			{
+				Code:        "SUP-BI1-" + time.Now().Format("0102150405"),
+				Name:        "Bulk Insert 1",
+				ContactName: strPtr("Contact 1"),
+				Phone:       strPtr("08111111111"),
+				Email:       strPtr("bulk1@test.com"),
+				Address:     strPtr("Address 1"),
+				Notes:       strPtr("Note 1"),
+				IsActive:    true,
+			},
+			{
+				Code:     "SUP-BI2-" + time.Now().Format("0102150405"),
+				Name:     "Bulk Insert 2",
+				IsActive: false,
+			},
+		}
+		count, err := repo.BulkInsertSuppliers(ctx, payloads)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("empty payloads", func(t *testing.T) {
+		count, err := repo.BulkInsertSuppliers(ctx, []SupplierImportPayload{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestSupplierRepository_BulkUpdateSuppliers(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	code := "SUP-BUS-" + time.Now().Format("0102150405")
+	s := &Supplier{Name: "Bulk Update Supplier", Code: code, IsActive: true}
+	require.NoError(t, repo.Create(ctx, s))
+
+	t.Run("update existing", func(t *testing.T) {
+		payloads := []SupplierImportPayload{
+			{
+				Code:     code,
+				Name:     "Bulk Updated Supplier",
+				IsActive: false,
+			},
+		}
+		count, err := repo.BulkUpdateSuppliers(ctx, payloads)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		got, err := repo.GetByCode(ctx, code)
+		require.NoError(t, err)
+		assert.Equal(t, "Bulk Updated Supplier", got.Name)
+		assert.False(t, got.IsActive)
+	})
+
+	t.Run("empty payloads", func(t *testing.T) {
+		count, err := repo.BulkUpdateSuppliers(ctx, []SupplierImportPayload{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestSupplierRepository_GetAllForExport(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	s := &Supplier{
+		Name:     "Export Test Supplier",
+		Code:     "SUP-EXPFULL-" + time.Now().Format("0102150405"),
+		IsActive: true,
+	}
+	require.NoError(t, repo.Create(ctx, s))
+
+	suppliers, err := repo.GetAllForExport(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, suppliers)
+
+	found := false
+	for _, sup := range suppliers {
+		if sup.ID == s.ID {
+			found = true
+			assert.Equal(t, s.Code, sup.Code)
+			break
+		}
+	}
+	assert.True(t, found)
 }
