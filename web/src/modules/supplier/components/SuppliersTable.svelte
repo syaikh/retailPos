@@ -142,10 +142,10 @@
           <th class="px-4 py-3" scope="col">
             <input
               type="checkbox"
+              class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary"
               checked={allSelected}
-              indeterminate={someSelected}
+              bind:indeterminate={someSelected}
               onchange={toggleAll}
-              class="rounded"
               aria-label="Select all suppliers"
             />
           </th>
@@ -170,7 +170,7 @@
       <tbody>
         {#each suppliers as supplier (supplier.id)}
           <tr
-            class="border-b border-border hover:bg-surface-hover/50 transition-colors {selectedIds.includes(supplier.id) ? 'bg-primary-subtle/30' : ''} cursor-pointer"
+            class="border-b border-border transition-colors hover:bg-muted/50 {selectedIds.includes(supplier.id) ? 'bg-muted/30' : ''} cursor-pointer"
             onclick={() => onrowclick(supplier)}
             onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onrowclick(supplier); } }}
             role="button"
@@ -179,9 +179,9 @@
             <td class="px-4 py-3" onclick={(e) => e.stopPropagation()}>
               <input
                 type="checkbox"
+                class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary"
                 checked={selectedIds.includes(supplier.id)}
                 onchange={() => toggleOne(supplier.id)}
-                class="rounded"
                 aria-label="Select {supplier.name}"
               />
             </td>

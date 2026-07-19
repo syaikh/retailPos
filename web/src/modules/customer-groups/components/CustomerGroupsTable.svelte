@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown } from '$shared/ui';
-  import { Search, MoreVertical, Users, Pencil, Trash2, Copy, CheckSquare, Square, Power, PowerOff } from 'lucide-svelte';
+  import { Search, MoreVertical, Users, Pencil, Trash2, Copy, Power, PowerOff } from 'lucide-svelte';
   import type { CustomerGroup } from '../types';
 
   let {
@@ -147,18 +147,7 @@
     <thead class="bg-muted/50 sticky top-0 z-10">
       <tr class="border-b text-left text-xs text-text-muted">
         <th class="px-3 py-3">
-          <button type="button" onclick={toggleSelectAll} class="text-text-muted hover:text-text-primary transition-colors" aria-label={allSelected ? 'Batalkan semua pilihan' : 'Pilih semua'}>
-            {#if allSelected}
-              <CheckSquare size={16} class="text-primary-light" />
-            {:else if someSelected}
-              <span class="relative flex items-center justify-center w-4 h-4">
-                <Square size={16} class="text-text-muted" />
-                <span class="absolute inset-0 flex items-center justify-center"><span class="w-2 h-0.5 bg-primary-light rounded"></span></span>
-              </span>
-            {:else}
-              <Square size={16} />
-            {/if}
-          </button>
+          <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Pilih semua" />
         </th>
         <th class="px-4 py-3 font-semibold">
           <SortableHeader label="NAMA" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
@@ -177,15 +166,9 @@
     </thead>
     <tbody>
       {#each groups as g (g.id)}
-        <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors cursor-pointer {selectedIds.has(g.id) ? 'bg-primary-subtle/10' : ''}" onclick={() => onrowclick(g)} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onrowclick(g); } }}>
-          <td class="px-3 py-4">
-            <button type="button" onclick={(e) => { e.stopPropagation(); toggleSelect(g.id); }} class="text-text-muted hover:text-text-primary transition-colors" aria-label={selectedIds.has(g.id) ? `Batalkan pilihan ${g.name}` : `Pilih ${g.name}`}>
-              {#if selectedIds.has(g.id)}
-                <CheckSquare size={16} class="text-primary-light" />
-              {:else}
-                <Square size={16} />
-              {/if}
-            </button>
+        <tr class="border-t border-border transition-colors hover:bg-muted/50 cursor-pointer {selectedIds.has(g.id) ? 'bg-muted/30' : ''}" onclick={() => onrowclick(g)} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onrowclick(g); } }}>
+          <td class="px-3 py-4" onclick={(e) => e.stopPropagation()}>
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(g.id)} onchange={() => toggleSelect(g.id)} aria-label="Pilih {g.name}" />
           </td>
           <td class="px-4 py-4">
             <div class="flex items-center gap-3">
