@@ -14,8 +14,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func parseIDs(raw string) []int {
+	if raw == "" {
+		return nil
+	}
+	seen := make(map[int]bool)
+	var ids []int
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		v, err := strconv.Atoi(s)
+		if err != nil || v <= 0 {
+			continue
+		}
+		if !seen[v] {
+			seen[v] = true
+			ids = append(ids, v)
+		}
+	}
+	return ids
+}
+
 type ProductService interface {
 	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error)
+	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
 	CreateProduct(ctx context.Context, product *Product) error
 	UpdateProduct(ctx context.Context, product *Product) error
@@ -84,6 +108,24 @@ func validateProduct(p *Product) error {
 // @Success 200 {object} map[string]interface{}
 // @Router /products [get]
 func (h *Handler) GetProducts(c *gin.Context) {
+	if idsParam := c.Query("ids"); idsParam != "" {
+		ids := parseIDs(idsParam)
+		if len(ids) == 0 {
+			c.JSON(http.StatusOK, gin.H{"data": []Product{}, "total": 0})
+			return
+		}
+		products, err := h.svc.GetProductsByIDs(c.Request.Context(), ids)
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
+		if products == nil {
+			products = []Product{}
+		}
+		c.JSON(http.StatusOK, gin.H{"data": products, "total": len(products)})
+		return
+	}
+
 	limit := 50
 	if l := c.Query("limit"); l != "" {
 		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 200 {

@@ -749,6 +749,91 @@ func TestRepo_GetAllProducts_WithSortByInvalid(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRepo_GetProductsByIDs_Empty(t *testing.T) {
+	repo := NewRepository(nil)
+	products, err := repo.GetProductsByIDs(context.Background(), []int{})
+	require.NoError(t, err)
+	assert.Empty(t, products)
+}
+
+func TestRepo_GetProductsByIDs_Found(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := productFullRowAllFields(1, "SKU-001", "Widget A", 10000, 5000, 100, "active")
+	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2})
+	require.NoError(t, err)
+	assert.Len(t, products, 1)
+	assert.Equal(t, "SKU-001", products[0].SKU)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepo_GetProductsByIDs_QueryError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1).WillReturnError(pgx.ErrNoRows)
+
+	repo := NewRepository(mock)
+	_, err = repo.GetProductsByIDs(context.Background(), []int{1})
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepo_GetProductsByIDs_ScanError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	badRows := pgxmock.NewRows([]string{"id"}).AddRow(1)
+	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1).WillReturnRows(badRows)
+
+	repo := NewRepository(mock)
+	_, err = repo.GetProductsByIDs(context.Background(), []int{1})
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepo_GetProductsByIDs_MultipleRows(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{
+		"id", "sku", "name", "barcode", "category_id", "category_name",
+		"price", "cost", "stock", "status", "store_id",
+		"brand_id", "brand_name", "unit_of_measure_id", "unit_of_measure", "weight_grams", "description",
+		"tax_class_id", "tax_rate",
+		"created_at", "updated_at",
+	}).AddRow(
+		1, "SKU-001", "Widget A", "123456", 10, "Electronics",
+		10000, 5000, 100, "active", 1,
+		5, "BrandA", 3, "pcs", 500, "A product",
+		2, 0.11,
+		time.Now(), time.Now(),
+	).AddRow(
+		2, "SKU-002", "Widget B", "789012", 10, "Electronics",
+		20000, 10000, 50, "active", 1,
+		5, "BrandA", 3, "pcs", 500, "B product",
+		2, 0.11,
+		time.Now(), time.Now(),
+	)
+	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	products, err := repo.GetProductsByIDs(context.Background(), []int{1, 2})
+	require.NoError(t, err)
+	assert.Len(t, products, 2)
+	assert.Equal(t, "SKU-001", products[0].SKU)
+	assert.Equal(t, "SKU-002", products[1].SKU)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestRepo_GetDeletedProductByBarcode_Found(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)

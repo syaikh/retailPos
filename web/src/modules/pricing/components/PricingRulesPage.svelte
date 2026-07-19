@@ -3,7 +3,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
   import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores, checkConflicts } from '../services/pricing-service';
-  import { getCategories, getBrands, getProductById } from '$modules/product/services/product-service';
+  import { getCategories, getBrands, getProductsByIds } from '$modules/product/services/product-service';
   import type { PricingRule } from '../types';
   import type { ConflictRule } from '../services/pricing-service';
   import { Button, Input, Modal, Pagination, ConfirmDeleteModal, Badge, ImportWizard } from '$shared/ui';
@@ -146,18 +146,26 @@
     rules = result.data;
     total = result.total;
     loading = false;
-    resolveProductNames();
-  }
 
-  async function resolveProductNames() {
-    const productIds = rules.filter(r => r.product_id).map(r => r.product_id!).filter(id => !productNames.has(id));
-    if (productIds.length === 0) return;
-    const results = await Promise.allSettled(productIds.map(id => getProductById(id)));
-    const next = new Map(productNames);
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled' && r.value) next.set(productIds[i], r.value.name);
-    });
-    productNames = next;
+    const uncachedIds = rules.filter(r => r.product_id).map(r => r.product_id!).filter(id => !productNames.has(id));
+    if (uncachedIds.length > 0) {
+      const [products, cg, st, cat, br] = await Promise.all([
+        getProductsByIds(uncachedIds),
+        customerGroups.length === 0 ? getCustomerGroups() : Promise.resolve(customerGroups),
+        stores.length === 0 ? getStores() : Promise.resolve(stores),
+        categories.length === 0 ? getCategories() : Promise.resolve(categories),
+        brands.length === 0 ? getBrands() : Promise.resolve(brands),
+      ]);
+      const next = new Map(productNames);
+      for (const [id, product] of products) {
+        next.set(id, product.name);
+      }
+      productNames = next;
+      customerGroups = cg;
+      stores = st;
+      categories = cat;
+      brands = br;
+    }
   }
 
   function handleSort(col: string) {
@@ -625,13 +633,6 @@
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
     fetchRules();
-    (async () => {
-      const [cg, st, cat, br] = await Promise.all([getCustomerGroups(), getStores(), getCategories(), getBrands()]);
-      customerGroups = cg;
-      stores = st;
-      categories = cat;
-      brands = br;
-    })();
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 </script>

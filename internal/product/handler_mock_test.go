@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,18 +16,25 @@ import (
 )
 
 type mockProductService struct {
-	getAllFn        func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error)
-	getByIDFn       func(ctx context.Context, id, storeID int) (*Product, error)
-	createFn        func(ctx context.Context, product *Product) error
-	updateFn        func(ctx context.Context, product *Product) error
-	deleteFn        func(ctx context.Context, id int, storeID *int) error
-	bulkStatusFn    func(ctx context.Context, ids []int, isActive bool, storeID *int) error
-	nextSKUFn       func(ctx context.Context) (string, error)
-	getTaxClassesFn func(ctx context.Context) ([]TaxClass, error)
+	getAllFn          func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error)
+	getByIDsFn        func(ctx context.Context, ids []int) ([]Product, error)
+	getByIDFn         func(ctx context.Context, id, storeID int) (*Product, error)
+	createFn          func(ctx context.Context, product *Product) error
+	updateFn          func(ctx context.Context, product *Product) error
+	deleteFn          func(ctx context.Context, id int, storeID *int) error
+	bulkStatusFn      func(ctx context.Context, ids []int, isActive bool, storeID *int) error
+	nextSKUFn         func(ctx context.Context) (string, error)
+	getTaxClassesFn   func(ctx context.Context) ([]TaxClass, error)
 }
 
 func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error) {
 	return m.getAllFn(ctx, limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status)
+}
+func (m *mockProductService) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+	if m.getByIDsFn != nil {
+		return m.getByIDsFn(ctx, ids)
+	}
+	return []Product{}, nil
 }
 func (m *mockProductService) GetProductByID(ctx context.Context, id, storeID int) (*Product, error) {
 	return m.getByIDFn(ctx, id, storeID)
@@ -67,6 +75,33 @@ func setupMockProductRouter(svc ProductService) *gin.Engine {
 	})
 	h.RegisterPublicRoutes(r.Group("/"))
 	return r
+}
+
+func TestParseIDs(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want []int
+	}{
+		{"empty string", "", nil},
+		{"single id", "1", []int{1}},
+		{"multiple ids", "1,2,3", []int{1, 2, 3}},
+		{"with spaces", " 1 , 2 , 3 ", []int{1, 2, 3}},
+		{"deduplication", "1,2,1,3,2", []int{1, 2, 3}},
+		{"zero filtered out", "0,1,2", []int{1, 2}},
+		{"negative filtered out", "-1,1,-2,2", []int{1, 2}},
+		{"non-numeric filtered out", "abc,1,xyz", []int{1}},
+		{"empty segments", "1,,2,,3", []int{1, 2, 3}},
+		{"all invalid", "abc,xyz", nil},
+		{"trailing comma", "1,2,", []int{1, 2}},
+		{"single zero", "0", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseIDs(tt.raw)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestMockHandler_GetProducts(t *testing.T) {
@@ -156,6 +191,99 @@ func TestMockHandler_GetProducts(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/products", nil))
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_GetProducts_ByIDs(t *testing.T) {
+	t.Run("valid ids batch", func(t *testing.T) {
+		svc := &mockProductService{
+			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+				assert.Equal(t, []int{1, 2, 3}, ids)
+				return []Product{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}, {ID: 3, Name: "C"}}, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=1,2,3", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, float64(3), resp["total"])
+	})
+
+	t.Run("all invalid ids returns empty", func(t *testing.T) {
+		svc := &mockProductService{}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=abc,xyz", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, float64(0), resp["total"])
+		assert.Equal(t, "[]", fmt.Sprint(resp["data"]))
+	})
+
+	t.Run("deduplicated ids", func(t *testing.T) {
+		svc := &mockProductService{
+			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+				assert.Equal(t, []int{5}, ids, "should deduplicate")
+				return []Product{{ID: 5, Name: "Only"}}, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=5,5,5", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("service error returns 500", func(t *testing.T) {
+		svc := &mockProductService{
+			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=1,2", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("nil products become empty array", func(t *testing.T) {
+		svc := &mockProductService{
+			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+				return nil, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=1", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "[]")
+	})
+
+	t.Run("empty ids param falls through to normal listing", func(t *testing.T) {
+		svc := &mockProductService{
+			getAllFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error) {
+				return []Product{{ID: 1}}, 1, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("ids with negative and zero are filtered out", func(t *testing.T) {
+		svc := &mockProductService{
+			getByIDsFn: func(ctx context.Context, ids []int) ([]Product, error) {
+				assert.Equal(t, []int{3, 7}, ids)
+				return []Product{}, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products?ids=-1,0,3,7", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 

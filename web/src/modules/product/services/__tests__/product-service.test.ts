@@ -15,8 +15,10 @@ vi.mock('$shared/api/http-client', () => ({
 }));
 
 describe('product-service', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { clearProductCache } = await import('../product-service');
+    clearProductCache();
   });
 
   it('getProducts builds query params', async () => {
@@ -180,7 +182,7 @@ describe('product-service', () => {
   });
 
   it('getProductById returns product data', async () => {
-    mockGet.mockResolvedValueOnce({ data: { id: 1, name: 'Test', sku: 'TST' } });
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'Test', sku: 'TST' } } });
 
     const { getProductById } = await import('../product-service');
     const result = await getProductById(1);
@@ -193,8 +195,119 @@ describe('product-service', () => {
     mockGet.mockRejectedValueOnce(new Error('Not found'));
 
     const { getProductById } = await import('../product-service');
-    const result = await getProductById(999);
+    await expect(getProductById(999)).rejects.toThrow('Not found');
+  });
 
-    expect(result).toBeNull();
+  it('getProductsByIds returns empty map for empty input', async () => {
+    const { getProductsByIds } = await import('../product-service');
+    const result = await getProductsByIds([]);
+    expect(result.size).toBe(0);
+  });
+
+  it('getProductsByIds filters out non-positive ids', async () => {
+    const { getProductsByIds } = await import('../product-service');
+    const result = await getProductsByIds([0, -1, -5]);
+    expect(result.size).toBe(0);
+  });
+
+  it('getProductsByIds batches uncached ids via GET /products', async () => {
+    mockGet.mockResolvedValueOnce({
+      data: {
+        data: [
+          { id: 10, name: 'Prod A', sku: 'SKU-10' },
+          { id: 20, name: 'Prod B', sku: 'SKU-20' },
+        ],
+        total: 2,
+      },
+    });
+
+    const { getProductsByIds } = await import('../product-service');
+    const result = await getProductsByIds([10, 20]);
+
+    expect(mockGet).toHaveBeenCalledWith('/products', { params: { ids: '10,20' } });
+    expect(result.size).toBe(2);
+    expect(result.get(10)?.name).toBe('Prod A');
+    expect(result.get(20)?.name).toBe('Prod B');
+  });
+
+  it('getProductsByIds skips batch fetch for already-cached ids', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 5, name: 'Cached', sku: 'SKU-5' } } });
+
+    const { getProductById, getProductsByIds } = await import('../product-service');
+    await getProductById(5);
+    mockGet.mockClear();
+
+    const result = await getProductsByIds([5]);
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(result.size).toBe(1);
+    expect(result.get(5)?.name).toBe('Cached');
+  });
+
+  it('getProductsByIds handles batch fetch error gracefully', async () => {
+    mockGet.mockRejectedValueOnce(new Error('Network error'));
+
+    const { getProductsByIds } = await import('../product-service');
+    const result = await getProductsByIds([30, 40]);
+    expect(result.size).toBe(0);
+  });
+
+  it('getProductsByIds deduplicates ids', async () => {
+    mockGet.mockResolvedValueOnce({
+      data: { data: [{ id: 7, name: 'Dedup', sku: 'SKU-7' }], total: 1 },
+    });
+
+    const { getProductsByIds } = await import('../product-service');
+    const result = await getProductsByIds([7, 7, 7]);
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(result.size).toBe(1);
+  });
+
+  it('invalidateProductCache clears specific id', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'First', sku: 'SKU-1' } } });
+
+    const { getProductById, invalidateProductCache } = await import('../product-service');
+    await getProductById(1);
+    invalidateProductCache(1);
+    mockGet.mockClear();
+
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'Second', sku: 'SKU-1' } } });
+    const result = await getProductById(1);
+    expect(mockGet).toHaveBeenCalled();
+    expect(result?.name).toBe('Second');
+  });
+
+  it('invalidateProductCache clears entire cache when no id', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'A', sku: 'S1' } } });
+
+    const { getProductById, invalidateProductCache } = await import('../product-service');
+    await getProductById(1);
+    invalidateProductCache();
+    mockGet.mockClear();
+
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'B', sku: 'S1' } } });
+    await getProductById(1);
+    expect(mockGet).toHaveBeenCalled();
+  });
+
+  it('clearProductCache clears entire cache', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'A', sku: 'S1' } } });
+
+    const { getProductById, clearProductCache: clear } = await import('../product-service');
+    await getProductById(1);
+    clear();
+    mockGet.mockClear();
+
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'C', sku: 'S1' } } });
+    await getProductById(1);
+    expect(mockGet).toHaveBeenCalled();
+  });
+
+  it('getProductById caches promise to avoid duplicate requests', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 1, name: 'Deduped', sku: 'SKU-1' } } });
+
+    const { getProductById } = await import('../product-service');
+    const [a, b] = await Promise.all([getProductById(1), getProductById(1)]);
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(a).toEqual(b);
   });
 });

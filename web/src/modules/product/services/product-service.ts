@@ -1,6 +1,8 @@
 import apiClient from '$shared/api/http-client';
 import type { Product, ProductFilters, Category, Brand, TaxClass, UnitOfMeasure, StockThreshold, ProductFormData } from '../types';
 
+const productCache = new Map<number, Promise<Product | null>>();
+
 export async function getProducts(filters: ProductFilters): Promise<{ data: Product[]; total: number }> {
   const params = new URLSearchParams({
     limit: filters.limit.toString(),
@@ -21,12 +23,48 @@ export async function getProducts(filters: ProductFilters): Promise<{ data: Prod
 }
 
 export async function getProductById(id: number): Promise<Product | null> {
-  try {
-    const r = await apiClient.get(`/products/${id}`);
-    return r.data?.data || null;
-  } catch {
-    return null;
+  const cached = productCache.get(id);
+  if (cached) return cached;
+  const p = apiClient.get(`/products/${id}`)
+    .then(r => r.data?.data || null)
+    .catch(err => { productCache.delete(id); throw err; });
+  productCache.set(id, p);
+  return p;
+}
+
+export async function getProductsByIds(ids: number[]): Promise<Map<number, Product>> {
+  const unique = [...new Set(ids.filter(id => id > 0))];
+  if (unique.length === 0) return new Map();
+
+  const uncached = unique.filter(id => !productCache.has(id));
+  if (uncached.length > 0) {
+    const batchPromise = apiClient.get('/products', { params: { ids: uncached.join(',') } })
+      .then(r => {
+        const products: Product[] = r.data?.data || [];
+        for (const product of products) {
+          productCache.set(product.id, Promise.resolve(product));
+        }
+        return products;
+      })
+      .catch(() => [] as Product[]);
+    await batchPromise;
   }
+
+  const results = await Promise.allSettled(unique.map(id => getProductById(id)));
+  const map = new Map<number, Product>();
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) map.set(unique[i], r.value);
+  });
+  return map;
+}
+
+export function invalidateProductCache(id?: number) {
+  if (id) productCache.delete(id);
+  else productCache.clear();
+}
+
+export function clearProductCache() {
+  productCache.clear();
 }
 
 export async function createProduct(data: ProductFormData & { category_name?: string }): Promise<void> {

@@ -92,6 +92,76 @@ func scanProduct(row pgx.Row) (*Product, error) {
 	return &p, nil
 }
 
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanProductFromRow(row rowScanner) (*Product, error) {
+	var p Product
+	var barcode sql.NullString
+	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
+	var taxClassIDVal sql.NullInt64
+	var taxRateVal sql.NullFloat64
+	var categoryName, brandName, unitOfMeasure, description sql.NullString
+	var createdAt, updatedAt time.Time
+
+	err := row.Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
+		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
+		&taxClassIDVal, &taxRateVal,
+		&createdAt, &updatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	if barcode.Valid {
+		p.Barcode = &barcode.String
+	}
+	if categoryIDVal.Valid {
+		v := int(categoryIDVal.Int64)
+		p.CategoryID = &v
+	}
+	if categoryName.Valid {
+		p.CategoryName = &categoryName.String
+	}
+	if brandIDVal.Valid {
+		v := int(brandIDVal.Int64)
+		p.BrandID = &v
+	}
+	if brandName.Valid {
+		p.BrandName = &brandName.String
+	}
+	if unitOfMeasureIDVal.Valid {
+		v := int(unitOfMeasureIDVal.Int64)
+		p.UnitOfMeasureID = &v
+	}
+	if unitOfMeasure.Valid {
+		p.UnitOfMeasure = &unitOfMeasure.String
+	}
+	if weightGramsVal.Valid {
+		v := int(weightGramsVal.Int64)
+		p.WeightGrams = &v
+	}
+	if description.Valid {
+		p.Description = &description.String
+	}
+	if storeIDVal.Valid {
+		v := int(storeIDVal.Int64)
+		p.StoreID = &v
+	}
+	if taxClassIDVal.Valid {
+		v := int(taxClassIDVal.Int64)
+		p.TaxClassID = &v
+	}
+	if taxRateVal.Valid {
+		v := taxRateVal.Float64
+		p.TaxRate = &v
+	}
+	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+
+	return &p, nil
+}
+
 func (r *Repository) GetProductPrice(ctx context.Context, id int) (int, error) {
 	if r.cache != nil {
 		key := fmt.Sprintf("product:price:%d", id)
@@ -141,6 +211,47 @@ func (r *Repository) GetProductPrices(ctx context.Context, ids []int) (map[int]i
 		}
 	}
 	return prices, rows.Err()
+}
+
+func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+	if len(ids) == 0 {
+		return []Product{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
+		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
+		       v.created_at, v.updated_at
+		FROM v_products_full v
+		WHERE v.id IN (%s)
+		ORDER BY v.name`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch get products by ids: %w", err)
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		p, err := scanProductFromRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan product: %w", err)
+		}
+		products = append(products, *p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return products, nil
 }
 
 // ==================== CORE CRUD ====================

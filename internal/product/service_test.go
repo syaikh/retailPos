@@ -88,6 +88,34 @@ func TestProductService_ReadOperations(t *testing.T) {
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(products), 1)
 	})
+
+	t.Run("GetProductsByIDs", func(t *testing.T) {
+		p2 := &Product{
+			SKU:    "SVC-READ-002",
+			Name:   "Service Read Test 2",
+			Price:  20000,
+			Cost:   10000,
+			Stock:  5,
+			Status: "active",
+		}
+		require.NoError(t, svc.CreateProduct(ctx, p2))
+
+		products, err := svc.GetProductsByIDs(ctx, []int{p.ID, p2.ID})
+		require.NoError(t, err)
+		assert.Len(t, products, 2)
+	})
+
+	t.Run("GetProductsByIDs empty", func(t *testing.T) {
+		products, err := svc.GetProductsByIDs(ctx, []int{})
+		require.NoError(t, err)
+		assert.Empty(t, products)
+	})
+
+	t.Run("GetProductsByIDs nonexistent", func(t *testing.T) {
+		products, err := svc.GetProductsByIDs(ctx, []int{-999})
+		require.NoError(t, err)
+		assert.Empty(t, products)
+	})
 }
 
 func TestProductService_BulkUpdate(t *testing.T) {

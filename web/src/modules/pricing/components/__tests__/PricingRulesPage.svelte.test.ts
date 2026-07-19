@@ -15,8 +15,8 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain("import { getPricingRules, createPricingRule, updatePricingRule, deletePricingRule, submitPricingRule, approvePricingRule, rejectPricingRule, searchProducts, getCustomerGroups, getStores, checkConflicts } from '../services/pricing-service'");
   });
 
-  it('imports product service functions including getProductById', () => {
-    expect(src).toContain("import { getCategories, getBrands, getProductById } from '$modules/product/services/product-service'");
+  it('imports product service functions including getProductsByIds', () => {
+    expect(src).toContain("import { getCategories, getBrands, getProductsByIds } from '$modules/product/services/product-service'");
   });
 
   it('imports toast store', () => {
@@ -106,16 +106,17 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
     expect(src).toContain('async function fetchRules()');
   });
 
-  it('has resolveProductNames function', () => {
-    expect(src).toContain('async function resolveProductNames()');
-    expect(src).toContain('getProductById(id)');
+  it('uses getProductsByIds for batch product resolution', () => {
+    expect(src).toContain('getProductsByIds');
+    expect(src).not.toContain('getProductById');
   });
 
-  it('calls resolveProductNames after fetching rules', () => {
+  it('fetches rules before resolving product names', () => {
     const fetchIdx = src.indexOf('async function fetchRules()');
     expect(fetchIdx).toBeGreaterThan(-1);
-    const fetchBlock = src.substring(fetchIdx, fetchIdx + 800);
-    expect(fetchBlock).toContain('resolveProductNames()');
+    const fetchBlock = src.substring(fetchIdx, fetchIdx + 1200);
+    expect(fetchBlock).toContain('getPricingRules');
+    expect(fetchBlock).toContain('getProductsByIds');
   });
 
   it('has saveRule function', () => {

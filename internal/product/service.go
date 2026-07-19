@@ -37,6 +37,10 @@ func (s *Service) GetProductByID(ctx context.Context, id, storeID int) (*Product
 	return s.repo.GetProductByID(ctx, id, ptr(storeID))
 }
 
+func (s *Service) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+	return s.repo.GetProductsByIDs(ctx, ids)
+}
+
 func (s *Service) GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error) {
 	return s.repo.GetProductBySKU(ctx, sku, ptr(storeID))
 }

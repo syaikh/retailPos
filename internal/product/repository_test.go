@@ -238,6 +238,34 @@ func TestProductRepository_DeletedProductRestore(t *testing.T) {
 	})
 }
 
+func TestProductRepository_GetProductsByIDs(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("returns products matching ids", func(t *testing.T) {
+		p1 := &Product{SKU: uniqueSKU("BYIDS-1"), Name: "Batch A", Price: 1000, Cost: 500, Stock: 5, Status: "active"}
+		p2 := &Product{SKU: uniqueSKU("BYIDS-2"), Name: "Batch B", Price: 2000, Cost: 1000, Stock: 10, Status: "active"}
+		seedTestProduct(t, repo, ctx, p1)
+		seedTestProduct(t, repo, ctx, p2)
+
+		products, err := repo.GetProductsByIDs(ctx, []int{p1.ID, p2.ID})
+		require.NoError(t, err)
+		assert.Len(t, products, 2)
+	})
+
+	t.Run("empty ids returns empty slice", func(t *testing.T) {
+		products, err := repo.GetProductsByIDs(ctx, []int{})
+		require.NoError(t, err)
+		assert.Empty(t, products)
+	})
+
+	t.Run("nonexistent ids returns empty", func(t *testing.T) {
+		products, err := repo.GetProductsByIDs(ctx, []int{-999, -998})
+		require.NoError(t, err)
+		assert.Empty(t, products)
+	})
+}
+
 func TestProductRepository_GetAllProductsPagination(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
