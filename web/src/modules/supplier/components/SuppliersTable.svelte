@@ -93,13 +93,6 @@
     }
   }
 
-  function handleRowKeydown(e: KeyboardEvent, supplier: Supplier) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onrowclick(supplier);
-    }
-  }
-
   function handleActionKeydown(e: KeyboardEvent, action: () => void) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -177,9 +170,13 @@
       <tbody>
         {#each suppliers as supplier (supplier.id)}
           <tr
-            class="border-b border-border hover:bg-surface-hover/50 transition-colors {selectedIds.includes(supplier.id) ? 'bg-primary-subtle/30' : ''}"
+            class="border-b border-border hover:bg-surface-hover/50 transition-colors {selectedIds.includes(supplier.id) ? 'bg-primary-subtle/30' : ''} cursor-pointer"
+            onclick={() => onrowclick(supplier)}
+            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onrowclick(supplier); } }}
+            role="button"
+            tabindex="0"
           >
-            <td class="px-4 py-3">
+            <td class="px-4 py-3" onclick={(e) => e.stopPropagation()}>
               <input
                 type="checkbox"
                 checked={selectedIds.includes(supplier.id)}
@@ -188,13 +185,7 @@
                 aria-label="Select {supplier.name}"
               />
             </td>
-            <td
-              class="px-4 py-3 font-medium truncate cursor-pointer hover:text-primary-light"
-              onclick={() => onrowclick(supplier)}
-              onkeydown={(e) => handleRowKeydown(e, supplier)}
-              role="button"
-              tabindex="0"
-            >
+            <td class="px-4 py-3 font-medium truncate">
               <Tooltip content={supplier.name}>
                 {supplier.name}
               </Tooltip>
@@ -207,7 +198,7 @@
                 {supplier.is_active ? 'Active' : 'Inactive'}
               </Badge>
             </td>
-            <td class="px-4 py-3 text-right">
+            <td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
               <div class="flex items-center justify-center" role="group" aria-label="Actions for {supplier.name}">
                 <Dropdown placement="bottom-end" items={[]}>
                   {#snippet content({ close })}

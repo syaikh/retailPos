@@ -192,6 +192,12 @@
             </p>
           </div>
         {/if}
+        {#if selectedProduct.supplier_name}
+          <div class="col-span-2">
+            <span class="text-[10px] text-text-muted/60 font-medium uppercase tracking-wider">Supplier Utama</span>
+            <p class="text-text-secondary text-xs pt-0.5">{selectedProduct.supplier_name}</p>
+          </div>
+        {/if}
         {#if selectedProduct.store_id || selectedProduct.store_name}
           <div class="text-right col-span-2">
             <span class="text-text-secondary text-xs">{selectedProduct.store_name || `Store #${selectedProduct.store_id ?? '-'}`}</span>

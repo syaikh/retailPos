@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/router';
   import apiClient from '$shared/api/http-client';
   import { useAuthStore } from '$modules/auth';
   import { debounce } from '$shared/utils/debounce';
@@ -14,7 +15,7 @@
   import ProductFiltersToolbar from './ProductFiltersToolbar.svelte';
   import ProductTable from './ProductTable.svelte';
   import ProductBulkActions from './ProductBulkActions.svelte';
-  import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Package, Loader2, ArrowLeft } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
 
@@ -537,6 +538,17 @@
 />
 
 <div class="space-y-5">
+  {#if supplierFilterId !== null}
+    <button
+      type="button"
+      class="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors"
+      onclick={() => goto('/suppliers')}
+    >
+      <ArrowLeft size={16} />
+      Kembali ke Suppliers
+    </button>
+  {/if}
+
   <ProductFiltersToolbar
     bind:searchQuery
     bind:selectedCategories
