@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/router';
   import apiClient from '$shared/api/http-client';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
   import { getCustomerGroups } from '$modules/customer-groups';
+  import { ArrowLeft } from 'lucide-svelte';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
   import EditCustomerModal from './EditCustomerModal.svelte';
   import DeactivateCustomerModal from './DeactivateCustomerModal.svelte';
@@ -315,6 +317,14 @@
   }
 
   let showImportWizard = $state(false);
+  let backToGroups = $state<{ offset: number; limit: number; groupName: string } | null>(null);
+
+  function handleBackToGroups() {
+    if (backToGroups) {
+      sessionStorage.setItem('customerGroupsReturnPage', JSON.stringify({ offset: backToGroups.offset, limit: backToGroups.limit }));
+    }
+    goto('/customer-groups');
+  }
 
   function handleImportComplete() {
     load();
@@ -323,9 +333,17 @@
 
   onMount(async () => {
     const urlGroup = sessionStorage.getItem('customerGroupFilter');
+    const backPage = sessionStorage.getItem('customerGroupsBackPage');
     if (urlGroup) {
       sessionStorage.removeItem('customerGroupFilter');
       groupFilter = urlGroup;
+    }
+    if (backPage) {
+      sessionStorage.removeItem('customerGroupsBackPage');
+      try {
+        const parsed = JSON.parse(backPage);
+        backToGroups = { offset: parsed.offset || 0, limit: parsed.limit || 20, groupName: parsed.groupName || '' };
+      } catch { /* ignore */ }
     }
     load();
     try {
@@ -336,6 +354,23 @@
 </script>
 
 <div class="space-y-5">
+  {#if backToGroups}
+    <div class="card px-4 py-3 flex items-center gap-3">
+      <button
+        type="button"
+        class="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+        onclick={handleBackToGroups}
+      >
+        <ArrowLeft size={16} />
+        Kembali
+      </button>
+      <span class="text-border-default">|</span>
+      <span class="text-sm text-text-muted">
+        Menampilkan anggota dari: <span class="font-medium text-text-secondary">{backToGroups.groupName}</span>
+      </span>
+    </div>
+  {/if}
+
   <CustomerToolbar
     bind:searchQuery
     bind:statusFilter

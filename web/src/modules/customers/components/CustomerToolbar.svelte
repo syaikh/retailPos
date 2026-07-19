@@ -53,7 +53,7 @@
       </button>
     </div>
     <select
-      class="h-8 px-3 rounded-lg border border-border-default bg-bg-secondary text-xs font-medium text-text-secondary hover:border-border-strong hover:bg-surface-hover transition-colors"
+      class="h-9 px-3 rounded-lg border border-border-default bg-bg-secondary text-xs font-medium text-text-secondary appearance-none hover:border-border-strong hover:bg-surface-hover transition-colors"
       bind:value={groupFilter}
       onchange={() => ongroupchange()}
     >

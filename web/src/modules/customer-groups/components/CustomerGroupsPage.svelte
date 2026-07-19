@@ -107,6 +107,7 @@
 
   function viewMembers(g: CustomerGroup) {
     sessionStorage.setItem('customerGroupFilter', String(g.id));
+    sessionStorage.setItem('customerGroupsBackPage', JSON.stringify({ offset, limit, groupName: g.name }));
     goto('/customers');
   }
 
@@ -196,7 +197,18 @@
     showDetailDrawer = true;
   }
 
-  onMount(() => { load(); });
+  onMount(() => {
+    const returnPage = sessionStorage.getItem('customerGroupsReturnPage');
+    if (returnPage) {
+      sessionStorage.removeItem('customerGroupsReturnPage');
+      try {
+        const parsed = JSON.parse(returnPage);
+        offset = parsed.offset || 0;
+        limit = parsed.limit || 20;
+      } catch { /* ignore */ }
+    }
+    load();
+  });
 </script>
 
 <div class="space-y-5">
