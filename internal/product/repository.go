@@ -26,6 +26,21 @@ func (r *Repository) SetCache(c *cache.Cache) {
 	r.cache = c
 }
 
+const productSelectCols = `
+		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status, v.store_id,
+		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
+		       v.tax_class_id, v.tax_rate,
+		       ps_preferred.supplier_id, ps_preferred.supplier_name,
+		       v.created_at, v.updated_at
+		FROM v_products_full v
+		LEFT JOIN LATERAL (
+			SELECT s.id as supplier_id, s.name as supplier_name
+			FROM product_suppliers ps
+			JOIN suppliers s ON ps.supplier_id = s.id AND s.deleted_at IS NULL
+			WHERE ps.product_id = v.id AND ps.is_preferred = true
+			LIMIT 1
+		) ps_preferred ON true`
+
 func scanProduct(row pgx.Row) (*Product, error) {
 	var p Product
 	var barcode sql.NullString
@@ -33,11 +48,14 @@ func scanProduct(row pgx.Row) (*Product, error) {
 	var taxClassIDVal sql.NullInt64
 	var taxRateVal sql.NullFloat64
 	var categoryName, brandName, unitOfMeasure, description sql.NullString
+	var supplierIDVal sql.NullInt64
+	var supplierNameVal sql.NullString
 	var createdAt, updatedAt time.Time
 
 	err := row.Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
 		&taxClassIDVal, &taxRateVal,
+		&supplierIDVal, &supplierNameVal,
 		&createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
@@ -85,6 +103,13 @@ func scanProduct(row pgx.Row) (*Product, error) {
 	if taxRateVal.Valid {
 		v := taxRateVal.Float64
 		p.TaxRate = &v
+	}
+	if supplierIDVal.Valid {
+		v := int(supplierIDVal.Int64)
+		p.SupplierID = &v
+	}
+	if supplierNameVal.Valid {
+		p.SupplierName = &supplierNameVal.String
 	}
 	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -103,11 +128,14 @@ func scanProductFromRow(row rowScanner) (*Product, error) {
 	var taxClassIDVal sql.NullInt64
 	var taxRateVal sql.NullFloat64
 	var categoryName, brandName, unitOfMeasure, description sql.NullString
+	var supplierIDVal sql.NullInt64
+	var supplierNameVal sql.NullString
 	var createdAt, updatedAt time.Time
 
 	err := row.Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
 		&taxClassIDVal, &taxRateVal,
+		&supplierIDVal, &supplierNameVal,
 		&createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
@@ -155,6 +183,13 @@ func scanProductFromRow(row rowScanner) (*Product, error) {
 	if taxRateVal.Valid {
 		v := taxRateVal.Float64
 		p.TaxRate = &v
+	}
+	if supplierIDVal.Valid {
+		v := int(supplierIDVal.Int64)
+		p.SupplierID = &v
+	}
+	if supplierNameVal.Valid {
+		p.SupplierName = &supplierNameVal.String
 	}
 	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -225,14 +260,9 @@ func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product
 		args[i] = id
 	}
 
-	query := fmt.Sprintf(`
-		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
-		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
-		       v.tax_class_id, v.tax_rate,
-		       v.created_at, v.updated_at
-		FROM v_products_full v
+	query := fmt.Sprintf(`%s
 		WHERE v.id IN (%s)
-		ORDER BY v.name`, strings.Join(placeholders, ","))
+		ORDER BY v.name`, productSelectCols, strings.Join(placeholders, ","))
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -257,13 +287,8 @@ func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product
 // ==================== CORE CRUD ====================
 
 func (r *Repository) GetProductByID(ctx context.Context, id int, storeID *int) (*Product, error) {
-	query := `
-		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
-		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
-		       v.tax_class_id, v.tax_rate,
-		       v.created_at, v.updated_at
-		FROM v_products_full v
-		WHERE v.id = $1`
+	query := fmt.Sprintf(`%s
+		WHERE v.id = $1`, productSelectCols)
 
 	args := []interface{}{id}
 	if storeID != nil {
@@ -282,13 +307,8 @@ func (r *Repository) GetProductByID(ctx context.Context, id int, storeID *int) (
 }
 
 func (r *Repository) GetProductBySKU(ctx context.Context, sku string, storeID *int) (*Product, error) {
-	query := `
-		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
-		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
-		       v.tax_class_id, v.tax_rate,
-		       v.created_at, v.updated_at
-		FROM v_products_full v
-		WHERE v.sku = $1`
+	query := fmt.Sprintf(`%s
+		WHERE v.sku = $1`, productSelectCols)
 
 	args := []interface{}{sku}
 	if storeID != nil {

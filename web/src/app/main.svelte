@@ -106,7 +106,8 @@
     return requiredPerms.some(p => userPerms.includes(p));
   }
 
-  async function handleRoute(path) {
+  async function handleRoute(fullPath) {
+    const path = fullPath.split('?')[0];
     const token = sessionStorage.getItem('access_token');
     const hasValidToken = token && token !== 'null' && token !== 'undefined' && token.length > 10;
 

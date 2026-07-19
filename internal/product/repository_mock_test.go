@@ -17,11 +17,13 @@ func productFullRow(id int, sku, name string, price, cost, stock int, status str
 		"price", "cost", "stock", "status", "store_id",
 		"brand_id", "brand_name", "unit_of_measure_id", "unit_of_measure", "weight_grams", "description",
 		"tax_class_id", "tax_rate",
+		"supplier_id", "supplier_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		id, sku, name, nil, nil, nil,
 		price, cost, stock, status, nil,
 		nil, nil, nil, nil, nil, nil,
+		nil, nil,
 		nil, nil,
 		time.Now(), time.Now(),
 	)
@@ -33,12 +35,14 @@ func productFullRowAllFields(id int, sku, name string, price, cost, stock int, s
 		"price", "cost", "stock", "status", "store_id",
 		"brand_id", "brand_name", "unit_of_measure_id", "unit_of_measure", "weight_grams", "description",
 		"tax_class_id", "tax_rate",
+		"supplier_id", "supplier_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		id, sku, name, "123456", 10, "Electronics",
 		price, cost, stock, status, 1,
 		5, "BrandA", 3, "pcs", 500, "A product",
 		2, 0.11,
+		1, "SupplierX",
 		time.Now(), time.Now(),
 	)
 }
@@ -48,7 +52,7 @@ func emptyProductCols() *pgxmock.Rows {
 		"id", "sku", "name", "barcode", "category_id", "category_name",
 		"price", "cost", "stock", "status", "store_id",
 		"brand_id", "brand_name", "unit_of_measure_id", "unit_of_measure", "weight_grams", "description",
-		"tax_class_id", "tax_rate", "created_at", "updated_at",
+		"tax_class_id", "tax_rate", "supplier_id", "supplier_name", "created_at", "updated_at",
 	})
 }
 
@@ -635,7 +639,7 @@ func TestRepo_GetAllProducts_NoFilters(t *testing.T) {
 		productFullRow(1, "SKU-001", "Widget", 10000, 5000, 100, "active"))
 
 	repo := NewRepository(mock)
-	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, nil, "")
+	products, total, err := repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, products, 1)
@@ -654,7 +658,7 @@ func TestRepo_GetAllProducts_WithSearch(t *testing.T) {
 		productFullRow(1, "SKU-001", "Widget", 10000, 5000, 100, "active"))
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "widget", nil, "", "", nil, nil, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "widget", nil, "", "", nil, nil, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -669,7 +673,7 @@ func TestRepo_GetAllProducts_WithCategoryIDs(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2, 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", []int{1, 2}, "", "", nil, nil, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", []int{1, 2}, "", "", nil, nil, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -685,7 +689,7 @@ func TestRepo_GetAllProducts_WithStoreID(t *testing.T) {
 
 	repo := NewRepository(mock)
 	sid := 1
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, &sid, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", nil, &sid, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -700,7 +704,7 @@ func TestRepo_GetAllProducts_WithStatus(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs("active", 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "active", nil, nil, "active")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "active", nil, nil, "active", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -716,7 +720,7 @@ func TestRepo_GetAllProducts_WithMaxStock(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", &ms, nil, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "", "", &ms, nil, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -730,7 +734,7 @@ func TestRepo_GetAllProducts_WithSortByValid(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "v.name", "ASC", nil, nil, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "v.name", "ASC", nil, nil, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -744,7 +748,7 @@ func TestRepo_GetAllProducts_WithSortByInvalid(t *testing.T) {
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(10, 0).WillReturnRows(emptyProductCols())
 
 	repo := NewRepository(mock)
-	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "evil_col", "ASC", nil, nil, "")
+	_, _, err = repo.GetAllProducts(context.Background(), 10, 0, "", nil, "evil_col", "ASC", nil, nil, "", nil)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -809,18 +813,21 @@ func TestRepo_GetProductsByIDs_MultipleRows(t *testing.T) {
 		"price", "cost", "stock", "status", "store_id",
 		"brand_id", "brand_name", "unit_of_measure_id", "unit_of_measure", "weight_grams", "description",
 		"tax_class_id", "tax_rate",
+		"supplier_id", "supplier_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		1, "SKU-001", "Widget A", "123456", 10, "Electronics",
 		10000, 5000, 100, "active", 1,
 		5, "BrandA", 3, "pcs", 500, "A product",
 		2, 0.11,
+		nil, nil,
 		time.Now(), time.Now(),
 	).AddRow(
 		2, "SKU-002", "Widget B", "789012", 10, "Electronics",
 		20000, 10000, 50, "active", 1,
 		5, "BrandA", 3, "pcs", 500, "B product",
 		2, 0.11,
+		1, "SupplierX",
 		time.Now(), time.Now(),
 	)
 	mock.ExpectQuery("SELECT.+FROM v_products_full").WithArgs(1, 2).WillReturnRows(rows)

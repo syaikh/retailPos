@@ -60,6 +60,8 @@ export interface Product {
   status?: string;
   store_id?: number;
   store_name?: string;
+  supplier_id?: number;
+  supplier_name?: string;
   created_at?: string;
   updated_at?: string;
 }

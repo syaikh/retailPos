@@ -54,6 +54,8 @@
   let adjustNotes = $state('');
   let lowStockOnly = $state(false);
   let filterStatus = $state('all');
+  let supplierFilterId = $state<number | null>(null);
+  let supplierFilterName = $state('');
 
   let previousCategories = ['All'];
   let sortBy = $state<string>('name');
@@ -107,6 +109,8 @@
     lowStockOnly = false;
     previousCategories = ['All'];
     selectedCategories = ['All'];
+    supplierFilterId = null;
+    supplierFilterName = '';
     offset = 0;
     fetchProducts(0, limit);
   }
@@ -235,6 +239,7 @@
       if (filteredCategories.length > 0) params.append('category', filteredCategories.join(','));
       if (lowStockOnly) params.append('maxStock', criticalThreshold.toString());
       if (filterStatus !== 'all') params.append('status', filterStatus);
+      if (supplierFilterId !== null) params.append('supplier_id', supplierFilterId.toString());
       const r = await apiClient.get(`/products?${params.toString()}`);
       products = r.data.data || [];
       total = r.data.total || 0;
@@ -475,6 +480,16 @@
   onMount(() => {
     isInitialMount = true;
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const sidParam = urlParams.get('supplier_id');
+    if (sidParam) {
+      const sid = parseInt(sidParam, 10);
+      if (!isNaN(sid) && sid > 0) {
+        supplierFilterId = sid;
+        supplierFilterName = urlParams.get('supplier_name') || `Supplier #${sid}`;
+      }
+    }
+
     (async () => {
       try {
         await Promise.all([
@@ -530,6 +545,8 @@
     bind:lowStockOnly
     {canManageInventory}
     {canCreate}
+    {supplierFilterId}
+    {supplierFilterName}
     onsearch={handleSearchInput}
     onfiltercategory={() => showCategoryFilterModal = true}
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}

@@ -158,9 +158,9 @@
                   {/if}
                 </div>
               {/each}
-              {#if products.length > 5}
+              {#if products.length > 0}
                 <Button variant="ghost" size="sm" class="w-full" onclick={() => onviewproducts(supplier)}>
-                  View all {products.length} products
+                  View all {products.length} products →
                 </Button>
               {/if}
             </div>

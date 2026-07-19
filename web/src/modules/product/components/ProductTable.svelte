@@ -92,6 +92,7 @@
         <th class="text-left p-4 font-semibold w-24">UOM</th>
         <th class="p-4 font-semibold w-28 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
         <th class="p-4 font-semibold w-20 text-right"><span class="flex items-center justify-end gap-1">STOCK</span></th>
+        <th class="text-left p-4 font-semibold w-36">SUPPLIER</th>
         <th class="text-left p-4 font-semibold w-20">STATUS</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
@@ -106,6 +107,7 @@
           <td class="p-4 w-24"><Skeleton class="h-4 w-1/2" /></td>
           <td class="p-4 text-right w-28"><Skeleton class="h-4 w-1/2 ml-auto" /></td>
           <td class="p-4 text-right w-20"><Skeleton class="h-4 w-1/3 ml-auto" /></td>
+          <td class="p-4 w-36"><Skeleton class="h-4 w-2/3" /></td>
           <td class="p-4 w-20"><Skeleton class="h-6 w-16 rounded-full" /></td>
           <td class="p-4 w-10"><Skeleton class="h-4 w-8" /></td>
         </tr>
@@ -143,6 +145,7 @@
         <th class="p-4 font-semibold w-20">
           <SortableHeader label="STOCK" column="stock" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
+        <th class="text-left p-4 font-semibold w-36">SUPPLIER</th>
         <th class="text-left p-4 font-semibold w-20">STATUS</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
@@ -201,6 +204,7 @@
               <Badge variant="success" size="sm">{product.stock}</Badge>
             {/if}
           </td>
+          <td class="p-4 w-36 truncate text-text-secondary text-sm" title={product.supplier_name || ''}>{product.supplier_name || '—'}</td>
           <td class="p-4 w-24">
             <Badge variant={statusInfo(product.status).variant} size="sm">{statusInfo(product.status).label}</Badge>
           </td>

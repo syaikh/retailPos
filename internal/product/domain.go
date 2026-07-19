@@ -21,6 +21,8 @@ type Product struct {
 	UnitOfMeasureID    *int     `json:"unit_of_measure_id,omitempty"`
 	UnitOfMeasure      *string  `json:"unit_of_measure,omitempty"`
 	DefaultDiscountPct *float64 `json:"default_discount_percent,omitempty"`
+	SupplierID         *int     `json:"supplier_id,omitempty"`
+	SupplierName       *string  `json:"supplier_name,omitempty"`
 	CreatedAt          string   `json:"created_at,omitempty"`
 	UpdatedAt          string   `json:"updated_at,omitempty"`
 }

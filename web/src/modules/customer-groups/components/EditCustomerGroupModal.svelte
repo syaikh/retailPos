@@ -94,8 +94,8 @@
         bind:value={description}
       />
     </div>
-    <div class="space-y-1">
-      <label class="text-xs font-semibold text-text-secondary">Warna Avatar</label>
+    <div class="space-y-1" role="group" aria-labelledby="cg-color-label">
+      <span id="cg-color-label" class="text-xs font-semibold text-text-secondary">Warna Avatar</span>
       <div class="flex gap-2">
         {#each COLORS as c}
           <button

@@ -38,7 +38,7 @@ func parseIDs(raw string) []int {
 }
 
 type ProductService interface {
-	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string) ([]Product, int, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
 	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
 	CreateProduct(ctx context.Context, product *Product) error
@@ -167,7 +167,14 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	storeID := shared.GetStoreID(c)
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status)
+	var supplierID *int
+	if sid := c.Query("supplier_id"); sid != "" {
+		if val, err := strconv.Atoi(sid); err == nil && val > 0 {
+			supplierID = &val
+		}
+	}
+
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), limit, offset, search, sortBy, sortDir, category, storeID, isActive, maxStock, status, supplierID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
 		return

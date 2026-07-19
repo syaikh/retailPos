@@ -10,6 +10,8 @@
     lowStockOnly = $bindable(false),
     canManageInventory = false,
     canCreate = false,
+    supplierFilterId = null,
+    supplierFilterName = '',
     onsearch = () => {},
     onfiltercategory = () => {},
     onrefresh = () => {},
@@ -24,6 +26,8 @@
     lowStockOnly?: boolean;
     canManageInventory?: boolean;
     canCreate?: boolean;
+    supplierFilterId?: number | null;
+    supplierFilterName?: string;
     onsearch?: () => void;
     onfiltercategory?: () => void;
     onrefresh?: () => void;
@@ -52,6 +56,9 @@
     if (lowStockOnly) {
       chips.push({ type: 'stock', label: 'Low Stock' });
     }
+    if (supplierFilterId !== null) {
+      chips.push({ type: 'supplier', label: `Supplier: ${supplierFilterName}` });
+    }
     return chips;
   });
 
@@ -59,6 +66,7 @@
     if (type === 'status') filterStatus = 'all';
     if (type === 'category') selectedCategories = ['All'];
     if (type === 'stock') lowStockOnly = false;
+    if (type === 'supplier') { supplierFilterId = null; supplierFilterName = ''; }
     onrefresh();
   }
 </script>

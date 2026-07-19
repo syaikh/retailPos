@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, Skeleton, SortableHeader, Badge, Tooltip } from '$shared/ui';
-  import { Pencil, Trash2, Truck } from 'lucide-svelte';
+  import { Button, Skeleton, SortableHeader, Badge, Tooltip, Dropdown } from '$shared/ui';
+  import { Pencil, Trash2, Truck, Copy, Package, MoreVertical } from 'lucide-svelte';
   import type { Supplier } from '../types';
 
   function timeAgo(dateStr: string | undefined): string {
@@ -208,13 +208,34 @@
               </Badge>
             </td>
             <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end gap-1" role="group" aria-label="Actions for {supplier.name}">
-                {#if canEdit}
-                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light" onclick={() => onedit(supplier)} aria-label="Edit {supplier.name}"><Pencil class="w-4 h-4" /></Button>
-                {/if}
-                {#if canDelete}
-                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle" onclick={() => ondelete(supplier)} aria-label="Delete {supplier.name}"><Trash2 class="w-4 h-4" /></Button>
-                {/if}
+              <div class="flex items-center justify-center" role="group" aria-label="Actions for {supplier.name}">
+                <Dropdown placement="bottom-end" items={[]}>
+                  {#snippet content({ close })}
+                    <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onviewproducts(supplier); close(); }}>
+                      <Package size={14} /> Lihat Produk
+                    </button>
+                    {#if canEdit}
+                      <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onedit(supplier); close(); }}>
+                        <Pencil size={14} /> Edit
+                      </button>
+                    {/if}
+                    {#if canCreate}
+                      <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onduplicate(supplier); close(); }}>
+                        <Copy size={14} /> Duplikasi
+                      </button>
+                    {/if}
+                    {#if canDelete}
+                      <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem" onclick={() => { ondelete(supplier); close(); }}>
+                        <Trash2 size={14} /> Hapus
+                      </button>
+                    {/if}
+                  {/snippet}
+                  {#snippet trigger({ toggle })}
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={(e) => { e.stopPropagation(); toggle(); }} aria-label="Actions for {supplier.name}">
+                      <MoreVertical size={16} />
+                    </Button>
+                  {/snippet}
+                </Dropdown>
               </div>
             </td>
           </tr>

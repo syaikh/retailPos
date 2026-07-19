@@ -10,7 +10,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string) ([]Product, int, error) {
+func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int) ([]Product, int, error) {
 	var products []Product
 	var total int
 
@@ -46,6 +46,12 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	if status != "" {
 		query += fmt.Sprintf(" AND v.status = $%d", argIdx)
 		args = append(args, status)
+		argIdx++
+	}
+	if supplierID != nil {
+		query += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx)
+		args = append(args, *supplierID)
+		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
@@ -53,12 +59,8 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		return nil, 0, fmt.Errorf("failed to count products: %w", err)
 	}
 
-	query2 := `SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status, v.store_id,
-		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
-		       v.tax_class_id, v.tax_rate,
-		       v.created_at, v.updated_at
-		FROM v_products_full v
-		WHERE 1=1`
+	query2 := fmt.Sprintf(`%s
+		WHERE 1=1`, productSelectCols)
 	args2 := []interface{}{}
 	argIdx2 := 1
 	if search != "" {
@@ -90,6 +92,11 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		args2 = append(args2, status)
 		argIdx2++
 	}
+	if supplierID != nil {
+		query2 += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx2)
+		args2 = append(args2, *supplierID)
+		argIdx2++
+	}
 	allowedSortBy := map[string]bool{"v.id": true, "v.name": true, "v.sku": true, "v.barcode": true, "v.price": true, "v.status": true, "v.created_at": true, "v.updated_at": true, "v.stock": true, "category_name": true, "brand_name": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
 	if sortBy != "" && allowedSortBy[sortBy] {
@@ -116,11 +123,14 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		var taxClassIDVal sql.NullInt64
 		var taxRateVal sql.NullFloat64
 		var categoryName, brandName, unitOfMeasure, descriptionVal sql.NullString
+		var supplierIDVal sql.NullInt64
+		var supplierNameVal sql.NullString
 		var createdAt, updatedAt time.Time
 
 		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
 			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
 			&taxClassIDVal, &taxRateVal,
+			&supplierIDVal, &supplierNameVal,
 			&createdAt, &updatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan product: %w", err)
@@ -167,6 +177,13 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 		if storeIDVal.Valid {
 			v := int(storeIDVal.Int64)
 			p.StoreID = &v
+		}
+		if supplierIDVal.Valid {
+			v := int(supplierIDVal.Int64)
+			p.SupplierID = &v
+		}
+		if supplierNameVal.Valid {
+			p.SupplierName = &supplierNameVal.String
 		}
 		p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -228,12 +245,7 @@ func (r *Repository) GetDeletedProductByBarcode(ctx context.Context, barcode str
 }
 
 func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status,
-		       v.store_id, v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
-		       v.tax_class_id, v.tax_rate,
-		       v.created_at, v.updated_at
-		FROM v_products_full v
+	rows, err := r.db.Query(ctx, productSelectCols+`
 		ORDER BY v.name
 	`)
 	if err != nil {
@@ -243,67 +255,11 @@ func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, er
 
 	var products []Product
 	for rows.Next() {
-		var p Product
-		var barcodeVal sql.NullString
-		var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
-		var taxClassIDVal sql.NullInt64
-		var taxRateVal sql.NullFloat64
-		var categoryName, brandName, unitOfMeasure, descriptionVal sql.NullString
-		var createdAt, updatedAt time.Time
-
-		err = rows.Scan(&p.ID, &p.SKU, &p.Name, &barcodeVal, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-			&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &descriptionVal,
-			&taxClassIDVal, &taxRateVal,
-			&createdAt, &updatedAt)
+		p, err := scanProductFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		if barcodeVal.Valid {
-			p.Barcode = &barcodeVal.String
-		}
-		if categoryIDVal.Valid {
-			v := int(categoryIDVal.Int64)
-			p.CategoryID = &v
-		}
-		if categoryName.Valid {
-			p.CategoryName = &categoryName.String
-		}
-		if brandIDVal.Valid {
-			v := int(brandIDVal.Int64)
-			p.BrandID = &v
-		}
-		if brandName.Valid {
-			p.BrandName = &brandName.String
-		}
-		if unitOfMeasureIDVal.Valid {
-			v := int(unitOfMeasureIDVal.Int64)
-			p.UnitOfMeasureID = &v
-		}
-		if unitOfMeasure.Valid {
-			p.UnitOfMeasure = &unitOfMeasure.String
-		}
-		if weightGramsVal.Valid {
-			v := int(weightGramsVal.Int64)
-			p.WeightGrams = &v
-		}
-		if descriptionVal.Valid {
-			p.Description = &descriptionVal.String
-		}
-		if taxClassIDVal.Valid {
-			v := int(taxClassIDVal.Int64)
-			p.TaxClassID = &v
-		}
-		if taxRateVal.Valid {
-			v := taxRateVal.Float64
-			p.TaxRate = &v
-		}
-		if storeIDVal.Valid {
-			v := int(storeIDVal.Int64)
-			p.StoreID = &v
-		}
-		p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-		p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-		products = append(products, p)
+		products = append(products, *p)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

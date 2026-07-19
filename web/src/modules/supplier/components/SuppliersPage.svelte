@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
+  import { goto } from '$app/router';
   import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, bulkUpdateSuppliers, bulkDeleteSuppliers } from '../services/supplier-service';
   import type { Supplier } from '../types';
   import { Pagination } from '$shared/ui';
@@ -189,6 +190,11 @@
     showFormModal = true;
   }
 
+  function viewSupplierProducts(supplier: Supplier) {
+    const params = new URLSearchParams({ supplier_id: supplier.id.toString(), supplier_name: supplier.name });
+    goto(`/inventory/products?${params.toString()}`);
+  }
+
   onMount(() => { load(); });
 </script>
 
@@ -219,6 +225,7 @@
       onedit={openEdit}
       ondelete={openDelete}
       onduplicate={duplicateSupplier}
+      onviewproducts={viewSupplierProducts}
       onrowclick={openDetail}
       onbulkactivate={handleBulkActivate}
       onbulkdeactivate={handleBulkDeactivate}
@@ -259,4 +266,5 @@
   onclose={() => { showDetailDrawer = false; detailSupplier = null; }}
   onedit={(s) => { showDetailDrawer = false; openEdit(s); }}
   ondelete={(s) => { showDetailDrawer = false; openDelete(s); }}
+  onviewproducts={(s) => { showDetailDrawer = false; viewSupplierProducts(s); }}
 />
