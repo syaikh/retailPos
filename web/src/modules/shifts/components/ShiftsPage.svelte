@@ -25,6 +25,7 @@
   let showOpenModal = $state(false);
   let showCloseModal = $state(false);
   let openingBalance = $state(0);
+  let openingDisplay = $state('');
   let closingBalance = $state(0);
   let closeNotes = $state('');
   let isSubmitting = $state(false);
@@ -68,6 +69,7 @@
       await store.doOpenShift(null, openingBalance);
       showOpenModal = false;
       openingBalance = 0;
+      openingDisplay = '';
       loadShifts();
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Failed to open shift');
@@ -124,6 +126,17 @@
       showOpenModal = false;
       showCloseModal = false;
       showDetailModal = false;
+    }
+  }
+
+  function handleOpeningInput(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const digits = input.value.replace(/\D/g, '');
+    openingBalance = digits === '' ? 0 : parseInt(digits, 10);
+    openingDisplay = openingBalance > 0 ? openingBalance.toLocaleString('id-ID') : '';
+    if (input.value !== openingDisplay) {
+      input.value = openingDisplay;
+      input.setSelectionRange(openingDisplay.length, openingDisplay.length);
     }
   }
 
@@ -331,14 +344,18 @@
       <label for="opening-balance" class="block text-sm font-medium text-text-secondary mb-2">
         Opening Balance (Rp)
       </label>
-      <Input
-        id="opening-balance"
-        type="number"
-        bind:value={openingBalance}
-        placeholder="Enter opening balance"
-        min="0"
-        required
-      />
+      <div class="flex items-center gap-1 bg-surface-default border border-border rounded-lg px-3 h-10 w-full {openingBalance > 0 ? 'border-primary' : ''}">
+        <span class="text-xs text-text-muted font-medium shrink-0">Rp</span>
+        <input
+          type="text"
+          inputmode="numeric"
+          value={openingDisplay}
+          placeholder="0"
+          class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
+          oninput={handleOpeningInput}
+          required
+        />
+      </div>
       <p class="text-xs text-text-muted mt-1">Amount of cash in the drawer at shift start</p>
     </div>
   </form>
