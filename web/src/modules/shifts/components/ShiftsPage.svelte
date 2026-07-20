@@ -136,24 +136,38 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="space-y-5">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary">Shift Management</h1>
-      <p class="text-sm text-text-muted mt-1">Manage cashier shifts and balances</p>
-    </div>
-    <div class="flex gap-3">
-      {#if store.activeShift}
-        <Button variant="danger" onclick={() => { showCloseModal = true; closingBalance = store.activeShift?.opening_balance || 0; }}>
-          <Lock size={16} class="mr-2" />
-          Close Shift
-        </Button>
-      {:else}
-        <Button variant="primary" onclick={() => { showOpenModal = true; openingBalance = 0; }}>
-          <Plus size={16} class="mr-2" />
-          Open Shift
-        </Button>
-      {/if}
+  <!-- Toolbar -->
+  <div class="card p-4">
+    <div class="flex items-center gap-4">
+      <Dropdown placement="bottom-start" items={[
+        { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
+        { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
+        { label: 'Closed', checked: store.statusFilter === 'closed', onclick: () => { store.statusFilter = 'closed'; } },
+      ]}>
+        {#snippet trigger({ toggle })}
+          <button
+            type="button"
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+            onclick={toggle}
+          >
+            <span>{store.statusFilter === '' ? 'All Status' : store.statusFilter === 'open' ? 'Open' : 'Closed'}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+        {/snippet}
+      </Dropdown>
+      <div class="ml-auto">
+        {#if store.activeShift}
+          <Button variant="danger" onclick={() => { showCloseModal = true; closingBalance = store.activeShift?.opening_balance || 0; }}>
+            <Lock size={16} class="mr-2" />
+            Close Shift
+          </Button>
+        {:else}
+          <Button variant="primary" onclick={() => { showOpenModal = true; openingBalance = 0; }}>
+            <Plus size={16} class="mr-2" />
+            Open Shift
+          </Button>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -190,26 +204,6 @@
       </div>
     </div>
   {/if}
-
-  <!-- Filter -->
-  <div class="flex items-center gap-3">
-    <Dropdown placement="bottom-start" items={[
-      { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
-      { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
-      { label: 'Closed', checked: store.statusFilter === 'closed', onclick: () => { store.statusFilter = 'closed'; } },
-    ]}>
-      {#snippet trigger({ toggle })}
-        <button
-          type="button"
-          class="flex items-center gap-2 px-3 h-9 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
-          onclick={toggle}
-        >
-          <span>{store.statusFilter === '' ? 'All Status' : store.statusFilter === 'open' ? 'Open' : 'Closed'}</span>
-          <ChevronDown size={14} class="text-text-muted shrink-0" />
-        </button>
-      {/snippet}
-    </Dropdown>
-  </div>
 
   <!-- Table -->
   <div class="bg-surface rounded-xl border border-border overflow-hidden">

@@ -39,6 +39,7 @@
 		'/pricing-rules':      'Pricing Rules',
 		'/customer-groups':    'Customer Groups',
 		'/suppliers':          'Suppliers',
+		'/shifts':             'Shifts',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',
 		'/units-of-measure/import-history': 'Import History',
