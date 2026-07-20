@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, SearchBar, BulkActionDropdown } from '$shared/ui';
-  import { Plus } from 'lucide-svelte';
+  import { Button, SearchBar, BulkActionDropdown, Dropdown } from '$shared/ui';
+  import { Plus, Users, ChevronDown } from 'lucide-svelte';
 
   let {
     searchQuery = $bindable(''),
@@ -52,16 +52,28 @@
         Inactive
       </button>
     </div>
-    <select
-      class="h-9 px-3 rounded-lg border border-border-default bg-bg-secondary text-xs font-medium text-text-secondary appearance-none hover:border-border-strong hover:bg-surface-hover transition-colors"
-      bind:value={groupFilter}
-      onchange={() => ongroupchange()}
+    <Dropdown
+      items={[
+        { label: 'All Groups', checked: groupFilter === 'all', onclick: () => { groupFilter = 'all'; ongroupchange(); } },
+        ...(groups.length > 0 ? [{ divider: true }] : []),
+        ...groups.map(g => ({
+          label: g.name,
+          checked: groupFilter === String(g.id),
+          onclick: () => { groupFilter = String(g.id); ongroupchange(); },
+        })),
+      ]}
     >
-      <option value="all">All Groups</option>
-      {#each groups as g}
-        <option value={String(g.id)}>{g.name}</option>
-      {/each}
-    </select>
+      {#snippet trigger({ toggle })}
+        <button
+          class="h-9 px-3 rounded-lg border border-border-default bg-bg-secondary text-xs font-medium text-text-secondary hover:border-border-strong hover:bg-surface-hover transition-colors flex items-center gap-2 shrink-0"
+          onclick={toggle}
+        >
+          <Users size={14} />
+          {groupFilter === 'all' ? 'All Groups' : (groups.find(g => String(g.id) === groupFilter)?.name || 'All Groups')}
+          <ChevronDown size={14} />
+        </button>
+      {/snippet}
+    </Dropdown>
     {#if canCreate}
       <BulkActionDropdown module="customers" canExport={canCreate} canImport={canCreate} {onImport} />
       <Button onclick={oncreate} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
