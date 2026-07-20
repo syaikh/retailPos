@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
@@ -59,6 +59,7 @@
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
+    { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
   const masterDataSubItems = [
@@ -76,6 +77,7 @@
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
+    { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
   const managerMasterDataSubItems = [
@@ -93,10 +95,12 @@
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
+    { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
   const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
+    { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
   const staffMasterDataSubItems = [

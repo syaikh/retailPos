@@ -47,6 +47,7 @@
     '/suppliers':          'Supplier Management',
     '/admin/brands':       'Brand Management',
     '/admin/units-of-measure': 'Unit of Measure Management',
+    '/shifts':             'Shift Management',
   };
 
   const pageModules = {
@@ -75,6 +76,7 @@
     '/suppliers':           () => import('$modules/supplier/components/SuppliersPage.svelte'),
     '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
     '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
+    '/shifts':              () => import('$modules/shifts/components/ShiftsPage.svelte'),
   };
 
   let loadId = 0;
@@ -103,7 +105,8 @@
     if (!requiredPerms) return true;
     const authStore = useAuthStore();
     const userPerms = authStore.user?.permissions || [];
-    return requiredPerms.some(p => userPerms.includes(p));
+    const result = requiredPerms.some(p => userPerms.includes(p));
+    return result;
   }
 
   async function handleRoute(fullPath) {
@@ -150,10 +153,8 @@
   async function initializeRoute(path) {
     await initAuth();
     const authStore = useAuthStore();
-    console.log('[main] initAuth complete | isAuthenticated:', authStore.isAuthenticated, '| path:', path);
 
     if (!authStore.isAuthenticated) {
-      console.log('[main] Not authenticated, redirecting to login');
       if (path !== '/login') {
         Component = LoginPage;
         currentPath = '/login';
@@ -168,7 +169,6 @@
       return;
     }
 
-    console.log('[main] Authenticated, calling initWebSocket');
     wsInitialized = true;
     initWebSocket();
     startProactiveRefresh();

@@ -33,6 +33,7 @@ import (
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
@@ -166,6 +167,7 @@ func main() {
 	supplierRepo := supplier.NewRepository(dbPool)
 	customerGroupRepo := customergroup.NewRepository(dbPool)
 	storeRepo := store.NewRepository(dbPool)
+	shiftRepo := shift.NewRepository(dbPool)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo)
@@ -185,6 +187,7 @@ func main() {
 	supplierSvc := supplier.NewService(supplierRepo)
 	customerGroupSvc := customergroup.NewService(customerGroupRepo)
 	storeSvc := store.NewService(storeRepo)
+	shiftSvc := shift.NewService(shiftRepo)
 
 	userH := user.NewHandler(userSvc, auditSvc)
 	authH := user.NewAuthHandler(authSvc, auditSvc)
@@ -202,6 +205,7 @@ func main() {
 	supplierH := supplier.NewHandler(supplierSvc, auditSvc)
 	customerGroupH := customergroup.NewHandler(customerGroupSvc, auditSvc)
 	storeH := store.NewHandler(storeSvc, auditSvc)
+	shiftH := shift.NewHandler(shiftSvc, auditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)
@@ -294,6 +298,7 @@ func main() {
 		ieH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		pricingH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		supplierH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		shiftH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

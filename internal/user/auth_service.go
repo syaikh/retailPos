@@ -83,7 +83,6 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 	for i, p := range permissions {
 		perms[i] = p.Code
 	}
-
 	accessToken, err := s.generateToken(user, perms, s.accessTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)

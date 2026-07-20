@@ -26,4 +26,5 @@ export const routePermissions: Record<string, string[]> = {
 	'/pricing-rules': ['pricing:read'],
 	'/customer-groups': ['customer_group:read'],
 	'/suppliers': ['pricing:read'],
+	'/shifts': ['shift:read'],
 };

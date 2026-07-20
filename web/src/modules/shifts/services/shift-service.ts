@@ -1,0 +1,54 @@
+import apiClient from '$shared/api/http-client';
+import type { Shift, ShiftFilters } from '../types';
+
+export async function openShift(storeId: number | null, openingBalance: number): Promise<Shift> {
+  const res = await apiClient.post('/shifts/open', {
+    store_id: storeId,
+    opening_balance: openingBalance,
+  });
+  return res.data.data;
+}
+
+export async function closeShift(
+  shiftId: number,
+  closingBalance: number,
+  notes: string | null
+): Promise<Shift> {
+  const res = await apiClient.post(`/shifts/${shiftId}/close`, {
+    closing_balance: closingBalance,
+    notes,
+  });
+  return res.data.data;
+}
+
+export async function getActiveShift(): Promise<Shift | null> {
+  try {
+    const res = await apiClient.get('/shifts/active');
+    return res.data.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function listShifts(filters: ShiftFilters): Promise<{ data: Shift[]; total: number }> {
+  const params = new URLSearchParams({
+    limit: filters.limit.toString(),
+    offset: filters.offset.toString(),
+    sort_by: filters.sortBy,
+    sort_dir: filters.sortDir,
+  });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.userId) params.set('user_id', filters.userId.toString());
+
+  const res = await apiClient.get(`/shifts?${params.toString()}`);
+  return { data: res.data.data || [], total: res.data.total || 0 };
+}
+
+export async function getShiftById(id: number): Promise<Shift | null> {
+  try {
+    const res = await apiClient.get(`/shifts/${id}`);
+    return res.data.data;
+  } catch {
+    return null;
+  }
+}
