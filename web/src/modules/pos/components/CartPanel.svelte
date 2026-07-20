@@ -1,8 +1,11 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
+  import { tick } from 'svelte';
   import { Badge, Button } from '$shared/ui';
-  import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Search } from 'lucide-svelte';
+  import { ShoppingCart, X, Minus, Plus, Wallet, Printer } from 'lucide-svelte';
+
+  let scrollEl: HTMLDivElement | undefined = $state();
 
   let {
     cart = [],
@@ -11,9 +14,6 @@
     subtotal = 0,
     taxAmount = 0,
     dppDisplay = 0,
-    paymentMethod = $bindable('Cash'),
-    paymentOptions = [],
-    selectedCustomerLabel = '',
     lastSale = null,
     checkingOut = false,
     class: className = '',
@@ -22,7 +22,6 @@
     onclearcart = () => {},
     oncheckout = () => {},
     onprintreceipt = () => {},
-    onselectcustomer = () => {},
   }: {
     cart: any[];
     totalAmount: number;
@@ -30,9 +29,6 @@
     subtotal: number;
     taxAmount: number;
     dppDisplay: number;
-    paymentMethod: string;
-    paymentOptions: any[];
-    selectedCustomerLabel: string;
     lastSale: any;
     checkingOut: boolean;
     class?: string;
@@ -41,8 +37,18 @@
     onclearcart?: () => void;
     oncheckout?: () => void;
     onprintreceipt?: () => void;
-    onselectcustomer?: () => void;
   } = $props();
+
+  let prevCartLen = $state(0);
+
+  $effect(() => {
+    if (cart.length > prevCartLen && scrollEl) {
+      tick().then(() => {
+        scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+      });
+    }
+    prevCartLen = cart.length;
+  });
 </script>
 
 <div class={`card flex flex-col overflow-hidden p-0 sticky top-0 h-[calc(100vh-120px)] max-h-[800px] ${className}`}>
@@ -73,10 +79,10 @@
       <p class="text-text-muted text-xs mt-1">Add products to start selling</p>
     </div>
   {:else}
-    <div class="flex-1 overflow-y-auto divide-y divide-border overflow-x-hidden">
+    <div bind:this={scrollEl} class="flex-1 overflow-y-auto divide-y divide-border overflow-x-hidden">
       {#each cart as item (item.id)}
         <div
-          class="flex items-start gap-3 px-4 py-3 hover:bg-surface-hover/50 transition-colors"
+          class="flex items-start gap-3 px-4 py-2.5 hover:bg-surface-hover/50 transition-colors"
           animate:flip={{ duration: 300 }}
           transition:slide={{ duration: 250 }}
         >
@@ -155,13 +161,13 @@
     </div>
   {/if}
 
-  <div class="border-t border-border p-4 space-y-3 bg-bg-secondary shrink-0">
+  <div class="border-t border-border px-4 py-3 space-y-2 bg-bg-secondary shrink-0">
     {#if taxAmount > 0}
-      <div class="flex justify-between text-xs text-text-muted">
+      <div class="flex justify-between text-[11px] text-text-muted leading-tight">
         <span>DPP</span>
         <span>{dppDisplay.toLocaleString('id-ID')}</span>
       </div>
-      <div class="flex justify-between text-xs text-text-muted">
+      <div class="flex justify-between text-[11px] text-text-muted leading-tight">
         <span>PPN 11%</span>
         <span>{taxAmount.toLocaleString('id-ID')}</span>
       </div>
@@ -171,32 +177,9 @@
       <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
     </div>
 
-    <div>
-      <p class="text-xs text-text-muted mb-2 font-medium">Payment method</p>
-      <div class="grid grid-cols-3 gap-2">
-        {#each paymentOptions as opt}
-          <button
-            class="flex flex-col items-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-            onclick={() => paymentMethod = opt.id}
-          >
-            <opt.icon size={16} />
-            {opt.label}
-          </button>
-        {/each}
-      </div>
-    </div>
-
-    <div>
-      <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
-      <Button variant="secondary" class="w-full justify-between" onclick={onselectcustomer}>
-        <span class="truncate">{selectedCustomerLabel}</span>
-        <Search size={14} />
-      </Button>
-    </div>
-
     <Button
       variant="success"
-      class="w-full py-3"
+      class="w-full py-2.5"
       onclick={oncheckout}
       disabled={checkingOut || cart.length === 0}
     >
@@ -209,19 +192,18 @@
       {/if}
     </Button>
 
-    <Button
-      variant="ghost"
-      class="w-full py-2 mt-2"
+    <button
+      class="w-full flex items-center justify-center gap-1.5 text-[11px] text-text-muted hover:text-text-secondary py-1 transition-colors"
       onclick={onprintreceipt}
       disabled={!lastSale || !lastSale.invoice_number}
     >
-      <Printer size={16} />
+      <Printer size={12} />
       {#if lastSale && lastSale.invoice_number}
         Print Last Receipt · {lastSale.invoice_number}
       {:else}
         Print Last Receipt
       {/if}
-    </Button>
+    </button>
   </div>
 </div>
 

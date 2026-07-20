@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { Button } from '$shared/ui';
-  import { X, Check, Search } from 'lucide-svelte';
+  import { X, Check, User, ChevronRight } from 'lucide-svelte';
   import { tick } from 'svelte';
 
   const quickCashPresets = [50000, 100000, 200000, 500000, 1000000];
@@ -56,6 +56,10 @@
     cashReceived = raw ? parseInt(raw, 10) : 0;
   }
 
+  function formatCash(val: number): string {
+    return val ? val.toLocaleString('id-ID') : '';
+  }
+
   function close() {
     showCheckoutModal = false;
     cashReceived = 0;
@@ -87,6 +91,10 @@
       }
     }
   }
+
+  $effect(() => {
+    cashReceived = paymentMethod === 'Cash' ? 0 : totalAmount;
+  });
 
   $effect(() => {
     if (showCheckoutModal) {
@@ -122,164 +130,148 @@
       bind:this={dialogEl}
       role="dialog"
       aria-modal="true"
-      aria-label="Pembayaran Selesai"
-      class="relative z-[55] w-full max-w-xl rounded-2xl border border-border-default bg-bg-card shadow-modal p-6"
+      aria-label="Pembayaran"
+      class="relative z-[55] w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5"
     >
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-text-primary">Pembayaran Selesai</h2>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold text-text-primary">Pembayaran</h2>
         <button
           onclick={close}
-          class="w-9 h-9 flex items-center justify-center rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
+          class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
           title="Tutup [F3 / Esc]"
           aria-label="Tutup"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
       </div>
 
-      <div class="mb-6 text-center">
+      <div class="mb-3 text-center">
         {#if taxAmount > 0}
-          <div class="flex justify-center gap-6 text-xs text-text-muted mb-2">
+          <div class="flex justify-center gap-4 text-[11px] text-text-muted mb-1">
             <span>DPP: {dppDisplay.toLocaleString('id-ID')}</span>
-            <span>PPN 11%: {taxAmount.toLocaleString('id-ID')}</span>
+            <span>PPN: {taxAmount.toLocaleString('id-ID')}</span>
           </div>
         {/if}
         {#if hasDiscountedItems}
-          <div class="flex justify-center text-xs text-green-500 mb-2">
-            <span>Hemat: {totalSavings.toLocaleString('id-ID')}</span>
+          <div class="text-[11px] text-green-500 mb-1">
+            Hemat: {totalSavings.toLocaleString('id-ID')}
           </div>
         {/if}
-        <p class="text-sm text-text-muted mb-1 font-medium">Total Tagihan</p>
-        <p class="text-4xl font-extrabold text-purple-400">
-          {totalAmount.toLocaleString('id-ID')}
+        <p class="text-3xl font-extrabold text-purple-400">
+          Rp {totalAmount.toLocaleString('id-ID')}
         </p>
       </div>
 
-      {#if hasDiscountedItems}
-        <div class="mb-4 rounded-xl border border-border/50 bg-surface/50 px-3 py-2.5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-text-muted mb-2">Rincian Item</p>
-          <div class="space-y-1.5 max-h-32 overflow-y-auto">
-            {#each cart as item}
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-text-secondary truncate max-w-[60%]">{item.name} × {item.quantity}</span>
-                <div class="flex items-center gap-2">
-                  {#if item.discount && item.discount > 0}
-                    <span class="line-through text-text-muted text-[10px]">{(item.original_price * item.quantity).toLocaleString('id-ID')}</span>
-                    <span class="text-text-primary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
-                  {:else}
-                    <span class="text-text-primary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
+      <div class="mb-3 rounded-lg border border-border/50 bg-surface/50 px-3 py-2">
+        <div class="space-y-1 max-h-40 overflow-y-auto">
+          {#each cart as item}
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-text-secondary truncate max-w-[60%]">{item.name} × {item.quantity}</span>
+              <span class="text-text-primary font-medium">
+                {#if item.discount && item.discount > 0}
+                  <span class="line-through text-text-muted mr-1">{(item.original_price * item.quantity).toLocaleString('id-ID')}</span>
+                {/if}
+                {(item.price * item.quantity).toLocaleString('id-ID')}
+              </span>
+            </div>
+          {/each}
         </div>
-      {/if}
+      </div>
 
-      <p class="text-xs text-text-muted mb-2 font-medium">Metode Pembayaran</p>
-      <div class="grid grid-cols-3 gap-2 mb-6">
+      <div class="grid grid-cols-3 gap-1.5 mb-3">
         {#each paymentOptions as opt}
           <button
-            class="flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+            class="py-2 rounded-xl border text-[11px] font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
             onclick={() => paymentMethod = opt.id}
           >
-            <opt.icon size={18} />
             {opt.label}
           </button>
         {/each}
       </div>
 
-      <div class="mb-4">
-        <p class="text-xs text-text-muted mb-1 font-medium">Customer</p>
-        <Button variant="secondary" class="w-full justify-between text-sm" onclick={() => onselectcustomer()}>
-          <span class="truncate">{selectedCustomerLabel}</span>
-          <Search size={14} />
-        </Button>
-      </div>
+      <button
+        class="w-full flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary py-1.5 px-2 rounded-lg hover:bg-surface-hover transition-colors mb-3"
+        onclick={() => onselectcustomer()}
+      >
+        <User size={14} class="shrink-0 text-text-muted" />
+        <span class="truncate">{selectedCustomerLabel}</span>
+        <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
+      </button>
 
       {#if paymentMethod === 'Cash'}
-        <div class="mb-4">
-          <label for="cash-received-input" class="text-xs text-text-muted mb-1.5 font-medium block">
-            Cash Received [F6] = Total
+        <div class="mb-3">
+          <label for="cash-received-input" class="text-[11px] text-text-muted mb-1 font-medium block">
+            Cash Received [F6]
           </label>
           <input
             id="cash-received-input"
             type="text"
             inputmode="numeric"
-            value={cashReceived || ''}
+            value={formatCash(cashReceived)}
             oninput={handleCashInput}
-            class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            class="w-full text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
           />
         </div>
 
-        <div class="flex flex-wrap gap-2 mb-4">
+        <div class="flex flex-wrap gap-1.5 mb-3">
           {#each quickCashPresets as preset}
             <button
-              class="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
+              class="px-3 py-1.5 rounded-lg border border-border text-[11px] font-semibold text-text-secondary hover:border-primary-light hover:text-primary-light transition-colors"
               onclick={() => cashReceived = preset}
             >
-              Rp {preset.toLocaleString('id-ID')}
+              {preset.toLocaleString('id-ID')}
             </button>
           {/each}
           <button
-            class="px-3.5 py-1.5 rounded-xl border border-primary-light text-xs font-semibold text-primary-light hover:bg-primary-subtle transition-colors"
+            class="px-3 py-1.5 rounded-lg border border-primary-light text-[11px] font-semibold text-primary-light hover:bg-primary-subtle transition-colors"
             onclick={() => cashReceived = totalAmount}
           >
-            Tepat ({totalAmount.toLocaleString('id-ID')})
+            Tepat
           </button>
         </div>
 
         <div
-          class="flex items-center justify-between p-4 rounded-xl
+          class="flex items-center justify-between px-3 py-2 rounded-lg
             {changeDue >= 0
               ? 'bg-success-subtle border border-success-default/20'
               : 'bg-danger-subtle border border-danger-default/20'}"
         >
-          <span class="text-sm font-medium text-text-secondary">Uang Kembali</span>
+          <span class="text-xs font-medium text-text-secondary">Kembali</span>
           <span
-            class="text-2xl font-extrabold
+            class="text-xl font-extrabold
               {changeDue >= 0 ? 'text-emerald-400' : 'text-danger-light'}"
           >
             {Math.abs(changeDue).toLocaleString('id-ID')}
             {#if changeDue < 0}
-              <span class="text-xs font-semibold text-danger-light ml-1">(kurang)</span>
+              <span class="text-[10px] font-semibold text-danger-light ml-1">(kurang)</span>
             {/if}
           </span>
         </div>
       {:else}
-        <div class="mb-4">
-          <label for="card-ewallet-amount-input" class="text-xs text-text-muted mb-1.5 font-medium block">
-            Jumlah Bayar
-          </label>
-          <input
-            id="card-ewallet-amount-input"
-            type="text"
-            inputmode="numeric"
-            value={cashReceived || ''}
-            oninput={handleCashInput}
-            class="text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            placeholder="0"
-          />
+        <div class="mb-3 text-center py-3 rounded-lg bg-surface/50 border border-border/50">
+          <p class="text-[11px] text-text-muted mb-1">Total yang harus dibayar</p>
+          <p class="text-2xl font-extrabold text-text-primary">Rp {totalAmount.toLocaleString('id-ID')}</p>
+          <p class="text-[11px] text-text-muted mt-1">Konfirmasi setelah pembayaran berhasil</p>
         </div>
       {/if}
 
-      <div class="flex gap-3 mt-6">
+      <div class="flex gap-2 mt-4">
         <Button
           variant="secondary"
-          class="flex-1"
+          class="flex-1 py-2"
           onclick={close}
         >
           Batal [F3]
         </Button>
         <Button
           variant="success"
-          class="flex-1"
+          class="flex-1 py-2"
           disabled={cart.length === 0 || changeDue < 0}
           onclick={onfinalize}
         >
-          <Check size={16} />
-          Selesai &amp; Cetak [Enter]
+          <Check size={14} />
+          Selesai [Enter]
         </Button>
       </div>
     </div>

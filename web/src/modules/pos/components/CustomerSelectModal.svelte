@@ -71,7 +71,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="fixed inset-0 z-[60] flex items-center justify-center" transition:fly={{ y: 40, duration: 300 }} onkeydown={handleKeydown} role="none">
     <div class="absolute inset-0 bg-black/60" onclick={close} role="presentation"></div>
-    <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
+    <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
       <div class="flex items-center justify-between mb-4">
         <h2 id="customer-modal-heading" class="text-lg font-bold text-text-primary">Pilih Customer</h2>
         <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Tutup">

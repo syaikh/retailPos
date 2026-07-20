@@ -76,7 +76,12 @@ let total: number = $state(0);
    let customerSearch = $state('');
    let customerResults: Customer[] = $state([]);
    let customerSearching = $state(false);
-   let selectedCustomerLabel = $derived(selectedCustomerId ? (customers.find(c => c.id === selectedCustomerId)?.name || '') : 'Walk-in / General');
+   let selectedCustomerLabel = $derived((() => {
+     if (!selectedCustomerId) return 'Walk-in / General';
+     return customers.find(c => c.id === selectedCustomerId)?.name
+       || customerResults.find(c => c.id === selectedCustomerId)?.name
+       || '';
+   })());
 
   const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
   const taxAmount = $derived(cart.reduce((sum, item) => {
@@ -599,9 +604,6 @@ let total: number = $state(0);
           {subtotal}
           {taxAmount}
           {dppDisplay}
-          bind:paymentMethod
-          {paymentOptions}
-          {selectedCustomerLabel}
           {lastSale}
           {checkingOut}
           onupdateqty={updateQty}
@@ -609,7 +611,6 @@ let total: number = $state(0);
           onclearcart={clearCart}
           oncheckout={openCheckoutModal}
           onprintreceipt={printReceipt}
-          onselectcustomer={() => (showCustomerModal = true)}
           class="!h-auto !max-h-none !sticky-none"
         />
       </div>
@@ -617,7 +618,7 @@ let total: number = $state(0);
   </div>
 
   <!-- Desktop cart (side panel) -->
-  <div class="hidden lg:block w-[340px] shrink-0">
+  <div class="hidden lg:block w-[380px] shrink-0">
     <CartPanel
       {cart}
       {totalAmount}
@@ -625,9 +626,6 @@ let total: number = $state(0);
       {subtotal}
       {taxAmount}
       {dppDisplay}
-      bind:paymentMethod
-      {paymentOptions}
-      {selectedCustomerLabel}
       {lastSale}
       {checkingOut}
       onupdateqty={updateQty}
@@ -635,7 +633,6 @@ let total: number = $state(0);
       onclearcart={clearCart}
       oncheckout={openCheckoutModal}
       onprintreceipt={printReceipt}
-      onselectcustomer={() => (showCustomerModal = true)}
     />
   </div>
 </div>
@@ -662,7 +659,16 @@ let total: number = $state(0);
   bind:customerSearch
   {customerResults}
   {customerSearching}
-  onselectcustomer={(id) => { selectedCustomerId = id; showCustomerModal = false; customerSearch = ''; }}
+  onselectcustomer={(id) => { 
+    selectedCustomerId = id;
+    if (id) {
+      const found = customerResults.find(c => c.id === id);
+      if (found && !customers.find(c => c.id === id)) {
+        customers = [...customers, found];
+      }
+    }
+    showCustomerModal = false;
+  }}
 />
 
 <style>
