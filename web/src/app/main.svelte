@@ -7,6 +7,7 @@
   import NotFoundPage from '$app/components/NotFoundPage.svelte';
   import { fade } from 'svelte/transition';
   import { routePermissions } from '$app/config/permissions';
+  import { getDefaultRoute } from '$shared/utils/default-route';
   import { toast } from '$shared/stores/toast.svelte';
 
   import Layout from '$app/layouts/Layout.svelte';
@@ -126,13 +127,14 @@
     }
 
     if (path === '/login') {
-      goto('/');
+      const defaultRoute = getDefaultRoute(useAuthStore().user);
+      goto(defaultRoute);
       return;
     }
 
     if (!hasRoutePermission(path)) {
       toast.error('You do not have permission to access this page');
-      goto('/');
+      goto(getDefaultRoute(useAuthStore().user));
       return;
     }
 
@@ -175,10 +177,12 @@
     subscribe(handleRoute);
 
     if (path === '/login') {
-      Component = Home;
-      currentPath = '/';
-      window.history.replaceState({}, '', '/');
-      updateTitle('/');
+      const defaultRoute = getDefaultRoute(authStore.user);
+      currentPath = defaultRoute;
+      window.history.replaceState({}, '', defaultRoute);
+      const comp = await getComponent(defaultRoute);
+      if (comp) Component = comp;
+      updateTitle(defaultRoute);
     } else {
       if (path === '/inventory') {
         goto('/inventory/products');
@@ -193,10 +197,12 @@
 
       if (!hasRoutePermission(path)) {
         toast.error('You do not have permission to access this page');
-        Component = Home;
-        currentPath = '/';
-        window.history.replaceState({}, '', '/');
-        updateTitle('/');
+        const fallback = getDefaultRoute(authStore.user);
+        const comp = await getComponent(fallback);
+        if (comp) Component = comp;
+        currentPath = fallback;
+        window.history.replaceState({}, '', fallback);
+        updateTitle(fallback);
         isInitializing = false;
         return;
       }

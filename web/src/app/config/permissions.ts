@@ -7,7 +7,6 @@
  */
 
 export const routePermissions: Record<string, string[]> = {
-	'/': ['report:read'],
 	'/pos': ['sale:create'],
 	'/inventory': ['product:read'],
 	'/inventory/products': ['product:read'],

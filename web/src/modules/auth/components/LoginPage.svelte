@@ -3,6 +3,7 @@
   import { goto } from '$app/router';
   import { login } from '$modules/auth';
   import { useAuthStore } from '$modules/auth';
+  import { getDefaultRoute } from '$shared/utils/default-route';
   import { Eye, EyeOff, Store, ShieldCheck } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
 
@@ -25,7 +26,7 @@
     if (result) {
       const store = useAuthStore();
       store.setUser(result.user);
-      goto('/');
+      goto(getDefaultRoute(result.user));
     } else {
       errorMsg = 'Invalid username or password';
     }
