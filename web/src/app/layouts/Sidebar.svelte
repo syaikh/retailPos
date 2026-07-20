@@ -97,9 +97,7 @@
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
-  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Shifts',        href: '/shifts',             icon: Clock },
-  ];
+  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [];
 
   const staffMasterDataSubItems = [
     { label: 'Products',   href: '/inventory/products', icon: Package },

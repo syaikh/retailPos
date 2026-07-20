@@ -2,6 +2,6 @@ export function getDefaultRoute(user: { role?: string | { name: string } } | nul
   if (!user) return '/';
   const role = typeof user.role === 'string' ? user.role : user.role?.name ?? '';
   if (role === 'cashier') return '/pos';
-  if (role === 'staff') return '/shifts';
+  if (role === 'staff') return '/inventory/products';
   return '/';
 }

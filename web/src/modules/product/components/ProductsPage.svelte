@@ -404,6 +404,7 @@
     if (user.role_id === 2) return 'admin';
     if (user.role_id === 3) return 'cashier';
     if (user.role_id === 4) return 'manager';
+    if (user.role_id === 5) return 'staff';
     return '';
   }
 

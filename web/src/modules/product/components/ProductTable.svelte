@@ -86,7 +86,7 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12"></th>
-        <th class="text-left p-4 font-semibold" style="width: 28%;">PRODUCT NAME</th>
+        <th class="text-left p-4 font-semibold" style="width: 30%;">PRODUCT NAME</th>
         <th class="text-left p-4 font-semibold w-52">CATEGORY</th>
         <th class="text-left p-4 font-semibold w-24">UOM</th>
         <th class="p-4 font-semibold w-28 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
@@ -127,7 +127,7 @@
         <th class="p-4 font-semibold w-12">
           <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all products" />
         </th>
-        <th class="text-left p-4 font-semibold" style="width: 40%;">
+        <th class="text-left p-4 font-semibold" style="width: 30%;">
           <SortableHeader label="PRODUCT NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-52">
@@ -156,7 +156,7 @@
           <td class="p-4 w-12" onclick={(e) => e.stopPropagation()}>
             <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} aria-label="Select {product.name}" />
           </td>
-          <td class="p-4 pr-6" style="width: 40%;">
+          <td class="p-4 pr-6" style="width: 30%;">
             <div class="font-medium truncate" title={product.name}>{product.name}</div>
             <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
               <span class="flex items-center gap-1">
