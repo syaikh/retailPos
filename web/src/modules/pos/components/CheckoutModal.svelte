@@ -56,10 +56,6 @@
     cashReceived = raw ? parseInt(raw, 10) : 0;
   }
 
-  function formatCash(val: number): string {
-    return val ? val.toLocaleString('id-ID') : '';
-  }
-
   function close() {
     showCheckoutModal = false;
     cashReceived = 0;
@@ -207,7 +203,7 @@
             id="cash-received-input"
             type="text"
             inputmode="numeric"
-            value={formatCash(cashReceived)}
+            value={cashReceived || ''}
             oninput={handleCashInput}
             class="w-full text-lg font-bold text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="0"
