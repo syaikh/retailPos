@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { useShiftStore } from '../stores/shift-store.svelte';
-  import { Button, Input, Modal, Badge } from '$shared/ui';
+  import { Button, Input, Modal, Badge, Dropdown } from '$shared/ui';
   import {
     Clock,
     Plus,
     Lock,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     ArrowUpDown,
     ArrowUp,
     ArrowDown,
@@ -192,14 +193,22 @@
 
   <!-- Filter -->
   <div class="flex items-center gap-3">
-    <select
-      bind:value={store.statusFilter}
-      class="h-9 px-3 rounded-lg border border-border bg-surface text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-    >
-      <option value="">All Status</option>
-      <option value="open">Open</option>
-      <option value="closed">Closed</option>
-    </select>
+    <Dropdown placement="bottom-start" items={[
+      { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
+      { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
+      { label: 'Closed', checked: store.statusFilter === 'closed', onclick: () => { store.statusFilter = 'closed'; } },
+    ]}>
+      {#snippet trigger({ toggle })}
+        <button
+          type="button"
+          class="flex items-center gap-2 px-3 h-9 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+          onclick={toggle}
+        >
+          <span>{store.statusFilter === '' ? 'All Status' : store.statusFilter === 'open' ? 'Open' : 'Closed'}</span>
+          <ChevronDown size={14} class="text-text-muted shrink-0" />
+        </button>
+      {/snippet}
+    </Dropdown>
   </div>
 
   <!-- Table -->
