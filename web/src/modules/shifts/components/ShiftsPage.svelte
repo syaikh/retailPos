@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { useShiftStore } from '../stores/shift-store.svelte';
   import { Button, Input, Modal, Badge, Dropdown } from '$shared/ui';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { useAuthStore } from '$modules/auth';
   import {
     Clock,
     Plus,
@@ -21,6 +23,8 @@
   import type { Shift } from '../types';
 
   const store = useShiftStore();
+  const rbac = useRBAC();
+  const authStore = useAuthStore();
 
   let showOpenModal = $state(false);
   let showCloseModal = $state(false);
@@ -45,6 +49,7 @@
 
   $effect(() => {
     store.statusFilter;
+    store.userIdFilter;
     store.page;
     store.pageSize;
     store.sortBy;
@@ -141,6 +146,9 @@
   }
 
   onMount(() => {
+    if (rbac.isCashier && authStore.user?.id) {
+      store.userIdFilter = authStore.user.id;
+    }
     store.loadActiveShift();
     loadShifts();
   });
@@ -234,7 +242,9 @@
                 {/if}
               </button>
             </th>
+            {#if !rbac.isCashier}
             <th class="text-left px-4 py-3 font-medium text-text-secondary">Cashier</th>
+            {/if}
             <th class="text-left px-4 py-3 font-medium text-text-secondary">Store</th>
             <th class="text-right px-4 py-3 font-medium text-text-secondary">Opening</th>
             <th class="text-right px-4 py-3 font-medium text-text-secondary">Cash Sales</th>
@@ -257,14 +267,14 @@
         <tbody>
           {#if store.loading}
             <tr>
-              <td colspan="10" class="px-4 py-12 text-center text-text-muted">
+              <td colspan={rbac.isCashier ? 9 : 10} class="px-4 py-12 text-center text-text-muted">
                 <Loader2 size={20} class="animate-spin mx-auto mb-2" />
                 Loading shifts...
               </td>
             </tr>
           {:else if store.shifts.length === 0}
             <tr>
-              <td colspan="10" class="px-4 py-12 text-center text-text-muted">
+              <td colspan={rbac.isCashier ? 9 : 10} class="px-4 py-12 text-center text-text-muted">
                 No shifts found
               </td>
             </tr>
@@ -275,7 +285,9 @@
                 onclick={() => openDetail(shift)}
               >
                 <td class="px-4 py-3 text-text-primary">{formatDateTime(shift.opened_at)}</td>
+                {#if !rbac.isCashier}
                 <td class="px-4 py-3 text-text-primary">{shift.username || '-'}</td>
+                {/if}
                 <td class="px-4 py-3 text-text-secondary">{shift.store_name || '-'}</td>
                 <td class="px-4 py-3 text-right text-text-primary">{formatMoney(shift.opening_balance)}</td>
                 <td class="px-4 py-3 text-right text-text-primary">{formatMoney(shift.cash_sales)}</td>

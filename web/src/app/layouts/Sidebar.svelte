@@ -92,14 +92,12 @@
   ];
 
   const cashierNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
   const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 

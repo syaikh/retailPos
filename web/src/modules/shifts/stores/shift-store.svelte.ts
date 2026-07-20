@@ -13,6 +13,7 @@ let total = $state(0);
 let loading = $state(false);
 
 let statusFilter = $state('');
+let userIdFilter = $state<number | null>(null);
 let page = $state(0);
 let pageSize = $state(20);
 let sortBy = $state('opened_at');
@@ -33,6 +34,8 @@ export function useShiftStore() {
     set loading(v: boolean) { loading = v; },
     get statusFilter() { return statusFilter; },
     set statusFilter(v: string) { statusFilter = v; },
+    get userIdFilter() { return userIdFilter; },
+    set userIdFilter(v: number | null) { userIdFilter = v; },
     get page() { return page; },
     set page(v: number) { page = v; },
     get pageSize() { return pageSize; },
@@ -46,7 +49,7 @@ export function useShiftStore() {
     get currentFilters(): ShiftFilters {
       return {
         status: statusFilter,
-        userId: null,
+        userId: userIdFilter,
         limit: pageSize,
         offset: page * pageSize,
         sortBy,

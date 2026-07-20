@@ -100,7 +100,7 @@
           type: 'sale_created',
           title: 'Transaksi Baru',
           description: `${data.invoice} — Rp ${(data.total || 0).toLocaleString('id-ID')}`,
-          navigateTo: `/transactions/${data.id}`,
+          navigateTo: '/transactions',
         });
       }),
       ws.on('stock_update', (data: any) => {

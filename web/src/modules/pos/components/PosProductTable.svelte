@@ -53,8 +53,8 @@
     <table class="w-full table-fixed">
       <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
         <tr>
-          <th class="p-4 w-64 font-semibold">PRODUCT NAME</th>
-          <th class="p-4 text-center w-32 font-semibold">Stock</th>
+          <th class="p-4 w-52 font-semibold">PRODUCT NAME</th>
+          <th class="p-4 text-right w-20 font-semibold">Stock</th>
           <th class="p-4 text-right w-28 font-semibold">Price</th>
           <th class="p-4 w-20 font-semibold"></th>
         </tr>
@@ -62,7 +62,7 @@
       <tbody>
         {#each products as product (product.id)}
           <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
-            <td class="p-4 w-64">
+            <td class="p-4 w-52">
               <div class="font-medium truncate w-full text-text-primary" title={product.name}>
                 {product.name}
               </div>
@@ -101,7 +101,7 @@
                 {/if}
               </div>
             </td>
-            <td class="p-4 text-center w-32">
+            <td class="p-4 text-right w-20">
               {#if product.stock === 0}
                 <Badge variant="danger" size="sm">0</Badge>
               {:else if product.stock <= criticalThreshold}

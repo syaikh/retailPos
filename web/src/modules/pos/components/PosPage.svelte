@@ -618,7 +618,7 @@ let total: number = $state(0);
   </div>
 
   <!-- Desktop cart (side panel) -->
-  <div class="hidden lg:block w-[380px] shrink-0">
+  <div class="hidden lg:block w-[420px] shrink-0">
     <CartPanel
       {cart}
       {totalAmount}
