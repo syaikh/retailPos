@@ -672,5 +672,4 @@ let total: number = $state(0);
 />
 
 <style>
-/* Component-scoped styles for screen only */
 </style>
