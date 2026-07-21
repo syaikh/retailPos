@@ -321,14 +321,14 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 
 	prodID := insertTestProduct(t, ctx, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
 
-	t.Run("price mismatch returns error", func(t *testing.T) {
+	t.Run("price mismatch logs warning and uses server price", func(t *testing.T) {
 		svc.SetPriceStore(&mockPriceStore{prices: map[int]int{prodID: 15000}})
 
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-PRICE-001",
 			CashierID:     insertTestCashier(t, ctx),
-			Subtotal:      10000,
-			TotalAmount:   10000,
+			Subtotal:      15000,
+			TotalAmount:   15000,
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
@@ -342,7 +342,9 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 		}}
 
 		err := svc.CreateSale(ctx, sale, items)
-		assert.ErrorIs(t, err, ErrPriceMismatch)
+		require.NoError(t, err)
+		assert.Equal(t, 15000, sale.Subtotal)
+		assert.Equal(t, 15000, items[0].UnitPrice)
 	})
 
 	t.Run("price match succeeds", func(t *testing.T) {

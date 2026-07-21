@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
@@ -111,14 +112,14 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		for i := range items {
 			r := resolved[i]
 
-			clientUnitPrice := items[i].UnitPrice
-			if clientUnitPrice != r.UnitPrice {
-				return fmt.Errorf("%w: product %d, server=%d, client=%d", ErrPriceMismatch, items[i].ProductID, r.UnitPrice, clientUnitPrice)
-			}
+		clientUnitPrice := items[i].UnitPrice
+		if clientUnitPrice != r.UnitPrice {
+			log.Printf("price mismatch for product %d: server=%d, client=%d", items[i].ProductID, r.UnitPrice, clientUnitPrice)
+		}
 
-			items[i].UnitPrice = r.UnitPrice
-			items[i].Subtotal = r.UnitPrice * items[i].Quantity
-			items[i].OriginalPrice = &r.OriginalPrice
+		items[i].UnitPrice = r.UnitPrice
+		items[i].Subtotal = r.UnitPrice * items[i].Quantity
+		items[i].OriginalPrice = &r.OriginalPrice
 
 			if r.Rule != nil {
 				ruleID := r.Rule.ID
@@ -169,13 +170,13 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 			if !ok {
 				return fmt.Errorf("price not found for product %d", item.ProductID)
 			}
-			clientUnitPrice := item.UnitPrice
-			if clientUnitPrice != serverPrice {
-				return fmt.Errorf("%w: product %d, server=%d, client=%d", ErrPriceMismatch, item.ProductID, serverPrice, clientUnitPrice)
-			}
-			items[i].UnitPrice = serverPrice
-			items[i].Subtotal = serverPrice * item.Quantity
-			sale.Subtotal += items[i].Subtotal
+		clientUnitPrice := item.UnitPrice
+		if clientUnitPrice != serverPrice {
+			log.Printf("price mismatch for product %d: server=%d, client=%d", item.ProductID, serverPrice, clientUnitPrice)
+		}
+		items[i].UnitPrice = serverPrice
+		items[i].Subtotal = serverPrice * item.Quantity
+		sale.Subtotal += items[i].Subtotal
 		}
 		sale.TotalAmount = sale.Subtotal - sale.Discount
 		if sale.TotalAmount < 0 {
