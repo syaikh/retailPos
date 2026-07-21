@@ -5,6 +5,7 @@ export { default as Button } from './Button.svelte';
 export { default as Card } from './Card.svelte';
 export { default as ConfirmDeleteModal } from './ConfirmDeleteModal.svelte';
 export { default as CurrencyInput } from './CurrencyInput.svelte';
+export { default as CashBreakdown } from './CashBreakdown.svelte';
 export { default as DataTable } from './DataTable.svelte';
 export { default as Drawer } from './Drawer.svelte';
 export { default as DropZone } from './DropZone.svelte';

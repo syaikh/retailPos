@@ -441,3 +441,23 @@ func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (
 
 	return r.GetShiftByID(ctx, shiftID)
 }
+
+func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error) {
+	shift, err := r.GetShiftByID(ctx, shiftID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var liveCashSales int
+	err = r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0)
+		FROM sales
+		WHERE shift_id = $1
+		  AND status = 'completed'
+	`, shiftID).Scan(&liveCashSales)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query live cash sales: %w", err)
+	}
+
+	return shift, liveCashSales, nil
+}

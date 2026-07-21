@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/router';
 import { useShiftStore } from '../stores/shift-store.svelte';
-import { Button, CurrencyInput, Input, Modal, Badge, Dropdown } from '$shared/ui';
+import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { useAuthStore } from '$modules/auth';
 import {
@@ -36,6 +36,9 @@ import {
   let isSubmitting = $state(false);
   let selectedShift = $state<Shift | null>(null);
   let showDetailModal = $state(false);
+  let showAuditModal = $state(false);
+  let auditActualBalance = $state(0);
+  let auditResult = $state<{ expected_cash: number; actual_balance: number; off_by: number } | null>(null);
 
   let prevFilters = '';
 
@@ -148,11 +151,33 @@ import {
     return amount.toLocaleString('id-ID');
   }
 
+  async function handleAudit() {
+    if (!selectedShift || auditActualBalance <= 0) return;
+    isSubmitting = true;
+    auditResult = null;
+    try {
+      const result = await store.doAuditShift(selectedShift.id, auditActualBalance);
+      auditResult = { expected_cash: result.expected_cash, actual_balance: result.actual_balance, off_by: result.off_by };
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Failed to audit shift');
+    } finally {
+      isSubmitting = false;
+    }
+  }
+
+  function openAuditModal(shift: Shift) {
+    selectedShift = shift;
+    auditActualBalance = 0;
+    auditResult = null;
+    showAuditModal = true;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       showOpenModal = false;
       showCloseModal = false;
       showDetailModal = false;
+      showAuditModal = false;
     }
   }
 
@@ -413,7 +438,7 @@ import {
           <label for="closing-balance" class="block text-sm font-medium text-text-secondary mb-2">
             Closing Balance (Rp)
           </label>
-          <CurrencyInput id="closing-balance" bind:value={closingBalance} placeholder="0" required />
+          <CashBreakdown bind:total={closingBalance} />
           {#if closingBalance > 0 && store.activeShift}
             {@const expected = store.activeShift.opening_balance + store.activeShift.cash_sales}
             {@const disc = closingBalance - expected}
@@ -436,7 +461,7 @@ import {
   {/if}
   {#snippet footer()}
     <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showCloseModal = false; }}>Cancel</Button>
-    <Button variant="danger" class="px-5" disabled={isSubmitting} onclick={handleCloseShift}>
+    <Button variant="danger" class="px-5" disabled={isSubmitting || closingBalance <= 0} onclick={handleCloseShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       Close Shift
     </Button>
@@ -523,10 +548,77 @@ import {
             </Button>
           </div>
         {/if}
+        {#if selectedShift.status === 'closed' && rbac.isManager}
+          <div class="border-t border-border pt-4">
+            <Button variant="secondary" class="w-full" onclick={() => openAuditModal(selectedShift)}>
+              <Clock size={16} class="mr-2" />
+              Surprise Audit
+            </Button>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
   {#snippet footer()}
     <Button variant="secondary" class="px-5" onclick={() => { showDetailModal = false; }}>Close</Button>
+  {/snippet}
+</Modal>
+
+<!-- Audit Modal -->
+<Modal bind:open={showAuditModal} title="Surprise Audit" size="sm">
+  {#if selectedShift}
+    <div class="space-y-4">
+      <div class="bg-surface-secondary rounded-lg p-4 space-y-2">
+        <div class="flex justify-between text-sm">
+          <span class="text-text-muted">Cashier</span>
+          <span class="text-text-primary font-medium">{selectedShift.username || '-'}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-text-muted">Opening Balance</span>
+          <span class="text-text-primary font-medium">{formatMoney(selectedShift.opening_balance)}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-text-muted">Cash Sales (system)</span>
+          <span class="text-text-primary font-medium">{formatMoney(selectedShift.cash_sales)}</span>
+        </div>
+      </div>
+
+      {#if auditResult}
+        <div class="bg-surface-secondary rounded-lg p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-text-muted">Expected Cash</span>
+            <span class="text-text-primary font-medium">{formatMoney(auditResult.expected_cash)}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-text-muted">Actual Balance</span>
+            <span class="text-text-primary font-medium">{formatMoney(auditResult.actual_balance)}</span>
+          </div>
+          <div class="flex justify-between text-sm border-t border-border pt-2">
+            <span class="text-text-muted">Difference</span>
+            <span class="text-sm font-bold {auditResult.off_by === 0 ? 'text-success' : 'text-danger'}">
+              {auditResult.off_by > 0 ? '+' : ''}{formatMoney(auditResult.off_by)}
+            </span>
+          </div>
+        </div>
+      {:else}
+        <form onsubmit={(e) => { e.preventDefault(); handleAudit(); }} class="space-y-4">
+          <div>
+            <label for="audit-balance" class="block text-sm font-medium text-text-secondary mb-2">
+              Actual Cash in Drawer (Rp)
+            </label>
+            <CurrencyInput id="audit-balance" bind:value={auditActualBalance} placeholder="0" required />
+          </div>
+        </form>
+      {/if}
+    </div>
+  {/if}
+  {#snippet footer()}
+    <Button variant="secondary" class="px-5" onclick={() => { showAuditModal = false; }}>Close</Button>
+    {#if !auditResult}
+      <Button variant="primary" class="px-5" disabled={isSubmitting || auditActualBalance <= 0} onclick={handleAudit}>
+        {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
+        Submit Audit
+      </Button>
+    {/if}
   {/snippet}
 </Modal>

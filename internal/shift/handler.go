@@ -19,6 +19,7 @@ type ShiftService interface {
 	ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
 }
 
 type Handler struct {
@@ -34,6 +35,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/shifts/open", auth, perm("shift:create"), h.OpenShift)
 	r.POST("/shifts/:id/close", auth, perm("shift:create"), h.CloseShift)
 	r.POST("/shifts/:id/review", auth, perm("shift:review"), h.ReviewShift)
+	r.POST("/shifts/:id/audit", auth, perm("shift:audit"), h.AuditShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
 	r.GET("/shifts", auth, perm("shift:read"), h.ListShifts)
 	r.GET("/shifts/:id", auth, perm("shift:read"), h.GetShiftByID)
@@ -221,4 +223,51 @@ func (h *Handler) ReviewShift(c *gin.Context) {
 	}
 
 	shared.JSONSuccess(c, shift)
+}
+
+func (h *Handler) AuditShift(c *gin.Context) {
+	shiftID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid shift id"})
+		return
+	}
+
+	var req struct {
+		ActualBalance int `json:"actual_balance"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	shift, cashSales, err := h.svc.AuditShift(c.Request.Context(), shiftID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	expected := shift.OpeningBalance + cashSales
+	offBy := req.ActualBalance - expected
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "audit",
+			EntityType:  "shift",
+			EntityID:    &shift.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"actual_balance": req.ActualBalance, "expected": expected, "off_by": offBy}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: "Audited shift cash balance",
+		})
+	}
+
+	shared.JSONSuccess(c, gin.H{
+		"shift":          shift,
+		"expected_cash":  expected,
+		"actual_balance": req.ActualBalance,
+		"off_by":         offBy,
+	})
 }

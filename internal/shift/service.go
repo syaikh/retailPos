@@ -42,3 +42,7 @@ func (s *Service) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
 func (s *Service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
 	return s.repo.ReviewShift(ctx, shiftID, reviewerID)
 }
+
+func (s *Service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
+	return s.repo.GetShiftWithLiveSales(ctx, shiftID)
+}

@@ -5,6 +5,7 @@ import {
   listShifts,
   getShiftById,
   reviewShift,
+  auditShift,
 } from '../services/shift-service';
 import type { Shift, ShiftFilters } from '../types';
 
@@ -113,6 +114,10 @@ export function useShiftStore() {
       if (idx !== -1) shifts[idx] = shift;
       if (activeShift?.id === shiftId) activeShift = shift;
       return shift;
+    },
+
+    async doAuditShift(shiftId: number, actualBalance: number) {
+      return auditShift(shiftId, actualBalance);
     },
   };
 }

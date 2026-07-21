@@ -57,3 +57,13 @@ export async function reviewShift(shiftId: number): Promise<Shift> {
   const res = await apiClient.post(`/shifts/${shiftId}/review`);
   return res.data.data;
 }
+
+export async function auditShift(shiftId: number, actualBalance: number): Promise<{
+  shift: Shift;
+  expected_cash: number;
+  actual_balance: number;
+  off_by: number;
+}> {
+  const res = await apiClient.post(`/shifts/${shiftId}/audit`, { actual_balance: actualBalance });
+  return res.data.data;
+}

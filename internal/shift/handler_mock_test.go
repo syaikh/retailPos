@@ -22,6 +22,7 @@ type mockShiftService struct {
 	listShiftsFn       func(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	getShiftByIDFn     func(ctx context.Context, shiftID int) (*Shift, error)
 	reviewShiftFn      func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	auditShiftFn       func(ctx context.Context, shiftID int) (*Shift, int, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -41,6 +42,9 @@ func (m *mockShiftService) GetShiftByID(ctx context.Context, shiftID int) (*Shif
 }
 func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
 	return m.reviewShiftFn(ctx, shiftID, reviewerID)
+}
+func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
+	return m.auditShiftFn(ctx, shiftID)
 }
 
 type mockAudit struct {
