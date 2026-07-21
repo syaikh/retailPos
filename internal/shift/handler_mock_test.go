@@ -172,3 +172,157 @@ func TestShiftHandler_CloseShift_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid shift id")
 }
+
+func TestShiftHandler_CloseAll_Success(t *testing.T) {
+	svc := &mockShiftService{
+		closeAllFn: func(ctx context.Context, userID int) ([]int, error) {
+			return []int{1, 2}, nil
+		},
+	}
+	auditCalled := false
+	auditSvc := &mockAudit{
+		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+			auditCalled = true
+			assert.Equal(t, "update", log.Action)
+			assert.Equal(t, "shift", log.EntityType)
+			assert.Contains(t, log.Description, "1, 2")
+			return nil
+		},
+	}
+	r := setupShiftHandler(svc, auditSvc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/close-all", nil)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, auditCalled, "audit log should be created")
+}
+
+func TestShiftHandler_CloseAll_ServiceError(t *testing.T) {
+	svc := &mockShiftService{
+		closeAllFn: func(ctx context.Context, userID int) ([]int, error) {
+			return nil, assert.AnError
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/close-all", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+func TestShiftHandler_AuditShift_Success(t *testing.T) {
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return &Shift{ID: shiftID, Status: "closed", OpeningBalance: 100000}, 50000, nil
+		},
+	}
+	auditCalled := false
+	auditSvc := &mockAudit{
+		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+			auditCalled = true
+			assert.Equal(t, "audit", log.Action)
+			assert.Equal(t, "shift", log.EntityType)
+			assert.NotNil(t, log.EntityID)
+			assert.Equal(t, 1, *log.EntityID)
+			return nil
+		},
+	}
+	r := setupShiftHandler(svc, auditSvc)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":160000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, auditCalled, "audit log should be created")
+	var resp struct {
+		Data struct {
+			Shift        Shift `json:"shift"`
+			ExpectedCash int   `json:"expected_cash"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resp.Data.Shift.ID)
+	assert.Equal(t, 150000, resp.Data.ExpectedCash)
+}
+
+func TestShiftHandler_AuditShift_ServiceError(t *testing.T) {
+	svc := &mockShiftService{
+		auditShiftFn: func(ctx context.Context, shiftID int) (*Shift, int, error) {
+			return nil, 0, assert.AnError
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/shifts/1/audit", strings.NewReader(`{"actual_balance":160000}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestShiftHandler_GetActiveShift_Success(t *testing.T) {
+	svc := &mockShiftService{
+		getActiveShiftFn: func(ctx context.Context, userID int) (*Shift, error) {
+			return &Shift{ID: 1, UserID: userID, Status: "open"}, nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/shifts/active", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data Shift `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "open", resp.Data.Status)
+}
+
+func TestShiftHandler_ListShifts_Success(t *testing.T) {
+	svc := &mockShiftService{
+		listShiftsFn: func(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+			return []Shift{{ID: 1, Status: "open"}}, 1, nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/shifts", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []Shift `json:"data"`
+		Total int    `json:"total"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Len(t, resp.Data, 1)
+	assert.Equal(t, 1, resp.Total)
+}
+
+func TestShiftHandler_GetShiftByID_Success(t *testing.T) {
+	svc := &mockShiftService{
+		getShiftByIDFn: func(ctx context.Context, shiftID int) (*Shift, error) {
+			return &Shift{ID: shiftID, Status: "closed"}, nil
+		},
+	}
+	r := setupShiftHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/shifts/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data Shift `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resp.Data.ID)
+	assert.Equal(t, "closed", resp.Data.Status)
+}

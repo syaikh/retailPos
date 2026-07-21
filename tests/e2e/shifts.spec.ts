@@ -38,9 +38,10 @@ test.describe('Shifts Page', () => {
   test('should open shift modal and display active shift banner', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
 
-    await page.request.post(`${API_BASE}/api/shifts/close-all`, {
+    const closeRes = await page.request.post(`${API_BASE}/api/shifts/close-all`, {
       headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => {});
+    });
+    expect(closeRes.ok()).toBe(true);
 
     await page.goto('/shifts');
     await expect(page).toHaveURL(/\/shifts/);

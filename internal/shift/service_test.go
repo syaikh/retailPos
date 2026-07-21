@@ -93,3 +93,22 @@ func TestShiftService_ReviewShift(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestShiftService_CloseAll(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("returns closed shift ids", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		createOpenShift(t, ctx, repo, userID)
+
+		ids, err := svc.CloseAll(ctx, userID)
+		require.NoError(t, err)
+		assert.Len(t, ids, 1)
+	})
+}
