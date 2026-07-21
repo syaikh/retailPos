@@ -10,7 +10,9 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1142,11 +1144,99 @@ type workerJob struct {
 	days             []int // Days this worker handles (relative to startDate)
 	customerIDs      []int // Available customer IDs to assign to sales
 	walkInCustomerID int   // Walk-in/general customer ID for 30-50% of sales
+	stockUpdateCh    chan<- stockUpdateMsg
+}
+
+// stockUpdateMsg is a request to update product stock, processed sequentially
+type stockUpdateMsg struct {
+	productID int
+	quantity  int
+}
+
+// runStockUpdater processes stock updates sequentially on a dedicated goroutine
+// to prevent deadlocks when multiple workers update the same product concurrently.
+// Updates are batched to reduce database round-trips.
+func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
+	ch := make(chan stockUpdateMsg, 10000)
+	go func() {
+		stmt, err := db.PrepareContext(ctx, `
+			INSERT INTO product_stock (product_id, quantity, updated_at)
+			VALUES ($1, GREATEST(0, COALESCE((
+				SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
+			), 0) - $2), NOW())
+			ON CONFLICT (product_id) DO UPDATE SET
+				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
+				updated_at = NOW()`)
+		if err != nil {
+			log.Printf("stock updater: prepare stmt failed: %v", err)
+			return
+		}
+		defer stmt.Close()
+
+		var batch []stockUpdateMsg
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			// Deduplicate by summing quantities per product within the batch
+			totals := make(map[int]int)
+			for _, msg := range batch {
+				totals[msg.productID] += msg.quantity
+			}
+
+			if len(totals) == 0 {
+				batch = batch[:0]
+				return
+			}
+
+			// Build multi-row INSERT ... ON CONFLICT to reduce round-trips
+			var sb strings.Builder
+			sb.WriteString(`INSERT INTO product_stock (product_id, quantity, updated_at) VALUES `)
+			args := make([]interface{}, 0, len(totals)*2)
+			i := 1
+			for productID, qty := range totals {
+				if i > 1 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(fmt.Sprintf("($%d, $%d, NOW())", i, i+1))
+				args = append(args, productID, qty)
+				i += 2
+			}
+			sb.WriteString(` ON CONFLICT (product_id) DO UPDATE SET
+				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
+				updated_at = NOW()`)
+
+			if _, err := db.ExecContext(ctx, sb.String(), args...); err != nil {
+				log.Printf("stock updater: batch exec failed: %v", err)
+				// Fall back to individual queries
+				for productID, qty := range totals {
+					if _, err := stmt.ExecContext(ctx, productID, qty); err != nil {
+						log.Printf("stock updater: product %d qty %d: %v", productID, qty, err)
+					}
+				}
+			}
+			batch = batch[:0]
+		}
+
+		for msg := range ch {
+			batch = append(batch, msg)
+			if len(batch) >= 1000 {
+				flush()
+			}
+		}
+		flush()
+	}()
+	return ch
 }
 
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers
 func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products []ProductInfo, customerIDs []int, walkInCustomerID int, startDate, endDate time.Time) error {
-	numWorkers := 1 // Single worker avoids lock contention for max throughput
+	numWorkers := runtime.NumCPU()
+	if v := os.Getenv("SALES_WORKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 {
+			numWorkers = n
+		}
+	}
 
 	ref := time.Now().In(jakartaTZ)
 	productMap := make(map[int]ProductInfo)
@@ -1162,15 +1252,15 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	// Include the end date as well (total days inclusive)
 	totalDaysInclusive := totalDays + 1
 
-	// Calculate conservative invoice ranges with generous buffer
-	avgSalesPerDay := 15 // Average 10-20 transactions per day
-	estimatedTotalSales := totalDaysInclusive * avgSalesPerDay
-	estimatedTotalSales = int(float64(estimatedTotalSales) * 1.5) // 50% buffer for safety
-
-	invoicesPerWorker := estimatedTotalSales / numWorkers
-	if estimatedTotalSales%numWorkers != 0 {
-		invoicesPerWorker++ // Round up to ensure coverage
+	// Calculate invoice range per worker based on max possible sales
+	maxSalesPerDay := 20 // Upper bound from salesForDay logic
+	daysPerWorker := totalDaysInclusive / numWorkers
+	remainingDays := totalDaysInclusive % numWorkers
+	maxDaysPerWorker := daysPerWorker
+	if remainingDays > 0 {
+		maxDaysPerWorker++ // First workers get one extra day
 	}
+	invoicesPerWorker := maxSalesPerDay * maxDaysPerWorker
 
 	jobs := make([]workerJob, numWorkers)
 
@@ -1178,8 +1268,6 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 	if numWorkers <= 0 {
 		return fmt.Errorf("invalid number of workers: %d", numWorkers)
 	}
-	daysPerWorker := totalDaysInclusive / numWorkers
-	remainingDays := totalDaysInclusive % numWorkers
 
 	currentDay := 0
 	currentInvoice := 1
@@ -1212,36 +1300,57 @@ func injectDailySales(ctx context.Context, db *sql.DB, userIDs []int, products [
 		jobs[i] = job
 	}
 
-	fmt.Printf("🚀 Starting %d workers to process %d days with estimated %d total sales\n", numWorkers, totalDaysInclusive, estimatedTotalSales)
+	fmt.Printf("🚀 Starting %d workers to process %d days\n", numWorkers, totalDaysInclusive)
 	fmt.Printf("   Each worker allocated up to %d invoice numbers\n", invoicesPerWorker)
+
+	// Start stock updater (single goroutine prevents deadlock)
+	stockUpdateCh := runStockUpdater(ctx, db)
+	defer close(stockUpdateCh)
+
+	// Assign stock updater channel to all workers
+	for i := range jobs {
+		jobs[i].stockUpdateCh = stockUpdateCh
+	}
 
 	// Start workers
 	var wg sync.WaitGroup
 	salesCreated := make(chan int, numWorkers*1000) // Buffered channel for progress updates
+	workerErrors := make(chan error, numWorkers)
 
 	for _, job := range jobs {
 		wg.Add(1)
 		go func(job workerJob) {
 			defer wg.Done()
 
-			workerSales := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, ref, salesCreated)
+			workerSales, err := processWorkerJob(ctx, db, job, userIDs, products, productMap, startDate, ref, salesCreated)
+			if err != nil {
+				workerErrors <- fmt.Errorf("worker %d failed: %w", job.workerID, err)
+			}
 			fmt.Printf("   ✅ Worker %d completed: %d sales\n", job.workerID, workerSales)
 		}(job)
 	}
 
-	// Progress monitoring
-	go func() {
-		total := 0
-		for count := range salesCreated {
-			total += count
-			if total%100 == 0 {
-				fmt.Printf("     ...%d sales injected\n", total)
-			}
-		}
-	}()
-
 	wg.Wait()
 	close(salesCreated)
+	close(workerErrors)
+
+	totalSales := 0
+	for count := range salesCreated {
+		totalSales += count
+		if totalSales%100 == 0 {
+			fmt.Printf("     ...%d sales injected\n", totalSales)
+		}
+	}
+
+	for err := range workerErrors {
+		if err != nil {
+			return err
+		}
+	}
+
+	if totalSales == 0 {
+		return fmt.Errorf("no sales were injected across %d days (all workers failed or produced 0 sales)", totalDaysInclusive)
+	}
 
 	fmt.Printf("   ✅ All sales transactions injected across %d days (min 10 per day)\n", totalDaysInclusive)
 	return nil
@@ -1256,13 +1365,13 @@ type SaleItemRecord struct {
 }
 
 // processWorkerJob handles a single worker's portion of the work with optimized batch transactions
-func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, ref time.Time, progress chan<- int) int {
+func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []int, products []ProductInfo, productMap map[int]ProductInfo, startDate, ref time.Time, progress chan<- int) (int, error) {
 	invoiceCounter := 0
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		log.Printf("Worker %d: begin tx: %v", job.workerID, err)
-		return 0
+		return 0, fmt.Errorf("worker %d: begin tx: %w", job.workerID, err)
 	}
 
 	saleStmt, err := tx.PrepareContext(ctx,
@@ -1273,7 +1382,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
 		}
-		return 0
+		return 0, fmt.Errorf("worker %d: prepare sale stmt: %w", job.workerID, err)
 	}
 	defer saleStmt.Close()
 
@@ -1284,34 +1393,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
 		}
-		return 0
+		return 0, fmt.Errorf("worker %d: prepare item stmt: %w", job.workerID, err)
 	}
 	defer itemStmt.Close()
-
-	stockStmt, err := tx.PrepareContext(ctx, `
-		UPDATE product_stock
-		SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
-		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
-	if err != nil {
-		log.Printf("Worker %d: prepare stock stmt: %v", job.workerID, err)
-		if rbErr := tx.Rollback(); rbErr != nil {
-			log.Printf("failed to rollback: %v", rbErr)
-		}
-		return 0
-	}
-	defer stockStmt.Close()
-
-	stockInsertStmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO product_stock (product_id, quantity, updated_at)
-		VALUES ($1, GREATEST(0, 0-$2), NOW())`)
-	if err != nil {
-		log.Printf("Worker %d: prepare stock insert stmt: %v", job.workerID, err)
-		if rbErr := tx.Rollback(); rbErr != nil {
-			log.Printf("failed to rollback: %v", rbErr)
-		}
-		return 0
-	}
-	defer stockInsertStmt.Close()
 
 	movementStmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
@@ -1321,7 +1405,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		if rbErr := tx.Rollback(); rbErr != nil {
 			log.Printf("failed to rollback: %v", rbErr)
 		}
-		return 0
+		return 0, fmt.Errorf("worker %d: prepare movement stmt: %w", job.workerID, err)
 	}
 	defer movementStmt.Close()
 
@@ -1412,56 +1496,38 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 					continue
 				}
 
-				// Decrement product stock
-				res, err := stockStmt.ExecContext(ctx, item.Quantity, item.ProductID)
-				if err != nil {
-					log.Printf("Worker %d: update stock %s (product %d): %v", job.workerID, invoice, item.ProductID, err)
-					continue
-				}
-				if n, _ := res.RowsAffected(); n == 0 {
-					if _, err := stockInsertStmt.ExecContext(ctx, item.ProductID, item.Quantity); err != nil {
-						log.Printf("Worker %d: insert stock %s (product %d): %v", job.workerID, invoice, item.ProductID, err)
-					}
-				}
+			// Queue stock update to single updater goroutine to prevent deadlock
+			job.stockUpdateCh <- stockUpdateMsg{productID: item.ProductID, quantity: item.Quantity}
 
 				// Record inventory movement
 				if _, err := movementStmt.ExecContext(ctx, item.ProductID, -item.Quantity, saleID, cashierID, fmt.Sprintf("Sale %s", invoice), createdAt); err != nil {
-					log.Printf("Worker %d: insert movement %s: %v", job.workerID, invoice, err)
+					log.Printf("Worker %d: insert movement %s product %d: %v", job.workerID, invoice, item.ProductID, err)
 				}
 			}
 
 			salesCreated++
 			batchSize++
 
-			if batchSize >= 500 {
-				saleStmt.Close()
-				itemStmt.Close()
-				stockStmt.Close()
-				stockInsertStmt.Close()
-				movementStmt.Close()
-				if err := tx.Commit(); err != nil {
-					log.Printf("failed to commit batch: %v", err)
-				}
-
-				tx, _ = db.BeginTx(ctx, nil)
-				saleStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
-					 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
-				itemStmt, _ = tx.PrepareContext(ctx,
-					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
-				stockStmt, _ = tx.PrepareContext(ctx, `
-					UPDATE product_stock
-					SET quantity = GREATEST(0, quantity - $1), updated_at = NOW()
-					WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL`)
-				stockInsertStmt, _ = tx.PrepareContext(ctx, `
-					INSERT INTO product_stock (product_id, quantity, updated_at)
-					VALUES ($1, GREATEST(0, 0-$2), NOW())`)
-				movementStmt, _ = tx.PrepareContext(ctx, `
-					INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
-					VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
-
-				batchSize = 0
+		if batchSize >= 500 {
+			saleStmt.Close()
+			itemStmt.Close()
+			movementStmt.Close()
+			if err := tx.Commit(); err != nil {
+				log.Printf("failed to commit batch: %v", err)
 			}
+
+			tx, _ = db.BeginTx(ctx, nil)
+			saleStmt, _ = tx.PrepareContext(ctx,
+				`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+				 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
+			itemStmt, _ = tx.PrepareContext(ctx,
+				`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+			movementStmt, _ = tx.PrepareContext(ctx, `
+				INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+				VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
+
+			batchSize = 0
+		}
 
 			if salesCreated%25 == 0 {
 				select {
@@ -1474,8 +1540,6 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 	saleStmt.Close()
 	itemStmt.Close()
-	stockStmt.Close()
-	stockInsertStmt.Close()
 	movementStmt.Close()
 	if err := tx.Commit(); err != nil {
 		log.Printf("failed to commit final batch: %v", err)
@@ -1486,7 +1550,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	default:
 	}
 
-	return salesCreated
+	return salesCreated, nil
 }
 
 // randomTime24Hour generates random time spread across 24 hours for 24/7 open store

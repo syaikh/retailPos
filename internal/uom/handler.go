@@ -31,9 +31,9 @@ func NewHandler(svc UOMService, auditSvc audit.AuditCreator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/units-of-measure", auth, perm("product:create"), h.CreateUnitOfMeasure)
-	r.PUT("/units-of-measure/:id", auth, perm("product:update"), h.UpdateUnitOfMeasure)
-	r.DELETE("/units-of-measure/:id", auth, perm("product:delete"), h.DeleteUnitOfMeasure)
+	r.POST("/units-of-measure", auth, perm("product.create"), h.CreateUnitOfMeasure)
+	r.PUT("/units-of-measure/:id", auth, perm("product.update"), h.UpdateUnitOfMeasure)
+	r.DELETE("/units-of-measure/:id", auth, perm("product.delete"), h.DeleteUnitOfMeasure)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {

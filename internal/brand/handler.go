@@ -31,9 +31,9 @@ func NewHandler(svc BrandService, auditSvc audit.AuditCreator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/brands", auth, perm("product:create"), h.CreateBrand)
-	r.PUT("/brands/:id", auth, perm("product:update"), h.UpdateBrand)
-	r.DELETE("/brands/:id", auth, perm("product:delete"), h.DeleteBrand)
+	r.POST("/brands", auth, perm("product.create"), h.CreateBrand)
+	r.PUT("/brands/:id", auth, perm("product.update"), h.UpdateBrand)
+	r.DELETE("/brands/:id", auth, perm("product.delete"), h.DeleteBrand)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {

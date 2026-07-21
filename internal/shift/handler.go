@@ -2,8 +2,10 @@ package shift
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,6 +17,7 @@ import (
 type ShiftService interface {
 	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	CloseAll(ctx context.Context, userID int) ([]int, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
 	ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
@@ -32,13 +35,14 @@ func NewHandler(svc ShiftService, auditSvc audit.AuditCreator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/shifts/open", auth, perm("shift:create"), h.OpenShift)
-	r.POST("/shifts/:id/close", auth, perm("shift:create"), h.CloseShift)
-	r.POST("/shifts/:id/review", auth, perm("shift:review"), h.ReviewShift)
-	r.POST("/shifts/:id/audit", auth, perm("shift:audit"), h.AuditShift)
+	r.POST("/shifts/open", auth, perm("shift.create"), h.OpenShift)
+	r.POST("/shifts/:id/close", auth, perm("shift.create"), h.CloseShift)
+	r.POST("/shifts/close-all", auth, perm("shift.create"), h.CloseAll)
+	r.POST("/shifts/:id/review", auth, perm("shift.review"), h.ReviewShift)
+	r.POST("/shifts/:id/audit", auth, perm("shift.audit"), h.AuditShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
-	r.GET("/shifts", auth, perm("shift:read"), h.ListShifts)
-	r.GET("/shifts/:id", auth, perm("shift:read"), h.GetShiftByID)
+	r.GET("/shifts", auth, perm("shift.view"), h.ListShifts)
+	r.GET("/shifts/:id", auth, perm("shift.view"), h.GetShiftByID)
 }
 
 func (h *Handler) OpenShift(c *gin.Context) {
@@ -127,6 +131,43 @@ func (h *Handler) CloseShift(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": shift})
+}
+
+func (h *Handler) CloseAll(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	uid, ok := userID.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	shiftIDs, err := h.svc.CloseAll(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	desc := "Closed all shifts"
+	if len(shiftIDs) > 0 {
+		ids := make([]string, len(shiftIDs))
+		for i, id := range shiftIDs {
+			ids[i] = strconv.Itoa(id)
+		}
+		desc = fmt.Sprintf("Closed shifts: %s", strings.Join(ids, ", "))
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "update",
+			EntityType:  "shift",
+			Description: desc,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func (h *Handler) GetActiveShift(c *gin.Context) {

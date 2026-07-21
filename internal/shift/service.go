@@ -46,3 +46,7 @@ func (s *Service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Sh
 func (s *Service) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return s.repo.GetShiftWithLiveSales(ctx, shiftID)
 }
+
+func (s *Service) CloseAll(ctx context.Context, userID int) ([]int, error) {
+	return s.repo.CloseAll(ctx, userID)
+}

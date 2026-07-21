@@ -37,10 +37,10 @@ func NewHandler(svc SaleService, auditSvc audit.AuditCreator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/sales", auth, perm("sale:create"), h.CreateSale)
-	r.GET("/sales", auth, perm("sale:read"), h.GetSalesHistory)
-	r.GET("/sales/export", auth, perm("report:read"), h.ExportSales)
-	r.GET("/sales/:id", auth, perm("sale:read"), h.GetSaleByID)
+	r.POST("/sales", auth, perm("sale.create"), h.CreateSale)
+	r.GET("/sales", auth, perm("sale.view"), h.GetSalesHistory)
+	r.GET("/sales/export", auth, perm("report.view"), h.ExportSales)
+	r.GET("/sales/:id", auth, perm("sale.view"), h.GetSaleByID)
 	r.GET("/payment-methods/:code", auth, h.GetPaymentMethodByCode)
 }
 

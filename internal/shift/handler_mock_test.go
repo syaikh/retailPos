@@ -18,6 +18,7 @@ import (
 type mockShiftService struct {
 	openShiftFn        func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	closeShiftFn       func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	closeAllFn         func(ctx context.Context, userID int) ([]int, error)
 	getActiveShiftFn   func(ctx context.Context, userID int) (*Shift, error)
 	listShiftsFn       func(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	getShiftByIDFn     func(ctx context.Context, shiftID int) (*Shift, error)
@@ -30,6 +31,9 @@ func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *i
 }
 func (m *mockShiftService) CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
 	return m.closeShiftFn(ctx, shiftID, userID, closingBalance, notes)
+}
+func (m *mockShiftService) CloseAll(ctx context.Context, userID int) ([]int, error) {
+	return m.closeAllFn(ctx, userID)
 }
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)

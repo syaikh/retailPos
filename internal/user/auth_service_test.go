@@ -62,7 +62,7 @@ func TestAuthService_GenerateAndParseToken(t *testing.T) {
 	svc := newTestAuthService(t)
 	storeID := 42
 	user := &User{ID: 1, Username: "testuser", RoleID: 2, Role: Role{Name: "admin"}, StoreID: &storeID}
-	perms := []string{"product:read", "sale:create"}
+	perms := []string{"product.view", "sale.create"}
 
 	token, err := svc.generateToken(user, perms, 15*time.Minute)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestValidateSession(t *testing.T) {
 	c.Set("userID", 42)
 	c.Set("username", "admin")
 	c.Set("role", "admin")
-	c.Set("permissions", []string{"sale:create", "product:read"})
+	c.Set("permissions", []string{"sale.create", "product.view"})
 	c.Set("storeID", &storeID)
 
 	handler := &AuthHandler{svc: nil, auditSvc: nil}

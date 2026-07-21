@@ -37,13 +37,13 @@ func NewHandler(svc CustomerService, auditSvc audit.AuditCreator) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/customers", auth, perm("customer:read"), h.GetCustomers)
-	r.GET("/customers/:id", auth, perm("customer:read"), h.GetCustomerByID)
-	r.POST("/customers", auth, perm("customer:create"), h.CreateCustomer)
-	r.PUT("/customers/:id", auth, perm("customer:update"), h.UpdateCustomer)
-	r.DELETE("/customers/:id", auth, perm("customer:delete"), h.DeleteCustomer)
-	r.POST("/customers/bulk/status", auth, perm("customer:update"), h.BulkUpdateCustomerStatus)
-	r.POST("/customers/bulk/delete", auth, perm("customer:delete"), h.BulkDeleteCustomers)
+	r.GET("/customers", auth, perm("customer.view"), h.GetCustomers)
+	r.GET("/customers/:id", auth, perm("customer.view"), h.GetCustomerByID)
+	r.POST("/customers", auth, perm("customer.create"), h.CreateCustomer)
+	r.PUT("/customers/:id", auth, perm("customer.update"), h.UpdateCustomer)
+	r.DELETE("/customers/:id", auth, perm("customer.delete"), h.DeleteCustomer)
+	r.POST("/customers/bulk/status", auth, perm("customer.update"), h.BulkUpdateCustomerStatus)
+	r.POST("/customers/bulk/delete", auth, perm("customer.delete"), h.BulkDeleteCustomers)
 }
 
 var phoneRegex = regexp.MustCompile(`^[0-9+\-() ]{7,20}$`)

@@ -60,12 +60,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/admin/users", auth, perm("user:read"), h.ListUsers)
 	r.POST("/admin/users", auth, perm("user:create"), h.CreateUser)
 	r.PUT("/admin/users/:id", auth, perm("user:update"), h.UpdateUser)
-	r.DELETE("/admin/users/:id", auth, perm("user:delete"), h.DeleteUser)
+	r.DELETE("/admin/users/:id", auth, perm("user.delete"), h.DeleteUser)
 	r.GET("/admin/roles", auth, perm("role:read"), h.ListRoles)
 	r.POST("/admin/roles", auth, perm("role:create"), h.CreateRole)
-	r.PUT("/admin/roles/:id", auth, perm("role:update"), h.UpdateRole)
-	r.PUT("/admin/roles/:id/permissions", auth, perm("role:update"), h.UpdateRolePermissions)
-	r.DELETE("/admin/roles/:id", auth, perm("role:delete"), h.DeleteRole)
+	r.PUT("/admin/roles/:id", auth, perm("role.update"), h.UpdateRole)
+	r.PUT("/admin/roles/:id/permissions", auth, perm("role.update"), h.UpdateRolePermissions)
+	r.DELETE("/admin/roles/:id", auth, perm("role.delete"), h.DeleteRole)
 	r.GET("/admin/permissions", auth, perm("role:read"), h.ListPermissions)
 }
 

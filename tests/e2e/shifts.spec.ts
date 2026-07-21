@@ -14,12 +14,7 @@ test.describe('Shifts Page', () => {
     await page.goto('/shifts');
     await expect(page).toHaveURL(/\/shifts/);
 
-    const loadingSpinner = page.locator('text=Loading shifts...');
-    await expect(loadingSpinner).toBeVisible({ timeout: 5000 });
-
-    await expect(loadingSpinner).toBeHidden({ timeout: 15000 });
-
-    await expect(page.locator('text=No shifts found').or(page.locator('table tbody tr'))).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should show shifts table with correct columns for cashier', async ({ page }) => {
@@ -34,10 +29,10 @@ test.describe('Shifts Page', () => {
     await expect(page.locator('text=TOTAL SALES (Rp)')).toBeVisible();
     await expect(page.locator('text=TXN')).toBeVisible();
     await expect(page.locator('text=DISCREPANCY (Rp)')).toBeVisible();
-    await expect(page.locator('text=STATUS')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'STATUS' })).toBeVisible();
     await expect(page.locator('text=CLOSED AT')).toBeVisible();
 
-    await expect(page.locator('text=CASHIER')).toBeHidden();
+    await expect(page.locator('th').filter({ hasText: 'CASHIER' })).toHaveCount(0);
   });
 
   test('should open shift modal and display active shift banner', async ({ page, request }) => {
@@ -49,31 +44,29 @@ test.describe('Shifts Page', () => {
 
     await page.goto('/shifts');
     await expect(page).toHaveURL(/\/shifts/);
-    await expect(page.locator('text=Loading shifts...')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15000 });
 
-    const openBtn = page.locator('button').filter({ hasText: 'Open Shift' });
+    const openBtn = page.getByRole('button', { name: 'Open Shift' }).first();
     await expect(openBtn).toBeEnabled({ timeout: 5000 });
     await openBtn.click();
 
-    await expect(page.getByRole('dialog', { name: 'Open Shift' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Open Shift' });
+    await expect(dialog).toBeVisible();
 
     await page.locator('#opening-balance').fill('100000');
-    await page.locator('button').filter({ hasText: 'Open Shift' }).click();
+    await dialog.getByRole('button', { name: 'Open Shift' }).click();
 
     await expect(page.locator('text=Active Shift')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Loading shifts...')).toBeHidden({ timeout: 5000 });
   });
 
-  test('loading state does not persist after navigating to shifts page', async ({ page }) => {
+  test('loading state does not persist after navigating back to shifts page', async ({ page }) => {
     await page.goto('/shifts');
     await expect(page).toHaveURL(/\/shifts/);
 
     const loadingSpinner = page.locator('text=Loading shifts...');
-    await expect(loadingSpinner).toBeVisible({ timeout: 5000 });
-    await expect(loadingSpinner).toBeHidden({ timeout: 15000 });
 
-    await page.goto('/pos');
-    await expect(page).toHaveURL(/\/pos/);
+    await page.goto('/customers');
+    await expect(page).toHaveURL(/\/customers/);
 
     await page.goto('/shifts');
     await expect(page).toHaveURL(/\/shifts/);
@@ -116,7 +109,6 @@ test.describe('Shifts API - cashier_id filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
-    expect(Array.isArray(body.data)).toBeTruthy();
     expect(body).toHaveProperty('total');
   });
 

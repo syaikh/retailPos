@@ -296,22 +296,22 @@ func TestRequirePermission(t *testing.T) {
 	}{
 		{
 			name:     "permission granted",
-			perms:    []string{"sale:create", "sale:read"},
+			perms:    []string{"sale.create", "sale.view"},
 			setPerms: true,
-			required: "sale:create",
+			required: "sale.create",
 			wantCode: http.StatusOK,
 		},
 		{
 			name:     "permission denied",
-			perms:    []string{"sale:read"},
+			perms:    []string{"sale.view"},
 			setPerms: true,
-			required: "sale:create",
+			required: "sale.create",
 			wantCode: http.StatusForbidden,
 		},
 		{
 			name:     "no permissions in context",
 			setPerms: false,
-			required: "sale:create",
+			required: "sale.create",
 			wantCode: http.StatusUnauthorized,
 		},
 	}
@@ -345,22 +345,22 @@ func TestRequireAnyPermission(t *testing.T) {
 	}{
 		{
 			name:        "first permission matches",
-			perms:       []string{"sale:create"},
+			perms:       []string{"sale.create"},
 			setPerms:    true,
-			requiredAny: []string{"sale:create", "sale:read"},
+			requiredAny: []string{"sale.create", "sale.view"},
 			wantCode:    http.StatusOK,
 		},
 		{
 			name:        "no permission matches",
-			perms:       []string{"report:read"},
+			perms:       []string{"report.view"},
 			setPerms:    true,
-			requiredAny: []string{"sale:create", "sale:read"},
+			requiredAny: []string{"sale.create", "sale.view"},
 			wantCode:    http.StatusForbidden,
 		},
 		{
 			name:        "no permissions in context",
 			setPerms:    false,
-			requiredAny: []string{"sale:create", "sale:read"},
+			requiredAny: []string{"sale.create", "sale.view"},
 			wantCode:    http.StatusUnauthorized,
 		},
 	}

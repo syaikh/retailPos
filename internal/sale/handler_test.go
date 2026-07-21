@@ -32,7 +32,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 		c.Set("username", "sale_handler_user")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"sale:create", "sale:read", "report:read"})
+		c.Set("permissions", []string{"sale.create", "sale.view", "report.view"})
 		c.Set("storeID", nil)
 		c.Next()
 	}

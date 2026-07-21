@@ -25,10 +25,10 @@ func NewHandler(svc *Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/audit-logs", auth, perm("audit:read"), h.ListAuditLogs)
-	r.GET("/audit-logs/:id", auth, perm("audit:read"), h.GetAuditLog)
-	r.GET("/audit-logs/export", auth, perm("audit:read"), h.ExportAuditLogs)
-	r.GET("/audit-logs/entity-types", auth, perm("audit:read"), h.ListEntityTypes)
+	r.GET("/audit-logs", auth, perm("audit.view"), h.ListAuditLogs)
+	r.GET("/audit-logs/:id", auth, perm("audit.view"), h.GetAuditLog)
+	r.GET("/audit-logs/export", auth, perm("audit.view"), h.ExportAuditLogs)
+	r.GET("/audit-logs/entity-types", auth, perm("audit.view"), h.ListEntityTypes)
 }
 
 func (h *Handler) ListAuditLogs(c *gin.Context) {

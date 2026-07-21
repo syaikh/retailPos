@@ -63,10 +63,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/products/next-sku", h.GetNextSKU)
 
 	r.GET("/products/:id", auth, h.GetProductByID)
-	r.POST("/products", auth, perm("product:create"), h.CreateProduct)
-	r.PUT("/products/:id", auth, perm("product:update"), h.UpdateProduct)
-	r.DELETE("/products/:id", auth, perm("product:delete"), h.DeleteProduct)
-	r.POST("/products/bulk/status", auth, perm("product:update"), h.BulkUpdateProductStatus)
+	r.POST("/products", auth, perm("product.create"), h.CreateProduct)
+	r.PUT("/products/:id", auth, perm("product.update"), h.UpdateProduct)
+	r.DELETE("/products/:id", auth, perm("product.delete"), h.DeleteProduct)
+	r.POST("/products/bulk/status", auth, perm("product.update"), h.BulkUpdateProductStatus)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
