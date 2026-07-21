@@ -18,6 +18,7 @@ type ShiftService interface {
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
 	ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
+	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 }
 
 type Handler struct {
@@ -32,6 +33,7 @@ func NewHandler(svc ShiftService, auditSvc audit.AuditCreator) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.POST("/shifts/open", auth, perm("shift:create"), h.OpenShift)
 	r.POST("/shifts/:id/close", auth, perm("shift:create"), h.CloseShift)
+	r.POST("/shifts/:id/review", auth, perm("shift:review"), h.ReviewShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
 	r.GET("/shifts", auth, perm("shift:read"), h.ListShifts)
 	r.GET("/shifts/:id", auth, perm("shift:read"), h.GetShiftByID)
@@ -178,6 +180,44 @@ func (h *Handler) GetShiftByID(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "shift not found"})
 		return
+	}
+
+	shared.JSONSuccess(c, shift)
+}
+
+func (h *Handler) ReviewShift(c *gin.Context) {
+	shiftID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid shift id"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	reviewerID, ok := userID.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	shift, err := h.svc.ReviewShift(c.Request.Context(), shiftID, reviewerID)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "review",
+			EntityType:  "shift",
+			EntityID:    &shift.ID,
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"needs_review": false, "reviewed_by": reviewerID}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: "Reviewed shift discrepancy",
+		})
 	}
 
 	shared.JSONSuccess(c, shift)

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, Modal } from '$shared/ui';
+  import { Button, CurrencyInput, Input, Modal } from '$shared/ui';
   import { Search, X, ChevronDown, Percent } from 'lucide-svelte';
   import { getPricingRules } from '$modules/pricing/services/pricing-service';
   import type { PricingRule } from '$modules/pricing/types';
@@ -193,11 +193,11 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
         <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR) <span class="text-destructive">*</span></label>
-        <Input id="prod-price" bind:value={form.price} type="number" required />
+        <CurrencyInput id="prod-price" bind:value={form.price} required />
       </div>
       <div>
         <label for="prod-cost" class="block text-sm font-medium text-text-secondary mb-2">Cost (IDR)</label>
-        <Input id="prod-cost" bind:value={form.cost} type="number" />
+        <CurrencyInput id="prod-cost" bind:value={form.cost} />
       </div>
       <div>
         <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock <span class="text-destructive">*</span></label>

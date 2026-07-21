@@ -14,8 +14,8 @@ func NewService(repo *Repository) *Service {
 }
 
 func (s *Service) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
-	if openingBalance < 0 {
-		return nil, fmt.Errorf("opening balance must not be negative")
+	if openingBalance <= 0 {
+		return nil, fmt.Errorf("opening balance must be greater than zero")
 	}
 	return s.repo.OpenShift(ctx, userID, storeID, openingBalance)
 }
@@ -37,4 +37,8 @@ func (s *Service) ListShifts(ctx context.Context, userID *int, status string, li
 
 func (s *Service) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {
 	return s.repo.GetShiftByID(ctx, shiftID)
+}
+
+func (s *Service) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
+	return s.repo.ReviewShift(ctx, shiftID, reviewerID)
 }

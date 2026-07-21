@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS shifts (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_shifts_user_id ON shifts(user_id);
-CREATE INDEX idx_shifts_store_id ON shifts(store_id);
-CREATE INDEX idx_shifts_status ON shifts(status);
-CREATE INDEX idx_shifts_opened_at ON shifts(opened_at);
+CREATE INDEX IF NOT EXISTS idx_shifts_user_id ON shifts(user_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_store_id ON shifts(store_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts(status);
+CREATE INDEX IF NOT EXISTS idx_shifts_opened_at ON shifts(opened_at);
 
 COMMENT ON TABLE shifts IS 'Cashier shift management with opening/closing balances';

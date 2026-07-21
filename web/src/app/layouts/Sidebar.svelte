@@ -3,6 +3,8 @@
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
+  import { useShiftStore } from '$modules/shifts';
+  import { Tooltip } from '$shared/ui';
 
   let {
     currentPath = $bindable('/'),
@@ -47,12 +49,15 @@
   });
 
   const authStore = useAuthStore();
+  const shiftStore = useShiftStore();
   let username = $derived(authStore.user?.username || 'User');
   let role = $derived(
     typeof authStore.user?.role === 'object' && authStore.user?.role ? authStore.user.role.name :
     typeof authStore.user?.role === 'string' ? authStore.user.role :
     (authStore.user?.role_id === 1 ? 'superadmin' : authStore.user?.role_id === 2 ? 'admin' : authStore.user?.role_id === 3 ? 'cashier' : authStore.user?.role_id === 4 ? 'manager' : authStore.user?.role_id === 5 ? 'staff' : 'cashier')
   );
+
+  let canLogout = $derived(role !== 'cashier' || !shiftStore.activeShift);
 
   const navItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
@@ -288,26 +293,43 @@
           <p class="text-xs font-semibold text-text-primary truncate">{username}</p>
           <p class="text-[10px] text-text-muted capitalize truncate">{role}</p>
         </div>
-  <button type="button" 
-          onclick={handleLogout}
-          class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-all duration-200 group"
-          title="Logout"
-        >
-          <LogOut size={14} class="group-hover:scale-110 transition-transform" />
-          <span class="text-xs font-medium">Logout</span>
-        </button>
+        {#if canLogout}
+          <button type="button" 
+            onclick={handleLogout}
+            class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-all duration-200 group"
+            title="Logout"
+          >
+            <LogOut size={14} class="group-hover:scale-110 transition-transform" />
+            <span class="text-xs font-medium">Logout</span>
+          </button>
+        {:else}
+          <Tooltip content="Close shift first" placement="top">
+            <span class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted/40 cursor-not-allowed">
+              <LogOut size={14} />
+              <span class="text-xs font-medium">Logout</span>
+            </span>
+          </Tooltip>
+        {/if}
       {/if}
     </div>
 
     {#if collapsed}
-<button type="button" 
-        onclick={handleLogout}
-        class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle px-3 py-2.5"
-        title="Logout"
-        aria-label="Logout"
-      >
-        <LogOut size={18} />
-      </button>
+      {#if canLogout}
+        <button type="button" 
+          onclick={handleLogout}
+          class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle px-3 py-2.5"
+          title="Logout"
+          aria-label="Logout"
+        >
+          <LogOut size={18} />
+        </button>
+      {:else}
+        <Tooltip content="Close shift first" placement="right">
+          <span class="sidebar-item w-full justify-center text-text-muted/40 cursor-not-allowed px-3 py-2.5">
+            <LogOut size={18} />
+          </span>
+        </Tooltip>
+      {/if}
     {/if}
 
     <!-- Collapse toggle -->

@@ -78,6 +78,25 @@ describe('sales-service', () => {
     expect(url).toContain('max_total=500000');
   });
 
+  it('getSalesHistory includes cashierId filter', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: [], total: 0 }),
+    });
+
+    const { getSalesHistory } = await import('../sales-service');
+    await getSalesHistory({
+      startDate: '2026-06-01',
+      endDate: '2026-06-22',
+      limit: 20,
+      offset: 0,
+      cashierId: 5,
+    });
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('cashier_id=5');
+  });
+
   it('exportSales constructs export URL with auth header', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,

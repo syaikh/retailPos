@@ -4,6 +4,7 @@ type Sale struct {
 	ID            int        `json:"id"`
 	InvoiceNumber string     `json:"invoice_number"`
 	CashierID     int        `json:"cashier_id"`
+	ShiftID       *int       `json:"shift_id,omitempty"`
 	CustomerID    *int       `json:"customer_id,omitempty"`
 	CustomerName  string     `json:"customer_name,omitempty"`
 	StoreID       *int       `json:"store_id,omitempty"`
@@ -47,6 +48,7 @@ type SaleExportRow struct {
 type SaleCreateRequest struct {
 	InvoiceNumber string     `json:"invoice_number"`
 	CashierID     int        `json:"cashier_id"`
+	ShiftID       *int       `json:"shift_id,omitempty"`
 	StoreID       *int       `json:"store_id,omitempty"`
 	Subtotal      int        `json:"subtotal"`
 	Discount      int        `json:"discount"`

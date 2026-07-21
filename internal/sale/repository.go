@@ -28,10 +28,10 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, subtotal, discount, tax, total_amount, payment_method, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, created_at, updated_at
-	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status).
+	`, sale.InvoiceNumber, sale.CashierID, sale.StoreID, sale.CustomerID, sale.ShiftID, sale.Subtotal, sale.Discount, sale.Tax, sale.TotalAmount, sale.PaymentMethod, sale.Status).
 		Scan(&sale.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert sale: %w", err)
@@ -141,7 +141,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	return &sale, nil
 }
 
-func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal *int) ([]Sale, int, error) {
+func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 	var sales []Sale
 	var total int
 
@@ -191,6 +191,10 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	if maxTotal != nil {
 		countQuery += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
 		countArgs = append(countArgs, *maxTotal)
+	}
+	if cashierID != nil {
+		countQuery += fmt.Sprintf(" AND s.cashier_id = $%d", argIdx)
+		countArgs = append(countArgs, *cashierID)
 	}
 
 	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
@@ -245,6 +249,11 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	if maxTotal != nil {
 		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx2)
 		args2 = append(args2, *maxTotal)
+		argIdx2++
+	}
+	if cashierID != nil {
+		query += fmt.Sprintf(" AND s.cashier_id = $%d", argIdx2)
+		args2 = append(args2, *cashierID)
 		argIdx2++
 	}
 	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}

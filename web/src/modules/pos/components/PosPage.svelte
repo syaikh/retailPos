@@ -1,5 +1,6 @@
 <script lang="ts">
    import { onMount } from 'svelte';
+   import { goto } from '$app/router';
    import apiClient from '$shared/api/http-client';
    import { toast } from '$shared/stores/toast.svelte';
    import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte';
@@ -12,6 +13,7 @@
 
     import { ShoppingCart } from 'lucide-svelte';
     import { useAuthStore } from '$modules/auth';
+    import { useShiftStore } from '$modules/shifts';
     import ProductSearchPanel from './ProductSearchPanel.svelte';
     import PosProductTable from './PosProductTable.svelte';
     import CartPanel from './CartPanel.svelte';
@@ -96,6 +98,11 @@ let total: number = $state(0);
   const changeDue = $derived(cashReceived - totalAmount);
   const dppDisplay = $derived(subtotal - taxAmount);
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
+
+  const displayProducts = $derived(products.map(p => ({
+    ...p,
+    stock: Math.max(0, p.stock - cart.filter(c => c.id === p.id).reduce((sum, c) => sum + c.quantity, 0)),
+  })));
 
   async function fetchProducts(isSearch = false) {
     try {
@@ -288,9 +295,11 @@ let total: number = $state(0);
           original_price: item.original_price,
         } : {}),
       }));
+      const activeShift = useShiftStore().activeShift;
       const response = await apiClient.post('/sales', {
         cashier_id: (authStore.user as any)?.id || 1,
         store_id: (authStore.user as any)?.store_id || null,
+        shift_id: activeShift?.id || null,
         subtotal,
         discount: 0,
         tax: taxAmount,
@@ -472,11 +481,6 @@ let total: number = $state(0);
       closeCheckoutModal();
       return;
     }
-    if (event.key === 'F6') {
-      event.preventDefault();
-      cashReceived = totalAmount;
-      return;
-    }
     if (event.key === 'Enter') {
       event.preventDefault();
       if (changeDue >= 0) {
@@ -509,6 +513,22 @@ let total: number = $state(0);
 
   onMount(() => {
     (async () => {
+      const userRole = typeof authStore.user?.role === 'string' ? authStore.user.role : authStore.user?.role?.name ?? '';
+      if (userRole === 'cashier') {
+        try {
+          const res = await apiClient.get('/shifts/active');
+          if (!res.data.data) {
+            toast.error('Anda harus membuka shift terlebih dahulu');
+            goto('/shifts');
+            return;
+          }
+        } catch {
+          toast.error('Anda harus membuka shift terlebih dahulu');
+          goto('/shifts');
+          return;
+        }
+      }
+
       isInitialMount = true;
       await Promise.all([fetchProducts(false), fetchThresholds()]);
       fetchCustomers();
@@ -565,7 +585,7 @@ let total: number = $state(0);
     <ProductSearchPanel bind:searchQuery onsearchsubmit={handleSearchSubmit} />
     <div class="card flex-1 overflow-hidden flex flex-col p-0">
       <PosProductTable
-        {products}
+        products={displayProducts}
         {loading}
         {total}
         {limit}

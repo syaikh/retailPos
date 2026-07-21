@@ -31,6 +31,15 @@ describe('TransactionsPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useSalesStore } from '../stores/sales-store.svelte'");
   });
 
+  it('imports auth store and RBAC', () => {
+    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain("import { useRBAC } from '$shared/composables/useRBAC.svelte'");
+  });
+
+  it('sets cashierId filter for cashier role', () => {
+    expect(src).toContain('store.cashierId');
+  });
+
   it('imports createQueryManager', () => {
     expect(src).toContain("import { createQueryManager } from '../lib/query-manager'");
   });

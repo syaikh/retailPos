@@ -99,6 +99,7 @@ describe('product-utils', () => {
       expect(getUserRoleName({ role_id: 2 })).toBe('admin');
       expect(getUserRoleName({ role_id: 3 })).toBe('cashier');
       expect(getUserRoleName({ role_id: 4 })).toBe('manager');
+      expect(getUserRoleName({ role_id: 5 })).toBe('staff');
     });
   });
 

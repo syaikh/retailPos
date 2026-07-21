@@ -43,6 +43,7 @@ export interface SaleFilters {
   paymentMethods?: string[];
   minTotal?: number;
   maxTotal?: number;
+  cashierId?: number;
   dateRange?: string;
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -108,15 +109,14 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	var summary ShiftSummary
 	err = tx.QueryRow(ctx, `
 		SELECT
-			COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total_amount ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN payment_method != 'cash' THEN total_amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
 			COALESCE(SUM(total_amount), 0),
 			COUNT(*)
 		FROM sales
-		WHERE cashier_id = $1
-		  AND created_at >= $2
+		WHERE shift_id = $1
 		  AND status = 'completed'
-	`, userID, openedAt).Scan(
+	`, shiftID).Scan(
 		&summary.TotalCashSales, &summary.TotalNonCashSales,
 		&summary.TotalSales, &summary.TotalTransactions,
 	)
@@ -125,6 +125,9 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	}
 
 	discrepancy := closingBalance - shift.OpeningBalance - summary.TotalCashSales
+
+	const discrepancyThreshold = 50000
+	needsReview := discrepancy < -discrepancyThreshold || discrepancy > discrepancyThreshold
 
 	var closedAt, updatedAt time.Time
 	err = tx.QueryRow(ctx, `
@@ -137,12 +140,13 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 		    transaction_count = $5,
 		    discrepancy = $6,
 		    notes = $7,
+		    needs_review = $8,
 		    closed_at = NOW(),
 		    updated_at = NOW()
-		WHERE id = $8
+		WHERE id = $9
 		RETURNING closed_at, updated_at
 	`, closingBalance, summary.TotalCashSales, summary.TotalNonCashSales,
-		summary.TotalSales, summary.TotalTransactions, discrepancy, notes, shiftID).Scan(
+		summary.TotalSales, summary.TotalTransactions, discrepancy, notes, needsReview, shiftID).Scan(
 		&closedAt, &updatedAt,
 	)
 	if err != nil {
@@ -160,6 +164,7 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	shift.TransactionCount = summary.TotalTransactions
 	shift.Discrepancy = &discrepancy
 	shift.Notes = notes
+	shift.NeedsReview = needsReview
 	shift.Status = "closed"
 	shift.ClosedAt = closedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	shift.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -169,16 +174,17 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 
 func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error) {
 	var shift Shift
-	var storeID, closingBalance, discrepancy sql.NullInt64
+	var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
 	var storeName sql.NullString
 	var notes sql.NullString
 	var openedAt, createdAt, updatedAt time.Time
-	var closedAt sql.NullTime
+	var closedAt, reviewedAt sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
 		SELECT s.id, s.user_id, s.store_id, st.name, s.status, s.opening_balance, s.closing_balance,
 		       s.cash_sales, s.non_cash_sales, s.total_sales, s.transaction_count,
-		       s.discrepancy, s.notes, s.opened_at, s.closed_at, s.created_at, s.updated_at
+		       s.discrepancy, s.notes, s.needs_review, s.reviewed_by, s.reviewed_at,
+		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
 		LEFT JOIN stores st ON st.id = s.store_id
 		WHERE s.user_id = $1 AND s.status = 'open'
@@ -187,10 +193,27 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 		&shift.ID, &shift.UserID, &storeID, &storeName, &shift.Status, &shift.OpeningBalance,
 		&closingBalance, &shift.CashSales, &shift.NonCashSales, &shift.TotalSales,
 		&shift.TransactionCount, &discrepancy, &notes,
+		&shift.NeedsReview, &reviewedBy, &reviewedAt,
 		&openedAt, &closedAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := r.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
+			COALESCE(SUM(total_amount), 0),
+			COUNT(*)
+		FROM sales
+		WHERE shift_id = $1
+		  AND status = 'completed'
+	`, shift.ID).Scan(
+		&shift.CashSales, &shift.NonCashSales,
+		&shift.TotalSales, &shift.TransactionCount,
+	); err != nil {
+		log.Printf("failed to scan live sales for active shift %d: %v", shift.ID, err)
 	}
 
 	if storeID.Valid {
@@ -210,6 +233,13 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	}
 	if notes.Valid {
 		shift.Notes = &notes.String
+	}
+	if reviewedBy.Valid {
+		v := int(reviewedBy.Int64)
+		shift.ReviewedBy = &v
+	}
+	if reviewedAt.Valid {
+		shift.ReviewedAt = reviewedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
 	if closedAt.Valid {
 		shift.ClosedAt = closedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -260,6 +290,7 @@ func (r *Repository) ListShifts(ctx context.Context, userID *int, status string,
 		SELECT s.id, s.user_id, u.username, s.store_id, st.name, s.status,
 		       s.opening_balance, s.closing_balance, s.cash_sales, s.non_cash_sales,
 		       s.total_sales, s.transaction_count, s.discrepancy, s.notes,
+		       s.needs_review, s.reviewed_by, s.reviewed_at,
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
 		LEFT JOIN users u ON u.id = s.user_id
@@ -276,16 +307,17 @@ func (r *Repository) ListShifts(ctx context.Context, userID *int, status string,
 	var shifts []Shift
 	for rows.Next() {
 		var s Shift
-		var storeID, closingBalance, discrepancy sql.NullInt64
+		var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
 		var storeName sql.NullString
 		var notes sql.NullString
 		var openedAt, createdAt, updatedAt time.Time
-		var closedAt sql.NullTime
+		var closedAt, reviewedAt sql.NullTime
 
 		err := rows.Scan(
 			&s.ID, &s.UserID, &s.Username, &storeID, &storeName, &s.Status,
 			&s.OpeningBalance, &closingBalance, &s.CashSales, &s.NonCashSales,
 			&s.TotalSales, &s.TransactionCount, &discrepancy, &notes,
+			&s.NeedsReview, &reviewedBy, &reviewedAt,
 			&openedAt, &closedAt, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -310,6 +342,13 @@ func (r *Repository) ListShifts(ctx context.Context, userID *int, status string,
 		if notes.Valid {
 			s.Notes = &notes.String
 		}
+		if reviewedBy.Valid {
+			v := int(reviewedBy.Int64)
+			s.ReviewedBy = &v
+		}
+		if reviewedAt.Valid {
+			s.ReviewedAt = reviewedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		}
 		if closedAt.Valid {
 			s.ClosedAt = closedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 		}
@@ -325,16 +364,17 @@ func (r *Repository) ListShifts(ctx context.Context, userID *int, status string,
 
 func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {
 	var s Shift
-	var storeID, closingBalance, discrepancy sql.NullInt64
+	var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
 	var storeName sql.NullString
 	var notes sql.NullString
 	var openedAt, createdAt, updatedAt time.Time
-	var closedAt sql.NullTime
+	var closedAt, reviewedAt sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
 		SELECT s.id, s.user_id, u.username, s.store_id, st.name, s.status,
 		       s.opening_balance, s.closing_balance, s.cash_sales, s.non_cash_sales,
 		       s.total_sales, s.transaction_count, s.discrepancy, s.notes,
+		       s.needs_review, s.reviewed_by, s.reviewed_at,
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
 		LEFT JOIN users u ON u.id = s.user_id
@@ -344,6 +384,7 @@ func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, err
 		&s.ID, &s.UserID, &s.Username, &storeID, &storeName, &s.Status,
 		&s.OpeningBalance, &closingBalance, &s.CashSales, &s.NonCashSales,
 		&s.TotalSales, &s.TransactionCount, &discrepancy, &notes,
+		&s.NeedsReview, &reviewedBy, &reviewedAt,
 		&openedAt, &closedAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -368,6 +409,13 @@ func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, err
 	if notes.Valid {
 		s.Notes = &notes.String
 	}
+	if reviewedBy.Valid {
+		v := int(reviewedBy.Int64)
+		s.ReviewedBy = &v
+	}
+	if reviewedAt.Valid {
+		s.ReviewedAt = reviewedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+	}
 	if closedAt.Valid {
 		s.ClosedAt = closedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
@@ -376,4 +424,20 @@ func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, err
 	s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &s, nil
+}
+
+func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
+	_, err := r.db.Exec(ctx, `
+		UPDATE shifts
+		SET needs_review = false,
+		    reviewed_by = $1,
+		    reviewed_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $2
+	`, reviewerID, shiftID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to review shift: %w", err)
+	}
+
+	return r.GetShiftByID(ctx, shiftID)
 }

@@ -1,0 +1,95 @@
+package shift
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/shared"
+)
+
+func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("zero balance returns error", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 0)
+		assert.Error(t, err)
+		assert.Nil(t, shift)
+		assert.Contains(t, err.Error(), "must be greater than zero")
+	})
+
+	t.Run("negative balance returns error", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, -50000)
+		assert.Error(t, err)
+		assert.Nil(t, shift)
+		assert.Contains(t, err.Error(), "must be greater than zero")
+	})
+
+	t.Run("positive balance succeeds", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
+		require.NoError(t, err)
+		require.NotNil(t, shift)
+		assert.Equal(t, 100000, shift.OpeningBalance)
+		assert.Equal(t, "open", shift.Status)
+	})
+}
+
+func TestShiftService_CloseShift_ValidatesClosingBalance(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("negative closing balance returns error", func(t *testing.T) {
+		shift, err := svc.CloseShift(ctx, 1, 1, -1, nil)
+		assert.Error(t, err)
+		assert.Nil(t, shift)
+		assert.Contains(t, err.Error(), "closing balance must not be negative")
+	})
+}
+
+func TestShiftService_ReviewShift(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	t.Run("review shift marks as reviewed", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
+		require.NoError(t, err)
+
+		closed, err := svc.CloseShift(ctx, shift.ID, userID, 200000, nil)
+		require.NoError(t, err)
+		assert.True(t, closed.NeedsReview)
+
+		reviewerID := insertTestUser(t, ctx, 2)
+		reviewed, err := svc.ReviewShift(ctx, closed.ID, reviewerID)
+		require.NoError(t, err)
+		assert.False(t, reviewed.NeedsReview)
+		require.NotNil(t, reviewed.ReviewedBy)
+		assert.Equal(t, reviewerID, *reviewed.ReviewedBy)
+	})
+
+	t.Run("review non-existent shift returns error", func(t *testing.T) {
+		_, err := svc.ReviewShift(ctx, 999999, 1)
+		assert.Error(t, err)
+	})
+}

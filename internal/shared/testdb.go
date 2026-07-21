@@ -36,14 +36,7 @@ func NewTestDB() (*pgxpool.Pool, error) {
 
 func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 	_, _ = pool.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS pgcrypto")
-
-	var tableCount int
-	_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
-
-	if tableCount > 0 {
-		_, _ = pool.Exec(context.Background(), "CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1")
-		return nil
-	}
+	_, _ = pool.Exec(context.Background(), "CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1")
 
 	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
@@ -58,7 +51,40 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 	}
 	sort.Strings(files)
 
+	if _, err := pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			filename VARCHAR(255) PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`); err != nil {
+		return fmt.Errorf("create migrations table: %w", err)
+	}
+
+	var appliedCount int
+	_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM schema_migrations").Scan(&appliedCount)
+
+	if appliedCount == len(files) {
+		return nil
+	}
+
+	if appliedCount == 0 {
+		var tableCount int
+		_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name NOT IN ('schema_migrations')").Scan(&tableCount)
+		if tableCount > 0 {
+			for _, f := range files {
+				_, _ = pool.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING", f)
+			}
+			return nil
+		}
+	}
+
 	for _, f := range files {
+		var applied bool
+		_ = pool.QueryRow(context.Background(), "SELECT TRUE FROM schema_migrations WHERE filename = $1", f).Scan(&applied)
+		if applied {
+			continue
+		}
+
 		path := filepath.Join(migrationsDir, f)
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -66,6 +92,9 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 		}
 		if _, err := pool.Exec(context.Background(), string(content)); err != nil {
 			return fmt.Errorf("exec %s: %w", f, err)
+		}
+		if _, err := pool.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1)", f); err != nil {
+			return fmt.Errorf("record %s: %w", f, err)
 		}
 	}
 	return nil
@@ -86,7 +115,7 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"categories", "brands", "units_of_measure", "warehouses", "tax_classes",
 		"products", "product_stock",
 		"customers",
-		"customer_groups", "stores",
+		"customer_groups", "shifts", "stores",
 		"pricing_rules",
 		"users", "refresh_tokens",
 		"sales", "sale_items",

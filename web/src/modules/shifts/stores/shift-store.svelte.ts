@@ -4,6 +4,7 @@ import {
   getActiveShift,
   listShifts,
   getShiftById,
+  reviewShift,
 } from '../services/shift-service';
 import type { Shift, ShiftFilters } from '../types';
 
@@ -18,6 +19,8 @@ let page = $state(0);
 let pageSize = $state(20);
 let sortBy = $state('opened_at');
 let sortDir = $state<'asc' | 'desc'>('desc');
+
+let abortController: AbortController | null = null;
 
 let initialized = false;
 
@@ -68,20 +71,23 @@ export function useShiftStore() {
       }
     },
 
-    async loadShifts(filters: ShiftFilters, signal?: AbortSignal) {
+    async loadShifts(filters: ShiftFilters) {
+      abortController?.abort();
+      const controller = new AbortController();
+      abortController = controller;
+
       loading = true;
       try {
-        const result = await listShifts(filters);
-        if (signal?.aborted) return;
+        const result = await listShifts(filters, controller.signal);
+        if (controller.signal.aborted) return;
         shifts = result.data;
         total = result.total;
       } catch {
-        if (signal?.aborted) return;
+        if (controller.signal.aborted) return;
         shifts = [];
         total = 0;
       } finally {
-        if (signal?.aborted) return;
-        loading = false;
+        if (!controller.signal.aborted) loading = false;
       }
     },
 
@@ -99,6 +105,14 @@ export function useShiftStore() {
 
     async loadShiftById(id: number) {
       return getShiftById(id);
+    },
+
+    async doReviewShift(shiftId: number) {
+      const shift = await reviewShift(shiftId);
+      const idx = shifts.findIndex(s => s.id === shiftId);
+      if (idx !== -1) shifts[idx] = shift;
+      if (activeShift?.id === shiftId) activeShift = shift;
+      return shift;
     },
   };
 }

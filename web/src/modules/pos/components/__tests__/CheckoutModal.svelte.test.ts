@@ -15,12 +15,12 @@ describe('CheckoutModal.svelte source-structure guards', () => {
     expect(src).toContain("import { fly } from 'svelte/transition'");
   });
 
-  it('imports Button from shared/ui', () => {
-    expect(src).toContain("import { Button } from '$shared/ui'");
+  it('imports Button and CurrencyInput from shared/ui', () => {
+    expect(src).toContain("import { Button, CurrencyInput } from '$shared/ui'");
   });
 
-  it('imports X, Check, Search from lucide-svelte', () => {
-    expect(src).toContain("import { X, Check, Search } from 'lucide-svelte'");
+  it('imports icons from lucide-svelte', () => {
+    expect(src).toContain("import { X, Check, ChevronRight } from 'lucide-svelte'");
   });
 
   it('uses $bindable for showCheckoutModal, paymentMethod, cashReceived', () => {
@@ -52,15 +52,22 @@ describe('CheckoutModal.svelte source-structure guards', () => {
 
   it('renders cash received input for Cash method', () => {
     expect(src).toContain('cash-received-input');
-    expect(src).toContain('Cash Received');
+    expect(src).toContain('Cash Received [F7]');
   });
 
-  it('renders quick cash preset buttons', () => {
-    expect(src).toContain('preset.toLocaleString');
+  it('renders quick cash preset buttons with abbreviated format', () => {
+    expect(src).toContain("`${preset / 1000000}jt`");
+    expect(src).toContain("`${preset / 1000}rb`");
   });
 
-  it('renders change due section', () => {
+  it('has F7 hotkey to set cash received to total', () => {
+    expect(src).toContain("e.key === 'F7'");
+    expect(src).toContain('cashReceived = totalAmount');
+  });
+
+  it('renders change due section with Rp prefix', () => {
     expect(src).toContain('Uang Kembali');
+    expect(src).toContain('Rp ');
     expect(src).toContain('Kembali');
   });
 

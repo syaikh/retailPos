@@ -15,6 +15,10 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import apiClient from '$shared/api/http-client'");
   });
 
+  it('imports goto from $app/router', () => {
+    expect(src).toContain("import { goto } from '$app/router'");
+  });
+
   it('imports toast store', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
@@ -23,8 +27,9 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import { printReceipt as printReceiptStore } from '$shared/stores/printReceipt.svelte'");
   });
 
-  it('imports auth store', () => {
+  it('imports auth store and shift store', () => {
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
   });
 
   it('imports ShoppingCart from lucide-svelte for paymentOptions', () => {
@@ -59,6 +64,18 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('function handleSearchSubmit');
     expect(src).toContain('function removeFromCart(id');
     expect(src).toContain('function updateQty(id');
+  });
+
+  it('has displayProducts derived for stock calculation', () => {
+    expect(src).toContain('displayProducts');
+  });
+
+  it('includes shift_id in checkout payload', () => {
+    expect(src).toContain('shift_id: activeShift?.id || null');
+  });
+
+  it('redirects cashier to /shifts if no active shift on mount', () => {
+    expect(src).toContain("goto('/shifts')");
   });
 
   it('has processCheckout and finalizeSale functions', () => {

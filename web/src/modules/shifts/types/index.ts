@@ -13,6 +13,9 @@ export interface Shift {
   transaction_count: number;
   discrepancy: number | null;
   notes: string | null;
+  needs_review: boolean;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
   opened_at: string;
   closed_at: string | null;
   created_at: string;

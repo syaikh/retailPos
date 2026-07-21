@@ -36,7 +36,7 @@
     position: static !important;
     left: auto !important;
     width: 80mm !important;
-    margin: 0 !important;
+    margin: 0 0 0 5mm !important;
     padding: 0 !important;
     background: white !important;
     z-index: 9999 !important;

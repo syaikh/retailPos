@@ -3,11 +3,21 @@
   import { getTodayInJakarta, getDateNDaysAgoInJakarta } from '$shared/utils/jakartaTime';
   import { useSalesStore } from '../stores/sales-store.svelte';
   import { createQueryManager } from '../lib/query-manager';
+  import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import TransactionFilters from './TransactionFilters.svelte';
   import TransactionTable from './TransactionTable.svelte';
   import TransactionDrawer from './TransactionDrawer.svelte';
 
   const store = useSalesStore();
+  const authStore = useAuthStore();
+  const rbac = useRBAC();
+
+  if (rbac.isCashier && authStore.user?.id) {
+    store.cashierId = authStore.user.id;
+  } else {
+    store.cashierId = null;
+  }
 
   store.startDate = getDateNDaysAgoInJakarta(30);
   store.endDate = getTodayInJakarta();

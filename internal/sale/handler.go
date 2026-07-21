@@ -20,7 +20,7 @@ import (
 type SaleService interface {
 	CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
-	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error)
+	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
@@ -69,6 +69,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	type createSaleReq struct {
 		InvoiceNumber string           `json:"invoice_number"`
 		CustomerID    *int             `json:"customer_id"`
+		ShiftID       *int             `json:"shift_id"`
 		StoreID       *int             `json:"store_id"`
 		Items         []createSaleItem `json:"items" binding:"required"`
 		PaymentMethod string           `json:"payment_method"`
@@ -142,6 +143,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	sale := &Sale{
 		InvoiceNumber: invoiceNumber,
 		CashierID:     cashierID,
+		ShiftID:       req.ShiftID,
 		StoreID:       storeIDPtr,
 		CustomerID:    req.CustomerID,
 		Subtotal:      subtotal,
@@ -255,7 +257,14 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 
 	storeIDPtr := shared.GetStoreID(c)
 
-	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal)
+	var cashierID *int
+	if v := c.Query("cashier_id"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cashierID = &n
+		}
+	}
+
+	sales, total, err := h.svc.ListSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeIDPtr, minTotal, maxTotal, cashierID)
 	if err != nil {
 		shared.InternalError(c, err)
 		return

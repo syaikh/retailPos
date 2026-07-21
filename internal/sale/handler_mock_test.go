@@ -18,7 +18,7 @@ import (
 type mockSaleService struct {
 	createSaleFn             func(ctx context.Context, sale *Sale, items []SaleItem) error
 	getSaleByIDFn            func(ctx context.Context, id int, storeID *int) (*Sale, error)
-	listSalesFn              func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error)
+	listSalesFn              func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
 	getSalesForExportFn      func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
 	getNextInvoiceNumberFn   func(ctx context.Context) (string, error)
 	getAllPaymentMethodsFn   func(ctx context.Context) ([]PaymentMethod, error)
@@ -31,8 +31,8 @@ func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []Sa
 func (m *mockSaleService) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	return m.getSaleByIDFn(ctx, id, storeID)
 }
-func (m *mockSaleService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
-	return m.listSalesFn(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal)
+func (m *mockSaleService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+	return m.listSalesFn(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal, cashierID)
 }
 func (m *mockSaleService) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
 	return m.getSalesForExportFn(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
@@ -100,6 +100,35 @@ func TestSaleHandler_CreateSale_Success(t *testing.T) {
 	require.NotNil(t, capturedSale)
 	assert.Equal(t, "INV-001", capturedSale.InvoiceNumber)
 	assert.Equal(t, 1, capturedSale.CashierID)
+}
+
+func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
+	var capturedSale *Sale
+	svc := &mockSaleService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+			sale.ID = 1
+			capturedSale = sale
+			return nil
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-008", nil
+		},
+		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
+			return &PaymentMethod{Code: "cash", Name: "Cash"}, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	shiftID := 42
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"shift_id":42,"payment_method":"cash"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, capturedSale)
+	require.NotNil(t, capturedSale.ShiftID)
+	assert.Equal(t, shiftID, *capturedSale.ShiftID)
 }
 
 func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
@@ -281,7 +310,7 @@ func TestSaleHandler_CreateSale_ProvidedInvoiceNumber(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			return []Sale{{ID: 1, InvoiceNumber: "INV-001"}}, 1, nil
 		},
 	}
@@ -298,7 +327,7 @@ func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_Error(t *testing.T) {
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			return nil, 0, assert.AnError
 		},
 	}
@@ -360,7 +389,7 @@ func TestSaleHandler_GetSalesHistory_InvalidMaxTotalOutOfRange(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 	var capturedSearch string
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedSearch = search
 			return []Sale{}, 0, nil
 		},
@@ -375,7 +404,7 @@ func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			assert.Equal(t, "created_at", sortBy, "invalid sort_by should default to created_at")
 			return []Sale{}, 0, nil
 		},
@@ -389,7 +418,7 @@ func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			assert.Equal(t, "DESC", sortDir, "invalid sort_dir should default to DESC")
 			return []Sale{}, 0, nil
 		},
@@ -404,7 +433,7 @@ func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 	var capturedLimit, capturedOffset int
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedLimit = limit
 			capturedOffset = offset
 			return []Sale{}, 0, nil
@@ -421,7 +450,7 @@ func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 	var capturedLimit int
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedLimit = limit
 			return []Sale{}, 0, nil
 		},
@@ -436,7 +465,7 @@ func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
 	var capturedOffset int
 	svc := &mockSaleService{
-		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int) ([]Sale, int, error) {
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedOffset = offset
 			return []Sale{}, 0, nil
 		},
@@ -495,6 +524,36 @@ func TestSaleHandler_GetSaleByID_ServiceError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/sales/1", nil)
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
+	var capturedCashierID *int
+	svc := &mockSaleService{
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+			capturedCashierID = cashierID
+			return []Sale{}, 0, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales?cashier_id=5", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, capturedCashierID)
+	assert.Equal(t, 5, *capturedCashierID)
+}
+
+func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
+	svc := &mockSaleService{
+		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+			return []Sale{}, 0, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales?cashier_id=abc", nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestSaleHandler_ExportSales_CSV(t *testing.T) {

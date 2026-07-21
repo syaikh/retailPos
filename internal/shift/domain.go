@@ -15,6 +15,9 @@ type Shift struct {
 	TransactionCount int    `json:"transaction_count"`
 	Discrepancy     *int    `json:"discrepancy,omitempty"`
 	Notes           *string `json:"notes,omitempty"`
+	NeedsReview     bool    `json:"needs_review"`
+	ReviewedBy      *int    `json:"reviewed_by,omitempty"`
+	ReviewedAt      string  `json:"reviewed_at,omitempty"`
 	OpenedAt        string  `json:"opened_at"`
 	ClosedAt        string  `json:"closed_at,omitempty"`
 	CreatedAt       string  `json:"created_at"`

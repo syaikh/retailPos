@@ -23,6 +23,9 @@ export async function getSalesHistory(filters: SaleFilters, signal?: AbortSignal
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
     params.set('max_total', filters.maxTotal.toString());
   }
+  if (filters.cashierId !== undefined) {
+    params.set('cashier_id', filters.cashierId.toString());
+  }
   const res = await apiFetch(`/api/sales?${params.toString()}`, { signal });
   if (res.ok) {
     const data = await res.json();
@@ -76,6 +79,9 @@ export async function exportSales(format: 'csv' | 'xlsx', filters: SaleFilters):
   }
   if (filters.maxTotal !== undefined && filters.maxTotal < SLIDER_MAX_BOUND) {
     params.set('max_total', filters.maxTotal.toString());
+  }
+  if (filters.cashierId !== undefined) {
+    params.set('cashier_id', filters.cashierId.toString());
   }
 
   const res = await fetch(`/api/sales/export?${params.toString()}`, {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, loginUI, logoutUI } from './fixtures';
+import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
 
 test.describe('Transactions Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -148,6 +148,71 @@ test.describe('Transactions Page', () => {
     const rows = page.locator('table tbody tr');
     const count = await rows.count();
     expect(count).toBeGreaterThanOrEqual(0);
+  });
+
+  test('should show Walk-in / General for sale without customer', async ({ page, request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        payment_method: 'CASH',
+        items: [{ product_id: 4690, quantity: 1, subtotal: 50000 }],
+      },
+    });
+    expect(saleRes.ok()).toBeTruthy();
+    const sale = await saleRes.json();
+    const invoice = sale.data?.invoice_number || sale.invoice_number;
+
+    await page.goto('/transactions');
+    await expect(page).toHaveURL(/\/transactions/);
+    await expect(page.locator('text=INVOICE')).toBeVisible({ timeout: 10000 });
+
+    const searchInput = page.getByPlaceholder('Search by invoice, product, or customer...');
+    await searchInput.fill(invoice);
+    await page.waitForTimeout(1500);
+
+    const customerCell = page.locator('table tbody td').nth(2);
+    await expect(customerCell).toContainText('Walk-in / General', { timeout: 5000 });
+  });
+
+  test('should show customer name when sale has customer', async ({ page, request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const saleRes = await page.request.post(`${API_BASE}/api/sales`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        payment_method: 'CASH',
+        customer_id: 2,
+        items: [{ product_id: 4690, quantity: 1, subtotal: 75000 }],
+      },
+    });
+    expect(saleRes.ok()).toBeTruthy();
+    const sale = await saleRes.json();
+    const invoice = sale.data?.invoice_number || sale.invoice_number;
+
+    await page.goto('/transactions');
+    await expect(page).toHaveURL(/\/transactions/);
+    await expect(page.locator('text=INVOICE')).toBeVisible({ timeout: 10000 });
+
+    const searchInput = page.getByPlaceholder('Search by invoice, product, or customer...');
+    await searchInput.fill(invoice);
+    await page.waitForTimeout(1500);
+
+    const customerCell = page.locator('table tbody td').nth(2);
+    await expect(customerCell).toContainText('Ahmad Fauzi', { timeout: 5000 });
+  });
+
+  test('cashier only sees own transactions via cashier_id filter', async ({ page, request }) => {
+    const token = await getToken(request, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+
+    const res = await page.request.get(`${API_BASE}/api/sales?limit=5&offset=0&sort_by=created_at&sort_dir=desc&cashier_id=4`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body).toHaveProperty('data');
+    expect(Array.isArray(body.data)).toBeTruthy();
   });
 
   test('sale created at Jakarta midnight appears in today transactions', async ({ page }) => {

@@ -26,6 +26,7 @@ describe('sales-store', () => {
     expect(store).toHaveProperty('pageSize');
     expect(store).toHaveProperty('limit');
     expect(store).toHaveProperty('offset');
+    expect(store).toHaveProperty('cashierId');
     expect(store).toHaveProperty('load');
   });
 
@@ -64,12 +65,22 @@ describe('sales-store', () => {
     store.sortBy = 'invoice_number';
     store.sortDir = 'asc';
     store.searchQuery = 'test';
+    store.cashierId = 5;
     const filters = store.currentFilters;
     expect(filters.limit).toBe(50);
     expect(filters.offset).toBe(100);
     expect(filters.sortBy).toBe('invoice_number');
     expect(filters.sortDir).toBe('asc');
     expect(filters.search).toBe('test');
+    expect(filters.cashierId).toBe(5);
+  });
+
+  it('sets cashierId to undefined when null', async () => {
+    const { useSalesStore } = await import('../sales-store.svelte');
+    store = useSalesStore();
+    store.cashierId = null;
+    const filters = store.currentFilters;
+    expect(filters.cashierId).toBeUndefined();
   });
 
   it('maps limit/offset to pageSize/page', async () => {

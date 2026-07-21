@@ -15,6 +15,7 @@ let endDate = $state('');
 let page = $state(0);
 let pageSize = $state(20);
 let sortBy = $state('created_at');
+let cashierId = $state<number | null>(null);
 let sortDir = $state<'asc' | 'desc'>('desc');
 
 let paymentMethodOptions = $state<{ code: string; name: string }[]>([]);
@@ -56,6 +57,8 @@ export function useSalesStore() {
     set sortBy(v: string) { sortBy = v; },
     get sortDir(): 'asc' | 'desc' { return sortDir; },
     set sortDir(v: 'asc' | 'desc') { sortDir = v; },
+    get cashierId() { return cashierId; },
+    set cashierId(v: number | null) { cashierId = v; },
     get paymentMethodOptions() { return paymentMethodOptions; },
     set paymentMethodOptions(v: { code: string; name: string }[]) { paymentMethodOptions = v; },
 
@@ -71,6 +74,7 @@ export function useSalesStore() {
         paymentMethods: paymentMethods.length > 0 ? paymentMethods : undefined,
         minTotal: minTotal !== null && minTotal > 0 ? minTotal : undefined,
         maxTotal: maxTotal !== null && maxTotal < 50000000 ? maxTotal : undefined,
+        cashierId: cashierId ?? undefined,
         dateRange,
       };
     },

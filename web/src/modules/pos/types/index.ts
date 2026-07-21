@@ -41,6 +41,7 @@ export interface CheckoutPayload {
   }[];
   cashier_id: number;
   store_id: number | null;
+  shift_id: number | null;
   subtotal: number;
   discount: number;
   tax: number;

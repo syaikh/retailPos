@@ -56,6 +56,10 @@ describe('TransactionTable.svelte source-structure guards', () => {
     expect(src).toContain('TOTAL (RP)');
   });
 
+  it('shows Walk-in / General for sales without customer', () => {
+    expect(src).toContain("Walk-in / General");
+  });
+
   it('renders Pagination component', () => {
     expect(src).toContain('<Pagination');
   });

@@ -268,7 +268,7 @@ func TestSaleService_ReadOperations(t *testing.T) {
 	})
 
 	t.Run("ListSales", func(t *testing.T) {
-		sales, total, err := svc.ListSales(ctx, 10, 0, inv, "", "", "", "", "", nil, nil, nil)
+		sales, total, err := svc.ListSales(ctx, 10, 0, inv, "", "", "", "", "", nil, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(sales), 1)

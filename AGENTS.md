@@ -55,6 +55,8 @@ TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=
 
 The failure in `TestE2E_ValidateSession` (`cmd/server/e2e_test.go`) is pre-existing — the handler returns `"user"` key but the test expects `"data"`. Not caused by recent changes.
 
+**Test database setup:** Tests connect to `retail_pos_test` DB (configurable via `TEST_DB_*` env vars). The test framework auto-applies pending migrations on first run using a `schema_migrations` tracking table. If the test DB schema is out of sync, recreate it: `dropdb retail_pos_test && createdb retail_pos_test` and re-run tests.
+
 ## Building
 
 ```bash

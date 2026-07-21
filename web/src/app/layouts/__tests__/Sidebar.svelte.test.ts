@@ -19,6 +19,11 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain("import { logout, useAuthStore } from '$modules/auth'");
   });
 
+  it('imports shift store and Tooltip', () => {
+    expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
+    expect(src).toContain("import { Tooltip } from '$shared/ui'");
+  });
+
   it('uses $bindable for currentPath prop', () => {
     expect(src).toContain('currentPath = $bindable(\'/\')');
   });
@@ -49,6 +54,11 @@ describe('Sidebar.svelte source-structure guards', () => {
   it('has handleLogout function that calls logout()', () => {
     expect(src).toContain('async function handleLogout()');
     expect(src).toContain('await logout()');
+  });
+
+  it('disables logout when cashier has active shift', () => {
+    expect(src).toContain('canLogout');
+    expect(src).toContain('!shiftStore.activeShift');
   });
 
   it('has collapse toggle buttons', () => {

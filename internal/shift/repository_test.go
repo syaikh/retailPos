@@ -1,0 +1,232 @@
+package shift
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/shared"
+)
+
+var dbPool *pgxpool.Pool
+
+func TestMain(m *testing.M) {
+	pool, err := shared.NewTestDB()
+	if err != nil {
+		os.Exit(0)
+	}
+	dbPool = pool
+	defer pool.Close()
+
+	if err := shared.RunMigrations(pool, "../../database/migrations"); err != nil {
+		os.Exit(0)
+	}
+
+	if err := shared.TruncateTestData(pool); err != nil {
+		os.Exit(0)
+	}
+
+	os.Exit(m.Run())
+}
+
+var userSeq int
+
+func insertTestUser(t *testing.T, ctx context.Context, roleID int) int {
+	t.Helper()
+	userSeq++
+	var id int
+	username := fmt.Sprintf("shift_user_%d", userSeq)
+	email := fmt.Sprintf("shift_%d@test.com", userSeq)
+	err := dbPool.QueryRow(ctx, `
+		INSERT INTO users (username, email, password_hash, role_id)
+		VALUES ($1, $2, 'hash', $3)
+		RETURNING id
+	`, username, email, roleID).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
+func createOpenShift(t *testing.T, ctx context.Context, repo *Repository, userID int) *Shift {
+	t.Helper()
+	shift, err := repo.OpenShift(ctx, userID, nil, 100000)
+	require.NoError(t, err)
+	require.NotNil(t, shift)
+	return shift
+}
+
+func TestShiftRepository_OpenShift(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("open shift success", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+		assert.Equal(t, userID, shift.UserID)
+		assert.Equal(t, "open", shift.Status)
+		assert.Equal(t, 100000, shift.OpeningBalance)
+		assert.NotEmpty(t, shift.OpenedAt)
+		assert.NotEmpty(t, shift.CreatedAt)
+	})
+
+	t.Run("cannot open second shift for same user", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		createOpenShift(t, ctx, repo, userID)
+		_, err := repo.OpenShift(ctx, userID, nil, 50000)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already has an open shift")
+	})
+}
+
+func TestShiftRepository_CloseShift(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("close shift success", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+
+		closed, err := repo.CloseShift(ctx, shift.ID, userID, 100000, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "closed", closed.Status)
+		assert.Equal(t, 100000, *closed.ClosingBalance)
+		assert.Equal(t, 0, closed.CashSales)
+		assert.Equal(t, 0, closed.TotalSales)
+		assert.Equal(t, 0, closed.TransactionCount)
+		require.NotNil(t, closed.Discrepancy)
+		assert.Equal(t, 0, *closed.Discrepancy)
+		assert.False(t, closed.NeedsReview)
+		assert.NotEmpty(t, closed.ClosedAt)
+	})
+
+	t.Run("close shift with discrepancy needs review", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+
+		closed, err := repo.CloseShift(ctx, shift.ID, userID, 200000, nil)
+		require.NoError(t, err)
+		require.NotNil(t, closed.Discrepancy)
+		assert.Equal(t, 100000, *closed.Discrepancy)
+		assert.True(t, closed.NeedsReview)
+	})
+
+	t.Run("close non-existent shift returns error", func(t *testing.T) {
+		_, err := repo.CloseShift(ctx, 999999, 1, 100000, nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("close shift with notes", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+		notes := "test notes"
+		closed, err := repo.CloseShift(ctx, shift.ID, userID, 100000, &notes)
+		require.NoError(t, err)
+		require.NotNil(t, closed.Notes)
+		assert.Equal(t, "test notes", *closed.Notes)
+	})
+}
+
+func TestShiftRepository_GetActiveShiftByUserID(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("returns active shift", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+
+		active, err := repo.GetActiveShiftByUserID(ctx, userID)
+		require.NoError(t, err)
+		assert.Equal(t, shift.ID, active.ID)
+		assert.Equal(t, "open", active.Status)
+	})
+
+	t.Run("returns error when no active shift", func(t *testing.T) {
+		_, err := repo.GetActiveShiftByUserID(ctx, 999999)
+		assert.Error(t, err)
+	})
+}
+
+func TestShiftRepository_ListShifts(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("lists shifts", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		createOpenShift(t, ctx, repo, userID)
+
+		shifts, total, err := repo.ListShifts(ctx, nil, "", 10, 0, "opened_at", "DESC")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 1)
+		assert.GreaterOrEqual(t, len(shifts), 1)
+	})
+
+	t.Run("filters by user_id", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		createOpenShift(t, ctx, repo, userID)
+
+		shifts, total, err := repo.ListShifts(ctx, &userID, "", 10, 0, "opened_at", "DESC")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 1)
+		for _, s := range shifts {
+			assert.Equal(t, userID, s.UserID)
+		}
+	})
+}
+
+func TestShiftRepository_GetShiftByID(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("gets shift by ID", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+
+		got, err := repo.GetShiftByID(ctx, shift.ID)
+		require.NoError(t, err)
+		assert.Equal(t, shift.ID, got.ID)
+		assert.Equal(t, shift.UserID, got.UserID)
+		assert.Equal(t, "open", got.Status)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := repo.GetShiftByID(ctx, 999999)
+		assert.Error(t, err)
+	})
+}
+
+func TestShiftRepository_ReviewShift(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("review shift marks as reviewed", func(t *testing.T) {
+		userID := insertTestUser(t, ctx, 1)
+		shift := createOpenShift(t, ctx, repo, userID)
+
+		closed, err := repo.CloseShift(ctx, shift.ID, userID, 200000, nil)
+		require.NoError(t, err)
+		assert.True(t, closed.NeedsReview)
+
+		reviewerID := insertTestUser(t, ctx, 2)
+		reviewed, err := repo.ReviewShift(ctx, closed.ID, reviewerID)
+		require.NoError(t, err)
+		assert.False(t, reviewed.NeedsReview)
+		require.NotNil(t, reviewed.ReviewedBy)
+		assert.Equal(t, reviewerID, *reviewed.ReviewedBy)
+		assert.NotEmpty(t, reviewed.ReviewedAt)
+	})
+
+	t.Run("review non-existent shift", func(t *testing.T) {
+		_, err := repo.ReviewShift(ctx, 999999, 1)
+		assert.Error(t, err)
+	})
+}

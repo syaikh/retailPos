@@ -1,35 +1,36 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { useShiftStore } from '../stores/shift-store.svelte';
-  import { Button, Input, Modal, Badge, Dropdown } from '$shared/ui';
-  import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { useAuthStore } from '$modules/auth';
-  import {
-    Clock,
-    Plus,
-    Lock,
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    ArrowUpDown,
-    ArrowUp,
-    ArrowDown,
-    Loader2,
-    Calendar,
-    DollarSign,
-    Receipt,
-    AlertTriangle,
-  } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/router';
+import { useShiftStore } from '../stores/shift-store.svelte';
+import { Button, CurrencyInput, Input, Modal, Badge, Dropdown } from '$shared/ui';
+import { useRBAC } from '$shared/composables/useRBAC.svelte';
+import { useAuthStore } from '$modules/auth';
+import {
+  Clock,
+  Plus,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Loader2,
+  CheckCircle,
+} from 'lucide-svelte';
   import type { Shift } from '../types';
 
   const store = useShiftStore();
   const rbac = useRBAC();
   const authStore = useAuthStore();
 
+  if (rbac.isCashier && authStore.user?.id) {
+    store.userIdFilter = authStore.user.id;
+  }
+
   let showOpenModal = $state(false);
   let showCloseModal = $state(false);
   let openingBalance = $state(0);
-  let openingDisplay = $state('');
   let closingBalance = $state(0);
   let closeNotes = $state('');
   let isSubmitting = $state(false);
@@ -68,14 +69,14 @@
   }
 
   async function handleOpenShift() {
-    if (openingBalance < 0) return;
+    if (openingBalance <= 0) return;
     isSubmitting = true;
     try {
       await store.doOpenShift(null, openingBalance);
       showOpenModal = false;
       openingBalance = 0;
-      openingDisplay = '';
-      loadShifts();
+      prevFilters = '';
+      goto('/pos');
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Failed to open shift');
     } finally {
@@ -92,9 +93,26 @@
       showCloseModal = false;
       closingBalance = 0;
       closeNotes = '';
-      loadShifts();
+      prevFilters = '';
+      store.loadShifts(store.currentFilters);
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Failed to close shift');
+    } finally {
+      isSubmitting = false;
+    }
+  }
+
+  async function handleReview() {
+    if (!selectedShift) return;
+    isSubmitting = true;
+    try {
+      await store.doReviewShift(selectedShift.id);
+      selectedShift = null;
+      showDetailModal = false;
+      prevFilters = '';
+      store.loadShifts(store.currentFilters);
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Failed to review shift');
     } finally {
       isSubmitting = false;
     }
@@ -126,6 +144,10 @@
     }).format(amount);
   }
 
+  function formatNumber(amount: number) {
+    return amount.toLocaleString('id-ID');
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       showOpenModal = false;
@@ -134,23 +156,8 @@
     }
   }
 
-  function handleOpeningInput(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const digits = input.value.replace(/\D/g, '');
-    openingBalance = digits === '' ? 0 : parseInt(digits, 10);
-    openingDisplay = openingBalance > 0 ? openingBalance.toLocaleString('id-ID') : '';
-    if (input.value !== openingDisplay) {
-      input.value = openingDisplay;
-      input.setSelectionRange(openingDisplay.length, openingDisplay.length);
-    }
-  }
-
   onMount(() => {
-    if (rbac.isCashier && authStore.user?.id) {
-      store.userIdFilter = authStore.user.id;
-    }
     store.loadActiveShift();
-    loadShifts();
   });
 </script>
 
@@ -234,7 +241,7 @@
           <tr class="border-b border-border bg-surface-secondary">
             <th class="text-left px-4 py-3 font-medium text-text-secondary">
               <button class="flex items-center gap-1 hover:text-text-primary" onclick={() => toggleSort('opened_at')}>
-                Opened At
+                OPENED AT
                 {#if store.sortBy === 'opened_at'}
                   {#if store.sortDir === 'asc'}<ArrowUp size={14} />{:else}<ArrowDown size={14} />{/if}
                 {:else}
@@ -243,18 +250,17 @@
               </button>
             </th>
             {#if !rbac.isCashier}
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">Cashier</th>
+            <th class="text-left px-4 py-3 font-medium text-text-secondary">CASHIER</th>
             {/if}
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">Store</th>
-            <th class="text-right px-4 py-3 font-medium text-text-secondary">Opening</th>
-            <th class="text-right px-4 py-3 font-medium text-text-secondary">Cash Sales</th>
-            <th class="text-right px-4 py-3 font-medium text-text-secondary">Total Sales</th>
+            <th class="!text-right px-4 py-3 font-medium text-text-secondary">OPENING (Rp)</th>
+            <th class="!text-right px-4 py-3 font-medium text-text-secondary">CASH SALES (Rp)</th>
+            <th class="!text-right px-4 py-3 font-medium text-text-secondary">TOTAL SALES (Rp)</th>
             <th class="text-center px-4 py-3 font-medium text-text-secondary">TXN</th>
-            <th class="text-right px-4 py-3 font-medium text-text-secondary">Discrepancy</th>
-            <th class="text-center px-4 py-3 font-medium text-text-secondary">Status</th>
+            <th class="!text-right px-4 py-3 font-medium text-text-secondary">DISCREPANCY (Rp)</th>
+            <th class="text-center px-4 py-3 font-medium text-text-secondary">STATUS</th>
             <th class="text-left px-4 py-3 font-medium text-text-secondary">
               <button class="flex items-center gap-1 hover:text-text-primary" onclick={() => toggleSort('closed_at')}>
-                Closed At
+                CLOSED AT
                 {#if store.sortBy === 'closed_at'}
                   {#if store.sortDir === 'asc'}<ArrowUp size={14} />{:else}<ArrowDown size={14} />{/if}
                 {:else}
@@ -267,14 +273,14 @@
         <tbody>
           {#if store.loading}
             <tr>
-              <td colspan={rbac.isCashier ? 9 : 10} class="px-4 py-12 text-center text-text-muted">
+              <td colspan={rbac.isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
                 <Loader2 size={20} class="animate-spin mx-auto mb-2" />
                 Loading shifts...
               </td>
             </tr>
           {:else if store.shifts.length === 0}
             <tr>
-              <td colspan={rbac.isCashier ? 9 : 10} class="px-4 py-12 text-center text-text-muted">
+              <td colspan={rbac.isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
                 No shifts found
               </td>
             </tr>
@@ -288,15 +294,14 @@
                 {#if !rbac.isCashier}
                 <td class="px-4 py-3 text-text-primary">{shift.username || '-'}</td>
                 {/if}
-                <td class="px-4 py-3 text-text-secondary">{shift.store_name || '-'}</td>
-                <td class="px-4 py-3 text-right text-text-primary">{formatMoney(shift.opening_balance)}</td>
-                <td class="px-4 py-3 text-right text-text-primary">{formatMoney(shift.cash_sales)}</td>
-                <td class="px-4 py-3 text-right font-medium text-text-primary">{formatMoney(shift.total_sales)}</td>
+                <td class="px-4 py-3 text-right text-text-primary">{formatNumber(shift.opening_balance)}</td>
+                <td class="px-4 py-3 text-right text-text-primary">{formatNumber(shift.cash_sales)}</td>
+                <td class="px-4 py-3 text-right font-medium text-text-primary">{formatNumber(shift.total_sales)}</td>
                 <td class="px-4 py-3 text-center text-text-secondary">{shift.transaction_count}</td>
                 <td class="px-4 py-3 text-right">
-                  {#if shift.discrepancy !== null}
+                  {#if shift.discrepancy != null}
                     <span class="{shift.discrepancy === 0 ? 'text-success' : 'text-danger'}">
-                      {shift.discrepancy > 0 ? '+' : ''}{formatMoney(shift.discrepancy)}
+                      {shift.discrepancy > 0 ? '+' : ''}{formatNumber(shift.discrepancy)}
                     </span>
                   {:else}
                     <span class="text-text-muted">-</span>
@@ -306,7 +311,10 @@
                   {#if shift.status === 'open'}
                     <Badge variant="success">Open</Badge>
                   {:else}
-                    <Badge variant="secondary">Closed</Badge>
+                    <Badge variant="muted">Closed</Badge>
+                    {#if shift.needs_review}
+                      <div class="mt-1"><Badge variant="warning">Needs Review</Badge></div>
+                    {/if}
                   {/if}
                 </td>
                 <td class="px-4 py-3 text-text-secondary">{formatDateTime(shift.closed_at)}</td>
@@ -356,24 +364,13 @@
       <label for="opening-balance" class="block text-sm font-medium text-text-secondary mb-2">
         Opening Balance (Rp)
       </label>
-      <div class="flex items-center gap-1 bg-surface-default border border-border rounded-lg px-3 h-10 w-full {openingBalance > 0 ? 'border-primary' : ''}">
-        <span class="text-xs text-text-muted font-medium shrink-0">Rp</span>
-        <input
-          type="text"
-          inputmode="numeric"
-          value={openingDisplay}
-          placeholder="0"
-          class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
-          oninput={handleOpeningInput}
-          required
-        />
-      </div>
+      <CurrencyInput id="opening-balance" bind:value={openingBalance} placeholder="0" required />
       <p class="text-xs text-text-muted mt-1">Amount of cash in the drawer at shift start</p>
     </div>
   </form>
   {#snippet footer()}
     <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showOpenModal = false; }}>Cancel</Button>
-    <Button variant="primary" class="px-5" disabled={isSubmitting} onclick={handleOpenShift}>
+    <Button variant="primary" class="px-5" disabled={isSubmitting || openingBalance <= 0} onclick={handleOpenShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
       Open Shift
     </Button>
@@ -416,14 +413,7 @@
           <label for="closing-balance" class="block text-sm font-medium text-text-secondary mb-2">
             Closing Balance (Rp)
           </label>
-          <Input
-            id="closing-balance"
-            type="number"
-            bind:value={closingBalance}
-            placeholder="Enter cash counted"
-            min="0"
-            required
-          />
+          <CurrencyInput id="closing-balance" bind:value={closingBalance} placeholder="0" required />
           {#if closingBalance > 0 && store.activeShift}
             {@const expected = store.activeShift.opening_balance + store.activeShift.cash_sales}
             {@const disc = closingBalance - expected}
@@ -468,7 +458,7 @@
         </div>
         <div>
           <p class="text-xs text-text-muted">Status</p>
-          <Badge variant={selectedShift.status === 'open' ? 'success' : 'secondary'}>
+          <Badge variant={selectedShift.status === 'open' ? 'success' : 'muted'}>
             {selectedShift.status === 'open' ? 'Open' : 'Closed'}
           </Badge>
         </div>
@@ -489,7 +479,7 @@
           <span class="text-sm text-text-muted">Opening Balance</span>
           <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.opening_balance)}</span>
         </div>
-        {#if selectedShift.closing_balance !== null}
+        {#if selectedShift.closing_balance != null}
           <div class="flex justify-between">
             <span class="text-sm text-text-muted">Closing Balance</span>
             <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.closing_balance)}</span>
@@ -511,7 +501,7 @@
           <span class="text-sm text-text-muted">Transactions</span>
           <span class="text-sm font-medium text-text-primary">{selectedShift.transaction_count}</span>
         </div>
-        {#if selectedShift.discrepancy !== null}
+        {#if selectedShift.discrepancy != null}
           <div class="flex justify-between border-t border-border pt-2">
             <span class="text-sm font-medium text-text-primary">Discrepancy</span>
             <span class="text-sm font-bold {selectedShift.discrepancy === 0 ? 'text-success' : 'text-danger'}">
@@ -523,6 +513,14 @@
           <div class="border-t border-border pt-2">
             <p class="text-xs text-text-muted">Notes</p>
             <p class="text-sm text-text-primary">{selectedShift.notes}</p>
+          </div>
+        {/if}
+        {#if selectedShift.needs_review && rbac.isManager}
+          <div class="border-t border-border pt-4">
+            <Button variant="primary" class="w-full" onclick={handleReview}>
+              <CheckCircle size={16} class="mr-2" />
+              Review & Approve
+            </Button>
           </div>
         {/if}
       </div>

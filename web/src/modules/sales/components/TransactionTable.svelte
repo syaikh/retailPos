@@ -123,7 +123,7 @@
                 {formatDateTime(new Date(sale.created_at))}
               </td>
               <td class="p-4 text-sm text-text-secondary">
-                {sale.customer_name || '—'}
+                {sale.customer_name || 'Walk-in / General'}
               </td>
               <td class="p-4 text-sm text-text-secondary">
                 {sale.items?.length || 0} items

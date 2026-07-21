@@ -30,7 +30,7 @@ export async function getActiveShift(): Promise<Shift | null> {
   }
 }
 
-export async function listShifts(filters: ShiftFilters): Promise<{ data: Shift[]; total: number }> {
+export async function listShifts(filters: ShiftFilters, signal?: AbortSignal): Promise<{ data: Shift[]; total: number }> {
   const params = new URLSearchParams({
     limit: filters.limit.toString(),
     offset: filters.offset.toString(),
@@ -40,7 +40,7 @@ export async function listShifts(filters: ShiftFilters): Promise<{ data: Shift[]
   if (filters.status) params.set('status', filters.status);
   if (filters.userId) params.set('user_id', filters.userId.toString());
 
-  const res = await apiClient.get(`/shifts?${params.toString()}`);
+  const res = await apiClient.get(`/shifts?${params.toString()}`, { signal });
   return { data: res.data.data || [], total: res.data.total || 0 };
 }
 
@@ -51,4 +51,9 @@ export async function getShiftById(id: number): Promise<Shift | null> {
   } catch {
     return null;
   }
+}
+
+export async function reviewShift(shiftId: number): Promise<Shift> {
+  const res = await apiClient.post(`/shifts/${shiftId}/review`);
+  return res.data.data;
 }
