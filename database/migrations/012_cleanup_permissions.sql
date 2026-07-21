@@ -24,7 +24,7 @@ UPDATE roles SET is_system = TRUE WHERE id = 1;
 
 -- Add missing permissions needed for RBAC refactoring
 INSERT INTO permissions (code, name, description) VALUES
-  ('category:update', 'Edit kategori', 'Edit data kategori'),
-  ('category:delete', 'Hapus kategori', 'Hapus kategori'),
-  ('sale:void', 'Void penjualan', 'Void/refund transaksi penjualan')
+  ('category.update', 'Edit kategori', 'Edit data kategori'),
+  ('category.delete', 'Hapus kategori', 'Hapus kategori'),
+  ('sale.void', 'Void penjualan', 'Void/refund transaksi penjualan')
 ON CONFLICT (code) DO NOTHING;

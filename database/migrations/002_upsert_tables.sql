@@ -165,7 +165,7 @@ END$$;
 -- Comments on tables
 COMMENT ON TABLE users IS 'Sistem pengguna (kasir, admin, manager)';
 COMMENT ON TABLE roles IS 'Role pengguna (admin, cashier, dll)';
-COMMENT ON TABLE permissions IS 'Permission berbasis kode (product:create, dll)';
+COMMENT ON TABLE permissions IS 'Permission berbasis kode (product.create, dll)';
 COMMENT ON TABLE products IS 'Master produk';
 COMMENT ON TABLE sales IS 'Transaksi penjualan';
 COMMENT ON TABLE audit_logs IS 'Log audit untuk keamanan';
