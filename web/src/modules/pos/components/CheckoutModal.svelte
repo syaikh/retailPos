@@ -197,7 +197,7 @@
       {#if paymentMethod === 'Cash'}
         <div class="mb-3">
           <label for="cash-received-input" class="text-[11px] text-text-muted mb-1.5 font-medium block">
-            Cash Received [F7]
+            Cash Received
           </label>
           <CurrencyInput id="cash-received-input" bind:value={cashReceived} placeholder="0" />
         </div>

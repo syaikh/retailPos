@@ -41,10 +41,10 @@ describe('CustomersPage.svelte source-structure guards', () => {
   });
 
   it('has permission-based RBAC (canCreate, canUpdate, canDelete, canRead)', () => {
-    expect(src).toContain("const canCreate = $derived(userPermissions.includes('customer:create'))");
-    expect(src).toContain("const canUpdate = $derived(userPermissions.includes('customer:update'))");
-    expect(src).toContain("const canDelete = $derived(userPermissions.includes('customer:delete'))");
-    expect(src).toContain("const canRead = $derived(userPermissions.includes('customer:read'))");
+    expect(src).toContain("const canCreate = $derived(userPermissions.includes('customer.create'))");
+    expect(src).toContain("const canUpdate = $derived(userPermissions.includes('customer.update'))");
+    expect(src).toContain("const canDelete = $derived(userPermissions.includes('customer.delete'))");
+    expect(src).toContain("const canRead = $derived(userPermissions.includes('customer.view'))");
   });
 
   it('has bulk operations (handleBulkStatusUpdate, handleBulkDelete, clearSelection)', () => {

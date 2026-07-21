@@ -210,9 +210,9 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   });
 
   it('has permission checks via auth store', () => {
-    expect(src).toContain("includes('pricing:create')");
-    expect(src).toContain("includes('pricing:update')");
-    expect(src).toContain("includes('pricing:delete')");
+    expect(src).toContain("includes('pricing.create')");
+    expect(src).toContain("includes('pricing.update')");
+    expect(src).toContain("includes('pricing.delete')");
   });
 
   it('fetches customer groups, stores, categories, and brands on mount', () => {

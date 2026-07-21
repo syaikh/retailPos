@@ -20,10 +20,10 @@
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('customer:create'));
-  const canUpdate = $derived(userPermissions.includes('customer:update'));
-  const canDelete = $derived(userPermissions.includes('customer:delete'));
-  const canRead = $derived(userPermissions.includes('customer:read'));
+  const canCreate = $derived(userPermissions.includes('customer.create'));
+  const canUpdate = $derived(userPermissions.includes('customer.update'));
+  const canDelete = $derived(userPermissions.includes('customer.delete'));
+  const canRead = $derived(userPermissions.includes('customer.view'));
 
   let customers = $state<any[]>([]);
   let loading = $state(false);

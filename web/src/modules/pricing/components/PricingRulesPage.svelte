@@ -100,9 +100,9 @@
     effective_until: ''
   });
 
-  let canCreate = $derived((authStore.user?.permissions || []).includes('pricing:create'));
-  let canEdit = $derived((authStore.user?.permissions || []).includes('pricing:update'));
-  let canDelete = $derived((authStore.user?.permissions || []).includes('pricing:delete'));
+  let canCreate = $derived((authStore.user?.permissions || []).includes('pricing.create'));
+  let canEdit = $derived((authStore.user?.permissions || []).includes('pricing.update'));
+  let canDelete = $derived((authStore.user?.permissions || []).includes('pricing.delete'));
 
   const pricingTypes = [
     { value: 'default', label: 'Default', description: 'Harga normal yang berlaku tanpa kondisi khusus.' },

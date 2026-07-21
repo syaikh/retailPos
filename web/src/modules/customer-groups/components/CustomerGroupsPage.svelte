@@ -18,9 +18,9 @@
   const authStore = useAuthStore();
 
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canCreate = $derived(userPermissions.includes('customer_group:create'));
-  const canUpdate = $derived(userPermissions.includes('customer_group:update'));
-  const canDelete = $derived(userPermissions.includes('customer_group:delete'));
+  const canCreate = $derived(userPermissions.includes('customer_group.create'));
+  const canUpdate = $derived(userPermissions.includes('customer_group.update'));
+  const canDelete = $derived(userPermissions.includes('customer_group.delete'));
 
   let loading = $state(true);
   let groups = $state<CustomerGroup[]>([]);
