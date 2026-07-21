@@ -34,9 +34,9 @@ func NewHandler(svc CategoryService, auditSvc audit.AuditCreator) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.GET("/categories", h.ListCategories)
 	r.GET("/categories/manage", auth, perm("category.view"), h.ListCategoriesManagement)
-	r.POST("/categories", auth, perm("category:create"), h.CreateCategoryHandler)
-	r.PUT("/categories/:id", auth, perm("category:update"), h.UpdateCategoryHandler)
-	r.DELETE("/categories/:id", auth, perm("category:delete"), h.DeleteCategoryHandler)
+	r.POST("/categories", auth, perm("category.create"), h.CreateCategoryHandler)
+	r.PUT("/categories/:id", auth, perm("category.update"), h.UpdateCategoryHandler)
+	r.DELETE("/categories/:id", auth, perm("category.delete"), h.DeleteCategoryHandler)
 }
 
 func (h *Handler) ListCategories(c *gin.Context) {
