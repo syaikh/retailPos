@@ -134,7 +134,12 @@
 
     if (!hasRoutePermission(path)) {
       toast.error('You do not have permission to access this page');
-      goto(getDefaultRoute(useAuthStore().user));
+      const fallback = getDefaultRoute(useAuthStore().user);
+      if (fallback === path) {
+        goto('/');
+      } else {
+        goto(fallback);
+      }
       return;
     }
 
@@ -197,7 +202,10 @@
 
       if (!hasRoutePermission(path)) {
         toast.error('You do not have permission to access this page');
-        const fallback = getDefaultRoute(authStore.user);
+        let fallback = getDefaultRoute(authStore.user);
+        if (fallback === path) {
+          fallback = '/';
+        }
         const comp = await getComponent(fallback);
         if (comp) Component = comp;
         currentPath = fallback;
