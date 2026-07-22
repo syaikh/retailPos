@@ -7,6 +7,23 @@ export interface ProductsResponse {
   total: number;
 }
 
+export interface ParkedSale {
+  id: number;
+  invoice_number: string;
+  status: string;
+  total_amount: number;
+  items?: ParkedSaleItem[];
+  created_at: string;
+}
+
+export interface ParkedSaleItem {
+  product_id: number;
+  name?: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
 export async function getPosProducts(limit: number, offset: number, search: string): Promise<ProductsResponse> {
   const r = await apiClient.get(`/products?limit=${limit}&offset=${offset}&search=${search}&status=active`);
   return { data: r.data.data || [], total: r.data.total || 0 };
@@ -25,7 +42,7 @@ export async function searchCustomers(
   return r.data.data || [];
 }
 
-export async function createSale(payload: CheckoutPayload): Promise<{ data?: unknown }> {
+export async function createSale(payload: CheckoutPayload & { parked_sale_id?: number }): Promise<{ data?: unknown }> {
   const r = await apiClient.post('/sales', payload);
   return r;
 }
@@ -44,4 +61,31 @@ export async function getLastSale(): Promise<unknown> {
   if (Array.isArray(data) && data.length > 0) return data[0];
   if (data && (data as Record<string, unknown>).id) return data;
   return null;
+}
+
+export async function parkSale(payload: {
+  items: { product_id: number; quantity: number; subtotal: number }[];
+  payment_method?: string;
+}): Promise<ParkedSale> {
+  const r = await apiClient.post('/sales/parked', payload);
+  return r.data?.data || r.data;
+}
+
+export async function listParkedSales(): Promise<ParkedSale[]> {
+  const r = await apiClient.get('/sales/parked');
+  return r.data?.data || [];
+}
+
+export async function getParkedSaleById(id: number): Promise<ParkedSale> {
+  const r = await apiClient.get(`/sales/parked/${id}`);
+  return r.data?.data || r.data;
+}
+
+export async function recallParkedSale(id: number): Promise<ParkedSale> {
+  const r = await apiClient.post(`/sales/parked/${id}/recall`);
+  return r.data?.data || r.data;
+}
+
+export async function cancelParkedSale(id: number): Promise<void> {
+  await apiClient.delete(`/sales/parked/${id}`);
 }

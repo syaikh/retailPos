@@ -3,7 +3,7 @@
   import { flip } from 'svelte/animate';
   import { tick } from 'svelte';
   import { Badge, Button } from '$shared/ui';
-  import { ShoppingCart, X, Minus, Plus, Wallet, Printer } from 'lucide-svelte';
+  import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte';
 
   let scrollEl: HTMLDivElement | undefined = $state();
 
@@ -22,6 +22,9 @@
     onclearcart = () => {},
     oncheckout = () => {},
     onprintreceipt = () => {},
+    onholdsale = () => {},
+    onopenparkedmodal = () => {},
+    parkedSaleCount = 0,
   }: {
     cart: any[];
     totalAmount: number;
@@ -37,6 +40,9 @@
     onclearcart?: () => void;
     oncheckout?: () => void;
     onprintreceipt?: () => void;
+    onholdsale?: () => void;
+    onopenparkedmodal?: () => void;
+    parkedSaleCount?: number;
   } = $props();
 
   let prevCartLen = $state(0);
@@ -62,6 +68,15 @@
     </div>
     {#if cart.length > 0}
       <div class="flex items-center gap-1">
+        <button
+          onclick={onholdsale}
+          class="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-amber-700 bg-amber-50/70 hover:bg-amber-100/70 rounded-md border border-amber-300/40 transition-colors active:scale-95"
+          title="Hold Sale" aria-label="Hold sale"
+        >
+          <Hand size={12} />
+          Hold
+          <kbd class="px-1 py-px text-[9px] font-medium text-amber-600/70 bg-white rounded border border-amber-300/30">F6</kbd>
+        </button>
         <kbd class="px-1 py-0.5 text-[10px] font-medium text-danger/60 bg-danger-subtle/30 rounded border border-danger/20 select-none">ALT+DEL</kbd>
         <Button onclick={onclearcart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]" aria-label="Clear cart">
           <X size={14} />
@@ -192,18 +207,33 @@
       {/if}
     </Button>
 
-    <button
-      class="w-full flex items-center justify-center gap-1.5 text-[11px] text-text-muted hover:text-text-secondary py-1 transition-colors"
-      onclick={onprintreceipt}
-      disabled={!lastSale || !lastSale.invoice_number}
-    >
-      <Printer size={12} />
-      {#if lastSale && lastSale.invoice_number}
-        Print Last Receipt · {lastSale.invoice_number}
-      {:else}
-        Print Last Receipt
-      {/if}
-    </button>
+    <div class="flex items-center gap-2">
+      <button
+        class="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-text-muted hover:text-amber-600 py-1 transition-colors"
+        onclick={onopenparkedmodal}
+      >
+        <RotateCcw size={12} />
+        {#if parkedSaleCount > 0}
+          Recall ({parkedSaleCount})
+        {:else}
+          Recall
+        {/if}
+        <kbd class="px-1 py-0.5 text-[9px] font-medium text-amber-600/60 bg-amber-50/50 rounded border border-amber-300/20 select-none">F5</kbd>
+      </button>
+      <span class="text-text-muted text-[11px]">·</span>
+      <button
+        class="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-text-muted hover:text-text-secondary py-1 transition-colors"
+        onclick={onprintreceipt}
+        disabled={!lastSale || !lastSale.invoice_number}
+      >
+        <Printer size={12} />
+        {#if lastSale && lastSale.invoice_number}
+          Print · {lastSale.invoice_number}
+        {:else}
+          Print
+        {/if}
+      </button>
+    </div>
   </div>
 </div>
 

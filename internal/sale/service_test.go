@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
 
 func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
@@ -370,5 +371,224 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 		err := svc.CreateSale(ctx, sale, items)
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
+	})
+}
+
+func TestSaleService_ParkSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-PARK-001", "Park Service Product", 10000, 50)
+	cashierID := insertTestCashier(t, ctx)
+
+	t.Run("success", func(t *testing.T) {
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PARK-001",
+			CashierID:     cashierID,
+			Subtotal:      20000,
+			TotalAmount:   20000,
+			PaymentMethod: "CASH",
+			Status:        "parked",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  2,
+			UnitPrice: 10000,
+			Subtotal:  20000,
+			DPPAmount: 20000,
+			TaxAmount: 0,
+		}}
+
+		err := svc.ParkSale(ctx, sale, items)
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+		assert.Equal(t, "parked", sale.Status)
+		assert.NotEmpty(t, sale.InvoiceNumber)
+
+		var status string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM sales WHERE id = $1`, sale.ID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, "parked", status)
+
+		var stockAfter int
+		err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockAfter)
+		require.NoError(t, err)
+		assert.Equal(t, 50, stockAfter, "stock should NOT be deducted when parking a sale")
+	})
+
+	t.Run("invalid quantity", func(t *testing.T) {
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PARK-INV",
+			CashierID:     cashierID,
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  0,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+		}}
+
+		err := svc.ParkSale(ctx, sale, items)
+		assert.ErrorContains(t, err, "invalid quantity")
+	})
+}
+
+func TestSaleService_RecallSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-RECALL-001", "Recall Service Product", 10000, 50)
+	cashierID := insertTestCashier(t, ctx)
+
+	t.Run("recall parked sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-RECALL-001", "parked", prodID, 2, 10000)
+
+		sale, err := svc.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "recalled", sale.Status)
+		assert.NotEmpty(t, sale.Items)
+	})
+
+	t.Run("recall non-existent returns error", func(t *testing.T) {
+		_, err := svc.RecallSale(ctx, -999)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("recall completed returns error", func(t *testing.T) {
+		completed := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-RECALL-CMP", "completed", prodID, 1, 10000)
+		_, err := svc.RecallSale(ctx, completed.ID)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+}
+
+func TestSaleService_CancelParkedSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-CANCEL-001", "Cancel Service Product", 10000, 50)
+	cashierID := insertTestCashier(t, ctx)
+
+	t.Run("cancel parked", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-CANCEL-001", "parked", prodID, 1, 10000)
+		err := svc.CancelParkedSale(ctx, parked.ID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("cancel non-existent returns error", func(t *testing.T) {
+		err := svc.CancelParkedSale(ctx, -999)
+		assert.Error(t, err)
+	})
+}
+
+func TestSaleService_ListParkedSales(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-LIST-PARK-001", "List Park Product", 10000, 50)
+	cashierID := insertTestCashier(t, ctx)
+
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-001", "parked", prodID, 1, 10000)
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-002", "recalled", prodID, 2, 10000)
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-003", "completed", prodID, 3, 10000)
+
+	sales, err := svc.ListParkedSales(ctx, cashierID)
+	require.NoError(t, err)
+	assert.Len(t, sales, 2)
+	for _, s := range sales {
+		assert.Contains(t, []string{"parked", "recalled"}, s.Status)
+	}
+}
+
+func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-CHECKOUT-PARK", "Checkout Park Product", 10000, 100)
+	cashierID := insertTestCashier(t, ctx)
+
+	t.Run("checkout from recalled sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-COP-001", "parked", prodID, 2, 10000)
+		_, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-COP-001-NEW",
+			CashierID:     cashierID,
+			Subtotal:      20000,
+			TotalAmount:   20000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  2,
+			UnitPrice: 10000,
+			Subtotal:  20000,
+			DPPAmount: 20000,
+			TaxAmount: 0,
+		}}
+
+		err = svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID)
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+
+		var status string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM sales WHERE id = $1`, parked.ID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", status)
+	})
+
+	t.Run("checkout with non-recalled parked sale fails", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-COP-002", "parked", prodID, 1, 10000)
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-COP-002-NEW",
+			CashierID:     cashierID,
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+			DPPAmount: 10000,
+			TaxAmount: 0,
+		}}
+
+		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID)
+		assert.ErrorIs(t, err, ErrParkedSaleNotRecalled)
 	})
 }

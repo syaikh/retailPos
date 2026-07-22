@@ -8,10 +8,11 @@
    import { useWebSocket } from '$shared/api/websocket';
    import { getTodayInJakarta } from '$shared/utils/jakartaTime';
    import { resolvePrices } from '$modules/pricing/services/pricing-service';
+   import { parkSale, listParkedSales, recallParkedSale, cancelParkedSale } from '../services/pos-service';
    import type { Sale, SaleItem } from '$modules/sales/types';
   import type { Customer } from '$modules/customers/types';
 
-    import { ShoppingCart } from 'lucide-svelte';
+    import { ShoppingCart, Hand, RotateCcw } from 'lucide-svelte';
     import { useAuthStore } from '$modules/auth';
     import { useShiftStore } from '$modules/shifts';
     import ProductSearchPanel from './ProductSearchPanel.svelte';
@@ -19,6 +20,7 @@
     import CartPanel from './CartPanel.svelte';
     import CheckoutModal from './CheckoutModal.svelte';
     import CustomerSelectModal from './CustomerSelectModal.svelte';
+    import ParkedSalesModal from './ParkedSalesModal.svelte';
 
 const authStore = useAuthStore();
 
@@ -60,13 +62,17 @@ let total: number = $state(0);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
 
-  let paymentOptions = $state<Array<{ id: string; label: string; icon: any }>>([]);
+   let paymentOptions = $state<Array<{ id: string; label: string; icon: any }>>([]);
   let paymentMethod = $state('Cash');
   let checkingOut = $state(false);
 
    let showCheckoutModal = $state(false);
    let showCart = $state(false);
    let cashReceived = $state(0);
+
+  let parkedSales = $state<any[]>([]);
+  let showParkedModal = $state(false);
+  let holdingSale = $state(false);
 
    let customers: Customer[] = $state([]);
    let selectedCustomerId = $state<number | null>(null);
@@ -342,6 +348,73 @@ let total: number = $state(0);
     cart = [];
   }
 
+  async function holdSale() {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+    holdingSale = true;
+    try {
+      const items = cart.map((item) => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity,
+      }));
+      await parkSale({ items, payment_method: paymentMethod });
+      toast.success('Sale parked');
+      cart = [];
+      await fetchParkedSales();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to park sale');
+    } finally {
+      holdingSale = false;
+    }
+  }
+
+  async function fetchParkedSales() {
+    try {
+      parkedSales = await listParkedSales();
+    } catch (err) {
+      console.warn('Failed to load parked sales', err);
+    }
+  }
+
+  async function recallSale(saleId: number) {
+    try {
+      const recalled = await recallParkedSale(saleId);
+      if (recalled.items && recalled.items.length > 0) {
+        cart = recalled.items.map((item: any) => {
+          const product = products.find((p: any) => p.id === item.product_id);
+          return {
+            id: item.product_id,
+            name: product?.name || item.name || `Product #${item.product_id}`,
+            price: item.unit_price,
+            original_price: item.unit_price,
+            quantity: item.quantity,
+            stock: product?.stock ?? 999,
+            sku: product?.sku || '',
+          };
+        });
+        resolveCartPrices();
+      }
+      showParkedModal = false;
+      toast.success('Sale recalled');
+      await fetchParkedSales();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to recall sale');
+    }
+  }
+
+  async function cancelParked(id: number) {
+    try {
+      await cancelParkedSale(id);
+      toast.success('Parked sale cancelled');
+      await fetchParkedSales();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to cancel parked sale');
+    }
+  }
+
   async function printReceipt() {
     if (!lastSale || !lastSale.invoice_number) return;
     let sale = lastSale;
@@ -490,6 +563,18 @@ let total: number = $state(0);
     if (event.key === 'F4') {
       event.preventDefault();
       openCheckoutModal();
+      return;
+    }
+    if (event.key === 'F5') {
+      event.preventDefault();
+      fetchParkedSales().then(() => { showParkedModal = true; });
+      return;
+    }
+    if (event.key === 'F6') {
+      event.preventDefault();
+      if (cart.length > 0) {
+        holdSale();
+      }
       return;
     }
     if (!showCheckoutModal) return;
@@ -643,11 +728,14 @@ let total: number = $state(0);
           {dppDisplay}
           {lastSale}
           {checkingOut}
+          parkedSaleCount={parkedSales.length}
           onupdateqty={updateQty}
           onremovefromcart={removeFromCart}
           onclearcart={clearCart}
           oncheckout={openCheckoutModal}
           onprintreceipt={printReceipt}
+          onholdsale={holdSale}
+          onopenparkedmodal={() => { fetchParkedSales().then(() => { showParkedModal = true; }); }}
           class="!h-auto !max-h-none !sticky-none"
         />
       </div>
@@ -665,11 +753,14 @@ let total: number = $state(0);
       {dppDisplay}
       {lastSale}
       {checkingOut}
+      parkedSaleCount={parkedSales.length}
       onupdateqty={updateQty}
       onremovefromcart={removeFromCart}
       onclearcart={clearCart}
       oncheckout={openCheckoutModal}
       onprintreceipt={printReceipt}
+      onholdsale={holdSale}
+      onopenparkedmodal={() => { fetchParkedSales().then(() => { showParkedModal = true; }); }}
     />
   </div>
 </div>
@@ -706,6 +797,13 @@ let total: number = $state(0);
     }
     showCustomerModal = false;
   }}
+/>
+
+<ParkedSalesModal
+  bind:showModal={showParkedModal}
+  {parkedSales}
+  onrecall={recallSale}
+  oncancel={cancelParked}
 />
 
 <style>

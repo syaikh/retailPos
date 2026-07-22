@@ -355,3 +355,179 @@ func TestSaleRepository_BeginTx(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, result)
 }
+
+func createParkedSale(t *testing.T, ctx context.Context, repo *Repository, cashierID int, invoice string, status string, prodID, qty, price int) *Sale {
+	t.Helper()
+	tx, err := repo.BeginTx(ctx)
+	require.NoError(t, err)
+	sale := &Sale{
+		InvoiceNumber: invoice,
+		CashierID:     cashierID,
+		Subtotal:      price * qty,
+		TotalAmount:   price * qty,
+		PaymentMethod: "CASH",
+		Status:        status,
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  qty,
+		UnitPrice: price,
+		Subtotal:  price * qty,
+		DPPAmount: price * qty,
+		TaxAmount: 0,
+	}}
+	err = repo.CreateSale(ctx, tx, sale, items)
+	require.NoError(t, err)
+	err = tx.Commit(ctx)
+	require.NoError(t, err)
+	return sale
+}
+
+func TestSaleRepository_GetParkedSales(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "PARKED-PROD-001", "Parked Product", 10000, 50)
+
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-PARKED-001", "parked", prodID, 2, 10000)
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-PARKED-002", "recalled", prodID, 1, 10000)
+	_ = createParkedSale(t, ctx, repo, cashierID, "INV-PARKED-003", "completed", prodID, 3, 10000)
+
+	t.Run("returns parked and recalled only", func(t *testing.T) {
+		sales, err := repo.GetParkedSales(ctx, cashierID)
+		require.NoError(t, err)
+		assert.Len(t, sales, 2)
+		for _, s := range sales {
+			assert.Contains(t, []string{"parked", "recalled"}, s.Status)
+			assert.Equal(t, cashierID, s.CashierID)
+		}
+	})
+
+	t.Run("filters by cashier_id", func(t *testing.T) {
+		otherCashier := insertTestCashier(t, ctx)
+		_ = createParkedSale(t, ctx, repo, otherCashier, "INV-PARKED-OTHER", "parked", prodID, 1, 10000)
+
+		sales, err := repo.GetParkedSales(ctx, cashierID)
+		require.NoError(t, err)
+		for _, s := range sales {
+			assert.Equal(t, cashierID, s.CashierID)
+		}
+	})
+
+	t.Run("excludes cancelled", func(t *testing.T) {
+		_ = createParkedSale(t, ctx, repo, cashierID, "INV-PARKED-CANCEL", "cancelled", prodID, 1, 10000)
+		sales, err := repo.GetParkedSales(ctx, cashierID)
+		require.NoError(t, err)
+		for _, s := range sales {
+			assert.NotEqual(t, "cancelled", s.Status)
+		}
+	})
+
+	t.Run("includes items", func(t *testing.T) {
+		sales, err := repo.GetParkedSales(ctx, cashierID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, sales)
+		found := false
+		for _, s := range sales {
+			if s.InvoiceNumber == "INV-PARKED-001" {
+				assert.Len(t, s.Items, 1)
+				assert.Equal(t, prodID, s.Items[0].ProductID)
+				found = true
+			}
+		}
+		assert.True(t, found, "should find INV-PARKED-001 with items")
+	})
+}
+
+func TestSaleRepository_RecallSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "RECALL-PROD-001", "Recall Product", 10000, 50)
+
+	t.Run("recall parked sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-RECALL-001", "parked", prodID, 2, 10000)
+
+		sale, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "recalled", sale.Status)
+		assert.Equal(t, parked.InvoiceNumber, sale.InvoiceNumber)
+		assert.NotEmpty(t, sale.Items)
+		assert.Equal(t, prodID, sale.Items[0].ProductID)
+	})
+
+	t.Run("recall already recalled returns error", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-RECALL-002", "parked", prodID, 1, 10000)
+		_, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+
+		_, err = repo.RecallSale(ctx, parked.ID)
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("recall completed sale returns error", func(t *testing.T) {
+		completed := createParkedSale(t, ctx, repo, cashierID, "INV-RECALL-003", "completed", prodID, 1, 10000)
+		_, err := repo.RecallSale(ctx, completed.ID)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("recall non-existent sale returns error", func(t *testing.T) {
+		_, err := repo.RecallSale(ctx, -999)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+}
+
+func TestSaleRepository_CancelParkedSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "CANCEL-PROD-001", "Cancel Product", 10000, 50)
+
+	t.Run("cancel parked sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-CANCEL-001", "parked", prodID, 1, 10000)
+		err := repo.CancelParkedSale(ctx, parked.ID)
+		assert.NoError(t, err)
+
+		var status string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM sales WHERE id = $1`, parked.ID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", status)
+	})
+
+	t.Run("cancel recalled sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-CANCEL-002", "recalled", prodID, 1, 10000)
+		err := repo.CancelParkedSale(ctx, parked.ID)
+		assert.NoError(t, err)
+
+		var status string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM sales WHERE id = $1`, parked.ID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", status)
+	})
+
+	t.Run("cancel completed sale returns error", func(t *testing.T) {
+		completed := createParkedSale(t, ctx, repo, cashierID, "INV-CANCEL-003", "completed", prodID, 1, 10000)
+		err := repo.CancelParkedSale(ctx, completed.ID)
+		assert.Error(t, err)
+	})
+
+	t.Run("cancel non-existent sale returns error", func(t *testing.T) {
+		err := repo.CancelParkedSale(ctx, -999)
+		assert.Error(t, err)
+	})
+
+	t.Run("cancel already cancelled sale returns error", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-CANCEL-004", "parked", prodID, 1, 10000)
+		err := repo.CancelParkedSale(ctx, parked.ID)
+		require.NoError(t, err)
+		err = repo.CancelParkedSale(ctx, parked.ID)
+		assert.Error(t, err)
+	})
+}

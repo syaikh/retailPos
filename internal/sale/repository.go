@@ -480,6 +480,205 @@ func (r *Repository) GetPaymentMethodByCode(ctx context.Context, code string) (*
 	return &m, nil
 }
 
+// ==================== PARKED SALES ====================
+
+func (r *Repository) GetParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+		FROM sales s
+		WHERE s.cashier_id = $1 AND s.status IN ('parked', 'recalled')
+		ORDER BY s.created_at DESC
+	`, cashierID)
+	if err != nil {
+		return nil, fmt.Errorf("query parked sales: %w", err)
+	}
+	defer rows.Close()
+
+	var sales []Sale
+	var saleIDs []int
+	for rows.Next() {
+		var s Sale
+		var storeIDVal sql.NullInt64
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&s.ID, &s.InvoiceNumber, &s.CashierID, &storeIDVal, &s.Subtotal, &s.Discount, &s.Tax,
+			&s.TotalAmount, &s.PaymentMethod, &s.Status, &createdAt, &updatedAt); err != nil {
+			return nil, fmt.Errorf("scan parked sale: %w", err)
+		}
+		if storeIDVal.Valid {
+			v := int(storeIDVal.Int64)
+			s.StoreID = &v
+		}
+		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		sales = append(sales, s)
+		saleIDs = append(saleIDs, s.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(saleIDs) > 0 {
+		saleMap := make(map[int]*Sale, len(sales))
+		for i := range sales {
+			saleMap[sales[i].ID] = &sales[i]
+		}
+		placeholders := make([]string, len(saleIDs))
+		args := make([]interface{}, len(saleIDs))
+		for j, id := range saleIDs {
+			placeholders[j] = fmt.Sprintf("$%d", j+1)
+			args[j] = id
+		}
+		itemQuery := fmt.Sprintf(`
+			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+			FROM sale_items si
+			JOIN products p ON si.product_id = p.id
+			WHERE si.sale_id IN (%s)
+		`, strings.Join(placeholders, ","))
+		itemRows, err := r.db.Query(ctx, itemQuery, args...)
+		if err != nil {
+			slog.Warn("failed to load items for parked sales", "error", err)
+		} else {
+			for itemRows.Next() {
+				var item SaleItem
+				if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+					slog.Warn("failed to scan item row for parked sale", "sale_id", item.SaleID, "error", scanErr)
+					continue
+				}
+				if s, ok := saleMap[item.SaleID]; ok {
+					s.Items = append(s.Items, item)
+				}
+			}
+			itemRows.Close()
+		}
+	}
+
+	return sales, nil
+}
+
+func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, cashierID int) (*Sale, error) {
+	var sale Sale
+	var storeIDVal sql.NullInt64
+	var createdAt, updatedAt time.Time
+
+	err := r.db.QueryRow(ctx, `
+		SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at
+		FROM sales s
+		WHERE s.id = $1 AND s.cashier_id = $2 AND s.status IN ('parked', 'recalled')
+	`, id, cashierID).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrSaleNotFound
+		}
+		return nil, err
+	}
+	if storeIDVal.Valid {
+		v := int(storeIDVal.Int64)
+		sale.StoreID = &v
+	}
+	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+
+	itemRows, err := r.db.Query(ctx, `
+		SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+		FROM sale_items si
+		JOIN products p ON si.product_id = p.id
+		WHERE si.sale_id = $1
+	`, sale.ID)
+	if err != nil {
+		slog.Warn("failed to load items for parked sale by id", "sale_id", sale.ID, "error", err)
+	} else {
+		for itemRows.Next() {
+			var item SaleItem
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+				slog.Warn("failed to scan item row for parked sale", "sale_id", sale.ID, "error", scanErr)
+				continue
+			}
+			sale.Items = append(sale.Items, item)
+		}
+		itemRows.Close()
+	}
+
+	return &sale, nil
+}
+
+func (r *Repository) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
+	var sale Sale
+	var storeIDVal sql.NullInt64
+	var createdAt, updatedAt time.Time
+
+	err := r.db.QueryRow(ctx, `
+		UPDATE sales SET status = 'recalled', updated_at = NOW()
+		WHERE id = $1 AND status = 'parked'
+		RETURNING id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
+	`, saleID).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrSaleNotFound
+		}
+		return nil, fmt.Errorf("recall sale: %w", err)
+	}
+	if storeIDVal.Valid {
+		v := int(storeIDVal.Int64)
+		sale.StoreID = &v
+	}
+	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+
+	itemRows, err := r.db.Query(ctx, `
+		SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal
+		FROM sale_items si
+		JOIN products p ON si.product_id = p.id
+		WHERE si.sale_id = $1
+	`, sale.ID)
+	if err != nil {
+		slog.Warn("failed to load items for recalled sale", "sale_id", sale.ID, "error", err)
+	} else {
+		for itemRows.Next() {
+			var item SaleItem
+			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
+				slog.Warn("failed to scan item row for recalled sale", "sale_id", sale.ID, "error", scanErr)
+				continue
+			}
+			sale.Items = append(sale.Items, item)
+		}
+		itemRows.Close()
+	}
+
+	return &sale, nil
+}
+
+func (r *Repository) CancelParkedSale(ctx context.Context, saleID int) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE sales SET status = 'cancelled', updated_at = NOW()
+		WHERE id = $1 AND status IN ('parked', 'recalled')
+	`, saleID)
+	if err != nil {
+		return fmt.Errorf("cancel parked sale: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrSaleNotFound
+	}
+	return nil
+}
+
+func (r *Repository) ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE sales SET status = 'cancelled', updated_at = NOW()
+		WHERE id = $1 AND status = 'recalled'
+	`, parkedSaleID)
+	if err != nil {
+		return fmt.Errorf("consume parked sale: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrSaleNotFound
+	}
+	return nil
+}
+
+// ==================== PAYMENT METHODS ====================
+
 func (r *Repository) GetPaymentMethodByID(ctx context.Context, id int) (*PaymentMethod, error) {
 	var m PaymentMethod
 	var createdAt time.Time

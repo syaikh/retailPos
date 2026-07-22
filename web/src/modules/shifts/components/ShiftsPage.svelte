@@ -403,33 +403,33 @@ import {
 </Modal>
 
 <!-- Close Shift Modal -->
-<Modal bind:open={showCloseModal} title="Close Shift" size="sm">
+<Modal bind:open={showCloseModal} title="Close Shift" size="lg">
   {#if store.activeShift}
-    <div class="space-y-4">
-      <div class="bg-surface-secondary rounded-lg p-4 space-y-2">
-        <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Opening Balance</span>
-          <span class="text-text-primary font-medium">{formatMoney(store.activeShift.opening_balance)}</span>
+    <div class="space-y-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-secondary rounded-lg p-4">
+        <div>
+          <p class="text-xs text-text-muted">Opening Balance</p>
+          <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.opening_balance)}</p>
         </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Cash Sales</span>
-          <span class="text-text-primary font-medium">{formatMoney(store.activeShift.cash_sales)}</span>
+        <div>
+          <p class="text-xs text-text-muted">Cash Sales</p>
+          <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.cash_sales)}</p>
         </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Non-Cash Sales</span>
-          <span class="text-text-primary font-medium">{formatMoney(store.activeShift.non_cash_sales)}</span>
+        <div>
+          <p class="text-xs text-text-muted">Non-Cash Sales</p>
+          <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.non_cash_sales)}</p>
         </div>
-        <div class="flex justify-between text-sm border-t border-border pt-2">
-          <span class="text-text-muted">Total Sales</span>
-          <span class="text-text-primary font-bold">{formatMoney(store.activeShift.total_sales)}</span>
+        <div>
+          <p class="text-xs text-text-muted">Transactions</p>
+          <p class="text-lg font-bold text-text-primary">{store.activeShift.transaction_count}</p>
         </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Transactions</span>
-          <span class="text-text-primary font-medium">{store.activeShift.transaction_count}</span>
+        <div>
+          <p class="text-xs text-text-muted">Total Sales</p>
+          <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.total_sales)}</p>
         </div>
-        <div class="flex justify-between text-sm border-t border-border pt-2">
-          <span class="text-text-muted">Expected Cash</span>
-          <span class="text-primary font-bold">{formatMoney(store.activeShift.opening_balance + store.activeShift.cash_sales)}</span>
+        <div>
+          <p class="text-xs text-text-muted">Expected Cash</p>
+          <p class="text-lg font-bold text-primary">{formatMoney(store.activeShift.opening_balance + store.activeShift.cash_sales)}</p>
         </div>
       </div>
 
