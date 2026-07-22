@@ -29,7 +29,9 @@ Thank you for your interest in contributing to the Retail POS System! This docum
 ### Testing
 - Write tests for new features
 - Ensure all tests pass before submitting PR
-- Run `go test ./...` to execute all tests
+- Run `make test` to execute backend unit tests with proper environment setup
+- Run `make test-full` to execute backend + E2E tests
+- Or run: `go test -p 1 -count=1 ./...` with the required env vars set in your shell
 - Maintain test coverage
 
 ### Pull Request Process

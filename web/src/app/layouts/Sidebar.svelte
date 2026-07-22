@@ -283,6 +283,7 @@
 
   <!-- Bottom: user + collapse toggle -->
   <div class="mt-auto border-t border-sidebar-border px-2.5 py-3 space-y-0.5">
+    {#if authStore.isAuthenticated}
     <!-- User row -->
     <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl" title={collapsed ? username : ''}>
       <div class="w-8 h-8 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
@@ -330,6 +331,7 @@
           </span>
         </Tooltip>
       {/if}
+    {/if}
     {/if}
 
     <!-- Collapse toggle -->

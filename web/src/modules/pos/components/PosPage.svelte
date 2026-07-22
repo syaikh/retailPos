@@ -60,11 +60,7 @@ let total: number = $state(0);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
 
-  const paymentOptions = [
-    { id: 'Cash', label: 'Cash', icon: ShoppingCart },
-    { id: 'Card', label: 'Card', icon: ShoppingCart },
-    { id: 'E-Wallet', label: 'E-Wallet', icon: ShoppingCart },
-  ];
+  let paymentOptions = $state<Array<{ id: string; label: string; icon: any }>>([]);
   let paymentMethod = $state('Cash');
   let checkingOut = $state(false);
 
@@ -129,6 +125,27 @@ let total: number = $state(0);
       customers = r.data.data || [];
     } catch (err) {
       console.warn('Failed to load customers', err);
+    }
+  }
+
+  async function loadPaymentMethods() {
+    try {
+      const r = await apiClient.get('/payment-methods');
+      const methods = (r.data.data || r.data || []) as Array<{ code: string; name: string; is_active?: boolean }>;
+      const active = methods.filter(m => m.is_active !== false);
+      if (active.length > 0) {
+        paymentOptions = active.map(m => ({ id: m.code, label: m.name, icon: ShoppingCart }));
+        if (!paymentOptions.some(p => p.id === paymentMethod)) {
+          paymentMethod = paymentOptions[0].id;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load payment methods', err);
+      paymentOptions = [
+        { id: 'CASH', label: 'Cash', icon: ShoppingCart },
+        { id: 'CARD', label: 'Card', icon: ShoppingCart },
+        { id: 'E_WALLET', label: 'E-Wallet', icon: ShoppingCart },
+      ];
     }
   }
 
@@ -530,7 +547,7 @@ let total: number = $state(0);
       }
 
       isInitialMount = true;
-      await Promise.all([fetchProducts(false), fetchThresholds()]);
+      await Promise.all([fetchProducts(false), fetchThresholds(), loadPaymentMethods()]);
       fetchCustomers();
       isInitialMount = false;
       focusSearch();

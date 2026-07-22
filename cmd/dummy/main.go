@@ -378,6 +378,10 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
+	if err := syncInvoiceSequence(ctx, db); err != nil {
+		return fmt.Errorf("failed to sync invoice sequence: %w", err)
+	}
+
 	// 10. Generate audit log entries for all created data
 	fmt.Printf("📋 Generating audit log entries...\n")
 	if err := generateAuditLogs(ctx, db, userIDs, categoryIDs, startDate, endDate); err != nil {
@@ -1227,6 +1231,30 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 		flush()
 	}()
 	return ch
+}
+
+// syncInvoiceSequence updates the invoice_seq sequence to match the highest
+// existing invoice number so nextval() never returns a duplicate.
+func syncInvoiceSequence(ctx context.Context, db *sql.DB) error {
+	var maxSeq int
+	err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(
+			CAST(REGEXP_REPLACE(invoice_number, '^INV-\d+-0*', '') AS bigint)
+		), 0)
+		FROM sales
+		WHERE invoice_number ~ '^INV-\d+-\d+$'
+	`).Scan(&maxSeq)
+	if err != nil {
+		return fmt.Errorf("read max invoice sequence: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, `SELECT setval('invoice_seq', $1)`, maxSeq)
+	if err != nil {
+		return fmt.Errorf("sync invoice sequence: %w", err)
+	}
+
+	fmt.Printf("   🔄 Synced invoice_seq to %d\n", maxSeq+1)
+	return nil
 }
 
 // injectDailySales generates transactions ensuring every day has at least 10 transactions using concurrent workers

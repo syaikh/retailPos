@@ -85,7 +85,7 @@ describe('PosPage.svelte source-structure guards', () => {
 
   it('has payment method options and state', () => {
     expect(src).toContain("let paymentMethod = $state('Cash')");
-    expect(src).toContain('const paymentOptions');
+    expect(src).toContain('let paymentOptions = $state');
     expect(src).toContain('let checkingOut = $state');
   });
 

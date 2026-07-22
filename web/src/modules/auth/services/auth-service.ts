@@ -226,5 +226,5 @@ export async function logout(): Promise<void> {
   }
   const store = useAuthStore();
   store.clearUser();
-  window.location.href = '/login';
+  window.location.replace('/login');
 }

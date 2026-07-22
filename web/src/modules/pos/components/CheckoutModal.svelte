@@ -62,7 +62,7 @@
       close();
       return;
     }
-    if (e.key === 'F7' && paymentMethod === 'Cash') {
+    if (e.key === 'F7' && paymentMethod.toUpperCase() === 'CASH') {
       e.preventDefault();
       cashReceived = totalAmount;
       return;
@@ -89,7 +89,7 @@
   }
 
   $effect(() => {
-    cashReceived = paymentMethod === 'Cash' ? 0 : totalAmount;
+    cashReceived = paymentMethod.toUpperCase() === 'CASH' ? 0 : totalAmount;
   });
 
   $effect(() => {
@@ -194,7 +194,7 @@
         <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
       </button>
 
-      {#if paymentMethod === 'Cash'}
+      {#if paymentMethod.toUpperCase() === 'CASH'}
         <div class="mb-3">
           <label for="cash-received-input" class="text-[11px] text-text-muted mb-1.5 font-medium block">
             Cash Received

@@ -67,15 +67,25 @@ dev-frontend: ## Run frontend dev server
 	cd web && npm run dev
 
 # Testing targets
-test: ## Run all tests
+test: ## Run backend unit tests (set TEST_DB_* and JWT_SECRET in .env.test or shell)
 	@echo "Running backend tests..."
-	cd cmd/server && go test ./... -v
-	@echo ""
-	@echo "Running E2E tests (requires both servers running)..."
-	npx playwright test --reporter=list
+ifneq ($(wildcard .env.test),)
+	include .env.test
+endif
+	go test -p 1 -count=1 ./...
 
 test-e2e: ## Run E2E tests only
 	@echo "Ensure services are running: ./deploy/podman-deploy.sh start"
+	npx playwright test --reporter=list
+
+test-full: ## Run backend + E2E tests
+	@echo "Running backend tests..."
+ifneq ($(wildcard .env.test),)
+	include .env.test
+endif
+	go test -p 1 -count=1 ./...
+	@echo ""
+	@echo "Running E2E tests (requires both servers running)..."
 	npx playwright test --reporter=list
 
 # Database targets
