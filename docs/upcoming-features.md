@@ -12,6 +12,8 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 4. [Purchase Order & Goods Receiving](#4-purchase-order--goods-receiving)
 5. [Stock Opname (Physical Count)](#5-stock-opname-physical-count)
 6. [Product Image Upload](#6-product-image-upload)
+7. [Time-based Pricing Update](#7-time-based-pricing-update)
+8. [Admin Change Freeze During Active Shifts](#8-admin-change-freeze-during-active-shifts)
 
 ---
 
@@ -278,17 +280,135 @@ Gambar: [foto produk]
 - Placeholder image jika produk belum ada gambar
 
 ---
+ 
+## 7. Time-based Pricing Update
 
+### Penjelasan
+
+Perubahan harga (pricing rule, diskon, promosi) hanya diperbolehkan dilakukan pada **window waktu tertentu** saat toko tutup atau shift kasir tidak aktif. Alasan: perubahan harga di tengah shift dapat menyebabkan **price mismatch** antara harga yang ditampilkan di layar POS dengan harga authoritative di backend, yang berujung pada discrepancy fisik uang di kas.
+
+### Contoh Workflow
+
+```
+Jam 02:00 - 05:00 (toko tutup, semua shift aktif sudah ditutup):
+  → Admin bisa mengubah pricing rule:
+    - Update diskon member
+    - Ganti harga khusus
+    - Upload promosi baru
+  → Sistem menyimpan perubahan dan aktifkan otomatis saat toko buka
+
+Jam 08:00 - Shift dimulai:
+  → Semua kasir mendapatkan harga terbaru
+  → Tidak ada perubahan harga di tengah shift
+
+Jam 14:00 - Admin coba ubah harga:
+  → Sistem blokir: "Tidak dapat mengubah harga saat ada shift aktif"
+  → Admin harus menunggu semua shift ditutup atau menunggu window waktu khusus
+```
+
+### Komponen yang Perlu Dibangun
+
+**Backend:**
+- Config: `PRICING_UPDATE_WINDOW_START` dan `PRICING_UPDATE_WINDOW_END` (contoh: `02:00`, `05:00`)
+- Middleware/check di endpoint pricing rule create/update/delete:
+  - Cek apakah semua shift sudah ditutup (`status = 'closed'` untuk semua kasir)
+  - ATAU cek apakah sekarang berada dalam window waktu yang diizinkan
+- Response error jelas: `"Pricing changes are only allowed between 02:00-05:00 or when all shifts are closed"`
+- Audit log untuk setiap percobaan perubahan harga yang diblokir
+
+**Frontend:**
+- Badge/indikator di halaman Pricing Rules: *"Pricing updates are frozen during active shifts"*
+- Disable tombol tambah/edit/hapus pricing rule saat ada active shift
+- Tampilkan window waktu yang diizinkan di help text
+
+### Aturan
+
+| Kondisi | Bisa Ubah Harga? |
+|---------|------------------|
+| Semua shift closed + dalam window waktu | ✅ Bisa |
+| Ada shift aktif | ❌ Tidak bisa |
+| Semua shift closed + di luar window | ❌ Tidak bisa |
+
+---
+ 
+## 8. Admin Change Freeze During Active Shifts
+
+### Penjelasan
+
+Perubahan pada data sensitif (harga, diskon, produk, stok) **diblokir secara otomatis** ketika ada setidaknya satu shift kasir yang masih berstatus `open`. Tujuan: mencegah perubahan yang dapat memengaruhi perhitungan discrepancy atau integritas data selama transaksi sedang berlangsung.
+
+### Contoh Workflow
+
+```
+Skenario 1 - Ada shift aktif:
+  Kasir "Budi" sedang open shift (belum close).
+  Admin coba ubah harga produk "Indomie" dari Rp 3.500 menjadi Rp 3.000.
+  → Sistem tolak:
+    "Cannot update product price while shift #123 is still open.
+     Please close all active shifts first."
+
+Skenario 2 - Semua shift closed:
+  Semua kasir sudah close shift untuk hari ini.
+  Admin ubah harga "Indomie" menjadi Rp 3.000.
+  → Sistem izinkan, perubahan langsung生效.
+
+Skenario 3 - Percobaan bypass via API langsung:
+  Developer/admin mencoba POST langsung ke /api/products/:id dengan harga baru.
+  → Middleware backend tetap cek active shifts dan tolak permintaan.
+```
+
+### Data yang Diblokir
+
+| Entity | Aksi yang Diblokir |
+|--------|-------------------|
+| Products | Update price, cost, status |
+| Pricing Rules | Create, update, delete, activate/deactivate |
+| Discounts | Create, update, delete |
+| Stock adjustments | Manual stock correction |
+
+### Komponen yang Perlu Dibangun
+
+**Backend:**
+- Helper: `HasActiveShifts(ctx) (bool, error)` — query `SELECT EXISTS(SELECT 1 FROM shifts WHERE status = 'open')`
+- Middleware baru: `RequireNoActiveShifts` — dipasang di route sensitif
+- Terapkan pada endpoint:
+  - `PUT /api/products/:id`
+  - `POST /api/pricing-rules`
+  - `PUT /api/pricing-rules/:id`
+  - `DELETE /api/pricing-rules/:id`
+  - `POST /api/stock-adjustments`
+- Response error:
+  ```json
+  {
+    "error": "operation_not_allowed_during_active_shift",
+    "message": "Cannot modify pricing while 2 shift(s) are still open. Please close all shifts first.",
+    "active_shift_count": 2
+  }
+  ```
+- Audit log untuk setiap percobaan yang diblokir (security relevant)
+
+**Frontend:**
+- Global check saat inisialisasi POS: fetch active shift count
+- Jika ada active shift:
+  - Disable/hide form edit harga di halaman Products
+  - Disable/hide tombol tambah/edit pricing rule
+  - Tampilkan banner: *"Pricing changes are frozen while shifts are active"*
+- Saat admin coba aksi yang diblokir, tampilkan toast dengan pesan yang jelas
+
+---
+ 
 ## Prioritas Implementasi
 
 | Urutan | Fitur | Alasan |
 |--------|-------|--------|
 | 1 | Shift Management | Operational kasir harian, fondasi untuk laporan |
-| 2 | Split Payment | Fleksibilitas bayar, sering diminta pelanggan |
-| 3 | Hold & Recall | UX kasir, meningkatkan produktivitas |
-| 4 | Stock Opname | Akurasi inventori, mencegah selisih stok |
-| 5 | Product Image | Peningkatan UX visual, relatif sederhana |
-| 6 | Purchase Order | Alur pembelian, butuh dependency lebih banyak |
+| 2 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
+| 3 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
+| 4 | Split Payment | Fleksibilitas bayar, sering diminta pelanggan |
+| 5 | Hold & Recall | UX kasir, meningkatkan produktivitas |
+| 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
+| 7 | Product Image | Peningkatan UX visual, relatif sederhana |
+| 8 | Purchase Order | Alur pembelian, butuh dependency lebih banyak |
 
 ---
 
