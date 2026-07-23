@@ -405,20 +405,22 @@ import {
       </table>
     </div>
 
+    {#if !store.loading && store.shifts.length > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination
+          total={store.total}
+          limit={store.pageSize}
+          offset={store.offset}
+          onPageChange={(newOffset, newLimit) => {
+            store.page = Math.floor(newOffset / newLimit);
+            store.pageSize = newLimit;
+            prevFilters = "";
+            loadShifts();
+          }}
+        />
+      </div>
+    {/if}
   </div>
-
-  <!-- Pagination -->
-  <Pagination
-    total={store.total}
-    limit={store.pageSize}
-    offset={store.offset}
-    onPageChange={(newOffset, newLimit) => {
-      store.page = Math.floor(newOffset / newLimit);
-      store.pageSize = newLimit;
-      prevFilters = "";
-      loadShifts();
-    }}
-  />
 </div>
 
 <!-- Open Shift Modal -->
