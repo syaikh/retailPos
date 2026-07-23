@@ -269,17 +269,19 @@
         </tbody>
       </table>
     {/if}
+    {#if !loading && total > 0}
+      <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+        <Pagination
+          total={total}
+          limit={pageSize}
+          offset={offset}
+          onPageChange={(newOffset, newLimit) => {
+            fetchBrands(newOffset, newLimit);
+          }}
+        />
+      </div>
+    {/if}
   </div>
-  {#if !loading && total > 0}
-    <Pagination
-      total={total}
-      limit={pageSize}
-      offset={offset}
-      onPageChange={(newOffset, newLimit) => {
-        fetchBrands(newOffset, newLimit);
-      }}
-    />
-  {/if}
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Brand' : 'Edit Brand'} size="md">
