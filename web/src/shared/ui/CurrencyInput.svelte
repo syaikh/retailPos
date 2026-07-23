@@ -17,25 +17,48 @@
     id?: string;
   } = $props();
 
-  let displayValue = $state('');
+  let el: HTMLInputElement | undefined = $state();
 
-  function formatCurrency(num: number): string {
-    return num ? num.toLocaleString('id-ID') : '';
+  function fmt(n: number): string {
+    return n ? n.toLocaleString('id-ID') : '';
   }
 
-  function handleInput(e: Event) {
-    const raw = (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '');
-    value = raw ? parseInt(raw, 10) : 0;
-    displayValue = formatCurrency(value);
-    const input = e.target as HTMLInputElement;
-    if (input.value !== displayValue) {
-      input.value = displayValue;
-      input.setSelectionRange(displayValue.length, displayValue.length);
+  function cursorPos(rawAfter: string, pos: number): number {
+    let s = fmt(parseInt(rawAfter, 10) || 0);
+    let ri = 0;
+    for (let fi = 0; fi < s.length; fi++) {
+      if (s[fi] === '.') continue;
+      if (ri >= pos) return fi;
+      ri++;
+    }
+    return s.length;
+  }
+
+  function handleInput() {
+    if (!el) return;
+    const sel = el.selectionStart ?? 0;
+    const dots = (el.value.slice(0, sel).match(/\./g) || []).length;
+    const rc = sel - dots;
+
+    const raw = el.value.replace(/[^0-9]/g, '');
+    const nv = raw ? parseInt(raw, 10) : 0;
+    value = nv;
+
+    const formatted = fmt(nv);
+    if (el.value !== formatted) {
+      const nc = cursorPos(raw, rc);
+      el.value = formatted;
+      el.setSelectionRange(nc, nc);
     }
   }
 
   $effect(() => {
-    displayValue = formatCurrency(value);
+    if (el) {
+      const formatted = fmt(value);
+      if (el.value !== formatted) {
+        el.value = formatted;
+      }
+    }
   });
 </script>
 
@@ -48,9 +71,9 @@
   <span class="text-xs text-text-muted font-medium shrink-0 select-none">Rp</span>
   <input
     {id}
+    bind:this={el}
     type="text"
     inputmode="numeric"
-    value={displayValue}
     {placeholder}
     {disabled}
     {required}

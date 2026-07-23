@@ -3,10 +3,12 @@ import { loginUI, logoutUI } from './fixtures';
 
 async function selectRole(page: any, roleName: string) {
   const dialog = page.getByRole('dialog');
-  await dialog.locator('.form-role-dropdown-container button').first().click();
-  await page.waitForTimeout(100);
-  const option = dialog.locator('.form-role-dropdown-container .grid').getByRole('button', { name: roleName, exact: true });
-  await option.waitFor({ state: 'visible', timeout: 3000 });
+  const trigger = dialog.locator('.form-role-dropdown-container button').first();
+  await trigger.waitFor({ state: 'visible', timeout: 5000 });
+  await trigger.click();
+  await page.waitForTimeout(300);
+  const option = page.locator('[class*="grid"][class*="gap-1"]').getByRole('button', { name: roleName, exact: true });
+  await option.waitFor({ state: 'visible', timeout: 5000 });
   await option.click();
 }
 
@@ -77,8 +79,10 @@ test.describe('Admin Panel - User Management', () => {
 
   test('should filter by role', async ({ page }) => {
     await page.getByRole('button', { name: 'All Roles' }).click();
-    await page.waitForTimeout(300);
-    await page.locator('[role="menu"] button', { hasText: 'cashier' }).click();
+    await page.waitForTimeout(500);
+    const roleOption = page.getByRole('button', { name: 'cashier', exact: true });
+    await roleOption.waitFor({ state: 'visible', timeout: 5000 });
+    await roleOption.click();
     await page.waitForTimeout(500);
 
     const rows = page.locator('table tbody tr');

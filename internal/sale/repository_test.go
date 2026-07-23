@@ -460,14 +460,14 @@ func TestSaleRepository_RecallSale(t *testing.T) {
 		assert.Equal(t, prodID, sale.Items[0].ProductID)
 	})
 
-	t.Run("recall already recalled returns error", func(t *testing.T) {
+	t.Run("recall already recalled succeeds", func(t *testing.T) {
 		parked := createParkedSale(t, ctx, repo, cashierID, "INV-RECALL-002", "parked", prodID, 1, 10000)
 		_, err := repo.RecallSale(ctx, parked.ID)
 		require.NoError(t, err)
 
-		_, err = repo.RecallSale(ctx, parked.ID)
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, ErrSaleNotFound)
+		sale, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "recalled", sale.Status)
 	})
 
 	t.Run("recall completed sale returns error", func(t *testing.T) {

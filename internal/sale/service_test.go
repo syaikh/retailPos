@@ -405,7 +405,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.ParkSale(ctx, sale, items)
+		err := svc.ParkSale(ctx, sale, items, nil)
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 		assert.Equal(t, "parked", sale.Status)
@@ -434,7 +434,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			Subtotal:  10000,
 		}}
 
-		err := svc.ParkSale(ctx, sale, items)
+		err := svc.ParkSale(ctx, sale, items, nil)
 		assert.ErrorContains(t, err, "invalid quantity")
 	})
 }

@@ -609,7 +609,7 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int) (*Sale, error) 
 
 	err := r.db.QueryRow(ctx, `
 		UPDATE sales SET status = 'recalled', updated_at = NOW()
-		WHERE id = $1 AND status = 'parked'
+		WHERE id = $1 AND status IN ('parked', 'recalled')
 		RETURNING id, invoice_number, cashier_id, store_id, subtotal, discount, tax, total_amount, payment_method, status, created_at, updated_at
 	`, saleID).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &storeIDVal, &sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt)

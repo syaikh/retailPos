@@ -73,6 +73,7 @@ let total: number = $state(0);
   let parkedSales = $state<any[]>([]);
   let showParkedModal = $state(false);
   let holdingSale = $state(false);
+  let recalledSaleId = $state<number | null>(null);
 
    let customers: Customer[] = $state([]);
    let selectedCustomerId = $state<number | null>(null);
@@ -298,7 +299,7 @@ let total: number = $state(0);
     });
   }
 
-  async function processCheckout() {
+  async function processCheckout(parkedSaleId?: number | null) {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
@@ -331,8 +332,10 @@ let total: number = $state(0);
         customer_id: selectedCustomerId,
         status: 'completed',
         items,
+        ...(parkedSaleId ? { parked_sale_id: parkedSaleId } : {}),
       });
       lastSale = response.data?.data || response.data;
+      recalledSaleId = null;
       toast.success('Sale completed');
       cart = [];
       await fetchProducts(false);
@@ -346,6 +349,7 @@ let total: number = $state(0);
 
   function clearCart() {
     cart = [];
+    recalledSaleId = null;
   }
 
   async function holdSale() {
@@ -360,9 +364,14 @@ let total: number = $state(0);
         quantity: item.quantity,
         subtotal: item.price * item.quantity,
       }));
-      await parkSale({ items, payment_method: paymentMethod });
+      await parkSale({
+        items,
+        payment_method: paymentMethod,
+        recalled_sale_id: recalledSaleId,
+      });
       toast.success('Sale parked');
       cart = [];
+      recalledSaleId = null;
       await fetchParkedSales();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to park sale');
@@ -381,7 +390,9 @@ let total: number = $state(0);
 
   async function recallSale(saleId: number) {
     try {
+      recalledSaleId = null;
       const recalled = await recallParkedSale(saleId);
+      recalledSaleId = saleId;
       if (recalled.items && recalled.items.length > 0) {
         cart = recalled.items.map((item: any) => {
           const product = products.find((p: any) => p.id === item.product_id);
@@ -475,6 +486,7 @@ let total: number = $state(0);
   function closeCheckoutModal() {
     showCheckoutModal = false;
     cashReceived = 0;
+    recalledSaleId = null;
   }
 
   function finalizeSale() {
@@ -482,9 +494,10 @@ let total: number = $state(0);
     const capturedCash = cashReceived;
     const capturedChange = changeDue;
     const capturedPayment = paymentMethod;
+    const capturedRecalledSaleId = recalledSaleId;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
     closeCheckoutModal();
-    processCheckout().then(() => {
+    processCheckout(capturedRecalledSaleId).then(() => {
       if (lastSale && lastSale.items) {
         const taxAmt = lastSale.tax || 0;
         printReceiptStore.set({
@@ -728,7 +741,7 @@ let total: number = $state(0);
           {dppDisplay}
           {lastSale}
           {checkingOut}
-          parkedSaleCount={parkedSales.length}
+          parkedSaleCount={parkedSales.filter(s => s.status === 'parked').length}
           onupdateqty={updateQty}
           onremovefromcart={removeFromCart}
           onclearcart={clearCart}
@@ -753,7 +766,7 @@ let total: number = $state(0);
       {dppDisplay}
       {lastSale}
       {checkingOut}
-      parkedSaleCount={parkedSales.length}
+      parkedSaleCount={parkedSales.filter(s => s.status === 'parked').length}
       onupdateqty={updateQty}
       onremovefromcart={removeFromCart}
       onclearcart={clearCart}

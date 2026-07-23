@@ -3,6 +3,7 @@ package sale
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,7 +25,7 @@ type mockSaleService struct {
 	getNextInvoiceNumberFn     func(ctx context.Context) (string, error)
 	getAllPaymentMethodsFn     func(ctx context.Context) ([]PaymentMethod, error)
 	getPaymentMethodByCodeFn   func(ctx context.Context, code string) (*PaymentMethod, error)
-	parkSaleFn                 func(ctx context.Context, sale *Sale, items []SaleItem) error
+	parkSaleFn                 func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error
 	recallSaleFn               func(ctx context.Context, saleID int) (*Sale, error)
 	cancelParkedSaleFn         func(ctx context.Context, saleID int) error
 	listParkedSalesFn          func(ctx context.Context, cashierID int) ([]Sale, error)
@@ -41,7 +42,10 @@ func (m *mockSaleService) CreateSaleWithParkedSale(ctx context.Context, sale *Sa
 	return m.createSaleFn(ctx, sale, items)
 }
 func (m *mockSaleService) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
-	return m.getSaleByIDFn(ctx, id, storeID)
+	if m.getSaleByIDFn != nil {
+		return m.getSaleByIDFn(ctx, id, storeID)
+	}
+	return nil, fmt.Errorf("not mocked")
 }
 func (m *mockSaleService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 	return m.listSalesFn(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal, cashierID)
@@ -58,8 +62,8 @@ func (m *mockSaleService) GetAllPaymentMethods(ctx context.Context) ([]PaymentMe
 func (m *mockSaleService) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
 	return m.getPaymentMethodByCodeFn(ctx, code)
 }
-func (m *mockSaleService) ParkSale(ctx context.Context, sale *Sale, items []SaleItem) error {
-	return m.parkSaleFn(ctx, sale, items)
+func (m *mockSaleService) ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+	return m.parkSaleFn(ctx, sale, items, recalledSaleID)
 }
 func (m *mockSaleService) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
 	return m.recallSaleFn(ctx, saleID)
@@ -698,7 +702,7 @@ func TestSaleHandler_GetPaymentMethodByCode_NotFound(t *testing.T) {
 func TestSaleHandler_ParkSale_Success(t *testing.T) {
 	var capturedSale *Sale
 	svc := &mockSaleService{
-		parkSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		parkSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
 			sale.ID = 10
 			capturedSale = sale
 			return nil

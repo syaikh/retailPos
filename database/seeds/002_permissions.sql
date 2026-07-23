@@ -1,14 +1,13 @@
 -- Seed: Permissions (clean, consolidated version)
--- Format: colon-notation only (user:read, user:create, etc.)
+-- Format: dot-notation only (user.view, user.create, etc.)
 INSERT INTO permissions (code, name, description) VALUES
 -- Users & Roles
-('user:read', 'Baca user', 'Lihat daftar user'),
-('user:create', 'Tambah user', 'Tambah user baru'),
-('user:update', 'Edit user', 'Edit data user'),
+('user.view', 'Baca user', 'Lihat daftar user'),
+('user.create', 'Tambah user', 'Tambah user baru'),
+('user.update', 'Edit user', 'Edit data user'),
 ('user.delete', 'Hapus user', 'Hapus user (soft delete)'),
-('user:view', 'Lihat detail user', 'Lihat detail satu user'),
-('role:read', 'Baca role', 'Lihat daftar role'),
-('role:create', 'Tambah role', 'Tambah role baru'),
+('role.view', 'Baca role', 'Lihat daftar role'),
+('role.create', 'Tambah role', 'Tambah role baru'),
 ('role.update', 'Edit role', 'Edit role & permissions'),
 ('role.delete', 'Hapus role', 'Hapus role'),
 
@@ -20,9 +19,9 @@ INSERT INTO permissions (code, name, description) VALUES
 
 -- Categories
 ('category.view', 'Baca kategori', 'Lihat daftar kategori'),
-('category:create', 'Tambah kategori', 'Tambah kategori baru'),
-('category:update', 'Edit kategori', 'Edit data kategori'),
-('category:delete', 'Hapus kategori', 'Hapus kategori'),
+('category.create', 'Tambah kategori', 'Tambah kategori baru'),
+('category.update', 'Edit kategori', 'Edit data kategori'),
+('category.delete', 'Hapus kategori', 'Hapus kategori'),
 
 -- Sales
 ('sale.view', 'Baca penjualan', 'Lihat riwayat penjualan'),
@@ -32,7 +31,7 @@ INSERT INTO permissions (code, name, description) VALUES
 -- Inventory
 ('inventory.view', 'Baca inventory', 'Lihat daftar inventory'),
 ('inventory.adjust', 'Adjust inventory', 'Penyesuaian stok manual'),
-('inventory:export', 'Export inventory', 'Export data inventory'),
+('inventory.export', 'Export inventory', 'Export data inventory'),
 
 -- Reports
 ('report.view', 'Lihat laporan', 'Akses dashboard & laporan'),

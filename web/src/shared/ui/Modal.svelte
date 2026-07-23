@@ -9,6 +9,7 @@
     title = '',
     size = 'md',
     persistent = false,
+    panelClass = '',
     children,
     footer,
   }: {
@@ -16,6 +17,7 @@
     title?: string;
     size?: 'sm' | 'md' | 'lg' | 'xl';
     persistent?: boolean;
+    panelClass?: string;
     children: Snippet;
     footer?: Snippet;
   } = $props();
@@ -94,7 +96,7 @@
     <!-- Panel - trap focus within the dialog -->
     <div
       bind:this={panelEl}
-      class="relative w-full {sizes[size]} bg-surface-default border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col"
+      class="relative w-full {sizes[size]} bg-surface-default border border-border rounded-2xl shadow-modal max-h-[85vh] flex flex-col {panelClass}"
       transition:fly={{ y: 20, duration: 300 }}
       role="dialog"
       aria-modal="true"

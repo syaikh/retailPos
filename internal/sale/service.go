@@ -225,7 +225,7 @@ func (s *Service) GetPaymentMethodByCode(ctx context.Context, code string) (*Pay
 	return s.repo.GetPaymentMethodByCode(ctx, code)
 }
 
-func (s *Service) ParkSale(ctx context.Context, sale *Sale, items []SaleItem) error {
+func (s *Service) ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
 	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
@@ -237,6 +237,16 @@ func (s *Service) ParkSale(ctx context.Context, sale *Sale, items []SaleItem) er
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	if recalledSaleID != nil {
+		_, err = tx.Exec(ctx, `
+			UPDATE sales SET status = 'cancelled', updated_at = NOW()
+			WHERE id = $1 AND status = 'recalled'
+		`, *recalledSaleID)
+		if err != nil {
+			return fmt.Errorf("cancel previous recalled sale: %w", err)
+		}
+	}
 
 	sale.Status = "parked"
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {

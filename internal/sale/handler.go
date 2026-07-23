@@ -26,7 +26,7 @@ type SaleService interface {
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
-	ParkSale(ctx context.Context, sale *Sale, items []SaleItem) error
+	ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error
 	RecallSale(ctx context.Context, saleID int) (*Sale, error)
 	CancelParkedSale(ctx context.Context, saleID int) error
 	ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
@@ -196,6 +196,10 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		})
 	}
 
+	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
+		c.JSON(http.StatusCreated, gin.H{"data": detail})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": sale})
 }
 
@@ -428,6 +432,7 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		InvoiceNumber string           `json:"invoice_number"`
 		Items         []createSaleItem `json:"items" binding:"required"`
 		PaymentMethod string           `json:"payment_method"`
+		RecalledSaleID *int            `json:"recalled_sale_id"`
 	}
 
 	var req parkSaleReq
@@ -488,7 +493,7 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		Status:        "parked",
 	}
 
-	if err := h.svc.ParkSale(ctx, sale, items); err != nil {
+	if err := h.svc.ParkSale(ctx, sale, items, req.RecalledSaleID); err != nil {
 		shared.InternalError(c, err)
 		return
 	}

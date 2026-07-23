@@ -58,7 +58,7 @@ func setupMockAuthRouter(svc AuthLoginService) *gin.Engine {
 		c.Set("userID", 1)
 		c.Set("username", "testuser")
 		c.Set("role", "admin")
-		c.Set("permissions", []string{"user:read"})
+		c.Set("permissions", []string{"user.view"})
 		c.Set("storeID", (*int)(nil))
 		h.ValidateSession(c)
 	})
@@ -225,7 +225,7 @@ func TestAuthHandler_ValidateSession_Permissions(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	perms, ok := resp["permissions"].([]interface{})
 	require.True(t, ok)
-	assert.Contains(t, perms, "user:read")
+	assert.Contains(t, perms, "user.view")
 }
 
 func TestAuthHandler_ChangePassword_Success(t *testing.T) {

@@ -42,7 +42,7 @@
 </script>
 
 <div class="space-y-3">
-  <div class="grid grid-cols-4 gap-2">
+  <div class="grid grid-cols-3 gap-2">
     {#each denominations as d}
       <div class="flex items-center gap-2 px-3 py-2 bg-surface-default rounded-lg border border-border/50">
         <span class="text-sm font-medium text-text-primary w-14 shrink-0">{d.label}</span>

@@ -66,6 +66,7 @@ export async function getLastSale(): Promise<unknown> {
 export async function parkSale(payload: {
   items: { product_id: number; quantity: number; subtotal: number }[];
   payment_method?: string;
+  recalled_sale_id?: number | null;
 }): Promise<ParkedSale> {
   const r = await apiClient.post('/sales/parked', payload);
   return r.data?.data || r.data;

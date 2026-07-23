@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/router';
+import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
 import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
@@ -128,14 +129,7 @@ import {
 
   function formatDateTime(dateStr: string | null) {
     if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatDateTimeInJakarta(dateStr);
   }
 
   function formatMoney(amount: number) {
@@ -403,7 +397,7 @@ import {
 </Modal>
 
 <!-- Close Shift Modal -->
-<Modal bind:open={showCloseModal} title="Close Shift" size="lg">
+<Modal bind:open={showCloseModal} title="Close Shift" size="xl" panelClass="!max-h-none">
   {#if store.activeShift}
     <div class="space-y-6">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-secondary rounded-lg p-4">

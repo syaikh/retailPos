@@ -535,7 +535,7 @@ func TestMockHandler_ListPermissions(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUserService{
 			getAllPermsFn: func(ctx context.Context) ([]Permission, error) {
-				return []Permission{{ID: 1, Code: "user:read"}}, nil
+				return []Permission{{ID: 1, Code: "user.view"}}, nil
 			},
 		}
 		r := setupMockUserRouter(svc)
