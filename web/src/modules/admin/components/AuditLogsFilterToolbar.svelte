@@ -321,7 +321,7 @@
         icon: getFilterIcon('action'),
       });
     }
-    if (selectedDateRange !== '24h') {
+    if (selectedDateRange !== '24h' && selectedDateRange !== '7d') {
       if (selectedDateRange === 'custom') {
         filters.push({ type: 'date', label: `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}`, icon: getFilterIcon('date') });
       } else {

@@ -90,7 +90,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
-			Username:    req.Username,
+			UserID:      &resp.User.ID,
+			Username:    resp.User.Username,
+			Role:        resp.User.Role.Name,
 			Action:      "login",
 			EntityType:  "auth",
 			IPAddress:   shared.GetIPAddress(c),
