@@ -22,7 +22,7 @@ test.describe('Hold & Recall UI Flow', () => {
     await expect(page.locator('text=Your cart is empty')).toBeHidden({ timeout: 5000 });
 
     await page.keyboard.press('F6');
-    await page.waitForTimeout(1000);
+    await page.waitForResponse(res => res.url().includes('/api/sales/parked') && res.status() === 201, { timeout: 10000 });
     await expect(page.locator('text=Your cart is empty')).toBeVisible({ timeout: 5000 });
 
     await page.keyboard.press('F5');
@@ -273,6 +273,22 @@ test.describe('Hold & Recall API Flow', () => {
     expect(listRes.ok()).toBeTruthy();
     const list = await listRes.json();
     expect(Array.isArray(list.data)).toBeTruthy();
+  });
+
+  test('should get parked sale by ID returns full details', async ({ request }) => {
+    const { headers } = auth;
+    const res = await park(request, headers, productA);
+    expect(res.ok()).toBeTruthy();
+    const sale = (await res.json()).data;
+
+    const getRes = await request.get(`${API_BASE}/api/sales/parked/${sale.id}`, { headers });
+    expect(getRes.ok()).toBeTruthy();
+    const body = await getRes.json();
+    expect(body.data.id).toBe(sale.id);
+    expect(body.data.status).toBe('parked');
+    expect(body.data.items).toBeDefined();
+    expect(body.data.items.length).toBe(1);
+    expect(body.data.items[0].product_id).toBe(productA.id);
   });
 
   test('should reject park without items field (400)', async ({ request }) => {
