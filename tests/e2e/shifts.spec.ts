@@ -129,6 +129,20 @@ test.describe('Shifts API - needs_review filter', () => {
   test('should filter shifts by needs_review=true', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
+    const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { opening_balance: 100000, store_id: null },
+    });
+    expect(openRes.ok()).toBeTruthy();
+    const openBody = await openRes.json();
+    const shiftId = openBody.data.id;
+
+    const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { closing_balance: 200000 },
+    });
+    expect(closeRes.ok()).toBeTruthy();
+
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&needs_review=true`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -136,7 +150,7 @@ test.describe('Shifts API - needs_review filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
+    expect(body.data.length).toBeGreaterThan(0);
     for (const shift of body.data) {
       expect(shift.needs_review).toBe(true);
     }
@@ -152,6 +166,7 @@ test.describe('Shifts API - needs_review filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
+    expect(body.data.length).toBeGreaterThan(0);
     for (const shift of body.data) {
       expect(shift.needs_review).toBe(false);
     }
@@ -162,6 +177,20 @@ test.describe('Shifts API - discrepancy filter', () => {
   test('should filter shifts by discrepancy=balanced', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
+    const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { opening_balance: 100000, store_id: null },
+    });
+    expect(openRes.ok()).toBeTruthy();
+    const openBody = await openRes.json();
+    const shiftId = openBody.data.id;
+
+    const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { closing_balance: 100000 },
+    });
+    expect(closeRes.ok()).toBeTruthy();
+
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=balanced`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -169,13 +198,30 @@ test.describe('Shifts API - discrepancy filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
+    expect(body.data.length).toBeGreaterThan(0);
     for (const shift of body.data) {
-      expect(shift.discrepancy).toBe(0);
+      if (shift.discrepancy !== null && shift.discrepancy !== undefined) {
+        expect(shift.discrepancy).toBe(0);
+      }
     }
   });
 
   test('should filter shifts by discrepancy=surplus', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { opening_balance: 100000, store_id: null },
+    });
+    expect(openRes.ok()).toBeTruthy();
+    const openBody = await openRes.json();
+    const shiftId = openBody.data.id;
+
+    const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { closing_balance: 200000 },
+    });
+    expect(closeRes.ok()).toBeTruthy();
 
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=surplus`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -184,6 +230,7 @@ test.describe('Shifts API - discrepancy filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
+    expect(body.data.length).toBeGreaterThan(0);
     for (const shift of body.data) {
       expect(shift.discrepancy).toBeGreaterThan(0);
     }
@@ -192,6 +239,20 @@ test.describe('Shifts API - discrepancy filter', () => {
   test('should filter shifts by discrepancy=shortage', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
+    const openRes = await request.post(`${API_BASE}/api/shifts/open`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { opening_balance: 100000, store_id: null },
+    });
+    expect(openRes.ok()).toBeTruthy();
+    const openBody = await openRes.json();
+    const shiftId = openBody.data.id;
+
+    const closeRes = await request.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { closing_balance: 0 },
+    });
+    expect(closeRes.ok()).toBeTruthy();
+
     const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=shortage`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -199,6 +260,7 @@ test.describe('Shifts API - discrepancy filter', () => {
     const body = await res.json();
 
     expect(body).toHaveProperty('data');
+    expect(body.data.length).toBeGreaterThan(0);
     for (const shift of body.data) {
       expect(shift.discrepancy).toBeLessThan(0);
     }

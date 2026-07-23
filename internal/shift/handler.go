@@ -230,12 +230,14 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 	status := c.Query("status")
 	discFilter := c.Query("discrepancy")
 
-	callerUserID := middleware.UserIDFromContext(c.Request.Context())
-	callerRole := middleware.RoleFromContext(c.Request.Context())
-	if callerUserID == nil {
+	rawID, _ := c.Get("userID")
+	callerUserID, ok := rawID.(int)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
+	callerRole, _ := c.Get("role")
+	callerRoleStr, _ := callerRole.(string)
 
 	var userID *int
 	if uidStr := c.Query("user_id"); uidStr != "" {
@@ -244,10 +246,10 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 		}
 	}
 
-	if callerRole != "superadmin" {
+	if callerRoleStr != "superadmin" {
 		if userID == nil {
-			userID = callerUserID
-		} else if *userID != *callerUserID {
+			userID = &callerUserID
+		} else if *userID != callerUserID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "cannot export shifts for another user"})
 			return
 		}
