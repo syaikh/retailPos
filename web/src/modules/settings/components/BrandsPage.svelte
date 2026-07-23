@@ -7,10 +7,9 @@
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
 
-  const authStore = useAuthStore();
   const rbac = useRBAC();
 
-  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination } from '$shared/ui';
   import { Plus, Pencil, Trash2, Tag, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -31,23 +30,26 @@
   let canCreate = $derived(rbac.canCreate);
   let canEdit = $derived(rbac.canEdit);
   let canDelete = $derived(rbac.isAdmin);
-  let canView = $derived(authStore.user != null);
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';
     return formatDateInJakarta(dateStr);
   }
 
-  let filteredBrands = $derived(
-    brands.filter(b =>
-      !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
+  let pageSize = $state(20);
+  let page = $state(0);
+  let total = $state(0);
 
-  async function fetchBrands() {
+  let offset = $derived(page * pageSize);
+
+  async function fetchBrands(offset = 0, limit = 20) {
     try {
       loading = true;
-      brands = await getBrands();
+      const result = await getBrands({ limit, offset, search: searchQuery || undefined });
+      brands = result.data;
+      total = result.total;
+      page = Math.floor(offset / limit);
+      pageSize = limit;
     } catch {
       toast.error('Gagal memuat brand');
     } finally {
@@ -56,10 +58,11 @@
   }
 
   onMount(async () => {
-    await fetchBrands();
+    await fetchBrands(0, pageSize);
   });
 
   function handleSearchInput() {
+    page = 0;
     debouncedSearchFetch();
   }
 
@@ -191,7 +194,7 @@
           {/each}
         </tbody>
       </table>
-    {:else if filteredBrands.length === 0}
+    {:else if brands.length === 0}
       <div class="px-4 py-12 text-center">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
@@ -212,7 +215,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each filteredBrands as brand (brand.id)}
+          {#each brands as brand (brand.id)}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
               <td class="p-4 pr-6" style="width: 40%;">
                 <div class="flex items-center gap-3">
@@ -267,6 +270,16 @@
       </table>
     {/if}
   </div>
+  {#if !loading && total > 0}
+    <Pagination
+      total={total}
+      limit={pageSize}
+      offset={offset}
+      onPageChange={(newOffset, newLimit) => {
+        fetchBrands(newOffset, newLimit);
+      }}
+    />
+  {/if}
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Brand' : 'Edit Brand'} size="md">

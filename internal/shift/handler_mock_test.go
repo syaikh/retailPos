@@ -20,10 +20,11 @@ type mockShiftService struct {
 	closeShiftFn       func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	closeAllFn         func(ctx context.Context, userID int) ([]int, error)
 	getActiveShiftFn   func(ctx context.Context, userID int) (*Shift, error)
-	listShiftsFn       func(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	listShiftsFn       func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	getShiftByIDFn     func(ctx context.Context, shiftID int) (*Shift, error)
 	reviewShiftFn      func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	auditShiftFn       func(ctx context.Context, shiftID int) (*Shift, int, error)
+	exportShiftsFn     func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -38,8 +39,8 @@ func (m *mockShiftService) CloseAll(ctx context.Context, userID int) ([]int, err
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)
 }
-func (m *mockShiftService) ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
-	return m.listShiftsFn(ctx, userID, status, limit, offset, sortBy, sortDir)
+func (m *mockShiftService) ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+	return m.listShiftsFn(ctx, userID, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
 }
 func (m *mockShiftService) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {
 	return m.getShiftByIDFn(ctx, shiftID)
@@ -49,6 +50,12 @@ func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID 
 }
 func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return m.auditShiftFn(ctx, shiftID)
+}
+func (m *mockShiftService) ExportShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+	if m.exportShiftsFn != nil {
+		return m.exportShiftsFn(ctx, userID, status, needsReview, discrepancyFilter)
+	}
+	return nil, nil
 }
 
 type mockAudit struct {
@@ -286,7 +293,7 @@ func TestShiftHandler_GetActiveShift_Success(t *testing.T) {
 
 func TestShiftHandler_ListShifts_Success(t *testing.T) {
 	svc := &mockShiftService{
-		listShiftsFn: func(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+		listShiftsFn: func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 			return []Shift{{ID: 1, Status: "open"}}, 1, nil
 		},
 	}

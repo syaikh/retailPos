@@ -24,6 +24,8 @@ export interface Shift {
 
 export interface ShiftFilters {
   status: string;
+  needsReview: boolean | null;
+  discrepancy: string;
   userId: number | null;
   limit: number;
   offset: number;

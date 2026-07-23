@@ -89,7 +89,7 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getBrands(): Promise<Brand[]> {
-  const r = await apiClient.get('/brands');
+  const r = await apiClient.get('/brands', { params: { limit: 1000, offset: 0 } });
   return r.data.data || [];
 }
 
@@ -99,7 +99,7 @@ export async function getTaxClasses(): Promise<TaxClass[]> {
 }
 
 export async function getUnitsOfMeasure(): Promise<UnitOfMeasure[]> {
-  const r = await apiClient.get('/units-of-measure');
+  const r = await apiClient.get('/units-of-measure', { params: { limit: 1000, offset: 0 } });
   return r.data.data || [];
 }
 

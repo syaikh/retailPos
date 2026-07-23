@@ -39,9 +39,24 @@ export async function listShifts(filters: ShiftFilters, signal?: AbortSignal): P
   });
   if (filters.status) params.set('status', filters.status);
   if (filters.userId) params.set('user_id', filters.userId.toString());
+  if (filters.needsReview != null) params.set('needs_review', filters.needsReview.toString());
+  if (filters.discrepancy) params.set('discrepancy', filters.discrepancy);
 
   const res = await apiClient.get(`/shifts?${params.toString()}`, { signal });
   return { data: res.data.data || [], total: res.data.total || 0 };
+}
+
+export async function exportShifts(filters: ShiftFilters, format: 'csv' | 'xlsx'): Promise<Blob> {
+  const params = new URLSearchParams({ format });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.userId) params.set('user_id', filters.userId.toString());
+  if (filters.needsReview != null) params.set('needs_review', filters.needsReview.toString());
+  if (filters.discrepancy) params.set('discrepancy', filters.discrepancy);
+
+  const res = await apiClient.get(`/shifts/export?${params.toString()}`, {
+    responseType: 'blob',
+  });
+  return res.data;
 }
 
 export async function getShiftById(id: number): Promise<Shift | null> {

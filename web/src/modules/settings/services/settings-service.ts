@@ -53,13 +53,30 @@ export async function deleteCategory(id: number): Promise<boolean> {
 }
 
 // Brands
-export async function getBrands(): Promise<MasterBrand[]> {
-  const r = await apiFetch('/api/brands');
+export interface BrandListResponse {
+  data: MasterBrand[];
+  total: number;
+}
+
+export interface BrandListParams {
+  limit: number;
+  offset: number;
+  search?: string;
+}
+
+export async function getBrands(params: BrandListParams): Promise<BrandListResponse> {
+  const urlParams = new URLSearchParams({
+    limit: params.limit.toString(),
+    offset: params.offset.toString(),
+  });
+  if (params.search) urlParams.append('search', params.search);
+
+  const r = await apiFetch(`/api/brands?${urlParams.toString()}`);
   if (r.ok) {
     const data = await r.json();
-    return data.data || [];
+    return { data: data.data || [], total: data.total || 0 };
   }
-  return [];
+  return { data: [], total: 0 };
 }
 
 export async function createBrand(payload: CreateBrandPayload): Promise<boolean> {
@@ -84,13 +101,30 @@ export async function deleteBrand(id: number): Promise<boolean> {
 }
 
 // Units of Measure
-export async function getUnitsOfMeasure(): Promise<MasterUnitOfMeasure[]> {
-  const r = await apiFetch('/api/units-of-measure');
+export interface UomListResponse {
+  data: MasterUnitOfMeasure[];
+  total: number;
+}
+
+export interface UomListParams {
+  limit: number;
+  offset: number;
+  search?: string;
+}
+
+export async function getUnitsOfMeasure(params: UomListParams): Promise<UomListResponse> {
+  const urlParams = new URLSearchParams({
+    limit: params.limit.toString(),
+    offset: params.offset.toString(),
+  });
+  if (params.search) urlParams.append('search', params.search);
+
+  const r = await apiFetch(`/api/units-of-measure?${urlParams.toString()}`);
   if (r.ok) {
     const data = await r.json();
-    return data.data || [];
+    return { data: data.data || [], total: data.total || 0 };
   }
-  return [];
+  return { data: [], total: 0 };
 }
 
 export async function createUnitOfMeasure(payload: CreateUnitOfMeasurePayload): Promise<boolean> {

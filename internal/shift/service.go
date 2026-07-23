@@ -31,8 +31,17 @@ func (s *Service) GetActiveShift(ctx context.Context, userID int) (*Shift, error
 	return s.repo.GetActiveShiftByUserID(ctx, userID)
 }
 
-func (s *Service) ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
-	return s.repo.ListShifts(ctx, userID, status, limit, offset, sortBy, sortDir)
+func (s *Service) ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+	return s.repo.ListShifts(ctx, userID, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
+}
+
+func (s *Service) ExportShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+	const maxExportRows = 10000
+	shifts, _, err := s.repo.ListShifts(ctx, userID, status, needsReview, discrepancyFilter, maxExportRows, 0, "opened_at", "DESC")
+	if err != nil {
+		return nil, err
+	}
+	return shifts, nil
 }
 
 func (s *Service) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {

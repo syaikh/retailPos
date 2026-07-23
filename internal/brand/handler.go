@@ -16,6 +16,7 @@ import (
 type BrandService interface {
 	GetByID(ctx context.Context, id int) (*Brand, error)
 	GetAll(ctx context.Context) ([]Brand, error)
+	GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error)
 	Create(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
 	Update(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
 	Delete(ctx context.Context, id int) error
@@ -41,7 +42,18 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 }
 
 func (h *Handler) ListBrands(c *gin.Context) {
-	brands, err := h.svc.GetAll(c.Request.Context())
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	search := c.Query("search")
+
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	brands, total, err := h.svc.GetAllPaginated(c.Request.Context(), limit, offset, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch brands"})
 		return
@@ -49,7 +61,7 @@ func (h *Handler) ListBrands(c *gin.Context) {
 	if brands == nil {
 		brands = []Brand{}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": brands})
+	c.JSON(http.StatusOK, gin.H{"data": brands, "total": total})
 }
 
 func (h *Handler) CreateBrand(c *gin.Context) {

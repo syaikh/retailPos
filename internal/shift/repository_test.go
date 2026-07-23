@@ -162,7 +162,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(t, ctx, 1)
 		createOpenShift(t, ctx, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, nil, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(shifts), 1)
@@ -172,7 +172,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(t, ctx, 1)
 		createOpenShift(t, ctx, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, &userID, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, &userID, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {

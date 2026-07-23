@@ -2,14 +2,18 @@ package shift
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/shared"
 )
@@ -19,10 +23,11 @@ type ShiftService interface {
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseAll(ctx context.Context, userID int) ([]int, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
-	ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 	GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
+	ExportShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 type Handler struct {
@@ -42,6 +47,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/shifts/:id/audit", auth, perm("shift.audit"), h.AuditShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
 	r.GET("/shifts", auth, perm("shift.view"), h.ListShifts)
+	r.GET("/shifts/export", auth, perm("shift.view"), h.ExportShifts)
 	r.GET("/shifts/:id", auth, perm("shift.view"), h.GetShiftByID)
 }
 
@@ -193,6 +199,7 @@ func (h *Handler) ListShifts(c *gin.Context) {
 	sortBy := c.DefaultQuery("sort_by", "opened_at")
 	sortDir := c.DefaultQuery("sort_dir", "DESC")
 	status := c.Query("status")
+	discFilter := c.Query("discrepancy")
 
 	limit, offset := shared.ParsePaginationParams(limitStr, offsetStr)
 
@@ -203,13 +210,193 @@ func (h *Handler) ListShifts(c *gin.Context) {
 		}
 	}
 
-	shifts, total, err := h.svc.ListShifts(c.Request.Context(), userID, status, limit, offset, sortBy, sortDir)
+	var needsReview *bool
+	if nr := c.Query("needs_review"); nr != "" {
+		val := nr == "true"
+		needsReview = &val
+	}
+
+	shifts, total, err := h.svc.ListShifts(c.Request.Context(), userID, status, needsReview, discFilter, limit, offset, sortBy, sortDir)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
 	}
 
 	shared.JSONPaginated(c, shifts, total, limit, offset)
+}
+
+func (h *Handler) ExportShifts(c *gin.Context) {
+	format := c.Query("format")
+	status := c.Query("status")
+	discFilter := c.Query("discrepancy")
+
+	callerUserID := middleware.UserIDFromContext(c.Request.Context())
+	callerRole := middleware.RoleFromContext(c.Request.Context())
+	if callerUserID == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	var userID *int
+	if uidStr := c.Query("user_id"); uidStr != "" {
+		if uid, err := strconv.Atoi(uidStr); err == nil {
+			userID = &uid
+		}
+	}
+
+	if callerRole != "superadmin" {
+		if userID == nil {
+			userID = callerUserID
+		} else if *userID != *callerUserID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "cannot export shifts for another user"})
+			return
+		}
+	}
+
+	var needsReview *bool
+	if nr := c.Query("needs_review"); nr != "" {
+		val := nr == "true"
+		needsReview = &val
+	}
+
+	shifts, err := h.svc.ExportShifts(c.Request.Context(), userID, status, needsReview, discFilter)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+
+	if shifts == nil {
+		shifts = []Shift{}
+	}
+
+	rowCount := len(shifts)
+
+	cfg := config.Load()
+	now := time.Now().In(cfg.Timezone)
+	filename := "shifts-" + now.Format("2006-01-02")
+
+	switch format {
+	case "xlsx":
+		wb := excelize.NewFile()
+		sheet := "Shifts"
+		_ = wb.SetSheetName("Sheet1", sheet)
+
+		headers := []string{"Cashier", "Store", "Status", "Opening Balance", "Cash Sales", "Non-Cash Sales", "Total Sales", "Transactions", "Discrepancy", "Needs Review", "Opened At", "Closed At"}
+		for i, hdr := range headers {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			_ = wb.SetCellValue(sheet, col+"1", hdr)
+		}
+		headerStyle, _ := wb.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
+			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
+		})
+		_ = wb.SetCellStyle(sheet, "A1", fmt.Sprintf("%s1", mustColumnName(len(headers))), headerStyle)
+
+		for i, s := range shifts {
+			r := i + 2
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("A%d", r), s.Username)
+			storeName := ""
+			if s.StoreName != "" {
+				storeName = s.StoreName
+			}
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("B%d", r), storeName)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), s.Status)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), s.OpeningBalance)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), s.CashSales)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), s.NonCashSales)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), s.TotalSales)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("H%d", r), s.TransactionCount)
+			discVal := 0
+			if s.Discrepancy != nil {
+				discVal = *s.Discrepancy
+			}
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("I%d", r), discVal)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("J%d", r), map[bool]string{true: "Yes", false: "No"}[s.NeedsReview])
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("K%d", r), s.OpenedAt)
+			closed := ""
+			if s.ClosedAt != "" {
+				closed = s.ClosedAt
+			}
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("L%d", r), closed)
+		}
+
+		colWidths := []float64{20, 15, 10, 15, 15, 15, 15, 12, 15, 12, 22, 22}
+		for i, w := range colWidths {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			_ = wb.SetColWidth(sheet, col, col, w)
+		}
+
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+
+		if err := wb.Write(c.Writer); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write xlsx"})
+			return
+		}
+
+	default:
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
+		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+		writer := csv.NewWriter(c.Writer)
+		_ = shared.WriteCSVRow(writer, []string{"Cashier", "Store", "Status", "Opening Balance", "Cash Sales", "Non-Cash Sales", "Total Sales", "Transactions", "Discrepancy", "Needs Review", "Opened At", "Closed At"})
+		for _, s := range shifts {
+			storeName := ""
+			if s.StoreName != "" {
+				storeName = s.StoreName
+			}
+			discVal := "0"
+			if s.Discrepancy != nil {
+				discVal = strconv.Itoa(*s.Discrepancy)
+			}
+			closed := ""
+			if s.ClosedAt != "" {
+				closed = s.ClosedAt
+			}
+			_ = shared.WriteCSVRow(writer, []string{
+				s.Username,
+				storeName,
+				s.Status,
+				strconv.Itoa(s.OpeningBalance),
+				strconv.Itoa(s.CashSales),
+				strconv.Itoa(s.NonCashSales),
+				strconv.Itoa(s.TotalSales),
+				strconv.Itoa(s.TransactionCount),
+				discVal,
+				map[bool]string{true: "Yes", false: "No"}[s.NeedsReview],
+				s.OpenedAt,
+				closed,
+			})
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to flush csv"})
+			return
+		}
+	}
+
+	if h.auditSvc != nil {
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+			UserID:      middleware.UserIDFromContext(c.Request.Context()),
+			Username:    middleware.UsernameFromContext(c.Request.Context()),
+			Role:        middleware.RoleFromContext(c.Request.Context()),
+			Action:      "export",
+			EntityType:  "shift",
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"format": format, "status": status, "needs_review": needsReview, "discrepancy": discFilter, "row_count": rowCount}),
+			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
+			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
+			Description: fmt.Sprintf("Exported %d shifts as %s", rowCount, format),
+		})
+	}
+}
+
+func mustColumnName(n int) string {
+	name, err := excelize.ColumnNumberToName(n)
+	if err != nil {
+		return "Z"
+	}
+	return name
 }
 
 func (h *Handler) GetShiftByID(c *gin.Context) {

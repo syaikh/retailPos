@@ -13,15 +13,19 @@ import (
 )
 
 type mockBrandService struct {
-	getAllFn  func(ctx context.Context) ([]Brand, error)
-	getByIDFn func(ctx context.Context, id int) (*Brand, error)
-	createFn  func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
-	updateFn  func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
-	deleteFn  func(ctx context.Context, id int) error
+	getAllFn         func(ctx context.Context) ([]Brand, error)
+	getAllPaginatedFn func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error)
+	getByIDFn        func(ctx context.Context, id int) (*Brand, error)
+	createFn         func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
+	updateFn         func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	deleteFn         func(ctx context.Context, id int) error
 }
 
 func (m *mockBrandService) GetAll(ctx context.Context) ([]Brand, error) {
 	return m.getAllFn(ctx)
+}
+func (m *mockBrandService) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+	return m.getAllPaginatedFn(ctx, limit, offset, search)
 }
 func (m *mockBrandService) GetByID(ctx context.Context, id int) (*Brand, error) {
 	return m.getByIDFn(ctx, id)
@@ -58,8 +62,8 @@ func setupMockBrandRouter(svc BrandService) *gin.Engine {
 func TestMockBrandHandler_ListBrands(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockBrandService{
-			getAllFn: func(ctx context.Context) ([]Brand, error) {
-				return []Brand{{ID: 1, Name: "Nike"}}, nil
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+				return []Brand{{ID: 1, Name: "Nike"}}, 1, nil
 			},
 		}
 		r := setupMockBrandRouter(svc)
@@ -70,8 +74,8 @@ func TestMockBrandHandler_ListBrands(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockBrandService{
-			getAllFn: func(ctx context.Context) ([]Brand, error) {
-				return nil, errors.New("db error")
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+				return nil, 0, errors.New("db error")
 			},
 		}
 		r := setupMockBrandRouter(svc)
@@ -82,8 +86,8 @@ func TestMockBrandHandler_ListBrands(t *testing.T) {
 
 	t.Run("nil becomes empty", func(t *testing.T) {
 		svc := &mockBrandService{
-			getAllFn: func(ctx context.Context) ([]Brand, error) {
-				return nil, nil
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+				return nil, 0, nil
 			},
 		}
 		r := setupMockBrandRouter(svc)

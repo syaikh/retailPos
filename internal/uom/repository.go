@@ -88,6 +88,46 @@ func (r *Repository) GetAll(ctx context.Context) ([]UnitOfMeasure, error) {
 	return units, nil
 }
 
+func (r *Repository) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+	args := []interface{}{}
+	where := "WHERE is_active = true"
+	argIdx := 1
+
+	if search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR code ILIKE $%d)", argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	var total int
+	err := r.db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM units_of_measure %s", where), args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	query := fmt.Sprintf(
+		"SELECT id, code, name, COALESCE(description,''), is_active, created_at FROM units_of_measure %s ORDER BY code LIMIT $%d OFFSET $%d",
+		where, argIdx, argIdx+1,
+	)
+	rows, err := r.db.Query(ctx, query, append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var units []UnitOfMeasure
+	for rows.Next() {
+		var u UnitOfMeasure
+		var createdAt time.Time
+		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.IsActive, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		u.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		units = append(units, u)
+	}
+	return units, total, nil
+}
+
 func (r *Repository) GetIDByCode(ctx context.Context, code string) (int, error) {
 	var id int
 	err := r.db.QueryRow(ctx, "SELECT id FROM units_of_measure WHERE code = $1 AND is_active = true", code).Scan(&id)

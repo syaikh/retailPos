@@ -124,3 +124,124 @@ test.describe('Shifts API - cashier_id filter', () => {
     expect(body).toHaveProperty('data');
   });
 });
+
+test.describe('Shifts API - needs_review filter', () => {
+  test('should filter shifts by needs_review=true', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=50&needs_review=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    for (const shift of body.data) {
+      expect(shift.needs_review).toBe(true);
+    }
+  });
+
+  test('should filter shifts by needs_review=false', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=50&needs_review=false`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    for (const shift of body.data) {
+      expect(shift.needs_review).toBe(false);
+    }
+  });
+});
+
+test.describe('Shifts API - discrepancy filter', () => {
+  test('should filter shifts by discrepancy=balanced', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=balanced`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    for (const shift of body.data) {
+      expect(shift.discrepancy).toBe(0);
+    }
+  });
+
+  test('should filter shifts by discrepancy=surplus', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=surplus`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    for (const shift of body.data) {
+      expect(shift.discrepancy).toBeGreaterThan(0);
+    }
+  });
+
+  test('should filter shifts by discrepancy=shortage', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=50&discrepancy=shortage`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    for (const shift of body.data) {
+      expect(shift.discrepancy).toBeLessThan(0);
+    }
+  });
+});
+
+test.describe('Shifts API - pagination', () => {
+  test('should respect limit and offset pagination', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts?limit=5&offset=0`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    expect(body).toHaveProperty('data');
+    expect(body.data.length).toBeLessThanOrEqual(5);
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('limit', 5);
+    expect(body).toHaveProperty('offset', 0);
+    expect(body).toHaveProperty('total_pages');
+  });
+});
+
+test.describe('Shifts API - export', () => {
+  test('should export shifts as CSV', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts/export?format=csv`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    expect(res.headers()['content-type']).toContain('text/csv');
+  });
+
+  test('should export shifts as XLSX', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+
+    const res = await request.get(`${API_BASE}/api/shifts/export?format=xlsx`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+    expect(res.headers()['content-type']).toContain('spreadsheetml');
+  });
+});

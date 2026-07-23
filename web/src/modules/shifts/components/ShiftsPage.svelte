@@ -3,21 +3,20 @@
   import { goto } from '$app/router';
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
-import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown } from '$shared/ui';
+import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { useAuthStore } from '$modules/auth';
 import {
   Clock,
   Plus,
   Lock,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Loader2,
   CheckCircle,
+  Download,
 } from 'lucide-svelte';
   import type { Shift } from '../types';
 
@@ -54,13 +53,30 @@ import {
 
   $effect(() => {
     store.statusFilter;
+    store.needsReviewFilter;
+    store.discrepancyFilter;
     store.userIdFilter;
-    store.page;
-    store.pageSize;
     store.sortBy;
     store.sortDir;
+    store.page = 0;
     loadShifts();
   });
+
+  async function downloadExport(format: 'csv' | 'xlsx') {
+    try {
+      const blob = await store.doExport(format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shifts.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to export shifts');
+    }
+  }
 
   function toggleSort(column: string) {
     if (store.sortBy === column) {
@@ -202,7 +218,55 @@ import {
           </button>
         {/snippet}
       </Dropdown>
-      <div class="ml-auto">
+
+      <Dropdown placement="bottom-start" items={[
+        { label: 'All Review Status', checked: store.needsReviewFilter === null, onclick: () => { store.needsReviewFilter = null; } },
+        { label: 'Needs Review', checked: store.needsReviewFilter === true, onclick: () => { store.needsReviewFilter = true; } },
+        { label: 'Reviewed', checked: store.needsReviewFilter === false, onclick: () => { store.needsReviewFilter = false; } },
+      ]}>
+        {#snippet trigger({ toggle })}
+          <button
+            type="button"
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.needsReviewFilter !== null ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+            onclick={toggle}
+          >
+            <span>{store.needsReviewFilter === null ? 'Review Status' : store.needsReviewFilter ? 'Needs Review' : 'Reviewed'}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+        {/snippet}
+      </Dropdown>
+
+      <Dropdown placement="bottom-start" items={[
+        { label: 'All Discrepancies', checked: store.discrepancyFilter === '', onclick: () => { store.discrepancyFilter = ''; } },
+        { label: 'Balanced', checked: store.discrepancyFilter === 'balanced', onclick: () => { store.discrepancyFilter = 'balanced'; } },
+        { label: 'Surplus', checked: store.discrepancyFilter === 'surplus', onclick: () => { store.discrepancyFilter = 'surplus'; } },
+        { label: 'Shortage', checked: store.discrepancyFilter === 'shortage', onclick: () => { store.discrepancyFilter = 'shortage'; } },
+      ]}>
+        {#snippet trigger({ toggle })}
+          <button
+            type="button"
+            class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.discrepancyFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+            onclick={toggle}
+          >
+            <span>{store.discrepancyFilter === '' ? 'Discrepancy' : store.discrepancyFilter === 'balanced' ? 'Balanced' : store.discrepancyFilter === 'surplus' ? 'Surplus' : 'Shortage'}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+        {/snippet}
+      </Dropdown>
+
+      <div class="ml-auto flex items-center gap-2">
+        <Dropdown placement="bottom-end" items={[
+          { label: 'Export CSV', onclick: () => downloadExport('csv') },
+          { label: 'Export XLSX', onclick: () => downloadExport('xlsx') },
+        ]}>
+          {#snippet trigger({ toggle })}
+            <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
+              <Download size={14} />
+              Export
+              <ChevronDown size={14} />
+            </Button>
+          {/snippet}
+        </Dropdown>
         {#if store.activeShift}
           <Button variant="danger" onclick={() => { showCloseModal = true; closingBalance = store.activeShift?.opening_balance || 0; }}>
             <Lock size={16} class="mr-2" />
@@ -268,7 +332,7 @@ import {
                 {/if}
               </button>
             </th>
-            {#if !rbac.isCashier}
+            {#if !rbac.isCashier && authStore.user}
             <th class="text-left px-4 py-3 font-medium text-text-secondary">CASHIER</th>
             {/if}
             <th class="!text-right px-4 py-3 font-medium text-text-secondary">OPENING (Rp)</th>
@@ -310,7 +374,7 @@ import {
                 onclick={() => openDetail(shift)}
               >
                 <td class="px-4 py-3 text-text-primary">{formatDateTime(shift.opened_at)}</td>
-                {#if !rbac.isCashier}
+                {#if !rbac.isCashier && authStore.user}
                 <td class="px-4 py-3 text-text-primary">{shift.username || '-'}</td>
                 {/if}
                 <td class="px-4 py-3 text-right text-text-primary">{formatNumber(shift.opening_balance)}</td>
@@ -330,10 +394,7 @@ import {
                   {#if shift.status === 'open'}
                     <Badge variant="success">Open</Badge>
                   {:else}
-                    <Badge variant="muted">Closed</Badge>
-                    {#if shift.needs_review}
-                      <div class="mt-1"><Badge variant="warning">Needs Review</Badge></div>
-                    {/if}
+                    <Badge variant={shift.needs_review ? 'warning' : 'muted'}>Closed</Badge>
                   {/if}
                 </td>
                 <td class="px-4 py-3 text-text-secondary">{formatDateTime(shift.closed_at)}</td>
@@ -344,36 +405,20 @@ import {
       </table>
     </div>
 
-    <!-- Pagination -->
-    {#if store.total > 0}
-      <div class="flex items-center justify-between px-4 py-3 border-t border-border">
-        <p class="text-sm text-text-muted">
-          Showing {store.offset + 1}–{Math.min(store.offset + store.pageSize, store.total)} of {store.total}
-        </p>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={store.page === 0}
-            onclick={() => { store.page--; }}
-          >
-            <ChevronLeft size={16} />
-          </Button>
-          <span class="text-sm text-text-secondary px-2">
-            Page {store.page + 1} of {Math.ceil(store.total / store.pageSize)}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={(store.page + 1) * store.pageSize >= store.total}
-            onclick={() => { store.page++; }}
-          >
-            <ChevronRight size={16} />
-          </Button>
-        </div>
-      </div>
-    {/if}
   </div>
+
+  <!-- Pagination -->
+  <Pagination
+    total={store.total}
+    limit={store.pageSize}
+    offset={store.offset}
+    onPageChange={(newOffset, newLimit) => {
+      store.page = Math.floor(newOffset / newLimit);
+      store.pageSize = newLimit;
+      prevFilters = "";
+      loadShifts();
+    }}
+  />
 </div>
 
 <!-- Open Shift Modal -->

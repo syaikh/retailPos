@@ -7,10 +7,9 @@
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure } from '$modules/settings/services/settings-service';
 
-  const authStore = useAuthStore();
   const rbac = useRBAC();
 
-  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal } from '$shared/ui';
+  import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination } from '$shared/ui';
   import { Plus, Pencil, Trash2, Ruler, Loader2 } from 'lucide-svelte';
 
   let loading = $state(true);
@@ -32,25 +31,26 @@
   let canCreate = $derived(rbac.canCreate);
   let canEdit = $derived(rbac.canEdit);
   let canDelete = $derived(rbac.isAdmin);
-  let canView = $derived(authStore.user != null);
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';
     return formatDateInJakarta(dateStr);
   }
 
-  let filteredUoms = $derived(
-    uoms.filter(u =>
-      !searchQuery ||
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.code.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
+  let pageSize = $state(20);
+  let page = $state(0);
+  let total = $state(0);
 
-  async function fetchUoms() {
+  let offset = $derived(page * pageSize);
+
+  async function fetchUoms(offset = 0, limit = 20) {
     try {
       loading = true;
-      uoms = await getUnitsOfMeasure();
+      const result = await getUnitsOfMeasure({ limit, offset, search: searchQuery || undefined });
+      uoms = result.data;
+      total = result.total;
+      page = Math.floor(offset / limit);
+      pageSize = limit;
     } catch {
       toast.error('Gagal memuat unit');
     } finally {
@@ -59,10 +59,11 @@
   }
 
   onMount(async () => {
-    await fetchUoms();
+    await fetchUoms(0, pageSize);
   });
 
   function handleSearchInput() {
+    page = 0;
     debouncedSearchFetch();
   }
 
@@ -206,7 +207,7 @@
           {/each}
         </tbody>
       </table>
-    {:else if filteredUoms.length === 0}
+    {:else if uoms.length === 0}
       <div class="px-4 py-12 text-center">
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Ruler size={32} class="text-text-muted" />
@@ -228,7 +229,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each filteredUoms as uom (uom.id)}
+           {#each uoms as uom (uom.id)}
             <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
               <td class="p-4 w-20">
                 <span class="font-mono text-sm font-semibold text-primary-light bg-primary-subtle/30 px-2 py-0.5 rounded">{uom.code}</span>
@@ -286,6 +287,16 @@
       </table>
     {/if}
   </div>
+  {#if !loading && total > 0}
+    <Pagination
+      total={total}
+      limit={pageSize}
+      offset={offset}
+      onPageChange={(newOffset, newLimit) => {
+        fetchUoms(newOffset, newLimit);
+      }}
+    />
+  {/if}
 </div>
 
 <Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Unit' : 'Edit Unit'} size="md">

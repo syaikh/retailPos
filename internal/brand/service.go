@@ -20,6 +20,10 @@ func (s *Service) GetAll(ctx context.Context) ([]Brand, error) {
 	return s.repo.GetAll(ctx)
 }
 
+func (s *Service) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+	return s.repo.GetAllPaginated(ctx, limit, offset, search)
+}
+
 func (s *Service) GetIDByName(ctx context.Context, name string) (int, error) {
 	return s.repo.GetIDByName(ctx, name)
 }

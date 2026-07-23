@@ -13,15 +13,19 @@ import (
 )
 
 type mockUOMService struct {
-	getAllFn  func(ctx context.Context) ([]UnitOfMeasure, error)
-	getByIDFn func(ctx context.Context, id int) (*UnitOfMeasure, error)
-	createFn  func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error)
-	updateFn  func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error)
-	deleteFn  func(ctx context.Context, id int) error
+	getAllFn         func(ctx context.Context) ([]UnitOfMeasure, error)
+	getAllPaginatedFn func(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error)
+	getByIDFn        func(ctx context.Context, id int) (*UnitOfMeasure, error)
+	createFn         func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error)
+	updateFn         func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error)
+	deleteFn         func(ctx context.Context, id int) error
 }
 
 func (m *mockUOMService) GetAll(ctx context.Context) ([]UnitOfMeasure, error) {
 	return m.getAllFn(ctx)
+}
+func (m *mockUOMService) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+	return m.getAllPaginatedFn(ctx, limit, offset, search)
 }
 func (m *mockUOMService) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error) {
 	return m.getByIDFn(ctx, id)
@@ -58,8 +62,8 @@ func setupMockUOMRouter(svc UOMService) *gin.Engine {
 func TestMockUOMHandler_ListUnitsOfMeasure(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUOMService{
-			getAllFn: func(ctx context.Context) ([]UnitOfMeasure, error) {
-				return []UnitOfMeasure{{ID: 1, Name: "PCS"}}, nil
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+				return []UnitOfMeasure{{ID: 1, Name: "PCS"}}, 1, nil
 			},
 		}
 		r := setupMockUOMRouter(svc)
@@ -70,8 +74,8 @@ func TestMockUOMHandler_ListUnitsOfMeasure(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUOMService{
-			getAllFn: func(ctx context.Context) ([]UnitOfMeasure, error) {
-				return nil, errors.New("db error")
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+				return nil, 0, errors.New("db error")
 			},
 		}
 		r := setupMockUOMRouter(svc)
@@ -82,8 +86,8 @@ func TestMockUOMHandler_ListUnitsOfMeasure(t *testing.T) {
 
 	t.Run("nil becomes empty", func(t *testing.T) {
 		svc := &mockUOMService{
-			getAllFn: func(ctx context.Context) ([]UnitOfMeasure, error) {
-				return nil, nil
+			getAllPaginatedFn: func(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+				return nil, 0, nil
 			},
 		}
 		r := setupMockUOMRouter(svc)

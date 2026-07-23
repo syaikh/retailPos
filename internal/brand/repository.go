@@ -88,6 +88,45 @@ func (r *Repository) GetAll(ctx context.Context) ([]Brand, error) {
 	return brands, nil
 }
 
+func (r *Repository) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+	args := []interface{}{}
+	where := "WHERE is_active = true"
+	argIdx := 1
+
+	if search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR description ILIKE $%d)", argIdx, argIdx+1)
+		args = append(args, "%"+search+"%", "%"+search+"%")
+		argIdx += 2
+	}
+
+	var total int
+	err := r.db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM brands %s", where), args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.db.Query(ctx, fmt.Sprintf(
+		"SELECT id, name, description, is_active, created_at, updated_at FROM brands %s ORDER BY name LIMIT $%d OFFSET $%d",
+		where, argIdx, argIdx+1,
+	), append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var brands []Brand
+	for rows.Next() {
+		var b Brand
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&b.ID, &b.Name, &b.Description, &b.IsActive, &createdAt, &updatedAt); err != nil {
+			return nil, 0, err
+		}
+		b.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		brands = append(brands, b)
+	}
+	return brands, total, nil
+}
+
 func (r *Repository) GetIDByName(ctx context.Context, name string) (int, error) {
 	var id int
 	err := r.db.QueryRow(ctx, "SELECT id FROM brands WHERE name = $1 AND is_active = true", name).Scan(&id)

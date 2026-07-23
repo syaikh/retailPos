@@ -251,7 +251,7 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	return &shift, nil
 }
 
-func (r *Repository) ListShifts(ctx context.Context, userID *int, status string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+func (r *Repository) ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
@@ -265,6 +265,27 @@ func (r *Repository) ListShifts(ctx context.Context, userID *int, status string,
 		where += fmt.Sprintf(" AND s.status = $%d", argIdx)
 		args = append(args, status)
 		argIdx++
+	}
+	if needsReview != nil {
+		where += fmt.Sprintf(" AND s.needs_review = $%d", argIdx)
+		args = append(args, *needsReview)
+		argIdx++
+	}
+	if discrepancyFilter != "" {
+		switch discrepancyFilter {
+		case "balanced":
+			where += fmt.Sprintf(" AND COALESCE(s.discrepancy, 0) = $%d", argIdx)
+			args = append(args, 0)
+			argIdx++
+		case "surplus":
+			where += fmt.Sprintf(" AND s.discrepancy > $%d", argIdx)
+			args = append(args, 0)
+			argIdx++
+		case "shortage":
+			where += fmt.Sprintf(" AND s.discrepancy < $%d", argIdx)
+			args = append(args, 0)
+			argIdx++
+		}
 	}
 
 	var total int
