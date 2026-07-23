@@ -378,6 +378,12 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("failed to inject sales: %w", err)
 	}
 
+	fmt.Printf("🔄 Injecting shifts for %d days...\n", numDays)
+	if err := injectShifts(ctx, db, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject shifts: %w", err)
+	}
+	fmt.Println("   ✅ Shifts injected")
+
 	if err := syncInvoiceSequence(ctx, db); err != nil {
 		return fmt.Errorf("failed to sync invoice sequence: %w", err)
 	}
@@ -449,6 +455,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"product_stock",
 		"inventory_movements",
 		"sales",
+		"shifts",
 		"pricing_rules",
 		"product_suppliers",
 		"suppliers",
@@ -1579,6 +1586,130 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 	}
 
 	return salesCreated, nil
+}
+
+// injectShifts opens and closes shifts for each day/cashier, linking sales to shifts.
+// Runs after all sales are injected so it can query completed sales grouped by date + cashier.
+func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+	// Pick a default store (first active store, or NULL)
+	var defaultStoreID *int
+	var sid int
+	if err := db.QueryRowContext(ctx, `SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1`).Scan(&sid); err == nil {
+		defaultStoreID = &sid
+	}
+
+	current := startDate
+	shiftCount := 0
+
+	for !current.After(endDate) {
+		dayEnd := current.AddDate(0, 0, 1)
+
+		cashierIDs, err := func() ([]int, error) {
+			rows, err := db.QueryContext(ctx, `
+				SELECT DISTINCT cashier_id FROM sales
+				WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'
+				ORDER BY cashier_id
+			`, current, dayEnd)
+			if err != nil {
+				return nil, err
+			}
+			defer rows.Close()
+
+			var ids []int
+			for rows.Next() {
+				var id int
+				if err := rows.Scan(&id); err == nil {
+					ids = append(ids, id)
+				}
+			}
+			return ids, rows.Err()
+		}()
+		if err != nil {
+			return fmt.Errorf("query cashiers for %s: %w", current.Format("2006-01-02"), err)
+		}
+
+		for _, cashierID := range cashierIDs {
+			shiftOpen := time.Date(current.Year(), current.Month(), current.Day(),
+				7+rand.Intn(2), rand.Intn(60), 0, 0, jakartaTZ)
+			openingBalance := (500 + rand.Intn(1501)) * 1000
+
+			var storeIDArg interface{}
+			if defaultStoreID != nil {
+				storeIDArg = *defaultStoreID
+			} else {
+				storeIDArg = nil
+			}
+
+			var shiftID int
+			err := db.QueryRowContext(ctx, `
+				INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
+				VALUES ($1, $2, 'open', $3, $4, $4, $4)
+				RETURNING id
+			`, cashierID, storeIDArg, openingBalance, shiftOpen).Scan(&shiftID)
+			if err != nil {
+				return fmt.Errorf("open shift cashier %d on %s: %w", cashierID, current.Format("2006-01-02"), err)
+			}
+
+			_, err = db.ExecContext(ctx, `
+				UPDATE sales SET shift_id = $1
+				WHERE cashier_id = $2 AND created_at >= $3 AND created_at < $4 AND status = 'completed'
+			`, shiftID, cashierID, current, dayEnd)
+			if err != nil {
+				return fmt.Errorf("link sales to shift %d: %w", shiftID, err)
+			}
+
+			var cashSales, nonCashSales, totalSales, transCount int
+			err = db.QueryRowContext(ctx, `
+				SELECT
+					COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
+					COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
+					COALESCE(SUM(total_amount), 0),
+					COUNT(*)
+				FROM sales
+				WHERE shift_id = $1 AND status = 'completed'
+			`, shiftID).Scan(&cashSales, &nonCashSales, &totalSales, &transCount)
+			if err != nil {
+				return fmt.Errorf("calc totals for shift %d: %w", shiftID, err)
+			}
+
+			closeHour := 20 + rand.Intn(3)
+			closeMin := rand.Intn(60)
+			shiftClose := time.Date(current.Year(), current.Month(), current.Day(),
+				closeHour, closeMin, 0, 0, jakartaTZ)
+
+			// Random variance simulates real-world cash counting error
+			variance := rand.Intn(20001) - 10000
+			closingBalance := openingBalance + cashSales + variance
+			discrepancy := closingBalance - openingBalance - cashSales
+			const discThreshold = 50000
+			needsReview := discrepancy < -discThreshold || discrepancy > discThreshold
+
+			_, err = db.ExecContext(ctx, `
+				UPDATE shifts
+				SET status = 'closed',
+				    closing_balance = $1,
+				    cash_sales = $2,
+				    non_cash_sales = $3,
+				    total_sales = $4,
+				    transaction_count = $5,
+				    discrepancy = $6,
+				    needs_review = $7,
+				    closed_at = $8,
+				    updated_at = $8
+				WHERE id = $9
+			`, closingBalance, cashSales, nonCashSales, totalSales, transCount,
+				discrepancy, needsReview, shiftClose, shiftID)
+			if err != nil {
+				return fmt.Errorf("close shift %d: %w", shiftID, err)
+			}
+			shiftCount++
+		}
+
+		current = dayEnd
+	}
+
+	fmt.Printf("   🎲 Created %d shifts across %d days\n", shiftCount, int(endDate.Sub(startDate).Hours()/24)+1)
+	return nil
 }
 
 // randomTime24Hour generates random time spread across 24 hours for 24/7 open store
