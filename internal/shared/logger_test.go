@@ -37,7 +37,7 @@ func TestInitLogger_Production(t *testing.T) {
 
 	once = new(sync.Once)
 	globalLogger = nil
-	InitLogger("production")
+	InitLogger("production", "info")
 	l := Logger()
 	require.NotNil(t, l)
 	// Should not panic; production uses JSON handler at Info level

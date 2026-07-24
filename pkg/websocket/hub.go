@@ -3,7 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -224,8 +224,7 @@ func (h *Hub) Run() {
 			h.mutex.Unlock()
 
 			h.broadcastUserCount()
-			log.Printf("WebSocket client registered. Total: %d (user_id=%d, role=%s)",
-				len(h.clients), client.userID, client.role)
+			slog.Info("WebSocket client registered", "total", len(h.clients), "user_id", client.userID, "role", client.role)
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
@@ -245,12 +244,12 @@ func (h *Hub) Run() {
 				client.cancel()
 			}
 			h.broadcastUserCount()
-			log.Printf("WebSocket client unregistered. Total: %d", len(h.clients))
+			slog.Info("WebSocket client unregistered", "total", len(h.clients))
 
 		case event := <-h.broadcast:
 			data, err := json.Marshal(event)
 			if err != nil {
-				log.Printf("Error marshaling event: %v", err)
+				slog.Error("error marshaling event", "error", err)
 				continue
 			}
 
@@ -271,7 +270,7 @@ func (h *Hub) Run() {
 						select {
 						case h.unregister <- c:
 						default:
-							log.Printf("Warning: unregister channel full, dropping client %d", c.userID)
+							slog.Warn("unregister channel full, dropping client", "user_id", c.userID)
 						}
 					}(client)
 				}
@@ -296,7 +295,7 @@ func (h *Hub) Broadcast(event Event) {
 	select {
 	case h.broadcast <- event:
 	default:
-		log.Println("Warning: Broadcast channel full, dropping event")
+		slog.Warn("Broadcast channel full, dropping event")
 	}
 }
 
@@ -346,43 +345,43 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 	}
 
 	if !strings.Contains(c.Request.Host, "localhost") && c.Request.Header.Get("X-Forwarded-Proto") != "https" {
-		log.Printf("Warning: WebSocket connection not using HTTPS from IP %s", clientIP)
+		slog.Warn("WebSocket connection not using HTTPS", "ip", clientIP)
 	}
 
 	conn, err := newUpgrader().Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error from %s: %v", clientIP, err)
+		slog.Warn("WebSocket upgrade error", "ip", clientIP, "error", err)
 		return
 	}
 
 	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		log.Printf("WebSocket set auth deadline error: %v", err)
+		slog.Warn("WebSocket set auth deadline error", "error", err)
 		conn.Close()
 		return
 	}
 
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
-		log.Printf("[WebSocket] Auth message read error from %s: %v", clientIP, err)
+		slog.Warn("WebSocket auth message read error", "ip", clientIP, "error", err)
 		conn.Close()
 		return
 	}
 
 	var authMsg authMessage
 	if err := json.Unmarshal(msg, &authMsg); err != nil || authMsg.Type != "auth" || authMsg.Token == "" {
-		log.Printf("[WebSocket] Invalid auth message format from %s", clientIP)
+		slog.Warn("WebSocket invalid auth message format", "ip", clientIP)
 		conn.Close()
 		return
 	}
 
 	claims, err := hub.authService.ValidateToken(authMsg.Token)
 	if err != nil {
-		log.Printf("[WebSocket] Auth failed from %s: %v", clientIP, err)
+		slog.Warn("WebSocket auth failed", "ip", clientIP, "error", err)
 		conn.Close()
 		return
 	}
 
-	log.Printf("[WebSocket] Auth OK: user=%d role=%s store=%v from %s", claims.ID, claims.Role, claims.StoreID, clientIP)
+	slog.Info("WebSocket auth OK", "user", claims.ID, "role", claims.Role, "store", claims.StoreID, "ip", clientIP)
 
 	var storeID *int
 	if claims.StoreID != nil {
@@ -406,11 +405,11 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 
 	conn.SetReadLimit(maxMessageSize)
 	if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-		log.Printf("WebSocket set read deadline error: %v", err)
+		slog.Warn("WebSocket set read deadline error", "error", err)
 	}
 	conn.SetPongHandler(func(string) error {
 		if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-			log.Printf("WebSocket set read deadline (pong) error: %v", err)
+			slog.Warn("WebSocket set read deadline (pong) error", "error", err)
 		}
 		return nil
 	})
@@ -439,7 +438,7 @@ func (c *Client) readPump() {
 		_, _, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket read error (user %d): %v", c.userID, err)
+				slog.Warn("WebSocket read error", "user", c.userID, "error", err)
 			}
 			return
 		}
@@ -459,12 +458,12 @@ func (c *Client) writePump() {
 			return
 		case message, ok := <-c.send:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				log.Printf("WebSocket set write deadline error (user %d): %v", c.userID, err)
+				slog.Warn("WebSocket set write deadline error", "user", c.userID, "error", err)
 				return
 			}
 			if !ok {
 				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
-					log.Printf("WebSocket write close message error (user %d): %v", c.userID, err)
+					slog.Warn("WebSocket write close message error", "user", c.userID, "error", err)
 				}
 				return
 			}
@@ -480,7 +479,7 @@ func (c *Client) writePump() {
 			}
 		case <-ticker.C:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				log.Printf("WebSocket set write deadline (ticker) error (user %d): %v", c.userID, err)
+				slog.Warn("WebSocket set write deadline (ticker) error", "user", c.userID, "error", err)
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {

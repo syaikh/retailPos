@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -72,7 +72,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 	}
 
 	if err := s.repo.UpdateLastLogin(ctx, user.ID); err != nil {
-		log.Printf("warning: failed to update last_login for user %d: %v", user.ID, err)
+		slog.Warn("failed to update last_login", "user", user.ID, "error", err)
 	}
 
 	permissions, err := s.repo.GetRolePermissions(ctx, user.RoleID)
@@ -193,7 +193,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPas
 	}
 
 	if err := s.repo.DeleteUserRefreshTokens(ctx, userID); err != nil {
-		log.Printf("warning: failed to delete refresh tokens after password change for user %d: %v", userID, err)
+		slog.Warn("failed to delete refresh tokens after password change", "user", userID, "error", err)
 	}
 
 	return nil

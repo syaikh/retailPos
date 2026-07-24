@@ -255,7 +255,7 @@ func (r *Repository) GetAllProductsForExport(ctx context.Context) ([]Product, er
 
 	var products []Product
 	for rows.Next() {
-		p, err := scanProductFromRow(rows)
+		p, err := scanProduct(rows)
 		if err != nil {
 			return nil, err
 		}

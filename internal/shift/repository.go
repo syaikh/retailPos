@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -213,7 +213,7 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 		&shift.CashSales, &shift.NonCashSales,
 		&shift.TotalSales, &shift.TransactionCount,
 	); err != nil {
-		log.Printf("failed to scan live sales for active shift %d: %v", shift.ID, err)
+		slog.Error("failed to scan live sales for active shift", "shift_id", shift.ID, "error", err)
 	}
 
 	if storeID.Valid {

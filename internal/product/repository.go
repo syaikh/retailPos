@@ -41,87 +41,11 @@ const productSelectCols = `
 			LIMIT 1
 		) ps_preferred ON true`
 
-func scanProduct(row pgx.Row) (*Product, error) {
-	var p Product
-	var barcode sql.NullString
-	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
-	var taxClassIDVal sql.NullInt64
-	var taxRateVal sql.NullFloat64
-	var categoryName, brandName, unitOfMeasure, description sql.NullString
-	var supplierIDVal sql.NullInt64
-	var supplierNameVal sql.NullString
-	var createdAt, updatedAt time.Time
-
-	err := row.Scan(&p.ID, &p.SKU, &p.Name, &barcode, &categoryIDVal, &categoryName, &p.Price, &p.Cost, &p.Stock, &p.Status,
-		&storeIDVal, &brandIDVal, &brandName, &unitOfMeasureIDVal, &unitOfMeasure, &weightGramsVal, &description,
-		&taxClassIDVal, &taxRateVal,
-		&supplierIDVal, &supplierNameVal,
-		&createdAt, &updatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	if barcode.Valid {
-		p.Barcode = &barcode.String
-	}
-	if categoryIDVal.Valid {
-		v := int(categoryIDVal.Int64)
-		p.CategoryID = &v
-	}
-	if categoryName.Valid {
-		p.CategoryName = &categoryName.String
-	}
-	if brandIDVal.Valid {
-		v := int(brandIDVal.Int64)
-		p.BrandID = &v
-	}
-	if brandName.Valid {
-		p.BrandName = &brandName.String
-	}
-	if unitOfMeasureIDVal.Valid {
-		v := int(unitOfMeasureIDVal.Int64)
-		p.UnitOfMeasureID = &v
-	}
-	if unitOfMeasure.Valid {
-		p.UnitOfMeasure = &unitOfMeasure.String
-	}
-	if weightGramsVal.Valid {
-		v := int(weightGramsVal.Int64)
-		p.WeightGrams = &v
-	}
-	if description.Valid {
-		p.Description = &description.String
-	}
-	if storeIDVal.Valid {
-		v := int(storeIDVal.Int64)
-		p.StoreID = &v
-	}
-	if taxClassIDVal.Valid {
-		v := int(taxClassIDVal.Int64)
-		p.TaxClassID = &v
-	}
-	if taxRateVal.Valid {
-		v := taxRateVal.Float64
-		p.TaxRate = &v
-	}
-	if supplierIDVal.Valid {
-		v := int(supplierIDVal.Int64)
-		p.SupplierID = &v
-	}
-	if supplierNameVal.Valid {
-		p.SupplierName = &supplierNameVal.String
-	}
-	p.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	p.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-
-	return &p, nil
-}
-
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanProductFromRow(row rowScanner) (*Product, error) {
+func scanProduct(row rowScanner) (*Product, error) {
 	var p Product
 	var barcode sql.NullString
 	var categoryIDVal, storeIDVal, brandIDVal, unitOfMeasureIDVal, weightGramsVal sql.NullInt64
@@ -272,7 +196,7 @@ func (r *Repository) GetProductsByIDs(ctx context.Context, ids []int) ([]Product
 
 	var products []Product
 	for rows.Next() {
-		p, err := scanProductFromRow(rows)
+		p, err := scanProduct(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan product: %w", err)
 		}

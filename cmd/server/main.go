@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -88,6 +88,19 @@ func (a *productPriceAdapter) GetProductPrice(ctx context.Context, productID int
 	return a.repo.GetProductPrice(ctx, productID)
 }
 
+const (
+	defaultMaxConns         = 25
+	defaultMinConns         = 5
+	defaultMaxConnLifetime  = 30 * time.Minute
+	defaultMaxConnIdleTime  = 5 * time.Minute
+	defaultHealthCheckPeriod = 15 * time.Second
+	defaultBodyLimit         = 1 << 20
+	defaultPort              = "9095"
+	defaultReadTimeout       = 15 * time.Second
+	defaultWriteTimeout      = 120 * time.Second
+	defaultIdleTimeout       = 60 * time.Second
+)
+
 func main() {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
@@ -96,7 +109,7 @@ func main() {
 	time.Local = loc
 
 	cfg := config.Load()
-	shared.InitLogger(cfg.Env)
+	shared.InitLogger(cfg.Env, cfg.LogLevel)
 
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -114,31 +127,35 @@ func main() {
 		dbPort := os.Getenv("DB_PORT")
 		dbName := os.Getenv("DB_NAME")
 		if dbHost == "" {
-			log.Fatal("FATAL: DB_HOST environment variable is required when DATABASE_URL is not set")
+			slog.Error("DB_HOST environment variable is required when DATABASE_URL is not set")
+			os.Exit(1)
 		}
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=Asia/Jakarta",
 			dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
 	}
 	poolCfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		log.Fatalf("Unable to parse database config: %v\n", err)
+		slog.Error("unable to parse database config", "error", err)
+		os.Exit(1)
 	}
-	poolCfg.MaxConns = 25
-	poolCfg.MinConns = 5
-	poolCfg.MaxConnLifetime = 30 * time.Minute
-	poolCfg.MaxConnIdleTime = 5 * time.Minute
-	poolCfg.HealthCheckPeriod = 15 * time.Second
+	poolCfg.MaxConns = defaultMaxConns
+	poolCfg.MinConns = defaultMinConns
+	poolCfg.MaxConnLifetime = defaultMaxConnLifetime
+	poolCfg.MaxConnIdleTime = defaultMaxConnIdleTime
+	poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
 
 	dbPool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		slog.Error("unable to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer dbPool.Close()
 
 	if err := dbPool.Ping(context.Background()); err != nil {
-		log.Fatalf("Unable to ping database: %v\n", err)
+		slog.Error("unable to ping database", "error", err)
+		os.Exit(1)
 	}
-	fmt.Println("Connected to PostgreSQL")
+	slog.Info("connected to PostgreSQL")
 
 	appCache := cache.New(10*time.Minute, 30*time.Second)
 
@@ -260,7 +277,7 @@ func main() {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.SecurityHeadersMiddleware([]string{cfg.CORSOrigin}))
 	router.Use(middleware.RateLimitMiddleware())
-	router.Use(middleware.BodyLimitMiddleware(1 << 20))
+	router.Use(middleware.BodyLimitMiddleware(defaultBodyLimit))
 
 	authMiddleware := middleware.NewModularAuthMiddleware(authSvc)
 	permMiddleware := middleware.RequirePermission
@@ -310,22 +327,23 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "9095"
+		port = defaultPort
 	}
 	addr := ":" + port
 
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 120 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		IdleTimeout:  defaultIdleTimeout,
 	}
 
 	go func() {
-		println("Server starting on " + addr + " (env: " + cfg.Env + ")")
+		slog.Info("server starting", "addr", addr, "env", cfg.Env)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -333,15 +351,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	println("Shutting down server...")
+	slog.Info("shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		fmt.Printf("Server forced to shutdown: %v\n", err)
+		slog.Error("server forced to shutdown", "error", err)
 	}
 
 	dbPool.Close()
-	println("Server exited")
+	slog.Info("server exited")
 }

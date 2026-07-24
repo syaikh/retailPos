@@ -2,7 +2,8 @@ package websocket
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
@@ -16,7 +17,7 @@ func NewSaleCreatedListener(hub *Hub) eventbus.Listener {
 		func(ctx context.Context, event eventbus.Event) error {
 			s, ok := event.Payload.(*sale.Sale)
 			if !ok {
-				log.Printf("[ws] unexpected payload type for sale.created: %T", event.Payload)
+				slog.Warn("[ws] unexpected payload type for sale.created", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
 			items := 0
@@ -47,11 +48,11 @@ func NewProductUpdatedListener(hub *Hub) eventbus.Listener {
 				var ok bool
 				p, ok = payload.New.(*product.Product)
 				if !ok {
-					log.Printf("[ws] unexpected New type in UpdatePayload for product.updated: %T", payload.New)
+					slog.Warn("[ws] unexpected New type in UpdatePayload for product.updated", "type", fmt.Sprintf("%T", payload.New))
 					return nil
 				}
 			default:
-				log.Printf("[ws] unexpected payload type for product.updated: %T", event.Payload)
+				slog.Warn("[ws] unexpected payload type for product.updated", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
 			BroadcastProductUpdate(hub, ProductUpdateEvent{
@@ -76,12 +77,12 @@ func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listene
 		func(_ context.Context, event eventbus.Event) error {
 			sa, ok := event.Payload.(inventory.StockAdjustedEvent)
 			if !ok {
-				log.Printf("[ws] unexpected payload type for stock.adjusted: %T", event.Payload)
+				slog.Warn("[ws] unexpected payload type for stock.adjusted", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
 			sku, name, stock, storeID, err := products.GetProductByID(context.Background(), sa.ProductID)
 			if err != nil {
-				log.Printf("[ws] failed to look up product %d for stock.adjusted: %v", sa.ProductID, err)
+				slog.Warn("[ws] failed to look up product for stock.adjusted", "product_id", sa.ProductID, "error", err)
 				return nil
 			}
 			lowStock := stock <= 0

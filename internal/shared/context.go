@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -66,7 +66,7 @@ func GetStoreID(c *gin.Context) *int {
 
 func GetIPAddress(c *gin.Context) string {
 	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		log.Printf("warning: X-Forwarded-For header detected (%s); using RemoteAddr instead", xff)
+		slog.Warn("X-Forwarded-For header detected; using RemoteAddr instead", "xff", xff)
 	}
 
 	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
@@ -80,14 +80,14 @@ func GetUserAgent(c *gin.Context) string {
 	return c.GetHeader("User-Agent")
 }
 
-func AbortUnauthorized(c *gin.Context, message string) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": message})
+func AbortUnauthorized(c *gin.Context, code, message string) {
+	c.AbortWithStatusJSON(http.StatusUnauthorized, NewError(code, message))
 }
 
-func AbortForbidden(c *gin.Context, message string) {
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": message})
+func AbortForbidden(c *gin.Context, code, message string) {
+	c.AbortWithStatusJSON(http.StatusForbidden, NewError(code, message))
 }
 
-func AbortInternalError(c *gin.Context, message string) {
-	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": message})
+func AbortInternalError(c *gin.Context, code, message string) {
+	c.AbortWithStatusJSON(http.StatusInternalServerError, NewError(code, message))
 }

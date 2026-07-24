@@ -22,13 +22,13 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := extractToken(c)
 		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authorization token required"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "authorization token required"))
 			return
 		}
 
 		claims, err := authService.ValidateToken(tokenString)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid or expired token"))
 			return
 		}
 
@@ -57,12 +57,12 @@ func RoleMiddleware(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user role not found in context"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "user role not found in context"))
 			return
 		}
 
 		if role.(string) != requiredRole {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient role permission"})
+			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "insufficient role permission"))
 			return
 		}
 
@@ -74,13 +74,16 @@ func RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		perms, exists := c.Get("permissions")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "permissions not found in context"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "permissions not found in context"))
 			return
 		}
 
 		permissions := perms.([]string)
 		if !hasPermission(permissions, permission) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient permission", "required": permission})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":    shared.ErrorDetail{Code: shared.ErrForbidden, Message: "insufficient permission"},
+				"required": permission,
+			})
 			return
 		}
 
@@ -92,7 +95,7 @@ func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userPerms, exists := c.Get("permissions")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "permissions not found in context"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "permissions not found in context"))
 			return
 		}
 
@@ -104,7 +107,10 @@ func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
 			}
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient permissions", "required_any": permissions})
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error":        shared.ErrorDetail{Code: shared.ErrForbidden, Message: "insufficient permissions"},
+			"required_any": permissions,
+		})
 	}
 }
 
@@ -112,13 +118,13 @@ func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user role not found"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "user role not found"))
 			return
 		}
 
 		roleStr, ok := role.(string)
 		if !ok || roleStr != "superadmin" && roleStr != "admin" {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin access required"})
+			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "admin access required"))
 			return
 		}
 

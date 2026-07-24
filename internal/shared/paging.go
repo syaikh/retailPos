@@ -6,9 +6,11 @@ import (
 	"strings"
 )
 
+const DefaultMaxPageLimit = 100
+
 func ParsePaginationParams(limitStr, offsetStr string) (int, int) {
 	limit, _ := strconv.Atoi(limitStr)
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 || limit > DefaultMaxPageLimit {
 		limit = 20
 	}
 	offset, _ := strconv.Atoi(offsetStr)

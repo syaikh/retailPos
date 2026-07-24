@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"retail-pos-system/internal/shared"
 )
 
 func SecurityHeadersMiddleware(allowedOrigins []string) gin.HandlerFunc {
@@ -16,6 +18,9 @@ func SecurityHeadersMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		// X-XSS-Protection: 0 — deliberately disabled per modern security guidance.
+		// This header is deprecated and can introduce XSS vulnerabilities in some
+		// older browsers. CSP handles XSS prevention via script-src and style-src.
 		c.Header("X-XSS-Protection", "0")
 		c.Next()
 	}
@@ -75,6 +80,6 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		c.AbortWithStatusJSON(403, gin.H{"error": "CSRF token missing or invalid"})
+		c.AbortWithStatusJSON(403, shared.NewError(shared.ErrForbidden, "CSRF token missing or invalid"))
 	}
 }

@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
+
+	"retail-pos-system/internal/shared"
 )
 
 type ipEntry struct {
@@ -124,8 +126,8 @@ func (l *IPRateLimiter) evictOldestLocked() {
 // with untrusted proxies.
 func getClientIP(c *gin.Context) string {
 	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		log.Printf("warning: X-Forwarded-For header detected (%s) for rate limiting; using RemoteAddr instead. "+
-			"If behind a trusted proxy, configure Gin TrustedProxies.", xff)
+		slog.Warn("X-Forwarded-For header detected for rate limiting; using RemoteAddr instead. "+
+			"If behind a trusted proxy, configure Gin TrustedProxies.", "xff", xff)
 	}
 
 	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
@@ -149,8 +151,11 @@ func RateLimitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
-		if !limiter.GetLimiter(ip).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
+		l := limiter.GetLimiter(ip)
+		c.Header("X-RateLimit-Limit", strconv.Itoa(burst))
+		if !l.Allow() {
+			c.Header("Retry-After", "1")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, shared.NewError(shared.ErrRateLimited, "too many requests"))
 			return
 		}
 		c.Next()
@@ -170,8 +175,11 @@ func LoginRateLimitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
-		if !limiter.GetLimiter(ip).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts. try again later."})
+		l := limiter.GetLimiter(ip)
+		c.Header("X-RateLimit-Limit", strconv.Itoa(burst))
+		if !l.Allow() {
+			c.Header("Retry-After", "60")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, shared.NewError(shared.ErrRateLimited, "too many login attempts. try again later."))
 			return
 		}
 		c.Next()
@@ -191,8 +199,11 @@ func RefreshRateLimitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
-		if !limiter.GetLimiter(ip).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many refresh attempts. try again later."})
+		l := limiter.GetLimiter(ip)
+		c.Header("X-RateLimit-Limit", strconv.Itoa(burst))
+		if !l.Allow() {
+			c.Header("Retry-After", "60")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, shared.NewError(shared.ErrRateLimited, "too many refresh attempts. try again later."))
 			return
 		}
 		c.Next()
@@ -212,8 +223,11 @@ func WebSocketRateLimitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		ip := getClientIP(c)
-		if !limiter.GetLimiter(ip).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many WebSocket connections. try again later."})
+		l := limiter.GetLimiter(ip)
+		c.Header("X-RateLimit-Limit", strconv.Itoa(burst))
+		if !l.Allow() {
+			c.Header("Retry-After", "1")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, shared.NewError(shared.ErrRateLimited, "too many WebSocket connections. try again later."))
 			return
 		}
 		c.Next()

@@ -3,7 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -131,7 +131,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 		var al AuditLogListItem
 		err = rows.Scan(&al.ID, &al.UserID, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description)
 		if err != nil {
-			log.Printf("Error scanning audit log row: %v", err)
+			slog.Error("error scanning audit log row", "error", err)
 			continue
 		}
 		logs = append(logs, al)

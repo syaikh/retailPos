@@ -3,7 +3,7 @@ package inventory
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/shared"
@@ -34,7 +34,7 @@ func (s *Service) AdjustStock(ctx context.Context, productID int, quantityChange
 		UserID:         userID,
 		Notes:          notes,
 	}); err != nil {
-		log.Printf("[inventory] failed to publish stock adjusted event: %v", err)
+		slog.Warn("failed to publish stock adjusted event", "error", err)
 	}
 
 	return nil

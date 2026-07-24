@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -18,6 +18,7 @@ type Config struct {
 	StockWarningThreshold  int
 	StockCriticalThreshold int
 	StockMinimum           int
+	LogLevel               string
 	Timezone               *time.Location
 }
 
@@ -53,7 +54,7 @@ func Load() *Config {
 		env := os.Getenv("ENV")
 		if env == "" {
 			env = "development"
-			log.Println("WARNING: ENV environment variable not set, defaulting to 'development'. Set ENV=production for production deployments.")
+			slog.Warn("ENV environment variable not set, defaulting to 'development'. Set ENV=production for production deployments.")
 		}
 
 		corsOrigin := os.Getenv("CORS_ORIGIN")
@@ -61,11 +62,12 @@ func Load() *Config {
 			corsOrigin = "http://localhost:5173"
 		}
 		if env == "production" && corsOrigin == "*" {
-			log.Fatal("FATAL: CORS_ORIGIN must not be '*' in production. Set it to your actual domain (e.g., https://pos.example.com).")
+			slog.Error("CORS_ORIGIN must not be '*' in production. Set it to your actual domain.")
+			os.Exit(1)
 		}
 		if corsOrigin != "*" {
 			if _, err := url.ParseRequestURI(corsOrigin); err != nil {
-				log.Printf("Warning: invalid CORS_ORIGIN %q: %v. Using as-is.", corsOrigin, err)
+				slog.Warn("invalid CORS_ORIGIN", "origin", corsOrigin, "error", err)
 			}
 		}
 
@@ -83,6 +85,15 @@ func Load() *Config {
 		criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
 		stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
 
+		logLevel := os.Getenv("LOG_LEVEL")
+		if logLevel == "" {
+			if env == "production" {
+				logLevel = "info"
+			} else {
+				logLevel = "debug"
+			}
+		}
+
 		cachedConfig = &Config{
 			Env:                    env,
 			CORSOrigin:             corsOrigin,
@@ -91,6 +102,7 @@ func Load() *Config {
 			StockWarningThreshold:  warningThreshold,
 			StockCriticalThreshold: criticalThreshold,
 			StockMinimum:           stockMinimum,
+			LogLevel:               logLevel,
 			Timezone:               defaultLocation,
 		}
 	})

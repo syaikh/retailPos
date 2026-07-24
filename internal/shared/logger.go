@@ -3,6 +3,7 @@ package shared
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -11,16 +12,32 @@ var (
 	once         = new(sync.Once)
 )
 
-func InitLogger(env string) {
+func parseLogLevel(levelStr string) slog.Level {
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+func InitLogger(env, levelStr string) {
 	once.Do(func() {
 		var handler slog.Handler
+		level := parseLogLevel(levelStr)
 		if env == "production" {
 			handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-				Level: slog.LevelInfo,
+				Level: level,
 			})
 		} else {
 			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-				Level: slog.LevelDebug,
+				Level: level,
 			})
 		}
 		globalLogger = slog.New(handler)
@@ -30,7 +47,7 @@ func InitLogger(env string) {
 
 func Logger() *slog.Logger {
 	if globalLogger == nil {
-		InitLogger("development")
+		InitLogger("development", "debug")
 	}
 	return globalLogger
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -91,19 +91,19 @@ func (h *Handler) CreateSale(c *gin.Context) {
 
 	var req createSaleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		shared.JSONError(c, http.StatusBadRequest, err.Error())
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		return
 	}
 
 	ctx := c.Request.Context()
 	userID, exists := c.Get("userID")
 	if !exists {
-		shared.JSONError(c, http.StatusUnauthorized, "user not authenticated")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
 	cashierID, ok := userID.(int)
 	if !ok {
-		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 	storeIDPtr := shared.GetStoreID(c)
@@ -113,7 +113,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		var err error
 		invoiceNumber, err = h.svc.GetNextInvoiceNumber(ctx)
 		if err != nil {
-			shared.JSONError(c, http.StatusInternalServerError, "failed to generate invoice number")
+			shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to generate invoice number")
 			return
 		}
 	}
@@ -137,18 +137,18 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	if req.Discount < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "discount must not be negative"})
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "discount must not be negative")
 		return
 	}
 	if req.Discount > subtotal {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "discount must not exceed subtotal"})
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "discount must not exceed subtotal")
 		return
 	}
 
 	if req.PaymentMethod != "" {
 		pm, err := h.svc.GetPaymentMethodByCode(ctx, req.PaymentMethod)
 		if err != nil || pm == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment method"})
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid payment method")
 			return
 		}
 	}
@@ -169,11 +169,11 @@ func (h *Handler) CreateSale(c *gin.Context) {
 
 	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID); err != nil {
 		if errors.Is(err, ErrInsufficientStock) {
-			shared.JSONError(c, http.StatusConflict, "insufficient stock")
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
 			return
 		}
 		if errors.Is(err, ErrParkedSaleNotRecalled) {
-			shared.JSONError(c, http.StatusConflict, "parked sale already checked out or cancelled")
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
 			return
 		}
 		shared.InternalError(c, err)
@@ -236,7 +236,7 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		if err == nil && n >= 0 && n <= 50000000 {
 			minTotal = &n
 		} else {
-			shared.JSONError(c, http.StatusBadRequest, "min_total must be between 0 and 50,000,000")
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "min_total must be between 0 and 50,000,000")
 			return
 		}
 	}
@@ -245,12 +245,12 @@ func (h *Handler) GetSalesHistory(c *gin.Context) {
 		if err == nil && n >= 0 && n <= 50000000 {
 			maxTotal = &n
 		} else {
-			shared.JSONError(c, http.StatusBadRequest, "max_total must be between 0 and 50,000,000")
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "max_total must be between 0 and 50,000,000")
 			return
 		}
 	}
 	if minTotal != nil && maxTotal != nil && *minTotal > *maxTotal {
-		shared.JSONError(c, http.StatusBadRequest, "min_total cannot exceed max_total")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "min_total cannot exceed max_total")
 		return
 	}
 
@@ -311,7 +311,7 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		shared.JSONError(c, http.StatusBadRequest, "invalid sale id")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale id")
 		return
 	}
 
@@ -320,7 +320,7 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 	sale, err := h.svc.GetSaleByID(ctx, id, storeIDPtr)
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
-			shared.JSONError(c, http.StatusNotFound, err.Error())
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
 			return
 		}
 		shared.InternalError(c, err)
@@ -390,13 +390,13 @@ func (h *Handler) ExportSales(c *gin.Context) {
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 		c.Header("Content-Disposition", "attachment; filename=sales_export.xlsx")
 		if err := WriteXLSX(rows, c.Writer); err != nil {
-			log.Printf("failed to write xlsx: %v", err)
+			slog.Warn("failed to write xlsx", "error", err)
 		}
 	default:
 		c.Header("Content-Type", "text/csv")
 		c.Header("Content-Disposition", "attachment; filename=sales_export.csv")
 		if err := WriteCSV(rows, c.Writer); err != nil {
-			log.Printf("failed to write csv: %v", err)
+			slog.Warn("failed to write csv", "error", err)
 		}
 	}
 }
@@ -416,7 +416,7 @@ func (h *Handler) GetPaymentMethodByCode(c *gin.Context) {
 	code := c.Param("code")
 	method, err := h.svc.GetPaymentMethodByCode(ctx, code)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment method not found"})
+		shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "payment method not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": method})
@@ -437,23 +437,23 @@ func (h *Handler) ParkSale(c *gin.Context) {
 
 	var req parkSaleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		shared.JSONError(c, http.StatusBadRequest, err.Error())
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		return
 	}
 	if len(req.Items) == 0 {
-		shared.JSONError(c, http.StatusBadRequest, "items is required")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "items is required")
 		return
 	}
 
 	ctx := c.Request.Context()
 	userID, exists := c.Get("userID")
 	if !exists {
-		shared.JSONError(c, http.StatusUnauthorized, "user not authenticated")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
 	cashierID, ok := userID.(int)
 	if !ok {
-		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 
@@ -462,7 +462,7 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		var err error
 		invoiceNumber, err = h.svc.GetNextInvoiceNumber(ctx)
 		if err != nil {
-			shared.JSONError(c, http.StatusInternalServerError, "failed to generate invoice number")
+			shared.JSONError(c, http.StatusInternalServerError, shared.ErrInternal, "failed to generate invoice number")
 			return
 		}
 	}
@@ -505,12 +505,12 @@ func (h *Handler) ListParkedSales(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID, exists := c.Get("userID")
 	if !exists {
-		shared.JSONError(c, http.StatusUnauthorized, "user not authenticated")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
 	cashierID, ok := userID.(int)
 	if !ok {
-		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 
@@ -525,26 +525,26 @@ func (h *Handler) ListParkedSales(c *gin.Context) {
 func (h *Handler) GetParkedSaleByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		shared.JSONError(c, http.StatusBadRequest, "invalid sale ID")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale ID")
 		return
 	}
 
 	ctx := c.Request.Context()
 	userID, exists := c.Get("userID")
 	if !exists {
-		shared.JSONError(c, http.StatusUnauthorized, "user not authenticated")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "user not authenticated")
 		return
 	}
 	cashierID, ok := userID.(int)
 	if !ok {
-		shared.JSONError(c, http.StatusUnauthorized, "invalid user ID in context")
+		shared.JSONError(c, http.StatusUnauthorized, shared.ErrUnauthorized, "invalid user ID in context")
 		return
 	}
 
 	sale, err := h.svc.GetParkedSaleByID(ctx, id, cashierID)
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
-			shared.JSONError(c, http.StatusNotFound, "sale not found")
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
 			return
 		}
 		shared.InternalError(c, err)
@@ -556,7 +556,7 @@ func (h *Handler) GetParkedSaleByID(c *gin.Context) {
 func (h *Handler) RecallParkedSale(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		shared.JSONError(c, http.StatusBadRequest, "invalid sale ID")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale ID")
 		return
 	}
 
@@ -564,7 +564,7 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 	sale, err := h.svc.RecallSale(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
-			shared.JSONError(c, http.StatusNotFound, "sale not found")
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
 			return
 		}
 		shared.InternalError(c, err)
@@ -576,14 +576,14 @@ func (h *Handler) RecallParkedSale(c *gin.Context) {
 func (h *Handler) CancelParkedSale(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		shared.JSONError(c, http.StatusBadRequest, "invalid sale ID")
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid sale ID")
 		return
 	}
 
 	ctx := c.Request.Context()
 	if err := h.svc.CancelParkedSale(ctx, id); err != nil {
 		if errors.Is(err, ErrSaleNotFound) {
-			shared.JSONError(c, http.StatusNotFound, "sale not found")
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, "sale not found")
 			return
 		}
 		shared.InternalError(c, err)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -69,7 +69,7 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	if u.RoleID > 0 {
 		role, err := r.GetRoleByID(ctx, u.RoleID)
 		if err != nil {
-			log.Printf("GetRoleByID error for role_id %d: %v", u.RoleID, err)
+			slog.Warn("GetRoleByID error", "role_id", u.RoleID, "error", err)
 		} else if role != nil {
 			u.Role = *role
 		}

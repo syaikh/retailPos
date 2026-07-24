@@ -77,15 +77,22 @@ func TestJSONError(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-	JSONError(c, http.StatusNotFound, "not found")
+	JSONError(c, http.StatusNotFound, ErrNotFound, "not found")
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 	var body map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &body)
-	if body["error"] != "not found" {
-		t.Errorf("expected error message, got %v", body["error"])
+	errObj, ok := body["error"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected error object, got %T: %v", body["error"], body["error"])
+	}
+	if errObj["code"] != ErrNotFound {
+		t.Errorf("expected code %s, got %v", ErrNotFound, errObj["code"])
+	}
+	if errObj["message"] != "not found" {
+		t.Errorf("expected message 'not found', got %v", errObj["message"])
 	}
 }
 
@@ -101,8 +108,15 @@ func TestInternalError(t *testing.T) {
 	}
 	var body map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &body)
-	if body["error"] != "internal server error" {
-		t.Errorf("expected generic error, got %v", body["error"])
+	errObj, ok := body["error"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected error object, got %T: %v", body["error"], body["error"])
+	}
+	if errObj["code"] != ErrInternal {
+		t.Errorf("expected code %s, got %v", ErrInternal, errObj["code"])
+	}
+	if errObj["message"] != "internal server error" {
+		t.Errorf("expected message 'internal server error', got %v", errObj["message"])
 	}
 }
 

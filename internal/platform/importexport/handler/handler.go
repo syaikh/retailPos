@@ -95,13 +95,13 @@ func (h *Handler) requirePerm(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		module := c.Param("module")
 		if _, err := h.schemaReg.Get(module); err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown module: %s", module)})
+			c.AbortWithStatusJSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, fmt.Sprintf("unknown module: %s", module)))
 			return
 		}
 		key := module + ":" + action
 		permStr, ok := modulePerms[key]
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "permission not defined for module"})
+			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "permission not defined for module"))
 			return
 		}
 		h.permFunc(permStr)(c)
