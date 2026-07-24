@@ -20,22 +20,6 @@ func (m *testCategoryRepo) GetCategoryIDsByNames(ctx context.Context, names []st
 	return m.getByIDsFn(ctx, names)
 }
 
-type testBrandRepo struct {
-	getIDByNameFn func(ctx context.Context, name string) (int, error)
-}
-
-func (m *testBrandRepo) GetIDByName(ctx context.Context, name string) (int, error) {
-	return m.getIDByNameFn(ctx, name)
-}
-
-type testUOMRepo struct {
-	getIDByCodeFn func(ctx context.Context, code string) (int, error)
-}
-
-func (m *testUOMRepo) GetIDByCode(ctx context.Context, code string) (int, error) {
-	return m.getIDByCodeFn(ctx, code)
-}
-
 func TestService_GetAllProducts_IsActiveToStatus(t *testing.T) {
 	svc := &Service{}
 	ctx := context.Background()

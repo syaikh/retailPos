@@ -422,6 +422,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 		return nil
 	})
 
+	hub.wg.Add(2)
 	hub.register <- client
 
 	go client.writePump()
@@ -429,6 +430,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 }
 
 func (c *Client) readPump() {
+	defer c.hub.wg.Done()
 	defer func() {
 		select {
 		case c.hub.unregister <- c:
@@ -454,6 +456,7 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) writePump() {
+	defer c.hub.wg.Done()
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()

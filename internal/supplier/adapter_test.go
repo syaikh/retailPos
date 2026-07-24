@@ -96,7 +96,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		_, err := a.MapToEntity(context.Background(), Schema, row)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Code is required")
+		assert.Contains(t, err.Error(), "code is required")
 	})
 
 	t.Run("missing Name", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		_, err := a.MapToEntity(context.Background(), Schema, row)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Name is required")
+		assert.Contains(t, err.Error(), "name is required")
 	})
 }
 

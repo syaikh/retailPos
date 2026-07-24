@@ -74,7 +74,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 
 	name, _ := row["Name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("Name is required")
+		return nil, fmt.Errorf("name is required")
 	}
 	minQty := floatToInt(row["MinimumQuantity"])
 	if minQty == 0 {

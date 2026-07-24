@@ -74,13 +74,13 @@ type ProductLookup interface {
 func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listener {
 	return eventbus.NewListenerFunc(
 		[]eventbus.EventType{eventbus.StockAdjusted},
-		func(_ context.Context, event eventbus.Event) error {
+		func(ctx context.Context, event eventbus.Event) error {
 			sa, ok := event.Payload.(inventory.StockAdjustedEvent)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for stock.adjusted", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			sku, name, stock, storeID, err := products.GetProductByID(context.Background(), sa.ProductID)
+			sku, name, stock, storeID, err := products.GetProductByID(ctx, sa.ProductID)
 			if err != nil {
 				slog.Warn("[ws] failed to look up product for stock.adjusted", "product_id", sa.ProductID, "error", err)
 				return nil

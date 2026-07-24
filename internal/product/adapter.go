@@ -63,7 +63,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	}
 	name, _ := row["Name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("Name is required")
+		return nil, fmt.Errorf("name is required")
 	}
 	rowNum, _ := row["_row"].(int)
 	barcode, _ := row["Barcode"].(string)

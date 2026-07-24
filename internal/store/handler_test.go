@@ -247,7 +247,7 @@ func TestHandler_Update_Success(t *testing.T) {
 
 	r := setupStoreRouter()
 	w := httptest.NewRecorder()
-	body := fmt.Sprintf(`{"name":"Handler Updated"}`)
+	body := `{"name":"Handler Updated"}`
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("/stores/%d", s.ID), strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)

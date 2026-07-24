@@ -162,7 +162,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		_, err := a.MapToEntity(ctx, schema, row)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Name is required")
+		assert.Contains(t, err.Error(), "name is required")
 	})
 
 	t.Run("missing method defaults to fixed_price", func(t *testing.T) {

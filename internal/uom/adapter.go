@@ -28,11 +28,11 @@ func (a *adapter) ValidateBusiness(_ context.Context, _ importexportshared.Modul
 func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSchema, row map[string]interface{}) (interface{}, error) {
 	code, _ := row["Code"].(string)
 	if code == "" {
-		return nil, fmt.Errorf("Code is required")
+		return nil, fmt.Errorf("code is required")
 	}
 	name, _ := row["Name"].(string)
 	if name == "" {
-		return nil, fmt.Errorf("Name is required")
+		return nil, fmt.Errorf("name is required")
 	}
 	rowNum, _ := row["_row"].(int)
 	desc, _ := row["Description"].(string)

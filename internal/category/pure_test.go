@@ -131,6 +131,6 @@ func TestCategoryMapToEntity(t *testing.T) {
 		row := map[string]interface{}{"Name": ""}
 		_, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Name is required")
+		assert.Contains(t, err.Error(), "name is required")
 	})
 }

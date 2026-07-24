@@ -1,9 +1,10 @@
 import { useAuthStore } from '$modules/auth';
+import type { User } from '$modules/auth';
 
 const ADMIN_ROLES = ['superadmin', 'admin'] as const;
 const MANAGER_ROLES = ['superadmin', 'admin', 'manager'] as const;
 
-function resolveRoleName(user: any): string {
+function resolveRoleName(user: User | null): string {
   if (!user) return '';
   const role = user.role;
   if (typeof role === 'string') return role;
@@ -11,13 +12,15 @@ function resolveRoleName(user: any): string {
   return '';
 }
 
+type Role = typeof ADMIN_ROLES[number];
+
 export function useRBAC() {
   const store = useAuthStore();
 
   const userRole = $derived(resolveRoleName(store.user));
-  const isAdmin = $derived(ADMIN_ROLES.includes(userRole as any));
+  const isAdmin = $derived(ADMIN_ROLES.includes(userRole as Role));
   const isSuperAdmin = $derived(userRole === 'superadmin');
-  const isManager = $derived(MANAGER_ROLES.includes(userRole as any));
+  const isManager = $derived(MANAGER_ROLES.includes(userRole as Role));
   const isCashier = $derived(userRole === 'cashier');
 
   return {

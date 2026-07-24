@@ -19,7 +19,7 @@
     oninput?: (e: Event) => void;
     elementRef?: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void;
     error?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   } = $props();
 
   const inputId = crypto.randomUUID();

@@ -204,7 +204,7 @@ func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	query := fmt.Sprintf(`UPDATE customer_groups SET is_active = $1, updated_at = NOW() WHERE id = ANY($2)`)
+	query := `UPDATE customer_groups SET is_active = $1, updated_at = NOW() WHERE id = ANY($2)`
 	result, err := r.db.Exec(ctx, query, isActive, ids)
 	if err != nil {
 		return 0, fmt.Errorf("bulk update customer groups: %w", err)

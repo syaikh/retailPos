@@ -694,9 +694,6 @@ let selectedProductIndex = $state(-1);
         } else if (data && !Array.isArray(data) && (data as any).id) {
           lastSale = data;
         }
-        if (lastSale) {
-          console.log('[POS] Last sale loaded:', lastSale.invoice_number, 'items:', lastSale.items?.length);
-        }
         if (lastSale && !lastSale.items) {
           const detail = await apiClient.get(`/sales/${lastSale.id}`);
           const detailData = detail.data?.data || detail.data;
