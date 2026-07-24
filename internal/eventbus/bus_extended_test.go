@@ -153,6 +153,15 @@ func TestBus_DoubleShutdown(t *testing.T) {
 }
 
 func TestBus_SetDeadLetterStore(t *testing.T) {
+	origRetries := maxRetries
+	origDelay := retryBaseDelay
+	maxRetries = 0
+	retryBaseDelay = time.Millisecond
+	defer func() {
+		maxRetries = origRetries
+		retryBaseDelay = origDelay
+	}()
+
 	bus := New()
 	waitForBus(bus)
 
@@ -169,7 +178,6 @@ func TestBus_SetDeadLetterStore(t *testing.T) {
 
 	_ = bus.Publish(context.Background(), "sale.created", map[string]string{"key": "value"})
 
-	// Let all retries exhaust naturally: attempt 0 + delays 1s+2s+4s ≈ 7s.
 	bus.Shutdown()
 
 	if len(store.calls) != 1 {

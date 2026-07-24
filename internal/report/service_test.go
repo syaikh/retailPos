@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/user"
 )
 
@@ -196,6 +197,7 @@ func TestReportService_GetPricingBreakdown(t *testing.T) {
 }
 
 func TestReportService_GetDualMonthlyReport(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
 	go bus.Run()

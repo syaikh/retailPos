@@ -11,7 +11,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-const (
+var (
 	maxRetries     = 3
 	retryBaseDelay = 1 * time.Second
 )

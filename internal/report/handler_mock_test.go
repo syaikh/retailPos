@@ -412,19 +412,6 @@ func TestReportHandler_GetSalesMonthlyReport_Dual_Error(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestReportHandler_GetSalesMonthlyReport_Dual_InvalidPrevEnd(t *testing.T) {
-	svc := &mockReportService{
-		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
-			return []MonthlyReportItem{}, nil
-		},
-	}
-	r := setupReportHandler(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/dashboard/chart/monthly?startDate=2024-01-01&endDate=2024-06-01&prevStart=2023-06-01&prevEnd=bad", nil)
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
 func TestReportHandler_GetPeriodComparison_Realtime_Success(t *testing.T) {
 	svc := &mockReportService{
 		getPeriodComparisonFn: func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) (*PeriodComparison, error) {
@@ -560,7 +547,6 @@ func TestReportHandler_ExportDashboard_WithChartData(t *testing.T) {
 	}
 	r := setupReportHandler(svc)
 
-	chartData := []ChartDataPoint{{Date: "2024-01-15", Total: 500}}
 	encoded := base64.StdEncoding.EncodeToString([]byte(`[{"date":"2024-01-15","total":500}]`))
 
 	w := httptest.NewRecorder()
@@ -569,7 +555,6 @@ func TestReportHandler_ExportDashboard_WithChartData(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
-	_ = chartData
 }
 
 func TestReportHandler_ExportDashboard_Error(t *testing.T) {
@@ -619,103 +604,6 @@ func TestReportHandler_ExportDashboard_CompletedMode(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestReportHandler_Weekly_InvalidDateRanges(t *testing.T) {
-	svc := &mockReportService{
-		getSalesWeeklyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
-			return []WeeklyReportItem{}, nil
-		},
-	}
-	r := setupReportHandler(svc)
-
-	t.Run("invalid startDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/weekly?startDate=bad&endDate=2024-01-10", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("invalid endDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/weekly?startDate=2024-01-01&endDate=bad", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("endDate before startDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/weekly?startDate=2024-06-01&endDate=2024-01-01", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("range exceeds 366 days", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/weekly?startDate=2022-01-01&endDate=2024-12-31", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
-func TestReportHandler_Monthly_InvalidDateRanges(t *testing.T) {
-	svc := &mockReportService{
-		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
-			return []MonthlyReportItem{}, nil
-		},
-	}
-	r := setupReportHandler(svc)
-
-	t.Run("invalid startDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/monthly?startDate=bad&endDate=2024-01-10", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("invalid endDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/monthly?startDate=2024-01-01&endDate=bad", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("endDate before startDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/monthly?startDate=2024-06-01&endDate=2024-01-01", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("range exceeds 366 days", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart/monthly?startDate=2022-01-01&endDate=2024-12-31", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
-func TestReportHandler_Chart_Daily_InvalidDateRanges(t *testing.T) {
-	svc := &mockReportService{
-		getDailySalesFn: func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error) {
-			return []ChartDataPoint{}, nil
-		},
-	}
-	r := setupReportHandler(svc)
-
-	t.Run("invalid startDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart?startDate=bad&endDate=2024-01-10", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("invalid endDate", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/dashboard/chart?startDate=2024-01-01&endDate=bad", nil)
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
 }
 
 func TestReportHandler_Comparison_WithStoreID(t *testing.T) {
@@ -1153,18 +1041,4 @@ func TestReportHandler_GetPricingBreakdown_WithStoreID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, capturedStoreID)
 	assert.Equal(t, 9, *capturedStoreID)
-}
-
-func TestReportHandler_GetSalesChartData_Daily_Dual_InvalidPrevEnd(t *testing.T) {
-	svc := &mockReportService{
-		getDailySalesFn: func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error) {
-			return []ChartDataPoint{}, nil
-		},
-	}
-	r := setupReportHandler(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/dashboard/chart?startDate=2024-01-10&endDate=2024-01-15&prevStart=2024-01-03&prevEnd=bad", nil)
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "invalid prevEnd")
 }

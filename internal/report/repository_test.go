@@ -2,7 +2,9 @@ package report
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +18,77 @@ import (
 )
 
 var dbPool *pgxpool.Pool
+
+var productCounter atomic.Int32
+
+func refreshMaterializedViews(t *testing.T, ctx context.Context) {
+	t.Helper()
+	_, err := dbPool.Exec(ctx, "SELECT refresh_sales_mv()")
+	require.NoError(t, err)
+}
+
+func uniqueSKU(prefix string) string {
+	n := productCounter.Add(1)
+	return fmt.Sprintf("%s-RPT-%d-%d", prefix, time.Now().UnixNano(), n)
+}
+
+func seedSale(t *testing.T, ctx context.Context) (saleID int, productID int, saleAmount int, saleQty int) {
+	t.Helper()
+	userSKU := uniqueSKU("USR")
+	var cashierID int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO users (username, email, password_hash, role_id) VALUES ($1, $2, 'hash', 1) RETURNING id`,
+		userSKU, userSKU+"@test.com",
+	).Scan(&cashierID)
+	require.NoError(t, err)
+
+	custSKU := uniqueSKU("CUST")
+	var customerID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
+	).Scan(&customerID)
+	require.NoError(t, err)
+
+	sku := uniqueSKU("RPT-SEED")
+	productName := "Test Seed Product"
+	price := 50000
+	qty := 2
+	total := price * qty
+
+	// Insert product
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, stock, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id`,
+		sku, productName, price, qty,
+	).Scan(&productID)
+	require.NoError(t, err)
+
+	// Insert product_stock
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)`,
+		productID, qty,
+	)
+	require.NoError(t, err)
+
+	// Insert sale
+	invSKU := uniqueSKU("INV")
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method, status)
+		 VALUES ($1, $2, $3, $4, $5, 'CASH', 'completed') RETURNING id`,
+		invSKU, cashierID, customerID, total, total,
+	).Scan(&saleID)
+	require.NoError(t, err)
+
+	// Insert sale_item
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+		 VALUES ($1, $2, $3, $4, $5, $5, 0)`,
+		saleID, productID, qty, price, total,
+	)
+	require.NoError(t, err)
+
+	return saleID, productID, total, qty
+}
 
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
@@ -36,9 +109,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestReportRepository_PeriodComparison(t *testing.T) {
+func TestReportRepository_PeriodComparison_SeededData(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
+
+	// Seed a sale in the current period first
+	_, _, amount, _ := seedSale(t, ctx)
 
 	now := time.Now()
 	start := now.AddDate(0, -1, 0)
@@ -47,17 +124,19 @@ func TestReportRepository_PeriodComparison(t *testing.T) {
 	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.GreaterOrEqual(t, result.CurrentRevenue, 0)
-	assert.GreaterOrEqual(t, result.PreviousRevenue, 0)
-	assert.GreaterOrEqual(t, result.CurrentOrders, 0)
-	assert.GreaterOrEqual(t, result.PreviousOrders, 0)
-	assert.GreaterOrEqual(t, result.CurrentAOV, 0)
-	assert.GreaterOrEqual(t, result.PreviousAOV, 0)
+	assert.GreaterOrEqual(t, result.CurrentRevenue, amount, "should include seeded sale amount")
+	assert.GreaterOrEqual(t, result.CurrentOrders, 1, "should have at least 1 sale in current period")
+	assert.Equal(t, 0, result.PreviousRevenue, "no sales in previous period")
+	assert.Equal(t, 0, result.PreviousOrders, "no sales in previous period")
 }
 
-func TestReportRepository_DualChartData(t *testing.T) {
+func TestReportRepository_DualChartData_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
+
+	_, _, amount, _ := seedSale(t, ctx)
+	refreshMaterializedViews(t, ctx)
 
 	now := time.Now()
 	currentStart := now.AddDate(0, 0, -7)
@@ -67,19 +146,36 @@ func TestReportRepository_DualChartData(t *testing.T) {
 
 	current, previous, err := repo.GetDualChartData(ctx, currentStart, currentEnd, prevStart, prevEnd, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, current)
+	require.NotNil(t, current)
 	assert.NotNil(t, previous)
+
+	// Verify the seeded sale appears in the current period
+	found := false
+	for _, dp := range current {
+		if dp.Total >= amount {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded sale amount should appear in current chart data")
 }
 
-func TestReportRepository_LiveDashboardStats(t *testing.T) {
+func TestReportRepository_LiveDashboardStats_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	rev, sales, products, lowStock, err := repo.GetLiveDashboardStats(ctx, nil)
+	beforeRev, _, _, _, err := repo.GetLiveDashboardStats(ctx, nil)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, rev, 0)
-	assert.GreaterOrEqual(t, sales, 0)
-	assert.GreaterOrEqual(t, products, 0)
+
+	// Seed a sale
+	_, _, amount, _ := seedSale(t, ctx)
+
+	afterRev, sales, products, lowStock, err := repo.GetLiveDashboardStats(ctx, nil)
+	require.NoError(t, err)
+	assert.Equal(t, beforeRev+amount, afterRev, "revenue should increase by seeded sale amount")
+	assert.GreaterOrEqual(t, sales, 1)
+	assert.GreaterOrEqual(t, products, 1)
 	assert.GreaterOrEqual(t, lowStock, 0)
 }
 
@@ -92,47 +188,97 @@ func TestReportRepository_AvailableYears(t *testing.T) {
 	assert.NotNil(t, years)
 }
 
-func TestReportRepository_HourlySales(t *testing.T) {
+func TestReportRepository_HourlySales_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	_, _, amount, _ := seedSale(t, ctx)
+	refreshMaterializedViews(t, ctx)
 	date := time.Now()
+
 	result, err := repo.GetHourlySales(ctx, date, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NotNil(t, result)
+
+	found := false
+	for _, dp := range result {
+		if dp.Total >= amount {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded sale should appear in hourly sales data")
 }
 
-func TestReportRepository_DailySales(t *testing.T) {
+func TestReportRepository_DailySales_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	_, _, amount, _ := seedSale(t, ctx)
+	refreshMaterializedViews(t, ctx)
 	start := time.Now().AddDate(0, -1, 0)
-	end := time.Now()
+	end := time.Now().Add(24 * time.Hour)
+
 	result, err := repo.GetDailySales(ctx, start, end, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NotNil(t, result)
+
+	found := false
+	for _, dp := range result {
+		if dp.Total >= amount {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded sale should appear in daily sales data")
 }
 
-func TestReportRepository_SalesWeeklyReport(t *testing.T) {
+func TestReportRepository_SalesWeeklyReport_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	_, _, amount, _ := seedSale(t, ctx)
 	start := time.Now().AddDate(0, -3, 0)
 	end := time.Now()
+
 	result, err := repo.GetSalesWeeklyReport(ctx, start, end, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NotNil(t, result)
+
+	found := false
+	for _, item := range result {
+		if item.Total >= amount {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded sale should appear in weekly report")
 }
 
-func TestReportRepository_SalesMonthlyReport(t *testing.T) {
+func TestReportRepository_SalesMonthlyReport_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
+	_, _, amount, _ := seedSale(t, ctx)
 	start := time.Now().AddDate(0, -6, 0)
 	end := time.Now()
+
 	result, err := repo.GetSalesMonthlyReport(ctx, start, end, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NotNil(t, result)
+
+	found := false
+	for _, item := range result {
+		if item.Total >= amount {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "seeded sale should appear in monthly report")
 }
 
 func TestReportRepository_SetCache(t *testing.T) {
@@ -185,16 +331,26 @@ func TestReportRepository_InvalidateDashboardCache_WithStoreID(t *testing.T) {
 	assert.False(t, ok2)
 }
 
-func TestReportRepository_GetPricingBreakdown_NilStoreID(t *testing.T) {
+func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
+
+	// Seed a sale first
+	_, _, amount, _ := seedSale(t, ctx)
 
 	start := time.Now().AddDate(0, -1, 0)
 	end := time.Now()
 
 	items, err := repo.GetPricingBreakdown(ctx, start, end, nil)
 	require.NoError(t, err)
-	_ = items
+	require.NotEmpty(t, items)
+
+	totalRevenue := 0
+	for _, item := range items {
+		totalRevenue += item.Revenue
+	}
+	assert.GreaterOrEqual(t, totalRevenue, amount, "total pricing breakdown should include seeded sale")
 }
 
 func TestReportRepository_GetPricingBreakdown_WithStoreID(t *testing.T) {
@@ -235,18 +391,23 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_InvalidPayload(t *test
 	assert.NoError(t, err)
 }
 
-func TestReportRepository_DashboardStats(t *testing.T) {
+func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
+
+	// Seed a sale
+	_, _, amount, _ := seedSale(t, ctx)
 
 	stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	assert.GreaterOrEqual(t, stats.TotalSales, int64(0))
-	assert.GreaterOrEqual(t, stats.TotalRevenue, int64(0))
-	assert.GreaterOrEqual(t, stats.TotalProducts, int64(0))
+	assert.GreaterOrEqual(t, stats.TotalRevenue, int64(amount))
+	assert.GreaterOrEqual(t, stats.TotalSales, int64(1))
+	assert.GreaterOrEqual(t, stats.TotalProducts, int64(1))
 	assert.GreaterOrEqual(t, stats.LowStockCount, int64(0))
+	assert.GreaterOrEqual(t, stats.ActiveCustomers, int64(0))
+	// These could be 0 if the sale falls outside "today" in Jakarta time
 	assert.GreaterOrEqual(t, stats.TodaysSales, int64(0))
 	assert.GreaterOrEqual(t, stats.TodaysRevenue, int64(0))
-	assert.GreaterOrEqual(t, stats.ActiveCustomers, int64(0))
 }
