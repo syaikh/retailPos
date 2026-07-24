@@ -215,7 +215,7 @@ func (r *Repository) GetDualChartData(
 			   COALESCE(p.revenue, 0)
 		FROM date_series ds
 		LEFT JOIN current_agg c ON c.dt = ds.dt
-		LEFT JOIN previous_agg p ON p.dt = ds.dt - ($1::date - $3::date)
+		LEFT JOIN previous_agg p ON p.dt = ds.dt::date - ($1::date - $3::date)
 		ORDER BY ds.dt`
 
 	rows, err := r.db.Query(ctx, query, args...)

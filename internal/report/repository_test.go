@@ -141,6 +141,7 @@ func TestReportRepository_SetCache(t *testing.T) {
 	c := cache.New(5*time.Minute, 1*time.Minute)
 	repo.SetCache(c)
 	c.Set("test-key", "test-value")
+	c.Wait()
 	val, ok := repo.cache.Get("test-key")
 	assert.True(t, ok)
 	assert.Equal(t, "test-value", val)
@@ -154,8 +155,10 @@ func TestReportRepository_InvalidateDashboardCache(t *testing.T) {
 	c.Set("dashboard:stats", "stale")
 	c.Set("dashboard:live", "stale")
 	c.Set("dashboard:stats:store:1", "stale")
+	c.Wait()
 
 	repo.InvalidateDashboardCache(nil)
+	c.Wait()
 
 	_, ok1 := repo.cache.Get("dashboard:stats")
 	assert.False(t, ok1)

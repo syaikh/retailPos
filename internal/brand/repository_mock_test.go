@@ -168,6 +168,7 @@ func TestRepository_GetByID_CacheHit(t *testing.T) {
 
 	now := time.Now()
 	c.Set("brand:1", Brand{ID: 1, Name: "Cached Brand", Description: "cached", IsActive: true, CreatedAt: now.Format(time.RFC3339)})
+	c.Wait()
 
 	b, err := repo.GetByID(context.Background(), 1)
 	require.NoError(t, err)
@@ -193,6 +194,7 @@ func TestRepository_GetByID_DBCacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Brand", b.Name)
 
+	c.Wait()
 	v, ok := c.Get("brand:1")
 	assert.True(t, ok)
 	assert.NotNil(t, v)
@@ -224,6 +226,7 @@ func TestRepository_GetAll_CacheHit(t *testing.T) {
 
 	brands := []Brand{{ID: 1, Name: "Cached"}}
 	c.Set("brands:all", brands)
+	c.Wait()
 
 	result, err := repo.GetAll(context.Background())
 	require.NoError(t, err)
@@ -250,6 +253,7 @@ func TestRepository_GetAll_CacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 
+	c.Wait()
 	v, ok := c.Get("brands:all")
 	assert.True(t, ok)
 	assert.NotNil(t, v)
@@ -277,6 +281,7 @@ func TestRepository_Create_CacheFlush(t *testing.T) {
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("brand:1", Brand{ID: 1})
 	c.Set("brands:all", []Brand{{ID: 1}})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -288,6 +293,7 @@ func TestRepository_Create_CacheFlush(t *testing.T) {
 	err = repo.Create(context.Background(), b)
 	require.NoError(t, err)
 
+	c.Wait()
 	_, ok1 := c.Get("brand:1")
 	assert.False(t, ok1)
 	_, ok2 := c.Get("brands:all")
@@ -331,6 +337,7 @@ func TestRepository_Update_CacheDelete(t *testing.T) {
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("brand:1", Brand{ID: 1})
 	c.Set("brands:all", []Brand{{ID: 1}})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -340,6 +347,7 @@ func TestRepository_Update_CacheDelete(t *testing.T) {
 	err = repo.Update(context.Background(), b)
 	assert.NoError(t, err)
 
+	c.Wait()
 	_, ok1 := c.Get("brand:1")
 	assert.False(t, ok1)
 	_, ok2 := c.Get("brands:all")
@@ -368,6 +376,7 @@ func TestRepository_Delete_CacheDelete(t *testing.T) {
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("brand:1", Brand{ID: 1})
 	c.Set("brands:all", []Brand{{ID: 1}})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -376,6 +385,7 @@ func TestRepository_Delete_CacheDelete(t *testing.T) {
 	err = repo.Delete(context.Background(), 1)
 	assert.NoError(t, err)
 
+	c.Wait()
 	_, ok1 := c.Get("brand:1")
 	assert.False(t, ok1)
 	_, ok2 := c.Get("brands:all")
@@ -479,6 +489,7 @@ func TestRepository_BulkUpsert_WithCache(t *testing.T) {
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("brand:1", Brand{ID: 1})
 	c.Set("brands:all", []Brand{{ID: 1}})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -490,6 +501,7 @@ func TestRepository_BulkUpsert_WithCache(t *testing.T) {
 	})
 	assert.Equal(t, 1, result.Inserted)
 
+	c.Wait()
 	_, ok1 := c.Get("brand:1")
 	assert.False(t, ok1)
 	_, ok2 := c.Get("brands:all")

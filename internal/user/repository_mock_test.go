@@ -31,6 +31,7 @@ func TestRepository_GetByUsername_CacheHit(t *testing.T) {
 	repo.SetCache(c)
 
 	c.Set("user:username:admin", User{ID: 1, Username: "admin"})
+	c.Wait()
 
 	u, err := repo.GetByUsername(context.Background(), "admin")
 	require.NoError(t, err)
@@ -60,6 +61,7 @@ func TestRepository_GetByUsername_CacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "admin", u.Username)
 
+	c.Wait()
 	v, ok := c.Get("user:username:admin")
 	assert.True(t, ok)
 	assert.NotNil(t, v)
@@ -129,6 +131,7 @@ func TestRepository_GetRoleByID_CacheHit(t *testing.T) {
 	repo.SetCache(c)
 
 	c.Set("role:1", Role{ID: 1, Name: "admin"})
+	c.Wait()
 
 	role, err := repo.GetRoleByID(context.Background(), 1)
 	require.NoError(t, err)
@@ -154,6 +157,7 @@ func TestRepository_GetRoleByID_CacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "admin", role.Name)
 
+	c.Wait()
 	v, ok := c.Get("role:1")
 	assert.True(t, ok)
 	assert.NotNil(t, v)
@@ -194,6 +198,7 @@ func TestRepository_UpdateRole_CacheDelete(t *testing.T) {
 
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("role:1", Role{ID: 1, Name: "old"})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -202,6 +207,7 @@ func TestRepository_UpdateRole_CacheDelete(t *testing.T) {
 	err = repo.UpdateRole(context.Background(), &Role{ID: 1, Name: "new"})
 	assert.NoError(t, err)
 
+	c.Wait()
 	_, ok := c.Get("role:1")
 	assert.False(t, ok)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -214,6 +220,7 @@ func TestRepository_DeleteRole_CacheDelete(t *testing.T) {
 
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("role:1", Role{ID: 1})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -222,6 +229,7 @@ func TestRepository_DeleteRole_CacheDelete(t *testing.T) {
 	err = repo.DeleteRole(context.Background(), 1)
 	assert.NoError(t, err)
 
+	c.Wait()
 	_, ok := c.Get("role:1")
 	assert.False(t, ok)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -234,6 +242,7 @@ func TestRepository_UpdateRolePermissions_CacheDelete(t *testing.T) {
 
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	c.Set("role:1", Role{ID: 1})
+	c.Wait()
 	repo := NewRepository(mock)
 	repo.SetCache(c)
 
@@ -246,6 +255,7 @@ func TestRepository_UpdateRolePermissions_CacheDelete(t *testing.T) {
 	err = repo.UpdateRolePermissions(context.Background(), 1, []int{10, 20})
 	assert.NoError(t, err)
 
+	c.Wait()
 	_, ok := c.Get("role:1")
 	assert.False(t, ok)
 	assert.NoError(t, mock.ExpectationsWereMet())

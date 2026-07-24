@@ -26,9 +26,11 @@ CREATE SEQUENCE IF NOT EXISTS invoice_seq START 1;
 DO $$
 DECLARE max_seq bigint;
 BEGIN
-    SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(invoice_number, '^INV-\d+-0*', '') AS bigint)), 0) + 1000 INTO max_seq
-    FROM sales WHERE invoice_number ~ '^INV-\d+-\d+$';
-    IF max_seq > 1 THEN PERFORM setval('invoice_seq', max_seq); END IF;
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sales') THEN
+        SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(invoice_number, '^INV-\d+-0*', '') AS bigint)), 0) + 1000 INTO max_seq
+        FROM sales WHERE invoice_number ~ '^INV-\d+-\d+$';
+        IF max_seq > 1 THEN PERFORM setval('invoice_seq', max_seq); END IF;
+    END IF;
 END $$;
 
 -- ============================================================

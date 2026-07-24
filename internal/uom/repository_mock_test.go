@@ -268,6 +268,7 @@ func TestRepository_GetByID_CacheHit(t *testing.T) {
 	repo.SetCache(c)
 
 	c.Set("uom:1", UnitOfMeasure{ID: 1, Code: "KG", Name: "Kilogram"})
+	c.Wait()
 
 	u, err := repo.GetByID(context.Background(), 1)
 	require.NoError(t, err)
@@ -307,6 +308,7 @@ func TestRepository_GetByID_DBCacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "KG", u.Code)
 
+	c.Wait()
 	v, ok := c.Get("uom:1")
 	assert.True(t, ok)
 	assert.NotNil(t, v)
@@ -324,6 +326,7 @@ func TestRepository_GetAll_CacheHit(t *testing.T) {
 
 	units := []UnitOfMeasure{{ID: 1, Code: "KG"}}
 	c.Set("uoms:all", units)
+	c.Wait()
 
 	result, err := repo.GetAll(context.Background())
 	require.NoError(t, err)
@@ -350,6 +353,7 @@ func TestRepository_GetAll_CacheSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 
+	c.Wait()
 	v, ok := c.Get("uoms:all")
 	assert.True(t, ok)
 	assert.NotNil(t, v)

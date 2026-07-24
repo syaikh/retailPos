@@ -333,6 +333,7 @@ func TestRepository_ListCategories_CacheHit(t *testing.T) {
 
 	cats := []Category{{ID: 1, Name: "Cached"}}
 	c.Set("categories:list", cats)
+	c.Wait()
 
 	result, err := repo.ListCategories(context.Background())
 	require.NoError(t, err)
