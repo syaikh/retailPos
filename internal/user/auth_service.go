@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	maxLoginFailuresPerIP = 10
-	loginFailureWindow    = 15 * time.Minute
+	maxLoginFailuresPerIP       = 10
+	maxLoginFailuresPerUsername = 5
+	loginFailureWindow          = 15 * time.Minute
 )
 
 var (
@@ -78,6 +79,14 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 			s.logFailure(ctx, username, ip, ua, "rate limited")
 			return nil, ErrInvalidCredentials
 		}
+	}
+
+	unameCount, err := s.repo.CountRecentLoginFailuresByUsername(ctx, username, time.Now().Add(-loginFailureWindow))
+	if err != nil {
+		slog.Warn("failed to count recent login failures by username", "error", err)
+	} else if unameCount >= maxLoginFailuresPerUsername {
+		s.logFailure(ctx, username, ip, ua, "account locked")
+		return nil, ErrInvalidCredentials
 	}
 
 	user, err := s.repo.GetByUsername(ctx, username)

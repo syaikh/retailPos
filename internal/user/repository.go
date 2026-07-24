@@ -456,3 +456,14 @@ func (r *Repository) CountRecentLoginFailures(ctx context.Context, ip string, cu
 	`, ip, cutoff).Scan(&count)
 	return count, err
 }
+
+func (r *Repository) CountRecentLoginFailuresByUsername(ctx context.Context, username string, cutoff time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM audit_logs
+		WHERE action = 'login_failed'
+		AND description LIKE 'Failed login for ' || $1 || ':%'
+		AND created_at >= $2
+	`, username, cutoff).Scan(&count)
+	return count, err
+}
