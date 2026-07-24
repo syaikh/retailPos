@@ -197,7 +197,7 @@ func TestRepository_GetByID_DBCacheSet(t *testing.T) {
 	c.Wait()
 	v, ok := c.Get("brand:1")
 	assert.True(t, ok)
-	assert.NotNil(t, v)
+	assert.Equal(t, "Brand", v.(Brand).Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -256,7 +256,7 @@ func TestRepository_GetAll_CacheSet(t *testing.T) {
 	c.Wait()
 	v, ok := c.Get("brands:all")
 	assert.True(t, ok)
-	assert.NotNil(t, v)
+	assert.Equal(t, "Brand", v.([]Brand)[0].Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

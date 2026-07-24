@@ -57,10 +57,7 @@ func (m *mockSaleService) GetSalesForExport(ctx context.Context, search, startDa
 	return m.getSalesForExportFn(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
 func (m *mockSaleService) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
-	if m.streamSalesExportCSVFn != nil {
-		return m.streamSalesExportCSVFn(ctx, w, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
-	}
-	return nil
+	return m.streamSalesExportCSVFn(ctx, w, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
 func (m *mockSaleService) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 	return m.getNextInvoiceNumberFn(ctx)

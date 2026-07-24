@@ -64,7 +64,7 @@ func TestRepository_GetByUsername_CacheSet(t *testing.T) {
 	c.Wait()
 	v, ok := c.Get("user:username:admin")
 	assert.True(t, ok)
-	assert.NotNil(t, v)
+	assert.Equal(t, "admin", v.(User).Username)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -160,7 +160,7 @@ func TestRepository_GetRoleByID_CacheSet(t *testing.T) {
 	c.Wait()
 	v, ok := c.Get("role:1")
 	assert.True(t, ok)
-	assert.NotNil(t, v)
+	assert.Equal(t, "admin", v.(Role).Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
