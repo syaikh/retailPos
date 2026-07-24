@@ -105,3 +105,6 @@ session-*.md
 !docs/**/*.md
 .opencode/
 watch_*
+
+# Go build output
+/bin/
