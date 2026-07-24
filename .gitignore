@@ -9,7 +9,7 @@
 retailpos
 seeder
 migrate
-server
+/server
 retail-pos-system
 retail-pos
 dummy
