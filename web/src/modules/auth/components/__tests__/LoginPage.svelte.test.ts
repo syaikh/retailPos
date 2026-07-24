@@ -57,7 +57,7 @@ describe('LoginPage.svelte source-structure guards', () => {
     expect(src).toContain('{#if loading}');
   });
 
-  it('navigates to / on successful login', () => {
-    expect(src).toContain("goto('/')");
+  it('navigates to default route on successful login', () => {
+    expect(src).toContain('goto(getDefaultRoute(result.user))');
   });
 });

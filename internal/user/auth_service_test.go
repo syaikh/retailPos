@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -295,7 +297,60 @@ func newAuthServiceWithDB(t *testing.T) *AuthService {
 	os.Setenv("JWT_SECRET", "test-secret-for-testing-only")
 	t.Cleanup(func() { os.Unsetenv("JWT_SECRET") })
 	repo := NewRepository(dbPool)
-	return NewAuthService(repo)
+	return NewAuthService(repo, nil, config.Load())
+}
+
+func TestAuthService_FullLifecycle(t *testing.T) {
+	svc := newAuthServiceWithDB(t)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	user := &User{
+		Username: "lifecycle_test",
+		Email:    "lifecycle@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	err := NewRepository(dbPool).CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	resp, err := svc.Login(ctx, "lifecycle_test", "password")
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.AccessToken)
+	require.NotEmpty(t, resp.RefreshToken)
+
+	claims, err := svc.ValidateToken(resp.AccessToken)
+	require.NoError(t, err)
+	assert.Equal(t, resp.User.ID, claims.ID)
+	assert.Equal(t, "lifecycle_test", claims.Username)
+
+	newAccess, newRefresh, err := svc.RefreshToken(ctx, resp.RefreshToken)
+	require.NoError(t, err)
+	assert.NotEmpty(t, newAccess)
+	assert.NotEmpty(t, newRefresh)
+
+	_, _, err = svc.RefreshToken(ctx, resp.RefreshToken)
+	assert.Error(t, err, "old refresh token should be invalidated after rotation")
+
+	claims, err = svc.ValidateToken(newAccess)
+	require.NoError(t, err)
+	assert.Equal(t, resp.User.ID, claims.ID)
+
+	err = svc.ChangePassword(ctx, user.ID, "password", "newlifecyclepw")
+	require.NoError(t, err)
+
+	_, _, err = svc.RefreshToken(ctx, newRefresh)
+	assert.Error(t, err, "refresh token should be invalidated after password change")
+
+	resp2, err := svc.Login(ctx, "lifecycle_test", "newlifecyclepw")
+	require.NoError(t, err)
+
+	err = svc.Logout(ctx, resp2.User.ID, resp2.RefreshToken)
+	require.NoError(t, err)
+
+	_, _, err = svc.RefreshToken(ctx, resp2.RefreshToken)
+	assert.Error(t, err, "refresh token should be invalidated after logout")
 }
 
 func TestAuthService_Login_Success(t *testing.T) {

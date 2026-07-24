@@ -11,6 +11,8 @@
     showCopySuccess = $bindable(null as Set<string> | null),
     warningThreshold = 10,
     criticalThreshold = 5,
+    selectedIndex = $bindable(-1),
+    element = $bindable(undefined as HTMLElement | undefined),
     onaddtocart = (product: any) => {},
     oncopy = (value: string, field: string) => {},
     onpagechange = (newOffset: number) => {},
@@ -23,6 +25,8 @@
     showCopySuccess: Set<string> | null;
     warningThreshold: number;
     criticalThreshold: number;
+    selectedIndex?: number;
+    element?: HTMLElement;
     onaddtocart?: (product: any) => void;
     oncopy?: (value: string, field: string) => void;
     onpagechange?: (newOffset: number) => void;
@@ -49,7 +53,7 @@
     <p class="text-text-muted text-sm mt-1">Add products to start selling</p>
   </div>
 {:else}
-  <div class="flex-1 overflow-y-auto">
+  <div class="flex-1 overflow-y-auto" bind:this={element}>
     <table class="w-full table-fixed">
       <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
         <tr>
@@ -60,8 +64,13 @@
         </tr>
       </thead>
       <tbody>
-        {#each products as product (product.id)}
-          <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
+        {#each products as product, idx (product.id)}
+          <tr
+            class="border-t border-border transition-colors cursor-pointer {idx === selectedIndex ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-surface-hover/50'}"
+            tabindex="-1"
+            onclick={() => selectedIndex = idx}
+            ondblclick={() => { selectedIndex = idx; onaddtocart(product); }}
+          >
             <td class="p-4 w-52">
               <div class="font-medium truncate w-full text-text-primary" title={product.name}>
                 {product.name}

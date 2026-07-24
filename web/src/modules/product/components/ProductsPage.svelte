@@ -157,21 +157,12 @@
   }
 
   async function handleAdjustStock() {
-    if (Number(adjustQuantityChange) === 0) {
-      toast.error('Quantity change must be non-zero');
-      return;
-    }
-    const trimmedNotes = adjustNotes?.trim();
-    if (!trimmedNotes) {
-      toast.error('Notes are required - please provide a reason for adjustment');
-      return;
-    }
     adjustingStock = true;
     try {
       await apiClient.post('/inventory/adjust', {
         product_id: adjustProductId,
         quantity_change: Number(adjustQuantityChange),
-        notes: trimmedNotes
+        notes: adjustNotes
       });
       toast.success('Stock adjusted successfully');
       showAdjustStockModal = false;
@@ -305,7 +296,6 @@
       toast.error('Insufficient permission to add products');
       return;
     }
-    if (!validateProductForm()) return;
     saving = true;
     try {
       const payload = {
@@ -339,7 +329,6 @@
       toast.error('No product selected');
       return;
     }
-    if (!validateProductForm()) return;
     saving = true;
     try {
       const payload = {
@@ -406,22 +395,6 @@
     if (user.role_id === 4) return 'manager';
     if (user.role_id === 5) return 'staff';
     return '';
-  }
-
-  function validateProductForm() {
-    if (!form.name.trim() || !form.sku.trim() || !form.category.trim()) {
-      toast.error('Please complete all required fields');
-      return false;
-    }
-    if (form.price <= 0) {
-      toast.error('Price must be greater than zero');
-      return false;
-    }
-    if (form.stock < 0) {
-      toast.error('Stock must not be negative');
-      return false;
-    }
-    return true;
   }
 
   let userRoleName = $derived(getUserRoleName());

@@ -15,12 +15,12 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Skeleton, SortableHeader, Tooltip, Badge, Dropdown } from '$shared/ui'");
   });
 
-  it('imports checkbox and bulk action icons', () => {
-    expect(src).toContain('CheckSquare');
-    expect(src).toContain('Square');
+  it('imports kebab and bulk action icons', () => {
+    expect(src).toContain('Pencil');
+    expect(src).toContain('Trash2');
+    expect(src).toContain('Copy');
     expect(src).toContain('Power');
     expect(src).toContain('PowerOff');
-    expect(src).toContain('Copy');
     expect(src).toContain('MoreVertical');
   });
 
@@ -88,25 +88,25 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain("targetNames.get(`brand:${rule.brand_id}`)");
   });
 
-  it('has checkbox column in table header', () => {
+  it('has checkbox in table header with indeterminate state', () => {
     expect(src).toContain('toggleSelectAll');
-    expect(src).toContain('aria-label={allSelected ? \'Batalkan semua pilihan\' : \'Pilih semua\'}');
+    expect(src).toContain('bind:indeterminate={someSelected}');
+    expect(src).toContain('aria-label="Pilih semua"');
   });
 
-  it('has three-state select all (all/some/none)', () => {
-    expect(src).toContain('{#if allSelected}');
-    expect(src).toContain('{:else if someSelected}');
-    expect(src).toContain('<CheckSquare');
-    expect(src).toContain('<Square');
+  it('uses native checkbox for three-state select all', () => {
+    expect(src).toContain('<input type="checkbox"');
+    expect(src).toContain('bind:indeterminate={someSelected}');
+    expect(src).toContain('onchange={toggleSelectAll}');
   });
 
   it('has checkbox in each row', () => {
-    expect(src).toContain('onclick={() => toggleSelect(rule.id)}');
-    expect(src).toContain('aria-label={selectedIds.has(rule.id) ? `Batalkan pilihan ${rule.name}` : `Pilih ${rule.name}`}');
+    expect(src).toContain('onchange={() => toggleSelect(rule.id)}');
+    expect(src).toContain('aria-label="Pilih {rule.name}"');
   });
 
   it('applies selected row styling', () => {
-    expect(src).toContain("selectedIds.has(rule.id) ? 'bg-primary-subtle/10' : ''");
+    expect(src).toContain("selectedIds.has(rule.id) ? 'bg-muted/30' : ''");
   });
 
   it('has duplicate action in kebab menu when canCreate', () => {
@@ -176,8 +176,8 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
     expect(src).toContain('STATUS');
   });
 
-  it('loading skeleton has 7 columns', () => {
-    expect(src).toContain('{#each Array(7) as _}');
+  it('loading skeleton has 5 rows', () => {
+    expect(src).toContain('{#each Array(5) as _}');
   });
 
   it('does not use role="grid" on data table', () => {

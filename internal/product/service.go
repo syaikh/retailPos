@@ -126,30 +126,11 @@ func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
 	return s.repo.GetAllWarehouses(ctx, nil)
 }
 
-func (s *Service) resolveCategoryID(ctx context.Context, name string) (int, error) {
-	return s.categoryRepo.GetCategoryIDByName(ctx, name)
-}
-
-func (s *Service) resolveBrandID(ctx context.Context, name string) (int, error) {
-	return s.brandRepo.GetIDByName(ctx, name)
-}
-
-func (s *Service) resolveUnitOfMeasureID(ctx context.Context, code string) (int, error) {
-	return s.uomRepo.GetIDByCode(ctx, code)
-}
-
 func strPtr(s string) *string {
 	if s == "" {
 		return nil
 	}
 	return &s
-}
-
-func intPtr(i int) *int {
-	if i == 0 {
-		return nil
-	}
-	return &i
 }
 
 func ptr(i int) *int {

@@ -11,22 +11,29 @@ function getSource(): string {
 describe('CheckoutModal.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports fly from svelte/transition', () => {
-    expect(src).toContain("import { fly } from 'svelte/transition'");
+  it('imports icons from lucide-svelte', () => {
+    expect(src).toContain("import { X, Check, User, ChevronRight } from 'lucide-svelte'");
   });
 
-  it('imports Button and CurrencyInput from shared/ui', () => {
+  it('imports CurrencyInput from shared/ui', () => {
     expect(src).toContain("import { Button, CurrencyInput } from '$shared/ui'");
   });
 
-  it('imports icons from lucide-svelte', () => {
-    expect(src).toContain("import { X, Check, ChevronRight } from 'lucide-svelte'");
+  it('has denominations array', () => {
+    expect(src).toContain('const denominations = [5000, 10000, 20000, 50000, 100000]');
   });
 
-  it('uses $bindable for showCheckoutModal, paymentMethod, cashReceived', () => {
-    expect(src).toContain('showCheckoutModal = $bindable(');
-    expect(src).toContain('paymentMethod = $bindable(');
-    expect(src).toContain('cashReceived = $bindable(');
+  it('has showCheckoutModal bindable prop', () => {
+    expect(src).toContain('showCheckoutModal = $bindable(false)');
+  });
+
+  it('has paymentMethod bindable prop', () => {
+    expect(src).toContain('paymentMethod = $bindable(\'Cash\')');
+  });
+
+  it('has cashReceived and changeDue props', () => {
+    expect(src).toContain('cashReceived = $bindable(0)');
+    expect(src).toContain('changeDue = 0');
   });
 
   it('has onfinalize and onselectcustomer callbacks', () => {
@@ -34,45 +41,45 @@ describe('CheckoutModal.svelte source-structure guards', () => {
     expect(src).toContain('onselectcustomer');
   });
 
-  it('defines quickCashPresets', () => {
-    expect(src).toContain('const quickCashPresets = [50000, 100000, 200000, 500000, 1000000]');
+  it('renders dialog with aria-modal', () => {
+    expect(src).toContain('role="dialog"');
+    expect(src).toContain('aria-modal="true"');
+    expect(src).toContain('aria-label="Pembayaran"');
   });
 
-  it('renders modal with Pembayaran Selesai heading', () => {
-    expect(src).toContain('Pembayaran Selesai');
+  it('renders total amount display', () => {
+    expect(src).toContain('totalAmount.toLocaleString');
   });
 
-  it('renders Total Tagihan display', () => {
-    expect(src).toContain('Total Tagihan');
+  it('renders payment method selector buttons', () => {
+    expect(src).toContain('paymentOptions');
+    expect(src).toContain('opt.label');
   });
 
-  it('renders payment method selector in modal', () => {
-    expect(src).toContain('Metode Pembayaran');
+  it('renders customer selector with User icon', () => {
+    expect(src).toContain('<User size={14}');
+    expect(src).toContain('selectedCustomerLabel');
   });
 
   it('renders cash received input for Cash method', () => {
     expect(src).toContain('cash-received-input');
-    expect(src).toContain('Cash Received [F7]');
+    expect(src).toContain('<CurrencyInput id="cash-received-input"');
   });
 
-  it('renders quick cash preset buttons with abbreviated format', () => {
-    expect(src).toContain("`${preset / 1000000}jt`");
-    expect(src).toContain("`${preset / 1000}rb`");
+  it('renders denomination quick buttons', () => {
+    expect(src).toContain('denom >= 1000000');
+    expect(src).toContain('`${denom / 1000000}jt`');
+    expect(src).toContain('`${denom / 1000}rb`');
   });
 
-  it('has F7 hotkey to set cash received to total', () => {
-    expect(src).toContain("e.key === 'F7'");
-    expect(src).toContain('cashReceived = totalAmount');
-  });
-
-  it('renders change due section with Rp prefix', () => {
-    expect(src).toContain('Uang Kembali');
-    expect(src).toContain('Rp ');
+  it('renders change due section', () => {
     expect(src).toContain('Kembali');
+    expect(src).toContain('Math.abs(changeDue)');
   });
 
-  it('renders Batal and Selesai buttons', () => {
+  it('has Batal and Selesai action buttons', () => {
     expect(src).toContain('Batal [F3]');
-    expect(src).toContain('Selesai');
+    expect(src).toContain('Selesai [Enter]');
+    expect(src).toContain('onfinalize');
   });
 });

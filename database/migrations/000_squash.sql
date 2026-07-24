@@ -473,6 +473,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_movements_product ON inventory_movement
 
 -- Audit logs
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_ip_created ON audit_logs(action, ip_address, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 
 -- Categories

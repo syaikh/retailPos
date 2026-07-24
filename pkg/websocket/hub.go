@@ -18,10 +18,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func getJakartaLoc() *time.Location {
-	return shared.JakartaLocation()
-}
-
 const (
 	writeWait             = 10 * time.Second
 	pongWait              = 60 * time.Second
@@ -38,12 +34,17 @@ func checkOrigin(r *http.Request) bool {
 	if origin == "" {
 		return false
 	}
-	if origin == "http://localhost:5173" ||
-		origin == "http://localhost:9095" ||
-		origin == "http://127.0.0.1:5173" ||
-		origin == "http://127.0.0.1:9095" {
+
+	allowedOrigins := map[string]bool{
+		"http://localhost:5173":  true,
+		"http://localhost:9095":  true,
+		"http://127.0.0.1:5173": true,
+		"http://127.0.0.1:9095": true,
+	}
+	if allowedOrigins[origin] {
 		return true
 	}
+
 	allowedOrigin := os.Getenv("CORS_ORIGIN")
 	if allowedOrigin != "" && origin == allowedOrigin {
 		return true
@@ -290,7 +291,7 @@ func (h *Hub) ShouldReceiveEvent(client *Client, event *Event) bool {
 
 func (h *Hub) Broadcast(event Event) {
 	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now().In(getJakartaLoc())
+		event.Timestamp = time.Now().In(shared.JakartaLocation())
 	}
 	select {
 	case h.broadcast <- event:
@@ -315,7 +316,7 @@ func (h *Hub) broadcastUserCount() {
 	})
 	event := Event{
 		Type:      EventUserOnline,
-		Timestamp: time.Now().In(getJakartaLoc()),
+		Timestamp: time.Now().In(shared.JakartaLocation()),
 		Payload:   payload,
 	}
 	data, _ := json.Marshal(event)
@@ -347,6 +348,13 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 	if !strings.Contains(c.Request.Host, "localhost") && c.Request.Header.Get("X-Forwarded-Proto") != "https" {
 		slog.Warn("WebSocket connection not using HTTPS", "ip", clientIP)
 	}
+
+	// CSRF note: The WebSocket authenticates via a JWT sent as a WebSocket message body
+	// after upgrade (not a cookie). CSRF attacks rely on cookie-based auth being sent
+	// automatically by the browser. Since the JWT is stored in sessionStorage and sent
+	// explicitly as a message, cross-origin requests cannot forge a valid WebSocket session.
+	// The Origin header is additionally validated by the gorilla/websocket upgrader via
+	// checkOrigin() for defense-in-depth.
 
 	conn, err := newUpgrader().Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

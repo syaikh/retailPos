@@ -174,11 +174,11 @@ func (h *Handler) Preview(c *gin.Context) {
 		return
 	}
 
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<20)
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required or too large (max 10MB)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required or too large (max 32MB)"})
 		return
 	}
 	defer file.Close()

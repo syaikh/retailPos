@@ -34,6 +34,19 @@
     onCancel,
   } = $props();
 
+  let fieldErrors = $state<Record<string, string>>({});
+
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+    if (!form.name.trim()) errors.name = 'Name is required';
+    if (!form.sku.trim()) errors.sku = 'SKU is required';
+    if (!form.category.trim()) errors.category = 'Category is required';
+    if (form.price <= 0) errors.price = 'Price must be greater than zero';
+    if (form.stock < 0) errors.stock = 'Stock must not be negative';
+    fieldErrors = errors;
+    return Object.keys(errors).length === 0;
+  }
+
   let showModalCategoryDropdown = $state(false);
   let pricingRules = $state<PricingRule[]>([]);
   let loadingPricing = $state(false);
@@ -88,6 +101,7 @@
 
   function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
+    if (!validate()) return;
     onSubmit();
   }
 </script>
@@ -97,11 +111,11 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name <span class="text-destructive">*</span></label>
-<Input id="prod-name" bind:value={form.name} type="text" required />
+<Input id="prod-name" bind:value={form.name} type="text" error={fieldErrors.name} required />
       </div>
       <div>
         <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU <span class="text-destructive">*</span></label>
-<Input id="prod-sku" bind:value={form.sku} type="text" required />
+<Input id="prod-sku" bind:value={form.sku} type="text" error={fieldErrors.sku} required />
       </div>
     </div>
 
@@ -123,7 +137,7 @@
             onfocus={handleModalCategoryFocus}
             onblur={handleModalCategoryBlur}
             class="pl-10 pr-10"
-            required
+            error={fieldErrors.category}
           />
           {#if modalCategorySearch}
             <button
@@ -194,6 +208,9 @@
       <div>
         <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR) <span class="text-destructive">*</span></label>
         <CurrencyInput id="prod-price" bind:value={form.price} required />
+        {#if fieldErrors.price}
+          <p class="text-xs text-danger mt-1" role="alert">{fieldErrors.price}</p>
+        {/if}
       </div>
       <div>
         <label for="prod-cost" class="block text-sm font-medium text-text-secondary mb-2">Cost (IDR)</label>
@@ -201,7 +218,7 @@
       </div>
       <div>
         <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock <span class="text-destructive">*</span></label>
-        <Input id="prod-stock" bind:value={form.stock} type="number" required />
+        <Input id="prod-stock" bind:value={form.stock} type="number" error={fieldErrors.stock} required />
       </div>
     </div>
 

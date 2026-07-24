@@ -13,8 +13,19 @@
     onCancel,
   } = $props();
 
+  let fieldErrors = $state<Record<string, string>>({});
+
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+    if (quantityChange === 0) errors.quantity = 'Quantity change must be non-zero';
+    if (!notes.trim()) errors.notes = 'Notes are required - please provide a reason for adjustment';
+    fieldErrors = errors;
+    return Object.keys(errors).length === 0;
+  }
+
   function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
+    if (!validate()) return;
     onSubmit();
   }
 </script>
@@ -37,6 +48,7 @@
         type="number"
         bind:value={quantityChange}
         placeholder="e.g., +10 or -5"
+        error={fieldErrors.quantity}
         required
       />
       <p class="text-xs text-text-muted mt-1">Positive to add stock, negative to reduce.</p>
@@ -48,6 +60,7 @@
         type="text"
         bind:value={notes}
         placeholder="Reason for adjustment (required)"
+        error={fieldErrors.notes}
         required
       />
     </div>

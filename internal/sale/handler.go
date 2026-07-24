@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -23,6 +24,7 @@ type SaleService interface {
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
+	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
@@ -379,14 +381,13 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	ctx := c.Request.Context()
 	storeIDPtr := shared.GetStoreID(c)
 
-	rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeIDPtr)
-	if err != nil {
-		shared.InternalError(c, err)
-		return
-	}
-
 	switch format {
 	case "xlsx":
+		rows, err := h.svc.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeIDPtr)
+		if err != nil {
+			shared.InternalError(c, err)
+			return
+		}
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 		c.Header("Content-Disposition", "attachment; filename=sales_export.xlsx")
 		if err := WriteXLSX(rows, c.Writer); err != nil {
@@ -395,8 +396,8 @@ func (h *Handler) ExportSales(c *gin.Context) {
 	default:
 		c.Header("Content-Type", "text/csv")
 		c.Header("Content-Disposition", "attachment; filename=sales_export.csv")
-		if err := WriteCSV(rows, c.Writer); err != nil {
-			slog.Warn("failed to write csv", "error", err)
+		if err := h.svc.StreamSalesExportCSV(ctx, c.Writer, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeIDPtr); err != nil {
+			slog.Warn("failed to stream csv", "error", err)
 		}
 	}
 }

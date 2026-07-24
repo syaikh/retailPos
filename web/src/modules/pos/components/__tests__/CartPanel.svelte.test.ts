@@ -11,64 +11,60 @@ function getSource(): string {
 describe('CartPanel.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports slide from svelte/transition and flip from svelte/animate', () => {
+  it('imports cart-related lucide-svelte icons', () => {
+    expect(src).toContain("import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte'");
+  });
+
+  it('uses svelte transitions', () => {
     expect(src).toContain("import { slide } from 'svelte/transition'");
     expect(src).toContain("import { flip } from 'svelte/animate'");
   });
 
-  it('imports Badge, Button from shared/ui', () => {
-    expect(src).toContain("import { Badge, Button } from '$shared/ui'");
-  });
-
-  it('imports cart-related lucide-svelte icons', () => {
-    expect(src).toContain("import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Search } from 'lucide-svelte'");
-  });
-
-  it('uses $bindable for paymentMethod', () => {
-    expect(src).toContain('paymentMethod = $bindable(');
-  });
-
-  it('has event callbacks (onupdateqty, onremovefromcart, onclearcart, oncheckout, onprintreceipt, onselectcustomer)', () => {
+  it('has cart and totalAmount as props', () => {
+    expect(src).toContain('cart = []');
+    expect(src).toContain('totalAmount = 0');
+    expect(src).toContain('totalItems = 0');
     expect(src).toContain('onupdateqty');
     expect(src).toContain('onremovefromcart');
     expect(src).toContain('onclearcart');
     expect(src).toContain('oncheckout');
     expect(src).toContain('onprintreceipt');
-    expect(src).toContain('onselectcustomer');
+  });
+
+  it('has hold and recall callbacks', () => {
+    expect(src).toContain('onholdsale');
+    expect(src).toContain('onopenparkedmodal');
+    expect(src).toContain('parkedSaleCount');
   });
 
   it('renders cart header with ShoppingCart icon', () => {
     expect(src).toContain('<ShoppingCart size={18}');
-    expect(src).toContain('Cart');
   });
 
-  it('renders empty cart state', () => {
-    expect(src).toContain('Your cart is empty');
+  it('shows empty state when cart is empty', () => {
+    expect(src).toContain("Your cart is empty");
+    expect(src).toContain("Add products to start selling");
   });
 
-  it('renders DPP and PPN lines when taxAmount > 0', () => {
-    expect(src).toContain('DPP');
-    expect(src).toContain('PPN 11%');
+  it('renders quantity controls for each item', () => {
+    expect(src).toContain('<Minus size={14} />');
+    expect(src).toContain('<Plus size={14} />');
+    expect(src).toContain('Decrease quantity');
+    expect(src).toContain('Increase quantity');
   });
 
-  it('renders payment method selector', () => {
-    expect(src).toContain('Payment method');
+  it('renders checkout button with Wallet icon', () => {
+    expect(src).toContain('<Wallet size={16} />');
+    expect(src).toContain('Bayar');
   });
 
-  it('renders customer selector button', () => {
-    expect(src).toContain('selectedCustomerLabel');
-    expect(src).toContain('onselectcustomer');
+  it('renders print and recall buttons', () => {
+    expect(src).toContain('<Printer size={12} />');
+    expect(src).toContain('Recall');
+    expect(src).toContain('Print');
   });
 
-  it('renders Bayar checkout button with F4 hint', () => {
-    expect(src).toContain('Bayar [F4]');
-  });
-
-  it('renders print receipt button', () => {
-    expect(src).toContain('Print Last Receipt');
-  });
-
-  it('accepts responsive class overrides for mobile layouts', () => {
-    expect(src).toContain("class: className = ''");
+  it('has Badge for item count', () => {
+    expect(src).toContain('<Badge variant="primary" size="sm">');
   });
 });

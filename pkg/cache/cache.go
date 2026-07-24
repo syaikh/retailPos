@@ -5,63 +5,82 @@ import (
 	"sync"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/dgraph-io/ristretto"
 )
 
-// Cache is a thread-safe in-memory cache with TTL and jittered eviction.
 type Cache struct {
-	store      *gocache.Cache
+	store      *ristretto.Cache
+	keys       map[string]struct{}
 	mu         sync.RWMutex
 	defaultTTL time.Duration
 }
 
-// New creates a cache with the given default TTL and cleanup interval.
-// Cleanup runs in the background to reclaim expired entries.
 func New(defaultTTL, cleanupInterval time.Duration) *Cache {
+	store, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 1e7,
+		MaxCost:     1 << 30,
+		BufferItems: 64,
+		Metrics:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
 	return &Cache{
-		store:      gocache.New(cleanupInterval, cleanupInterval*2),
+		store:      store,
+		keys:       make(map[string]struct{}),
 		defaultTTL: defaultTTL,
 	}
 }
 
-// Set stores a value with the default TTL.
 func (c *Cache) Set(key string, value interface{}) {
-	c.store.Set(key, value, c.defaultTTL)
+	c.mu.Lock()
+	c.keys[key] = struct{}{}
+	c.mu.Unlock()
+	c.store.SetWithTTL(key, value, 1, c.defaultTTL+jitter(c.defaultTTL))
 }
 
-// SetWithTTL stores a value with a custom TTL.
 func (c *Cache) SetWithTTL(key string, value interface{}, ttl time.Duration) {
-	c.store.Set(key, value, ttl+jitter(ttl))
+	c.mu.Lock()
+	c.keys[key] = struct{}{}
+	c.mu.Unlock()
+	c.store.SetWithTTL(key, value, 1, ttl+jitter(ttl))
 }
 
-// Get retrieves a value. Returns (value, true) on hit, (nil, false) on miss.
 func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.store.Get(key)
 }
 
-// Delete removes a single key.
 func (c *Cache) Delete(key string) {
-	c.store.Delete(key)
+	c.mu.Lock()
+	delete(c.keys, key)
+	c.mu.Unlock()
+	c.store.Del(key)
 }
 
-// FlushByPrefix removes all keys that start with prefix.
 func (c *Cache) FlushByPrefix(prefix string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	items := c.store.Items()
-	for key := range items {
+	for key := range c.keys {
 		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
-			c.store.Delete(key)
+			delete(c.keys, key)
+			c.store.Del(key)
 		}
 	}
+	c.store.Wait()
 }
 
-// Stats returns cache statistics for observability.
+func (c *Cache) Wait() {
+	c.store.Wait()
+}
+
 func (c *Cache) Stats() (items int, evictions int) {
-	return c.store.ItemCount(), 0
+	m := c.store.Metrics
+	if m == nil {
+		return len(c.keys), 0
+	}
+	return len(c.keys), int(m.KeysEvicted())
 }
 
-// jitter adds ±10% random variation to a TTL to prevent stampede.
 func jitter(ttl time.Duration) time.Duration {
 	if ttl <= 0 {
 		return 0

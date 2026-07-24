@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/shared"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -329,7 +329,7 @@ func TestGetComparisonRanges_IsPartial(t *testing.T) {
 func TestGetComparisonRanges_DefaultCase(t *testing.T) {
 	refDate := time.Date(2026, 7, 14, 0, 0, 0, 0, wib)
 	pr := getComparisonRanges(PeriodType("bogus"), refDate, false)
-	dailyPr := getDailyRanges(time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, config.Load().Timezone), false)
+	dailyPr := getDailyRanges(time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, shared.JakartaLocation()), false)
 	assert.Equal(t, dailyPr.CurrentStart, pr.CurrentStart, "unknown period should default to daily")
 }
 

@@ -64,6 +64,14 @@ func GetStoreID(c *gin.Context) *int {
 	return sid
 }
 
+func GetStoreIDInt(c *gin.Context) int {
+	sid := GetStoreID(c)
+	if sid == nil {
+		return 0
+	}
+	return *sid
+}
+
 func GetIPAddress(c *gin.Context) string {
 	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
 		slog.Warn("X-Forwarded-For header detected; using RemoteAddr instead", "xff", xff)

@@ -17,9 +17,9 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 
 ---
 
-## 1. Shift Management
+## 1. Shift Management ✅
 
-### Penjelasan
+**Status:** SUDAH DIIMPLEMENTASI — `internal/shift/`, `web/src/modules/shifts/`
 
 Sistem shift untuk kasir. Setiap kali kasir mulai kerja, mereka **open shift** — mencatat jumlah uang awal di kas (opening balance). Sepanjang shift, semua transaksi tercatat. Saat selesai, kasir **close shift** — menghitung uang fisik (closing balance) dan sistem menghitung selisihnya (discrepancy).
 
@@ -42,24 +42,11 @@ Close Shift
   - Selisih: +Rp 145.000 (kelebihan)
 ```
 
-### Komponen yang Perlu Dibangun
-
-**Backend:**
-- Tabel `shifts` (id, user_id, store_id, opening_balance, closing_balance, status, opened_at, closed_at)
-- Handler & service: open shift, close shift, get active shift, list shift history
-- Laporan per-shift: total cash, total non-cash, selisih
-
-**Frontend:**
-- Halaman shift: tombol Open Shift, form Close Shift (input closing balance)
-- Riwayat shift (tabel dengan filter tanggal)
-- Indikator shift aktif di sidebar/topbar
-- Notifikasi otomatis jika sudah melebihi durasi shift normal
-
 ---
 
-## 2. Hold & Recall Transaction (Parked Sales)
+## 2. Hold & Recall Transaction (Parked Sales) ✅
 
-### Penjelasan
+**Status:** SUDAH DIIMPLEMENTASI — via `status='parked'/'recalled'` di sales table, `ParkedSalesModal.svelte`, badge counter
 
 Saat transaksi sedang berjalan di POS, kasir bisa **menahan (hold/park)** transaksi tersebut untuk dilanjutkan nanti. Berguna saat:
 - Pelanggan lupa dompet/hp
@@ -83,18 +70,6 @@ Kasir sedang scan barang:
 → Kasir: klik "Recall" → pilih dari daftar parked transactions
 → Item A + Item B muncul kembali, lanjut bayar
 ```
-
-### Komponen yang Perlu Dibangun
-
-**Backend:**
-- Flag `status = 'parked'` pada sale atau tabel `parked_sales` terpisah
-- Endpoint: park sale, recall sale, list parked sales, delete parked sale
-
-**Frontend:**
-- Tombol Hold/Recall di halaman POS
-- Daftar parked transactions (bisa lebih dari satu, tampilkan jumlah item & total)
-- Badge counter pada tombol Recall jika ada parked transactions
-- Konfirmasi saat delete parked transaction
 
 ---
 
@@ -401,11 +376,11 @@ Skenario 3 - Percobaan bypass via API langsung:
 
 | Urutan | Fitur | Alasan |
 |--------|-------|--------|
-| 1 | Shift Management | Operational kasir harian, fondasi untuk laporan |
-| 2 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
-| 3 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
-| 4 | Split Payment | Fleksibilitas bayar, sering diminta pelanggan |
-| 5 | Hold & Recall | UX kasir, meningkatkan produktivitas |
+| 1 | ~~Shift Management~~ | ✅ Selesai |
+| 2 | ~~Hold & Recall~~ | ✅ Selesai |
+| 3 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
+| 4 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
+| 5 | Split Payment | Fleksibilitas bayar, sering diminta pelanggan |
 | 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
 | 7 | Product Image | Peningkatan UX visual, relatif sederhana |
 | 8 | Purchase Order | Alur pembelian, butuh dependency lebih banyak |

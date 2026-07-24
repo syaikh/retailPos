@@ -68,4 +68,11 @@ describe('ProductsPage.svelte source-structure guards', () => {
   it('renders Pagination component', () => {
     expect(src).toContain('<Pagination');
   });
+
+  it('has handleWindowKeydown for Escape and close-all-dropdowns', () => {
+    expect(src).toContain('function handleWindowKeydown');
+    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toContain("dispatchEvent(new CustomEvent('close-all-dropdowns')");
+    expect(src).toContain('<svelte:window onkeydown={handleWindowKeydown} />');
+  });
 });

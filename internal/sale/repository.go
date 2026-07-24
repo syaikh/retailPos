@@ -3,8 +3,12 @@ package sale
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,42 +44,24 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
 	if len(items) > 0 {
-		saleIDs := make([]int, len(items))
-		pIDs := make([]int, len(items))
-		qtys := make([]int, len(items))
-		prices := make([]int, len(items))
-		subs := make([]int, len(items))
-		dpps := make([]int, len(items))
-		taxes := make([]int, len(items))
-		origPrices := make([]int, len(items))
-		ruleIDs := make([]interface{}, len(items))
-		ruleNames := make([]interface{}, len(items))
-		ruleTypes := make([]interface{}, len(items))
-		pricingTypes := make([]interface{}, len(items))
+		rows := make([][]interface{}, len(items))
 		for i, item := range items {
-			saleIDs[i] = sale.ID
-			pIDs[i] = item.ProductID
-			qtys[i] = item.Quantity
-			prices[i] = item.UnitPrice
-			subs[i] = item.Subtotal
-			dpps[i] = item.DPPAmount
-			taxes[i] = item.TaxAmount
+			origPrice := item.UnitPrice
 			if item.OriginalPrice != nil {
-				origPrices[i] = *item.OriginalPrice
-			} else {
-				origPrices[i] = item.UnitPrice
+				origPrice = *item.OriginalPrice
 			}
-			ruleIDs[i] = item.PricingRuleID
-			ruleNames[i] = item.PricingRuleName
-			ruleTypes[i] = item.PricingRuleType
-			pricingTypes[i] = item.PricingType
+			rows[i] = []interface{}{
+				sale.ID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
+				item.DPPAmount, item.TaxAmount,
+				item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.PricingType,
+				origPrice,
+			}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount,
-			pricing_rule_id, pricing_rule_name, pricing_rule_type, pricing_type, original_price)
-			SELECT unnest($1::int[]), unnest($2::int[]), unnest($3::int[]), unnest($4::int[]), unnest($5::int[]), unnest($6::int[]), unnest($7::int[]),
-			       unnest($8::int[]), unnest($9::text[]), unnest($10::text[]), unnest($11::text[]), unnest($12::int[])`,
-			saleIDs, pIDs, qtys, prices, subs, dpps, taxes,
-			ruleIDs, ruleNames, ruleTypes, pricingTypes, origPrices)
+		_, err = tx.CopyFrom(ctx, pgx.Identifier{"sale_items"},
+			[]string{"sale_id", "product_id", "quantity", "unit_price", "subtotal", "dpp_amount", "tax_amount",
+				"pricing_rule_id", "pricing_rule_name", "pricing_rule_type", "pricing_type", "original_price"},
+			pgx.CopyFromRows(rows),
+		)
 		if err != nil {
 			return fmt.Errorf("batch insert sale items: %w", err)
 		}
@@ -86,11 +72,26 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 
 func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	var sale Sale
-	var storeIDFromDB sql.NullInt64
+	var itemsJSON []byte
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT s.id, s.invoice_number, s.cashier_id, s.customer_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name
+		SELECT s.id, s.invoice_number, s.cashier_id, s.customer_id, s.store_id,
+		       s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status,
+		       s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name,
+		       COALESCE(
+		           (SELECT jsonb_agg(jsonb_build_object(
+		               'id', si.id, 'sale_id', si.sale_id, 'product_id', si.product_id,
+		               'name', p.name, 'quantity', si.quantity, 'unit_price', si.unit_price,
+		               'subtotal', si.subtotal, 'dpp_amount', si.dpp_amount, 'tax_amount', si.tax_amount,
+		               'pricing_rule_id', si.pricing_rule_id, 'pricing_rule_name', si.pricing_rule_name,
+		               'pricing_rule_type', si.pricing_rule_type, 'pricing_type', si.pricing_type,
+		               'original_price', si.original_price
+		           )) FROM sale_items si
+		           JOIN products p ON si.product_id = p.id
+		           WHERE si.sale_id = s.id),
+		       '[]'::jsonb
+		   ) as items
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
 		WHERE s.id = $1`
@@ -100,162 +101,78 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		args = append(args, *storeID)
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID, &sale.Subtotal, &sale.Discount, &sale.Tax,
-		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status, &createdAt, &updatedAt, &sale.CustomerName)
+	err := r.db.QueryRow(ctx, query, args...).Scan(
+		&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID,
+		&sale.Subtotal, &sale.Discount, &sale.Tax,
+		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status,
+		&createdAt, &updatedAt, &sale.CustomerName, &itemsJSON,
+	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrSaleNotFound
 		}
 		return nil, err
 	}
-	if storeIDFromDB.Valid {
-		v := int(storeIDFromDB.Int64)
-		sale.StoreID = &v
-	}
 	sale.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	sale.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	// Load sale items
-	itemRows, err := r.db.Query(ctx, `
-			SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.subtotal, si.dpp_amount, si.tax_amount,
-			       si.pricing_rule_id, si.pricing_rule_name, si.pricing_rule_type, si.pricing_type, si.original_price
-			FROM sale_items si
-			JOIN products p ON si.product_id = p.id
-			WHERE si.sale_id = $1
-		`, sale.ID)
-	if err != nil {
-		slog.Warn("failed to load items for sale", "sale_id", sale.ID, "error", err)
-	} else {
-		for itemRows.Next() {
-			var item SaleItem
-			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal, &item.DPPAmount, &item.TaxAmount,
-				&item.PricingRuleID, &item.PricingRuleName, &item.PricingRuleType, &item.PricingType, &item.OriginalPrice); scanErr != nil {
-				slog.Warn("failed to scan item row", "sale_id", sale.ID, "error", scanErr)
-				continue
-			}
-			sale.Items = append(sale.Items, item)
+	if len(itemsJSON) > 0 {
+		if err := json.Unmarshal(itemsJSON, &sale.Items); err != nil {
+			slog.Warn("failed to unmarshal sale items", "sale_id", sale.ID, "error", err)
 		}
-		itemRows.Close()
 	}
 
 	return &sale, nil
+}
+
+func (r *Repository) buildSaleFilter(search, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) *shared.QueryBuilder {
+	qb := shared.NewQueryBuilder()
+	if search != "" {
+		qb.AddClause(" AND (s.invoice_number ILIKE $%[1]d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%[1]d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%[1]d))", "%"+search+"%")
+	}
+	if startDate != "" {
+		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
+			qb.AddClause(" AND s.created_at >= $%d", start)
+		}
+	}
+	if endDate != "" {
+		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
+			qb.AddClause(" AND s.created_at < $%d", end.Add(24*time.Hour))
+		}
+	}
+	if storeID != nil {
+		qb.AddClause(" AND s.store_id = $%d", *storeID)
+	}
+	if paymentMethods != "" {
+		qb.AddClause(" AND s.payment_method = ANY(string_to_array($%d, ','))", paymentMethods)
+	}
+	if minTotal != nil {
+		qb.AddClause(" AND s.total_amount >= $%d", *minTotal)
+	}
+	if maxTotal != nil {
+		qb.AddClause(" AND s.total_amount <= $%d", *maxTotal)
+	}
+	if cashierID != nil {
+		qb.AddClause(" AND s.cashier_id = $%d", *cashierID)
+	}
+	return qb
 }
 
 func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 	var sales []Sale
 	var total int
 
-	// ---- COUNT QUERY ----
-	// When searching by product name we need to check sale_items + products,
-	// so use a sub-select to avoid a messy multi-join count.
-	countQuery := `SELECT COUNT(*) FROM sales s WHERE 1=1`
-	countArgs := []interface{}{}
-	argIdx := 1
-
-	if search != "" {
-		countQuery += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx, argIdx, argIdx)
-		countArgs = append(countArgs, "%"+search+"%")
-		argIdx++
-	}
-	if startDate != "" {
-		// Use Asia/Jakarta timezone for date filtering
-		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
-			countQuery += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
-			countArgs = append(countArgs, start)
-			argIdx++
-		}
-	}
-	if endDate != "" {
-		// Use Asia/Jakarta timezone for date filtering
-		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
-			countQuery += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
-			countArgs = append(countArgs, end.Add(24*time.Hour))
-			argIdx++
-		}
-	}
-	if storeID != nil {
-		countQuery += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
-		countArgs = append(countArgs, *storeID)
-		argIdx++
-	}
-	if paymentMethods != "" {
-		countQuery += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx)
-		countArgs = append(countArgs, paymentMethods)
-		argIdx++
-	}
-	if minTotal != nil {
-		countQuery += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx)
-		countArgs = append(countArgs, *minTotal)
-		argIdx++
-	}
-	if maxTotal != nil {
-		countQuery += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
-		countArgs = append(countArgs, *maxTotal)
-	}
-	if cashierID != nil {
-		countQuery += fmt.Sprintf(" AND s.cashier_id = $%d", argIdx)
-		countArgs = append(countArgs, *cashierID)
-	}
-
-	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID)
+	countQuery := "SELECT COUNT(*) FROM sales s WHERE " + qb.Where()
+	err := r.db.QueryRow(ctx, countQuery, qb.Args...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// ---- DATA QUERY ----
 	query := `SELECT s.id, s.invoice_number, s.cashier_id, s.store_id, s.subtotal, s.discount, s.tax, s.total_amount, s.payment_method, s.status, s.created_at, s.updated_at, COALESCE(c.name, '') as customer_name
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
-		WHERE 1=1`
-	args2 := []interface{}{}
-	argIdx2 := 1
-
-	if search != "" {
-		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx2, argIdx2, argIdx2)
-		args2 = append(args2, "%"+search+"%")
-		argIdx2++
-	}
-	if startDate != "" {
-		// Use Asia/Jakarta timezone for date filtering
-		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
-			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx2)
-			args2 = append(args2, start)
-			argIdx2++
-		}
-	}
-	if endDate != "" {
-		// Use Asia/Jakarta timezone for date filtering
-		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
-			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx2)
-			args2 = append(args2, end.Add(24*time.Hour))
-			argIdx2++
-		}
-	}
-	if storeID != nil {
-		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx2)
-		args2 = append(args2, *storeID)
-		argIdx2++
-	}
-	if paymentMethods != "" {
-		query += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx2)
-		args2 = append(args2, paymentMethods)
-		argIdx2++
-	}
-	if minTotal != nil {
-		query += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx2)
-		args2 = append(args2, *minTotal)
-		argIdx2++
-	}
-	if maxTotal != nil {
-		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx2)
-		args2 = append(args2, *maxTotal)
-		argIdx2++
-	}
-	if cashierID != nil {
-		query += fmt.Sprintf(" AND s.cashier_id = $%d", argIdx2)
-		args2 = append(args2, *cashierID)
-		argIdx2++
-	}
+		WHERE ` + qb.Where()
 	allowedSortBy := map[string]bool{"created_at": true, "total_amount": true, "invoice_number": true, "payment_method": true, "status": true}
 	allowedSortDir := map[string]bool{"ASC": true, "DESC": true}
 	if sortBy != "" && allowedSortBy[sortBy] {
@@ -266,10 +183,10 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	} else {
 		query += " ORDER BY s.created_at DESC"
 	}
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
-	args2 = append(args2, limit, offset)
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", qb.ArgIdx, qb.ArgIdx+1)
+	qb.Args = append(qb.Args, limit, offset)
 
-	rows, err := r.db.Query(ctx, query, args2...)
+	rows, err := r.db.Query(ctx, query, qb.Args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -350,56 +267,16 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 }
 
 func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
+	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
 		COALESCE(si_counts.cnt, 0) as items_count,
 		s.payment_method, s.total_amount
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
 		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
-		WHERE 1=1`
-	args := []interface{}{}
-	argIdx := 1
+		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
 
-	if search != "" {
-		query += fmt.Sprintf(" AND (s.invoice_number ILIKE $%d OR s.id IN (SELECT DISTINCT si.sale_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE p.name ILIKE $%d) OR s.customer_id IN (SELECT c2.id FROM customers c2 WHERE c2.name ILIKE $%d))", argIdx, argIdx, argIdx)
-		args = append(args, "%"+search+"%")
-		argIdx++
-	}
-	if startDate != "" {
-		if start, err := time.ParseInLocation("2006-01-02", startDate, shared.JakartaLocation()); err == nil {
-			query += fmt.Sprintf(" AND s.created_at >= $%d", argIdx)
-			args = append(args, start)
-			argIdx++
-		}
-	}
-	if endDate != "" {
-		if end, err := time.ParseInLocation("2006-01-02", endDate, shared.JakartaLocation()); err == nil {
-			query += fmt.Sprintf(" AND s.created_at < $%d", argIdx)
-			args = append(args, end.Add(24*time.Hour))
-			argIdx++
-		}
-	}
-	if paymentMethods != "" {
-		query += fmt.Sprintf(" AND s.payment_method = ANY(string_to_array($%d, ','))", argIdx)
-		args = append(args, paymentMethods)
-		argIdx++
-	}
-	if minTotal != nil {
-		query += fmt.Sprintf(" AND s.total_amount >= $%d", argIdx)
-		args = append(args, *minTotal)
-		argIdx++
-	}
-	if maxTotal != nil {
-		query += fmt.Sprintf(" AND s.total_amount <= $%d", argIdx)
-		args = append(args, *maxTotal)
-	}
-	if storeID != nil {
-		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
-		args = append(args, *storeID)
-	}
-	query += " ORDER BY s.created_at DESC"
-
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, qb.Args...)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +296,50 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 		return nil, err
 	}
 	return result, nil
+}
+
+func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
+	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
+		COALESCE(si_counts.cnt, 0) as items_count,
+		s.payment_method, s.total_amount
+		FROM sales s
+		LEFT JOIN customers c ON s.customer_id = c.id
+		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
+		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
+
+	rows, err := r.db.Query(ctx, query, qb.Args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	cw := csv.NewWriter(w)
+	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
+
+	for rows.Next() {
+		var invoiceNumber, customerName, paymentMethod string
+		var createdAt time.Time
+		var itemCount int
+		var totalAmount int64
+		if err := rows.Scan(&invoiceNumber, &createdAt, &customerName, &itemCount, &paymentMethod, &totalAmount); err != nil {
+			return fmt.Errorf("scan sale export row: %w", err)
+		}
+		_ = shared.WriteCSVRow(cw, []string{
+			invoiceNumber,
+			createdAt.In(shared.JakartaLocation()).Format(time.RFC3339),
+			customerName,
+			strconv.Itoa(itemCount),
+			paymentMethod,
+			fmt.Sprintf("%d", totalAmount),
+		})
+		cw.Flush()
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	cw.Flush()
+	return cw.Error()
 }
 
 func (r *Repository) GetNextInvoiceNumber(ctx context.Context) (string, error) {

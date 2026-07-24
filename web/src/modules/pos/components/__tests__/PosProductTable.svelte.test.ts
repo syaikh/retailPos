@@ -53,4 +53,21 @@ describe('PosProductTable.svelte source-structure guards', () => {
   it('renders Pagination component', () => {
     expect(src).toContain('<Pagination');
   });
+
+  it('has selectedIndex bindable prop for keyboard navigation', () => {
+    expect(src).toContain('selectedIndex = $bindable');
+    expect(src).toContain('selectedIndex?: number');
+  });
+
+  it('has element bindable prop for scroll into view', () => {
+    expect(src).toContain('element = $bindable');
+    expect(src).toContain('element?: HTMLElement');
+    expect(src).toContain('bind:this={element}');
+  });
+
+  it('highlights selected product row', () => {
+    expect(src).toContain("idx === selectedIndex ? 'bg-primary/10");
+    expect(src).toContain('onclick={() => selectedIndex = idx}');
+    expect(src).toContain('ondblclick');
+  });
 });

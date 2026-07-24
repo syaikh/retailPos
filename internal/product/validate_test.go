@@ -75,15 +75,6 @@ func TestStrPtr(t *testing.T) {
 	assert.Nil(t, p)
 }
 
-func TestIntPtr(t *testing.T) {
-	p := intPtr(42)
-	require.NotNil(t, p)
-	assert.Equal(t, 42, *p)
-
-	p = intPtr(0)
-	assert.Nil(t, p)
-}
-
 func TestPtr(t *testing.T) {
 	p := ptr(42)
 	require.NotNil(t, p)

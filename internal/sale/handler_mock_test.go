@@ -2,8 +2,10 @@ package sale
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +24,7 @@ type mockSaleService struct {
 	getSaleByIDFn              func(ctx context.Context, id int, storeID *int) (*Sale, error)
 	listSalesFn                func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
 	getSalesForExportFn        func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
+	streamSalesExportCSVFn     func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	getNextInvoiceNumberFn     func(ctx context.Context) (string, error)
 	getAllPaymentMethodsFn     func(ctx context.Context) ([]PaymentMethod, error)
 	getPaymentMethodByCodeFn   func(ctx context.Context, code string) (*PaymentMethod, error)
@@ -52,6 +55,12 @@ func (m *mockSaleService) ListSales(ctx context.Context, limit, offset int, sear
 }
 func (m *mockSaleService) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
 	return m.getSalesForExportFn(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
+}
+func (m *mockSaleService) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+	if m.streamSalesExportCSVFn != nil {
+		return m.streamSalesExportCSVFn(ctx, w, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
+	}
+	return nil
 }
 func (m *mockSaleService) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 	return m.getNextInvoiceNumberFn(ctx)
@@ -589,8 +598,12 @@ func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
 
 func TestSaleHandler_ExportSales_CSV(t *testing.T) {
 	svc := &mockSaleService{
-		getSalesForExportFn: func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
-			return []SaleExportRow{{InvoiceNumber: "INV-001", TotalAmount: 10000}}, nil
+		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+			cw := csv.NewWriter(w)
+			_ = cw.Write([]string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
+			_ = cw.Write([]string{"INV-001", "2024-01-01T00:00:00+07:00", "", "0", "", "10000"})
+			cw.Flush()
+			return nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -615,23 +628,23 @@ func TestSaleHandler_ExportSales_XLSX(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Type"), "spreadsheetml")
 }
 
-func TestSaleHandler_ExportSales_Error(t *testing.T) {
+func TestSaleHandler_ExportSales_CSV_Error(t *testing.T) {
 	svc := &mockSaleService{
-		getSalesForExportFn: func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
-			return nil, assert.AnError
+		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+			return assert.AnError
 		},
 	}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales/export", nil)
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestSaleHandler_ExportSales_WithFilters(t *testing.T) {
 	svc := &mockSaleService{
-		getSalesForExportFn: func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
-			return []SaleExportRow{}, nil
+		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+			return nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)

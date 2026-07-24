@@ -14,8 +14,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/shared"
+)
+
+const (
+	maxLoginFailuresPerIP = 10
+	loginFailureWindow    = 15 * time.Minute
 )
 
 var (
@@ -28,6 +34,7 @@ var (
 type AuthService struct {
 	dbPool        shared.DBPool
 	repo          *Repository
+	auditSvc      audit.AuditCreator
 	jwtSecret     string
 	refreshSecret string
 	accessTTL     time.Duration
@@ -44,14 +51,14 @@ type AuthClaims struct {
 	jwt.RegisteredClaims
 }
 
-func NewAuthService(repo *Repository) *AuthService {
-	cfg := config.Load()
+func NewAuthService(repo *Repository, auditSvc audit.AuditCreator, cfg *config.Config) *AuthService {
 	if cfg.JWTSecret == "" {
 		panic("FATAL: JWT_SECRET environment variable is required.")
 	}
 	return &AuthService{
 		dbPool:        repo.db,
 		repo:          repo,
+		auditSvc:      auditSvc,
 		jwtSecret:     cfg.JWTSecret,
 		refreshSecret: cfg.JWTSecretRefresh,
 		accessTTL:     15 * time.Minute,
@@ -60,14 +67,30 @@ func NewAuthService(repo *Repository) *AuthService {
 }
 
 func (s *AuthService) Login(ctx context.Context, username, password string) (*LoginResponse, error) {
+	ip, _ := ctx.Value(shared.CtxKeyIPAddress).(string)
+	ua, _ := ctx.Value(shared.CtxKeyUserAgent).(string)
+
+	if ip != "" {
+		count, err := s.repo.CountRecentLoginFailures(ctx, ip, time.Now().Add(-loginFailureWindow))
+		if err != nil {
+			slog.Warn("failed to count recent login failures", "error", err)
+		} else if count >= maxLoginFailuresPerIP {
+			s.logFailure(ctx, username, ip, ua, "rate limited")
+			return nil, ErrInvalidCredentials
+		}
+	}
+
 	user, err := s.repo.GetByUsername(ctx, username)
 	if err != nil {
+		s.logFailure(ctx, username, ip, ua, "user not found")
 		return nil, ErrInvalidCredentials
 	}
 	if !user.IsActive {
+		s.logFailure(ctx, username, ip, ua, "inactive account")
 		return nil, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		s.logFailure(ctx, username, ip, ua, "invalid password")
 		return nil, ErrInvalidCredentials
 	}
 
@@ -197,6 +220,20 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int, currentPas
 	}
 
 	return nil
+}
+
+func (s *AuthService) logFailure(ctx context.Context, username, ip, ua, reason string) {
+	if s.auditSvc == nil {
+		return
+	}
+	_ = s.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+		Action:      "login_failed",
+		EntityType:  "auth",
+		Username:    username,
+		IPAddress:   ip,
+		UserAgent:   ua,
+		Description: fmt.Sprintf("Failed login for %s: %s", username, reason),
+	})
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {

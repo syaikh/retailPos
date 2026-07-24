@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/shared"
+
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +58,7 @@ func registerClient(t *testing.T, hub *Hub, userID int, storeID *int, isAdmin bo
 // --- Pure function tests ---
 
 func TestGetJakartaLoc(t *testing.T) {
-	loc := getJakartaLoc()
+	loc := shared.JakartaLocation()
 	require.NotNil(t, loc)
 	assert.Equal(t, "Asia/Jakarta", loc.String())
 }

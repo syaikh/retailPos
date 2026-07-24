@@ -225,7 +225,7 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 		stockQuery := fmt.Sprintf(`
 			INSERT INTO product_stock (product_id, quantity)
 			VALUES %s
-			ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity
+			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity
 		`, strings.Join(stockStrings, ", "))
 		_, err = r.db.Exec(ctx, stockQuery, stockArgs...)
 		if err != nil {

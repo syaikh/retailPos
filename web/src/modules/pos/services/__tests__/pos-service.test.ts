@@ -62,7 +62,7 @@ describe('pos-service', () => {
     const { createSale } = await import('../pos-service');
     const payload = {
       items: [{ product_id: 1, quantity: 2, unit_price: 5000, subtotal: 10000 }],
-      cashier_id: 1, store_id: null, subtotal: 10000, discount: 0, tax: 0,
+      cashier_id: 1, store_id: null, shift_id: null, subtotal: 10000, discount: 0, tax: 0,
       total_amount: 10000, payment_method: 'Cash', customer_id: null, status: 'completed',
     };
     const result = await createSale(payload) as { data: { data: { invoice_number: string } } };

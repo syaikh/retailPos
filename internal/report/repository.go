@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strings"
 	"time"
 
 	"retail-pos-system/internal/config"
@@ -79,66 +78,47 @@ func (r *Repository) GetPeriodComparison(
 	}
 
 	query := `
-		WITH period_stats AS (
-			SELECT
-				COALESCE(SUM(CASE WHEN created_at >= $1 AND created_at < $2 THEN total_amount ELSE 0 END), 0) as current_revenue,
-				COUNT(CASE WHEN created_at >= $1 AND created_at < $2 THEN 1 END) as current_orders,
-				COALESCE(SUM(CASE WHEN created_at >= $3 AND created_at < $4 THEN total_amount ELSE 0 END), 0) as previous_revenue,
-				COUNT(CASE WHEN created_at >= $3 AND created_at < $4 THEN 1 END) as previous_orders
+		WITH tagged AS MATERIALIZED (
+			SELECT total_amount,
+				CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
+				EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as h,
+				EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as yr,
+				EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as mo
 			FROM sales
 			WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
 				AND status = 'completed'
+				AND ($5::int IS NULL OR store_id = $5)
 		),
-		peak_hours AS (
+		base_metrics AS (
 			SELECT
-				MAX(CASE WHEN period = 'current' THEN hourly_total ELSE 0 END) as current_peak,
-				MAX(CASE WHEN period = 'previous' THEN hourly_total ELSE 0 END) as previous_peak
-			FROM (
-				SELECT
-					SUM(total_amount) as hourly_total,
-					period
-				FROM (
-					SELECT total_amount,
-						CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
-						EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as hour
-					FROM sales
-					WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
-						AND status = 'completed'
-				) tagged
-				GROUP BY hour, period
-			) hourly
+				COALESCE(SUM(CASE WHEN period = 'current' THEN total_amount ELSE 0 END), 0) as current_revenue,
+				COUNT(CASE WHEN period = 'current' THEN 1 END) as current_orders,
+				COALESCE(SUM(CASE WHEN period = 'previous' THEN total_amount ELSE 0 END), 0) as previous_revenue,
+				COUNT(CASE WHEN period = 'previous' THEN 1 END) as previous_orders
+			FROM tagged
 		),
-		peak_months AS (
+		peak_combined AS (
 			SELECT
-				MAX(CASE WHEN period = 'current' THEN monthly_total ELSE 0 END) as current_peak,
-				MAX(CASE WHEN period = 'previous' THEN monthly_total ELSE 0 END) as previous_peak
+				COALESCE(MAX(CASE WHEN period = 'current' THEN hourly_total ELSE 0 END), 0) as current_peak_hour,
+				COALESCE(MAX(CASE WHEN period = 'previous' THEN hourly_total ELSE 0 END), 0) as previous_peak_hour,
+				COALESCE(MAX(CASE WHEN period = 'current' THEN monthly_total ELSE 0 END), 0) as current_peak_month,
+				COALESCE(MAX(CASE WHEN period = 'previous' THEN monthly_total ELSE 0 END), 0) as previous_peak_month
 			FROM (
-				SELECT
-					SUM(total_amount) as monthly_total,
-					period
-				FROM (
-					SELECT total_amount,
-						CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
-						EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as yr,
-						EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as mo
-					FROM sales
-					WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
-						AND status = 'completed'
-				) tagged
-				GROUP BY yr, mo, period
-			) monthly
+				SELECT SUM(total_amount) as hourly_total, 0::bigint as monthly_total, period
+				FROM tagged GROUP BY h, period
+				UNION ALL
+				SELECT 0::bigint, SUM(total_amount), period
+				FROM tagged GROUP BY yr, mo, period
+			) combined
 		)
 		SELECT
-			ps.current_revenue, ps.current_orders,
-			ps.previous_revenue, ps.previous_orders,
-			COALESCE(ph.current_peak, 0), COALESCE(ph.previous_peak, 0),
-			COALESCE(pm.current_peak, 0), COALESCE(pm.previous_peak, 0)
-		FROM period_stats ps, peak_hours ph, peak_months pm`
+			bm.current_revenue, bm.current_orders,
+			bm.previous_revenue, bm.previous_orders,
+			pc.current_peak_hour, pc.previous_peak_hour,
+			pc.current_peak_month, pc.previous_peak_month
+		FROM base_metrics bm, peak_combined pc`
 
 	args := []interface{}{currentStart, currentEnd, previousStart, previousEnd, storeID}
-	storeFilter := ` AND (store_id = $5 OR $5 IS NULL)`
-
-	query = strings.ReplaceAll(query, "AND status = 'completed'", storeFilter+" AND status = 'completed'")
 
 	var result PeriodComparison
 	err := r.db.QueryRow(ctx, query, args...).Scan(
@@ -172,7 +152,7 @@ func (r *Repository) GetPeriodComparison(
 	result.PreviousRevenuePerDay = int(math.Round(float64(result.PreviousRevenue) / float64(days)))
 
 	if r.cache != nil {
-		ttl := 5*time.Second + time.Duration(rand.Intn(5))*time.Second
+		ttl := 25*time.Second + time.Duration(rand.Intn(10))*time.Second
 		r.cache.SetWithTTL(key, &result, ttl)
 	}
 
@@ -190,6 +170,21 @@ func (r *Repository) GetDualChartData(
 	ps := previousStart.Format("2006-01-02")
 	pe := previousEnd.Format("2006-01-02")
 
+	key := fmt.Sprintf("report:dualchart:%s:%s:%s:%s", cs, ce, ps, pe)
+	if storeID != nil {
+		key += fmt.Sprintf(":store:%d", *storeID)
+	}
+	type dualResult struct {
+		current  []ChartDataPoint
+		previous []ChartDataPoint
+	}
+	if r.cache != nil {
+		if cached, found := r.cache.Get(key); found {
+			res := cached.(*dualResult)
+			return res.current, res.previous, nil
+		}
+	}
+
 	storeFilter := ""
 	args := []interface{}{cs, ce, ps, pe}
 	if storeID != nil {
@@ -199,31 +194,29 @@ func (r *Repository) GetDualChartData(
 
 	query := `
 		WITH date_series AS (
-			SELECT generate_series(($1::date AT TIME ZONE 'Asia/Jakarta'), ($2::date AT TIME ZONE 'Asia/Jakarta'), '1 day') AS dt
+			SELECT generate_series($1::date, $2::date, '1 day') AS dt
 		),
 		current_agg AS (
-			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
-				   COALESCE(SUM(total_amount), 0) AS revenue
-			FROM sales
-			WHERE created_at >= ($1::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($2::date + 1) AT TIME ZONE 'Asia/Jakarta')
-				AND status = 'completed'` + storeFilter + `
-			GROUP BY 1
+			SELECT sale_date AS dt,
+				   SUM(total_revenue) AS revenue
+			FROM mv_daily_sales
+			WHERE sale_date >= $1::date AND sale_date < ($2::date + 1)` + storeFilter + `
+			GROUP BY sale_date
 		),
 		previous_agg AS (
-			SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
-				   COALESCE(SUM(total_amount), 0) AS revenue
-			FROM sales
-			WHERE created_at >= ($3::date AT TIME ZONE 'Asia/Jakarta') AND created_at < (($4::date + 1) AT TIME ZONE 'Asia/Jakarta')
-				AND status = 'completed'` + storeFilter + `
-			GROUP BY 1
+			SELECT sale_date AS dt,
+				   SUM(total_revenue) AS revenue
+			FROM mv_daily_sales
+			WHERE sale_date >= $3::date AND sale_date < ($4::date + 1)` + storeFilter + `
+			GROUP BY sale_date
 		)
-		SELECT (ds.dt AT TIME ZONE 'Asia/Jakarta')::date,
+		SELECT ds.dt,
 			   COALESCE(c.revenue, 0),
 			   COALESCE(p.revenue, 0)
 		FROM date_series ds
-		LEFT JOIN current_agg c ON c.dt = (ds.dt AT TIME ZONE 'Asia/Jakarta')::date
-		LEFT JOIN previous_agg p ON p.dt = (ds.dt AT TIME ZONE 'Asia/Jakarta')::date - ($1::date - $3::date)
-		ORDER BY 1`
+		LEFT JOIN current_agg c ON c.dt = ds.dt
+		LEFT JOIN previous_agg p ON p.dt = ds.dt - ($1::date - $3::date)
+		ORDER BY ds.dt`
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -246,6 +239,11 @@ func (r *Repository) GetDualChartData(
 		p.Total = prevTotal
 		current = append(current, c)
 		previous = append(previous, p)
+	}
+
+	if r.cache != nil && len(current) > 0 {
+		ttl := 25*time.Second + time.Duration(rand.Intn(10))*time.Second
+		r.cache.SetWithTTL(key, &dualResult{current, previous}, ttl)
 	}
 
 	return current, previous, rows.Err()
@@ -362,18 +360,18 @@ func (r *Repository) GetAvailableYears(ctx context.Context, storeID *int) ([]int
 func (r *Repository) GetHourlySales(ctx context.Context, date time.Time, storeID *int) ([]ChartDataPoint, error) {
 	end := date.Add(24 * time.Hour)
 	query := `
-		SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))::int AS hour,
-			   COALESCE(SUM(total_amount), 0) AS revenue
-		FROM sales
-		WHERE created_at >= $1 AND created_at < $2
-		  AND status = 'completed'`
+		SELECT EXTRACT(HOUR FROM sale_hour)::int AS hour,
+			   SUM(total_revenue) AS revenue
+		FROM mv_hourly_sales
+		WHERE sale_hour >= date_trunc('hour', $1::timestamptz AT TIME ZONE 'Asia/Jakarta')
+		  AND sale_hour < date_trunc('hour', $2::timestamptz AT TIME ZONE 'Asia/Jakarta')`
 	args := []interface{}{date, end}
 	argIdx := 3
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
 	}
-	query += " GROUP BY 1 ORDER BY 1"
+	query += " GROUP BY sale_hour ORDER BY sale_hour"
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -399,18 +397,18 @@ func (r *Repository) GetHourlySales(ctx context.Context, date time.Time, storeID
 
 func (r *Repository) GetDailySales(ctx context.Context, start, end time.Time, storeID *int) ([]ChartDataPoint, error) {
 	query := `
-		SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS dt,
-			   COALESCE(SUM(total_amount), 0) AS revenue
-		FROM sales
-		WHERE created_at >= $1 AND created_at < $2
-		  AND status = 'completed'`
+		SELECT sale_date AS dt,
+			   SUM(total_revenue) AS revenue
+		FROM mv_daily_sales
+		WHERE sale_date >= ($1::timestamptz AT TIME ZONE 'Asia/Jakarta')::date
+		  AND sale_date < ($2::timestamptz AT TIME ZONE 'Asia/Jakarta')::date`
 	args := []interface{}{start, end}
 	argIdx := 3
 	if storeID != nil {
 		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
 		args = append(args, *storeID)
 	}
-	query += " GROUP BY 1 ORDER BY 1"
+	query += " GROUP BY sale_date ORDER BY sale_date"
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

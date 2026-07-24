@@ -48,6 +48,7 @@ export function buildCheckoutPayload(
     })),
     cashier_id: cashierId,
     store_id: storeId,
+    shift_id: null,
     subtotal,
     discount: 0,
     tax,

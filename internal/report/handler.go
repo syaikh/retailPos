@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -49,250 +48,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/dashboard/pricing-breakdown", auth, perm("report.view"), h.GetPricingBreakdown)
 }
 
-type PeriodType string
-
-const (
-	PeriodDaily   PeriodType = "daily"
-	Period7Days   PeriodType = "7days"
-	PeriodWeekly  PeriodType = "weekly"
-	PeriodMonthly PeriodType = "monthly"
-	PeriodYearly  PeriodType = "yearly"
-)
-
-type PeriodRange struct {
-	CurrentStart  time.Time
-	CurrentEnd    time.Time
-	PreviousStart time.Time
-	PreviousEnd   time.Time
-	IsPartial     bool
-	DaysInPeriod  int
-}
-
-func getComparisonRanges(
-	periodType PeriodType,
-	referenceDate time.Time,
-	completedMode bool,
-) PeriodRange {
-	cfg := config.Load()
-	refDate := time.Date(referenceDate.Year(), referenceDate.Month(),
-		referenceDate.Day(), 0, 0, 0, 0, cfg.Timezone)
-
-	var pr PeriodRange
-
-	switch periodType {
-	case PeriodDaily:
-		pr = getDailyRanges(refDate, completedMode)
-	case Period7Days:
-		pr = get7DaysRanges(refDate, completedMode)
-	case PeriodWeekly:
-		pr = getWeeklyRanges(refDate, completedMode)
-	case PeriodMonthly:
-		pr = getMonthlyRanges(refDate, completedMode)
-	case PeriodYearly:
-		pr = getYearlyRanges(refDate, completedMode)
-	default:
-		pr = getDailyRanges(refDate, completedMode)
-	}
-
-	pr.DaysInPeriod = int(pr.CurrentEnd.Sub(pr.CurrentStart).Hours() / 24)
-	pr.IsPartial = isPeriodIncomplete(periodType, refDate) && (periodType == PeriodWeekly || periodType == PeriodMonthly || completedMode)
-
-	return pr
-}
-
-func getDailyRanges(refDate time.Time, completedMode bool) PeriodRange {
-	if completedMode {
-		sevenDaysAgo := refDate.AddDate(0, 0, -7)
-		return PeriodRange{
-			CurrentStart:  refDate,
-			CurrentEnd:    refDate.AddDate(0, 0, 1),
-			PreviousStart: sevenDaysAgo,
-			PreviousEnd:   sevenDaysAgo.AddDate(0, 0, 1),
-		}
-	}
-
-	return PeriodRange{
-		CurrentStart:  refDate.AddDate(0, 0, -6),
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: refDate.AddDate(0, 0, -13),
-		PreviousEnd:   refDate.AddDate(0, 0, -6),
-	}
-}
-
-func get7DaysRanges(refDate time.Time, completedMode bool) PeriodRange {
-	if completedMode {
-		weekday := refDate.Weekday()
-		daysSinceMonday := int(weekday - time.Monday)
-		if weekday == time.Sunday {
-			daysSinceMonday = 6
-		}
-		weekStart := refDate.AddDate(0, 0, -daysSinceMonday)
-		return PeriodRange{
-			CurrentStart:  weekStart.AddDate(0, 0, -7),
-			CurrentEnd:    weekStart,
-			PreviousStart: weekStart.AddDate(0, 0, -14),
-			PreviousEnd:   weekStart.AddDate(0, 0, -7),
-		}
-	}
-	return PeriodRange{
-		CurrentStart:  refDate.AddDate(0, 0, -6),
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: refDate.AddDate(0, 0, -13),
-		PreviousEnd:   refDate.AddDate(0, 0, -6),
-	}
-}
-
-func get30DaysRanges(refDate time.Time) PeriodRange {
-	return PeriodRange{
-		CurrentStart:  refDate.AddDate(0, 0, -29),
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: refDate.AddDate(0, 0, -59),
-		PreviousEnd:   refDate.AddDate(0, 0, -29),
-	}
-}
-
-func getWeeklyRanges(refDate time.Time, completedMode bool) PeriodRange {
-	startOfWeek := refDate.AddDate(0, 0, -int(refDate.Weekday()-time.Monday))
-	if refDate.Weekday() == time.Sunday {
-		startOfWeek = refDate.AddDate(0, 0, -6)
-	}
-
-	if completedMode {
-		endOfWeek := startOfWeek.AddDate(0, 0, 7)
-		return PeriodRange{
-			CurrentStart:  startOfWeek.AddDate(0, 0, -7),
-			CurrentEnd:    endOfWeek,
-			PreviousStart: startOfWeek.AddDate(0, 0, -14),
-			PreviousEnd:   startOfWeek.AddDate(0, 0, -7),
-		}
-	}
-
-	daysElapsed := int(refDate.Sub(startOfWeek).Hours()/24) + 1
-	previousStart := startOfWeek.AddDate(0, 0, -7)
-
-	return PeriodRange{
-		CurrentStart:  startOfWeek,
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: previousStart,
-		PreviousEnd:   previousStart.AddDate(0, 0, daysElapsed),
-	}
-}
-
-func getRealtimeRanges(refDate time.Time) PeriodRange {
-	currentHour := refDate.Hour()
-	currentPeriodEnd := time.Date(refDate.Year(), refDate.Month(), refDate.Day(), currentHour+1, 0, 0, 0, refDate.Location())
-
-	yesterdayStart := refDate.AddDate(0, 0, -1)
-	yesterdaySamePeriodEnd := time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), currentHour+1, 0, 0, 0, yesterdayStart.Location())
-
-	return PeriodRange{
-		CurrentStart:  time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, refDate.Location()),
-		CurrentEnd:    currentPeriodEnd,
-		PreviousStart: time.Date(yesterdayStart.Year(), yesterdayStart.Month(), yesterdayStart.Day(), 0, 0, 0, 0, yesterdayStart.Location()),
-		PreviousEnd:   yesterdaySamePeriodEnd,
-	}
-}
-
-func getMonthlyRanges(refDate time.Time, completedMode bool) PeriodRange {
-	startOfMonth := time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, refDate.Location())
-
-	if completedMode {
-		lastMonthEnd := startOfMonth
-		lastMonthStart := lastMonthEnd.AddDate(0, -1, 0)
-		return PeriodRange{
-			CurrentStart:  lastMonthStart,
-			CurrentEnd:    lastMonthEnd,
-			PreviousStart: lastMonthStart.AddDate(0, -1, 0),
-			PreviousEnd:   lastMonthStart,
-		}
-	}
-
-	daysElapsed := refDate.Day()
-	previousStart := startOfMonth.AddDate(0, -1, 0)
-	previousEnd := previousStart.AddDate(0, 0, daysElapsed)
-	if previousEnd.After(startOfMonth) {
-		previousEnd = startOfMonth
-	}
-
-	return PeriodRange{
-		CurrentStart:  startOfMonth,
-		CurrentEnd:    refDate.AddDate(0, 0, 1),
-		PreviousStart: previousStart,
-		PreviousEnd:   previousEnd,
-	}
-}
-
-func getYearlyRanges(refDate time.Time, completedMode bool) PeriodRange {
-	startOfYear := time.Date(refDate.Year(), 1, 1, 0, 0, 0, 0, refDate.Location())
-
-	if completedMode {
-		lastYearEnd := startOfYear
-		lastYearStart := lastYearEnd.AddDate(-1, 0, 0)
-		return PeriodRange{
-			CurrentStart:  lastYearStart,
-			CurrentEnd:    lastYearEnd,
-			PreviousStart: lastYearStart.AddDate(-1, 0, 0),
-			PreviousEnd:   lastYearStart,
-		}
-	}
-
-	nextDay := refDate.AddDate(0, 0, 1)
-	return PeriodRange{
-		CurrentStart:  startOfYear,
-		CurrentEnd:    nextDay,
-		PreviousStart: startOfYear.AddDate(-1, 0, 0),
-		PreviousEnd:   nextDay.AddDate(-1, 0, 0),
-	}
-}
-
-func isPeriodIncomplete(periodType PeriodType, refDate time.Time) bool {
-	switch periodType {
-	case PeriodWeekly:
-		nextDay := refDate.AddDate(0, 0, 1)
-		return nextDay.Weekday() != time.Monday
-	case PeriodMonthly:
-		nextDay := refDate.AddDate(0, 0, 1)
-		return nextDay.Month() == refDate.Month()
-	case PeriodYearly:
-		nextDay := refDate.AddDate(0, 0, 1)
-		return nextDay.Year() == refDate.Year() || refDate.Month() != time.December
-	default:
-		return false
-	}
-}
-
-type dateRange struct {
-	Start time.Time
-	End   time.Time
-}
-
-func parseDateRange(c *gin.Context, defaultStartDaysAgo int) (dateRange, bool) {
-	jakartaLoc := config.Load().Timezone
-	now := time.Now().In(jakartaLoc)
-	startDateStr := c.DefaultQuery("startDate", now.AddDate(0, 0, -defaultStartDaysAgo).Format("2006-01-02"))
-	endDateStr := c.DefaultQuery("endDate", now.Format("2006-01-02"))
-
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid startDate"})
-		return dateRange{}, false
-	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, jakartaLoc)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid endDate"})
-		return dateRange{}, false
-	}
-	if endDate.Before(startDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "endDate must not be before startDate"})
-		return dateRange{}, false
-	}
-	if startDate.AddDate(0, 0, 366).Before(endDate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date range must not exceed 366 days"})
-		return dateRange{}, false
-	}
-	return dateRange{Start: startDate, End: endDate}, true
-}
-
 // GetDashboardStats godoc
 // @Summary Get dashboard statistics
 // @Description Get today's revenue, sales, total products, and low stock count
@@ -303,11 +58,7 @@ func parseDateRange(c *gin.Context, defaultStartDaysAgo int) (dateRange, bool) {
 // @Success 200 {object} map[string]interface{}
 // @Router /dashboard/stats [get]
 func (h *Handler) GetDashboardStats(c *gin.Context) {
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 	ctx := c.Request.Context()
 
 	stats, err := h.svc.GetDashboardStats(ctx, sid)
@@ -333,11 +84,7 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 }
 
 func (h *Handler) GetLiveDashboardStats(c *gin.Context) {
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 	ctx := c.Request.Context()
 
 	todaysRevenue, todaysSales, totalProducts, lowStockCount, err := h.svc.GetLiveDashboardStats(ctx, sid)
@@ -392,9 +139,8 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 			return
 		}
 		if prevStartStr != "" && prevEndStr != "" {
-			prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
+			prevStart, ok := parseDateParam(c, "prevStart")
+			if !ok {
 				return
 			}
 			prevData, err := h.svc.GetHourlySales(ctx, sid, prevStart)
@@ -412,14 +158,12 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 	endDate = endDate.Add(24 * time.Hour)
 
 	if prevStartStr != "" && prevEndStr != "" {
-		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
+		prevStart, ok := parseDateParam(c, "prevStart")
+		if !ok {
 			return
 		}
-		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, config.Load().Timezone)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
+		prevEnd, ok := parseDateParam(c, "prevEnd")
+		if !ok {
 			return
 		}
 
@@ -441,11 +185,7 @@ func (h *Handler) GetSalesChartData(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 	ctx := c.Request.Context()
 
 	dr, ok := parseDateRange(c, 84)
@@ -464,11 +204,7 @@ func (h *Handler) GetSalesWeeklyReport(c *gin.Context) {
 }
 
 func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 	ctx := c.Request.Context()
 
 	dr, ok := parseDateRange(c, 365)
@@ -481,14 +217,12 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 	endDate = endDate.Add(24 * time.Hour)
 
 	if prevStartStr != "" && prevEndStr != "" {
-		prevStart, err := time.ParseInLocation("2006-01-02", prevStartStr, config.Load().Timezone)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevStart"})
+		prevStart, ok := parseDateParam(c, "prevStart")
+		if !ok {
 			return
 		}
-		prevEnd, err := time.ParseInLocation("2006-01-02", prevEndStr, config.Load().Timezone)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prevEnd"})
+		prevEnd, ok := parseDateParam(c, "prevEnd")
+		if !ok {
 			return
 		}
 		prevEnd = prevEnd.Add(24 * time.Hour)
@@ -525,15 +259,11 @@ func (h *Handler) GetSalesMonthlyReport(c *gin.Context) {
 func (h *Handler) GetPeriodComparison(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 
 	period := PeriodType(c.DefaultQuery("period", "daily"))
 	mode := c.DefaultQuery("mode", "realtime")
-	jakartaLoc := config.Load().Timezone
+	jakartaLoc := shared.JakartaLocation()
 	dateStr := c.DefaultQuery("date", time.Now().In(jakartaLoc).Format("2006-01-02"))
 	refDate, err := time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)
 	if err != nil {
@@ -578,7 +308,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 	chartDataStr := c.PostForm("chartData")
 	period := c.PostForm("period")
 	mode := c.PostForm("mode")
-	jakartaLoc := config.Load().Timezone
+	jakartaLoc := shared.JakartaLocation()
 	dateStr := c.DefaultPostForm("date", time.Now().In(jakartaLoc).Format("2006-01-02"))
 	refDate, err := time.ParseInLocation("2006-01-02", dateStr, jakartaLoc)
 	if err != nil {
@@ -656,11 +386,7 @@ func (h *Handler) ExportDashboard(c *gin.Context) {
 }
 
 func (h *Handler) GetAvailableYears(c *gin.Context) {
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 	ctx := c.Request.Context()
 
 	years, err := h.svc.GetAvailableYears(ctx, sid)

@@ -33,7 +33,7 @@ describe('PosPage.svelte source-structure guards', () => {
   });
 
   it('imports ShoppingCart from lucide-svelte for paymentOptions', () => {
-    expect(src).toContain("import { ShoppingCart } from 'lucide-svelte'");
+    expect(src).toContain("import { ShoppingCart, Hand, RotateCcw } from 'lucide-svelte'");
   });
 
   it('imports extracted child components', () => {
@@ -92,6 +92,24 @@ describe('PosPage.svelte source-structure guards', () => {
   it('handles customer selection', () => {
     expect(src).toContain('let customers: Customer[] = $state');
     expect(src).toContain('let selectedCustomerId');
+  });
+
+  it('has keyboard navigation state and scroll function', () => {
+    expect(src).toContain('let selectedProductIndex = $state');
+    expect(src).toContain('let productTableEl');
+    expect(src).toContain('function scrollSelectedIntoView');
+    expect(src).toContain('scrollIntoView');
+  });
+
+  it('handles arrow key navigation in product list', () => {
+    expect(src).toContain("event.key === 'ArrowDown'");
+    expect(src).toContain("event.key === 'ArrowUp'");
+    expect(src).toContain("event.key === 'Enter' && selectedProductIndex >= 0");
+  });
+
+  it('binds selectedIndex and element to PosProductTable', () => {
+    expect(src).toContain('bind:selectedIndex={selectedProductIndex}');
+    expect(src).toContain('bind:element={productTableEl}');
   });
 
   it('renders child component tags', () => {

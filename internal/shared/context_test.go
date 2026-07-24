@@ -103,6 +103,31 @@ func TestGetStoreID_WrongType(t *testing.T) {
 	}
 }
 
+func TestGetStoreIDInt_Present(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	sid := 7
+	c.Set("storeID", &sid)
+	got := GetStoreIDInt(c)
+	if got != 7 {
+		t.Errorf("expected 7, got %d", got)
+	}
+}
+
+func TestGetStoreIDInt_Missing(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	if got := GetStoreIDInt(c); got != 0 {
+		t.Errorf("expected 0, got %d", got)
+	}
+}
+
+func TestGetStoreIDInt_WrongType(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("storeID", "not-an-int")
+	if got := GetStoreIDInt(c); got != 0 {
+		t.Errorf("expected 0 for wrong type, got %d", got)
+	}
+}
+
 func TestGetIPAddress_FromRemoteAddr(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

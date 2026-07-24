@@ -181,11 +181,7 @@ func (h *Handler) GetProductByID(c *gin.Context) {
 		return
 	}
 
-	storeID := shared.GetStoreID(c)
-	sid := 0
-	if storeID != nil {
-		sid = *storeID
-	}
+	sid := shared.GetStoreIDInt(c)
 
 	product, err := h.svc.GetProductByID(c.Request.Context(), id, sid)
 	if err != nil {
@@ -325,10 +321,7 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 
 	var oldProduct *Product
 	if h.auditSvc != nil {
-		sid := 0
-		if storeID := shared.GetStoreID(c); storeID != nil {
-			sid = *storeID
-		}
+		sid := shared.GetStoreIDInt(c)
 		oldProduct, _ = h.svc.GetProductByID(c.Request.Context(), id, sid)
 	}
 

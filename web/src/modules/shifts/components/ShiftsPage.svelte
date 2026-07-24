@@ -591,7 +591,7 @@ import {
         {/if}
         {#if selectedShift.status === 'closed' && rbac.isManager}
           <div class="border-t border-border pt-4">
-            <Button variant="secondary" class="w-full" onclick={() => openAuditModal(selectedShift)}>
+            <Button variant="secondary" class="w-full" onclick={() => selectedShift && openAuditModal(selectedShift)}>
               <Clock size={16} class="mr-2" />
               Surprise Audit
             </Button>

@@ -53,6 +53,7 @@ let total: number = $state(0);
    let isSearching = $state(false);
    let lastSale: Sale | null = $state(null);
    let ws = useWebSocket();
+let selectedProductIndex = $state(-1);
 
   let unsubscribeStock: (() => void) | null = null;
   let unsubscribeSale: (() => void) | null = null;
@@ -113,6 +114,7 @@ let total: number = $state(0);
       const r = await apiClient.get(`/products?limit=${limit}&offset=${offset}&search=${searchQuery}&status=active`);
       products = r.data.data || [];
       total = r.data.total || 0;
+      selectedProductIndex = products.length > 0 ? 0 : -1;
     } catch (err) {
       toast.error('Failed to load products');
     } finally {
@@ -547,6 +549,8 @@ let total: number = $state(0);
     }
   });
 
+  let productTableEl: HTMLElement | undefined = $state();
+
   function handleGlobalKeydown(event: KeyboardEvent) {
     if (event.altKey && event.key === 'Delete') {
       event.preventDefault();
@@ -566,7 +570,7 @@ let total: number = $state(0);
       return;
     }
     // ESC clears search when not in modal
-    if (event.key === 'Escape' && !showCheckoutModal) {
+    if (event.key === 'Escape' && !showCheckoutModal && !showParkedModal && !showCustomerModal) {
       if (searchQuery) {
         searchQuery = '';
         fetchProducts(false);
@@ -590,19 +594,49 @@ let total: number = $state(0);
       }
       return;
     }
-    if (!showCheckoutModal) return;
-    if (event.key === 'Escape' || event.key === 'F3') {
-      event.preventDefault();
-      closeCheckoutModal();
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (changeDue >= 0) {
-        finalizeSale();
+    if (showCheckoutModal) {
+      if (event.key === 'Escape' || event.key === 'F3') {
+        event.preventDefault();
+        closeCheckoutModal();
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (changeDue >= 0) {
+          finalizeSale();
+        }
+        return;
       }
       return;
     }
+    if (showParkedModal || showCustomerModal) return;
+
+    if (products.length === 0 || loading) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectedProductIndex = Math.min(selectedProductIndex + 1, products.length - 1);
+      scrollSelectedIntoView();
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectedProductIndex = Math.max(selectedProductIndex - 1, 0);
+      scrollSelectedIntoView();
+      return;
+    }
+    if (event.key === 'Enter' && selectedProductIndex >= 0) {
+      event.preventDefault();
+      addToCart(products[selectedProductIndex]);
+      return;
+    }
+  }
+
+  function scrollSelectedIntoView() {
+    if (!productTableEl) return;
+    const rows = productTableEl.querySelectorAll('tbody tr');
+    const row = rows[selectedProductIndex] as HTMLElement | undefined;
+    if (row) row.scrollIntoView({ block: 'nearest' });
   }
 
   async function fetchThresholds() {
@@ -708,6 +742,8 @@ let total: number = $state(0);
         {warningThreshold}
         {criticalThreshold}
         bind:showCopySuccess
+        bind:selectedIndex={selectedProductIndex}
+        bind:element={productTableEl}
         onaddtocart={addToCart}
         oncopy={copyToClipboard}
         onpagechange={handlePageChange}

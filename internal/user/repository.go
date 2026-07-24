@@ -445,3 +445,14 @@ func (r *Repository) GetAllPermissions(ctx context.Context) ([]Permission, error
 	}
 	return perms, nil
 }
+
+func (r *Repository) CountRecentLoginFailures(ctx context.Context, ip string, cutoff time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM audit_logs
+		WHERE action = 'login_failed'
+		AND ip_address = $1::inet
+		AND created_at >= $2
+	`, ip, cutoff).Scan(&count)
+	return count, err
+}

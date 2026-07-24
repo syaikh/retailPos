@@ -10,13 +10,18 @@ import (
 func TestNew(t *testing.T) {
 	c := New(time.Minute, time.Minute)
 	assert.NotNil(t, c)
-	assert.NotNil(t, c.store)
+	c.Set("test", "val")
+	c.Wait()
+	v, ok := c.Get("test")
+	assert.True(t, ok)
+	assert.Equal(t, "val", v)
 }
 
 func TestSetGet(t *testing.T) {
 	t.Run("set then get returns value and true", func(t *testing.T) {
 		c := New(time.Minute, time.Minute)
 		c.Set("key1", "value1")
+		c.Wait()
 		val, ok := c.Get("key1")
 		assert.True(t, ok)
 		assert.Equal(t, "value1", val)
@@ -33,6 +38,7 @@ func TestSetGet(t *testing.T) {
 func TestDelete(t *testing.T) {
 	c := New(time.Minute, time.Minute)
 	c.Set("key1", "value1")
+	c.Wait()
 	c.Delete("key1")
 	val, ok := c.Get("key1")
 	assert.False(t, ok)
@@ -45,6 +51,7 @@ func TestFlushByPrefix(t *testing.T) {
 		c.Set("user:1", "u1")
 		c.Set("user:2", "u2")
 		c.Set("brand:1", "b1")
+		c.Wait()
 
 		c.FlushByPrefix("user:")
 
@@ -60,6 +67,7 @@ func TestFlushByPrefix(t *testing.T) {
 		c := New(time.Minute, time.Minute)
 		c.Set("key1", "v1")
 		c.Set("key2", "v2")
+		c.Wait()
 
 		c.FlushByPrefix("")
 
@@ -73,6 +81,7 @@ func TestFlushByPrefix(t *testing.T) {
 		c := New(time.Minute, time.Minute)
 		c.Set("user:1", "u1")
 		c.Set("user:2", "u2")
+		c.Wait()
 
 		c.FlushByPrefix("brand:")
 
@@ -87,6 +96,7 @@ func TestSetWithTTL(t *testing.T) {
 	t.Run("accessible immediately after set", func(t *testing.T) {
 		c := New(time.Minute, time.Minute)
 		c.SetWithTTL("key1", "value1", 100*time.Millisecond)
+		c.Wait()
 		val, ok := c.Get("key1")
 		assert.True(t, ok)
 		assert.Equal(t, "value1", val)
@@ -105,6 +115,7 @@ func TestSetWithTTL(t *testing.T) {
 		c := New(time.Minute, time.Minute)
 		ttl := 500 * time.Millisecond
 		c.SetWithTTL("key1", "value1", ttl)
+		c.Wait()
 
 		val, ok := c.Get("key1")
 		assert.True(t, ok)
@@ -117,6 +128,7 @@ func TestStats(t *testing.T) {
 	c.Set("a", 1)
 	c.Set("b", 2)
 	c.Set("c", 3)
+	c.Wait()
 
 	items, evictions := c.Stats()
 	assert.Equal(t, 3, items)

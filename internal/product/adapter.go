@@ -253,7 +253,7 @@ func (r *productRepoAdapter) resolveReferences(row ProductImportRow, catMap, bra
 		Stock:           row.Stock,
 		Status:          status,
 		UnitOfMeasureID: uomID,
-		WeightGrams:     intPtr(row.WeightGrams),
+		WeightGrams:     ptr(row.WeightGrams),
 		Description:     strPtr(row.Description),
 		StoreID:         storeID,
 	}, nil
