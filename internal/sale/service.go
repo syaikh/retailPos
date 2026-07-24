@@ -197,6 +197,12 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		return err
 	}
 
+	if sale.ShiftID != nil {
+		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, sale.PaymentMethod); err != nil {
+			return fmt.Errorf("update shift totals: %w", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
@@ -321,6 +327,12 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	// Cancel the parked sale
 	if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID); err != nil {
 		return fmt.Errorf("consume parked sale: %w", err)
+	}
+
+	if sale.ShiftID != nil {
+		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, sale.PaymentMethod); err != nil {
+			return fmt.Errorf("update shift totals: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {

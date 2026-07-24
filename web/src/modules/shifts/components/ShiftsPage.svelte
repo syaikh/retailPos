@@ -3,6 +3,7 @@
   import { goto } from '$app/router';
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
+import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
 import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { useAuthStore } from '$modules/auth';
@@ -15,7 +16,6 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
-  CheckCircle,
   Download,
 } from 'lucide-svelte';
   import type { Shift } from '../types';
@@ -35,7 +35,7 @@ import {
   let closeNotes = $state('');
   let isSubmitting = $state(false);
   let selectedShift = $state<Shift | null>(null);
-  let showDetailModal = $state(false);
+  let showDetailDrawer = $state(false);
   let showAuditModal = $state(false);
   let auditActualBalance = $state(0);
   let auditResult = $state<{ expected_cash: number; actual_balance: number; off_by: number } | null>(null);
@@ -128,7 +128,7 @@ import {
     try {
       await store.doReviewShift(selectedShift.id);
       selectedShift = null;
-      showDetailModal = false;
+      showDetailDrawer = false;
       prevFilters = '';
       store.loadShifts(store.currentFilters);
     } catch (e: any) {
@@ -140,7 +140,7 @@ import {
 
   function openDetail(shift: Shift) {
     selectedShift = shift;
-    showDetailModal = true;
+    showDetailDrawer = true;
   }
 
   function formatDateTime(dateStr: string | null) {
@@ -186,7 +186,7 @@ import {
     if (e.key === 'Escape') {
       showOpenModal = false;
       showCloseModal = false;
-      showDetailModal = false;
+      showDetailDrawer = false;
       showAuditModal = false;
     }
   }
@@ -509,101 +509,13 @@ import {
   {/snippet}
 </Modal>
 
-<!-- Detail Modal -->
-<Modal bind:open={showDetailModal} title="Shift Detail" size="md">
-  {#if selectedShift}
-    <div class="space-y-4">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-xs text-text-muted">Cashier</p>
-          <p class="text-sm font-medium text-text-primary">{selectedShift.username || '-'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-text-muted">Store</p>
-          <p class="text-sm font-medium text-text-primary">{selectedShift.store_name || '-'}</p>
-        </div>
-        <div>
-          <p class="text-xs text-text-muted">Status</p>
-          <Badge variant={selectedShift.status === 'open' ? 'success' : 'muted'}>
-            {selectedShift.status === 'open' ? 'Open' : 'Closed'}
-          </Badge>
-        </div>
-        <div>
-          <p class="text-xs text-text-muted">Opened At</p>
-          <p class="text-sm font-medium text-text-primary">{formatDateTime(selectedShift.opened_at)}</p>
-        </div>
-        {#if selectedShift.closed_at}
-          <div>
-            <p class="text-xs text-text-muted">Closed At</p>
-            <p class="text-sm font-medium text-text-primary">{formatDateTime(selectedShift.closed_at)}</p>
-          </div>
-        {/if}
-      </div>
-
-      <div class="border-t border-border pt-4 space-y-3">
-        <div class="flex justify-between">
-          <span class="text-sm text-text-muted">Opening Balance</span>
-          <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.opening_balance)}</span>
-        </div>
-        {#if selectedShift.closing_balance != null}
-          <div class="flex justify-between">
-            <span class="text-sm text-text-muted">Closing Balance</span>
-            <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.closing_balance)}</span>
-          </div>
-        {/if}
-        <div class="flex justify-between">
-          <span class="text-sm text-text-muted">Cash Sales</span>
-          <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.cash_sales)}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-sm text-text-muted">Non-Cash Sales</span>
-          <span class="text-sm font-medium text-text-primary">{formatMoney(selectedShift.non_cash_sales)}</span>
-        </div>
-        <div class="flex justify-between border-t border-border pt-2">
-          <span class="text-sm font-medium text-text-primary">Total Sales</span>
-          <span class="text-sm font-bold text-text-primary">{formatMoney(selectedShift.total_sales)}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-sm text-text-muted">Transactions</span>
-          <span class="text-sm font-medium text-text-primary">{selectedShift.transaction_count}</span>
-        </div>
-        {#if selectedShift.discrepancy != null}
-          <div class="flex justify-between border-t border-border pt-2">
-            <span class="text-sm font-medium text-text-primary">Discrepancy</span>
-            <span class="text-sm font-bold {selectedShift.discrepancy === 0 ? 'text-success' : 'text-danger'}">
-              {selectedShift.discrepancy > 0 ? '+' : ''}{formatMoney(selectedShift.discrepancy)}
-            </span>
-          </div>
-        {/if}
-        {#if selectedShift.notes}
-          <div class="border-t border-border pt-2">
-            <p class="text-xs text-text-muted">Notes</p>
-            <p class="text-sm text-text-primary">{selectedShift.notes}</p>
-          </div>
-        {/if}
-        {#if selectedShift.needs_review && rbac.isManager}
-          <div class="border-t border-border pt-4">
-            <Button variant="primary" class="w-full" onclick={handleReview}>
-              <CheckCircle size={16} class="mr-2" />
-              Review & Approve
-            </Button>
-          </div>
-        {/if}
-        {#if selectedShift.status === 'closed' && rbac.isManager}
-          <div class="border-t border-border pt-4">
-            <Button variant="secondary" class="w-full" onclick={() => selectedShift && openAuditModal(selectedShift)}>
-              <Clock size={16} class="mr-2" />
-              Surprise Audit
-            </Button>
-          </div>
-        {/if}
-      </div>
-    </div>
-  {/if}
-  {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => { showDetailModal = false; }}>Close</Button>
-  {/snippet}
-</Modal>
+<ShiftDetailDrawer
+  bind:showDetailDrawer
+  {selectedShift}
+  isManager={rbac.isManager}
+  onreview={handleReview}
+  onaudit={() => selectedShift && openAuditModal(selectedShift)}
+/>
 
 <!-- Audit Modal -->
 <Modal bind:open={showAuditModal} title="Surprise Audit" size="sm">

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/shared"
 )
 
@@ -69,6 +71,35 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 	return &shift, nil
 }
 
+const saleSummarySQL = `
+	SELECT
+		COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
+		COALESCE(SUM(total_amount), 0),
+		COUNT(*)
+	FROM sales
+	WHERE shift_id = $1
+	  AND status = 'completed'
+`
+
+func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (ShiftSummary, error) {
+	var summary ShiftSummary
+	err := r.db.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
+		&summary.TotalCashSales, &summary.TotalNonCashSales,
+		&summary.TotalSales, &summary.TotalTransactions,
+	)
+	return summary, err
+}
+
+func (r *Repository) getShiftSalesSummaryTx(ctx context.Context, tx pgx.Tx, shiftID int) (ShiftSummary, error) {
+	var summary ShiftSummary
+	err := tx.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
+		&summary.TotalCashSales, &summary.TotalNonCashSales,
+		&summary.TotalSales, &summary.TotalTransactions,
+	)
+	return summary, err
+}
+
 func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -106,20 +137,7 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 		shift.StoreName = storeName.String
 	}
 
-	var summary ShiftSummary
-	err = tx.QueryRow(ctx, `
-		SELECT
-			COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
-			COALESCE(SUM(total_amount), 0),
-			COUNT(*)
-		FROM sales
-		WHERE shift_id = $1
-		  AND status = 'completed'
-	`, shiftID).Scan(
-		&summary.TotalCashSales, &summary.TotalNonCashSales,
-		&summary.TotalSales, &summary.TotalTransactions,
-	)
+	summary, err := r.getShiftSalesSummaryTx(ctx, tx, shiftID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate shift summary: %w", err)
 	}
@@ -200,20 +218,16 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 		return nil, err
 	}
 
-	if err := r.db.QueryRow(ctx, `
-		SELECT
-			COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
-			COALESCE(SUM(total_amount), 0),
-			COUNT(*)
-		FROM sales
-		WHERE shift_id = $1
-		  AND status = 'completed'
-	`, shift.ID).Scan(
-		&shift.CashSales, &shift.NonCashSales,
-		&shift.TotalSales, &shift.TransactionCount,
-	); err != nil {
-		slog.Error("failed to scan live sales for active shift", "shift_id", shift.ID, "error", err)
+	if shift.CashSales == 0 && shift.TransactionCount == 0 {
+		summary, err := r.getShiftSalesSummary(ctx, shift.ID)
+		if err != nil {
+			slog.Error("failed to scan live sales for active shift", "shift_id", shift.ID, "error", err)
+		} else {
+			shift.CashSales = summary.TotalCashSales
+			shift.NonCashSales = summary.TotalNonCashSales
+			shift.TotalSales = summary.TotalSales
+			shift.TransactionCount = summary.TotalTransactions
+		}
 	}
 
 	if storeID.Valid {
@@ -410,19 +424,7 @@ func (r *Repository) CloseAll(ctx context.Context, userID int) ([]int, error) {
 	}
 
 	for _, shiftID := range shiftIDs {
-		var summary ShiftSummary
-		err = tx.QueryRow(ctx, `
-			SELECT
-				COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
-				COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
-				COALESCE(SUM(total_amount), 0),
-				COUNT(*)
-			FROM sales
-			WHERE shift_id = $1 AND status = 'completed'
-		`, shiftID).Scan(
-			&summary.TotalCashSales, &summary.TotalNonCashSales,
-			&summary.TotalSales, &summary.TotalTransactions,
-		)
+		summary, err := r.getShiftSalesSummaryTx(ctx, tx, shiftID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate shift summary for shift %d: %w", shiftID, err)
 		}
@@ -537,16 +539,10 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*S
 		return nil, 0, err
 	}
 
-	var liveCashSales int
-	err = r.db.QueryRow(ctx, `
-		SELECT COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0)
-		FROM sales
-		WHERE shift_id = $1
-		  AND status = 'completed'
-	`, shiftID).Scan(&liveCashSales)
+	summary, err := r.getShiftSalesSummary(ctx, shiftID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query live cash sales: %w", err)
 	}
 
-	return shift, liveCashSales, nil
+	return shift, summary.TotalCashSales, nil
 }
