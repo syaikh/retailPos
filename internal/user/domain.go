@@ -3,17 +3,19 @@ package user
 import "time"
 
 type User struct {
-	ID        int    `json:"id"`
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Password  string `json:"-"`
-	RoleID    int    `json:"role_id"`
-	Role      Role   `json:"role"`
-	StoreID   *int   `json:"store_id,omitempty"`
-	IsActive  bool   `json:"is_active"`
-	LastLogin string `json:"last_login,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
+	ID                int    `json:"id"`
+	Username          string `json:"username"`
+	Email             string `json:"email"`
+	Password          string `json:"-"`
+	RoleID            int    `json:"role_id"`
+	Role              Role   `json:"role"`
+	StoreID           *int   `json:"store_id,omitempty"`
+	ReportsToID       *int   `json:"reports_to,omitempty"`
+	ReportsToUsername string `json:"reports_to_username,omitempty"`
+	IsActive          bool   `json:"is_active"`
+	LastLogin         string `json:"last_login,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
 }
 
 type Role struct {
@@ -39,6 +41,7 @@ type Claims struct {
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
 	StoreID     *int     `json:"store_id,omitempty"`
+	ReportsToID *int     `json:"reports_to,omitempty"`
 }
 
 type LoginRequest struct {
@@ -53,9 +56,11 @@ type LoginResponse struct {
 }
 
 type UserWithPermissions struct {
-	ID          int      `json:"id"`
-	Username    string   `json:"username"`
-	Role        string   `json:"role"`
-	Permissions []string `json:"permissions"`
-	StoreID     *int     `json:"store_id,omitempty"`
+	ID                int      `json:"id"`
+	Username          string   `json:"username"`
+	Role              string   `json:"role"`
+	Permissions       []string `json:"permissions"`
+	StoreID           *int     `json:"store_id,omitempty"`
+	ReportsToID       *int     `json:"reports_to,omitempty"`
+	ReportsToUsername string   `json:"reports_to_username,omitempty"`
 }

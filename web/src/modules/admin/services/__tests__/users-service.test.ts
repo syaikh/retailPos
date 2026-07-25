@@ -84,4 +84,63 @@ describe('users-service', () => {
 
     expect(mockDelete).toHaveBeenCalledWith('/admin/users/1');
   });
+
+  it('getSubordinates returns users array', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: [{ id: 2, username: 'staff1' }] } });
+
+    const { getSubordinates } = await import('../users-service');
+    const result = await getSubordinates(1);
+
+    expect(mockGet).toHaveBeenCalledWith('/admin/users/1/subordinates');
+    expect(result).toHaveLength(1);
+    expect(result[0].username).toBe('staff1');
+  });
+
+  it('getSubordinates returns empty array on no data', async () => {
+    mockGet.mockResolvedValueOnce({ data: {} });
+
+    const { getSubordinates } = await import('../users-service');
+    const result = await getSubordinates(1);
+
+    expect(result).toEqual([]);
+  });
+
+  it('getManager returns user', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: { id: 3, username: 'manager' } } });
+
+    const { getManager } = await import('../users-service');
+    const result = await getManager(2);
+
+    expect(mockGet).toHaveBeenCalledWith('/admin/users/2/manager');
+    expect(result).not.toBeNull();
+    expect(result!.username).toBe('manager');
+  });
+
+  it('getManager returns null on no data', async () => {
+    mockGet.mockResolvedValueOnce({ data: {} });
+
+    const { getManager } = await import('../users-service');
+    const result = await getManager(2);
+
+    expect(result).toBeNull();
+  });
+
+  it('getOrgChart returns users array', async () => {
+    mockGet.mockResolvedValueOnce({ data: { data: [{ id: 1, username: 'ceo' }, { id: 2, username: 'manager' }] } });
+
+    const { getOrgChart } = await import('../users-service');
+    const result = await getOrgChart();
+
+    expect(mockGet).toHaveBeenCalledWith('/admin/users/org-chart');
+    expect(result).toHaveLength(2);
+  });
+
+  it('getOrgChart returns empty array on no data', async () => {
+    mockGet.mockResolvedValueOnce({ data: {} });
+
+    const { getOrgChart } = await import('../users-service');
+    const result = await getOrgChart();
+
+    expect(result).toEqual([]);
+  });
 });

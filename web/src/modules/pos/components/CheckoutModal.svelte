@@ -1,13 +1,20 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { Button, CurrencyInput } from '$shared/ui';
-  import { X, Check, User, ChevronRight } from 'lucide-svelte';
+  import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte';
   import { tick } from 'svelte';
+  import type { PaymentAllocation } from '../types';
 
   const denominations = [5000, 10000, 20000, 50000, 100000];
-  let exactMode = $state(false);
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
+
+  interface AllocationRow {
+    id: string;
+    methodCode: string;
+    amount: number;
+    referenceNumber: string;
+  }
 
   let {
     showCheckoutModal = $bindable(false),
@@ -16,13 +23,10 @@
     subtotal = 0,
     taxAmount = 0,
     dppDisplay = 0,
-    paymentMethod = $bindable('Cash'),
     paymentOptions = [],
     selectedCustomerLabel = '',
-    cashReceived = $bindable(0),
-    changeDue = 0,
     checkingOut = false,
-    onfinalize = () => {},
+    onfinalize = (payments: PaymentAllocation[]) => {},
     onselectcustomer = () => {},
   }: {
     showCheckoutModal: boolean;
@@ -31,15 +35,20 @@
     subtotal: number;
     taxAmount: number;
     dppDisplay: number;
-    paymentMethod: string;
     paymentOptions: any[];
     selectedCustomerLabel: string;
-    cashReceived: number;
-    changeDue: number;
     checkingOut: boolean;
-    onfinalize?: () => void;
+    onfinalize?: (payments: PaymentAllocation[]) => void;
     onselectcustomer?: () => void;
   } = $props();
+
+  let allocations = $state<AllocationRow[]>([]);
+  let nextId = $state(1);
+
+  const totalAllocated = $derived(allocations.reduce((sum, a) => sum + a.amount, 0));
+  const remainingBalance = $derived(totalAmount - totalAllocated);
+  const canComplete = $derived(remainingBalance === 0 && allocations.length > 0);
+  const cashAllocation = $derived(allocations.find(a => a.methodCode === 'CASH'));
 
   let totalSavings = $derived(
     cart.reduce((sum, item) => {
@@ -54,8 +63,28 @@
 
   function close() {
     showCheckoutModal = false;
-    cashReceived = 0;
-    exactMode = false;
+    allocations = [];
+    nextId = 1;
+  }
+
+  function addAllocation(methodCode: string) {
+    const existing = allocations.find(a => a.methodCode === methodCode);
+    if (existing) {
+      const input = document.getElementById(`alloc-amount-${existing.id}`);
+      input?.focus();
+      return;
+    }
+    const allocAmount = remainingBalance > 0 ? remainingBalance : 0;
+    allocations = [...allocations, {
+      id: `a${nextId++}`,
+      methodCode,
+      amount: allocAmount,
+      referenceNumber: '',
+    }];
+  }
+
+  function removeAllocation(id: string) {
+    allocations = allocations.filter(a => a.id !== id);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -65,10 +94,16 @@
       close();
       return;
     }
-    if (e.key === 'F7' && paymentMethod.toUpperCase() === 'CASH') {
+    if (e.key === 'F7' && cashAllocation) {
       e.preventDefault();
-      exactMode = true;
-      cashReceived = totalAmount;
+      allocations = allocations.map(a =>
+        a.methodCode === 'CASH' ? { ...a, amount: totalAmount } : a
+      );
+      return;
+    }
+    if (e.key === 'Enter' && canComplete) {
+      e.preventDefault();
+      handleFinalize();
       return;
     }
     if (e.key === 'Tab' && dialogEl) {
@@ -93,17 +128,10 @@
   }
 
   $effect(() => {
-    if (paymentMethod.toUpperCase() !== 'CASH') {
-      cashReceived = totalAmount;
-      exactMode = false;
-    } else if (!exactMode && cashReceived === 0) {
-      cashReceived = 0;
-    }
-  });
-
-  $effect(() => {
     if (showCheckoutModal) {
       previousFocus = document.activeElement as HTMLElement;
+      allocations = [];
+      nextId = 1;
       tick().then(() => {
         const firstFocusable = dialogEl?.querySelector<HTMLElement>(
           'button:not([disabled]), input:not([disabled])'
@@ -115,6 +143,16 @@
       previousFocus = null;
     }
   });
+
+  function handleFinalize() {
+    if (!canComplete) return;
+    const payments: PaymentAllocation[] = allocations.map(a => ({
+      payment_method_code: a.methodCode,
+      amount: a.amount,
+      reference_number: a.referenceNumber || undefined,
+    }));
+    onfinalize(payments);
+  }
 </script>
 
 {#if showCheckoutModal}
@@ -207,12 +245,13 @@
               </p>
             </div>
 
-            <!-- Payment Method -->
+            <!-- Payment Method Grid -->
             <div class="grid grid-cols-3 gap-1.5">
               {#each paymentOptions as opt}
+                {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
                 <button
-                  class="py-2 rounded-xl border text-[11px] font-medium transition-all {paymentMethod === opt.id ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-                  onclick={() => paymentMethod = opt.id}
+                  class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+                  onclick={() => addAllocation(opt.id)}
                 >
                   {opt.label}
                 </button>
@@ -229,76 +268,93 @@
               <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
             </button>
 
-            <!-- Cash / Non-cash -->
-            {#if paymentMethod.toUpperCase() === 'CASH'}
-              <div>
-                <label for="cash-received-input" class="text-[11px] text-text-muted mb-1.5 font-medium block">
-                  Cash Received
-                </label>
-                <CurrencyInput id="cash-received-input" bind:value={cashReceived} placeholder="0" />
-              </div>
+            <!-- Allocations List -->
+            <div class="flex-1 min-h-0 overflow-y-auto space-y-2">
+              {#each allocations as alloc (alloc.id)}
+                {@const opt = paymentOptions.find(o => o.id === alloc.methodCode)}
+                {@const isCash = alloc.methodCode === 'CASH'}
+                <div class="rounded-xl border border-border/50 bg-surface/50 p-2.5 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold text-text-primary px-2 py-0.5 rounded-lg bg-primary-subtle text-primary-light">
+                      {opt?.label || alloc.methodCode}
+                    </span>
+                    <button
+                      class="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-danger hover:bg-danger-subtle/30 transition-colors"
+                      onclick={() => removeAllocation(alloc.id)}
+                      title="Hapus pembayaran ini"
+                      aria-label="Hapus pembayaran"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
 
-              <div class="grid grid-cols-5 gap-1.5">
-                {#each denominations as denom}
-                  <button
-                    class="py-1.5 rounded-xl border text-[11px] font-semibold transition-all {exactMode ? 'border-border text-text-muted/40 opacity-40 cursor-not-allowed' : cashReceived > 0 && cashReceived % denom === 0 && cashReceived < denom * 2 ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30'}"
-                    disabled={exactMode}
-                    onclick={() => {
-                      if (exactMode) return;
-                      exactMode = false;
-                      cashReceived += denom;
-                    }}
-                  >
-                    {denom >= 1000000 ? `${denom / 1000000}jt` : denom >= 1000 ? `${denom / 1000}rb` : String(denom)}
-                  </button>
-                {/each}
-              </div>
+                  <div>
+                    <label for="alloc-amount-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
+                      Jumlah
+                    </label>
+                    <CurrencyInput
+                      id="alloc-amount-{alloc.id}"
+                      bind:value={alloc.amount}
+                      placeholder="0"
+                    />
+                  </div>
 
-              <div class="flex gap-1.5">
-                <button
-                  class="flex-1 py-1.5 rounded-xl border text-[11px] font-semibold transition-all {exactMode ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30'}"
-                  onclick={() => {
-                    exactMode = true;
-                    cashReceived = totalAmount;
-                  }}
-                >
-                  Tepat [F7]
-                </button>
-                <button
-                  class="flex-1 py-1.5 rounded-xl border border-danger/30 text-[11px] font-semibold text-danger hover:bg-danger-subtle/30 transition-all"
-                  onclick={() => {
-                    exactMode = false;
-                    cashReceived = 0;
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
-
-              <div
-                class="flex items-center justify-between px-3 py-1.5 rounded-xl
-                  {changeDue >= 0
-                    ? 'bg-success-subtle border border-success-default/20'
-                    : 'bg-danger-subtle border border-danger-default/20'}"
-              >
-                <span class="text-xs font-medium text-text-secondary">Kembali</span>
-                <span
-                  class="text-xl font-extrabold
-                    {changeDue >= 0 ? 'text-emerald-400' : 'text-danger-light'}"
-                >
-                  Rp {Math.abs(changeDue).toLocaleString('id-ID')}
-                  {#if changeDue < 0}
-                    <span class="text-[10px] font-semibold text-danger-light ml-1">(kurang)</span>
+                  {#if isCash}
+                    <div class="grid grid-cols-5 gap-1">
+                      {#each denominations as denom}
+                        <button
+                          class="py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
+                          onclick={() => { alloc.amount += denom; allocations = allocations; }}
+                        >
+                          {denom >= 1000000 ? `${denom / 1000000}jt` : denom >= 1000 ? `${denom / 1000}rb` : String(denom)}
+                        </button>
+                      {/each}
+                    </div>
+                    <div class="flex gap-1 mt-1">
+                      <button
+                        class="flex-1 py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
+                        onclick={() => { alloc.amount = totalAmount; allocations = allocations; }}
+                      >
+                        Tepat [F7]
+                      </button>
+                      <button
+                        class="flex-1 py-1 rounded-lg border border-danger/30 text-[10px] font-semibold text-danger hover:bg-danger-subtle/30 transition-all"
+                        onclick={() => { alloc.amount = 0; allocations = allocations; }}
+                      >
+                        Reset
+                      </button>
+                    </div>
                   {/if}
-                </span>
-              </div>
-            {:else}
-              <div class="text-center py-3 rounded-lg bg-surface/50 border border-border/50">
-                <p class="text-[11px] text-text-muted mb-1">Total yang harus dibayar</p>
-                <p class="text-2xl font-extrabold text-text-primary">Rp {totalAmount.toLocaleString('id-ID')}</p>
-                <p class="text-[11px] text-text-muted mt-1">Konfirmasi setelah pembayaran berhasil</p>
-              </div>
-            {/if}
+                </div>
+              {/each}
+
+              {#if allocations.length === 0}
+                <div class="text-center py-4 text-[11px] text-text-muted">
+                  Pilih metode pembayaran di atas untuk menambahkan pembayaran
+                </div>
+              {/if}
+            </div>
+
+            <!-- Remaining Balance -->
+            <div
+              class="flex items-center justify-between px-3 py-1.5 rounded-xl
+                {remainingBalance === 0
+                  ? 'bg-success-subtle border border-success-default/20'
+                  : remainingBalance > 0
+                    ? 'bg-warning-subtle border border-warning-default/20'
+                    : 'bg-danger-subtle border border-danger-default/20'}"
+            >
+              <span class="text-xs font-medium text-text-secondary">Sisa</span>
+              <span
+                class="text-xl font-extrabold
+                  {remainingBalance === 0 ? 'text-emerald-400' : remainingBalance > 0 ? 'text-amber-400' : 'text-danger-light'}"
+              >
+                Rp {Math.abs(remainingBalance).toLocaleString('id-ID')}
+                {#if remainingBalance < 0}
+                  <span class="text-[10px] font-semibold text-danger-light ml-1">(lebih)</span>
+                {/if}
+              </span>
+            </div>
 
             <!-- Spacer to push actions to bottom -->
             <div class="flex-1 min-h-2"></div>
@@ -315,8 +371,8 @@
               <Button
                 variant="success"
                 class="flex-1 py-2"
-                disabled={cart.length === 0 || changeDue < 0}
-                onclick={onfinalize}
+                disabled={cart.length === 0 || !canComplete}
+                onclick={handleFinalize}
               >
                 <Check size={14} />
                 Selesai [Enter]

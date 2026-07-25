@@ -35,8 +35,25 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { downloadInvoice } from '$modules/sales/lib/invoicePdf'");
   });
 
+  it('imports apiClient for sale detail fetch', () => {
+    expect(src).toContain("import apiClient from '$shared/api/http-client'");
+  });
+
   it('imports toast', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
+  });
+
+  it('has detailLoading state for full sale fetch', () => {
+    expect(src).toContain('let detailLoading = $state');
+  });
+
+  it('renders loading indicator when fetching detail', () => {
+    expect(src).toContain('detailLoading');
+  });
+
+  it('fetches full sale detail on open', () => {
+    expect(src).toContain('apiClient.get');
+    expect(src).toContain('selectedTransaction.id');
   });
 
   it('has statusVariant function', () => {

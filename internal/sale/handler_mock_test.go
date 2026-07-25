@@ -19,8 +19,8 @@ import (
 )
 
 type mockSaleService struct {
-	createSaleFn               func(ctx context.Context, sale *Sale, items []SaleItem) error
-	createSaleWithParkedSaleFn func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int) error
+	createSaleFn               func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error
+	createSaleWithParkedSaleFn func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error
 	getSaleByIDFn              func(ctx context.Context, id int, storeID *int) (*Sale, error)
 	listSalesFn                func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
 	getSalesForExportFn        func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
@@ -35,14 +35,14 @@ type mockSaleService struct {
 	getParkedSaleByIDFn        func(ctx context.Context, saleID int, cashierID int) (*Sale, error)
 }
 
-func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error {
-	return m.createSaleFn(ctx, sale, items)
+func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	return m.createSaleFn(ctx, sale, items, payments)
 }
-func (m *mockSaleService) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int) error {
+func (m *mockSaleService) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
 	if m.createSaleWithParkedSaleFn != nil {
-		return m.createSaleWithParkedSaleFn(ctx, sale, items, parkedSaleID)
+		return m.createSaleWithParkedSaleFn(ctx, sale, items, parkedSaleID, payments)
 	}
-	return m.createSaleFn(ctx, sale, items)
+	return m.createSaleFn(ctx, sale, items, payments)
 }
 func (m *mockSaleService) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	if m.getSaleByIDFn != nil {
@@ -114,7 +114,7 @@ func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine 
 func TestSaleHandler_CreateSale_Success(t *testing.T) {
 	var capturedSale *Sale
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			capturedSale = sale
 			return nil
@@ -142,7 +142,7 @@ func TestSaleHandler_CreateSale_Success(t *testing.T) {
 func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
 	var capturedSale *Sale
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			capturedSale = sale
 			return nil
@@ -171,7 +171,7 @@ func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
 func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
 	auditCalled := false
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			return nil
 		},
@@ -245,11 +245,11 @@ func TestSaleHandler_CreateSale_DiscountExceedsSubtotal(t *testing.T) {
 
 func TestSaleHandler_CreateSale_InvalidPaymentMethod(t *testing.T) {
 	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrInvalidPaymentMethod
+		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "INV-005", nil
-		},
-		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
-			return nil, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -280,7 +280,7 @@ func TestSaleHandler_CreateSale_InvoiceNumberError(t *testing.T) {
 
 func TestSaleHandler_CreateSale_InsufficientStock(t *testing.T) {
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			return ErrInsufficientStock
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -302,7 +302,7 @@ func TestSaleHandler_CreateSale_InsufficientStock(t *testing.T) {
 
 func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			return assert.AnError
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -324,7 +324,7 @@ func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
 func TestSaleHandler_CreateSale_ProvidedInvoiceNumber(t *testing.T) {
 	var capturedSale *Sale
 	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem) error {
+		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 			capturedSale = sale
 			sale.ID = 1
 			return nil
@@ -898,7 +898,7 @@ func TestSaleHandler_CancelParkedSale_InvalidID(t *testing.T) {
 func TestSaleHandler_CreateSale_WithParkedSaleID(t *testing.T) {
 	var capturedParkedSaleID *int
 	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int) error {
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			capturedParkedSaleID = parkedSaleID
 			sale.ID = 20
 			return nil
@@ -920,4 +920,223 @@ func TestSaleHandler_CreateSale_WithParkedSaleID(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 	require.NotNil(t, capturedParkedSaleID)
 	assert.Equal(t, 5, *capturedParkedSaleID)
+}
+
+func TestSaleHandler_CreateSale_SplitPayments_Success(t *testing.T) {
+	var capturedPayments []CreatePaymentRequest
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			capturedPayments = payments
+			sale.ID = 30
+			return nil
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-SPLIT-001", nil
+		},
+		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
+			return &Sale{ID: 30, InvoiceNumber: "INV-SPLIT-001", Payments: []SalePayment{
+				{PaymentMethodCode: "CASH", Amount: 30000},
+				{PaymentMethodCode: "QRIS", Amount: 20000},
+			}}, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":30000},{"payment_method_code":"QRIS","amount":20000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.Len(t, capturedPayments, 2)
+	assert.Equal(t, "CASH", capturedPayments[0].PaymentMethodCode)
+	assert.Equal(t, 30000, capturedPayments[0].Amount)
+	assert.Equal(t, "QRIS", capturedPayments[1].PaymentMethodCode)
+	assert.Equal(t, 20000, capturedPayments[1].Amount)
+}
+
+func TestSaleHandler_CreateSale_SplitPayments_WithReference(t *testing.T) {
+	var capturedPayments []CreatePaymentRequest
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			capturedPayments = payments
+			sale.ID = 31
+			return nil
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-SPLIT-REF-001", nil
+		},
+		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
+			return &Sale{ID: 31}, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":100000}],"payments":[{"payment_method_code":"CASH","amount":60000},{"payment_method_code":"CARD","amount":40000,"reference_number":"TXN-123"}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	require.Len(t, capturedPayments, 2)
+	assert.Equal(t, "CARD", capturedPayments[1].PaymentMethodCode)
+	assert.Equal(t, 40000, capturedPayments[1].Amount)
+	assert.Equal(t, "TXN-123", capturedPayments[1].ReferenceNumber)
+}
+
+func TestSaleHandler_CreateSale_MissingPayments(t *testing.T) {
+	svc := &mockSaleService{
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-NOPAY-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "payments or payment_method is required")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_TotalMismatch(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrPaymentTotalMismatch
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-MISM-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":30000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "total payments do not match")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_DuplicateMethod(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrDuplicatePaymentMethod
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-DUP-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"QRIS","amount":25000},{"payment_method_code":"QRIS","amount":25000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "duplicate payment method")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_MultipleCash(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrMultipleCashPayments
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-MC-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CASH","amount":25000},{"payment_method_code":"CASH","amount":25000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "only one cash payment")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_MaxExceeded(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrMaxPaymentsExceeded
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-MAX-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":100000}],"payments":[{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000},{"payment_method_code":"CASH","amount":10000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "maximum number")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_ReferenceRequired(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrPaymentReferenceRequired
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-REF-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"CARD","amount":50000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "reference number is required")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_InvalidMethod(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrInvalidPaymentMethod
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-INV-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"BITCOIN","amount":50000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid payment method")
+}
+
+func TestSaleHandler_CreateSale_SplitPayment_InactiveMethod(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrPaymentMethodInactive
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-INA-001", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":50000}],"payments":[{"payment_method_code":"INACTIVE","amount":50000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "payment method is not active")
 }

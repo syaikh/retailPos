@@ -1,5 +1,5 @@
 import apiClient from '$shared/api/http-client';
-import type { PosProduct, CheckoutPayload } from '../types';
+import type { PosProduct, CheckoutPayload, PaymentAllocation } from '../types';
 import { getTodayInJakarta } from '$shared/utils/jakartaTime';
 
 export interface ProductsResponse {

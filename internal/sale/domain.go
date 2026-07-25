@@ -1,22 +1,42 @@
 package sale
 
+import "errors"
+
+// ==================== DOMAIN ERRORS ====================
+
+var (
+	ErrPaymentTotalMismatch      = errors.New("total payments do not match sale total amount")
+	ErrDuplicatePaymentMethod    = errors.New("duplicate payment method in split payment")
+	ErrPaymentMethodInactive     = errors.New("payment method is not active")
+	ErrPaymentReferenceRequired  = errors.New("reference number is required for this payment method")
+	ErrZeroPaymentAmount         = errors.New("payment amount must be greater than zero")
+	ErrInvalidPaymentMethod      = errors.New("invalid payment method code")
+	ErrMaxPaymentsExceeded       = errors.New("maximum number of payment entries exceeded")
+	ErrMultipleCashPayments      = errors.New("only one cash payment per transaction is allowed")
+)
+
+const MaxPaymentsPerSale = 10
+
+// ==================== ENTITIES ====================
+
 type Sale struct {
-	ID            int        `json:"id"`
-	InvoiceNumber string     `json:"invoice_number"`
-	CashierID     int        `json:"cashier_id"`
-	ShiftID       *int       `json:"shift_id,omitempty"`
-	CustomerID    *int       `json:"customer_id,omitempty"`
-	CustomerName  string     `json:"customer_name,omitempty"`
-	StoreID       *int       `json:"store_id,omitempty"`
-	Subtotal      int        `json:"subtotal"`
-	Discount      int        `json:"discount"`
-	Tax           int        `json:"tax"`
-	TotalAmount   int        `json:"total_amount"`
-	PaymentMethod string     `json:"payment_method"`
-	Status        string     `json:"status"`
-	Items         []SaleItem `json:"items,omitempty"`
-	CreatedAt     string     `json:"created_at,omitempty"`
-	UpdatedAt     string     `json:"updated_at,omitempty"`
+	ID            int           `json:"id"`
+	InvoiceNumber string        `json:"invoice_number"`
+	CashierID     int           `json:"cashier_id"`
+	ShiftID       *int          `json:"shift_id,omitempty"`
+	CustomerID    *int          `json:"customer_id,omitempty"`
+	CustomerName  string        `json:"customer_name,omitempty"`
+	StoreID       *int          `json:"store_id,omitempty"`
+	Subtotal      int           `json:"subtotal"`
+	Discount      int           `json:"discount"`
+	Tax           int           `json:"tax"`
+	TotalAmount   int           `json:"total_amount"`
+	PaymentMethod string        `json:"payment_method"`
+	Status        string        `json:"status"`
+	Items         []SaleItem    `json:"items,omitempty"`
+	Payments      []SalePayment `json:"payments,omitempty"`
+	CreatedAt     string        `json:"created_at,omitempty"`
+	UpdatedAt     string        `json:"updated_at,omitempty"`
 }
 
 type SaleItem struct {
@@ -36,6 +56,22 @@ type SaleItem struct {
 	OriginalPrice    *int    `json:"original_price,omitempty"`
 }
 
+type SalePayment struct {
+	ID                int    `json:"id"`
+	SaleID            int    `json:"sale_id"`
+	PaymentMethodID   int    `json:"payment_method_id"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	Amount            int    `json:"amount"`
+	ReferenceNumber   string `json:"reference_number,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
+}
+
+type CreatePaymentRequest struct {
+	PaymentMethodCode string `json:"payment_method_code" binding:"required"`
+	Amount            int    `json:"amount" binding:"required,min=1"`
+	ReferenceNumber   string `json:"reference_number"`
+}
+
 type SaleExportRow struct {
 	InvoiceNumber string `json:"invoice_number"`
 	CreatedAt     string `json:"created_at"`
@@ -46,17 +82,18 @@ type SaleExportRow struct {
 }
 
 type SaleCreateRequest struct {
-	InvoiceNumber string     `json:"invoice_number"`
-	CashierID     int        `json:"cashier_id"`
-	ShiftID       *int       `json:"shift_id,omitempty"`
-	StoreID       *int       `json:"store_id,omitempty"`
-	Subtotal      int        `json:"subtotal"`
-	Discount      int        `json:"discount"`
-	Tax           int        `json:"tax"`
-	TotalAmount   int        `json:"total_amount"`
-	PaymentMethod string     `json:"payment_method"`
-	CustomerID    *int       `json:"customer_id,omitempty"`
-	Items         []SaleItem `json:"items"`
+	InvoiceNumber string                 `json:"invoice_number"`
+	CashierID     int                    `json:"cashier_id"`
+	ShiftID       *int                   `json:"shift_id,omitempty"`
+	StoreID       *int                   `json:"store_id,omitempty"`
+	Subtotal      int                    `json:"subtotal"`
+	Discount      int                    `json:"discount"`
+	Tax           int                    `json:"tax"`
+	TotalAmount   int                    `json:"total_amount"`
+	PaymentMethod string                 `json:"payment_method"`
+	CustomerID    *int                   `json:"customer_id,omitempty"`
+	Items         []SaleItem             `json:"items"`
+	Payments      []CreatePaymentRequest `json:"payments"`
 }
 
 type PaymentMethod struct {

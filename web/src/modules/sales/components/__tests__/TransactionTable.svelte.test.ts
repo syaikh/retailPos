@@ -35,6 +35,11 @@ describe('TransactionTable.svelte source-structure guards', () => {
     expect(src).toContain('function getPaymentMethodVariant');
   });
 
+  it('has splitPaymentMethods function for multiple payment display', () => {
+    expect(src).toContain('function splitPaymentMethods');
+    expect(src).toContain('sale.payment_method');
+  });
+
   it('has formatDateTime function', () => {
     expect(src).toContain('const formatDateTime');
   });

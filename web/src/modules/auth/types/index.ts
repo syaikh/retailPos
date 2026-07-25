@@ -5,6 +5,8 @@ export interface User {
   role?: { id: number; name: string } | string;
   role_id?: number;
   store_id?: number;
+  reports_to?: number | null;
+  reports_to_username?: string;
   is_active?: boolean;
   last_login?: string;
   created_at?: string;

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -182,7 +183,66 @@ func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, i
 	return nil
 }
 
-func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error {
+func (s *Service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]SalePayment, error) {
+	if len(payments) == 0 {
+		return nil, ErrZeroPaymentAmount
+	}
+	if len(payments) > MaxPaymentsPerSale {
+		return nil, ErrMaxPaymentsExceeded
+	}
+
+	var totalPaid int
+	result := make([]SalePayment, 0, len(payments))
+	seenMethods := make(map[string]bool)
+	cashCount := 0
+
+	for _, p := range payments {
+		if p.Amount <= 0 {
+			return nil, ErrZeroPaymentAmount
+		}
+
+		pm, err := s.repo.GetPaymentMethodByCode(ctx, p.PaymentMethodCode)
+		if err != nil {
+			return nil, ErrInvalidPaymentMethod
+		}
+		if !pm.IsActive {
+			return nil, ErrPaymentMethodInactive
+		}
+
+		methodUpper := strings.ToUpper(p.PaymentMethodCode)
+		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
+			cashCount++
+			if cashCount > 1 {
+				return nil, ErrMultipleCashPayments
+			}
+		} else {
+			if seenMethods[methodUpper] {
+				return nil, ErrDuplicatePaymentMethod
+			}
+		}
+		seenMethods[methodUpper] = true
+
+		if pm.RequiresReference && strings.TrimSpace(p.ReferenceNumber) == "" {
+			return nil, ErrPaymentReferenceRequired
+		}
+
+		totalPaid += p.Amount
+		result = append(result, SalePayment{
+			PaymentMethodID:   pm.ID,
+			PaymentMethodCode: pm.Code,
+			Amount:            p.Amount,
+			ReferenceNumber:   p.ReferenceNumber,
+		})
+	}
+
+	if totalPaid != totalAmount {
+		return nil, fmt.Errorf("%w: paid %d, expected %d", ErrPaymentTotalMismatch, totalPaid, totalAmount)
+	}
+
+	return result, nil
+}
+
+func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -193,12 +253,28 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem) 
 		return err
 	}
 
+	validatedPayments, err := s.validatePayments(ctx, sale.TotalAmount, payments)
+	if err != nil {
+		return err
+	}
+
+	codes := make([]string, len(validatedPayments))
+	for i, p := range validatedPayments {
+		codes[i] = p.PaymentMethodCode
+	}
+	sale.PaymentMethod = strings.Join(codes, ",")
+	sale.Payments = validatedPayments
+
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
 		return err
 	}
 
+	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, validatedPayments); err != nil {
+		return err
+	}
+
 	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, sale.PaymentMethod); err != nil {
+		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, validatedPayments); err != nil {
 			return fmt.Errorf("update shift totals: %w", err)
 		}
 	}
@@ -293,9 +369,9 @@ func (s *Service) GetParkedSaleByID(ctx context.Context, saleID int, cashierID i
 	return s.repo.GetParkedSaleByID(ctx, saleID, cashierID)
 }
 
-func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int) error {
+func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
 	if parkedSaleID == nil {
-		return s.CreateSale(ctx, sale, items)
+		return s.CreateSale(ctx, sale, items, payments)
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -320,7 +396,23 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
+	validatedPayments, err := s.validatePayments(ctx, sale.TotalAmount, payments)
+	if err != nil {
+		return err
+	}
+
+	codes := make([]string, len(validatedPayments))
+	for i, p := range validatedPayments {
+		codes[i] = p.PaymentMethodCode
+	}
+	sale.PaymentMethod = strings.Join(codes, ",")
+	sale.Payments = validatedPayments
+
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
+		return err
+	}
+
+	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, validatedPayments); err != nil {
 		return err
 	}
 
@@ -330,7 +422,7 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	}
 
 	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, sale.PaymentMethod); err != nil {
+		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, validatedPayments); err != nil {
 			return fmt.Errorf("update shift totals: %w", err)
 		}
 	}

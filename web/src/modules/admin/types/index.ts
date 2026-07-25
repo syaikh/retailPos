@@ -4,6 +4,8 @@ export interface User {
   email: string;
   role_id: number;
   role?: { id: number; name: string } | string;
+  reports_to?: number | null;
+  reports_to_username?: string;
   is_active: boolean;
   last_login?: string;
   created_at?: string;
@@ -15,6 +17,7 @@ export interface CreateUserPayload {
   password: string;
   role_id: number;
   is_active: boolean;
+  reports_to?: number | null;
 }
 
 export interface UpdateUserPayload {
@@ -23,6 +26,7 @@ export interface UpdateUserPayload {
   password?: string;
   role_id?: number;
   is_active?: boolean;
+  reports_to?: number | null;
 }
 
 export interface Role {

@@ -4,17 +4,14 @@
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
 import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
-import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination } from '$shared/ui';
+import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { useAuthStore } from '$modules/auth';
-import {
+  import {
   Clock,
   Plus,
   Lock,
   ChevronDown,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Loader2,
   Download,
 } from 'lucide-svelte';
@@ -78,15 +75,7 @@ import {
     }
   }
 
-  function toggleSort(column: string) {
-    if (store.sortBy === column) {
-      store.sortDir = store.sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      store.sortBy = column;
-      store.sortDir = 'desc';
-    }
-    store.page = 0;
-  }
+
 
   async function handleOpenShift() {
     if (openingBalance <= 0) return;
@@ -319,37 +308,31 @@ import {
   <!-- Table -->
   <div class="bg-surface rounded-xl border border-border overflow-hidden">
     <div class="overflow-x-auto">
-      <table class="w-full text-sm">
+      <table class="w-full text-sm table-fixed">
         <thead>
           <tr class="border-b border-border bg-surface-secondary">
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">
-              <button class="flex items-center gap-1 hover:text-text-primary" onclick={() => toggleSort('opened_at')}>
-                OPENED AT
-                {#if store.sortBy === 'opened_at'}
-                  {#if store.sortDir === 'asc'}<ArrowUp size={14} />{:else}<ArrowDown size={14} />{/if}
-                {:else}
-                  <ArrowUpDown size={14} />
-                {/if}
-              </button>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary {rbac.isCashier ? 'w-[170px]' : 'w-[150px]'}">
+              <SortableHeader label="OPENED AT" column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
             {#if !rbac.isCashier && authStore.user}
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">CASHIER</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary w-[120px]">CASHIER</th>
             {/if}
-            <th class="!text-right px-4 py-3 font-medium text-text-secondary">OPENING (Rp)</th>
-            <th class="!text-right px-4 py-3 font-medium text-text-secondary">CASH SALES (Rp)</th>
-            <th class="!text-right px-4 py-3 font-medium text-text-secondary">TOTAL SALES (Rp)</th>
-            <th class="text-center px-4 py-3 font-medium text-text-secondary">TXN</th>
-            <th class="!text-right px-4 py-3 font-medium text-text-secondary">DISCREPANCY (Rp)</th>
-            <th class="text-center px-4 py-3 font-medium text-text-secondary">STATUS</th>
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">
-              <button class="flex items-center gap-1 hover:text-text-primary" onclick={() => toggleSort('closed_at')}>
-                CLOSED AT
-                {#if store.sortBy === 'closed_at'}
-                  {#if store.sortDir === 'asc'}<ArrowUp size={14} />{:else}<ArrowDown size={14} />{/if}
-                {:else}
-                  <ArrowUpDown size={14} />
-                {/if}
-              </button>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+              <SortableHeader label="OPENING (RP)" column="opening_balance" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+            </th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+              <SortableHeader label="CASH SALES (RP)" column="cash_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+            </th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+              <SortableHeader label="TOTAL SALES (RP)" column="total_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+            </th>
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary w-[50px]">TXN</th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+              <SortableHeader label="DISCREPANCY" column="discrepancy" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+            </th>
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary w-[80px]">STATUS</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary w-[150px]">
+              <SortableHeader label="CLOSED AT" column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
           </tr>
         </thead>
@@ -373,31 +356,31 @@ import {
                 class="border-b border-border/50 hover:bg-surface-hover cursor-pointer transition-colors"
                 onclick={() => openDetail(shift)}
               >
-                <td class="px-4 py-3 text-text-primary">{formatDateTime(shift.opened_at)}</td>
+                <td class="px-3 py-3 text-text-primary text-xs whitespace-nowrap">{formatDateTime(shift.opened_at)}</td>
                 {#if !rbac.isCashier && authStore.user}
-                <td class="px-4 py-3 text-text-primary">{shift.username || '-'}</td>
+                <td class="px-3 py-3 text-text-primary text-xs truncate" title={shift.username || '-'}>{shift.username || '-'}</td>
                 {/if}
-                <td class="px-4 py-3 text-right text-text-primary">{formatNumber(shift.opening_balance)}</td>
-                <td class="px-4 py-3 text-right text-text-primary">{formatNumber(shift.cash_sales)}</td>
-                <td class="px-4 py-3 text-right font-medium text-text-primary">{formatNumber(shift.total_sales)}</td>
-                <td class="px-4 py-3 text-center text-text-secondary">{shift.transaction_count}</td>
-                <td class="px-4 py-3 text-right">
+                <td class="px-3 py-3 text-right text-text-primary text-xs tabular-nums">{formatNumber(shift.opening_balance)}</td>
+                <td class="px-3 py-3 text-right text-text-primary text-xs tabular-nums">{formatNumber(shift.cash_sales)}</td>
+                <td class="px-3 py-3 text-right font-medium text-text-primary text-xs tabular-nums">{formatNumber(shift.total_sales)}</td>
+                <td class="px-3 py-3 text-center text-text-secondary text-xs">{shift.transaction_count}</td>
+                <td class="px-3 py-3 text-right text-xs">
                   {#if shift.discrepancy != null}
-                    <span class="{shift.discrepancy === 0 ? 'text-success' : 'text-danger'}">
+                    <span class="{shift.discrepancy === 0 ? 'text-success' : 'text-danger'} tabular-nums">
                       {shift.discrepancy > 0 ? '+' : ''}{formatNumber(shift.discrepancy)}
                     </span>
                   {:else}
                     <span class="text-text-muted">-</span>
                   {/if}
                 </td>
-                <td class="px-4 py-3 text-center">
+                <td class="px-3 py-3 text-center">
                   {#if shift.status === 'open'}
-                    <Badge variant="success">Open</Badge>
+                    <Badge variant="success" size="sm">Open</Badge>
                   {:else}
-                    <Badge variant={shift.needs_review ? 'warning' : 'muted'}>Closed</Badge>
+                    <Badge variant={shift.needs_review ? 'warning' : 'muted'} size="sm">Closed</Badge>
                   {/if}
                 </td>
-                <td class="px-4 py-3 text-text-secondary">{formatDateTime(shift.closed_at)}</td>
+                <td class="px-3 py-3 text-text-secondary text-xs whitespace-nowrap">{formatDateTime(shift.closed_at)}</td>
               </tr>
             {/each}
           {/if}

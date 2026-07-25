@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,6 +107,67 @@ func TestUserService_RoleOperations(t *testing.T) {
 		count, err := svc.CountUsersByRole(ctx, 1)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+func TestUserService_HierarchyOperations(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	makeUser := func(uname string, reportsTo *int) *User {
+		return &User{
+			Username:    uname,
+			Email:       fmt.Sprintf("%s@test.com", uname),
+			Password:    hash,
+			RoleID:      1,
+			IsActive:    true,
+			ReportsToID: reportsTo,
+		}
+	}
+
+	mgr := makeUser("svc_hier_mgr", nil)
+	require.NoError(t, svc.CreateUser(ctx, mgr))
+
+	sub1 := makeUser("svc_hier_sub1", &mgr.ID)
+	require.NoError(t, svc.CreateUser(ctx, sub1))
+
+	sub2 := makeUser("svc_hier_sub2", &mgr.ID)
+	require.NoError(t, svc.CreateUser(ctx, sub2))
+
+	t.Run("GetSubordinates", func(t *testing.T) {
+		subs, err := svc.GetSubordinates(ctx, mgr.ID)
+		require.NoError(t, err)
+		assert.Len(t, subs, 2)
+	})
+
+	t.Run("GetManager", func(t *testing.T) {
+		m, err := svc.GetManager(ctx, sub1.ID)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+		assert.Equal(t, mgr.ID, m.ID)
+	})
+
+	t.Run("GetOrgChart", func(t *testing.T) {
+		users, err := svc.GetOrgChart(ctx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, users)
+	})
+
+	t.Run("IsSubordinate", func(t *testing.T) {
+		ok, err := svc.IsSubordinate(ctx, sub1.ID, mgr.ID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("IsSubordinate returns false for non-subordinate", func(t *testing.T) {
+		other := makeUser("svc_hier_other", nil)
+		require.NoError(t, svc.CreateUser(ctx, other))
+
+		ok, err := svc.IsSubordinate(ctx, sub1.ID, other.ID)
+		require.NoError(t, err)
+		assert.False(t, ok)
 	})
 }
 

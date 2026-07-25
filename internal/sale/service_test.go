@@ -2,6 +2,7 @@ package sale
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -50,7 +51,9 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err := svc.CreateSale(ctx, sale, items)
+	payments := []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}}
+
+	err := svc.CreateSale(ctx, sale, items, payments)
 	require.NoError(t, err)
 
 	select {
@@ -88,7 +91,9 @@ func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err := svc.CreateSale(ctx, sale, items)
+	payments := []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 100000}}
+
+	err := svc.CreateSale(ctx, sale, items, payments)
 	assert.ErrorIs(t, err, ErrInsufficientStock)
 }
 
@@ -119,7 +124,7 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 		DPPAmount: 10000,
 		TaxAmount: 0,
 	}}
-	err := svc.CreateSale(ctx, sale1, items1)
+	err := svc.CreateSale(ctx, sale1, items1, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 	require.NoError(t, err)
 
 	prodID2 := insertTestProduct(t, ctx, "SVC-DUP-PROD2", "Duplicate Svc Prod 2", 10000, 20)
@@ -141,7 +146,7 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err = svc.CreateSale(ctx, sale2, items2)
+	err = svc.CreateSale(ctx, sale2, items2, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}})
 	assert.Error(t, err)
 }
 
@@ -180,7 +185,7 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err = svc.CreateSale(ctx, sale, items)
+	err = svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000 * quantity}})
 	require.NoError(t, err)
 
 	var stockAfter int
@@ -218,7 +223,7 @@ func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err := svc.CreateSale(ctx, sale, items)
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 25000}})
 	require.NoError(t, err)
 	require.Greater(t, sale.ID, 0)
 
@@ -258,7 +263,7 @@ func TestSaleService_ReadOperations(t *testing.T) {
 		DPPAmount: 15000,
 		TaxAmount: 0,
 	}}
-	err := svc.CreateSale(ctx, sale, items)
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "QRIS", Amount: 15000}})
 	require.NoError(t, err)
 
 	t.Run("GetSaleByID", func(t *testing.T) {
@@ -342,7 +347,7 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.CreateSale(ctx, sale, items)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 15000}})
 		require.NoError(t, err)
 		assert.Equal(t, 15000, sale.Subtotal)
 		assert.Equal(t, 15000, items[0].UnitPrice)
@@ -368,7 +373,7 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.CreateSale(ctx, sale, items)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 	})
@@ -498,6 +503,150 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 	})
 }
 
+func TestSaleService_ValidatePayments(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	prodID := insertTestProduct(t, ctx, "SVC-SPLIT-PROD", "Split Payment Product", 50000, 100)
+	cashierID := insertTestCashier(t, ctx)
+
+	makeSale := func(inv string, total int) (*Sale, []SaleItem) {
+		return &Sale{
+			InvoiceNumber: inv,
+			CashierID:     cashierID,
+			Subtotal:      total,
+			TotalAmount:   total,
+			PaymentMethod: "",
+			Status:        "completed",
+		}, []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: total,
+			Subtotal:  total,
+			DPPAmount: total,
+			TaxAmount: 0,
+		}}
+	}
+
+	t.Run("success single cash payment", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-SGL-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 50000}})
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+		assert.Equal(t, "CASH", sale.PaymentMethod)
+	})
+
+	t.Run("success split payments CASH+QRIS", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-CQ-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{
+			{PaymentMethodCode: "CASH", Amount: 30000},
+			{PaymentMethodCode: "QRIS", Amount: 20000},
+		})
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+		assert.Contains(t, sale.PaymentMethod, "CASH")
+		assert.Contains(t, sale.PaymentMethod, "QRIS")
+
+		got, err := svc.GetSaleByID(ctx, sale.ID, nil)
+		require.NoError(t, err)
+		assert.Len(t, got.Payments, 2)
+	})
+
+	t.Run("empty payments returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-EMP-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, nil)
+		assert.ErrorIs(t, err, ErrZeroPaymentAmount)
+	})
+
+	t.Run("exceeds max payments", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-MAX-001", 100000)
+		payments := make([]CreatePaymentRequest, 0, MaxPaymentsPerSale+1)
+		for i := 0; i <= MaxPaymentsPerSale; i++ {
+			payments = append(payments, CreatePaymentRequest{PaymentMethodCode: "CASH", Amount: 10000})
+		}
+		err := svc.CreateSale(ctx, sale, items, payments)
+		assert.ErrorIs(t, err, ErrMaxPaymentsExceeded)
+	})
+
+	t.Run("zero amount payment returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-ZAM-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 0}})
+		assert.ErrorIs(t, err, ErrZeroPaymentAmount)
+	})
+
+	t.Run("payment total mismatch returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-MIS-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 30000}})
+		assert.ErrorIs(t, err, ErrPaymentTotalMismatch)
+	})
+
+	t.Run("duplicate non-cash method returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-DUP-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{
+			{PaymentMethodCode: "QRIS", Amount: 25000},
+			{PaymentMethodCode: "QRIS", Amount: 25000},
+		})
+		assert.ErrorIs(t, err, ErrDuplicatePaymentMethod)
+	})
+
+	t.Run("inactive payment method returns error", func(t *testing.T) {
+		inactiveCode := fmt.Sprintf("INA-%d", time.Now().UnixNano())
+		var inactiveID int
+		err := dbPool.QueryRow(ctx, `INSERT INTO payment_methods (code, name, is_active, requires_reference) VALUES ($1, $2, false, false) RETURNING id`, inactiveCode, "Inactive Method").Scan(&inactiveID)
+		require.NoError(t, err)
+
+		sale, items := makeSale("INV-SPLIT-INA-001", 50000)
+		err = svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: inactiveCode, Amount: 50000}})
+		assert.ErrorIs(t, err, ErrPaymentMethodInactive)
+	})
+
+	t.Run("invalid payment method code returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-INV-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "NONEXISTENT", Amount: 50000}})
+		assert.ErrorIs(t, err, ErrInvalidPaymentMethod)
+	})
+
+	t.Run("multiple cash payments returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-MC-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{
+			{PaymentMethodCode: "CASH", Amount: 25000},
+			{PaymentMethodCode: "CASH", Amount: 25000},
+		})
+		assert.ErrorIs(t, err, ErrMultipleCashPayments)
+	})
+
+	t.Run("reference required but missing returns error", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-REF-001", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CARD", Amount: 50000}})
+		assert.ErrorIs(t, err, ErrPaymentReferenceRequired)
+	})
+
+	t.Run("reference provided for method that requires it", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-REF-002", 50000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CARD", Amount: 50000, ReferenceNumber: "REF123"}})
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+	})
+
+	t.Run("cash plus card with reference", func(t *testing.T) {
+		sale, items := makeSale("INV-SPLIT-CC-001", 100000)
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{
+			{PaymentMethodCode: "CASH", Amount: 60000},
+			{PaymentMethodCode: "CARD", Amount: 40000, ReferenceNumber: "TXN-ABC-123"},
+		})
+		require.NoError(t, err)
+		assert.Greater(t, sale.ID, 0)
+		assert.Contains(t, sale.PaymentMethod, "CASH")
+		assert.Contains(t, sale.PaymentMethod, "CARD")
+	})
+}
+
 func TestSaleService_ListParkedSales(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
@@ -558,7 +707,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err = svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID)
+		err = svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}})
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 
@@ -588,7 +737,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID)
+		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 		assert.ErrorIs(t, err, ErrParkedSaleNotRecalled)
 	})
 }

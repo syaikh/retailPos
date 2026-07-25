@@ -1,29 +1,39 @@
 <script lang="ts">
   import { Button, Input, Modal, ToggleSwitch } from '$shared/ui';
-  import { User, Shield, ChevronDown, Loader2 } from 'lucide-svelte';
+  import { User, Shield, ChevronDown, Loader2, UserRoundCog } from 'lucide-svelte';
+  import { getUsers } from '$modules/admin';
 
   let {
     open = $bindable(false),
     modalMode = 'add',
-    form = $bindable({ username: '', email: '', password: '', role_id: 0, is_active: true }),
+    form = $bindable({ username: '', email: '', password: '', role_id: 0, is_active: true, reports_to: null }),
     roles = [],
     saving = $bindable(false),
     usernameHasInvalidChars = false,
+    canAssignManager = true,
     onsave = () => {},
   }: {
     open: boolean;
     modalMode?: string;
-    form?: { username: string; email: string; password: string; role_id: number; is_active: boolean };
+    form?: { username: string; email: string; password: string; role_id: number; is_active: boolean; reports_to: number | null };
     roles?: any[];
     saving?: boolean;
     usernameHasInvalidChars?: boolean;
+    canAssignManager?: boolean;
     onsave?: () => void;
   } = $props();
 
   let showFormRoleDropdown = $state(false);
+  let showReportsToDropdown = $state(false);
   let dropdownStyle = $state('');
+  let reportsToDropdownStyle = $state('');
+  let allUsers = $state<any[]>([]);
 
   let selectedRoleName = $derived(roles.find((r: any) => r.id === form.role_id)?.name || 'Select Role');
+
+  let selectedReportsToName = $derived(
+    form.reports_to ? allUsers.find((u: any) => u.id === form.reports_to)?.username || 'Unknown' : 'None (top-level)'
+  );
 
   function toggleFormRoleDropdown(e: any) {
     if (showFormRoleDropdown) {
@@ -31,6 +41,7 @@
       dropdownStyle = '';
       return;
     }
+    showReportsToDropdown = false;
     const btn = e.target.closest('button');
     if (btn) {
       const rect = btn.getBoundingClientRect();
@@ -39,10 +50,41 @@
     showFormRoleDropdown = true;
   }
 
+  function toggleReportsToDropdown(e: any) {
+    if (showReportsToDropdown) {
+      showReportsToDropdown = false;
+      reportsToDropdownStyle = '';
+      return;
+    }
+    showFormRoleDropdown = false;
+    loadAllUsers();
+    const btn = e.target.closest('button');
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      reportsToDropdownStyle = `position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:${rect.width}px;`;
+    }
+    showReportsToDropdown = true;
+  }
+
+  async function loadAllUsers() {
+    if (allUsers.length > 0) return;
+    try {
+      const result = await getUsers({ limit: 1000, offset: 0 });
+      allUsers = result.data;
+    } catch {
+      // silently fail
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (showFormRoleDropdown && e.key === 'Escape') {
       showFormRoleDropdown = false;
       dropdownStyle = '';
+      e.stopPropagation();
+    }
+    if (showReportsToDropdown && e.key === 'Escape') {
+      showReportsToDropdown = false;
+      reportsToDropdownStyle = '';
       e.stopPropagation();
     }
   }
@@ -103,6 +145,42 @@
         </div>
         <div class="flex items-end pb-2">
           <ToggleSwitch bind:checked={form.is_active} label="Active Account" />
+        </div>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-2 text-sm font-medium text-text-secondary mb-2">
+          <UserRoundCog size={14} class="text-text-muted" />
+          Reports To (Manager)
+        </label>
+        <div class="relative">
+          <button
+            type="button"
+            class="flex items-center gap-2 px-3 h-10 w-full rounded-xl border border-border bg-surface-default text-sm hover:border-border-strong hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={toggleReportsToDropdown}
+            disabled={!canAssignManager}
+          >
+            <span class="flex-1 text-left truncate">{selectedReportsToName}</span>
+            <ChevronDown size={14} class="text-text-muted shrink-0" />
+          </button>
+          {#if showReportsToDropdown}
+            <div style={reportsToDropdownStyle} class="z-[100] bg-surface-default border border-border rounded-lg shadow-xl">
+              <div class="p-1.5 max-h-64 overflow-y-auto">
+                <button
+                  type="button"
+                  class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {!form.reports_to ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                  onclick={() => { form.reports_to = null; showReportsToDropdown = false; }}
+                >None (top-level)</button>
+                {#each allUsers as u}
+                  <button
+                    type="button"
+                    class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {form.reports_to === u.id ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
+                    onclick={() => { form.reports_to = u.id; showReportsToDropdown = false; }}
+                  >{u.username}</button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
 

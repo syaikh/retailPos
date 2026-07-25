@@ -1,5 +1,11 @@
 import { writable } from 'svelte/store';
 
+export interface ReceiptPayment {
+  method: string;
+  amount: number;
+  reference_number?: string;
+}
+
 export interface ReceiptData {
   invoice_number: string;
   created_at: string;
@@ -15,6 +21,7 @@ export interface ReceiptData {
   subtotal_dpp?: number;
   tax?: number;
   paymentMethod: string;
+  payments?: ReceiptPayment[];
   cashReceived: number;
   changeDue: number;
   customer_name?: string;

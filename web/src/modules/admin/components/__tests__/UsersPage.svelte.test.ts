@@ -12,7 +12,8 @@ describe('UsersPage.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports api services', () => {
-    expect(src).toContain("import { getUsers, getRolesList, createUser, updateUser, deleteUser } from '$modules/admin'");
+    expect(src).toContain("getSubordinates");
+    expect(src).not.toContain("apiFetch(");
   });
 
   it('uses $state for users, loading, pagination', () => {

@@ -9,10 +9,11 @@ import (
 type ctxKey string
 
 const (
-	CtxKeyUserID   ctxKey = "userID"
-	CtxKeyUsername ctxKey = "username"
-	CtxKeyRole     ctxKey = "role"
-	CtxKeyStoreID  ctxKey = "storeID"
+	CtxKeyUserID      ctxKey = "userID"
+	CtxKeyUsername    ctxKey = "username"
+	CtxKeyRole        ctxKey = "role"
+	CtxKeyStoreID     ctxKey = "storeID"
+	CtxKeyReportsToID ctxKey = "reportsToID"
 )
 
 func UserIDFromContext(ctx context.Context) *int {
@@ -53,6 +54,15 @@ func IPAddressFromContext(ctx context.Context) string {
 
 func StoreIDFromContext(ctx context.Context) *int {
 	if v := ctx.Value(CtxKeyStoreID); v != nil {
+		if id, ok := v.(*int); ok {
+			return id
+		}
+	}
+	return nil
+}
+
+func ReportsToIDFromContext(ctx context.Context) *int {
+	if v := ctx.Value(CtxKeyReportsToID); v != nil {
 		if id, ok := v.(*int); ok {
 			return id
 		}

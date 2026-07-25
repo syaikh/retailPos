@@ -118,7 +118,7 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"customer_groups", "shifts", "stores",
 		"pricing_rules",
 		"users", "refresh_tokens",
-		"sales", "sale_items",
+		"sales", "sale_items", "sale_payments",
 		"inventory_movements",
 		"audit_logs",
 	}

@@ -38,6 +38,7 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		c.Set("role", claims.Role)
 		c.Set("permissions", claims.Permissions)
 		c.Set("storeID", claims.StoreID)
+		c.Set("reportsToID", claims.ReportsToID)
 
 		// Store user info in request context so event listeners can access it
 		ctx := c.Request.Context()
@@ -45,6 +46,7 @@ func NewModularAuthMiddleware(authService *user.AuthService) gin.HandlerFunc {
 		ctx = setCtxValue(ctx, CtxKeyUsername, claims.Username)
 		ctx = setCtxValue(ctx, CtxKeyRole, claims.Role)
 		ctx = setCtxValue(ctx, CtxKeyStoreID, claims.StoreID)
+		ctx = setCtxValue(ctx, CtxKeyReportsToID, claims.ReportsToID)
 		ctx = setCtxValue(ctx, shared.CtxKeyIPAddress, shared.GetIPAddress(c))
 		ctx = setCtxValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
 		c.Request = c.Request.WithContext(ctx)

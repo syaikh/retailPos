@@ -70,14 +70,39 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	return nil
 }
 
-func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID int, totalAmount int, paymentMethod string) error {
-	isCash := strings.EqualFold(paymentMethod, "cash")
+func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []SalePayment) error {
+	if len(payments) == 0 {
+		return nil
+	}
+	rows := make([][]interface{}, len(payments))
+	for i, p := range payments {
+		var refNum interface{}
+		if p.ReferenceNumber != "" {
+			refNum = p.ReferenceNumber
+		}
+		rows[i] = []interface{}{
+			saleID, p.PaymentMethodID, p.PaymentMethodCode, p.Amount, refNum,
+		}
+	}
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{"sale_payments"},
+		[]string{"sale_id", "payment_method_id", "payment_method_code", "amount", "reference_number"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return fmt.Errorf("batch insert sale payments: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID int, totalAmount int, payments []SalePayment) error {
 	cashSales := 0
 	nonCashSales := 0
-	if isCash {
-		cashSales = totalAmount
-	} else {
-		nonCashSales = totalAmount
+	for _, p := range payments {
+		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
+			cashSales += p.Amount
+		} else {
+			nonCashSales += p.Amount
+		}
 	}
 	_, err := tx.Exec(ctx, `
 		UPDATE shifts
@@ -94,6 +119,7 @@ func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID i
 func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	var sale Sale
 	var itemsJSON []byte
+	var paymentsJSON []byte
 	var createdAt, updatedAt time.Time
 
 	query := `
@@ -112,7 +138,19 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		           JOIN products p ON si.product_id = p.id
 		           WHERE si.sale_id = s.id),
 		       '[]'::jsonb
-		   ) as items
+		   ) as items,
+		   COALESCE(
+		           (SELECT jsonb_agg(jsonb_build_object(
+		               'id', sp.id, 'sale_id', sp.sale_id,
+		               'payment_method_id', sp.payment_method_id,
+		               'payment_method_code', sp.payment_method_code,
+		               'amount', sp.amount,
+		               'reference_number', sp.reference_number,
+		               'created_at', sp.created_at
+		           )) FROM sale_payments sp
+		           WHERE sp.sale_id = s.id),
+		       '[]'::jsonb
+		   ) as payments
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
 		WHERE s.id = $1`
@@ -126,7 +164,7 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		&sale.ID, &sale.InvoiceNumber, &sale.CashierID, &sale.CustomerID, &sale.StoreID,
 		&sale.Subtotal, &sale.Discount, &sale.Tax,
 		&sale.TotalAmount, &sale.PaymentMethod, &sale.Status,
-		&createdAt, &updatedAt, &sale.CustomerName, &itemsJSON,
+		&createdAt, &updatedAt, &sale.CustomerName, &itemsJSON, &paymentsJSON,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -140,6 +178,11 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 	if len(itemsJSON) > 0 {
 		if err := json.Unmarshal(itemsJSON, &sale.Items); err != nil {
 			slog.Warn("failed to unmarshal sale items", "sale_id", sale.ID, "error", err)
+		}
+	}
+	if len(paymentsJSON) > 0 {
+		if err := json.Unmarshal(paymentsJSON, &sale.Payments); err != nil {
+			slog.Warn("failed to unmarshal sale payments", "sale_id", sale.ID, "error", err)
 		}
 	}
 
@@ -291,10 +334,15 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
 		COALESCE(si_counts.cnt, 0) as items_count,
-		s.payment_method, s.total_amount
+		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
 		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
+		LEFT JOIN (
+			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
+			FROM sale_payments
+			GROUP BY sale_id
+		) sp_codes ON sp_codes.sale_id = s.id
 		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
 
 	rows, err := r.db.Query(ctx, query, qb.Args...)
@@ -323,10 +371,15 @@ func (r *Repository) StreamSalesExportCSV(ctx context.Context, w io.Writer, sear
 	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
 		COALESCE(si_counts.cnt, 0) as items_count,
-		s.payment_method, s.total_amount
+		COALESCE(sp_codes.payment_codes, s.payment_method) as payment_method, s.total_amount
 		FROM sales s
 		LEFT JOIN customers c ON s.customer_id = c.id
 		LEFT JOIN (SELECT sale_id, COUNT(*) AS cnt FROM sale_items GROUP BY sale_id) si_counts ON si_counts.sale_id = s.id
+		LEFT JOIN (
+			SELECT sale_id, STRING_AGG(payment_method_code, ',' ORDER BY id) AS payment_codes
+			FROM sale_payments
+			GROUP BY sale_id
+		) sp_codes ON sp_codes.sale_id = s.id
 		WHERE ` + qb.Where() + " ORDER BY s.created_at DESC"
 
 	rows, err := r.db.Query(ctx, query, qb.Args...)

@@ -14,6 +14,12 @@ export interface SaleItem {
   pricing_type?: string;
 }
 
+export interface PaymentInfo {
+  payment_method_code: string;
+  amount: number;
+  reference_number?: string;
+}
+
 export interface Sale {
   id: number;
   invoice_number: string;
@@ -24,6 +30,7 @@ export interface Sale {
   tax: number;
   total_amount: number;
   payment_method: string;
+  payments?: PaymentInfo[];
   status: string;
   items: SaleItem[];
   created_at: string;

@@ -27,6 +27,12 @@ export interface CartItem {
   discount?: number;
 }
 
+export interface PaymentAllocation {
+  payment_method_code: string;
+  amount: number;
+  reference_number?: string;
+}
+
 export interface CheckoutPayload {
   items: {
     product_id: number;
@@ -47,6 +53,7 @@ export interface CheckoutPayload {
   tax: number;
   total_amount: number;
   payment_method: string;
+  payments?: PaymentAllocation[];
   customer_id: number | null;
   status: string;
 }

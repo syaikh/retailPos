@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -37,6 +38,10 @@ type UserService interface {
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
 	DeleteUser(ctx context.Context, id int) error
+	GetSubordinates(ctx context.Context, managerID int) ([]User, error)
+	GetManager(ctx context.Context, userID int) (*User, error)
+	GetOrgChart(ctx context.Context) ([]User, error)
+	IsSubordinate(ctx context.Context, managerID, userID int) (bool, error)
 	GetAllRoles(ctx context.Context) ([]Role, error)
 	GetRoleByID(ctx context.Context, id int) (*Role, error)
 	CreateRole(ctx context.Context, role *Role) error
@@ -61,6 +66,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/admin/users", auth, perm("user.create"), h.CreateUser)
 	r.PUT("/admin/users/:id", auth, perm("user.update"), h.UpdateUser)
 	r.DELETE("/admin/users/:id", auth, perm("user.delete"), h.DeleteUser)
+	r.GET("/admin/users/:id/subordinates", auth, perm("user.view"), h.GetSubordinates)
+	r.GET("/admin/users/:id/manager", auth, perm("user.view"), h.GetManager)
+	r.GET("/admin/users/org-chart", auth, perm("user.view"), h.GetOrgChart)
 	r.GET("/admin/roles", auth, perm("role.view"), h.ListRoles)
 	r.POST("/admin/roles", auth, perm("role.create"), h.CreateRole)
 	r.PUT("/admin/roles/:id", auth, perm("role.update"), h.UpdateRole)
@@ -70,21 +78,23 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 }
 
 type CreateUserRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	RoleID   int    `json:"role_id" binding:"required"`
-	StoreID  *int   `json:"store_id"`
-	IsActive *bool  `json:"is_active"`
+	Username    string `json:"username" binding:"required"`
+	Email       string `json:"email" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	RoleID      int    `json:"role_id" binding:"required"`
+	StoreID     *int   `json:"store_id"`
+	ReportsToID *int   `json:"reports_to"`
+	IsActive    *bool  `json:"is_active"`
 }
 
 type UpdateUserRequest struct {
-	Username *string `json:"username"`
-	Email    *string `json:"email"`
-	Password *string `json:"password"`
-	RoleID   *int    `json:"role_id"`
-	StoreID  *int    `json:"store_id"`
-	IsActive *bool   `json:"is_active"`
+	Username    *string `json:"username"`
+	Email       *string `json:"email"`
+	Password    *string `json:"password"`
+	RoleID      *int    `json:"role_id"`
+	StoreID     *int    `json:"store_id"`
+	ReportsToID *int    `json:"reports_to"`
+	IsActive    *bool   `json:"is_active"`
 }
 
 type CreateRoleRequest struct {
@@ -167,12 +177,13 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	user := &User{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: string(hashedPassword),
-		RoleID:   req.RoleID,
-		StoreID:  req.StoreID,
-		IsActive: isActive,
+		Username:    req.Username,
+		Email:       req.Email,
+		Password:    string(hashedPassword),
+		RoleID:      req.RoleID,
+		StoreID:     req.StoreID,
+		ReportsToID: req.ReportsToID,
+		IsActive:    isActive,
 	}
 
 	if err := h.svc.CreateUser(c.Request.Context(), user); err != nil {
@@ -189,7 +200,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 			Action:      "create",
 			EntityType:  "user",
 			EntityID:    &user.ID,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": user.Username, "email": user.Email, "role_id": user.RoleID, "is_active": user.IsActive}),
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": user.Username, "email": user.Email, "role_id": user.RoleID, "reports_to": user.ReportsToID, "is_active": user.IsActive}),
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Created user %s", user.Username),
@@ -212,11 +223,24 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if req.RoleID != nil || req.StoreID != nil {
+	if req.RoleID != nil || req.StoreID != nil || req.ReportsToID != nil {
+		if req.ReportsToID != nil && *req.ReportsToID == id {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot set self as manager"})
+			return
+		}
+		if req.ReportsToID != nil {
+			cycle, err := h.svc.IsSubordinate(c.Request.Context(), *req.ReportsToID, id)
+			if err == nil && cycle {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "circular reference: user is already a subordinate of the proposed manager"})
+				return
+			}
+		}
 		if currentUserID, ok := c.Get("userID"); ok {
 			if uid, ok := currentUserID.(int); ok && uid == id {
-				c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify your own role or store"})
-				return
+				if req.RoleID != nil || req.StoreID != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify your own role or store"})
+					return
+				}
 			}
 		}
 	}
@@ -230,10 +254,11 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	var oldValues map[string]interface{}
 	if h.auditSvc != nil {
 		oldValues = shared.ToJSONMap(map[string]interface{}{
-			"username":  existing.Username,
-			"email":     existing.Email,
-			"role_id":   existing.RoleID,
-			"is_active": existing.IsActive,
+			"username":   existing.Username,
+			"email":      existing.Email,
+			"role_id":    existing.RoleID,
+			"reports_to": existing.ReportsToID,
+			"is_active":  existing.IsActive,
 		})
 	}
 
@@ -269,6 +294,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	if req.StoreID != nil {
 		existing.StoreID = req.StoreID
 	}
+	if req.ReportsToID != nil {
+		existing.ReportsToID = req.ReportsToID
+	}
 	if req.IsActive != nil {
 		existing.IsActive = *req.IsActive
 	}
@@ -288,7 +316,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			EntityType:  "user",
 			EntityID:    &existing.ID,
 			OldValues:   oldValues,
-			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "is_active": existing.IsActive}),
+			NewValues:   shared.ToJSONMap(map[string]interface{}{"username": existing.Username, "email": existing.Email, "role_id": existing.RoleID, "reports_to": existing.ReportsToID, "is_active": existing.IsActive}),
 			IPAddress:   shared.GetIPAddress(c),
 			UserAgent:   shared.GetUserAgent(c),
 			Description: fmt.Sprintf("Updated user %s", existing.Username),
@@ -338,6 +366,53 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *Handler) GetSubordinates(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	subordinates, err := h.svc.GetSubordinates(c.Request.Context(), id)
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+	if subordinates == nil {
+		subordinates = []User{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": subordinates})
+}
+
+func (h *Handler) GetManager(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	manager, err := h.svc.GetManager(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrManagerNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "manager not found"})
+			return
+		}
+		shared.InternalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": manager})
+}
+
+func (h *Handler) GetOrgChart(c *gin.Context) {
+	users, err := h.svc.GetOrgChart(c.Request.Context())
+	if err != nil {
+		shared.InternalError(c, err)
+		return
+	}
+	if users == nil {
+		users = []User{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
 func (h *Handler) ListRoles(c *gin.Context) {

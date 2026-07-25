@@ -54,6 +54,9 @@
           <SortableHeader label="ROLE" column="role_id" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-28">STATUS</th>
+        <th class="text-left p-4 font-semibold w-36">
+          <SortableHeader label="REPORTS TO" column="reports_to_username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        </th>
         <th class="text-left p-4 font-semibold w-44">
           <SortableHeader label="LAST LOGIN" column="last_login" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
@@ -86,6 +89,9 @@
               <Skeleton width="w-36" height="h-3.5" />
             </td>
             <td class="p-4">
+              <Skeleton width="w-32" height="h-3.5" />
+            </td>
+            <td class="p-4">
               <div class="flex items-center justify-center gap-2">
                 <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
                 <Skeleton width="w-8" height="h-8" rounded="rounded-xl" />
@@ -95,7 +101,7 @@
         {/each}
       {:else if users.length === 0}
         <tr>
-          <td colspan="5" class="px-4 py-12 text-center" aria-live="polite">
+          <td colspan="6" class="px-4 py-12 text-center" aria-live="polite">
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Users size={32} class="text-text-muted" />
             </div>
@@ -135,6 +141,9 @@
               {:else}
                 Never
               {/if}
+            </td>
+            <td class="p-4 text-sm text-text-muted">
+              {user.reports_to_username || '—'}
             </td>
             <td class="p-4 text-center">
               <div class="flex items-center justify-center gap-2">

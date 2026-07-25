@@ -13,7 +13,7 @@ describe('UsersPage.svelte source-structure guards', () => {
 
   // ── Imports ──────────────────────────────────────────────────────────────────
   it('imports service functions from $modules/admin', () => {
-    expect(src).toContain("import { getUsers, getRolesList, createUser, updateUser, deleteUser } from '$modules/admin'");
+    expect(src).toContain("import { getUsers, getRolesList, createUser, updateUser, deleteUser, getSubordinates } from '$modules/admin'");
   });
 
   it('does not import apiFetch from $lib/api/client', () => {
@@ -51,7 +51,7 @@ describe('UsersPage.svelte source-structure guards', () => {
 
   it('gates table action buttons behind canEdit/canDelete', () => {
     expect(src).toContain('openEdit(user)');
-    expect(src).toContain("selectedUser = user; showDeleteModal = true");
+    expect(src).toContain('openDelete(user)');
   });
 
   // ── Self-deletion guard ───────────────────────────────────────────────────────

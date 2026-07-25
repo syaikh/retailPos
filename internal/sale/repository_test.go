@@ -356,6 +356,249 @@ func TestSaleRepository_BeginTx(t *testing.T) {
 	assert.Equal(t, 1, result)
 }
 
+func TestSaleRepository_CreateSalePayments(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("insert and retrieve single payment", func(t *testing.T) {
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		prodID := insertTestProduct(t, ctx, "REPO-PAY-001", "Pay Test Product", 10000, 10)
+		cashierID := insertTestCashier(t, ctx)
+		sale := &Sale{
+			InvoiceNumber: "INV-REPO-PAY-001",
+			CashierID:     cashierID,
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		err = repo.CreateSale(ctx, tx, sale, []SaleItem{{
+			ProductID: prodID, Quantity: 1, UnitPrice: 10000, Subtotal: 10000, DPPAmount: 10000,
+		}})
+		require.NoError(t, err)
+
+		payments := []SalePayment{{
+			SaleID: sale.ID, PaymentMethodID: 1, PaymentMethodCode: "CASH", Amount: 10000,
+		}}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		var count int
+		err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM sale_payments WHERE sale_id = $1`, sale.ID).Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("insert multiple payments", func(t *testing.T) {
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		prodID := insertTestProduct(t, ctx, "REPO-PAY-002", "Pay Test Multi", 50000, 10)
+		cashierID := insertTestCashier(t, ctx)
+		sale := &Sale{
+			InvoiceNumber: "INV-REPO-PAY-002",
+			CashierID:     cashierID,
+			Subtotal:      50000,
+			TotalAmount:   50000,
+			PaymentMethod: "CASH,QRIS",
+			Status:        "completed",
+		}
+		err = repo.CreateSale(ctx, tx, sale, []SaleItem{{
+			ProductID: prodID, Quantity: 1, UnitPrice: 50000, Subtotal: 50000, DPPAmount: 50000,
+		}})
+		require.NoError(t, err)
+
+		payments := []SalePayment{
+			{SaleID: sale.ID, PaymentMethodID: 1, PaymentMethodCode: "CASH", Amount: 30000},
+			{SaleID: sale.ID, PaymentMethodID: 5, PaymentMethodCode: "QRIS", Amount: 20000},
+		}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		var count int
+		err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM sale_payments WHERE sale_id = $1`, sale.ID).Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+}
+
+func TestSaleRepository_GetSaleByIDWithPayments(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("sale with split payments returns payments array", func(t *testing.T) {
+		prodID := insertTestProduct(t, ctx, "REPO-GET-PAY", "Get Pay Product", 50000, 20)
+		cashierID := insertTestCashier(t, ctx)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		sale := &Sale{
+			InvoiceNumber: "INV-REPO-GET-PAY-001",
+			CashierID:     cashierID,
+			Subtotal:      50000,
+			TotalAmount:   50000,
+			PaymentMethod: "CASH,QRIS",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID, Quantity: 1, UnitPrice: 50000, Subtotal: 50000, DPPAmount: 50000,
+		}}
+		err = repo.CreateSale(ctx, tx, sale, items)
+		require.NoError(t, err)
+
+		payments := []SalePayment{
+			{SaleID: sale.ID, PaymentMethodID: 1, PaymentMethodCode: "CASH", Amount: 30000},
+			{SaleID: sale.ID, PaymentMethodID: 5, PaymentMethodCode: "QRIS", Amount: 20000},
+		}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		got, err := repo.GetSaleByID(ctx, sale.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, got.Payments, 2)
+
+		assert.Equal(t, "CASH", got.Payments[0].PaymentMethodCode)
+		assert.Equal(t, 30000, got.Payments[0].Amount)
+		assert.Equal(t, "QRIS", got.Payments[1].PaymentMethodCode)
+		assert.Equal(t, 20000, got.Payments[1].Amount)
+	})
+
+	t.Run("sale without payments returns empty array", func(t *testing.T) {
+		prodID := insertTestProduct(t, ctx, "REPO-GET-PAY-NP", "Get Pay NoPay", 10000, 10)
+		sale := createAndCommitSale(t, ctx, repo, "INV-REPO-GET-PAY-NOPAY", prodID, 1, 10000, 10000, 10000, 0)
+
+		got, err := repo.GetSaleByID(ctx, sale.ID, nil)
+		require.NoError(t, err)
+		assert.Empty(t, got.Payments)
+	})
+}
+
+func TestSaleRepository_UpdateShiftTotalsWithPayments(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	setupShift := func(t *testing.T) (int, int) {
+		t.Helper()
+		cashierID := insertTestCashier(t, ctx)
+		var shiftID int
+		err := dbPool.QueryRow(ctx, `
+			INSERT INTO shifts (user_id, status, opening_balance, opened_at)
+			VALUES ($1, 'open', 0, NOW()) RETURNING id
+		`, cashierID).Scan(&shiftID)
+		require.NoError(t, err)
+		return cashierID, shiftID
+	}
+
+	getShiftTotals := func(t *testing.T, shiftID int) (cashSales, nonCashSales, totalSales int) {
+		t.Helper()
+		err := dbPool.QueryRow(ctx, `
+			SELECT cash_sales, non_cash_sales, total_sales FROM shifts WHERE id = $1
+		`, shiftID).Scan(&cashSales, &nonCashSales, &totalSales)
+		require.NoError(t, err)
+		return
+	}
+
+	t.Run("cash payment updates cash_sales only", func(t *testing.T) {
+		cashierID, shiftID := setupShift(t)
+		prodID := insertTestProduct(t, ctx, "REPO-SHIFT-CASH", "Shift Cash", 10000, 10)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		sale := &Sale{InvoiceNumber: "INV-SHIFT-CASH", CashierID: cashierID, ShiftID: &shiftID, Subtotal: 10000, TotalAmount: 10000, PaymentMethod: "CASH", Status: "completed"}
+		err = repo.CreateSale(ctx, tx, sale, []SaleItem{{ProductID: prodID, Quantity: 1, UnitPrice: 10000, Subtotal: 10000, DPPAmount: 10000}})
+		require.NoError(t, err)
+
+		payments := []SalePayment{{SaleID: sale.ID, PaymentMethodID: 1, PaymentMethodCode: "CASH", Amount: 10000}}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = repo.UpdateShiftTotals(ctx, tx, shiftID, 10000, payments)
+		require.NoError(t, err)
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		cashSales, nonCashSales, totalSales := getShiftTotals(t, shiftID)
+		assert.Equal(t, 10000, cashSales)
+		assert.Equal(t, 0, nonCashSales)
+		assert.Equal(t, 10000, totalSales)
+	})
+
+	t.Run("non-cash payment updates non_cash_sales only", func(t *testing.T) {
+		cashierID, shiftID := setupShift(t)
+		prodID := insertTestProduct(t, ctx, "REPO-SHIFT-NC", "Shift NonCash", 20000, 10)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		sale := &Sale{InvoiceNumber: "INV-SHIFT-NC", CashierID: cashierID, ShiftID: &shiftID, Subtotal: 20000, TotalAmount: 20000, PaymentMethod: "QRIS", Status: "completed"}
+		err = repo.CreateSale(ctx, tx, sale, []SaleItem{{ProductID: prodID, Quantity: 1, UnitPrice: 20000, Subtotal: 20000, DPPAmount: 20000}})
+		require.NoError(t, err)
+
+		payments := []SalePayment{{SaleID: sale.ID, PaymentMethodID: 5, PaymentMethodCode: "QRIS", Amount: 20000}}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = repo.UpdateShiftTotals(ctx, tx, shiftID, 20000, payments)
+		require.NoError(t, err)
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		cashSales, nonCashSales, totalSales := getShiftTotals(t, shiftID)
+		assert.Equal(t, 0, cashSales)
+		assert.Equal(t, 20000, nonCashSales)
+		assert.Equal(t, 20000, totalSales)
+	})
+
+	t.Run("mixed payments update both correctly", func(t *testing.T) {
+		cashierID, shiftID := setupShift(t)
+		prodID := insertTestProduct(t, ctx, "REPO-SHIFT-MIX", "Shift Mixed", 50000, 10)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		sale := &Sale{InvoiceNumber: "INV-SHIFT-MIX", CashierID: cashierID, ShiftID: &shiftID, Subtotal: 50000, TotalAmount: 50000, PaymentMethod: "CASH,QRIS", Status: "completed"}
+		err = repo.CreateSale(ctx, tx, sale, []SaleItem{{ProductID: prodID, Quantity: 1, UnitPrice: 50000, Subtotal: 50000, DPPAmount: 50000}})
+		require.NoError(t, err)
+
+		payments := []SalePayment{
+			{SaleID: sale.ID, PaymentMethodID: 1, PaymentMethodCode: "CASH", Amount: 30000},
+			{SaleID: sale.ID, PaymentMethodID: 5, PaymentMethodCode: "QRIS", Amount: 20000},
+		}
+		err = repo.CreateSalePayments(ctx, tx, sale.ID, payments)
+		require.NoError(t, err)
+
+		err = repo.UpdateShiftTotals(ctx, tx, shiftID, 50000, payments)
+		require.NoError(t, err)
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+
+		cashSales, nonCashSales, totalSales := getShiftTotals(t, shiftID)
+		assert.Equal(t, 30000, cashSales)
+		assert.Equal(t, 20000, nonCashSales)
+		assert.Equal(t, 50000, totalSales)
+	})
+}
+
 func createParkedSale(t *testing.T, ctx context.Context, repo *Repository, cashierID int, invoice string, status string, prodID, qty, price int) *Sale {
 	t.Helper()
 	tx, err := repo.BeginTx(ctx)

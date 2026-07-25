@@ -49,6 +49,7 @@ type AuthClaims struct {
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
 	StoreID     *int     `json:"store_id,omitempty"`
+	ReportsToID *int     `json:"reports_to,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -261,6 +262,7 @@ func (s *AuthService) generateToken(user *User, permissions []string, ttl time.D
 		Role:        user.Role.Name,
 		Permissions: permissions,
 		StoreID:     user.StoreID,
+		ReportsToID: user.ReportsToID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -273,10 +275,11 @@ func (s *AuthService) generateToken(user *User, permissions []string, ttl time.D
 
 func (s *AuthService) generateRefreshToken(user *User) (string, error) {
 	claims := AuthClaims{
-		ID:       user.ID,
-		Username: user.Username,
-		RoleID:   user.RoleID,
-		Role:     user.Role.Name,
+		ID:          user.ID,
+		Username:    user.Username,
+		RoleID:      user.RoleID,
+		Role:        user.Role.Name,
+		ReportsToID: user.ReportsToID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

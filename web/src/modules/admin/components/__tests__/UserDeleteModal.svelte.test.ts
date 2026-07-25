@@ -26,4 +26,16 @@ describe('UserDeleteModal.svelte source-structure guards', () => {
   it('shows username in confirmation', () => {
     expect(src).toContain('{username}');
   });
+
+  it('imports Users icon from lucide-svelte', () => {
+    expect(src).toContain("Users } from 'lucide-svelte'");
+  });
+
+  it('has subordinateCount prop', () => {
+    expect(src).toContain('subordinateCount');
+  });
+
+  it('shows subordinate warning when count > 0', () => {
+    expect(src).toContain('{#if subordinateCount > 0}');
+  });
 });

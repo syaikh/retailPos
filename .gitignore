@@ -14,6 +14,7 @@ retail-pos-system
 retail-pos
 dummy
 backfill-audit-description
+/bin/
 
 # Server source directory (uncomment if you want to ignore it)
 # cmd/server/
@@ -105,6 +106,3 @@ session-*.md
 !docs/**/*.md
 .opencode/
 watch_*
-
-# Go build output
-/bin/

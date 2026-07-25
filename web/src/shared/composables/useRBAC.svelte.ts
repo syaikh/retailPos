@@ -34,5 +34,6 @@ export function useRBAC() {
     get canDelete() { return isSuperAdmin; },
     get canView() { return userRole !== '' && !isCashier; },
     get canEditSuperadmin() { return isSuperAdmin; },
+    get canAssignManager() { return isAdmin; },
   };
 }

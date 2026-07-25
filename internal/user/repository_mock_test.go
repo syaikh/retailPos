@@ -49,8 +49,8 @@ func TestRepository_GetByUsername_CacheSet(t *testing.T) {
 	repo.SetCache(c)
 
 	now := time.Now()
-	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "is_active", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, true, now, now, nil)
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"}).
+		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, true, now, now, nil)
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE username").WithArgs("admin").WillReturnRows(rows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
@@ -331,8 +331,8 @@ func TestRepository_GetUserByID_CacheHit(t *testing.T) {
 	c.Set("user:1", User{ID: 1, Username: "admin"})
 
 	now := time.Now()
-	userRows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "is_active", "created_at", "updated_at", "last_login"}).
-		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, true, now, now, nil)
+	userRows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"}).
+		AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, true, now, now, nil)
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE id").WithArgs(1).WillReturnRows(userRows)
 
 	roleRows := pgxmock.NewRows([]string{"id", "name", "description", "is_system", "created_at"}).
@@ -381,10 +381,12 @@ func TestRepository_GetAllUsers_NoFilters(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{
-		"id", "username", "email", "password_hash", "role_id", "store_id", "is_active",
+		"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to",
+		"reports_to_username",
+		"is_active",
 		"created_at", "updated_at", "last_login",
 		"role_id_2", "role_name", "role_description", "role_is_system", "role_created_at",
-	}).AddRow(1, "admin", "admin@test.com", "hash", 1, nil, true, now, now, nil,
+	}).AddRow(1, "admin", "admin@test.com", "hash", 1, nil, nil, "", true, now, now, nil,
 		1, "admin", "Admin", true, now)
 	mock.ExpectQuery("SELECT u.id, u.username").WithArgs(10, 0).WillReturnRows(rows)
 
@@ -417,7 +419,9 @@ func TestRepository_GetAllUsers_InvalidSort(t *testing.T) {
 
 	mock.ExpectQuery("SELECT COUNT").WithArgs().WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery("SELECT u.id, u.username").WithArgs(10, 0).WillReturnRows(pgxmock.NewRows([]string{
-		"id", "username", "email", "password_hash", "role_id", "store_id", "is_active",
+		"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to",
+		"reports_to_username",
+		"is_active",
 		"created_at", "updated_at", "last_login",
 		"role_id_2", "role_name", "role_description", "role_is_system", "role_created_at",
 	}))
@@ -435,7 +439,7 @@ func TestRepository_CreateUser(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(10, now, now)
-	mock.ExpectQuery("INSERT INTO users").WithArgs("new", "new@test.com", "hash", 1, pgxmock.AnyArg(), true).WillReturnRows(rows)
+	mock.ExpectQuery("INSERT INTO users").WithArgs("new", "new@test.com", "hash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	u := &User{Username: "new", Email: "new@test.com", Password: "hash", RoleID: 1, IsActive: true}
@@ -450,7 +454,7 @@ func TestRepository_UpdateUser_WithPassword(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("UPDATE users SET username = .+password_hash").WithArgs("admin", "admin@test.com", "newhash", 1, pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE users SET username = .+password_hash").WithArgs("admin", "admin@test.com", "newhash", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRepository(mock)
 	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", Password: "newhash", RoleID: 1, IsActive: true}
@@ -464,7 +468,7 @@ func TestRepository_UpdateUser_WithoutPassword(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("UPDATE users SET username = .+\\$6").WithArgs("admin", "admin@test.com", 1, pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE users SET username = .+\\$6").WithArgs("admin", "admin@test.com", 1, pgxmock.AnyArg(), pgxmock.AnyArg(), true, 1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRepository(mock)
 	u := &User{ID: 1, Username: "admin", Email: "admin@test.com", RoleID: 1, IsActive: true}
@@ -478,7 +482,10 @@ func TestRepository_DeleteUser(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit()
 
 	repo := NewRepository(mock)
 	err = repo.DeleteUser(context.Background(), 1)
@@ -655,7 +662,52 @@ func TestRepository_DeleteUser_DBError(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnError(fmt.Errorf("db error"))
+
+	repo := NewRepository(mock)
+	err = repo.DeleteUser(context.Background(), 1)
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_DeleteUser_BeginError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("begin failed"))
+
+	repo := NewRepository(mock)
+	err = repo.DeleteUser(context.Background(), 1)
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_DeleteUser_UnlinkError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnError(fmt.Errorf("unlink error"))
+
+	repo := NewRepository(mock)
+	err = repo.DeleteUser(context.Background(), 1)
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_DeleteUser_CommitError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE users SET reports_to").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	mock.ExpectExec("UPDATE users SET deleted_at").WithArgs(1).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
 
 	repo := NewRepository(mock)
 	err = repo.DeleteUser(context.Background(), 1)
@@ -685,6 +737,131 @@ func TestRepository_UpdatePassword_DBError(t *testing.T) {
 
 	repo := NewRepository(mock)
 	err = repo.UpdatePassword(context.Background(), 1, "hash")
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetSubordinates_Success(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"}).
+		AddRow(2, "sub1", "sub1@test.com", "hash", 2, nil, 1, true, now, now, nil)
+	mock.ExpectQuery("SELECT id, username, email").WithArgs(1).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	subs, err := repo.GetSubordinates(context.Background(), 1)
+	require.NoError(t, err)
+	assert.Len(t, subs, 1)
+	assert.Equal(t, "sub1", subs[0].Username)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetSubordinates_Empty(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"})
+	mock.ExpectQuery("SELECT id, username, email").WithArgs(1).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	subs, err := repo.GetSubordinates(context.Background(), 1)
+	require.NoError(t, err)
+	assert.Empty(t, subs)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetManager_Success(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "password_hash", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"}).
+		AddRow(1, "mgr", "mgr@test.com", "hash", 1, nil, nil, true, now, now, nil)
+	mock.ExpectQuery("SELECT m.id, m.username, m.email").WithArgs(2).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	mgr, err := repo.GetManager(context.Background(), 2)
+	require.NoError(t, err)
+	require.NotNil(t, mgr)
+	assert.Equal(t, "mgr", mgr.Username)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetManager_NotFound(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT m.id, m.username, m.email").WithArgs(1).WillReturnError(pgx.ErrNoRows)
+
+	repo := NewRepository(mock)
+	_, err = repo.GetManager(context.Background(), 1)
+	assert.ErrorContains(t, err, "manager not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetOrgChart_Success(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	rows := pgxmock.NewRows([]string{"id", "username", "email", "role_id", "store_id", "reports_to", "is_active", "created_at", "updated_at", "last_login"}).
+		AddRow(1, "ceo", "ceo@test.com", 1, nil, nil, true, now, now, nil).
+		AddRow(2, "mgr", "mgr@test.com", 2, nil, 1, true, now, now, nil)
+	mock.ExpectQuery("WITH RECURSIVE org_tree").WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	users, err := repo.GetOrgChart(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, users, 2)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_IsSubordinate_True(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("WITH RECURSIVE manager_chain").WithArgs(2, 1).WillReturnRows(
+		pgxmock.NewRows([]string{"exists"}).AddRow(true))
+
+	repo := NewRepository(mock)
+	ok, err := repo.IsSubordinate(context.Background(), 2, 1)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_IsSubordinate_False(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("WITH RECURSIVE manager_chain").WithArgs(2, 1).WillReturnRows(
+		pgxmock.NewRows([]string{"exists"}).AddRow(false))
+
+	repo := NewRepository(mock)
+	ok, err := repo.IsSubordinate(context.Background(), 2, 1)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_IsSubordinate_DBError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("WITH RECURSIVE manager_chain").WithArgs(1, 2).WillReturnError(fmt.Errorf("db error"))
+
+	repo := NewRepository(mock)
+	_, err = repo.IsSubordinate(context.Background(), 1, 2)
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

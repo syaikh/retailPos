@@ -73,13 +73,14 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 
 const saleSummarySQL = `
 	SELECT
-		COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
-		COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
-		COALESCE(SUM(total_amount), 0),
-		COUNT(*)
-	FROM sales
-	WHERE shift_id = $1
-	  AND status = 'completed'
+		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) = 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) != 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
+		COALESCE(SUM(s.total_amount), 0),
+		COUNT(DISTINCT s.id)
+	FROM sales s
+	LEFT JOIN sale_payments sp ON sp.sale_id = s.id
+	WHERE s.shift_id = $1
+	  AND s.status = 'completed'
 `
 
 func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (ShiftSummary, error) {

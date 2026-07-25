@@ -32,4 +32,9 @@ describe('UserFormModal.svelte source-structure guards', () => {
   it('has role dropdown', () => {
     expect(src).toContain('form-role-dropdown-container');
   });
+
+  it('has reports_to manager dropdown for hierarchy', () => {
+    expect(src).toContain('reports_to');
+    expect(src).toContain('Reports To (Manager)');
+  });
 });

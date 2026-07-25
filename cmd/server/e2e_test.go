@@ -914,3 +914,492 @@ func init() {
 	}
 	time.Local = loc
 }
+
+func seedE2EPaymentMethods(t *testing.T) {
+	t.Helper()
+	if e2ePool == nil {
+		t.Skip("no database connection")
+	}
+	_, err := e2ePool.Exec(context.Background(), `
+		INSERT INTO payment_methods (code, name, is_active, requires_reference, sort_order)
+		VALUES
+			('CASH', 'Cash', true, false, 1),
+			('CARD', 'Card', true, true, 2),
+			('E_WALLET', 'E-Wallet', true, true, 3),
+			('TRANSFER', 'Transfer', true, true, 4),
+			('QRIS', 'QRIS', true, false, 5)
+		ON CONFLICT (code) DO NOTHING`)
+	require.NoError(t, err)
+}
+
+func createE2EProduct(t *testing.T, r *gin.Engine, token string) int {
+	t.Helper()
+	sku := fmt.Sprintf("E2E-SPLIT-%d", time.Now().UnixNano())
+	body := fmt.Sprintf(`{"sku":"%s","name":"Split Test Product","price":100000,"cost":60000,"stock":100,"status":"active"}`, sku)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/products", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+	var resp struct {
+		Data product.Product `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	return resp.Data.ID
+}
+
+func TestE2E_SplitPayment(t *testing.T) {
+	router := setupE2ERouter(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+	seedE2EPaymentMethods(t)
+	productID := createE2EProduct(t, router, token)
+
+	t.Run("backward compat: payment_method field creates single payment", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payment_method": "CASH",
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp struct {
+			Data struct {
+				ID            int    `json:"id"`
+				PaymentMethod string `json:"payment_method"`
+				Payments      []struct {
+					PaymentMethodCode string `json:"payment_method_code"`
+					Amount            int    `json:"amount"`
+				} `json:"payments"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "CASH", resp.Data.PaymentMethod)
+		assert.Greater(t, resp.Data.ID, 0)
+
+		detail := httptest.NewRecorder()
+		detailReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/sales/%d", resp.Data.ID), nil)
+		detailReq.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(detail, detailReq)
+		assert.Equal(t, http.StatusOK, detail.Code)
+		var detailResp struct {
+			Data struct {
+				Payments []struct {
+					PaymentMethodCode string `json:"payment_method_code"`
+					Amount            int    `json:"amount"`
+				} `json:"payments"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(detail.Body.Bytes(), &detailResp))
+		require.Len(t, detailResp.Data.Payments, 1)
+		assert.Equal(t, "CASH", detailResp.Data.Payments[0].PaymentMethodCode)
+		assert.Equal(t, 100000, detailResp.Data.Payments[0].Amount)
+	})
+
+	t.Run("new payments array: single cash payment", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [{"payment_method_code": "CASH", "amount": 100000}],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("split payment: cash + card", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [
+				{"payment_method_code": "CASH", "amount": 50000},
+				{"payment_method_code": "CARD", "amount": 50000, "reference_number": "REF-12345"}
+			],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp struct {
+			Data struct {
+				ID       int `json:"id"`
+				Payments []struct {
+					PaymentMethodCode string `json:"payment_method_code"`
+					Amount            int    `json:"amount"`
+					ReferenceNumber   string `json:"reference_number"`
+				} `json:"payments"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		saleID := resp.Data.ID
+		assert.Greater(t, saleID, 0)
+
+		detail := httptest.NewRecorder()
+		detailReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/sales/%d", saleID), nil)
+		detailReq.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(detail, detailReq)
+		assert.Equal(t, http.StatusOK, detail.Code)
+		var detailResp struct {
+			Data struct {
+				PaymentMethod string `json:"payment_method"`
+				Payments      []struct {
+					PaymentMethodCode string `json:"payment_method_code"`
+					Amount            int    `json:"amount"`
+					ReferenceNumber   string `json:"reference_number"`
+				} `json:"payments"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(detail.Body.Bytes(), &detailResp))
+		require.Len(t, detailResp.Data.Payments, 2)
+		assert.Contains(t, detailResp.Data.PaymentMethod, "CASH")
+		assert.Contains(t, detailResp.Data.PaymentMethod, "CARD")
+	})
+
+	t.Run("three-way split payment", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [
+				{"payment_method_code": "CASH", "amount": 30000},
+				{"payment_method_code": "QRIS", "amount": 30000},
+				{"payment_method_code": "CARD", "amount": 40000, "reference_number": "CARD-67890"}
+			],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp struct {
+			Data struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		detail := httptest.NewRecorder()
+		detailReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/sales/%d", resp.Data.ID), nil)
+		detailReq.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(detail, detailReq)
+		var detailResp struct {
+			Data struct {
+				Payments []struct {
+					PaymentMethodCode string `json:"payment_method_code"`
+					Amount            int    `json:"amount"`
+				} `json:"payments"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(detail.Body.Bytes(), &detailResp))
+		require.Len(t, detailResp.Data.Payments, 3)
+	})
+
+	t.Run("payment total mismatch returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [{"payment_method_code": "CASH", "amount": 80000}],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("duplicate payment method returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [
+				{"payment_method_code": "CASH", "amount": 50000},
+				{"payment_method_code": "CASH", "amount": 50000}
+			],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("zero payment amount returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [{"payment_method_code": "CASH", "amount": 0}],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid payment method code returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [{"payment_method_code": "NONEXISTENT", "amount": 100000}],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("exactly 10 payments with duplicate methods returns 400", func(t *testing.T) {
+		var payments []string
+		for i := 0; i < 10; i++ {
+			payments = append(payments, fmt.Sprintf(`{"payment_method_code":"QRIS","amount":10000}`))
+		}
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [%s],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, strings.Join(payments, ","), productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("all 5 unique payment methods succeeds", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [
+				{"payment_method_code": "CASH", "amount": 20000},
+				{"payment_method_code": "QRIS", "amount": 20000},
+				{"payment_method_code": "CARD", "amount": 20000, "reference_number": "REF-CARD"},
+				{"payment_method_code": "E_WALLET", "amount": 20000, "reference_number": "REF-EW"},
+				{"payment_method_code": "TRANSFER", "amount": 20000, "reference_number": "REF-TRF"}
+			],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("11 payments returns 400", func(t *testing.T) {
+		var payments []string
+		for i := 0; i < 11; i++ {
+			payments = append(payments, fmt.Sprintf(`{"payment_method_code":"QRIS","amount":%d}`, 100000/11+1))
+		}
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"payments": [%s],
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, strings.Join(payments, ","), productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+		t.Run("empty payments and no payment_method returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"cashier_id": 1,
+			"subtotal": 100000,
+			"total_amount": 100000,
+			"status": "completed",
+			"items": [{"product_id": %d, "quantity": 1, "subtotal": 100000}]
+		}`, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestE2E_UserHierarchy(t *testing.T) {
+	router := setupE2ERouter(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+
+	var managerID int
+	var staffID int
+
+	t.Run("create manager user", func(t *testing.T) {
+		username := fmt.Sprintf("e2emgr%d", time.Now().UnixNano())
+		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":3}`, username, username)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code, "body: %s", w.Body.String())
+		var resp struct {
+			Data user.User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.Greater(t, resp.Data.ID, 0)
+		managerID = resp.Data.ID
+	})
+
+	t.Run("create staff with reports_to", func(t *testing.T) {
+		require.Greater(t, managerID, 0)
+		username := fmt.Sprintf("e2estaff%d", time.Now().UnixNano())
+		body := fmt.Sprintf(`{"username":"%s","email":"%s@test.com","password":"password123","role_id":4,"reports_to":%d}`, username, username, managerID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data user.User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.Greater(t, resp.Data.ID, 0)
+		staffID = resp.Data.ID
+	})
+
+	t.Run("get subordinates", func(t *testing.T) {
+		require.Greater(t, managerID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/admin/users/%d/subordinates", managerID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []user.User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Len(t, resp.Data, 1)
+		assert.Equal(t, staffID, resp.Data[0].ID)
+	})
+
+	t.Run("get manager", func(t *testing.T) {
+		require.Greater(t, staffID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/admin/users/%d/manager", staffID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data user.User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, managerID, resp.Data.ID)
+	})
+
+	t.Run("get org chart", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/admin/users/org-chart", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []user.User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(resp.Data), 1)
+	})
+
+	t.Run("update reports_to rejects self reference", func(t *testing.T) {
+		require.Greater(t, staffID, 0)
+		body := fmt.Sprintf(`{"reports_to":%d}`, staffID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/admin/users/%d", staffID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("update reports_to success", func(t *testing.T) {
+		require.Greater(t, staffID, 0)
+		require.Greater(t, managerID, 0)
+		body := fmt.Sprintf(`{"reports_to":%d}`, managerID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/admin/users/%d", staffID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("get manager not found for top-level user", func(t *testing.T) {
+		require.Greater(t, managerID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/admin/users/%d/manager", managerID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("circular reference rejected", func(t *testing.T) {
+		require.Greater(t, managerID, 0)
+		require.Greater(t, staffID, 0)
+		body := fmt.Sprintf(`{"reports_to":%d}`, managerID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/admin/users/%d", managerID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}

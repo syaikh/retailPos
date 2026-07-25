@@ -37,6 +37,11 @@
     return 'muted';
   }
 
+  function splitPaymentMethods(methods: string): string[] {
+    if (!methods) return [];
+    return methods.split(',').map(m => m.trim()).filter(Boolean);
+  }
+
   const formatDateTime = (date: Date) => {
     const isoStr = date instanceof Date ? date.toISOString() : String(date);
     return formatDateTimeInJakarta(isoStr);
@@ -129,9 +134,21 @@
                 {sale.items?.length || 0} items
               </td>
               <td class="p-4">
-                <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-xs px-2.5 py-0.5">
-                  {sale.payment_method || '—'}
-                </Badge>
+                {#if sale.payment_method && sale.payment_method.includes(',')}
+                  {@const methods = splitPaymentMethods(sale.payment_method)}
+                  <div class="flex flex-wrap gap-1">
+                    <Badge variant={getPaymentMethodVariant(methods[0])} class="text-xs px-2.5 py-0.5">
+                      {methods[0]}
+                    </Badge>
+                    <Badge variant="muted" class="text-xs px-2.5 py-0.5">
+                      +{methods.length - 1} more
+                    </Badge>
+                  </div>
+                {:else}
+                  <Badge variant={getPaymentMethodVariant(sale.payment_method)} class="text-xs px-2.5 py-0.5">
+                    {sale.payment_method || '—'}
+                  </Badge>
+                {/if}
               </td>
               <td class="p-4 text-right text-sm font-semibold text-text-primary">
                 {(sale.total_amount || 0).toLocaleString('id-ID')}

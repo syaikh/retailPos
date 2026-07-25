@@ -19,8 +19,8 @@ import (
 )
 
 type SaleService interface {
-	CreateSale(ctx context.Context, sale *Sale, items []SaleItem) error
-	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int) error
+	CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error
+	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
 	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
@@ -80,15 +80,21 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Quantity  int `json:"quantity"`
 		Subtotal  int `json:"subtotal"`
 	}
+	type createPaymentReq struct {
+		PaymentMethodCode string `json:"payment_method_code" binding:"required"`
+		Amount            int    `json:"amount" binding:"required"`
+		ReferenceNumber   string `json:"reference_number"`
+	}
 	type createSaleReq struct {
-		InvoiceNumber string           `json:"invoice_number"`
-		CustomerID    *int             `json:"customer_id"`
-		ShiftID       *int             `json:"shift_id"`
-		StoreID       *int             `json:"store_id"`
-		Items         []createSaleItem `json:"items" binding:"required"`
-		PaymentMethod string           `json:"payment_method"`
-		Discount      int              `json:"discount"`
-		ParkedSaleID  *int             `json:"parked_sale_id"`
+		InvoiceNumber string            `json:"invoice_number"`
+		CustomerID    *int              `json:"customer_id"`
+		ShiftID       *int              `json:"shift_id"`
+		StoreID       *int              `json:"store_id"`
+		Items         []createSaleItem  `json:"items" binding:"required"`
+		Payments      []createPaymentReq `json:"payments"`
+		PaymentMethod string            `json:"payment_method"`
+		Discount      int               `json:"discount"`
+		ParkedSaleID  *int              `json:"parked_sale_id"`
 	}
 
 	var req createSaleReq
@@ -147,12 +153,25 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 
-	if req.PaymentMethod != "" {
-		pm, err := h.svc.GetPaymentMethodByCode(ctx, req.PaymentMethod)
-		if err != nil || pm == nil {
-			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid payment method")
-			return
+	// Build payments array: prefer new `payments` field, fall back to `payment_method` for backward compat
+	var payments []CreatePaymentRequest
+	if len(req.Payments) > 0 {
+		payments = make([]CreatePaymentRequest, len(req.Payments))
+		for i, p := range req.Payments {
+			payments[i] = CreatePaymentRequest{
+				PaymentMethodCode: p.PaymentMethodCode,
+				Amount:            p.Amount,
+				ReferenceNumber:   p.ReferenceNumber,
+			}
 		}
+	} else if req.PaymentMethod != "" {
+		totalAmount := subtotal - req.Discount
+		payments = []CreatePaymentRequest{
+			{PaymentMethodCode: req.PaymentMethod, Amount: totalAmount},
+		}
+	} else {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "payments or payment_method is required")
+		return
 	}
 
 	sale := &Sale{
@@ -165,17 +184,23 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Discount:      req.Discount,
 		Tax:           0,
 		TotalAmount:   subtotal - req.Discount,
-		PaymentMethod: req.PaymentMethod,
 		Status:        "completed",
 	}
 
-	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID); err != nil {
+	if err := h.svc.CreateSaleWithParkedSale(ctx, sale, items, req.ParkedSaleID, payments); err != nil {
 		if errors.Is(err, ErrInsufficientStock) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "insufficient stock")
 			return
 		}
 		if errors.Is(err, ErrParkedSaleNotRecalled) {
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, "parked sale already checked out or cancelled")
+			return
+		}
+		if errors.Is(err, ErrPaymentTotalMismatch) || errors.Is(err, ErrDuplicatePaymentMethod) ||
+			errors.Is(err, ErrPaymentMethodInactive) || errors.Is(err, ErrPaymentReferenceRequired) ||
+			errors.Is(err, ErrZeroPaymentAmount) || errors.Is(err, ErrInvalidPaymentMethod) ||
+			errors.Is(err, ErrMaxPaymentsExceeded) || errors.Is(err, ErrMultipleCashPayments) {
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 			return
 		}
 		shared.InternalError(c, err)

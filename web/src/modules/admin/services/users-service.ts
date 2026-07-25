@@ -37,3 +37,18 @@ export async function updateUser(id: number, data: UpdateUserPayload): Promise<v
 export async function deleteUser(id: number): Promise<void> {
   await apiClient.delete(`/admin/users/${id}`);
 }
+
+export async function getSubordinates(id: number): Promise<User[]> {
+  const res = await apiClient.get(`/admin/users/${id}/subordinates`);
+  return res.data?.data || [];
+}
+
+export async function getManager(id: number): Promise<User | null> {
+  const res = await apiClient.get(`/admin/users/${id}/manager`);
+  return res.data?.data || null;
+}
+
+export async function getOrgChart(): Promise<User[]> {
+  const res = await apiClient.get('/admin/users/org-chart');
+  return res.data?.data || [];
+}

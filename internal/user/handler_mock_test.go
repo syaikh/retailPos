@@ -15,20 +15,24 @@ import (
 )
 
 type mockUserService struct {
-	getByIDFn       func(ctx context.Context, id int) (*User, error)
-	getByUsernameFn func(ctx context.Context, username string) (*User, error)
-	getAllUsersFn   func(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
-	createUserFn    func(ctx context.Context, user *User) error
-	updateUserFn    func(ctx context.Context, user *User) error
-	deleteUserFn    func(ctx context.Context, id int) error
-	getAllRolesFn   func(ctx context.Context) ([]Role, error)
-	getRoleByIDFn   func(ctx context.Context, id int) (*Role, error)
-	createRoleFn    func(ctx context.Context, role *Role) error
-	updateRoleFn    func(ctx context.Context, role *Role) error
-	deleteRoleFn    func(ctx context.Context, id int) error
-	countByRoleFn   func(ctx context.Context, roleID int) (int, error)
-	getAllPermsFn   func(ctx context.Context) ([]Permission, error)
-	updatePermsFn   func(ctx context.Context, roleID int, permissionIDs []int) error
+	getByIDFn          func(ctx context.Context, id int) (*User, error)
+	getByUsernameFn    func(ctx context.Context, username string) (*User, error)
+	getAllUsersFn      func(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
+	createUserFn       func(ctx context.Context, user *User) error
+	updateUserFn       func(ctx context.Context, user *User) error
+	deleteUserFn       func(ctx context.Context, id int) error
+	getSubordinatesFn  func(ctx context.Context, managerID int) ([]User, error)
+	getManagerFn       func(ctx context.Context, userID int) (*User, error)
+	getOrgChartFn      func(ctx context.Context) ([]User, error)
+	isSubordinateFn    func(ctx context.Context, managerID, userID int) (bool, error)
+	getAllRolesFn      func(ctx context.Context) ([]Role, error)
+	getRoleByIDFn      func(ctx context.Context, id int) (*Role, error)
+	createRoleFn       func(ctx context.Context, role *Role) error
+	updateRoleFn       func(ctx context.Context, role *Role) error
+	deleteRoleFn       func(ctx context.Context, id int) error
+	countByRoleFn      func(ctx context.Context, roleID int) (int, error)
+	getAllPermsFn      func(ctx context.Context) ([]Permission, error)
+	updatePermsFn      func(ctx context.Context, roleID int, permissionIDs []int) error
 }
 
 func (m *mockUserService) GetUserByID(ctx context.Context, id int) (*User, error) {
@@ -48,6 +52,21 @@ func (m *mockUserService) UpdateUser(ctx context.Context, user *User) error {
 }
 func (m *mockUserService) DeleteUser(ctx context.Context, id int) error {
 	return m.deleteUserFn(ctx, id)
+}
+func (m *mockUserService) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
+	return m.getSubordinatesFn(ctx, managerID)
+}
+func (m *mockUserService) GetManager(ctx context.Context, userID int) (*User, error) {
+	return m.getManagerFn(ctx, userID)
+}
+func (m *mockUserService) GetOrgChart(ctx context.Context) ([]User, error) {
+	return m.getOrgChartFn(ctx)
+}
+func (m *mockUserService) IsSubordinate(ctx context.Context, managerID, userID int) (bool, error) {
+	if m.isSubordinateFn != nil {
+		return m.isSubordinateFn(ctx, managerID, userID)
+	}
+	return false, nil
 }
 func (m *mockUserService) GetAllRoles(ctx context.Context) ([]Role, error) {
 	return m.getAllRolesFn(ctx)
@@ -554,4 +573,196 @@ func TestMockHandler_ListPermissions(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/permissions", nil))
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+}
+
+func TestMockHandler_GetSubordinates(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := &mockUserService{
+			getSubordinatesFn: func(ctx context.Context, managerID int) ([]User, error) {
+				assert.Equal(t, 1, managerID)
+				return []User{{ID: 2, Username: "staff1", ReportsToID: intPtr(1)}}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/1/subordinates", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		r := setupMockUserRouter(&mockUserService{})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/abc/subordinates", nil))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockUserService{
+			getSubordinatesFn: func(ctx context.Context, managerID int) ([]User, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/1/subordinates", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_GetManager(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := &mockUserService{
+			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+				assert.Equal(t, 2, userID)
+				return &User{ID: 1, Username: "manager"}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/2/manager", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("no manager", func(t *testing.T) {
+		svc := &mockUserService{
+			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+				return nil, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/1/manager", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		r := setupMockUserRouter(&mockUserService{})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/abc/manager", nil))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockUserService{
+			getManagerFn: func(ctx context.Context, userID int) (*User, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/2/manager", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_GetOrgChart(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := &mockUserService{
+			getOrgChartFn: func(ctx context.Context) ([]User, error) {
+				return []User{
+					{ID: 1, Username: "superadmin"},
+					{ID: 2, Username: "manager1", ReportsToID: intPtr(1)},
+				}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/org-chart", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockUserService{
+			getOrgChartFn: func(ctx context.Context) ([]User, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockUserRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin/users/org-chart", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_CreateUser_WithReportsTo(t *testing.T) {
+	t.Run("create with reports_to_id", func(t *testing.T) {
+		svc := &mockUserService{
+			getByUsernameFn: func(ctx context.Context, username string) (*User, error) {
+				return nil, errors.New("not found")
+			},
+			createUserFn: func(ctx context.Context, user *User) error {
+				assert.NotNil(t, user.ReportsToID)
+				assert.Equal(t, 1, *user.ReportsToID)
+				user.ID = 100
+				return nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"username":"staff1","email":"staff1@test.com","password":"password123","role_id":3,"reports_to":1}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+}
+
+func TestMockHandler_UpdateUser_WithReportsTo(t *testing.T) {
+	t.Run("self reference reports_to rejected", func(t *testing.T) {
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 1, Username: "admin", RoleID: 1}, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"reports_to":1}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/1", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("circular reference rejected", func(t *testing.T) {
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 3, Username: "staff3", RoleID: 4}, nil
+			},
+			isSubordinateFn: func(ctx context.Context, managerID, userID int) (bool, error) {
+				return true, nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"reports_to":2}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/3", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "circular")
+	})
+
+	t.Run("update reports_to success", func(t *testing.T) {
+		svc := &mockUserService{
+			getByIDFn: func(ctx context.Context, id int) (*User, error) {
+				return &User{ID: 2, Username: "staff", RoleID: 3}, nil
+			},
+			updateUserFn: func(ctx context.Context, user *User) error {
+				assert.NotNil(t, user.ReportsToID)
+				assert.Equal(t, 1, *user.ReportsToID)
+				return nil
+			},
+		}
+		r := setupMockUserRouter(svc)
+		body := `{"reports_to":1}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/admin/users/2", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func intPtr(i int) *int {
+	return &i
 }

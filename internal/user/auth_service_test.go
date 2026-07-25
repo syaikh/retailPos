@@ -63,7 +63,8 @@ func TestAuthService_HashPassword(t *testing.T) {
 func TestAuthService_GenerateAndParseToken(t *testing.T) {
 	svc := newTestAuthService(t)
 	storeID := 42
-	user := &User{ID: 1, Username: "testuser", RoleID: 2, Role: Role{Name: "admin"}, StoreID: &storeID}
+	reportsTo := 10
+	user := &User{ID: 1, Username: "testuser", RoleID: 2, Role: Role{Name: "admin"}, StoreID: &storeID, ReportsToID: &reportsTo}
 	perms := []string{"product.view", "sale.create"}
 
 	token, err := svc.generateToken(user, perms, 15*time.Minute)
@@ -79,7 +80,22 @@ func TestAuthService_GenerateAndParseToken(t *testing.T) {
 	assert.Equal(t, perms, claims.Permissions)
 	assert.NotNil(t, claims.StoreID)
 	assert.Equal(t, 42, *claims.StoreID)
+	assert.NotNil(t, claims.ReportsToID)
+	assert.Equal(t, 10, *claims.ReportsToID)
 	assert.Equal(t, "retail-pos-system", claims.Issuer)
+}
+
+func TestAuthService_GenerateAndParseToken_NoReportsTo(t *testing.T) {
+	svc := newTestAuthService(t)
+	user := &User{ID: 2, Username: "noreports", RoleID: 1, Role: Role{Name: "cashier"}}
+
+	token, err := svc.generateToken(user, nil, 15*time.Minute)
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	claims, err := svc.parseToken(token)
+	require.NoError(t, err)
+	assert.Nil(t, claims.ReportsToID, "ReportsToID should be nil when not set")
 }
 
 func TestAuthService_GenerateAndParseRefreshToken(t *testing.T) {

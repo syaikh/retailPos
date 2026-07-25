@@ -12,7 +12,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   const src = getSource();
 
   it('imports icons from lucide-svelte', () => {
-    expect(src).toContain("import { X, Check, User, ChevronRight } from 'lucide-svelte'");
+    expect(src).toContain("import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte'");
   });
 
   it('imports CurrencyInput from shared/ui', () => {
@@ -27,18 +27,26 @@ describe('CheckoutModal.svelte source-structure guards', () => {
     expect(src).toContain('showCheckoutModal = $bindable(false)');
   });
 
-  it('has paymentMethod bindable prop', () => {
-    expect(src).toContain('paymentMethod = $bindable(\'Cash\')');
+  it('uses allocation-based state instead of single payment method', () => {
+    expect(src).toContain('let allocations = $state<AllocationRow[]>([])');
+    expect(src).toContain('interface AllocationRow');
+    expect(src).toContain('methodCode: string');
+    expect(src).toContain('amount: number');
   });
 
-  it('has cashReceived and changeDue props', () => {
-    expect(src).toContain('cashReceived = $bindable(0)');
-    expect(src).toContain('changeDue = 0');
+  it('computes totalAllocated, remainingBalance, and canComplete', () => {
+    expect(src).toContain('const totalAllocated = $derived');
+    expect(src).toContain('const remainingBalance = $derived');
+    expect(src).toContain('const canComplete = $derived');
   });
 
-  it('has onfinalize and onselectcustomer callbacks', () => {
-    expect(src).toContain('onfinalize');
-    expect(src).toContain('onselectcustomer');
+  it('has addAllocation and removeAllocation functions', () => {
+    expect(src).toContain('function addAllocation');
+    expect(src).toContain('function removeAllocation');
+  });
+
+  it('has onfinalize callback that accepts PaymentAllocation array', () => {
+    expect(src).toContain('onfinalize = (payments: PaymentAllocation[]) => {}');
   });
 
   it('renders dialog with aria-modal', () => {
@@ -56,30 +64,45 @@ describe('CheckoutModal.svelte source-structure guards', () => {
     expect(src).toContain('opt.label');
   });
 
-  it('renders customer selector with User icon', () => {
-    expect(src).toContain('<User size={14}');
-    expect(src).toContain('selectedCustomerLabel');
+  it('renders payment allocation rows', () => {
+    expect(src).toContain('{#each allocations as alloc');
+    expect(src).toContain('removeAllocation(alloc.id)');
   });
 
-  it('renders cash received input for Cash method', () => {
-    expect(src).toContain('cash-received-input');
-    expect(src).toContain('<CurrencyInput id="cash-received-input"');
+  it('renders remaining balance indicator', () => {
+    expect(src).toContain('remainingBalance');
   });
 
-  it('renders denomination quick buttons', () => {
+  it('renders denomination quick buttons for cash rows', () => {
     expect(src).toContain('denom >= 1000000');
     expect(src).toContain('`${denom / 1000000}jt`');
     expect(src).toContain('`${denom / 1000}rb`');
   });
 
-  it('renders change due section', () => {
-    expect(src).toContain('Kembali');
-    expect(src).toContain('Math.abs(changeDue)');
-  });
-
-  it('has Batal and Selesai action buttons', () => {
+  it('renders Batal and Selesai action buttons', () => {
     expect(src).toContain('Batal [F3]');
     expect(src).toContain('Selesai [Enter]');
     expect(src).toContain('onfinalize');
+  });
+
+  it('handles F7 key for exact cash amount', () => {
+    expect(src).toContain("e.key === 'F7'");
+    expect(src).toContain("a.methodCode === 'CASH'");
+  });
+
+  it('has handleFinalize that maps allocations to PaymentAllocation[]', () => {
+    expect(src).toContain('function handleFinalize');
+    expect(src).toContain('payment_method_code: a.methodCode');
+    expect(src).toContain('amount: a.amount');
+  });
+
+  it('renders remove payment button', () => {
+    expect(src).toContain('Trash2');
+    expect(src).toContain('removeAllocation');
+  });
+
+  it('renders customer selector with User icon', () => {
+    expect(src).toContain('<User size={14}');
+    expect(src).toContain('selectedCustomerLabel');
   });
 });

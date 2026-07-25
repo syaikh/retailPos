@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getUsers, getRolesList, createUser, updateUser, deleteUser } from '$modules/admin';
+  import { getUsers, getRolesList, createUser, updateUser, deleteUser, getSubordinates } from '$modules/admin';
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
@@ -31,6 +31,7 @@
   let saving = $state(false);
   let isSearching = $state(false);
   let isInitialMount = $state(true);
+  let subordinateCount = $state(0);
 
   let sortBy = $state('username');
   let sortDir = $state('asc');
@@ -59,7 +60,8 @@
     email: '',
     password: '',
     role_id: 0,
-    is_active: true
+    is_active: true,
+    reports_to: null
   });
 
 
@@ -182,7 +184,7 @@
 
   function openAdd() {
     modalMode = 'add';
-    form = { username: '', email: '', password: '', role_id: roles[0]?.id || 0, is_active: true };
+    form = { username: '', email: '', password: '', role_id: roles[0]?.id || 0, is_active: true, reports_to: null };
     showModal = true;
   }
 
@@ -194,7 +196,8 @@
       email: user.email,
       password: '',
       role_id: user.role_id,
-      is_active: user.is_active
+      is_active: user.is_active,
+      reports_to: user.reports_to ?? null
     };
     showModal = true;
   }
@@ -223,6 +226,18 @@
     } finally {
       saving = false;
     }
+  }
+
+  async function openDelete(user) {
+    selectedUser = user;
+    subordinateCount = 0;
+    try {
+      const subs = await getSubordinates(user.id);
+      subordinateCount = (subs || []).length;
+    } catch {
+      subordinateCount = 0;
+    }
+    showDeleteModal = true;
   }
 
   async function confirmDelete() {
@@ -277,7 +292,7 @@
         bind:sortDir
         onsort={toggleSort}
         onedit={openEdit}
-        ondelete={(user) => { selectedUser = user; showDeleteModal = true; }}
+        ondelete={openDelete}
       />
 
       {#if !loading && users.length > 0}
@@ -301,12 +316,14 @@
   {roles}
   bind:saving
   usernameHasInvalidChars={usernameHasInvalidChars}
+  canAssignManager={rbac.canAssignManager}
   onsave={saveUser}
 />
 
 <UserDeleteModal
   bind:open={showDeleteModal}
   username={selectedUser?.username ?? ''}
+  {subordinateCount}
   oncancel={() => showDeleteModal = false}
   onconfirm={confirmDelete}
 />

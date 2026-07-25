@@ -9,6 +9,7 @@
    import { getTodayInJakarta } from '$shared/utils/jakartaTime';
    import { resolvePrices } from '$modules/pricing/services/pricing-service';
    import { parkSale, listParkedSales, recallParkedSale, cancelParkedSale } from '../services/pos-service';
+   import type { PaymentAllocation } from '../types';
    import type { Sale, SaleItem } from '$modules/sales/types';
   import type { Customer } from '$modules/customers/types';
 
@@ -64,12 +65,11 @@ let selectedProductIndex = $state(-1);
   let criticalThreshold = $state(5);
 
    let paymentOptions = $state<Array<{ id: string; label: string; icon: any }>>([]);
-  let paymentMethod = $state('Cash');
-  let checkingOut = $state(false);
+   let checkingOut = $state(false);
 
-   let showCheckoutModal = $state(false);
-   let showCart = $state(false);
-   let cashReceived = $state(0);
+    let showCheckoutModal = $state(false);
+    let showCart = $state(false);
+    let capturedPayments = $state<PaymentAllocation[]>([]);
 
   let parkedSales = $state<any[]>([]);
   let showParkedModal = $state(false);
@@ -99,7 +99,6 @@ let selectedProductIndex = $state(-1);
   }, 0));
   const taxDisplay = $derived(taxAmount); 
   const totalAmount = $derived(subtotal);
-  const changeDue = $derived(cashReceived - totalAmount);
   const dppDisplay = $derived(subtotal - taxAmount);
   const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
 
@@ -144,9 +143,6 @@ let selectedProductIndex = $state(-1);
       const active = methods.filter(m => m.is_active !== false);
       if (active.length > 0) {
         paymentOptions = active.map(m => ({ id: m.code, label: m.name, icon: ShoppingCart }));
-        if (!paymentOptions.some(p => p.id === paymentMethod)) {
-          paymentMethod = paymentOptions[0].id;
-        }
       }
     } catch (err) {
       console.warn('Failed to load payment methods', err);
@@ -301,7 +297,7 @@ let selectedProductIndex = $state(-1);
     });
   }
 
-  async function processCheckout(parkedSaleId?: number | null) {
+   async function processCheckout(parkedSaleId?: number | null, payments?: PaymentAllocation[]) {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
@@ -322,7 +318,7 @@ let selectedProductIndex = $state(-1);
         } : {}),
       }));
       const activeShift = useShiftStore().activeShift;
-      const response = await apiClient.post('/sales', {
+      const payload: any = {
         cashier_id: (authStore.user as any)?.id || 1,
         store_id: (authStore.user as any)?.store_id || null,
         shift_id: activeShift?.id || null,
@@ -330,13 +326,22 @@ let selectedProductIndex = $state(-1);
         discount: 0,
         tax: taxAmount,
         total_amount: totalAmount,
-        payment_method: paymentMethod,
+        payment_method: payments?.map(p => p.payment_method_code).join(',') || 'CASH',
         customer_id: selectedCustomerId,
         status: 'completed',
         items,
-        ...(parkedSaleId ? { parked_sale_id: parkedSaleId } : {}),
-      });
+      };
+      if (payments && payments.length > 0) {
+        payload.payments = payments;
+      }
+      if (parkedSaleId) {
+        payload.parked_sale_id = parkedSaleId;
+      }
+      const response = await apiClient.post('/sales', payload);
       lastSale = response.data?.data || response.data;
+      if (payments) {
+        capturedPayments = payments;
+      }
       recalledSaleId = null;
       toast.success('Sale completed');
       cart = [];
@@ -366,9 +371,8 @@ let selectedProductIndex = $state(-1);
         quantity: item.quantity,
         subtotal: item.price * item.quantity,
       }));
-      await parkSale({
+       await parkSale({
         items,
-        payment_method: paymentMethod,
         recalled_sale_id: recalledSaleId,
       });
       toast.success('Sale parked');
@@ -428,7 +432,7 @@ let selectedProductIndex = $state(-1);
     }
   }
 
-  async function printReceipt() {
+   async function printReceipt() {
     if (!lastSale || !lastSale.invoice_number) return;
     let sale = lastSale;
     if (!sale.items || sale.items.length === 0) {
@@ -440,6 +444,9 @@ let selectedProductIndex = $state(-1);
     if (!sale || !sale.items || sale.items.length === 0) return;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
     const saleTaxAmount = sale.tax || 0;
+    const paymentsList = capturedPayments.length > 0
+      ? capturedPayments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ')
+      : (sale.payment_method || 'Cash');
     printReceiptStore.set({
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
@@ -454,9 +461,9 @@ let selectedProductIndex = $state(-1);
       total_amount: sale.total_amount,
       subtotal_dpp: sale.total_amount - saleTaxAmount,
       tax: saleTaxAmount,
-      paymentMethod: sale.payment_method || paymentMethod,
-      cashReceived: sale.cash_received || cashReceived,
-      changeDue: sale.change_due || changeDue,
+      paymentMethod: paymentsList,
+      cashReceived: capturedPayments.find(p => p.payment_method_code === 'CASH')?.amount || sale.total_amount,
+      changeDue: 0,
       customer_name: customer?.name,
       total_savings: (sale.items || []).reduce((sum: number, item: any) => {
         if (item.original_price && item.original_price > item.unit_price) {
@@ -469,39 +476,37 @@ let selectedProductIndex = $state(-1);
       window.print();
       setTimeout(() => printReceiptStore.set(null), 1000);
     }, 300);
-  }
+   }
 
   function handlePageChange(newOffset: number) {
     offset = newOffset;
     fetchProducts(false);
   }
 
-  function openCheckoutModal() {
+   function openCheckoutModal() {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
     showCheckoutModal = true;
-    cashReceived = 0;
-  }
+   }
 
-  function closeCheckoutModal() {
+   function closeCheckoutModal() {
     showCheckoutModal = false;
-    cashReceived = 0;
+    capturedPayments = [];
     recalledSaleId = null;
-  }
+   }
 
-  function finalizeSale() {
-    if (cart.length === 0 || changeDue < 0) return;
-    const capturedCash = cashReceived;
-    const capturedChange = changeDue;
-    const capturedPayment = paymentMethod;
+   function finalizeSale(payments: PaymentAllocation[]) {
+    if (cart.length === 0) return;
     const capturedRecalledSaleId = recalledSaleId;
     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+    capturedPayments = payments;
     closeCheckoutModal();
-    processCheckout(capturedRecalledSaleId).then(() => {
+    processCheckout(capturedRecalledSaleId, payments).then(() => {
       if (lastSale && lastSale.items) {
         const taxAmt = lastSale.tax || 0;
+        const paymentLines = payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ');
         printReceiptStore.set({
           invoice_number: lastSale.invoice_number,
           created_at: lastSale.created_at,
@@ -516,9 +521,9 @@ let selectedProductIndex = $state(-1);
           total_amount: lastSale.total_amount,
           subtotal_dpp: lastSale.total_amount - taxAmt,
           tax: taxAmt,
-          paymentMethod: capturedPayment,
-          cashReceived: capturedCash,
-          changeDue: capturedChange,
+          paymentMethod: paymentLines,
+          cashReceived: payments.find(p => p.payment_method_code === 'CASH')?.amount || lastSale.total_amount,
+          changeDue: 0,
           customer_name: customer?.name,
           total_savings: lastSale.items.reduce((sum: number, item: any) => {
             if (item.original_price && item.original_price > item.unit_price) {
@@ -536,18 +541,13 @@ let selectedProductIndex = $state(-1);
       console.error('Checkout failed:', err);
       toast.error('Checkout failed. Please try again.');
     });
-  }
+   }
 
-  $effect(() => {
+   $effect(() => {
     if (showCheckoutModal) {
-      setTimeout(() => {
-        const cashEl = document.getElementById('cash-received-input');
-        const nonCashEl = document.getElementById('card-ewallet-amount-input');
-        if (cashEl) cashEl.focus();
-        if (nonCashEl) nonCashEl.focus();
-      }, 0);
+      // CheckoutModal handles its own focus via onkeydown
     }
-  });
+   });
 
   let productTableEl: HTMLElement | undefined = $state();
 
@@ -595,18 +595,6 @@ let selectedProductIndex = $state(-1);
       return;
     }
     if (showCheckoutModal) {
-      if (event.key === 'Escape' || event.key === 'F3') {
-        event.preventDefault();
-        closeCheckoutModal();
-        return;
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        if (changeDue >= 0) {
-          finalizeSale();
-        }
-        return;
-      }
       return;
     }
     if (showParkedModal || showCustomerModal) return;
@@ -818,11 +806,8 @@ let selectedProductIndex = $state(-1);
   {subtotal}
   {taxAmount}
   {dppDisplay}
-  bind:paymentMethod
   {paymentOptions}
   {selectedCustomerLabel}
-  bind:cashReceived
-  {changeDue}
   {checkingOut}
   onfinalize={finalizeSale}
   onselectcustomer={() => { showCustomerModal = true; }}

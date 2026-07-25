@@ -2,7 +2,10 @@ package user
 
 import (
 	"context"
+	"errors"
 )
+
+var ErrManagerNotFound = errors.New("manager not found")
 
 type Service struct {
 	repo *Repository
@@ -52,6 +55,22 @@ func (s *Service) UpdateUser(ctx context.Context, user *User) error {
 
 func (s *Service) DeleteUser(ctx context.Context, id int) error {
 	return s.repo.DeleteUser(ctx, id)
+}
+
+func (s *Service) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
+	return s.repo.GetSubordinates(ctx, managerID)
+}
+
+func (s *Service) GetManager(ctx context.Context, userID int) (*User, error) {
+	return s.repo.GetManager(ctx, userID)
+}
+
+func (s *Service) GetOrgChart(ctx context.Context) ([]User, error) {
+	return s.repo.GetOrgChart(ctx)
+}
+
+func (s *Service) IsSubordinate(ctx context.Context, managerID, userID int) (bool, error) {
+	return s.repo.IsSubordinate(ctx, managerID, userID)
 }
 
 // ==================== ROLE ====================

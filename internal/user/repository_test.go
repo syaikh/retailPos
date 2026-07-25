@@ -348,6 +348,123 @@ func TestUserRepository_RoleCRUD(t *testing.T) {
 	})
 }
 
+func TestUserRepository_ReportsToHierarchy(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	makeUser := func(uname, email string, reportsTo *int) *User {
+		return &User{
+			Username:    uname,
+			Email:       email,
+			Password:    hash,
+			RoleID:      1,
+			IsActive:    true,
+			ReportsToID: reportsTo,
+		}
+	}
+
+	var managerID, sub1ID, sub2ID int
+
+	t.Run("create manager and subordinates", func(t *testing.T) {
+		mgr := makeUser("hierarchy_mgr", "mgr@test.com", nil)
+		require.NoError(t, repo.CreateUser(ctx, mgr))
+		managerID = mgr.ID
+
+		sub1 := makeUser("hierarchy_sub1", "sub1@test.com", &mgr.ID)
+		require.NoError(t, repo.CreateUser(ctx, sub1))
+		sub1ID = sub1.ID
+
+		sub2 := makeUser("hierarchy_sub2", "sub2@test.com", &mgr.ID)
+		require.NoError(t, repo.CreateUser(ctx, sub2))
+		sub2ID = sub2.ID
+	})
+
+	t.Run("GetSubordinates returns direct reports", func(t *testing.T) {
+		subs, err := repo.GetSubordinates(ctx, managerID)
+		require.NoError(t, err)
+		assert.Len(t, subs, 2)
+		ids := []int{subs[0].ID, subs[1].ID}
+		assert.Contains(t, ids, sub1ID)
+		assert.Contains(t, ids, sub2ID)
+	})
+
+	t.Run("GetSubordinates empty when none", func(t *testing.T) {
+		subs, err := repo.GetSubordinates(ctx, sub1ID)
+		require.NoError(t, err)
+		assert.Empty(t, subs)
+	})
+
+	t.Run("GetManager returns manager", func(t *testing.T) {
+		mgr, err := repo.GetManager(ctx, sub1ID)
+		require.NoError(t, err)
+		require.NotNil(t, mgr)
+		assert.Equal(t, managerID, mgr.ID)
+	})
+
+	t.Run("GetManager returns error for top-level user", func(t *testing.T) {
+		_, err := repo.GetManager(ctx, managerID)
+		assert.ErrorContains(t, err, "manager not found")
+	})
+
+	t.Run("GetOrgChart returns all users ordered by level", func(t *testing.T) {
+		users, err := repo.GetOrgChart(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, users)
+		foundMgr := false
+		foundSub1 := false
+		for _, u := range users {
+			if u.ID == managerID {
+				foundMgr = true
+			}
+			if u.ID == sub1ID {
+				foundSub1 = true
+			}
+		}
+		assert.True(t, foundMgr, "manager should be in org chart")
+		assert.True(t, foundSub1, "subordinate should be in org chart")
+	})
+
+	t.Run("IsSubordinate detects direct relationship", func(t *testing.T) {
+		ok, err := repo.IsSubordinate(ctx, sub1ID, managerID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("IsSubordinate returns false for non-subordinate", func(t *testing.T) {
+		// Create a separate user not under the manager
+		other := makeUser("hierarchy_other", "other@test.com", nil)
+		require.NoError(t, repo.CreateUser(ctx, other))
+
+		ok, err := repo.IsSubordinate(ctx, sub1ID, other.ID)
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("IsSubordinate returns false for unrelated pair", func(t *testing.T) {
+		ok, err := repo.IsSubordinate(ctx, managerID, sub1ID)
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("DeleteUser unlinks subordinates", func(t *testing.T) {
+		mgr := makeUser("hierarchy_mgr_del", "mgrdel@test.com", nil)
+		require.NoError(t, repo.CreateUser(ctx, mgr))
+
+		sub := makeUser("hierarchy_sub_del", "subdel@test.com", &mgr.ID)
+		require.NoError(t, repo.CreateUser(ctx, sub))
+
+		err := repo.DeleteUser(ctx, mgr.ID)
+		require.NoError(t, err)
+
+		// Subordinate should have reports_to set to NULL
+		var reportsTo *int
+		err = dbPool.QueryRow(ctx, `SELECT reports_to FROM users WHERE id = $1`, sub.ID).Scan(&reportsTo)
+		require.NoError(t, err)
+		assert.Nil(t, reportsTo, "subordinate's reports_to should be NULL after manager deletion")
+	})
+}
+
 func TestUserRepository_PermissionCRUD(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

@@ -43,13 +43,14 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	}
 	var u User
 	var storeID sql.NullInt64
+	var reportsTo sql.NullInt64
 	var createdAt, updatedAt time.Time
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
 		FROM users WHERE username = $1 AND deleted_at IS NULL
-	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+	`, username).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -65,6 +66,10 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		u.StoreID = &v
+	}
+	if reportsTo.Valid {
+		v := int(reportsTo.Int64)
+		u.ReportsToID = &v
 	}
 	if u.RoleID > 0 {
 		role, err := r.GetRoleByID(ctx, u.RoleID)
@@ -83,13 +88,14 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	var u User
 	var storeID sql.NullInt64
+	var reportsTo sql.NullInt64
 	var createdAt, updatedAt time.Time
 	var lastLogin sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT id, username, email, password_hash, role_id, store_id, is_active, created_at, updated_at, last_login
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
 		FROM users WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+	`, id).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -105,6 +111,10 @@ func (r *Repository) getUserByID(ctx context.Context, id int) (*User, error) {
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		u.StoreID = &v
+	}
+	if reportsTo.Valid {
+		v := int(reportsTo.Int64)
+		u.ReportsToID = &v
 	}
 	if u.RoleID > 0 {
 		role, _ := r.GetRoleByID(ctx, u.RoleID)
@@ -122,6 +132,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 	validSortColumns := map[string]bool{
 		"id": true, "username": true, "email": true, "role_id": true,
 		"is_active": true, "created_at": true, "last_login": true, "updated_at": true,
+		"reports_to": true, "reports_to_username": true,
 	}
 	if !validSortColumns[sortBy] {
 		sortBy = "id"
@@ -153,10 +164,13 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		return nil, 0, fmt.Errorf("failed to count users: %w", err)
 	}
 
-	query = `SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.store_id, u.is_active,
+	query = `SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.store_id, u.reports_to,
+	                 COALESCE(m.username, '') AS reports_to_username,
+	                 u.is_active,
 	                 u.created_at, u.updated_at, u.last_login,
 	                 COALESCE(r.id, 0), COALESCE(r.name, ''), COALESCE(r.description, ''), COALESCE(r.is_system, false), r.created_at
 	          FROM users u
+	          LEFT JOIN users m ON m.id = u.reports_to
 	          LEFT JOIN roles r ON r.id = u.role_id
 	          WHERE u.deleted_at IS NULL`
 	args2 := []interface{}{}
@@ -176,7 +190,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		args2 = append(args2, *isActive)
 		argIdx2++
 	}
-	allowedSortBy := map[string]string{"id": "u.id", "username": "LOWER(u.username)", "email": "LOWER(u.email)", "role_id": "r.name", "is_active": "u.is_active", "created_at": "u.created_at", "updated_at": "u.updated_at", "last_login": "u.last_login"}
+	allowedSortBy := map[string]string{"id": "u.id", "username": "LOWER(u.username)", "email": "LOWER(u.email)", "role_id": "r.name", "is_active": "u.is_active", "created_at": "u.created_at", "updated_at": "u.updated_at", "last_login": "u.last_login", "reports_to": "u.reports_to", "reports_to_username": "LOWER(m.username)"}
 	allowedSortDir := map[string]bool{"asc": true, "desc": true}
 	var sortExpr string
 	if col, ok := allowedSortBy[sortBy]; ok {
@@ -199,6 +213,7 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 	for rows.Next() {
 		var u User
 		var storeID sql.NullInt64
+		var reportsTo sql.NullInt64
 		var createdAt, updatedAt time.Time
 		var lastLogin sql.NullTime
 		var roleIDVal int
@@ -206,7 +221,9 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		var roleIsSystem bool
 		var roleCreatedAt sql.NullTime
 
-		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &u.IsActive,
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo,
+			&u.ReportsToUsername,
+			&u.IsActive,
 			&createdAt, &updatedAt, &lastLogin,
 			&roleIDVal, &roleName, &roleDesc, &roleIsSystem, &roleCreatedAt)
 		if err != nil {
@@ -220,6 +237,10 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 		if storeID.Valid {
 			v := int(storeID.Int64)
 			u.StoreID = &v
+		}
+		if reportsTo.Valid {
+			v := int(reportsTo.Int64)
+			u.ReportsToID = &v
 		}
 		if roleIDVal > 0 {
 			u.Role.ID = roleIDVal
@@ -241,9 +262,9 @@ func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, search 
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO users (username, email, password_hash, role_id, store_id, is_active)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at
-	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.IsActive).Scan(&user.ID, &createdAt, &updatedAt)
+		INSERT INTO users (username, email, password_hash, role_id, store_id, reports_to, is_active)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at
+	`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive).Scan(&user.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return err
 	}
@@ -255,21 +276,161 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	if user.Password != "" {
 		_, err := r.db.Exec(ctx, `
-			UPDATE users SET username = $1, email = $2, password_hash = $3, role_id = $4, store_id = $5, is_active = $6, updated_at = NOW()
-			WHERE id = $7
-		`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.IsActive, user.ID)
+			UPDATE users SET username = $1, email = $2, password_hash = $3, role_id = $4, store_id = $5, reports_to = $6, is_active = $7, updated_at = NOW()
+			WHERE id = $8
+		`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
 		return err
 	}
 	_, err := r.db.Exec(ctx, `
-		UPDATE users SET username = $1, email = $2, role_id = $3, store_id = $4, is_active = $5, updated_at = NOW()
-		WHERE id = $6
-	`, user.Username, user.Email, user.RoleID, user.StoreID, user.IsActive, user.ID)
+		UPDATE users SET username = $1, email = $2, role_id = $3, store_id = $4, reports_to = $5, is_active = $6, updated_at = NOW()
+		WHERE id = $7
+	`, user.Username, user.Email, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
 	return err
 }
 
 func (r *Repository) DeleteUser(ctx context.Context, id int) error {
-	_, err := r.db.Exec(ctx, "UPDATE users SET deleted_at = NOW() WHERE id = $1", id)
-	return err
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, err = tx.Exec(ctx, "UPDATE users SET reports_to = NULL WHERE reports_to = $1", id)
+	if err != nil {
+		return fmt.Errorf("unlink subordinates: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE users SET deleted_at = NOW() WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) GetSubordinates(ctx context.Context, managerID int) ([]User, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, username, email, password_hash, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		FROM users WHERE reports_to = $1 AND deleted_at IS NULL ORDER BY username
+	`, managerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query subordinates: %w", err)
+	}
+	defer rows.Close()
+
+	var subordinates []User
+	for rows.Next() {
+		var u User
+		var storeID sql.NullInt64
+		var reportsTo sql.NullInt64
+		var createdAt, updatedAt time.Time
+		var lastLogin sql.NullTime
+
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan subordinate: %w", err)
+		}
+		u.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		u.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		if lastLogin.Valid {
+			u.LastLogin = lastLogin.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		}
+		if storeID.Valid {
+			v := int(storeID.Int64)
+			u.StoreID = &v
+		}
+		if reportsTo.Valid {
+			v := int(reportsTo.Int64)
+			u.ReportsToID = &v
+		}
+		subordinates = append(subordinates, u)
+	}
+	return subordinates, rows.Err()
+}
+
+func (r *Repository) GetManager(ctx context.Context, userID int) (*User, error) {
+	var u User
+	var storeID sql.NullInt64
+	var reportsTo sql.NullInt64
+	var createdAt, updatedAt time.Time
+	var lastLogin sql.NullTime
+
+	err := r.db.QueryRow(ctx, `
+		SELECT m.id, m.username, m.email, m.password_hash, m.role_id, m.store_id, m.reports_to, m.is_active, m.created_at, m.updated_at, m.last_login
+		FROM users u
+		JOIN users m ON m.id = u.reports_to
+		WHERE u.id = $1 AND u.deleted_at IS NULL AND m.deleted_at IS NULL
+	`, userID).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrManagerNotFound
+		}
+		return nil, fmt.Errorf("failed to get manager: %w", err)
+	}
+	u.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	u.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	if lastLogin.Valid {
+		u.LastLogin = lastLogin.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		u.StoreID = &v
+	}
+	if reportsTo.Valid {
+		v := int(reportsTo.Int64)
+		u.ReportsToID = &v
+	}
+	return &u, nil
+}
+
+func (r *Repository) GetOrgChart(ctx context.Context) ([]User, error) {
+	rows, err := r.db.Query(ctx, `
+		WITH RECURSIVE org_tree AS (
+			SELECT id, username, email, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login, 0 AS level
+			FROM users WHERE reports_to IS NULL AND deleted_at IS NULL
+			UNION ALL
+			SELECT u.id, u.username, u.email, u.role_id, u.store_id, u.reports_to, u.is_active, u.created_at, u.updated_at, u.last_login, ot.level + 1
+			FROM users u
+			JOIN org_tree ot ON ot.id = u.reports_to
+			WHERE u.deleted_at IS NULL
+		)
+		SELECT id, username, email, role_id, store_id, reports_to, is_active, created_at, updated_at, last_login
+		FROM org_tree ORDER BY level, username
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query org chart: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		var storeID sql.NullInt64
+		var reportsTo sql.NullInt64
+		var createdAt, updatedAt time.Time
+		var lastLogin sql.NullTime
+
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.RoleID, &storeID, &reportsTo, &u.IsActive, &createdAt, &updatedAt, &lastLogin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan org chart user: %w", err)
+		}
+		u.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		u.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		if lastLogin.Valid {
+			u.LastLogin = lastLogin.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+		}
+		if storeID.Valid {
+			v := int(storeID.Int64)
+			u.StoreID = &v
+		}
+		if reportsTo.Valid {
+			v := int(reportsTo.Int64)
+			u.ReportsToID = &v
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 func (r *Repository) UpdateLastLogin(ctx context.Context, userID int) error {
@@ -285,6 +446,24 @@ func (r *Repository) UpdatePassword(ctx context.Context, userID int, hashedPassw
 func (r *Repository) DeleteUserRefreshTokens(ctx context.Context, userID int) error {
 	_, err := r.db.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = $1", userID)
 	return err
+}
+
+func (r *Repository) IsSubordinate(ctx context.Context, managerID, userID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		WITH RECURSIVE manager_chain AS (
+			SELECT id, reports_to FROM users WHERE id = $1 AND deleted_at IS NULL
+			UNION ALL
+			SELECT u.id, u.reports_to FROM users u
+			JOIN manager_chain mc ON mc.reports_to = u.id
+			WHERE u.deleted_at IS NULL
+		)
+		SELECT EXISTS (SELECT 1 FROM manager_chain WHERE id = $2)
+	`, managerID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check subordinate: %w", err)
+	}
+	return exists, nil
 }
 
 // ==================== ROLE ====================

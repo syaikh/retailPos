@@ -52,11 +52,14 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('let loading = $state');
   });
 
-  it('uses $derived for subtotal, tax, total, change', () => {
+  it('uses $derived for subtotal, tax, total', () => {
     expect(src).toContain('const subtotal = $derived');
     expect(src).toContain('const taxAmount = $derived');
     expect(src).toContain('const totalAmount = $derived');
-    expect(src).toContain('changeDue = $derived(cashReceived - totalAmount)');
+  });
+
+  it('has capturedPayments state for split payments', () => {
+    expect(src).toContain('let capturedPayments = $state');
   });
 
   it('has addToCart, removeFromCart, updateQty functions', () => {
@@ -83,9 +86,8 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('function finalizeSale');
   });
 
-  it('has payment method options and state', () => {
-    expect(src).toContain("let paymentMethod = $state('Cash')");
-    expect(src).toContain('let paymentOptions = $state');
+  it('has capturedPayments and checkingOut state', () => {
+    expect(src).toContain('let capturedPayments = $state');
     expect(src).toContain('let checkingOut = $state');
   });
 

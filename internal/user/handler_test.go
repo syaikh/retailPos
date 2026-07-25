@@ -209,6 +209,284 @@ func TestHandler_UpdateUser(t *testing.T) {
 	})
 }
 
+func TestHandler_CreateUser_WithReportsTo(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	// Create a manager first
+	mgr := &User{
+		Username: "hdl_mgr_reports",
+		Email:    "hdl_mgr_reports@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, mgr))
+
+	t.Run("create user with reports_to", func(t *testing.T) {
+		body := fmt.Sprintf(`{"username":"hdlstaff1","email":"hdlstaff1@test.com","password":"secret123","role_id":3,"reports_to":%d}`, mgr.ID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/admin/users", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Data.ReportsToID)
+		assert.Equal(t, mgr.ID, *resp.Data.ReportsToID)
+	})
+}
+
+func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouterWithAudit()
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	// Create manager and user
+	mgr := &User{
+		Username: "hdl_upd_mgr",
+		Email:    "hdl_upd_mgr@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, mgr))
+
+	user := &User{
+		Username: "hdl_upd_user",
+		Email:    "hdl_upd_user@test.com",
+		Password: hash,
+		RoleID:   2,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, user))
+
+	// Create a subordinate
+	sub := &User{
+		Username:    "hdl_upd_sub",
+		Email:       "hdl_upd_sub@test.com",
+		Password:    hash,
+		RoleID:      2,
+		IsActive:    true,
+		ReportsToID: &user.ID,
+	}
+	require.NoError(t, repo.CreateUser(ctx, sub))
+
+	t.Run("update reports_to success", func(t *testing.T) {
+		body := fmt.Sprintf(`{"reports_to":%d}`, mgr.ID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/users/"+strconv.Itoa(user.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("self reference rejected", func(t *testing.T) {
+		body := fmt.Sprintf(`{"reports_to":%d}`, user.ID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/users/"+strconv.Itoa(user.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp map[string]string
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.Contains(t, resp["error"], "cannot set self as manager")
+	})
+
+	t.Run("circular reference rejected", func(t *testing.T) {
+		// Try to set the subordinate as manager of the user
+		body := fmt.Sprintf(`{"reports_to":%d}`, sub.ID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/admin/users/"+strconv.Itoa(user.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var resp map[string]string
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.Contains(t, resp["error"], "circular reference")
+	})
+}
+
+func TestHandler_GetSubordinates(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	mgr := &User{
+		Username: "hdl_subs_mgr",
+		Email:    "hdl_subs_mgr@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, mgr))
+
+	sub := &User{
+		Username:    "hdl_subs_sub",
+		Email:       "hdl_subs_sub@test.com",
+		Password:    hash,
+		RoleID:      2,
+		IsActive:    true,
+		ReportsToID: &mgr.ID,
+	}
+	require.NoError(t, repo.CreateUser(ctx, sub))
+
+	t.Run("returns subordinates", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/admin/users/%d/subordinates", mgr.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Len(t, resp.Data, 1)
+		assert.Equal(t, sub.ID, resp.Data[0].ID)
+	})
+
+	t.Run("empty list when no subordinates", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/admin/users/%d/subordinates", sub.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Empty(t, resp.Data)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/admin/users/abc/subordinates", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_GetManager(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	mgr := &User{
+		Username: "hdl_mgr_get",
+		Email:    "hdl_mgr_get@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, mgr))
+
+	sub := &User{
+		Username:    "hdl_sub_get",
+		Email:       "hdl_sub_get@test.com",
+		Password:    hash,
+		RoleID:      2,
+		IsActive:    true,
+		ReportsToID: &mgr.ID,
+	}
+	require.NoError(t, repo.CreateUser(ctx, sub))
+
+	t.Run("returns manager", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/admin/users/%d/manager", sub.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, mgr.ID, resp.Data.ID)
+	})
+
+	t.Run("not found for top-level user", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/admin/users/%d/manager", mgr.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/admin/users/abc/manager", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_GetOrgChart(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupUserRouter()
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	mgr := &User{
+		Username: "hdl_org_mgr",
+		Email:    "hdl_org_mgr@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	require.NoError(t, repo.CreateUser(ctx, mgr))
+
+	sub := &User{
+		Username:    "hdl_org_sub",
+		Email:       "hdl_org_sub@test.com",
+		Password:    hash,
+		RoleID:      2,
+		IsActive:    true,
+		ReportsToID: &mgr.ID,
+	}
+	require.NoError(t, repo.CreateUser(ctx, sub))
+
+	t.Run("returns org chart", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/admin/users/org-chart", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []User `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, resp.Data)
+		foundIDs := make(map[int]bool)
+		for _, u := range resp.Data {
+			foundIDs[u.ID] = true
+		}
+		assert.True(t, foundIDs[mgr.ID], "manager should be in org chart")
+		assert.True(t, foundIDs[sub.ID], "subordinate should be in org chart")
+	})
+}
+
 func TestHandler_DeleteUser(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupUserRouter()
