@@ -53,7 +53,9 @@ TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=
 
 **Important:** All packages connect to the same PostgreSQL database. `go test` runs test binaries in parallel by default (`-p` defaults to `GOMAXPROCS`), causing deadlocks between concurrent `TRUNCATE` and `INSERT` ops across packages. Use `-p 1` to force sequential execution.
 
-The failure in `TestE2E_ValidateSession` (`cmd/server/e2e_test.go`) is pre-existing — the handler returns `"user"` key but the test expects `"data"`. Not caused by recent changes.
+All tests pass. Both previously documented pre-existing issues have been resolved:
+- `TestE2E_ValidateSession` now passes — test expects `"user"` key matching handler response
+- No `TestInteractors` exists in `internal/audit`; all audit tests pass consistently
 
 **Test database setup:** Tests connect to `retail_pos_test` DB (configurable via `TEST_DB_*` env vars). The test framework auto-applies pending migrations on first run using a `schema_migrations` tracking table. If the test DB schema is out of sync, recreate it: `dropdb retail_pos_test && createdb retail_pos_test` and re-run tests.
 
