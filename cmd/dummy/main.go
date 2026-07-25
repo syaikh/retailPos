@@ -1591,6 +1591,12 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 // injectShifts opens and closes shifts for each day/cashier, linking sales to shifts.
 // Runs after all sales are injected so it can query completed sales grouped by date + cashier.
 func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+	// Normalize to midnight Jakarta time so day range [current, dayEnd)
+	// covers the full calendar day, matching how injectDailySales generates
+	// timestamps via randomTime24Hour (which uses date components only).
+	current := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, jakartaTZ)
+	endDateMidnight := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, jakartaTZ).AddDate(0, 0, 1)
+
 	// Pick a default store (first active store, or NULL)
 	var defaultStoreID *int
 	var sid int
@@ -1598,10 +1604,9 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 		defaultStoreID = &sid
 	}
 
-	current := startDate
 	shiftCount := 0
 
-	for !current.After(endDate) {
+	for !current.After(endDateMidnight) {
 		dayEnd := current.AddDate(0, 0, 1)
 
 		cashierIDs, err := func() ([]int, error) {

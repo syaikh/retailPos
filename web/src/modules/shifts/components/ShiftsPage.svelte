@@ -191,6 +191,7 @@ import { useAuthStore } from '$modules/auth';
   <!-- Toolbar -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
+      {#if !rbac.isCashier}
       <Dropdown placement="bottom-start" items={[
         { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
         { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
@@ -242,6 +243,7 @@ import { useAuthStore } from '$modules/auth';
           </button>
         {/snippet}
       </Dropdown>
+      {/if}
 
       <div class="ml-auto flex items-center gap-2">
         <Dropdown placement="bottom-end" items={[
@@ -311,27 +313,27 @@ import { useAuthStore } from '$modules/auth';
       <table class="w-full text-sm table-fixed">
         <thead>
           <tr class="border-b border-border bg-surface-secondary">
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary {rbac.isCashier ? 'w-[170px]' : 'w-[150px]'}">
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {rbac.isCashier ? 'w-[170px]' : 'w-[150px]'}">
               <SortableHeader label="OPENED AT" column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
             {#if !rbac.isCashier && authStore.user}
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary w-[120px]">CASHIER</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[120px]">CASHIER</th>
             {/if}
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
               <SortableHeader label="OPENING (RP)" column="opening_balance" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
               <SortableHeader label="CASH SALES (RP)" column="cash_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
               <SortableHeader label="TOTAL SALES (RP)" column="total_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-center px-3 py-3 font-semibold text-text-secondary w-[50px]">TXN</th>
-            <th class="text-right px-3 py-3 font-semibold text-text-secondary w-[110px]">
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[50px]">TXN</th>
+            <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
               <SortableHeader label="DISCREPANCY" column="discrepancy" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-center px-3 py-3 font-semibold text-text-secondary w-[80px]">STATUS</th>
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary w-[150px]">
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[80px]">STATUS</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[150px]">
               <SortableHeader label="CLOSED AT" column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
           </tr>
