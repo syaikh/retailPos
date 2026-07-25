@@ -395,6 +395,13 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	}
 	fmt.Println("   ✅ Audit log entries generated")
 
+	// 11. Refresh materialized views so report queries return data immediately
+	fmt.Printf("🔄 Refreshing materialized views...\n")
+	if _, err := db.ExecContext(ctx, `SELECT refresh_sales_mv()`); err != nil {
+		return fmt.Errorf("failed to refresh materialized views: %w", err)
+	}
+	fmt.Println("   ✅ Materialized views refreshed")
+
 	fmt.Println("🎉 Dummy data injection completed successfully!")
 	return nil
 }
