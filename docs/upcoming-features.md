@@ -73,11 +73,11 @@ Kasir sedang scan barang:
 
 ---
 
-## 3. Split Payment (Multi Payment Method)
+## 3. Split Payment (Multi Payment Method) ✅
 
-### Penjelasan
+**Status:** SUDAH DIIMPLEMENTASI — `sale_payments` table, `CheckoutModal.svelte` (allocations grid), backend validation (`validatePayments`)
 
-Pelanggan membayar dengan **lebih dari satu metode pembayaran** dalam satu transaksi. Saat ini sistem hanya support 1 payment method per sale.
+Sistem saat ini sudah mendukung pembayaran dengan **lebih dari satu metode pembayaran** dalam satu transaksi. Setiap alokasi pembayaran dicatat di tabel `sale_payments` dan ditampilkan di UI POS, receipt, dan transaction drawer.
 
 ### Contoh Penggunaan
 
@@ -98,19 +98,36 @@ Contoh 3 - Cash + Card + E-Wallet:
   - E-Wallet:  Rp  75.000
 ```
 
-### Komponen yang Perlu Dibangun
+### Komponen yang Telah Dibangun
 
 **Backend:**
-- Tabel `sale_payments` (sale_id, payment_method_id, amount, reference_number, created_at)
-- Ubah response sale detail untuk menyertakan multiple payments
-- Validasi: total semua pembayaran harus = total belanja (toleransi 0 untuk cash, tolerance untuk rounding)
+- Tabel `sale_payments` (`004_split_payment.sql`) — menyimpan `sale_id`, `payment_method_id`, `payment_method_code`, `amount`, `reference_number`, `created_at`
+- Validasi `validatePayments` — cek total pembayaran = total belanja, max 10 metode, batas 1 Cash, referensi untuk Card/E-Wallet
+- Domain errors: `ErrPaymentTotalMismatch`, `ErrDuplicatePaymentMethod`, `ErrMultipleCashPayments`, `ErrMaxPaymentsExceeded`, `ErrPaymentReferenceRequired`, `ErrPaymentMethodInactive`
+- Service & Repository: `CreateSalePayments`, `UpdateShiftTotals`, response `Sale.Payments []SalePayment`
 
 **Frontend:**
-- Tombol "Add Payment" di area pembayaran POS
-- Daftar payment yang sudah ditambahkan (dengan tombol hapus per baris)
-- Sisa bayar (remaining) ditampilkan secara real-time
-- Input reference number opsional per payment (untuk card/e-wallet)
-- Jika remaining = 0, tombol "Complete Sale" aktif
+- `CheckoutModal.svelte` — "Alokasi Pembayaran" dengan grid metode pembayaran, daftar alokasi (add/remove), input jumlah, nomor referensi opsional, denom uang cash, tombol "Tepat [F7]"
+- `PosPage.svelte` — wiring `payments` ke payload POST `/sales`
+- `ReceiptPrintOverlay.svelte` — cetak semua alokasi pembayaran
+- `TransactionDrawer.svelte` — tampilkan array `payments` dengan ref number
+- `TransactionTable.svelte` — badge metode ganda untuk transaksi split
+
+### Aturan Validasi
+
+| Aturan | Keterangan |
+|--------|------------|
+| Total split = total belanja | Wajib (toleransi 0) |
+| Max 10 metode per transaksi | Ditentukan `MaxPaymentsPerSale` |
+| Hanya 1 Cash | Mencegah duplikasi cash |
+| Duplikasi metode lain | Ditolak (case-insensitive) |
+| Referensi untuk Card/E-Wallet | Wajib jika payment method `requires_reference = true` |
+
+### Test Coverage
+
+- Backend: `internal/sale/service_test.go`, `handler_mock_test.go`, `repository_test.go` — include success, total mismatch, duplikat metode, multiple cash, max exceeded, reference required, invalid method, inactive method, 3-way split
+- Frontend: `CheckoutModal.svelte.test.ts` (25 tests), `PosPage.svelte.test.ts` (26 tests)
+- E2E: `TestE2E_SplitPayment` — cash+card, three-way split
 
 ---
 
@@ -378,9 +395,9 @@ Skenario 3 - Percobaan bypass via API langsung:
 |--------|-------|--------|
 | 1 | ~~Shift Management~~ | ✅ Selesai |
 | 2 | ~~Hold & Recall~~ | ✅ Selesai |
-| 3 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
-| 4 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
-| 5 | Split Payment | Fleksibilitas bayar, sering diminta pelanggan |
+| 3 | ~~Split Payment~~ | ✅ Selesai |
+| 4 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
+| 5 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
 | 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
 | 7 | Product Image | Peningkatan UX visual, relatif sederhana |
 | 8 | Purchase Order | Alur pembelian, butuh dependency lebih banyak |
