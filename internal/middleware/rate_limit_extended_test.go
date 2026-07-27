@@ -331,3 +331,62 @@ func TestCleanupOnce_EntriesWithinTTLPreserved(t *testing.T) {
 	assert.Equal(t, 1, count)
 	assert.True(t, exists, "entry within TTL should be preserved")
 }
+
+func TestWebSocketRateLimitMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("request under limit passes", func(t *testing.T) {
+		t.Setenv("WS_RATE_LIMIT_RPM", "2")
+		t.Setenv("WS_RATE_LIMIT_BURST", "2")
+
+		router := gin.New()
+		router.Use(WebSocketRateLimitMiddleware())
+		router.GET("/ws", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+		req.RemoteAddr = "192.168.1.1:8080"
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("request over limit returns 429", func(t *testing.T) {
+		t.Setenv("WS_RATE_LIMIT_RPM", "1")
+		t.Setenv("WS_RATE_LIMIT_BURST", "1")
+
+		router := gin.New()
+		router.Use(WebSocketRateLimitMiddleware())
+		router.GET("/ws", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		for i := 0; i < 3; i++ {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+			req.RemoteAddr = "5.5.5.5:1111"
+			router.ServeHTTP(w, req)
+			if i == 2 {
+				assert.Equal(t, http.StatusTooManyRequests, w.Code)
+			}
+		}
+	})
+
+	t.Run("custom env vars", func(t *testing.T) {
+		t.Setenv("WS_RATE_LIMIT_RPM", "100")
+		t.Setenv("WS_RATE_LIMIT_BURST", "100")
+
+		router := gin.New()
+		router.Use(WebSocketRateLimitMiddleware())
+		router.GET("/ws", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+		req.RemoteAddr = "9.9.9.9:2222"
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}

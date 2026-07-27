@@ -68,6 +68,15 @@ func NewAuthService(repo *Repository, auditSvc audit.AuditCreator, cfg *config.C
 	}
 }
 
+func NewAuthServiceForTest(jwtSecret string) *AuthService {
+	return &AuthService{
+		jwtSecret:     jwtSecret,
+		refreshSecret: jwtSecret,
+		accessTTL:     15 * time.Minute,
+		refreshTTL:    7 * 24 * time.Hour,
+	}
+}
+
 func (s *AuthService) Login(ctx context.Context, username, password string) (*LoginResponse, error) {
 	ip, _ := ctx.Value(shared.CtxKeyIPAddress).(string)
 	ua, _ := ctx.Value(shared.CtxKeyUserAgent).(string)

@@ -4,9 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"retail-pos-system/internal/user"
 )
 
 func TestGetUserID(t *testing.T) {
@@ -431,4 +434,116 @@ func TestAdminOnly(t *testing.T) {
 			assert.Equal(t, tt.wantCode, w.Code)
 		})
 	}
+}
+
+func generateTestToken(secret string, claims jwt.RegisteredClaims) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, _ := token.SignedString([]byte(secret))
+	return signed
+}
+
+func TestNewModularAuthMiddleware_NoToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	authService := user.NewAuthServiceForTest("test-secret")
+	middleware := NewModularAuthMiddleware(authService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.RemoteAddr = "127.0.0.1:8080"
+
+	middleware(c)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestNewModularAuthMiddleware_InvalidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	authService := user.NewAuthServiceForTest("test-secret")
+	middleware := NewModularAuthMiddleware(authService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.Header.Set("Authorization", "Bearer invalid-token")
+	c.Request.RemoteAddr = "127.0.0.1:8080"
+
+	middleware(c)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestNewModularAuthMiddleware_ValidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	authService := user.NewAuthServiceForTest("test-secret")
+	middleware := NewModularAuthMiddleware(authService)
+
+	authClaims := user.AuthClaims{
+		ID:         1,
+		Username:   "testuser",
+		RoleID:     1,
+		Role:       "superadmin",
+		Permissions: []string{"sale.create", "report.view"},
+		StoreID:    intPtr(2),
+	}
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Subject:   "1",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":          authClaims.ID,
+		"username":    authClaims.Username,
+		"role_id":     authClaims.RoleID,
+		"role":        authClaims.Role,
+		"permissions": authClaims.Permissions,
+		"store_id":    authClaims.StoreID,
+		"exp":         claims.ExpiresAt.Unix(),
+		"iat":         claims.IssuedAt.Unix(),
+		"sub":         claims.Subject,
+	})
+	signedToken, _ := token.SignedString([]byte("test-secret"))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.Header.Set("Authorization", "Bearer "+signedToken)
+	c.Request.Header.Set("User-Agent", "test-agent")
+	c.Request.RemoteAddr = "127.0.0.1:8080"
+
+	middleware(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 1, c.GetInt("userID"))
+	assert.Equal(t, "testuser", c.GetString("username"))
+	assert.Equal(t, "superadmin", c.GetString("role"))
+	assert.Equal(t, 1, c.GetInt("roleID"))
+}
+
+func TestNewModularAuthMiddleware_CookieFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	authService := user.NewAuthServiceForTest("test-secret")
+	middleware := NewModularAuthMiddleware(authService)
+
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Subject:   "1",
+	}
+	token := generateTestToken("test-secret", claims)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.AddCookie(&http.Cookie{Name: "access_token", Value: token})
+	c.Request.Header.Set("User-Agent", "test-agent")
+	c.Request.RemoteAddr = "127.0.0.1:8080"
+
+	middleware(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }

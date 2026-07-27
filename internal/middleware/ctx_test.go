@@ -149,3 +149,35 @@ func TestUserAgentFromContext_WrongType(t *testing.T) {
 		t.Errorf("expected empty, got %s", got)
 	}
 }
+
+func TestReportsToIDFromContext_Present(t *testing.T) {
+	sid := intPtr(7)
+	ctx := context.WithValue(context.Background(), CtxKeyReportsToID, sid)
+	got := ReportsToIDFromContext(ctx)
+	if got == nil || *got != 7 {
+		t.Errorf("expected 7, got %v", got)
+	}
+}
+
+func TestReportsToIDFromContext_Missing(t *testing.T) {
+	got := ReportsToIDFromContext(context.Background())
+	if got != nil {
+		t.Errorf("expected nil, got %v", got)
+	}
+}
+
+func TestReportsToIDFromContext_NilPtr(t *testing.T) {
+	ctx := context.WithValue(context.Background(), CtxKeyReportsToID, (*int)(nil))
+	got := ReportsToIDFromContext(ctx)
+	if got != nil {
+		t.Errorf("expected nil for nil pointer, got %v", got)
+	}
+}
+
+func TestReportsToIDFromContext_WrongType(t *testing.T) {
+	ctx := context.WithValue(context.Background(), CtxKeyReportsToID, "not-int")
+	got := ReportsToIDFromContext(ctx)
+	if got != nil {
+		t.Errorf("expected nil for wrong type, got %v", got)
+	}
+}

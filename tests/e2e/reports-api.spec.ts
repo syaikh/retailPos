@@ -3,14 +3,35 @@ import { TEST_USERS, API_BASE, authHeader, getToken as cachedGetToken } from './
 
 const getToken = cachedGetToken;
 
+const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function getTodayInJakarta(): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getDateNDaysAgoInJakarta(daysAgo: number): string {
+  const shifted = new Date(Date.now() + JAKARTA_OFFSET_MS);
+  const todayMidnightJKT =
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 0, 0, 0, 0) -
+    JAKARTA_OFFSET_MS;
+  const targetMs = todayMidnightJKT - daysAgo * 86400000;
+  const target = new Date(targetMs + JAKARTA_OFFSET_MS);
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+}
+
 test.describe('Reports API - Chart Endpoints', () => {
 
   test('GET /api/dashboard/chart returns sales data', async ({ request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
-    const res = await request.get(`${API_BASE}/api/dashboard/chart?period=day`, { headers: authHeader(token) });
+    const startDate = getDateNDaysAgoInJakarta(6);
+    const endDate = getTodayInJakarta();
+    const res = await request.get(`${API_BASE}/api/dashboard/chart?period=day&startDate=${startDate}&endDate=${endDate}`, { headers: authHeader(token) });
     expect(res.ok(), `chart failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();
     expect(body).toBeDefined();
+    const currentData = (body?.data as any[]) || [];
+    expect(currentData.length).toBe(7);
   });
 
   test('GET /api/dashboard/chart/weekly returns weekly data', async ({ request }) => {
@@ -27,6 +48,17 @@ test.describe('Reports API - Chart Endpoints', () => {
     expect(res.ok(), `monthly failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();
     expect(body).toBeDefined();
+  });
+
+  test('GET /api/dashboard/chart 30 days with Jakarta dates returns 30 data points', async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    const startDate = getDateNDaysAgoInJakarta(29);
+    const endDate = getTodayInJakarta();
+    const res = await request.get(`${API_BASE}/api/dashboard/chart?period=day&startDate=${startDate}&endDate=${endDate}`, { headers: authHeader(token) });
+    expect(res.ok(), `30day chart failed: ${res.status()}: ${await res.text()}`).toBeTruthy();
+    const body = await res.json();
+    const currentData = (body?.data as any[]) || [];
+    expect(currentData.length).toBe(30);
   });
 
   test('GET /api/dashboard/comparison returns period comparison', async ({ request }) => {
