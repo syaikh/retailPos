@@ -84,10 +84,16 @@ build/
 # Test coverage
 coverage.html
 coverage.xml
+coverage_report.html
+config_coverage.html
+web/coverage/
 
 # Test results and screenshots
 test-results*
 playwright-report/
+
+# Generated test artifacts
+invoice-INV-*.pdf
 
 # Local development files
 .kilo/
