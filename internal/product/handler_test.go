@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
 )
 
@@ -57,6 +58,68 @@ func setupProductRouter() *gin.Engine {
 	return r
 }
 
+type mockProductAudit struct {
+	called bool
+}
+
+func (m *mockProductAudit) CreateAuditLog(_ context.Context, _ *audit.AuditLog) error {
+	m.called = true
+	return nil
+}
+
+func setupProductRouterWithAudit() (*gin.Engine, *mockProductAudit) {
+	gin.SetMode(gin.TestMode)
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+
+	svc := NewService(repo, nil, nil, nil, bus)
+	mockAudit := &mockProductAudit{}
+	h := NewHandler(svc, mockAudit)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "testuser")
+		c.Set("roleID", 1)
+		c.Set("role", "superadmin")
+		c.Set("permissions", []string{"product.create", "product.update", "product.delete"})
+		sid := 1
+		c.Set("storeID", &sid)
+		c.Next()
+	})
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(string) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	return r, mockAudit
+}
+
+func TestHandler_UpdateProduct_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_, err := dbPool.Exec(ctx, `INSERT INTO stores (id, name, is_active) VALUES (1, 'Test Store', true) ON CONFLICT (id) DO NOTHING`)
+	require.NoError(t, err)
+	storeID := 1
+	p := &Product{
+		SKU: "HDL-AUDIT-UPD", Name: "Audit Before",
+		Price: 5000, Cost: 2500, Stock: 3, Status: "active",
+		StoreID: &storeID,
+	}
+	require.NoError(t, repo.CreateProduct(ctx, p))
+
+	r, mockAudit := setupProductRouterWithAudit()
+
+	body := `{"sku":"HDL-AUDIT-UPD","name":"Audit After","price":8000,"cost":4000,"stock":5,"status":"active"}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/products/"+strconv.Itoa(p.ID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, mockAudit.called)
+}
+
 func TestHandler_GetProducts(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()
@@ -91,6 +154,17 @@ func TestHandler_GetProducts(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+}
+
+func TestHandler_GetProducts_WithSupplierID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupProductRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/products?supplier_id=1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestHandler_GetProductByID(t *testing.T) {

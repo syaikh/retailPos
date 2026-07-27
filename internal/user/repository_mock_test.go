@@ -530,14 +530,14 @@ func TestRepository_GetRolePermissions_Success(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "code", "name", "created_at"}).
-		AddRow(1, "products.view", "View Products", now)
+		AddRow(1, "product.view", "View Products", now)
 	mock.ExpectQuery("SELECT p.id, p.code").WithArgs(1).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	perms, err := repo.GetRolePermissions(context.Background(), 1)
 	require.NoError(t, err)
 	assert.Len(t, perms, 1)
-	assert.Equal(t, "products.view", perms[0].Code)
+	assert.Equal(t, "product.view", perms[0].Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -592,14 +592,14 @@ func TestRepository_GetAllPermissions_Success(t *testing.T) {
 
 	now := time.Now()
 	rows := pgxmock.NewRows([]string{"id", "code", "name", "created_at"}).
-		AddRow(1, "users.view", "View Users", now)
+		AddRow(1, "user.view", "View Users", now)
 	mock.ExpectQuery("SELECT id, code, name, created_at FROM permissions").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	perms, err := repo.GetAllPermissions(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, perms, 1)
-	assert.Equal(t, "users.view", perms[0].Code)
+	assert.Equal(t, "user.view", perms[0].Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

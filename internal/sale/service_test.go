@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -442,6 +443,38 @@ func TestSaleService_ParkSale(t *testing.T) {
 		err := svc.ParkSale(ctx, sale, items, nil)
 		assert.ErrorContains(t, err, "invalid quantity")
 	})
+
+	t.Run("with recalled sale ID", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-PARK-RECALL", "parked", prodID, 1, 10000)
+		recalled, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PARK-RECALLED",
+			CashierID:     cashierID,
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        "parked",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+			DPPAmount: 10000,
+			TaxAmount: 0,
+		}}
+
+		err = svc.ParkSale(ctx, sale, items, &recalled.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "parked", sale.Status)
+
+		var cancelledStatus string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM sales WHERE id = $1`, recalled.ID).Scan(&cancelledStatus)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", cancelledStatus, "previous recalled sale should be cancelled")
+	})
 }
 
 func TestSaleService_RecallSale(t *testing.T) {
@@ -740,4 +773,217 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 		err := svc.CreateSaleWithParkedSale(ctx, sale, items, &parked.ID, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 		assert.ErrorIs(t, err, ErrParkedSaleNotRecalled)
 	})
+}
+
+func TestSaleService_SetPriceResolver(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	priceRes := &mockPriceResolver{}
+	svc.SetPriceResolver(priceRes)
+	assert.NotNil(t, svc.resolver)
+	assert.Equal(t, priceRes, svc.resolver)
+}
+
+type mockPriceResolver struct{}
+
+func (m *mockPriceResolver) Resolve(ctx context.Context, rc pricing.ResolveContext) (*pricing.ResolvedPrice, error) {
+	return &pricing.ResolvedPrice{UnitPrice: 10000, OriginalPrice: 10000, Discount: 0, PricingType: pricing.PricingTypeDefault, PricingMethod: pricing.PricingMethodFixedPrice}, nil
+}
+
+func (m *mockPriceResolver) ResolveBatch(ctx context.Context, items []pricing.ResolveItem) ([]pricing.ResolvedPrice, error) {
+	result := make([]pricing.ResolvedPrice, len(items))
+	for i := range items {
+		result[i] = pricing.ResolvedPrice{UnitPrice: 10000, OriginalPrice: 10000, Discount: 0, PricingType: pricing.PricingTypeDefault, PricingMethod: pricing.PricingMethodFixedPrice}
+	}
+	return result, nil
+}
+
+type mockSimplePriceStore struct {
+	prices map[int]int
+}
+
+func (m *mockSimplePriceStore) GetProductPrice(_ context.Context, productID int) (int, error) {
+	if p, ok := m.prices[productID]; ok {
+		return p, nil
+	}
+	return 0, assert.AnError
+}
+
+func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	svc.SetPriceResolver(&mockPriceResolver{})
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-RESOLV-PROD", "Resolver Product", 5000, 100)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-RESOLV-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      0,
+		Tax:           0,
+		TotalAmount:   0,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  2,
+		UnitPrice: 9999,
+		Subtotal:  19998,
+		DPPAmount: 19998,
+		TaxAmount: 0,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}})
+	require.NoError(t, err)
+	assert.Equal(t, 20000, sale.TotalAmount, "resolver overrides prices to 10000 each x2 items")
+	assert.Equal(t, 10000, items[0].UnitPrice, "resolver should override unit price")
+}
+
+func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-NOBATCH-PROD", "No Batch Product", 7500, 100)
+	svc.SetPriceStore(&mockSimplePriceStore{prices: map[int]int{prodID: 7500}})
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-NOBATCH-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      7500,
+		TotalAmount:   7500,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: 7000,
+		Subtotal:  7000,
+		DPPAmount: 7000,
+		TaxAmount: 0,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 7500}})
+	require.NoError(t, err)
+	assert.Equal(t, 7500, sale.Subtotal, "non-batch price store should set server price")
+	assert.Equal(t, 7500, items[0].UnitPrice, "server price should override client price")
+}
+
+func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	var prodID int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, cost, status) VALUES ($1, $2, 5000, 2500, 'active') RETURNING id`,
+		"SVC-NOSTOCK-PROD", "No Stock Record",
+	).Scan(&prodID)
+	require.NoError(t, err)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-NOSTOCK-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      5000,
+		TotalAmount:   5000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: 5000,
+		Subtotal:  5000,
+		DPPAmount: 5000,
+		TaxAmount: 0,
+	}}
+
+	err = svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
+	assert.ErrorContains(t, err, "stock record not found")
+}
+
+func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-CLAMP-PROD", "Clamp Product", 10000, 100)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-CLAMP-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      10000,
+		Discount:      15000,
+		TotalAmount:   10000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: 10000,
+		Subtotal:  10000,
+		DPPAmount: 10000,
+		TaxAmount: 0,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
+	assert.ErrorIs(t, err, ErrPaymentTotalMismatch, "clamping should set TotalAmount=0, payment 5000 mismatches")
+}
+
+func TestSaleService_GetAllPaymentMethods(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+
+	methods, err := svc.GetAllPaymentMethods(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, methods)
+}
+
+func TestSaleService_GetParkedSaleByID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "SVC-GETPID-001", "Get Parked ByID", 10000, 50)
+	parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-GETPID-001", "parked", prodID, 2, 10000)
+
+	sale, err := svc.GetParkedSaleByID(ctx, parked.ID, cashierID)
+	require.NoError(t, err)
+	assert.Equal(t, parked.ID, sale.ID)
+	assert.Equal(t, "parked", sale.Status)
+	assert.NotEmpty(t, sale.Items)
+	assert.Len(t, sale.Items, 1)
+}
+
+func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+
+	_, err := svc.GetParkedSaleByID(ctx, -999, 0)
+	assert.ErrorIs(t, err, ErrSaleNotFound)
 }

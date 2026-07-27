@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/audit"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -27,7 +29,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"store:create", "store:update", "store:delete", "store:read"})
+		c.Set("permissions", []string{"store.create", "store.update", "store.delete", "store.view"})
 		c.Set("storeID", nil)
 		c.Next()
 	}
@@ -356,6 +358,82 @@ func TestHandler_List_IsActiveFalse(t *testing.T) {
 	}
 
 	_ = repo.Delete(ctx, s.ID)
+}
+
+type mockStoreAudit struct {
+	called bool
+}
+
+func (m *mockStoreAudit) CreateAuditLog(_ context.Context, _ *audit.AuditLog) error {
+	m.called = true
+	return nil
+}
+
+func setupStoreRouterWithAudit() (*gin.Engine, *mockStoreAudit) {
+	gin.SetMode(gin.TestMode)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	mockAudit := &mockStoreAudit{}
+	h := NewHandler(svc, mockAudit)
+
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	return r, mockAudit
+}
+
+func TestHandler_Create_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	r, mockAudit := setupStoreRouterWithAudit()
+
+	body := `{"name":"Audit Store","address":"Addr","phone":"123"}`
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/stores", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.True(t, mockAudit.called)
+
+	var resp struct {
+		Data Store `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	repo := NewRepository(dbPool)
+	_ = repo.Delete(context.Background(), resp.Data.ID)
+}
+
+func TestHandler_Update_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	s := &Store{Name: "Audit Update Store", IsActive: true}
+	require.NoError(t, repo.Create(ctx, s))
+
+	r, mockAudit := setupStoreRouterWithAudit()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/stores/%d", s.ID), strings.NewReader(`{"name":"Audit Updated"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, mockAudit.called)
+
+	_ = repo.Delete(ctx, s.ID)
+}
+
+func TestHandler_Delete_WithAudit(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	s := &Store{Name: "Audit Delete Store", IsActive: true}
+	require.NoError(t, repo.Create(ctx, s))
+
+	r, mockAudit := setupStoreRouterWithAudit()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/stores/%d", s.ID), nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, mockAudit.called)
 }
 
 func TestHandler_List_WithSearch(t *testing.T) {

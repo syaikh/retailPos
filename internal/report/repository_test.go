@@ -399,6 +399,149 @@ func TestReportRepository_InvalidateDashboardCache_WithStoreID(t *testing.T) {
 	assert.False(t, ok2)
 }
 
+func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	cacheObj := cache.New(5*time.Minute, 1*time.Minute)
+	repo.SetCache(cacheObj)
+
+	userSKU := uniqueSKU("CACHE")
+	var cashierID int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO users (username, email, password_hash, role_id) VALUES ($1, $2, 'hash', 1) RETURNING id`,
+		userSKU, userSKU+"@test.com",
+	).Scan(&cashierID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `INSERT INTO stores (id, name, is_active) VALUES (1, 'Cache Store', true) ON CONFLICT (id) DO NOTHING`)
+	require.NoError(t, err)
+
+	custSKU := uniqueSKU("CACHE")
+	var customerID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
+	).Scan(&customerID)
+	require.NoError(t, err)
+
+	sku := uniqueSKU("CACHE-PROD")
+	var productID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, stock, status, store_id) VALUES ($1, $2, 50000, 10, 'active', 1) RETURNING id`,
+		sku, "Cache Test Product",
+	).Scan(&productID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, 1, 10)`, productID)
+	require.NoError(t, err)
+
+	invSKU := uniqueSKU("CACHE-INV")
+	var saleID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method, status, store_id)
+		 VALUES ($1, $2, $3, 50000, 50000, 'CASH', 'completed', 1) RETURNING id`,
+		invSKU, cashierID, customerID,
+	).Scan(&saleID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+		 VALUES ($1, $2, 1, 50000, 50000, 50000, 0)`,
+		saleID, productID,
+	)
+	require.NoError(t, err)
+
+	refreshMaterializedViews(t, ctx)
+
+	now := time.Now()
+	start := now.AddDate(0, -1, 0)
+	end := now
+	prevStart := start.AddDate(0, -1, 0)
+	prevEnd := start
+	sid := 1
+
+	t.Run("cache miss then hit", func(t *testing.T) {
+		pc, err := repo.GetPeriodComparison(ctx, start, end, prevStart, prevEnd, nil)
+		require.NoError(t, err)
+		require.NotNil(t, pc)
+		_, _ = repo.GetPeriodComparison(ctx, start, end, prevStart, prevEnd, nil)
+	})
+	t.Run("storeID branch", func(t *testing.T) {
+		pc, err := repo.GetPeriodComparison(ctx, start, end, prevStart, prevEnd, &sid)
+		require.NoError(t, err)
+		require.NotNil(t, pc)
+	})
+	t.Run("dual chart data cache+storeID", func(t *testing.T) {
+		cs := now.AddDate(0, 0, -7)
+		ce := now
+		ps := cs.AddDate(0, 0, -7)
+		pe := ce.AddDate(0, 0, -7)
+		current, previous, err := repo.GetDualChartData(ctx, cs, ce, ps, pe, nil)
+		require.NoError(t, err)
+		require.NotNil(t, current)
+		_ = previous
+		current, previous, err = repo.GetDualChartData(ctx, cs, ce, ps, pe, &sid)
+		require.NoError(t, err)
+		require.NotNil(t, current)
+		_ = previous
+		_, _, err = repo.GetDualChartData(ctx, cs, ce, ps, pe, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("live dashboard cache+storeID", func(t *testing.T) {
+		_, _, _, _, err := repo.GetLiveDashboardStats(ctx, nil)
+		require.NoError(t, err)
+		_, _, _, _, err = repo.GetLiveDashboardStats(ctx, nil)
+		require.NoError(t, err)
+		_, _, _, _, err = repo.GetLiveDashboardStats(ctx, &sid)
+		require.NoError(t, err)
+		_, _, _, _, err = repo.GetLiveDashboardStats(ctx, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("dashboard stats cache+storeID", func(t *testing.T) {
+		stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
+		require.NoError(t, err)
+		require.NotNil(t, stats)
+		stats, err = repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
+		require.NoError(t, err)
+		require.NotNil(t, stats)
+		stats, err = repo.GetDashboardStats(ctx, &sid, shared.JakartaLocation())
+		require.NoError(t, err)
+		require.NotNil(t, stats)
+	})
+	t.Run("available years storeID", func(t *testing.T) {
+		_, err := repo.GetAvailableYears(ctx, nil)
+		require.NoError(t, err)
+		_, err = repo.GetAvailableYears(ctx, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("hourly sales storeID", func(t *testing.T) {
+		_, err := repo.GetHourlySales(ctx, now, nil)
+		require.NoError(t, err)
+		_, err = repo.GetHourlySales(ctx, now, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("daily sales storeID", func(t *testing.T) {
+		_, err := repo.GetDailySales(ctx, start, end, nil)
+		require.NoError(t, err)
+		_, err = repo.GetDailySales(ctx, start, end, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("weekly report storeID", func(t *testing.T) {
+		_, err := repo.GetSalesWeeklyReport(ctx, start, end, nil)
+		require.NoError(t, err)
+		_, err = repo.GetSalesWeeklyReport(ctx, start, end, &sid)
+		require.NoError(t, err)
+	})
+	t.Run("monthly report storeID", func(t *testing.T) {
+		_, err := repo.GetSalesMonthlyReport(ctx, start, end, nil)
+		require.NoError(t, err)
+		_, err = repo.GetSalesMonthlyReport(ctx, start, end, &sid)
+		require.NoError(t, err)
+	})
+}
+
 func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)

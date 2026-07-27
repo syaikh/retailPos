@@ -173,7 +173,7 @@ CREATE UNIQUE INDEX idx_products_unique_active_barcode ON products(barcode) WHER
 
 CREATE TABLE IF NOT EXISTS product_stock (
     id SERIAL PRIMARY KEY,
-    product_id INTEGER NOT NULL UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     warehouse_id INTEGER REFERENCES warehouses(id) ON DELETE SET NULL,
     store_id INTEGER REFERENCES stores(id) ON DELETE SET NULL,
     quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
@@ -183,6 +183,8 @@ CREATE TABLE IF NOT EXISTS product_stock (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE product_stock ADD CONSTRAINT uq_product_stock UNIQUE NULLS NOT DISTINCT (product_id, warehouse_id, store_id);
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
     id SERIAL PRIMARY KEY,
@@ -668,33 +670,27 @@ INSERT INTO permissions (code, name, description) VALUES
     ('shift.audit', 'Audit shift', 'Audit fisik cash shift'),
     ('report.view', 'Lihat Laporan', 'Bisa melihat laporan keuangan & stok'),
     ('audit.view', 'Lihat Log Audit', 'Bisa melihat riwayat log audit'),
-    ('product:export', 'Export Produk', 'Bisa mengexport data produk'),
-    ('product:import', 'Import Produk', 'Bisa mengimport data produk'),
-    ('category:export', 'Export Kategori', 'Bisa mengexport data kategori'),
-    ('category:import', 'Import Kategori', 'Bisa mengimport data kategori'),
-    ('customer:export', 'Export Pelanggan', 'Bisa mengexport data pelanggan'),
-    ('customer:import', 'Import Pelanggan', 'Bisa mengimport data pelanggan'),
-    ('pricing:read', 'Lihat Aturan Harga', 'Bisa melihat daftar aturan harga'),
-    ('pricing:create', 'Tambah Aturan Harga', 'Bisa menambah aturan harga baru'),
-    ('pricing:update', 'Edit Aturan Harga', 'Bisa mengubah aturan harga'),
-    ('pricing:delete', 'Hapus Aturan Harga', 'Bisa menghapus aturan harga'),
-    ('supplier_cost:view', 'Lihat Harga Beli Supplier', 'Bisa melihat unit_cost supplier pada produk dan tautan supplier'),
-    ('supplier_cost:update', 'Edit Harga Beli Supplier', 'Bisa mengubah unit_cost saat menautkan produk ke supplier'),
-    ('store:read', 'Lihat Data Toko', NULL),
-    ('store:create', 'Buat Data Toko', NULL),
-    ('store:update', 'Edit Data Toko', NULL),
-    ('store:delete', 'Hapus Data Toko', NULL),
-    ('customer_group:read', 'Lihat Data Customer Group', NULL),
-    ('customer_group:create', 'Buat Data Customer Group', NULL),
-    ('customer_group:update', 'Edit Data Customer Group', NULL),
-    ('customer_group:delete', 'Hapus Data Customer Group', NULL)
+    ('product.export', 'Export Produk', 'Bisa mengexport data produk'),
+    ('product.import', 'Import Produk', 'Bisa mengimport data produk'),
+    ('category.export', 'Export Kategori', 'Bisa mengexport data kategori'),
+    ('category.import', 'Import Kategori', 'Bisa mengimport data kategori'),
+    ('customer.export', 'Export Pelanggan', 'Bisa mengexport data pelanggan'),
+    ('customer.import', 'Import Pelanggan', 'Bisa mengimport data pelanggan'),
+    ('pricing.view', 'Lihat Aturan Harga', 'Bisa melihat daftar aturan harga'),
+    ('pricing.create', 'Tambah Aturan Harga', 'Bisa menambah aturan harga baru'),
+    ('pricing.update', 'Edit Aturan Harga', 'Bisa mengubah aturan harga'),
+    ('pricing.delete', 'Hapus Aturan Harga', 'Bisa menghapus aturan harga'),
+    ('supplier_cost.view', 'Lihat Harga Beli Supplier', 'Bisa melihat unit_cost supplier pada produk dan tautan supplier'),
+    ('supplier_cost.update', 'Edit Harga Beli Supplier', 'Bisa mengubah unit_cost saat menautkan produk ke supplier'),
+    ('store.view', 'Lihat Data Toko', NULL),
+    ('store.create', 'Buat Data Toko', NULL),
+    ('store.update', 'Edit Data Toko', NULL),
+    ('store.delete', 'Hapus Data Toko', NULL),
+    ('customer_group.view', 'Lihat Data Customer Group', NULL),
+    ('customer_group.create', 'Buat Data Customer Group', NULL),
+    ('customer_group.update', 'Edit Data Customer Group', NULL),
+    ('customer_group.delete', 'Hapus Data Customer Group', NULL)
 ON CONFLICT (code) DO NOTHING;
-
--- Cleanup: remove legacy dot-notation duplicates (from 012 — safe on fresh DB too)
-DELETE FROM role_permissions WHERE permission_id IN (
-    SELECT id FROM permissions WHERE code LIKE '%.view' OR code LIKE '%.create'
-    OR code LIKE '%.update' OR code LIKE '%.delete' OR code LIKE '%.print'
-);
 
 -- ============================================================
 -- Role-Permission assignments
@@ -705,7 +701,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'superadmin'
 ON CONFLICT DO NOTHING;
 
--- Admin: core + category:update/delete + export/import + pricing:read/create/update + supplier_cost:view/update + store CRUD + customer_group CRUD
+-- Admin
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'admin'
     AND p.code IN (
@@ -716,17 +712,17 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'admin'
         'sale.view','sale.create','sale.print','sale.void','sale.park',
         'shift.view','shift.create','shift.review','shift.audit',
         'report.view',
-        'product:export','product:import',
-        'category:export','category:import',
-        'customer:export','customer:import',
-        'pricing:read','pricing:create','pricing:update','pricing:delete',
-        'supplier_cost:view','supplier_cost:update',
-        'store:read','store:create','store:update','store:delete',
-        'customer_group:read','customer_group:create','customer_group:update','customer_group:delete'
+        'product.export','product.import',
+        'category.export','category.import',
+        'customer.export','customer.import',
+        'pricing.view','pricing.create','pricing.update','pricing.delete',
+        'supplier_cost.view','supplier_cost.update',
+        'store.view','store.create','store.update','store.delete',
+        'customer_group.view','customer_group.create','customer_group.update','customer_group.delete'
     )
 ON CONFLICT DO NOTHING;
 
--- Manager: dashboard, product view/update, category view/create, sale view/create/print, report, pricing read/create/update, supplier_cost:view, store read, customer_group read
+-- Manager
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'manager'
     AND p.code IN (
@@ -736,23 +732,23 @@ SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'manager'
         'sale.view','sale.create','sale.print','sale.park',
         'shift.view','shift.create','shift.review','shift.audit',
         'report.view',
-        'pricing:read','pricing:create','pricing:update',
-        'supplier_cost:view',
-        'store:read',
-        'customer_group:read'
+        'pricing.view','pricing.create','pricing.update',
+        'supplier_cost.view',
+        'store.view',
+        'customer_group.view'
     )
 ON CONFLICT DO NOTHING;
 
--- Cashier: dashboard, product view, sale view/create/print/park, pricing:read, store:read, customer_group:read
+-- Cashier
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'cashier'
     AND p.code IN (
         'dashboard.view','product.view',
         'sale.view','sale.create','sale.print','sale.park',
         'shift.view','shift.create',
-        'pricing:read',
-        'store:read',
-        'customer_group:read'
+        'pricing.view',
+        'store.view',
+        'customer_group.view'
     )
 ON CONFLICT DO NOTHING;
 

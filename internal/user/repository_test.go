@@ -465,6 +465,51 @@ func TestUserRepository_ReportsToHierarchy(t *testing.T) {
 	})
 }
 
+func TestUserRepository_CountRecentLoginFailures(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	now := time.Now()
+	ip := "192.168.1.100"
+
+	_, err := dbPool.Exec(ctx, `
+		INSERT INTO audit_logs (action, entity_type, ip_address, created_at)
+		VALUES ('login_failed', 'auth', $1::inet, $2)
+	`, ip, now.Add(-1*time.Minute))
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO audit_logs (action, entity_type, ip_address, created_at)
+		VALUES ('login_failed', 'auth', $1::inet, $2)
+	`, ip, now.Add(-30*time.Minute))
+	require.NoError(t, err)
+
+	t.Run("counts failures within window", func(t *testing.T) {
+		count, err := repo.CountRecentLoginFailures(ctx, ip, now.Add(-5*time.Minute))
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("counts multiple failures within window", func(t *testing.T) {
+		_, err := dbPool.Exec(ctx, `
+			INSERT INTO audit_logs (action, entity_type, ip_address, created_at)
+			VALUES ('login_failed', 'auth', $1::inet, $2)
+		`, ip, now.Add(-30*time.Second))
+		require.NoError(t, err)
+
+		count, err := repo.CountRecentLoginFailures(ctx, ip, now.Add(-5*time.Minute))
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("returns zero for different IP", func(t *testing.T) {
+		count, err := repo.CountRecentLoginFailures(ctx, "10.0.0.1", now.Add(-5*time.Minute))
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
 func TestUserRepository_PermissionCRUD(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

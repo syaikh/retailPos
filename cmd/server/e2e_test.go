@@ -81,21 +81,21 @@ func TestMain(m *testing.M) {
 		 WHERE r.name = 'superadmin'
 		 ON CONFLICT DO NOTHING`)
 
-	// Add colon-notation permissions used by handlers but missing from migrations
+	// Add dot-notation permissions used by handlers
 	for _, code := range []string{
-		"user:read", "user:create", "user:update", "user:delete",
-		"role:read", "role:create", "role:update", "role:delete",
-		"product:create", "product:update", "product:delete",
-		"category:read", "category:create",
-		"customer:read", "customer:create", "customer:update", "customer:delete",
-		"audit:read",
-		"dashboard:read",
-		"report:read",
-		"inventory:adjust",
-		"sale:create", "sale:read",
-		"customer_group:read", "customer_group:create", "customer_group:update", "customer_group:delete",
-		"store:read", "store:create", "store:update", "store:delete",
-		"pricing:read", "pricing:create", "pricing:update", "pricing:delete",
+		"user.view", "user.create", "user.update", "user.delete",
+		"role.view", "role.create", "role.update", "role.delete",
+		"product.create", "product.update", "product.delete",
+		"category.view", "category.create",
+		"customer.view", "customer.create", "customer.update", "customer.delete",
+		"audit.view",
+		"dashboard.view",
+		"report.view",
+		"inventory.adjust",
+		"sale.create", "sale.view",
+		"customer_group.view", "customer_group.create", "customer_group.update", "customer_group.delete",
+		"store.view", "store.create", "store.update", "store.delete",
+		"pricing.view", "pricing.create", "pricing.update", "pricing.delete",
 	} {
 		_, _ = pool.Exec(context.Background(),
 			`INSERT INTO permissions (code, name, description) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING`, code, code, code)

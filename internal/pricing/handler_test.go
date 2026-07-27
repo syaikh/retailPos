@@ -27,7 +27,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"pricing:read", "pricing:create", "pricing:update", "pricing:delete"})
+		c.Set("permissions", []string{"pricing.view", "pricing.create", "pricing.update", "pricing.delete"})
 		c.Set("storeID", nil)
 		c.Next()
 	}
@@ -149,6 +149,15 @@ func TestHandler_UpdateRule(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "After Update", resp.Data.Name)
 		assert.Equal(t, PricingTypeSpecialPrice, resp.Data.PricingType)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/pricing-rules/"+strconv.Itoa(rule.ID), strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("invalid id", func(t *testing.T) {
@@ -296,6 +305,20 @@ func TestHandler_SearchProducts(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("non-existent product", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/search?q=ZZZZNONEXISTENT&limit=10", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []ProductSearchResult `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Empty(t, resp.Data)
 	})
 }
 
@@ -612,6 +635,34 @@ func TestHandler_ListRules_WithFilters(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
+	t.Run("filter by valid category_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?category_id=1", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by valid brand_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?brand_id=1", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by valid customer_group_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?customer_group_id=1", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("filter by valid store_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/pricing-rules?store_id=1", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
 	t.Run("filter by search", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/pricing-rules?search=Filter", nil)
@@ -639,12 +690,12 @@ func TestHandler_SearchProducts_NilSearcher(t *testing.T) {
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
 		c.Set("role", "superadmin")
-		c.Set("permissions", []string{"pricing:read"})
+		c.Set("permissions", []string{"pricing.view"})
 		c.Set("storeID", nil)
 		c.Next()
 	})
 	h := NewHandler(nil, nil, nil)
-	r.GET("/products/search", testPermMiddleware("pricing:read"), h.SearchProducts)
+	r.GET("/products/search", testPermMiddleware("pricing.view"), h.SearchProducts)
 
 	t.Run("nil searcher returns empty", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -677,6 +728,28 @@ func TestHandler_SearchProducts_NilSearcher(t *testing.T) {
 	})
 }
 
+func TestHandler_ApproveRule_InvalidID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/pricing-rules/abc/approve", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_RejectRule_InvalidID(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupPricingRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/pricing-rules/abc/reject", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestHandler_CheckConflicts(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
@@ -707,5 +780,15 @@ func TestHandler_CheckConflicts(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("minimum quantity zero", func(t *testing.T) {
+		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":9999,"minimum_quantity":0,"priority":99}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/pricing-rules/check-conflicts", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }

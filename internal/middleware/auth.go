@@ -151,14 +151,9 @@ func extractToken(c *gin.Context) string {
 	return ""
 }
 
-func normalizePermissionCode(code string) string {
-	return strings.ReplaceAll(code, ":", ".")
-}
-
 func hasPermission(userPerms []string, requiredPerm string) bool {
-	normalizedRequired := normalizePermissionCode(requiredPerm)
 	for _, perm := range userPerms {
-		if normalizePermissionCode(perm) == normalizedRequired {
+		if perm == requiredPerm {
 			return true
 		}
 	}

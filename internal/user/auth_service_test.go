@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -559,4 +560,89 @@ func TestAuthService_ChangePassword_UserNotFound(t *testing.T) {
 
 	err := svc.ChangePassword(ctx, 99999, "any", "newpassword")
 	assert.ErrorIs(t, err, ErrUserNotFound)
+}
+
+func TestAuthService_Login_RateLimitedByIP(t *testing.T) {
+	svc := newAuthServiceWithDB(t)
+	ctx := context.Background()
+	testIP := "203.0.113.50"
+
+	// Insert rate limit threshold audit logs for this IP
+	for i := 0; i < 10; i++ {
+		_, err := dbPool.Exec(ctx, `
+			INSERT INTO audit_logs (action, entity_type, ip_address, created_at)
+			VALUES ('login_failed', 'auth', $1::inet, NOW())
+		`, testIP)
+		require.NoError(t, err)
+	}
+
+	rateCtx := context.WithValue(ctx, shared.CtxKeyIPAddress, testIP)
+	rateCtx = context.WithValue(rateCtx, shared.CtxKeyUserAgent, "test-agent")
+
+	_, err := svc.Login(rateCtx, "ratelimit_ip", "anypassword")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+func TestAuthService_Login_WithIPContext(t *testing.T) {
+	svc := newAuthServiceWithDB(t)
+	ctx := context.Background()
+	hash := testPasswordHash()
+
+	user := &User{
+		Username: "login_with_ip",
+		Email:    "login_with_ip@test.com",
+		Password: hash,
+		RoleID:   1,
+		IsActive: true,
+	}
+	err := NewRepository(dbPool).CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	ipCtx := context.WithValue(ctx, shared.CtxKeyIPAddress, "10.0.0.1")
+	ipCtx = context.WithValue(ipCtx, shared.CtxKeyUserAgent, "rate-test-agent")
+
+	resp, err := svc.Login(ipCtx, "login_with_ip", "password")
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.AccessToken)
+	assert.NotEmpty(t, resp.RefreshToken)
+	assert.Equal(t, "", resp.User.Password)
+}
+
+func testDummyPerm(perm string) gin.HandlerFunc {
+	return func(c *gin.Context) { c.Next() }
+}
+
+func TestAuthHandler_RegisterRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewAuthHandler(nil, nil)
+	r := gin.New()
+	rg := r.Group("/auth")
+	auth := func(c *gin.Context) { c.Next() }
+	assert.NotPanics(t, func() {
+		h.RegisterRoutes(rg, auth, auth, testDummyPerm)
+		h.RegisterRefreshRoute(rg)
+		h.RegisterChangePasswordRoute(rg)
+		h.RegisterLoginRoute(rg, auth)
+	})
+}
+
+func TestAuthService_NewAuthService_WithConfig(t *testing.T) {
+	cfg := &config.Config{
+		Env:                    "test",
+		JWTSecret:              "direct-secret-for-test",
+		JWTSecretRefresh:       "direct-refresh-secret",
+		StockWarningThreshold:  10,
+		StockCriticalThreshold: 5,
+		StockMinimum:           10,
+		LogLevel:               "debug",
+		Timezone:               time.UTC,
+	}
+
+	repo := NewRepository(dbPool)
+	svc := NewAuthService(repo, nil, cfg)
+	assert.NotNil(t, svc)
+	assert.Equal(t, "direct-secret-for-test", svc.jwtSecret)
+	assert.Equal(t, "direct-refresh-secret", svc.refreshSecret)
+	assert.Equal(t, 15*time.Minute, svc.accessTTL)
+	assert.Equal(t, 7*24*time.Hour, svc.refreshTTL)
 }

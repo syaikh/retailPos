@@ -1141,3 +1141,96 @@ func TestSaleHandler_CreateSale_SplitPayment_InactiveMethod(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "payment method is not active")
 }
+
+func TestSaleHandler_ParkSale_ServiceError(t *testing.T) {
+	svc := &mockSaleService{
+		parkSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+			return fmt.Errorf("unexpected error")
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-PARK-ERR", nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"CASH"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_ParkSale_AutoInvoiceError(t *testing.T) {
+	svc := &mockSaleService{
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "", fmt.Errorf("invoice generation failed")
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_GetParkedSales_ServiceError(t *testing.T) {
+	svc := &mockSaleService{
+		listParkedSalesFn: func(ctx context.Context, cashierID int) ([]Sale, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales/parked", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_GetParkedSaleByID_ServiceError(t *testing.T) {
+	svc := &mockSaleService{
+		getParkedSaleByIDFn: func(ctx context.Context, id int, cashierID int) (*Sale, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/sales/parked/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_RecallSale_ServiceError(t *testing.T) {
+	svc := &mockSaleService{
+		recallSaleFn: func(ctx context.Context, saleID int) (*Sale, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked/1/recall", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestSaleHandler_CancelParkedSale_ServiceError(t *testing.T) {
+	svc := &mockSaleService{
+		cancelParkedSaleFn: func(ctx context.Context, saleID int) error {
+			return fmt.Errorf("db error")
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/sales/parked/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}

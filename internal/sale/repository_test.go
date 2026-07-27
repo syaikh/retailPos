@@ -725,6 +725,100 @@ func TestSaleRepository_RecallSale(t *testing.T) {
 	})
 }
 
+func TestSaleRepository_GetParkedSaleByID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "GETBYID-PROD-001", "GetByID Product", 10000, 50)
+
+	t.Run("get parked sale by id", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-GETBYID-001", "parked", prodID, 2, 10000)
+
+		sale, err := repo.GetParkedSaleByID(ctx, parked.ID, cashierID)
+		require.NoError(t, err)
+		assert.Equal(t, parked.ID, sale.ID)
+		assert.Equal(t, "parked", sale.Status)
+		assert.NotEmpty(t, sale.Items)
+		assert.Len(t, sale.Items, 1)
+	})
+
+	t.Run("get recalled sale by id", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-GETBYID-002", "parked", prodID, 1, 10000)
+		recalled, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+
+		sale, err := repo.GetParkedSaleByID(ctx, recalled.ID, cashierID)
+		require.NoError(t, err)
+		assert.Equal(t, "recalled", sale.Status)
+	})
+
+	t.Run("get non-existent returns error", func(t *testing.T) {
+		_, err := repo.GetParkedSaleByID(ctx, -999, cashierID)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("wrong cashier returns error", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-GETBYID-003", "parked", prodID, 1, 10000)
+
+		var otherCashier int
+		err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('other_cashier_getbyid', 'other@test.com', 'hash', 1) RETURNING id`).Scan(&otherCashier)
+		require.NoError(t, err)
+
+		_, err = repo.GetParkedSaleByID(ctx, parked.ID, otherCashier)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("completed sale not returned", func(t *testing.T) {
+		completed := createParkedSale(t, ctx, repo, cashierID, "INV-GETBYID-004", "completed", prodID, 1, 10000)
+		_, err := repo.GetParkedSaleByID(ctx, completed.ID, cashierID)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+}
+
+func TestSaleRepository_ConsumeParkedSale(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "CONSUME-PROD-001", "Consume Product", 10000, 50)
+
+	t.Run("consume recalled sale", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-CONSUME-001", "parked", prodID, 1, 10000)
+		_, err := repo.RecallSale(ctx, parked.ID)
+		require.NoError(t, err)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		err = repo.ConsumeParkedSale(ctx, tx, parked.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("consume non-recalled returns error", func(t *testing.T) {
+		parked := createParkedSale(t, ctx, repo, cashierID, "INV-CONSUME-002", "parked", prodID, 1, 10000)
+
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		err = repo.ConsumeParkedSale(ctx, tx, parked.ID)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+
+	t.Run("consume non-existent returns error", func(t *testing.T) {
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		err = repo.ConsumeParkedSale(ctx, tx, -999)
+		assert.ErrorIs(t, err, ErrSaleNotFound)
+	})
+}
+
 func TestSaleRepository_CancelParkedSale(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

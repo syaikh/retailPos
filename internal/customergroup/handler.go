@@ -23,13 +23,13 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	cg := r.Group("/customer-groups")
-	cg.GET("", auth, perm("customer_group:read"), h.List)
-	cg.GET("/:id", auth, perm("customer_group:read"), h.GetByID)
-	cg.POST("", auth, perm("customer_group:create"), h.Create)
-	cg.PUT("/:id", auth, perm("customer_group:update"), h.Update)
-	cg.DELETE("/:id", auth, perm("customer_group:delete"), h.Delete)
-	cg.PUT("/bulk", auth, perm("customer_group:update"), h.BulkUpdate)
-	cg.DELETE("/bulk", auth, perm("customer_group:delete"), h.BulkDelete)
+	cg.GET("", auth, perm("customer_group.view"), h.List)
+	cg.GET("/:id", auth, perm("customer_group.view"), h.GetByID)
+	cg.POST("", auth, perm("customer_group.create"), h.Create)
+	cg.PUT("/:id", auth, perm("customer_group.update"), h.Update)
+	cg.DELETE("/:id", auth, perm("customer_group.delete"), h.Delete)
+	cg.PUT("/bulk", auth, perm("customer_group.update"), h.BulkUpdate)
+	cg.DELETE("/bulk", auth, perm("customer_group.delete"), h.BulkDelete)
 }
 
 // List godoc

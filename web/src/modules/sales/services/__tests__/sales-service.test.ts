@@ -118,4 +118,100 @@ describe('sales-service', () => {
     expect(callArgs[1]?.headers?.Authorization).toBe('Bearer mock-token');
     expect(result).toBeInstanceOf(Blob);
   });
+
+  it('exportSales returns null when no token', async () => {
+    vi.mocked(await import('$modules/auth')).getAuthToken = vi.fn(() => null);
+
+    const { exportSales } = await import('../sales-service');
+    const result = await exportSales('csv', {
+      startDate: '2026-06-01', endDate: '2026-06-22', limit: 20, offset: 0,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('exportSales returns null on non-ok response', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: false });
+
+    const { exportSales } = await import('../sales-service');
+    const result = await exportSales('csv', {
+      startDate: '2026-06-01', endDate: '2026-06-22', limit: 20, offset: 0,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('getSalesHistory returns empty on non-ok response', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+
+    const { getSalesHistory } = await import('../sales-service');
+    const result = await getSalesHistory({
+      startDate: '2026-06-01', endDate: '2026-06-22', limit: 20, offset: 0,
+    });
+
+    expect(result.data).toEqual([]);
+    expect(result.total).toBe(0);
+  });
+
+  it('getPaymentMethods returns active payment methods', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ code: 'cash', name: 'Cash', is_active: true }, { code: 'qris', name: 'QRIS', is_active: false }] }),
+    });
+
+    const { getPaymentMethods } = await import('../sales-service');
+    const result = await getPaymentMethods();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].code).toBe('cash');
+  });
+
+  it('getPaymentMethods returns empty array on error', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+    const { getPaymentMethods } = await import('../sales-service');
+    const result = await getPaymentMethods();
+
+    expect(result).toEqual([]);
+  });
+
+  it('getPaymentMethods returns empty array on non-ok', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+
+    const { getPaymentMethods } = await import('../sales-service');
+    const result = await getPaymentMethods();
+
+    expect(result).toEqual([]);
+  });
+
+  it('getSaleById returns sale data', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 1, invoice_number: 'INV-001', total_amount: 100000 }),
+    });
+
+    const { getSaleById } = await import('../sales-service');
+    const result = await getSaleById(1);
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(1);
+  });
+
+  it('getSaleById returns null on error', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Not found'));
+
+    const { getSaleById } = await import('../sales-service');
+    const result = await getSaleById(1);
+
+    expect(result).toBeNull();
+  });
+
+  it('getSaleById returns null on non-ok', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+
+    const { getSaleById } = await import('../sales-service');
+    const result = await getSaleById(1);
+
+    expect(result).toBeNull();
+  });
 });

@@ -23,12 +23,12 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	sg := r.Group("/stores")
-	sg.GET("", auth, perm("store:read"), h.List)
-	sg.GET("/active", auth, perm("store:read"), h.ListActive)
-	sg.GET("/:id", auth, perm("store:read"), h.GetByID)
-	sg.POST("", auth, perm("store:create"), h.Create)
-	sg.PUT("/:id", auth, perm("store:update"), h.Update)
-	sg.DELETE("/:id", auth, perm("store:delete"), h.Delete)
+	sg.GET("", auth, perm("store.view"), h.List)
+	sg.GET("/active", auth, perm("store.view"), h.ListActive)
+	sg.GET("/:id", auth, perm("store.view"), h.GetByID)
+	sg.POST("", auth, perm("store.create"), h.Create)
+	sg.PUT("/:id", auth, perm("store.update"), h.Update)
+	sg.DELETE("/:id", auth, perm("store.delete"), h.Delete)
 }
 
 // List godoc

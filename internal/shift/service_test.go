@@ -94,6 +94,92 @@ func TestShiftService_ReviewShift(t *testing.T) {
 	})
 }
 
+func TestShiftService_GetActiveShift(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	userID := insertTestUser(t, ctx, 1)
+	createOpenShift(t, ctx, repo, userID)
+
+	shift, err := svc.GetActiveShift(ctx, userID)
+	require.NoError(t, err)
+	require.NotNil(t, shift)
+	assert.Equal(t, "open", shift.Status)
+}
+
+func TestShiftService_GetShiftByID(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	userID := insertTestUser(t, ctx, 1)
+	shift := createOpenShift(t, ctx, repo, userID)
+
+	got, err := svc.GetShiftByID(ctx, shift.ID)
+	require.NoError(t, err)
+	assert.Equal(t, shift.ID, got.ID)
+}
+
+func TestShiftService_ListShifts(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	userID := insertTestUser(t, ctx, 1)
+	createOpenShift(t, ctx, repo, userID)
+
+	shifts, total, err := svc.ListShifts(ctx, &userID, "", nil, "", 10, 0, "opened_at", "DESC")
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, total, 1)
+	assert.NotEmpty(t, shifts)
+}
+
+func TestShiftService_AuditShift(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	userID := insertTestUser(t, ctx, 1)
+	shift := createOpenShift(t, ctx, repo, userID)
+
+	_, _, err := svc.AuditShift(ctx, shift.ID)
+	require.NoError(t, err)
+}
+
+func TestShiftService_ExportShifts(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	userID := insertTestUser(t, ctx, 1)
+	createOpenShift(t, ctx, repo, userID)
+
+	shifts, err := svc.ExportShifts(ctx, &userID, "", nil, "")
+	require.NoError(t, err)
+	assert.NotEmpty(t, shifts)
+}
+
 func TestShiftService_CloseAll(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")

@@ -41,4 +41,28 @@ describe('auth-store', () => {
     store.clearUser();
     expect(store.getToken()).toBeNull();
   });
+
+  it('setUser sets user and marks as authenticated', () => {
+    const store = useAuthStore();
+    const user = { id: 1, username: 'test', email: 'test@test.com' } as any;
+    store.setUser(user);
+    expect(store.user).toEqual(user);
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.loading).toBe(false);
+  });
+
+  it('setter for user updates reactive state', () => {
+    const store = useAuthStore();
+    const user = { id: 2, username: 'setter-test' } as any;
+    store.user = user;
+    expect(store.user).toEqual(user);
+  });
+
+  it('setter for isAuthenticated updates reactive state', () => {
+    const store = useAuthStore();
+    store.isAuthenticated = true;
+    expect(store.isAuthenticated).toBe(true);
+    store.isAuthenticated = false;
+    expect(store.isAuthenticated).toBe(false);
+  });
 });

@@ -85,6 +85,15 @@ Flags:
 - `-categories=N` - Number of categories (65-80, random if 0)
 - `-truncate=false` - Skip truncating existing data
 
+## Deployment
+
+### Migration Ordering
+
+Migrations must be applied **before** deploying a new server binary. The server validates permission codes at startup, so if the binary expects dot-notation permissions (`.view`, `.create`) but the DB still has colon-notation (`:read`, `:create`), permission checks will fail for all non-superadmin users.
+
+Key migrations with deployment ordering constraints:
+- `006_consolidate_permissions.sql` — must be applied before the binary that removed `normalizePermissionCode`
+
 ## Filesystem Convention
 
 Non-code files follow this organization:

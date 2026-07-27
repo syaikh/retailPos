@@ -197,4 +197,81 @@ describe('supplier-service', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1/products/10', { method: 'DELETE' });
     });
   });
+
+  describe('getProductsBySupplier', () => {
+    it('returns products for supplier', async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          data: [{ id: 1, supplier_id: 1, product_id: 10, unit_cost: 25000 }],
+        }),
+      });
+
+      const { getProductsBySupplier } = await import('../supplier-service');
+      const result = await getProductsBySupplier(1);
+
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/1/products');
+      expect(result).toHaveLength(1);
+    });
+
+    it('returns empty on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { getProductsBySupplier } = await import('../supplier-service');
+      const result = await getProductsBySupplier(99);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('bulkUpdateSuppliers', () => {
+    it('sends PUT with ids and is_active', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ updated: 2 }) });
+
+      const { bulkUpdateSuppliers } = await import('../supplier-service');
+      const result = await bulkUpdateSuppliers([1, 2], true);
+
+      expect(result).toBe(2);
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/bulk', expect.objectContaining({
+        method: 'PUT',
+      }));
+      const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
+      expect(body.ids).toEqual([1, 2]);
+      expect(body.is_active).toBe(true);
+    });
+
+    it('returns 0 on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { bulkUpdateSuppliers } = await import('../supplier-service');
+      const result = await bulkUpdateSuppliers([1], false);
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('bulkDeleteSuppliers', () => {
+    it('sends DELETE with ids', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ deleted: 2 }) });
+
+      const { bulkDeleteSuppliers } = await import('../supplier-service');
+      const result = await bulkDeleteSuppliers([1, 2]);
+
+      expect(result).toBe(2);
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/suppliers/bulk', expect.objectContaining({
+        method: 'DELETE',
+      }));
+      const body = JSON.parse(mockApiFetch.mock.calls[0][1].body);
+      expect(body.ids).toEqual([1, 2]);
+    });
+
+    it('returns 0 on error', async () => {
+      mockApiFetch.mockResolvedValueOnce({ ok: false });
+
+      const { bulkDeleteSuppliers } = await import('../supplier-service');
+      const result = await bulkDeleteSuppliers([1]);
+
+      expect(result).toBe(0);
+    });
+  });
 });

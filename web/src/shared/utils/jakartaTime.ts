@@ -267,7 +267,7 @@ export function formatJakartaDateStr(dateStr: string): string {
   const y = Number(parts[0]);
   const m = Number(parts[1]);
   const d = Number(parts[2]);
-  if (!y || !m || !d) return dateStr;
+  if (!y || !m || !d || m < 1 || m > 12) return dateStr;
   const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   return `${d} ${months[m - 1]} ${y}`;
 }
