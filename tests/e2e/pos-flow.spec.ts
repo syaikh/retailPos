@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken } from './fixtures';
+import { TEST_USERS, API_BASE, loginUI, logoutUI, getToken, authHeader } from './fixtures';
 
 function enabledAddButton(page: any) {
   return page.locator('button').filter({ hasText: 'Add' }).locator('visible=true').first();
@@ -140,6 +140,21 @@ test.describe('POS UI Flow', () => {
 });
 
 test.describe('POS API Tests', () => {
+  let auth: { token: string; headers: Record<string, string> };
+  let product: { id: number; price: number };
+
+  test.beforeAll(async ({ request }) => {
+    const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    auth = { token, headers: authHeader(token) };
+
+    const prodRes = await request.get(`${API_BASE}/api/products?limit=1`, { headers: auth.headers });
+    const prodBody = await prodRes.json();
+    if (!prodBody.data || prodBody.data.length === 0) {
+      throw new Error('Need at least 1 product in DB for POS API tests');
+    }
+    product = { id: prodBody.data[0].id, price: prodBody.data[0].price };
+  });
+
   test('should create sale via API with computed tax', async ({ page, request }) => {
     const token = await getToken(request, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
 
@@ -176,6 +191,176 @@ test.describe('POS API Tests', () => {
     expect(data.data).toBeTruthy();
     expect(Array.isArray(data.data)).toBeTruthy();
     expect(data.data.length).toBeGreaterThanOrEqual(5);
+  });
+
+  test('should create sale with split tender (CASH + QRIS) via API', async ({ request }) => {
+    const { headers } = auth;
+    const qty = 2;
+    const subtotal = product.price * qty;
+    const totalAmount = subtotal;
+    const cashAmount = Math.floor(totalAmount / 2);
+    const qrisAmount = totalAmount - cashAmount;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-SPLIT-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'CASH,QRIS',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: qty, unit_price: product.price, subtotal }],
+        payments: [
+          { payment_method_code: 'CASH', amount: cashAmount },
+          { payment_method_code: 'QRIS', amount: qrisAmount },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.status).toBe('completed');
+    expect(body.data.total_amount).toBe(totalAmount);
+    expect(body.data.payment_method).toBe('CASH,QRIS');
+    expect(body.data.payments).toBeDefined();
+    expect(body.data.payments).toHaveLength(2);
+    expect(body.data.payments.some(p => p.payment_method_code === 'CASH' && p.amount === cashAmount)).toBeTruthy();
+    expect(body.data.payments.some(p => p.payment_method_code === 'QRIS' && p.amount === qrisAmount)).toBeTruthy();
+  });
+
+  test('should create sale with legacy single payment method (backward compat)', async ({ request }) => {
+    const { headers } = auth;
+    const qty = 1;
+    const subtotal = product.price * qty;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-LEGACY-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: subtotal,
+        payment_method: 'CASH',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: qty, unit_price: product.price, subtotal }],
+      },
+    });
+
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.data.status).toBe('completed');
+    expect(body.data.payment_method).toBe('CASH');
+    expect(body.data.payments).toBeDefined();
+    expect(body.data.payments).toHaveLength(1);
+    expect(body.data.payments[0].payment_method_code).toBe('CASH');
+    expect(body.data.payments[0].amount).toBe(subtotal);
+  });
+
+  test('should reject split tender with payment total mismatch (400)', async ({ request }) => {
+    const { headers } = auth;
+    const totalAmount = product.price * 1;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-MISMATCH-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'CASH,QRIS',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        payments: [
+          { payment_method_code: 'CASH', amount: totalAmount - 2 },
+          { payment_method_code: 'QRIS', amount: 1 },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeFalsy();
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toContain('total payments do not match');
+  });
+
+  test('should reject split tender with duplicate payment method (400)', async ({ request }) => {
+    const { headers } = auth;
+    const totalAmount = product.price * 1;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-DUP-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'CASH',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        payments: [
+          { payment_method_code: 'CASH', amount: Math.floor(totalAmount / 2) },
+          { payment_method_code: 'CASH', amount: Math.ceil(totalAmount / 2) },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeFalsy();
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toContain('only one cash payment per transaction is allowed');
+  });
+
+  test('should reject payment method that requires reference without one (400)', async ({ request }) => {
+    const { headers } = auth;
+    const totalAmount = product.price * 1;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-REF-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'CARD',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        payments: [
+          { payment_method_code: 'CARD', amount: totalAmount },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeFalsy();
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toContain('reference number is required for this payment method');
+  });
+
+  test('should reject unknown payment method (400)', async ({ request }) => {
+    const { headers } = auth;
+    const totalAmount = product.price * 1;
+
+    const res = await request.post(`${API_BASE}/api/sales`, {
+      headers,
+      data: {
+        invoice_number: `INV-UNKNOWN-${Date.now()}`,
+        discount: 0,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'BITCOIN',
+        status: 'completed',
+        items: [{ product_id: product.id, quantity: 1, unit_price: product.price, subtotal: product.price }],
+        payments: [
+          { payment_method_code: 'BITCOIN', amount: totalAmount },
+        ],
+      },
+    });
+
+    expect(res.ok()).toBeFalsy();
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toContain('invalid payment method code');
   });
 
   test('should redirect unauthenticated users to login', async ({ page }) => {
