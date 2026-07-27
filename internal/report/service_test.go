@@ -74,6 +74,7 @@ func TestReportService_PeriodComparison(t *testing.T) {
 	assert.GreaterOrEqual(t, result.PreviousOrders, 0)
 	assert.GreaterOrEqual(t, result.CurrentAOV, 0)
 	assert.GreaterOrEqual(t, result.PreviousAOV, 0)
+	assert.NotNil(t, result.PreviousHasAnyData)
 }
 
 func TestReportService_DualChartData(t *testing.T) {

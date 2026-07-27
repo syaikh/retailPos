@@ -64,7 +64,7 @@ let selectedProductIndex = $state(-1);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
 
-   let paymentOptions = $state<Array<{ id: string; label: string; icon: any }>>([]);
+    let paymentOptions = $state<Array<{ id: string; label: string; icon: any; requiresReference?: boolean }>>([]);
    let checkingOut = $state(false);
 
     let showCheckoutModal = $state(false);
@@ -142,14 +142,14 @@ let selectedProductIndex = $state(-1);
       const methods = (r.data.data || r.data || []) as Array<{ code: string; name: string; is_active?: boolean }>;
       const active = methods.filter(m => m.is_active !== false);
       if (active.length > 0) {
-        paymentOptions = active.map(m => ({ id: m.code, label: m.name, icon: ShoppingCart }));
+        paymentOptions = active.map(m => ({ id: m.code, label: m.name, icon: ShoppingCart, requiresReference: m.requires_reference }));
       }
     } catch (err) {
       console.warn('Failed to load payment methods', err);
       paymentOptions = [
         { id: 'CASH', label: 'Cash', icon: ShoppingCart },
-        { id: 'CARD', label: 'Card', icon: ShoppingCart },
-        { id: 'E_WALLET', label: 'E-Wallet', icon: ShoppingCart },
+        { id: 'CARD', label: 'Card', icon: ShoppingCart, requiresReference: true },
+        { id: 'E_WALLET', label: 'E-Wallet', icon: ShoppingCart, requiresReference: true },
       ];
     }
   }
@@ -347,8 +347,10 @@ let selectedProductIndex = $state(-1);
       cart = [];
       await fetchProducts(false);
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || 'Checkout failed';
+      const errData = err.response?.data?.error;
+      const errMsg = typeof errData === 'string' ? errData : errData?.message || 'Checkout failed';
       toast.error(errMsg);
+      throw err;
     } finally {
       checkingOut = false;
     }
@@ -380,7 +382,8 @@ let selectedProductIndex = $state(-1);
       recalledSaleId = null;
       await fetchParkedSales();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to park sale');
+        const parkErr = err.response?.data?.error;
+      toast.error(typeof parkErr === 'string' ? parkErr : parkErr?.message || 'Failed to park sale');
     } finally {
       holdingSale = false;
     }
@@ -418,7 +421,8 @@ let selectedProductIndex = $state(-1);
       toast.success('Sale recalled');
       await fetchParkedSales();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to recall sale');
+      const recallErr = err.response?.data?.error;
+      toast.error(typeof recallErr === 'string' ? recallErr : recallErr?.message || 'Failed to recall sale');
     }
   }
 
@@ -428,7 +432,8 @@ let selectedProductIndex = $state(-1);
       toast.success('Parked sale cancelled');
       await fetchParkedSales();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to cancel parked sale');
+      const cancelErr = err.response?.data?.error;
+      toast.error(typeof cancelErr === 'string' ? cancelErr : cancelErr?.message || 'Failed to cancel parked sale');
     }
   }
 
@@ -462,6 +467,7 @@ let selectedProductIndex = $state(-1);
       subtotal_dpp: sale.total_amount - saleTaxAmount,
       tax: saleTaxAmount,
       paymentMethod: paymentsList,
+      payments: capturedPayments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
       cashReceived: capturedPayments.find(p => p.payment_method_code === 'CASH')?.amount || sale.total_amount,
       changeDue: 0,
       customer_name: customer?.name,
@@ -522,6 +528,7 @@ let selectedProductIndex = $state(-1);
           subtotal_dpp: lastSale.total_amount - taxAmt,
           tax: taxAmt,
           paymentMethod: paymentLines,
+          payments: payments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
           cashReceived: payments.find(p => p.payment_method_code === 'CASH')?.amount || lastSale.total_amount,
           changeDue: 0,
           customer_name: customer?.name,
@@ -650,20 +657,13 @@ let selectedProductIndex = $state(-1);
 
   onMount(() => {
     (async () => {
+      const shiftStore = useShiftStore();
+      await shiftStore.loadActiveShift();
       const userRole = typeof authStore.user?.role === 'string' ? authStore.user.role : authStore.user?.role?.name ?? '';
-      if (userRole === 'cashier') {
-        try {
-          const res = await apiClient.get('/shifts/active');
-          if (!res.data.data) {
-            toast.error('Anda harus membuka shift terlebih dahulu');
-            goto('/shifts');
-            return;
-          }
-        } catch {
-          toast.error('Anda harus membuka shift terlebih dahulu');
-          goto('/shifts');
-          return;
-        }
+      if (userRole === 'cashier' && !shiftStore.activeShift) {
+        toast.error('Anda harus membuka shift terlebih dahulu');
+        goto('/shifts');
+        return;
       }
 
       isInitialMount = true;

@@ -80,7 +80,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('renders Batal and Selesai action buttons', () => {
-    expect(src).toContain('Batal [F3]');
+    expect(src).toContain('Batal [Esc]');
     expect(src).toContain('Selesai [Enter]');
     expect(src).toContain('onfinalize');
   });
@@ -104,5 +104,35 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   it('renders customer selector with User icon', () => {
     expect(src).toContain('<User size={14}');
     expect(src).toContain('selectedCustomerLabel');
+  });
+
+  it('has generateRefNumber function for payment references', () => {
+    expect(src).toContain('function generateRefNumber');
+    expect(src).toContain("EDC/");
+    expect(src).toContain("EW/");
+  });
+
+  it('auto-assigns reference number for methods requiring reference', () => {
+    expect(src).toContain("opt?.requiresReference ? generateRefNumber");
+  });
+
+  it('displays reference number input for non-cash methods', () => {
+    expect(src).toContain("No. Referensi");
+    expect(src).toContain("bind:value={alloc.referenceNumber}");
+  });
+
+  it('pre-selects CASH allocation on open', () => {
+    expect(src).toContain("allocations = [{ id: 'a1', methodCode: 'CASH', amount: 0, referenceNumber: '' }]");
+    expect(src).toContain("nextId = 2");
+  });
+
+  it('has Hapus semua button to clear all allocations', () => {
+    expect(src).toContain("Hapus semua");
+    expect(src).toContain("allocations = [];");
+  });
+
+  it('uses h-dvh for full-height dialog', () => {
+    expect(src).toContain("h-dvh");
+    expect(src).toContain("max-h-[calc(100vh-2rem)]");
   });
 });

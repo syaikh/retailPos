@@ -27,6 +27,7 @@ interface KpiData {
   previousPeakRevenueMonth: number;
   percentChange: number;
   comparisonType: string;
+  previousHasAnyData: boolean;
   isPartial: boolean;
   periodInfo: Record<string, unknown>;
 }
@@ -197,9 +198,13 @@ export async function fetchSalesWithRange({
       : comparison.current_revenue;
 
     const previousRevenue = comparison.previous_revenue;
+    const previousHasAnyData = comparison.previous_has_any_data;
 
-    if (previousRevenue === 0 && totalRevenue > 0) {
+    if (previousRevenue === 0 && totalRevenue > 0 && !previousHasAnyData) {
       comparisonType = 'new';
+      percentChange = Infinity;
+    } else if (previousRevenue === 0 && totalRevenue > 0 && previousHasAnyData) {
+      comparisonType = 'surge';
       percentChange = Infinity;
     } else if (previousRevenue === 0 && totalRevenue === 0) {
       comparisonType = 'zero';
@@ -226,6 +231,7 @@ export async function fetchSalesWithRange({
       previousPeakRevenueMonth: comparison.previous_peak_revenue_month,
       percentChange,
       comparisonType,
+      previousHasAnyData,
       isPartial: meta.is_partial,
       periodInfo: meta
     };

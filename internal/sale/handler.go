@@ -94,6 +94,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		Payments      []createPaymentReq `json:"payments"`
 		PaymentMethod string            `json:"payment_method"`
 		Discount      int               `json:"discount"`
+		Tax           int               `json:"tax"`
 		ParkedSaleID  *int              `json:"parked_sale_id"`
 	}
 
@@ -182,7 +183,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		CustomerID:    req.CustomerID,
 		Subtotal:      subtotal,
 		Discount:      req.Discount,
-		Tax:           0,
+		Tax:           req.Tax,
 		TotalAmount:   subtotal - req.Discount,
 		Status:        "completed",
 	}

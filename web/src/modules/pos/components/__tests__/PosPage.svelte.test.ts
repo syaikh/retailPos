@@ -77,7 +77,12 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('shift_id: activeShift?.id || null');
   });
 
-  it('redirects cashier to /shifts if no active shift on mount', () => {
+  it('loads active shift from shiftStore on mount', () => {
+    expect(src).toContain("shiftStore.loadActiveShift()");
+  });
+
+  it('checks shiftStore.activeShift instead of direct API call for cashier redirect', () => {
+    expect(src).toContain("shiftStore.activeShift");
     expect(src).toContain("goto('/shifts')");
   });
 
@@ -120,5 +125,23 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('<CartPanel');
     expect(src).toContain('<CheckoutModal');
     expect(src).toContain('<CustomerSelectModal');
+  });
+
+  it('includes requiresReference in paymentOptions mapping', () => {
+    expect(src).toContain("requiresReference: m.requires_reference");
+    expect(src).toContain("requiresReference: true");
+  });
+
+  it('includes payments array in receipt data', () => {
+    expect(src).toContain("payments: capturedPayments.map");
+  });
+
+  it('handles nested error objects from API responses', () => {
+    expect(src).toContain("err.response?.data?.error");
+    expect(src).toContain("errData?.message");
+  });
+
+  it('re-throws error in processCheckout for upstream handling', () => {
+    expect(src).toContain("throw err");
   });
 });

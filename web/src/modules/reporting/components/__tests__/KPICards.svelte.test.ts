@@ -53,4 +53,18 @@ describe('KPICards.svelte source-structure guards', () => {
   it('has comparison / change card (card5)', () => {
     expect(src).toContain("statCardLabels.comparisonLabel");
   });
+
+  it('displays surge label for previousHasAnyData with zero previous revenue', () => {
+    expect(src).toContain("'surge'");
+    expect(src).toContain("'+100%'");
+  });
+
+  it('displays previousHasAnyData in default kpiData', () => {
+    expect(src).toContain("previousHasAnyData: false");
+  });
+
+  it('displays same hours label when previousHasAnyData is true', () => {
+    expect(src).toContain("previousHasAnyData");
+    expect(src).toContain("same hours");
+  });
 });

@@ -109,6 +109,26 @@
     margin: 1.5mm 0 !important;
   }
 
+  .thermal-payment-section {
+    margin-bottom: 1.5mm !important;
+  }
+
+  .thermal-payment-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 1mm !important;
+    padding-left: 2mm !important;
+  }
+
+  .thermal-payment-method {
+    flex: 1 !important;
+  }
+
+  .thermal-payment-amount {
+    font-weight: bold !important;
+    white-space: nowrap !important;
+  }
+
   .thermal-footer {
     text-align: center !important;
     font-size: 9pt !important;

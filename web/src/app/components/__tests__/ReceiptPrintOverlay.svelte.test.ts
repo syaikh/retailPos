@@ -50,10 +50,11 @@ describe('ReceiptPrintOverlay.svelte source-structure guards', () => {
     expect(src).toContain('{$printReceipt.total_amount');
   });
 
-  it('displays payment info (method, cash, change)', () => {
-    expect(src).toContain('{$printReceipt.paymentMethod}');
-    expect(src).toContain('{$printReceipt.cashReceived');
-    expect(src).toContain('{$printReceipt.changeDue');
+  it('displays payment section with method breakdown', () => {
+    expect(src).toContain('Pembayaran');
+    expect(src).toContain('{#if $printReceipt.payments');
+    expect(src).toContain('{#each $printReceipt.payments as p}');
+    expect(src).toContain('p.amount.toLocaleString');
   });
 
   it('has Indonesian footer text', () => {

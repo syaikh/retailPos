@@ -37,6 +37,7 @@ func (r *Repository) InvalidateDashboardCache(storeID *int) {
 		r.cache.Delete(fmt.Sprintf("dashboard:stats:store:%d", *storeID))
 		r.cache.Delete(fmt.Sprintf("dashboard:live:store:%d", *storeID))
 	}
+	r.cache.FlushByPrefix("report:")
 }
 
 func (r *Repository) NewSaleCreatedListener() *saleCreatedListener {
@@ -57,6 +58,10 @@ func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Ev
 		return nil
 	}
 	l.repo.InvalidateDashboardCache(s.StoreID)
+	_, err := l.repo.db.Exec(ctx, "SELECT refresh_sales_mv()")
+	if err != nil {
+		return fmt.Errorf("refresh sales mv: %w", err)
+	}
 	return nil
 }
 
@@ -110,13 +115,22 @@ func (r *Repository) GetPeriodComparison(
 				SELECT 0::bigint, SUM(total_amount), period
 				FROM tagged GROUP BY yr, mo, period
 			) combined
+		),
+		previous_any AS (
+			SELECT EXISTS(
+				SELECT 1 FROM sales
+				WHERE created_at >= $3 AND created_at < $3 + interval '24 hours'
+					AND status = 'completed'
+					AND ($5::int IS NULL OR store_id = $5)
+			) as has_any
 		)
 		SELECT
 			bm.current_revenue, bm.current_orders,
 			bm.previous_revenue, bm.previous_orders,
 			pc.current_peak_hour, pc.previous_peak_hour,
-			pc.current_peak_month, pc.previous_peak_month
-		FROM base_metrics bm, peak_combined pc`
+			pc.current_peak_month, pc.previous_peak_month,
+			pa.has_any
+		FROM base_metrics bm, peak_combined pc, previous_any pa`
 
 	args := []interface{}{currentStart, currentEnd, previousStart, previousEnd, storeID}
 
@@ -130,6 +144,7 @@ func (r *Repository) GetPeriodComparison(
 		&result.PreviousPeakRevenue,
 		&result.PeakRevenueMonth,
 		&result.PreviousPeakRevenueMonth,
+		&result.PreviousHasAnyData,
 	)
 
 	if err != nil {

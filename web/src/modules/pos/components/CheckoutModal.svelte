@@ -35,7 +35,7 @@
     subtotal: number;
     taxAmount: number;
     dppDisplay: number;
-    paymentOptions: any[];
+    paymentOptions: Array<{ id: string; label: string; icon?: any; requiresReference?: boolean }>;
     selectedCustomerLabel: string;
     checkingOut: boolean;
     onfinalize?: (payments: PaymentAllocation[]) => void;
@@ -67,6 +67,17 @@
     nextId = 1;
   }
 
+  function generateRefNumber(methodCode: string): string {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(2);
+    const rand = String(Math.floor(100000 + Math.random() * 900000));
+    if (methodCode === 'CARD' || methodCode === 'EDC') return `EDC/${dd}${mm}${yy}/${rand}`;
+    if (methodCode === 'E_WALLET') return `EW/${dd}${mm}${yy}/${rand}`;
+    return `REF/${dd}${mm}${yy}/${rand}`;
+  }
+
   function addAllocation(methodCode: string) {
     const existing = allocations.find(a => a.methodCode === methodCode);
     if (existing) {
@@ -74,12 +85,13 @@
       input?.focus();
       return;
     }
+    const opt = paymentOptions.find(o => o.id === methodCode);
     const allocAmount = remainingBalance > 0 ? remainingBalance : 0;
     allocations = [...allocations, {
       id: `a${nextId++}`,
       methodCode,
       amount: allocAmount,
-      referenceNumber: '',
+      referenceNumber: opt?.requiresReference ? generateRefNumber(methodCode) : '',
     }];
   }
 
@@ -130,8 +142,8 @@
   $effect(() => {
     if (showCheckoutModal) {
       previousFocus = document.activeElement as HTMLElement;
-      allocations = [];
-      nextId = 1;
+      allocations = [{ id: 'a1', methodCode: 'CASH', amount: 0, referenceNumber: '' }];
+      nextId = 2;
       tick().then(() => {
         const firstFocusable = dialogEl?.querySelector<HTMLElement>(
           'button:not([disabled]), input:not([disabled])'
@@ -174,14 +186,14 @@
       role="dialog"
       aria-modal="true"
       aria-label="Pembayaran"
-      class="relative z-[55] w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl border border-border-default bg-bg-card shadow-modal p-5"
+      class="relative z-[55] w-full max-w-4xl h-dvh max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl border border-border-default bg-bg-card shadow-modal p-5"
     >
       <div class="flex items-center justify-between shrink-0 mb-3">
         <h2 class="text-lg font-bold text-text-primary">Pembayaran</h2>
         <button
           onclick={close}
           class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
-          title="Tutup [F3 / Esc]"
+          title="Tutup [Esc]"
           aria-label="Tutup"
         >
           <X size={18} />
@@ -227,48 +239,62 @@
           <!-- RIGHT: Payment details -->
           <div class="col-span-5 flex flex-col min-h-0 gap-3">
 
-            <!-- Total -->
-            <div class="text-center pb-2 border-b border-border/30">
-              {#if taxAmount > 0}
-                <div class="flex justify-center gap-4 text-[11px] text-text-muted mb-1">
-                  <span>DPP: {dppDisplay.toLocaleString('id-ID')}</span>
-                  <span>PPN: {taxAmount.toLocaleString('id-ID')}</span>
-                </div>
-              {/if}
-              {#if hasDiscountedItems}
-                <div class="text-[11px] text-green-500 mb-1">
-                  Hemat: {totalSavings.toLocaleString('id-ID')}
-                </div>
-              {/if}
-              <p class="text-3xl font-extrabold text-purple-400">
-                Rp {totalAmount.toLocaleString('id-ID')}
-              </p>
+            <!-- Fixed top: Total + Payment grid + Customer -->
+            <div class="shrink-0 space-y-3">
+              <!-- Total -->
+              <div class="text-center pb-2 border-b border-border/30">
+                {#if taxAmount > 0}
+                  <div class="flex justify-center gap-4 text-[11px] text-text-muted mb-1">
+                    <span>DPP: {dppDisplay.toLocaleString('id-ID')}</span>
+                    <span>PPN: {taxAmount.toLocaleString('id-ID')}</span>
+                  </div>
+                {/if}
+                {#if hasDiscountedItems}
+                  <div class="text-[11px] text-green-500 mb-1">
+                    Hemat: {totalSavings.toLocaleString('id-ID')}
+                  </div>
+                {/if}
+                <p class="text-3xl font-extrabold text-purple-400">
+                  Rp {totalAmount.toLocaleString('id-ID')}
+                </p>
+              </div>
+
+              <!-- Payment Method Grid -->
+              <div class="grid grid-cols-3 gap-1.5">
+                {#each paymentOptions as opt}
+                  {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
+                  <button
+                    class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
+                    onclick={() => addAllocation(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+
+              <!-- Customer -->
+              <button
+                class="w-full flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary py-1.5 px-2 rounded-lg hover:bg-surface-hover transition-colors"
+                onclick={() => onselectcustomer()}
+              >
+                <User size={14} class="shrink-0 text-text-muted" />
+                <span class="truncate">{selectedCustomerLabel}</span>
+                <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
+              </button>
             </div>
 
-            <!-- Payment Method Grid -->
-            <div class="grid grid-cols-3 gap-1.5">
-              {#each paymentOptions as opt}
-                {@const isUsed = allocations.some(a => a.methodCode === opt.id)}
+            <!-- Scrollable: Allocations List -->
+            {#if allocations.length > 0}
+              <div class="flex items-center justify-between px-1">
+                <span class="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Alokasi Pembayaran</span>
                 <button
-                  class="py-2 rounded-xl border text-[11px] font-medium transition-all {isUsed ? 'border-primary bg-primary-subtle text-primary-light' : 'border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
-                  onclick={() => addAllocation(opt.id)}
+                  class="text-[10px] text-danger hover:text-danger-light transition-colors"
+                  onclick={() => { allocations = []; }}
                 >
-                  {opt.label}
+                  Hapus semua
                 </button>
-              {/each}
-            </div>
-
-            <!-- Customer -->
-            <button
-              class="w-full flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary py-1.5 px-2 rounded-lg hover:bg-surface-hover transition-colors"
-              onclick={() => onselectcustomer()}
-            >
-              <User size={14} class="shrink-0 text-text-muted" />
-              <span class="truncate">{selectedCustomerLabel}</span>
-              <ChevronRight size={12} class="shrink-0 text-text-muted ml-auto" />
-            </button>
-
-            <!-- Allocations List -->
+              </div>
+            {/if}
             <div class="flex-1 min-h-0 overflow-y-auto space-y-2">
               {#each allocations as alloc (alloc.id)}
                 {@const opt = paymentOptions.find(o => o.id === alloc.methodCode)}
@@ -298,6 +324,21 @@
                       placeholder="0"
                     />
                   </div>
+
+                  {#if !isCash && opt?.requiresReference}
+                    <div>
+                      <label for="alloc-ref-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
+                        No. Referensi
+                      </label>
+                      <input
+                        id="alloc-ref-{alloc.id}"
+                        type="text"
+                        bind:value={alloc.referenceNumber}
+                        placeholder="Masukkan no. referensi"
+                        class="w-full px-2 py-1.5 rounded-lg border border-border bg-surface text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors"
+                      />
+                    </div>
+                  {/if}
 
                   {#if isCash}
                     <div class="grid grid-cols-5 gap-1">
@@ -330,53 +371,31 @@
 
               {#if allocations.length === 0}
                 <div class="text-center py-4 text-[11px] text-text-muted">
-                  Pilih metode pembayaran di atas untuk menambahkan pembayaran
+                  Pilih metode pembayaran di samping untuk menambahkan pembayaran
                 </div>
               {/if}
             </div>
 
-            <!-- Remaining Balance -->
-            <div
-              class="flex items-center justify-between px-3 py-1.5 rounded-xl
-                {remainingBalance === 0
-                  ? 'bg-success-subtle border border-success-default/20'
-                  : remainingBalance > 0
-                    ? 'bg-warning-subtle border border-warning-default/20'
-                    : 'bg-danger-subtle border border-danger-default/20'}"
-            >
-              <span class="text-xs font-medium text-text-secondary">Sisa</span>
-              <span
-                class="text-xl font-extrabold
-                  {remainingBalance === 0 ? 'text-emerald-400' : remainingBalance > 0 ? 'text-amber-400' : 'text-danger-light'}"
-              >
-                Rp {Math.abs(remainingBalance).toLocaleString('id-ID')}
-                {#if remainingBalance < 0}
-                  <span class="text-[10px] font-semibold text-danger-light ml-1">(lebih)</span>
-                {/if}
-              </span>
-            </div>
-
-            <!-- Spacer to push actions to bottom -->
-            <div class="flex-1 min-h-2"></div>
-
-            <!-- Actions -->
-            <div class="flex gap-2 pt-2 border-t border-border/30">
-              <Button
-                variant="secondary"
-                class="flex-1 py-2"
-                onclick={close}
-              >
-                Batal [F3]
-              </Button>
-              <Button
-                variant="success"
-                class="flex-1 py-2"
-                disabled={cart.length === 0 || !canComplete}
-                onclick={handleFinalize}
-              >
-                <Check size={14} />
-                Selesai [Enter]
-              </Button>
+            <!-- Fixed bottom: Actions -->
+            <div class="shrink-0">
+              <div class="flex gap-2 pt-2 border-t border-border/30">
+                <Button
+                  variant="secondary"
+                  class="flex-1 py-2"
+                  onclick={close}
+                >
+                  Batal [Esc]
+                </Button>
+                <Button
+                  variant="success"
+                  class="flex-1 py-2"
+                  disabled={cart.length === 0 || !canComplete}
+                  onclick={handleFinalize}
+                >
+                  <Check size={14} />
+                  Selesai [Enter]
+                </Button>
+              </div>
             </div>
           </div>
 

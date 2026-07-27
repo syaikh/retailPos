@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/pkg/cache"
 )
@@ -128,6 +129,67 @@ func TestReportRepository_PeriodComparison_SeededData(t *testing.T) {
 	assert.GreaterOrEqual(t, result.CurrentOrders, 1, "should have at least 1 sale in current period")
 	assert.Equal(t, 0, result.PreviousRevenue, "no sales in previous period")
 	assert.Equal(t, 0, result.PreviousOrders, "no sales in previous period")
+	assert.False(t, result.PreviousHasAnyData, "no data in previous period")
+}
+
+func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
+	require.NoError(t, shared.TruncateTestData(dbPool))
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	now := time.Now()
+	start := now.AddDate(0, -1, 0)
+	prevStart := start.AddDate(0, -1, 0)
+
+	userSKU := uniqueSKU("PHD")
+	var cashierID int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO users (username, email, password_hash, role_id) VALUES ($1, $2, 'hash', 1) RETURNING id`,
+		userSKU, userSKU+"@test.com",
+	).Scan(&cashierID)
+	require.NoError(t, err)
+
+	custSKU := uniqueSKU("PHD")
+	var customerID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO customers (name, phone, email, is_walk_in, is_active) VALUES ($1, $2, $3, true, true) RETURNING id`,
+		"Test "+custSKU, fmt.Sprintf("%010d", productCounter.Add(1)), custSKU+"@test.com",
+	).Scan(&customerID)
+	require.NoError(t, err)
+
+	sku := uniqueSKU("PHD-PROD")
+	var productID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, stock, status) VALUES ($1, $2, 50000, 10, 'active') RETURNING id`,
+		sku, "Prev Period Product",
+	).Scan(&productID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `INSERT INTO product_stock (product_id, quantity) VALUES ($1, 10)`, productID)
+	require.NoError(t, err)
+
+	invSKU := uniqueSKU("PHD-INV")
+	prevSaleDate := prevStart.Add(2 * time.Hour)
+	var saleID int
+	err = dbPool.QueryRow(ctx,
+		`INSERT INTO sales (invoice_number, cashier_id, customer_id, subtotal, total_amount, payment_method, status, created_at)
+		 VALUES ($1, $2, $3, 50000, 50000, 'CASH', 'completed', $4) RETURNING id`,
+		invSKU, cashierID, customerID, prevSaleDate,
+	).Scan(&saleID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx,
+		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount)
+		 VALUES ($1, $2, 1, 50000, 50000, 50000, 0)`,
+		saleID, productID,
+	)
+	require.NoError(t, err)
+
+	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.PreviousHasAnyData, "should detect sales in previous period first 24h")
+	assert.Greater(t, result.PreviousRevenue, 0)
 }
 
 func TestReportRepository_DualChartData_Seeded(t *testing.T) {
@@ -301,6 +363,8 @@ func TestReportRepository_InvalidateDashboardCache(t *testing.T) {
 	c.Set("dashboard:stats", "stale")
 	c.Set("dashboard:live", "stale")
 	c.Set("dashboard:stats:store:1", "stale")
+	c.Set("report:some_key", "report-stale")
+	c.Set("report:another", "report-stale")
 	c.Wait()
 
 	repo.InvalidateDashboardCache(nil)
@@ -312,6 +376,10 @@ func TestReportRepository_InvalidateDashboardCache(t *testing.T) {
 	assert.False(t, ok2)
 	_, ok3 := repo.cache.Get("dashboard:stats:store:1")
 	assert.True(t, ok3)
+	_, ok4 := repo.cache.Get("report:some_key")
+	assert.False(t, ok4, "report: prefixed keys should also be flushed")
+	_, ok5 := repo.cache.Get("report:another")
+	assert.False(t, ok5, "report: prefixed keys should also be flushed")
 }
 
 func TestReportRepository_InvalidateDashboardCache_WithStoreID(t *testing.T) {
@@ -387,6 +455,24 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_InvalidPayload(t *test
 	err := listener.HandleEvent(context.Background(), eventbus.Event{
 		Type:    eventbus.SaleCreated,
 		Payload: "not-a-sale",
+	})
+	assert.NoError(t, err)
+}
+
+func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	require.NoError(t, shared.TruncateTestData(dbPool))
+	repo := NewRepository(dbPool)
+	listener := repo.NewSaleCreatedListener()
+	ctx := context.Background()
+
+	_, _, _, _ = seedSale(t, ctx)
+
+	err := listener.HandleEvent(ctx, eventbus.Event{
+		Type:    eventbus.SaleCreated,
+		Payload: &sale.Sale{ID: 1, StoreID: nil},
 	})
 	assert.NoError(t, err)
 }

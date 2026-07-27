@@ -5,7 +5,7 @@
 
   let {
     loading = true,
-    kpiData = { totalRevenue: 0, previousRevenue: 0, totalOrders: 0, previousOrders: 0, avgOrderValue: 0, previousAvgOrderValue: 0, revenuePerDay: 0, previousRevenuePerDay: 0, peakRevenueHour: null, previousPeakRevenue: null, peakRevenueMonth: null, previousPeakRevenueMonth: null, percentChange: 0, comparisonType: 'zero', isPartial: false, periodInfo: null },
+    kpiData = { totalRevenue: 0, previousRevenue: 0, totalOrders: 0, previousOrders: 0, avgOrderValue: 0, previousAvgOrderValue: 0, revenuePerDay: 0, previousRevenuePerDay: 0, peakRevenueHour: null, previousPeakRevenue: null, peakRevenueMonth: null, previousPeakRevenueMonth: null, percentChange: 0, comparisonType: 'zero', previousHasAnyData: false, isPartial: false, periodInfo: null },
     chartType = 'hourly',
     activePeriodType = 'realtime',
     peakChartValue = null,
@@ -44,6 +44,10 @@
         <div class="text-xs text-text-secondary mt-1 font-medium">
           vs {formatCurrencyShort(kpiData.previousRevenue)}
         </div>
+      {:else if kpiData.previousHasAnyData}
+        <div class="text-xs text-text-muted mt-1 font-medium">
+          vs {formatCurrencyShort(kpiData.previousRevenue)} (same hours)
+        </div>
       {/if}
     </div>
 
@@ -55,6 +59,10 @@
       {#if kpiData.previousOrders > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
           vs {formatLargeNumber(kpiData.previousOrders)}
+        </div>
+      {:else if kpiData.previousHasAnyData}
+        <div class="text-xs text-text-muted mt-1 font-medium">
+          vs {formatLargeNumber(kpiData.previousOrders)} (same hours)
         </div>
       {/if}
     </div>
@@ -119,15 +127,17 @@
         {#if kpiData.percentChange !== null}
           <span class={`text-lg font-bold ${
             kpiData.comparisonType === 'new' ? 'text-success' :
+            kpiData.comparisonType === 'surge' ? 'text-success' :
             kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
             kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
           }`}>
             {kpiData.comparisonType === 'new' ? 'NEW' :
+             kpiData.comparisonType === 'surge' ? '+100%' :
              kpiData.comparisonType === 'zero' ? '±0%' :
              kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :
              kpiData.percentChange.toFixed(1) + '%'}
           </span>
-          {#if kpiData.comparisonType !== 'new' && kpiData.comparisonType !== 'zero'}
+          {#if kpiData.comparisonType !== 'new' && kpiData.comparisonType !== 'surge' && kpiData.comparisonType !== 'zero'}
             {#if kpiData.percentChange > 0}
               <TrendingUp size={14} class="text-success" />
             {:else}

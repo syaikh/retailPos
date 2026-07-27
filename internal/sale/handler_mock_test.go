@@ -127,7 +127,7 @@ func TestSaleHandler_CreateSale_Success(t *testing.T) {
 		},
 	}
 	r := setupSaleHandler(svc, nil)
-	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"cash"}`
+	body := `{"items":[{"product_id":1,"quantity":2,"subtotal":20000}],"payment_method":"cash","tax":1100}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -137,6 +137,7 @@ func TestSaleHandler_CreateSale_Success(t *testing.T) {
 	require.NotNil(t, capturedSale)
 	assert.Equal(t, "INV-001", capturedSale.InvoiceNumber)
 	assert.Equal(t, 1, capturedSale.CashierID)
+	assert.Equal(t, 1100, capturedSale.Tax, "tax should be captured from request body")
 }
 
 func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {

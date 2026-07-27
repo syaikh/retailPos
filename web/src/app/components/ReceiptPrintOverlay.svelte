@@ -44,17 +44,23 @@
       <span>TOTAL</span>
       <span>{$printReceipt.total_amount.toLocaleString('id-ID')}</span>
     </div>
-    <div class="thermal-row">
-      <span class="thermal-label">Pembayaran:</span>
-      <span class="thermal-value">{$printReceipt.paymentMethod}</span>
-    </div>
-    <div class="thermal-row">
-      <span class="thermal-label">Uang Tunai:</span>
-      <span class="thermal-value">{$printReceipt.cashReceived?.toLocaleString('id-ID') ?? '—'}</span>
-    </div>
-    <div class="thermal-row">
-      <span class="thermal-label">Kembali:</span>
-      <span class="thermal-value">{$printReceipt.changeDue?.toLocaleString('id-ID') ?? '—'}</span>
+    <div class="thermal-payment-section">
+      <div class="thermal-row">
+        <span class="thermal-label">Pembayaran</span>
+        <span></span>
+      </div>
+      {#if $printReceipt.payments && $printReceipt.payments.length > 0}
+        {#each $printReceipt.payments as p}
+          <div class="thermal-payment-row">
+            <span class="thermal-payment-method">{p.method === 'CASH' ? 'Tunai' : p.method}</span>
+            <span class="thermal-payment-amount">{p.amount.toLocaleString('id-ID')}</span>
+          </div>
+        {/each}
+      {:else}
+        <div class="thermal-payment-row">
+          <span class="thermal-payment-value">{$printReceipt.paymentMethod}</span>
+        </div>
+      {/if}
     </div>
     <div class="thermal-divider"></div>
     <div class="thermal-footer">
