@@ -23,6 +23,7 @@ import (
 	"retail-pos-system/internal/platform/importexport/template"
 	"retail-pos-system/internal/platform/importexport/validation"
 	"retail-pos-system/internal/product"
+	"retail-pos-system/internal/purchase"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
@@ -75,6 +76,7 @@ func (a *productPriceAdapter) GetProductPrice(ctx context.Context, productID int
 type Dependencies struct {
 	UserRepo        *user.Repository
 	ProductRepo     *product.Repository
+	PurchaseRepo    *purchase.Repository
 	SaleRepo        *sale.Repository
 	InventoryRepo   *inventory.Repository
 	CustomerRepo    *customer.Repository
@@ -92,6 +94,7 @@ type Dependencies struct {
 	UserSvc         *user.Service
 	AuthSvc         *user.AuthService
 	ProductSvc      *product.Service
+	PurchaseSvc     *purchase.Service
 	SaleSvc         *sale.Service
 	InventorySvc    *inventory.Service
 	CustomerSvc     *customer.Service
@@ -109,6 +112,7 @@ type Dependencies struct {
 	UserH           *user.Handler
 	AuthH           *user.AuthHandler
 	ProductH        *product.Handler
+	PurchaseH       *purchase.Handler
 	SaleH           *sale.Handler
 	InventoryH      *inventory.Handler
 	CustomerH       *customer.Handler
@@ -149,6 +153,7 @@ func Initialize(p Providers) *Dependencies {
 	d.UserRepo.SetCache(d.Cache)
 	d.ProductRepo = product.NewRepository(p.DB)
 	d.ProductRepo.SetCache(d.Cache)
+	d.PurchaseRepo = purchase.NewRepository(p.DB)
 	d.SaleRepo = sale.NewRepository(p.DB)
 	d.InventoryRepo = inventory.NewRepository(p.DB)
 	d.CustomerRepo = customer.NewRepository(p.DB)
@@ -171,6 +176,7 @@ func Initialize(p Providers) *Dependencies {
 	d.UserSvc = user.NewService(d.UserRepo)
 	d.AuthSvc = user.NewAuthService(d.UserRepo, d.AuditSvc, p.Config)
 	d.ProductSvc = product.NewService(d.ProductRepo, d.CategoryRepo, d.BrandRepo, d.UOMRepo, d.Bus)
+	d.PurchaseSvc = purchase.NewService(d.PurchaseRepo, d.Bus)
 	d.SaleSvc = sale.NewService(d.SaleRepo, d.Bus)
 
 	priceStore := &productPriceAdapter{repo: d.ProductRepo}
@@ -193,6 +199,7 @@ func Initialize(p Providers) *Dependencies {
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
 	d.ProductH = product.NewHandler(d.ProductSvc, d.AuditSvc)
+	d.PurchaseH = purchase.NewHandler(d.PurchaseSvc, d.AuditSvc)
 	d.SaleH = sale.NewHandler(d.SaleSvc, d.AuditSvc)
 	d.InventoryH = inventory.NewHandler(d.InventorySvc, d.AuditSvc)
 	d.CustomerH = customer.NewHandler(d.CustomerSvc, d.AuditSvc)
@@ -247,6 +254,7 @@ func Initialize(p Providers) *Dependencies {
 	d.Bus.Subscribe(websocket.NewProductUpdatedListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockAdjustedListener(d.Hub, wsProductLookup))
 	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener())
+	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))
 
 	return d
 }

@@ -65,6 +65,7 @@
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
+    { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
   ];
 
   const masterDataSubItems = [
@@ -83,6 +84,7 @@
     { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
+    { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
   ];
 
   const managerMasterDataSubItems = [

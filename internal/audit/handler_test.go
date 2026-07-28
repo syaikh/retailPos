@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strconv"
 	"testing"
@@ -16,6 +17,10 @@ import (
 
 	"retail-pos-system/internal/shared"
 )
+
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-audit-tests")
+}
 
 func skipIfNoDB(t *testing.T) {
 	t.Helper()

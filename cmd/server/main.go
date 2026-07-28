@@ -151,6 +151,7 @@ func main() {
 	noopAuth := func(c *gin.Context) { c.Next() }
 	{
 		deps.ProductH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		deps.PurchaseH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.SaleH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.InventoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.CustomerH.RegisterRoutes(protected, noopAuth, permMiddleware)

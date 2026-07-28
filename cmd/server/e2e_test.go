@@ -37,6 +37,10 @@ import (
 	"retail-pos-system/pkg/websocket"
 )
 
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-e2e-tests")
+}
+
 type authAdapter struct {
 	svc *user.AuthService
 }

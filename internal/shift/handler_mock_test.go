@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,6 +15,10 @@ import (
 
 	"retail-pos-system/internal/audit"
 )
+
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-shift-mock-tests")
+}
 
 type mockShiftService struct {
 	openShiftFn        func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)

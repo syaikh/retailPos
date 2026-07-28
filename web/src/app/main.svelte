@@ -50,6 +50,7 @@
     '/admin/brands':       'Brand Management',
     '/admin/units-of-measure': 'Unit of Measure Management',
     '/shifts':             'Shift Management',
+    '/purchase-orders':    'Purchase Orders',
   };
 
   const pageModules = {
@@ -79,6 +80,7 @@
     '/admin/brands':        () => import('$modules/settings/components/BrandsPage.svelte'),
     '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
     '/shifts':              () => import('$modules/shifts/components/ShiftsPage.svelte'),
+    '/purchase-orders':     () => import('$modules/purchase-orders/components/PurchaseOrdersPage.svelte'),
   };
 
   let loadId = 0;

@@ -28,6 +28,18 @@ func GetUserID(c *gin.Context) int {
 	return id
 }
 
+func GetUserIDWithOK(c *gin.Context) (int, bool) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		return 0, false
+	}
+	id, ok := userID.(int)
+	if !ok {
+		return 0, false
+	}
+	return id, true
+}
+
 func GetUsername(c *gin.Context) string {
 	username, exists := c.Get("username")
 	if !exists {

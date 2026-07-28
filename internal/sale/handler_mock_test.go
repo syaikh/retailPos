@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,6 +18,10 @@ import (
 
 	"retail-pos-system/internal/audit"
 )
+
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-sale-mock-tests")
+}
 
 type mockSaleService struct {
 	createSaleFn               func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error
