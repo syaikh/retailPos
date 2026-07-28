@@ -130,13 +130,6 @@ WHERE r.name IN ('admin', 'manager')
   AND p.code IN ('purchase_order.view', 'purchase_order.create', 'purchase_order.update', 'purchase_order.confirm', 'purchase_order.receive')
 ON CONFLICT DO NOTHING;
 
--- Grant purchase order:read to cashier (view only)
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'cashier'
-  AND p.code = 'purchase_order.view'
-ON CONFLICT DO NOTHING;
-
 INSERT INTO schema_migrations (filename) VALUES ('007_purchase_orders.sql');
 
 COMMIT;

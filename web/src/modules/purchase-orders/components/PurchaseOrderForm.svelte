@@ -3,9 +3,20 @@
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { getProducts } from '$modules/product/services/product-service';
   import { getSuppliers } from '$modules/supplier/services/supplier-service';
+  import { Button, Input, Modal } from '$shared/ui';
   import { toast } from '$shared/stores/toast.svelte';
+  import { Loader2 } from 'lucide-svelte';
 
   const store = usePurchaseOrderStore();
+
+  let {
+    open = $bindable(false),
+  }: {
+    open?: boolean;
+  } = $props();
+
+  let saving = $state(false);
+
   let po = $state<any>(store.selectedPO || {
     supplier_id: 0,
     expected_date: '',
@@ -17,12 +28,18 @@
   });
   let products = $state<any[]>([]);
   let suppliers = $state<any[]>([]);
-  let saving = $state(false);
+
+  $effect(() => {
+    if (store.selectedPO) {
+      po = { ...store.selectedPO, items: store.selectedPO.items?.map((item: any) => ({ ...item })) || [] };
+      open = true;
+    }
+  });
 
   onMount(async () => {
     const [prodRes, suppRes] = await Promise.all([
-      getProducts({ limit: 100 }),
-      getSuppliers({ limit: 100 }),
+      getProducts({ limit: 100 } as any),
+      getSuppliers({ limit: 100 } as any),
     ]);
     products = prodRes.data || [];
     suppliers = suppRes.data || [];
@@ -58,6 +75,7 @@
         await store.create(po);
         toast.success('Purchase order created');
       }
+      open = false;
     } catch (e: any) {
       toast.error(e.message || 'Failed to save purchase order');
     } finally {
@@ -66,114 +84,115 @@
   }
 
   function handleClose() {
+    open = false;
     store.selectedPO = null;
   }
 </script>
 
-<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-  <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-    <div class="p-6 border-b flex justify-between items-center">
-      <h2 class="text-xl font-bold">{store.selectedPO ? 'Edit Purchase Order' : 'Create Purchase Order'}</h2>
-      <button onclick={handleClose} class="text-gray-400 hover:text-gray-600">&times;</button>
+<Modal bind:open title={store.selectedPO ? 'Edit Purchase Order' : 'Create Purchase Order'} size="xl">
+  <div class="space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Supplier</label>
+        <Input tag="select" bind:value={po.supplier_id}>
+          <option value={0}>Select supplier</option>
+          {#each suppliers as s}
+            <option value={s.id}>{s.name}</option>
+          {/each}
+        </Input>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Expected Date</label>
+        <Input type="date" bind:value={po.expected_date} />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Payment Term</label>
+        <Input type="text" bind:value={po.payment_term} placeholder="e.g. Net 30" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Supplier Reference Number</label>
+        <Input type="text" bind:value={po.supplier_reference_number} />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Delivery Address</label>
+        <Input tag="textarea" bind:value={po.delivery_address} rows={2} />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-text-secondary mb-1.5">Notes</label>
+        <Input tag="textarea" bind:value={po.notes} rows={2} />
+      </div>
     </div>
 
-    <div class="p-6 space-y-6">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-          <select bind:value={po.supplier_id} class="w-full px-3 py-2 border rounded-lg">
-            <option value={0}>Select supplier</option>
-            {#each suppliers as s}
-              <option value={s.id}>{s.name}</option>
-            {/each}
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Expected Date</label>
-          <input type="date" bind:value={po.expected_date} class="w-full px-3 py-2 border rounded-lg" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Payment Term</label>
-          <input type="text" bind:value={po.payment_term} placeholder="e.g. Net 30" class="w-full px-3 py-2 border rounded-lg" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Supplier Reference Number</label>
-          <input type="text" bind:value={po.supplier_reference_number} class="w-full px-3 py-2 border rounded-lg" />
-        </div>
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
-          <textarea bind:value={po.delivery_address} rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea>
-        </div>
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea bind:value={po.notes} rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea>
-        </div>
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-text-primary">Items</h3>
+        <Button variant="secondary" size="sm" onclick={addItem}>Add Item</Button>
       </div>
 
-      <div>
-        <div class="flex justify-between items-center mb-2">
-          <h3 class="text-lg font-medium">Items</h3>
-          <button onclick={addItem} class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
-            Add Item
-          </button>
-        </div>
-
-        {#if po.items.length === 0}
-          <p class="text-gray-500 text-sm">No items added</p>
-        {:else}
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                <th class="px-4 py-2"></th>
+      {#if po.items.length === 0}
+        <p class="text-text-muted text-sm">No items added</p>
+      {:else}
+        <div class="overflow-x-auto border border-border rounded-xl">
+          <table class="w-full min-w-[600px]">
+            <thead class="bg-muted/50">
+              <tr class="border-b text-left text-xs text-text-muted">
+                <th class="px-3 py-2 font-semibold" scope="col">Product</th>
+                <th class="px-3 py-2 font-semibold" scope="col">Qty</th>
+                <th class="px-3 py-2 font-semibold" scope="col">Unit Cost</th>
+                <th class="px-3 py-2 font-semibold" scope="col">Discount</th>
+                <th class="px-3 py-2 font-semibold text-right" scope="col">Subtotal</th>
+                <th class="px-3 py-2 w-[50px]" scope="col"></th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200">
+            <tbody class="divide-y divide-border">
               {#each po.items as item, index}
                 <tr>
-                  <td class="px-4 py-2">
-                    <select bind:value={item.product_id} class="w-full px-2 py-1 border rounded">
+                  <td class="px-3 py-2">
+                    <Input tag="select" bind:value={item.product_id} class="text-sm">
                       <option value={0}>Select product</option>
                       {#each products as p}
                         <option value={p.id}>{p.name} ({p.sku})</option>
                       {/each}
-                    </select>
+                    </Input>
                   </td>
-                  <td class="px-4 py-2">
-                    <input type="number" bind:value={item.qty_ordered} min="1" class="w-20 px-2 py-1 border rounded" />
+                  <td class="px-3 py-2">
+                    <Input type="number" bind:value={item.qty_ordered} min={1} class="w-20 text-sm" />
                   </td>
-                  <td class="px-4 py-2">
-                    <input type="number" bind:value={item.unit_cost} min="0" class="w-32 px-2 py-1 border rounded" />
+                  <td class="px-3 py-2">
+                    <Input type="number" bind:value={item.unit_cost} min={0} class="w-28 text-sm" />
                   </td>
-                  <td class="px-4 py-2">
-                    <input type="number" bind:value={item.discount_amount} min="0" class="w-24 px-2 py-1 border rounded" />
+                  <td class="px-3 py-2">
+                    <Input type="number" bind:value={item.discount_amount} min={0} class="w-24 text-sm" />
                   </td>
-                  <td class="px-4 py-2 text-sm">{calculateSubtotal(item).toLocaleString('id-ID')}</td>
-                  <td class="px-4 py-2">
-                    <button onclick={() => removeItem(index)} class="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                  <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{calculateSubtotal(item).toLocaleString('id-ID')}</td>
+                  <td class="px-3 py-2">
+                    <Button variant="ghost" size="icon" onclick={() => removeItem(index)} aria-label="Remove item" class="text-danger hover:text-danger-light">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </Button>
                   </td>
                 </tr>
               {/each}
             </tbody>
           </table>
-        {/if}
-      </div>
-
-      <div class="flex justify-between items-center pt-4 border-t">
-        <div class="text-lg font-medium">
-          Total: {getTotalSubtotal().toLocaleString('id-ID')}
         </div>
-        <div class="flex gap-2">
-          <button onclick={handleClose} class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-          <button onclick={handleSubmit} disabled={saving || po.items.length === 0 || po.supplier_id === 0} class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Saving...' : (store.selectedPO ? 'Update' : 'Create Draft')}
-          </button>
-        </div>
-      </div>
+      {/if}
     </div>
   </div>
-</div>
+
+  {#snippet footer()}
+    <div class="flex items-center justify-between w-full">
+      <div class="text-base font-semibold text-text-primary tabular-nums">
+        Total: {getTotalSubtotal().toLocaleString('id-ID')}
+      </div>
+      <div class="flex items-center gap-2">
+        <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+        <Button variant="primary" onclick={handleSubmit} disabled={saving || po.items.length === 0 || po.supplier_id === 0}>
+          {#if saving}
+            <Loader2 size={16} class="animate-spin" />
+          {/if}
+          {saving ? 'Saving...' : (store.selectedPO ? 'Update' : 'Create Draft')}
+        </Button>
+      </div>
+    </div>
+  {/snippet}
+</Modal>
