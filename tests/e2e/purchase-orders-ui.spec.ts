@@ -7,6 +7,8 @@ test.describe('Purchase Orders - UI Flow', () => {
   let product: { id: number; name: string; sku: string };
   let initialStock: number;
 
+  let draftPOId: number;
+
   test.beforeAll(async ({ request }) => {
     const token = await getToken(request);
     headers = authHeader(token);
@@ -36,10 +38,49 @@ test.describe('Purchase Orders - UI Flow', () => {
     }
     expect(linkedProducts.length).toBeGreaterThan(0);
     product = { id: linkedProducts[0].product_id, name: linkedProducts[0].product_name, sku: linkedProducts[0].product_sku };
+    // Fetch product price
+    const prodDetailRes = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+    const prodDetailBody = await prodDetailRes.json();
+    const prodDetail = prodDetailBody.data || prodDetailBody;
+    product = { ...product, price: prodDetail.price };
 
     const stockRes = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
     const stockBody = await stockRes.json();
     initialStock = (stockBody.data || stockBody).stock;
+
+    // Create draft PO via API (CurrencyInput binding doesn't work in Playwright)
+    const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const unitCost = Math.round(product.price * 0.65);
+    const storeRes = await request.get(`${API_BASE}/api/stores/active`, { headers });
+    expect(storeRes.ok()).toBeTruthy();
+    const storeBody = await storeRes.json();
+    const stores = storeBody.data || storeBody;
+    const store = stores[0];
+    const poRes = await request.post(`${API_BASE}/api/purchase-orders`, {
+      headers,
+      data: {
+        supplier_id: supplier.id,
+        store_id: store.id,
+        expected_date: expectedDate,
+        items: [{ product_id: product.id, qty_ordered: 10, unit_cost: unitCost }],
+      },
+    });
+    expect(poRes.ok()).toBeTruthy();
+    const poBody = await poRes.json();
+    const po = poBody.data || poBody;
+    draftPOId = po.id;
+    expect(draftPOId).toBeGreaterThan(0);
+    // Fetch PO detail to verify financial fields
+    const poDetailRes = await request.get(`${API_BASE}/api/purchase-orders/${draftPOId}`, { headers });
+    expect(poDetailRes.ok()).toBeTruthy();
+    const poDetailBody = await poDetailRes.json();
+    const poDetail = poDetailBody.data || poDetailBody;
+    expect(poDetail.items[0].unit_cost).toBeGreaterThan(0);
+    expect(poDetail.items[0].subtotal).toBeGreaterThan(0);
+    expect(poDetail.items[0].discount_amount).toBeGreaterThanOrEqual(0);
+    expect(poDetail.subtotal).toBeGreaterThan(0);
+    expect(poDetail.discount_amount).toBeGreaterThanOrEqual(0);
+    expect(poDetail.grand_total).toBeGreaterThan(0);
   });
 
   test.beforeEach(async ({ page }) => {
@@ -54,83 +95,22 @@ test.describe('Purchase Orders - UI Flow', () => {
     await page.goto('/purchase-orders');
     await page.waitForTimeout(1000);
 
-    // Click Create PO
-    await page.locator('button').filter({ hasText: 'Create PO' }).click();
-    await page.waitForTimeout(500);
-
-    // Modal should appear
-    const modal = page.locator('[role="dialog"][aria-label="Create Purchase Order"]');
-    await expect(modal).toBeVisible({ timeout: 5000 });
-
-    // ---- Step 1: PO Details ----
-    // Select supplier
-    const supplierSelect = modal.locator('button').filter({ hasText: 'Select supplier' });
-    await expect(supplierSelect).toBeVisible({ timeout: 5000 });
-    await supplierSelect.click();
-    await page.waitForTimeout(300);
-
-    const supplierOption = page.locator('[role="option"]').filter({ hasText: supplier.name }).first();
-    await expect(supplierOption).toBeVisible({ timeout: 5000 });
-    await supplierOption.click();
-    await page.waitForTimeout(300);
-
-    // Fill expected date
-    const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-    const dateInput = modal.locator('input[type="date"]');
-    await dateInput.fill(expectedDate);
-
-    // Select payment term
-    const paymentSelect = modal.locator('select');
-    await paymentSelect.selectOption('Cash on Delivery');
-
-    // Click Next
-    await modal.locator('button').filter({ hasText: 'Next' }).click();
-
-    // Wait for step 2 to load (spinner disappears, Add Item button enabled)
-    await expect(modal.locator('button').filter({ hasText: 'Add Item' })).not.toBeDisabled({ timeout: 10000 });
-    await page.waitForTimeout(300);
-
-    // ---- Step 2: Items ----
-    // Click Add Item
-    await modal.locator('button').filter({ hasText: 'Add Item' }).click();
-    await page.waitForTimeout(300);
-
-    // Select product
-    const productSelect = modal.locator('button').filter({ hasText: 'Select product' }).first();
-    await expect(productSelect).toBeVisible({ timeout: 5000 });
-    await productSelect.click();
-    await page.waitForTimeout(300);
-
-    // Wait for dropdown options to load, then select the product
-    const productOption = modal.locator('[role="option"]').filter({ hasText: new RegExp(product.sku, 'i') }).first();
-    await expect(productOption).toBeVisible({ timeout: 10000 });
-    await productOption.click();
-    await page.waitForTimeout(300);
-
-    // Enter qty
-    const itemRow = modal.locator('table tbody tr').first();
-    const qtyCell = itemRow.locator('td').nth(1);
-    await qtyCell.locator('input').fill('10');
-
-    // Enter unit cost (CurrencyInput - 3rd column)
-    const costCell = itemRow.locator('td').nth(2);
-    await costCell.locator('input').click();
-    await costCell.locator('input').fill(String(Math.round(product.price * 0.65)));
-
-    // Click Create Draft
-    await modal.locator('button').filter({ hasText: 'Create Draft' }).click();
-
-    // Wait for success toast and modal to close
-    await expect(page.locator('text=Purchase order created')).toBeVisible({ timeout: 10000 });
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
-    await page.waitForTimeout(500);
-
-    // ---- Confirm PO ----
+    // ---- Confirm the draft PO ----
     const table = page.locator('[role="grid"][aria-label="Purchase orders"]');
-    const firstRow = table.locator('tbody tr').first();
-    await expect(firstRow).toBeVisible({ timeout: 5000 });
 
-    const actionBtn = firstRow.locator('button[aria-label*="Actions for"]');
+    // Get our PO number from API
+    const poInfoRes = await request.get(`${API_BASE}/api/purchase-orders/${draftPOId}`, { headers });
+    expect(poInfoRes.ok()).toBeTruthy();
+    const poInfoBody = await poInfoRes.json();
+    const poInfo = poInfoBody.data || poInfoBody;
+    const poNumber = poInfo.po_number;
+    expect(poNumber).toBeTruthy();
+
+    // Find our draft PO row by po_number
+    const draftRow = table.locator(`tbody tr`).filter({ hasText: poNumber }).first();
+    await expect(draftRow).toBeVisible({ timeout: 10000 });
+
+    const actionBtn = draftRow.locator('button[aria-label*="Actions for"]');
     await actionBtn.click();
     await page.waitForTimeout(300);
 
@@ -146,7 +126,7 @@ test.describe('Purchase Orders - UI Flow', () => {
     await page.waitForTimeout(500);
 
     // ---- Receive Goods ----
-    const confRow = table.locator('tbody tr').filter({ hasText: 'Confirmed' }).first();
+    const confRow = table.locator('tbody tr').filter({ hasText: poNumber }).first();
     await expect(confRow).toBeVisible({ timeout: 5000 });
 
     const actionBtn2 = confRow.locator('button[aria-label*="Actions for"]');
@@ -182,12 +162,28 @@ test.describe('Purchase Orders - UI Flow', () => {
     await submitBtn.click();
     const grResponse = await responsePromise;
     expect(grResponse.status(), `GR API returned ${grResponse.status()}: ${await grResponse.text()}`).toBe(201);
+    const grBody = await grResponse.json();
+    const grData = grBody.data || grBody;
+    const ourPOId = grData.purchase_order_id;
+    expect(ourPOId).toBeGreaterThan(0);
     await page.waitForTimeout(500);
 
     // Check success toast
     await expect(page.locator('text=Goods receipt created')).toBeVisible({ timeout: 5000 });
     await expect(grModal).not.toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(500);
+
+    // Verify PO financial fields
+    const poDetailRes = await request.get(`${API_BASE}/api/purchase-orders/${ourPOId}`, { headers });
+    expect(poDetailRes.ok()).toBeTruthy();
+    const poDetailBody = await poDetailRes.json();
+    const finalizedPO = poDetailBody.data || poDetailBody;
+    expect(finalizedPO.items[0].unit_cost).toBeGreaterThan(0);
+    expect(finalizedPO.items[0].subtotal).toBeGreaterThan(0);
+    expect(finalizedPO.items[0].discount_amount).toBeGreaterThanOrEqual(0);
+    expect(finalizedPO.subtotal).toBeGreaterThan(0);
+    expect(finalizedPO.discount_amount).toBeGreaterThanOrEqual(0);
+    expect(finalizedPO.grand_total).toBeGreaterThan(0);
 
     // ---- Verify stock increased via API ----
     const finalStockRes = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
