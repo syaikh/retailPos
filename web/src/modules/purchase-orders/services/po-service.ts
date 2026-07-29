@@ -101,8 +101,9 @@ export async function createGoodsReceipt(gr: any): Promise<any | null> {
     if (res.ok) {
       return await res.json();
     }
-    const err = await res.json();
-    throw new Error(err.message || 'Failed to create goods receipt');
+    const body = await res.json();
+    const msg = body?.error?.message || body?.message || body?.error || 'Failed to create goods receipt';
+    throw new Error(msg);
   } catch (e) {
     throw e;
   }

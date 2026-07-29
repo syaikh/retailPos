@@ -161,7 +161,7 @@ type CreateGoodsReceiptRequest struct {
 
 type CreateGRItemRequest struct {
 	PurchaseOrderItemID int     `json:"purchase_order_item_id" binding:"required"`
-	QtyGood             int     `json:"qty_good" binding:"required,min=0"`
+	QtyGood             int     `json:"qty_good" binding:"min=0"`
 	QtyDamaged          int     `json:"qty_damaged" binding:"min=0"`
 	Notes               *string `json:"notes,omitempty"`
 }

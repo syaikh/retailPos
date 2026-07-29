@@ -2,6 +2,7 @@ package purchase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -435,7 +436,7 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		case err == ErrInvalidPOStatusForReceiving:
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
-		case err == ErrOverReceiving:
+		case errors.Is(err, ErrOverReceiving):
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		case err == ErrInvalidReceivingQty:
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
