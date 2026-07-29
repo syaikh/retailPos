@@ -393,14 +393,15 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, "goods_receipt.created", map[string]interface{}{
+	bgCtx := context.Background()
+	_ = s.eventBus.Publish(bgCtx, "goods_receipt.created", map[string]interface{}{
 		"gr_id":     gr.ID,
 		"gr_number": gr.GRNumber,
 		"po_id":     poID,
 	})
 
 	if len(receiptItems) > 0 {
-		_ = s.eventBus.Publish(ctx, "PurchaseReceiptCompleted", PurchaseReceiptPayload{
+		_ = s.eventBus.Publish(bgCtx, "PurchaseReceiptCompleted", PurchaseReceiptPayload{
 			POID:    poID,
 			GRID:    gr.ID,
 			StoreID: storeID,

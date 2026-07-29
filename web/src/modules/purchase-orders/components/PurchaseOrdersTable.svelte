@@ -85,7 +85,7 @@
         <col style="width: 13%;" />
         <col style="width: 12%;" />
       </colgroup>
-      <thead><tr><th>PO NUMBER</th><th>SUPPLIER</th><th>STATUS</th><th>EXP. DATE</th><th>GRAND TOTAL</th><th>CREATED AT</th><th></th></tr></thead>
+      <thead><tr><th>PO NUMBER</th><th>SUPPLIER</th><th>STATUS</th><th>EXPECTED DATE</th><th>GRAND TOTAL</th><th>CREATED AT</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
     </table>
   </div>
@@ -121,7 +121,7 @@
             <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="EXP. DATE" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="EXPECTED DATE" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold text-right" scope="col">
             <SortableHeader label="GRAND TOTAL" column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />

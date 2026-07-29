@@ -93,7 +93,7 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 	_, err = tx.Exec(ctx, `
 		INSERT INTO product_stock (product_id, quantity, updated_at)
 		VALUES ($1, $2, NOW())
-		ON CONFLICT ON CONSTRAINT uq_product_stock
+		ON CONFLICT ON CONSTRAINT product_stock_product_id_key
 		DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
 	`, productID, newStock)
 	if err != nil {

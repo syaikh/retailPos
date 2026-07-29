@@ -25,7 +25,8 @@
   const inputId = crypto.randomUUID();
 
   function handleInput(e: Event) {
-    value = (e.target as HTMLInputElement | HTMLSelectElement).value;
+    const rawValue = (e.target as HTMLInputElement | HTMLSelectElement).value;
+    value = rest.type === 'number' ? (rawValue === '' ? 0 : Number(rawValue)) : rawValue;
     externalOninput?.(e);
   }
 

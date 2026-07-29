@@ -303,6 +303,10 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 	ensurePaymentMethods(ctx, db)
 	fmt.Println("   ✅ Payment methods ready")
 
+	// 3e. Ensure stores exist
+	ensureStores(ctx, db)
+	fmt.Println("   ✅ Stores ready")
+
 	// 3f. Ensure customer groups exist
 	fmt.Printf("👥 Ensuring customer groups...\n")
 	ensureCustomerGroups(ctx, db)
@@ -341,6 +345,13 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("failed to inject pricing rules: %w", err)
 	}
 	fmt.Println("   ✅ Pricing rules ready")
+
+	// 4d. Inject purchase orders and goods receipts
+	fmt.Printf("📋 Injecting purchase orders and goods receipts...\n")
+	if err := injectPurchaseOrdersAndGRs(ctx, db, startDate, endDate); err != nil {
+		return fmt.Errorf("failed to inject purchase orders: %w", err)
+	}
+	fmt.Println("   ✅ Purchase orders and goods receipts injected")
 
 	// 5. Get users for cashier assignment (needed for sales)
 	var userIDs []int
@@ -458,6 +469,10 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 
 	// Truncate tables in correct order (children first)
 	tables := []string{
+		"goods_receipt_items",
+		"goods_receipts",
+		"purchase_order_items",
+		"purchase_orders",
 		"sale_items",
 		"product_stock",
 		"inventory_movements",
@@ -633,6 +648,19 @@ func ensurePaymentMethods(ctx context.Context, db *sql.DB) {
 		ON CONFLICT (code) DO NOTHING`)
 	if err != nil {
 		fmt.Printf("Warning: failed to ensure payment methods: %v\n", err)
+	}
+}
+
+func ensureStores(ctx context.Context, db *sql.DB) {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO stores (id, name, address, phone, is_active, created_at)
+		VALUES
+		(1, 'Main Store', '123 Main Street', '081234567890', true, NOW()),
+		(2, 'Branch Store', '456 Branch Avenue', '081234567891', true, NOW()),
+		(3, 'Warehouse Store', '789 Industrial Road', '081234567892', true, NOW())
+		ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		fmt.Printf("Warning: failed to ensure stores: %v\n", err)
 	}
 }
 
@@ -2237,6 +2265,440 @@ func randomPrivateIP() string {
 	default:
 		return fmt.Sprintf("192.168.%d.%d", rand.Intn(256), rand.Intn(256))
 	}
+}
+
+// ==================== PURCHASE ORDER & GOODS RECEIPT GENERATION ====================
+
+type poItemInput struct {
+	ProductID int
+	Qty       int
+	UnitCost  int
+}
+
+func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
+	supplierIDs := getIDs(ctx, db, "suppliers")
+	if len(supplierIDs) == 0 {
+		return fmt.Errorf("no suppliers found")
+	}
+	products := getExistingProducts(ctx, db)
+	if len(products) == 0 {
+		return fmt.Errorf("no products found")
+	}
+	userIDs := getIDs(ctx, db, "users")
+	if len(userIDs) == 0 {
+		return fmt.Errorf("no users found")
+	}
+	storeIDs := getIDs(ctx, db, "stores")
+	if len(storeIDs) == 0 {
+		return fmt.Errorf("no stores found")
+	}
+
+	type prodCost struct {
+		ProductID int
+		UnitCost  int
+	}
+	costRows, err := db.QueryContext(ctx, `
+		SELECT ps.product_id, MIN(ps.unit_cost) as unit_cost
+		FROM product_suppliers ps
+		WHERE ps.unit_cost IS NOT NULL
+		GROUP BY ps.product_id
+	`)
+	if err != nil {
+		return fmt.Errorf("query product costs: %w", err)
+	}
+	costMap := make(map[int]int)
+	for costRows.Next() {
+		var pc prodCost
+		if err := costRows.Scan(&pc.ProductID, &pc.UnitCost); err == nil {
+			costMap[pc.ProductID] = pc.UnitCost
+		}
+	}
+	costRows.Close()
+
+	// Fallback cost: 65% of product price if no supplier link
+	for _, p := range products {
+		if _, ok := costMap[p.ID]; !ok {
+			costMap[p.ID] = int(float64(p.Price) * 0.65)
+		}
+	}
+
+	// Number of POs: roughly 1 per 25 products, capped
+	numPOs := len(products) / 25
+	if numPOs < 5 {
+		numPOs = 5
+	}
+	if numPOs > 200 {
+		numPOs = 200
+	}
+
+	totalDays := int(endDate.Sub(startDate).Hours()/24) + 1
+	if totalDays < 1 {
+		totalDays = 1
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	poInserted := 0
+	grInserted := 0
+
+	type poResult struct {
+		poID      int
+		status    string
+		createdAt time.Time
+		items     []struct{ poItemID int; qtyOrdered int; unitCost int; productID int }
+	}
+
+	// Workers channel
+	type poJob struct {
+		seq int
+	}
+	jobs := make(chan poJob, numPOs)
+	results := make(chan poResult, numPOs)
+	errCh := make(chan error, 4)
+
+	var wg sync.WaitGroup
+	for w := 0; w < 4; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				poRes, err := func() (poResult, error) {
+					// Pick random values for this PO
+					supID := supplierIDs[rand.Intn(len(supplierIDs))]
+					storeID := storeIDs[rand.Intn(len(storeIDs))]
+					createdBy := userIDs[rand.Intn(len(userIDs))]
+					updatedBy := userIDs[rand.Intn(len(userIDs))]
+
+					dayOffset := rand.Intn(totalDays)
+					createdAt := startDate.AddDate(0, 0, dayOffset)
+					if createdAt.After(endDate) {
+						createdAt = endDate
+					}
+
+					// 1-5 line items
+					numItems := 1 + rand.Intn(5)
+					shuffled := make([]int, len(products))
+					for i, p := range products {
+						shuffled[i] = p.ID
+					}
+					rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+					if numItems > len(shuffled) {
+						numItems = len(shuffled)
+					}
+
+					items := make([]poItemInput, 0, numItems)
+					var subtotal int
+					for i := 0; i < numItems; i++ {
+						pid := shuffled[i]
+						uc := costMap[pid]
+						if uc <= 0 {
+							uc = 1000
+						}
+						qty := 2 + rand.Intn(19) // 2-20
+						lineSubtotal := uc * qty
+						subtotal += lineSubtotal
+						items = append(items, poItemInput{
+							ProductID: pid,
+							Qty:       qty,
+							UnitCost:  uc,
+						})
+					}
+
+					// Status distribution: 60% confirmed, 20% draft, 20% cancelled
+					var status string
+					var confirmedAt, cancelledAt *time.Time
+					var confirmedBy, cancelledBy *int
+					r := rand.Intn(100)
+					switch {
+					case r < 60:
+						status = "confirmed"
+						ca := createdAt.Add(time.Duration(rand.Intn(72)) * time.Hour)
+						confirmedAt = &ca
+						cb := userIDs[rand.Intn(len(userIDs))]
+						confirmedBy = &cb
+					case r < 80:
+						status = "draft"
+					default:
+						status = "cancelled"
+						ca := createdAt.Add(time.Duration(rand.Intn(48)) * time.Hour)
+						cancelledAt = &ca
+						cb := userIDs[rand.Intn(len(userIDs))]
+						cancelledBy = &cb
+					}
+
+					expectedDate := createdAt.AddDate(0, 0, 3+rand.Intn(12))
+
+					tx, err := db.BeginTx(ctx, nil)
+					if err != nil {
+						return poResult{}, fmt.Errorf("begin tx: %w", err)
+					}
+					defer func() {
+						if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+							log.Printf("po worker rollback: %v", err)
+						}
+					}()
+
+					poNum := fmt.Sprintf("PO-%s-%05d", createdAt.Format("2006-01"), job.seq)
+					var poID int
+					err = tx.QueryRowContext(ctx, `
+						INSERT INTO purchase_orders
+							(po_number, supplier_id, store_id, status, expected_date,
+							 subtotal, grand_total, created_by, updated_by, created_at, updated_at)
+						VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$9)
+						RETURNING id
+					`, poNum, supID, storeID, status, expectedDate,
+						subtotal, createdBy, updatedBy, createdAt,
+					).Scan(&poID)
+					if err != nil {
+						return poResult{}, fmt.Errorf("insert PO: %w", err)
+					}
+
+					// Update confirmed/cancelled fields
+					if confirmedAt != nil {
+						_, err = tx.ExecContext(ctx, `
+							UPDATE purchase_orders SET confirmed_at=$1, confirmed_by=$2 WHERE id=$3
+						`, *confirmedAt, *confirmedBy, poID)
+						if err != nil {
+							return poResult{}, fmt.Errorf("confirm PO: %w", err)
+						}
+					}
+					if cancelledAt != nil {
+						_, err = tx.ExecContext(ctx, `
+							UPDATE purchase_orders SET cancelled_at=$1, cancelled_by=$2 WHERE id=$3
+						`, *cancelledAt, *cancelledBy, poID)
+						if err != nil {
+							return poResult{}, fmt.Errorf("cancel PO: %w", err)
+						}
+					}
+
+					itemStmt, err := tx.PrepareContext(ctx, `
+						INSERT INTO purchase_order_items
+							(purchase_order_id, product_id, qty_ordered, unit_cost, subtotal, product_name)
+						VALUES ($1,$2,$3,$4,$5,
+							COALESCE((SELECT name FROM products WHERE id=$2), ''))
+						RETURNING id
+					`)
+					if err != nil {
+						return poResult{}, fmt.Errorf("prepare item stmt: %w", err)
+					}
+					defer itemStmt.Close()
+
+					var poRes poResult
+					poRes.poID = poID
+					poRes.status = status
+					poRes.createdAt = createdAt
+					for _, item := range items {
+						var poItemID int
+						err := itemStmt.QueryRowContext(ctx, poID, item.ProductID,
+							item.Qty, item.UnitCost, item.UnitCost*item.Qty,
+						).Scan(&poItemID)
+						if err != nil {
+							return poResult{}, fmt.Errorf("insert PO item: %w", err)
+						}
+						poRes.items = append(poRes.items, struct {
+							poItemID  int
+							qtyOrdered int
+							unitCost  int
+							productID int
+						}{poItemID, item.Qty, item.UnitCost, item.ProductID})
+					}
+
+					if err := tx.Commit(); err != nil {
+						return poResult{}, fmt.Errorf("commit PO: %w", err)
+					}
+					return poRes, nil
+				}()
+				if err != nil {
+				select {
+			case errCh <- err:
+			default:
+			}
+					return
+				}
+				results <- poRes
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errCh)
+	}()
+
+	// Feed jobs
+	for seq := 1; seq <= numPOs; seq++ {
+		jobs <- poJob{seq: seq}
+	}
+	close(jobs)
+
+	// Collect results
+	type poItemInfo struct {
+		poItemID  int
+		qtyOrdered int
+		unitCost  int
+		productID int
+	}
+	type poInfo struct {
+		poID   int
+		status string
+		items  []poItemInfo
+		createdAt time.Time
+	}
+	var confirmedPOs []poInfo
+
+	for poRes := range results {
+		poInserted++
+		info := poInfo{
+			poID:      poRes.poID,
+			status:    poRes.status,
+			createdAt: poRes.createdAt,
+			items:     make([]poItemInfo, len(poRes.items)),
+		}
+		for j, item := range poRes.items {
+			info.items[j] = poItemInfo{
+				poItemID:  item.poItemID,
+				qtyOrdered: item.qtyOrdered,
+				unitCost:  item.unitCost,
+				productID: item.productID,
+			}
+		}
+		if info.status == "confirmed" {
+			confirmedPOs = append(confirmedPOs, info)
+		}
+	}
+
+	// Check errors
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return fmt.Errorf("PO worker error: %w", err)
+		}
+	default:
+	}
+
+	fmt.Printf("   🎲 Created %d purchase orders (%d confirmed, %d draft/cancelled)\n",
+		poInserted, len(confirmedPOs), poInserted-len(confirmedPOs))
+
+	// ---------- Goods Receipts ----------
+	// ~80% of confirmed POs get GRs; ~70% full receipt, ~30% partial
+	for _, po := range confirmedPOs {
+		if rand.Intn(100) >= 80 {
+			continue
+		}
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin gr tx: %w", err)
+		}
+		defer func() {
+			if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+				log.Printf("gr worker rollback: %v", err)
+			}
+		}()
+
+		storeID := storeIDs[rand.Intn(len(storeIDs))]
+		receivedBy := userIDs[rand.Intn(len(userIDs))]
+		receivedAt := po.createdAt.Add(time.Duration(rand.Intn(72)) * time.Hour)
+
+		grInserted++
+		grNum := fmt.Sprintf("GR-%s-%05d", receivedAt.Format("2006-01"), grInserted)
+
+		var grID int
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO goods_receipts
+				(gr_number, purchase_order_id, store_id, received_by, received_at, created_at)
+			VALUES ($1,$2,$3,$4,$5,$5)
+			RETURNING id
+		`, grNum, po.poID, storeID, receivedBy, receivedAt,
+		).Scan(&grID)
+		if err != nil {
+			return fmt.Errorf("insert GR: %w", err)
+		}
+
+		itemStmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO goods_receipt_items
+				(goods_receipt_id, purchase_order_item_id, product_id, qty_good, qty_damaged, unit_cost, product_name)
+			VALUES ($1,$2,$3,$4,$5,$6,
+				COALESCE((SELECT name FROM products WHERE id=$3), ''))
+		`)
+		if err != nil {
+			return fmt.Errorf("prepare gr item stmt: %w", err)
+		}
+		defer itemStmt.Close()
+
+		for _, item := range po.items {
+			fullReceipt := rand.Intn(100) < 70
+			qtyGood := item.qtyOrdered
+			qtyDamaged := 0
+			if !fullReceipt {
+				// Partial receipt: 30-95% of ordered qty
+				factor := 0.30 + rand.Float64()*0.65
+				qtyGood = int(float64(item.qtyOrdered) * factor)
+				if qtyGood < 1 {
+					qtyGood = 1
+				}
+			}
+			if rand.Intn(100) < 5 {
+				// 5% chance of damaged goods
+				qtyDamaged = 1 + rand.Intn(qtyGood/2)
+				if qtyDamaged > qtyGood {
+					qtyDamaged = qtyGood
+				}
+				qtyGood -= qtyDamaged
+			}
+			if qtyGood < 0 {
+				qtyGood = 0
+			}
+
+			_, err := itemStmt.ExecContext(ctx, grID, item.poItemID, item.productID,
+				qtyGood, qtyDamaged, item.unitCost,
+			)
+			if err != nil {
+				return fmt.Errorf("insert GR item: %w", err)
+			}
+
+			// Update PO item qty_received
+			qtyReceived := qtyGood + qtyDamaged
+			_, err = tx.ExecContext(ctx, `
+				UPDATE purchase_order_items SET qty_received = qty_received + $1 WHERE id = $2
+			`, qtyReceived, item.poItemID)
+			if err != nil {
+				return fmt.Errorf("update PO item qty_received: %w", err)
+			}
+
+			// Update product stock
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO product_stock (product_id, quantity, updated_at)
+				VALUES ($1, $2, NOW())
+				ON CONFLICT (product_id) DO UPDATE SET
+					quantity = product_stock.quantity + $2,
+					updated_at = NOW()
+			`, item.productID, qtyGood)
+			if err != nil {
+				return fmt.Errorf("update product stock: %w", err)
+			}
+
+			// Record inventory movement
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO inventory_movements
+					(product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
+				VALUES ($1, $2, 'purchase_receive', $3, 'goods_receipts', $4, $5, $6)
+			`, item.productID, qtyGood, grID, receivedBy,
+				fmt.Sprintf("GR %s", grNum), receivedAt)
+			if err != nil {
+				return fmt.Errorf("insert inventory movement: %w", err)
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit GR: %w", err)
+		}
+	}
+
+	fmt.Printf("   🎲 Created %d goods receipts for confirmed POs\n", grInserted)
+	return nil
 }
 
 // ==================== CUSTOMER GENERATION ====================

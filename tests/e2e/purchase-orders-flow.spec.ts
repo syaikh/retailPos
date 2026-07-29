@@ -92,7 +92,18 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     poItemId = po.items[0].id;
   });
 
-  test('4. POST /api/goods-receipts - full goods receipt', async ({ request }) => {
+  let initialStock: number;
+
+  test('4. GET /api/products/:id - capture initial stock', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const prod = body.data || body;
+    initialStock = prod.stock;
+    expect(initialStock).toBeGreaterThanOrEqual(0);
+  });
+
+  test('5. POST /api/goods-receipts - full goods receipt', async ({ request }) => {
     expect(poId).toBeGreaterThan(0);
     expect(poItemId).toBeGreaterThan(0);
     const res = await request.post(`${API_BASE}/api/goods-receipts`, {
@@ -120,7 +131,7 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     expect(gr.items[0].qty_damaged).toBe(0);
   });
 
-  test('5. GET /api/purchase-orders/:id - verify PO marked as fully_received', async ({ request }) => {
+  test('6. GET /api/purchase-orders/:id - verify PO marked as fully_received', async ({ request }) => {
     expect(poId).toBeGreaterThan(0);
     const res = await request.get(`${API_BASE}/api/purchase-orders/${poId}`, {
       headers,
@@ -132,7 +143,7 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     expect(po.items[0].qty_received).toBe(10);
   });
 
-  test('6. GET /api/purchase-orders/:id/receipts - list GRs for PO', async ({ request }) => {
+  test('7. GET /api/purchase-orders/:id/receipts - list GRs for PO', async ({ request }) => {
     expect(poId).toBeGreaterThan(0);
     const res = await request.get(`${API_BASE}/api/purchase-orders/${poId}/receipts`, {
       headers,
@@ -143,6 +154,14 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     expect(receipts.length).toBe(1);
     expect(receipts[0].purchase_order_id).toBe(poId);
     expect(receipts[0].items.length).toBeGreaterThan(0);
+  });
+
+  test('8. GET /api/products/:id - verify stock increased', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/api/products/${product.id}`, { headers });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const prod = body.data || body;
+    expect(prod.stock).toBe(initialStock + 10);
   });
 });
 

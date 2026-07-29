@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/schema"
@@ -190,9 +191,14 @@ func (s *Store) GetRows(ctx context.Context, jobID int64) ([]RowWithErrors, erro
 		return nil, fmt.Errorf("error rows iteration: %w", err)
 	}
 
+	sortedKeys := make([]int, 0, len(rowMap))
+	for k := range rowMap {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Ints(sortedKeys)
 	result := make([]RowWithErrors, 0, len(rowMap))
-	for _, r := range rowMap {
-		result = append(result, *r)
+	for _, k := range sortedKeys {
+		result = append(result, *rowMap[k])
 	}
 	return result, nil
 }
