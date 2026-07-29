@@ -64,6 +64,8 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     expect(po.po_number).toBeTruthy();
     expect(po.status).toBe('draft');
     expect(po.supplier_id).toBe(supplier.id);
+    expect(po.subtotal).toBeGreaterThan(0);
+    expect(po.grand_total).toBeGreaterThan(0);
   });
 
   test('2. POST /api/purchase-orders/:id/confirm - confirm PO', async ({ request }) => {
@@ -89,6 +91,11 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     expect(po.items.length).toBe(1);
     expect(po.items[0].qty_received).toBe(0);
     expect(po.items[0].unit_cost).toBeGreaterThan(0);
+    expect(po.items[0].subtotal).toBeGreaterThan(0);
+    expect(po.items[0].discount_amount).toBeGreaterThanOrEqual(0);
+    expect(po.subtotal).toBeGreaterThan(0);
+    expect(po.discount_amount).toBeGreaterThanOrEqual(0);
+    expect(po.grand_total).toBeGreaterThan(0);
     poItemId = po.items[0].id;
   });
 
@@ -141,6 +148,12 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     const po = body.data || body;
     expect(po.status).toBe('fully_received');
     expect(po.items[0].qty_received).toBe(10);
+    expect(po.items[0].unit_cost).toBeGreaterThan(0);
+    expect(po.items[0].subtotal).toBeGreaterThan(0);
+    expect(po.items[0].discount_amount).toBeGreaterThanOrEqual(0);
+    expect(po.subtotal).toBeGreaterThan(0);
+    expect(po.discount_amount).toBeGreaterThanOrEqual(0);
+    expect(po.grand_total).toBeGreaterThan(0);
   });
 
   test('7. GET /api/purchase-orders/:id/receipts - list GRs for PO', async ({ request }) => {
