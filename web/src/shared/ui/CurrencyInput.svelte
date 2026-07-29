@@ -2,7 +2,7 @@
   import { cn } from '$shared/utils/cn';
 
   let {
-    value = $bindable(0),
+    value = $bindable(),
     placeholder = '0',
     class: className = '',
     disabled = false,

@@ -40,6 +40,7 @@
 		'/customer-groups':    'Customer Groups',
 		'/suppliers':          'Suppliers',
 		'/shifts':             'Shifts',
+		'/purchase-orders':    'Purchase Orders',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',
 		'/units-of-measure/import-history': 'Import History',

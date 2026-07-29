@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { getPurchaseOrderById } from '../services/po-service';
   import { Button, Input, Modal } from '$shared/ui';
@@ -15,26 +14,25 @@
   let notes = $state('');
 
   $effect(() => {
-    if (poId) {
-      open = true;
-    }
-  });
-
-  onMount(async () => {
-    po = await getPurchaseOrderById(poId!);
-    if (po) {
-      items = po.items.map((item: any) => ({
-        purchase_order_item_id: item.id,
-        product_id: item.product_id,
-        qty_good: 0,
-        qty_damaged: 0,
-        product_name: item.product_name,
-        sku: item.sku,
-        qty_ordered: item.qty_ordered,
-        qty_received: item.qty_received,
-        unit_cost: item.unit_cost,
-      }));
-    }
+    if (!open || !poId) return;
+    po = null;
+    items = [];
+    getPurchaseOrderById(poId).then(result => {
+      po = result;
+      if (result) {
+        items = result.items.map((item: any) => ({
+          purchase_order_item_id: item.id,
+          product_id: item.product_id,
+          qty_good: 0,
+          qty_damaged: 0,
+          product_name: item.product_name,
+          sku: item.sku,
+          qty_ordered: item.qty_ordered,
+          qty_received: item.qty_received,
+          unit_cost: item.unit_cost,
+        }));
+      }
+    });
   });
 
   function updateItem(index: number, field: string, value: any) {
@@ -90,12 +88,16 @@
     <div class="space-y-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-text-secondary mb-1.5">Delivery Order Number</label>
-          <Input type="text" bind:value={deliveryOrderNumber} placeholder="DO-001" />
+          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <span>Delivery Order Number</span>
+            <Input type="text" bind:value={deliveryOrderNumber} placeholder="DO-001" />
+          </label>
         </div>
         <div>
-          <label class="block text-sm font-medium text-text-secondary mb-1.5">Notes</label>
-          <Input type="text" bind:value={notes} placeholder="Receiving notes" />
+          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+            <span>Notes</span>
+            <Input type="text" bind:value={notes} placeholder="Receiving notes" />
+          </label>
         </div>
       </div>
 

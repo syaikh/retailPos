@@ -32,3 +32,4 @@ export { default as ToggleSwitch } from './ToggleSwitch.svelte';
 export { default as Toast } from './Toast.svelte';
 export { default as Tooltip } from './Tooltip.svelte';
 export { default as ValidationSummary } from './ValidationSummary.svelte';
+export { default as SelectSearch } from './SelectSearch.svelte';

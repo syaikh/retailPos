@@ -51,14 +51,15 @@ func (r *Repository) CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Pur
 		INSERT INTO purchase_orders (
 			po_number, supplier_id, store_id, warehouse_id, status, expected_date,
 			payment_term, delivery_address, supplier_reference_number, notes,
-			created_by, updated_by
+			subtotal, grand_total, created_by, updated_by
 		)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::date, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), $11, $12)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::date, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''),
+		        $11, $12, $13, $14)
 		RETURNING id, created_at, updated_at
 	`,
 		po.PONumber, po.SupplierID, po.StoreID, po.WarehouseID, po.Status,
 		po.ExpectedDate, po.PaymentTerm, po.DeliveryAddress, po.SupplierReferenceNumber, po.Notes,
-		po.CreatedBy, po.UpdatedBy,
+		po.Subtotal, po.GrandTotal, po.CreatedBy, po.UpdatedBy,
 	).Scan(&po.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert purchase order: %w", err)
@@ -91,11 +92,12 @@ func (r *Repository) UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Pur
 	_, err := tx.Exec(ctx, `
 		UPDATE purchase_orders
 		SET supplier_id = $2, expected_date = NULLIF($3, '')::date, payment_term = NULLIF($4, ''), delivery_address = NULLIF($5, ''),
-		    supplier_reference_number = NULLIF($6, ''), notes = NULLIF($7, ''), updated_by = $8, updated_at = NOW()
+		    supplier_reference_number = NULLIF($6, ''), notes = NULLIF($7, ''),
+		    subtotal = $8, grand_total = $9, updated_by = $10, updated_at = NOW()
 		WHERE id = $1 AND status = 'draft'
 	`,
 		po.ID, po.SupplierID, po.ExpectedDate, po.PaymentTerm, po.DeliveryAddress,
-		po.SupplierReferenceNumber, po.Notes, po.UpdatedBy,
+		po.SupplierReferenceNumber, po.Notes, po.Subtotal, po.GrandTotal, po.UpdatedBy,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update purchase order: %w", err)
@@ -124,6 +126,39 @@ func (r *Repository) UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Pur
 	}
 
 	return nil
+}
+
+type productInfo struct {
+	Name string
+	SKU  string
+}
+
+func (r *Repository) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]productInfo, error) {
+	if len(ids) == 0 {
+		return map[int]productInfo{}, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(`SELECT id, COALESCE(name, ''), COALESCE(sku, '') FROM products WHERE id IN (%s)`, strings.Join(placeholders, ","))
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get product names: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[int]productInfo, len(ids))
+	for rows.Next() {
+		var id int
+		var info productInfo
+		if err := rows.Scan(&id, &info.Name, &info.SKU); err != nil {
+			return nil, fmt.Errorf("scan product: %w", err)
+		}
+		result[id] = info
+	}
+	return result, rows.Err()
 }
 
 func (r *Repository) DeletePurchaseOrder(ctx context.Context, tx pgx.Tx, id int) error {
@@ -160,7 +195,7 @@ func (r *Repository) CancelPurchaseOrder(ctx context.Context, tx pgx.Tx, id, use
 		return fmt.Errorf("failed to cancel purchase order: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return ErrPurchaseOrderHasReceipts
+		return fmt.Errorf("purchase order could not be cancelled; it may have receipts or an invalid status")
 	}
 	return nil
 }
@@ -264,21 +299,24 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 	var paymentTerm, deliveryAddress, supplierRef, notes, approvalStatus, paymentStatus, invoiceStatus, currencyCode sql.NullString
 	var exchangeRate sql.NullInt64
 	var createdAt, updatedAt time.Time
+	var supplierName string
 
 	query := `
-		SELECT id, po_number, supplier_id, store_id, warehouse_id, status, expected_date,
-		       payment_term, delivery_address, supplier_reference_number,
-		       approval_status, payment_status, invoice_status, currency_code, exchange_rate,
-		       approved_by, approved_at,
-		       subtotal, discount_amount, tax_amount, grand_total, notes,
-		       confirmed_at, confirmed_by, cancelled_at, cancelled_by,
-		       created_by, updated_by, created_at, updated_at
-		FROM purchase_orders
-		WHERE id = $1
+		SELECT po.id, po.po_number, po.supplier_id, po.store_id, po.warehouse_id, po.status, po.expected_date,
+		       po.payment_term, po.delivery_address, po.supplier_reference_number,
+		       po.approval_status, po.payment_status, po.invoice_status, po.currency_code, po.exchange_rate,
+		       po.approved_by, po.approved_at,
+		       po.subtotal, po.discount_amount, po.tax_amount, po.grand_total, po.notes,
+		       po.confirmed_at, po.confirmed_by, po.cancelled_at, po.cancelled_by,
+		       po.created_by, po.updated_by, po.created_at, po.updated_at,
+		       COALESCE(s.name, '') as supplier_name
+		FROM purchase_orders po
+		LEFT JOIN suppliers s ON po.supplier_id = s.id
+		WHERE po.id = $1
 	`
 	args := []interface{}{id}
 	if storeID != nil {
-		query += " AND store_id = $2"
+		query += " AND po.store_id = $2"
 		args = append(args, *storeID)
 	}
 
@@ -290,6 +328,7 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 		&po.Subtotal, &po.DiscountAmount, &po.TaxAmount, &po.GrandTotal, &notes,
 		&confirmedAt, &confirmedBy, &cancelledAt, &cancelledBy,
 		&po.CreatedBy, &po.UpdatedBy, &createdAt, &updatedAt,
+		&supplierName,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -354,6 +393,7 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 		po.ExchangeRate = int(exchangeRate.Int64)
 	}
 
+	po.SupplierName = supplierName
 	po.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	po.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
@@ -497,6 +537,7 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		if err != nil {
 			return nil, 0, err
 		}
+		po.SupplierName = supplierName
 		if expectedDate.Valid {
 			po.ExpectedDate = expectedDate.Time.Format("2006-01-02")
 		}

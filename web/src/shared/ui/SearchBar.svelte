@@ -3,7 +3,7 @@
   import { Search, X, Loader2 } from 'lucide-svelte';
 
   let {
-    value = $bindable(''),
+    value = $bindable(),
     placeholder = 'Search...',
     oninput,
     onsubmit,

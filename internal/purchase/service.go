@@ -57,6 +57,18 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 		}
 		po.Subtotal += items[i].Subtotal
 	}
+
+	productMap, err := s.repo.GetProductNamesByIDs(ctx, productIDs)
+	if err != nil {
+		return fmt.Errorf("lookup products: %w", err)
+	}
+	for i, item := range items {
+		if info, ok := productMap[item.ProductID]; ok {
+			items[i].ProductName = info.Name
+			items[i].SKU = info.SKU
+		}
+	}
+
 	po.GrandTotal = po.Subtotal - po.DiscountAmount - po.TaxAmount
 	if po.GrandTotal < 0 {
 		po.GrandTotal = 0
@@ -277,7 +289,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		return nil, err
 	}
 	if po.Status != StatusConfirmed && po.Status != StatusPartialReceived {
-		return nil, fmt.Errorf("cannot receive goods for PO with status: %s", po.Status)
+		return nil, ErrInvalidPOStatusForReceiving
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -296,7 +308,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 
 	if po.Status != StatusConfirmed && po.Status != StatusPartialReceived {
-		return nil, fmt.Errorf("cannot receive goods for PO with status: %s", po.Status)
+		return nil, ErrInvalidPOStatusForReceiving
 	}
 
 	itemMap := make(map[int]*PurchaseOrderItem)
@@ -359,12 +371,13 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 
 	if len(grItems) == 0 {
-		return nil, fmt.Errorf("no items to receive")
+		return nil, ErrNoItemsToReceive
 	}
 
 	if err := s.repo.CreateGoodsReceipt(ctx, tx, gr, grItems); err != nil {
 		return nil, err
 	}
+	gr.Items = grItems
 
 	for _, reqItem := range reqItems {
 		if err := s.repo.UpdatePOItemQtyReceived(ctx, tx, reqItem.PurchaseOrderItemID, reqItem.QtyGood+reqItem.QtyDamaged); err != nil {

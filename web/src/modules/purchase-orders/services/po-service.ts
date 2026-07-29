@@ -25,7 +25,8 @@ export async function getPurchaseOrderById(id: number): Promise<any | null> {
   try {
     const res = await apiFetch(`/api/purchase-orders/${id}`);
     if (res.ok) {
-      return await res.json();
+      const json = await res.json();
+      return json.data ?? json;
     }
     return null;
   } catch {
@@ -43,7 +44,7 @@ export async function createPurchaseOrder(po: any): Promise<any | null> {
       return await res.json();
     }
     const err = await res.json();
-    throw new Error(err.message || 'Failed to create purchase order');
+    throw new Error(err.error?.message || err.message || 'Failed to create purchase order');
   } catch (e) {
     throw e;
   }
@@ -60,6 +61,19 @@ export async function updatePurchaseOrder(id: number, po: any): Promise<any | nu
     }
     const err = await res.json();
     throw new Error(err.message || 'Failed to update purchase order');
+  } catch (e) {
+    throw e;
+  }
+}
+
+export async function confirmPurchaseOrder(id: number): Promise<any | null> {
+  try {
+    const res = await apiFetch(`/api/purchase-orders/${id}/confirm`, { method: 'POST' });
+    if (res.ok) {
+      return await res.json();
+    }
+    const err = await res.json();
+    throw new Error(err.error?.message || err.message || 'Failed to confirm purchase order');
   } catch (e) {
     throw e;
   }

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button, Badge, Skeleton, SortableHeader } from '$shared/ui';
-  import { Pencil, Eye, Package } from 'lucide-svelte';
+  import { Button, Badge, Skeleton, SortableHeader, Dropdown } from '$shared/ui';
+  import { MoreVertical, Eye, Pencil, Package, Check } from 'lucide-svelte';
   import type { PurchaseOrder } from '../types';
 
   let {
@@ -9,12 +9,14 @@
     searchQuery = '',
     canView = false,
     canEdit = false,
+    canConfirm = false,
     canReceive = false,
     sortBy = 'created_at',
     sortDir = 'desc',
     onsort = () => {},
     onview = () => {},
     onedit = () => {},
+    onconfirm = () => {},
     onreceive = () => {},
   }: {
     purchaseOrders?: PurchaseOrder[];
@@ -22,12 +24,14 @@
     searchQuery?: string;
     canView?: boolean;
     canEdit?: boolean;
+    canConfirm?: boolean;
     canReceive?: boolean;
     sortBy?: string;
     sortDir?: 'asc' | 'desc';
     onsort?: (col: string) => void;
     onview?: (po: PurchaseOrder) => void;
     onedit?: (po: PurchaseOrder) => void;
+    onconfirm?: (po: PurchaseOrder) => void;
     onreceive?: (po: PurchaseOrder) => void;
   } = $props();
 
@@ -63,21 +67,25 @@
       year: 'numeric',
     });
   }
+
+  function titleCase(str: string): string {
+    return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
 </script>
 
 {#if loading}
   <div class="overflow-x-auto">
     <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading purchase orders">
       <colgroup>
+        <col style="width: 15%;" />
+        <col style="width: 22%;" />
         <col style="width: 12%;" />
-        <col style="width: 18%;" />
-        <col style="width: 14%;" />
+        <col style="width: 13%;" />
+        <col style="width: 13%;" />
+        <col style="width: 13%;" />
         <col style="width: 12%;" />
-        <col style="width: 14%;" />
-        <col style="width: 12%;" />
-        <col style="width: 18%;" />
       </colgroup>
-      <thead><tr><th>PO Number</th><th>Supplier</th><th>Status</th><th>Expected Date</th><th>Grand Total</th><th>Created At</th><th></th></tr></thead>
+      <thead><tr><th>PO NUMBER</th><th>SUPPLIER</th><th>STATUS</th><th>EXP. DATE</th><th>GRAND TOTAL</th><th>CREATED AT</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
     </table>
   </div>
@@ -93,69 +101,64 @@
   <div class="overflow-x-auto">
     <table class="w-full min-w-[900px]" style="table-layout: fixed;" role="grid" aria-label="Purchase orders">
       <colgroup>
+        <col style="width: 15%;" />
+        <col style="width: 22%;" />
         <col style="width: 12%;" />
-        <col style="width: 18%;" />
-        <col style="width: 14%;" />
+        <col style="width: 13%;" />
+        <col style="width: 13%;" />
+        <col style="width: 13%;" />
         <col style="width: 12%;" />
-        <col style="width: 14%;" />
-        <col style="width: 12%;" />
-        <col style="width: 18%;" />
       </colgroup>
       <thead class="bg-muted/50">
         <tr class="border-b text-left text-sm text-text-muted">
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="PO Number" column="po_number" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="PO NUMBER" column="po_number" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="Supplier" column="supplier_name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="SUPPLIER" column="supplier_name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="Status" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="Expected Date" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="EXP. DATE" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold text-right" scope="col">
-            <SortableHeader label="Grand Total" column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+            <SortableHeader label="GRAND TOTAL" column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="Created At" column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label="CREATED AT" column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold text-right" scope="col">Actions</th>
+          <th class="px-4 py-3 font-semibold text-right" scope="col">ACTIONS</th>
         </tr>
       </thead>
       <tbody>
-        {#each purchaseOrders as po (po.id)}
-          <tr class="border-b border-border transition-colors hover:bg-muted/50">
-            <td class="px-4 py-3 text-sm font-medium truncate">{po.po_number}</td>
-            <td class="px-4 py-3 text-sm text-text-secondary truncate">{(po as any).supplier_name || 'N/A'}</td>
-            <td class="px-4 py-3">
-              <Badge variant={getStatusVariant(po.status)} size="sm">{po.status.replace(/_/g, ' ')}</Badge>
-            </td>
-            <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.expected_date)}</td>
-            <td class="px-4 py-3 text-sm text-text-secondary tabular-nums text-right">{formatCurrency(po.grand_total)}</td>
-            <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.created_at)}</td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end gap-1">
-                {#if canView}
-                  <Button variant="ghost" size="sm" onclick={() => onview(po)} aria-label="View {po.po_number}">
-                    <Eye size={14} /> View
-                  </Button>
-                {/if}
-                {#if canEdit && po.status === 'draft'}
-                  <Button variant="ghost" size="sm" onclick={() => onedit(po)} aria-label="Edit {po.po_number}">
-                    <Pencil size={14} /> Edit
-                  </Button>
-                {/if}
-                {#if canReceive && (po.status === 'confirmed' || po.status === 'partial_received')}
-                  <Button variant="ghost" size="sm" onclick={() => onreceive(po)} aria-label="Receive {po.po_number}">
-                    <Package size={14} /> Receive
-                  </Button>
-                {/if}
-              </div>
-            </td>
-          </tr>
-        {/each}
+          {#each purchaseOrders as po (po.id)}
+            <tr class="border-b border-border transition-colors hover:bg-muted/50">
+              <td class="px-4 py-3 text-sm font-medium truncate">{po.po_number}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary truncate">{(po as any).supplier_name || 'N/A'}</td>
+              <td class="px-4 py-3">
+                <Badge variant={getStatusVariant(po.status)} size="sm">{titleCase(po.status)}</Badge>
+              </td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.expected_date)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums text-right">{formatCurrency(po.grand_total)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.created_at)}</td>
+              <td class="px-4 py-3 text-center">
+                <Dropdown items={[
+                  ...(canView ? [{ label: 'View', icon: Eye, onclick: () => onview(po) }] : []),
+                  ...(canEdit && po.status === 'draft' ? [{ label: 'Edit', icon: Pencil, onclick: () => onedit(po) }] : []),
+                  ...(canConfirm && po.status === 'draft' ? [{ label: 'Confirm', icon: Check, onclick: () => onconfirm(po) }] : []),
+                  ...(canReceive && (po.status === 'confirmed' || po.status === 'partial_received') ? [{ label: 'Receive', icon: Package, onclick: () => onreceive(po) }] : []),
+                ]}>
+                  {#snippet trigger({ toggle })}
+                    <button type="button" onclick={toggle} class="p-1 rounded-lg hover:bg-muted transition-colors" aria-label="Actions for {po.po_number}">
+                      <MoreVertical size={16} class="text-text-muted" />
+                    </button>
+                  {/snippet}
+                </Dropdown>
+              </td>
+            </tr>
+          {/each}
       </tbody>
     </table>
   </div>

@@ -5,7 +5,7 @@
   let {
     tag = 'input',
     class: className = '',
-    value = $bindable(''),
+    value = $bindable(),
     children,
     oninput: externalOninput,
     elementRef,

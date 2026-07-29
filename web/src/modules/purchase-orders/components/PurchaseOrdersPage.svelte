@@ -8,6 +8,7 @@
   import type { PurchaseOrder } from '../types';
   import PurchaseOrderForm from './PurchaseOrderForm.svelte';
   import GoodsReceiptModal from './GoodsReceiptModal.svelte';
+  import PurchaseOrderDetail from './PurchaseOrderDetail.svelte';
   import PurchaseOrdersToolbar from './PurchaseOrdersToolbar.svelte';
   import PurchaseOrdersTable from './PurchaseOrdersTable.svelte';
 
@@ -18,9 +19,12 @@
   const canCreate = $derived(userPermissions.includes('purchase_order.create'));
   const canView = $derived(userPermissions.includes('purchase_order.view'));
   const canEdit = $derived(userPermissions.includes('purchase_order.update'));
+  const canConfirm = $derived(userPermissions.includes('purchase_order.confirm'));
   const canReceive = $derived(userPermissions.includes('purchase_order.receive'));
 
   let showForm = $state(false);
+  let selectedPOForDetail = $state<number | null>(null);
+  let showDetail = $state(false);
   let selectedPOForReceipt = $state<number | null>(null);
   let showReceiptModal = $state(false);
 
@@ -49,8 +53,19 @@
   }
 
   function handleView(po: any) {
-    store.selectedPO = po;
-    showForm = true;
+    selectedPOForDetail = po.id;
+    showDetail = true;
+  }
+
+  async function handleConfirm(po: PurchaseOrder) {
+    if (!confirm(`Confirm purchase order ${po.po_number}?`)) return;
+    try {
+      await store.confirm(po.id);
+      toast.success(`PO ${po.po_number} confirmed`);
+      store.load(store.currentFilters);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to confirm');
+    }
   }
 
   function handleReceipt(po: PurchaseOrder) {
@@ -96,12 +111,14 @@
       searchQuery={store.searchQuery}
       {canView}
       {canEdit}
+      {canConfirm}
       {canReceive}
       sortBy={store.sortBy}
       sortDir={store.sortDir}
       onsort={handleSort}
       onview={handleView}
       onedit={handleEdit}
+      onconfirm={handleConfirm}
       onreceive={handleReceipt}
     />
 
@@ -114,5 +131,7 @@
 </div>
 
   <PurchaseOrderForm bind:open={showForm} />
+
+  <PurchaseOrderDetail bind:poId={selectedPOForDetail} bind:open={showDetail} />
 
   <GoodsReceiptModal poId={selectedPOForReceipt} bind:open={showReceiptModal} />

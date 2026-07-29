@@ -18,7 +18,7 @@ export interface SupplierListResponse {
 export async function getSuppliers(params: SupplierListParams): Promise<SupplierListResponse> {
   const urlParams = new URLSearchParams({
     limit: params.limit.toString(),
-    offset: params.offset.toString(),
+    offset: (params.offset ?? 0).toString(),
   });
   if (params.search) urlParams.append('search', params.search);
   if (params.is_active !== undefined) urlParams.append('is_active', params.is_active.toString());

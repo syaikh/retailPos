@@ -220,7 +220,11 @@ func (h *Handler) DeleteDraft(c *gin.Context) {
 	}
 
 	if err := h.svc.DeleteDraft(ctx, id); err != nil {
-		shared.InternalError(c, err)
+		if err == ErrPurchaseOrderNotDraft {
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
+		} else {
+			shared.InternalError(c, err)
+		}
 		return
 	}
 
@@ -253,7 +257,11 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 
 	po, err := h.svc.GetDetail(ctx, id, shared.GetStoreID(c))
 	if err != nil {
-		shared.InternalError(c, err)
+		if err == ErrPurchaseOrderNotFound {
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
+		} else {
+			shared.InternalError(c, err)
+		}
 		return
 	}
 
@@ -298,7 +306,11 @@ func (h *Handler) CancelPO(c *gin.Context) {
 
 	po, err := h.svc.GetDetail(ctx, id, shared.GetStoreID(c))
 	if err != nil {
-		shared.InternalError(c, err)
+		if err == ErrPurchaseOrderNotFound {
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
+		} else {
+			shared.InternalError(c, err)
+		}
 		return
 	}
 
@@ -384,7 +396,7 @@ func (h *Handler) GetReceipts(c *gin.Context) {
 	if receipts == nil {
 		receipts = []GoodsReceipt{}
 	}
-	shared.JSONSuccess(c, gin.H{"data": receipts})
+	shared.JSONSuccess(c, receipts)
 }
 
 func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
@@ -421,8 +433,10 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 		switch {
 		case err == ErrPOItemNotFound:
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		case err == ErrInvalidPOStatusForReceiving:
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		case err == ErrOverReceiving:
-			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		case err == ErrInvalidReceivingQty:
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
 		default:

@@ -1,4 +1,4 @@
-import { getPurchaseOrders, getPurchaseOrderById, createPurchaseOrder, updatePurchaseOrder, getReceipts, createGoodsReceipt } from '../services/po-service';
+import { getPurchaseOrders, getPurchaseOrderById, createPurchaseOrder, updatePurchaseOrder, confirmPurchaseOrder, getReceipts, createGoodsReceipt } from '../services/po-service';
 import type { PurchaseOrder, PurchaseOrderFilters } from '../types';
 
 let purchaseOrdersData = $state<PurchaseOrder[]>([]);
@@ -110,6 +110,10 @@ export function usePurchaseOrderStore() {
 
     async update(id: number, po: any) {
       return updatePurchaseOrder(id, po);
+    },
+
+    async confirm(id: number) {
+      return confirmPurchaseOrder(id);
     },
 
     async receive(gr: any) {

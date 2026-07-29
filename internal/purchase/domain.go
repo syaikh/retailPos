@@ -12,6 +12,8 @@ var (
 	ErrOverReceiving                = errors.New("received quantity exceeds remaining ordered quantity")
 	ErrInvalidReceivingQty          = errors.New("invalid receiving quantity")
 	ErrDuplicatePOItem              = errors.New("duplicate product in purchase order items")
+	ErrInvalidPOStatusForReceiving  = errors.New("purchase order is not in a receivable status")
+	ErrNoItemsToReceive             = errors.New("no items to receive")
 )
 
 const (
@@ -28,6 +30,7 @@ type PurchaseOrder struct {
 	ID                      int                `json:"id"`
 	PONumber                string             `json:"po_number"`
 	SupplierID              int                `json:"supplier_id"`
+	SupplierName            string             `json:"supplier_name"`
 	StoreID                 int                `json:"store_id"`
 	WarehouseID             *int               `json:"warehouse_id,omitempty"`
 	Status                  string             `json:"status"`
@@ -122,7 +125,7 @@ type CreatePurchaseOrderRequest struct {
 type CreatePOItemRequest struct {
 	ProductID      int     `json:"product_id" binding:"required"`
 	QtyOrdered     int     `json:"qty_ordered" binding:"required,min=1"`
-	UnitCost       int     `json:"unit_cost" binding:"required,min=0"`
+	UnitCost       int     `json:"unit_cost" binding:"min=0"`
 	DiscountAmount int     `json:"discount_amount"`
 	Notes          *string `json:"notes,omitempty"`
 }

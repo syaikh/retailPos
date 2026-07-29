@@ -1,169 +1,177 @@
 <script lang="ts">
-  import { usePurchaseOrderStore } from '../stores/po-store.svelte';
-  import { Button, Badge } from '$shared/ui';
-  import GoodsReceiptModal from './GoodsReceiptModal.svelte';
+  import { Drawer, Badge, Button } from '$shared/ui';
+  import { getPurchaseOrderById } from '../services/po-service';
+  import type { PurchaseOrder } from '../types';
+  import { Loader2, Package, Printer } from 'lucide-svelte';
 
-  const store = usePurchaseOrderStore();
-  let showReceiptModal = $state(false);
+  let {
+    poId = $bindable(),
+    open = $bindable(false),
+  }: {
+    poId?: number | null;
+    open?: boolean;
+  } = $props();
+
+  let po = $state<PurchaseOrder | null>(null);
+  let loading = $state(false);
 
   $effect(() => {
-    if (store.selectedPO) {
-      store.loadReceipts(store.selectedPO.id);
+    if (open && poId) {
+      loadPO(poId);
+    } else if (!open) {
+      po = null;
     }
   });
 
-  function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted' {
-    switch (status) {
-      case 'draft':
-        return 'muted';
-      case 'confirmed':
-        return 'primary';
-      case 'partial_received':
-        return 'warning';
-      case 'fully_received':
-        return 'success';
-      case 'cancelled':
-      case 'rejected':
-        return 'danger';
-      case 'waiting_approval':
-        return 'default';
-      default:
-        return 'muted';
+  async function loadPO(id: number) {
+    loading = true;
+    try {
+      po = await getPurchaseOrderById(id);
+    } catch {
+      po = null;
+    } finally {
+      loading = false;
     }
   }
 
-  function formatCurrency(value: number): string {
-    return value.toLocaleString('id-ID');
+  function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted' {
+    switch (status) {
+      case 'draft': return 'muted';
+      case 'confirmed': return 'primary';
+      case 'partial_received': return 'warning';
+      case 'fully_received': return 'success';
+      case 'cancelled':
+      case 'rejected': return 'danger';
+      case 'waiting_approval': return 'default';
+      default: return 'muted';
+    }
+  }
+
+  function titleCase(str: string): string {
+    return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
   function formatDate(dateStr: string | undefined): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function formatCurrency(value: number): string {
+    return (value || 0).toLocaleString('id-ID');
   }
 </script>
 
-{#if store.selectedPO}
-  <div class="space-y-5">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-2xl font-bold text-text-primary">Purchase Order {store.selectedPO.po_number}</h1>
-      <div class="flex items-center gap-2">
-        {#if store.selectedPO.status === 'confirmed' || store.selectedPO.status === 'partial_received'}
-          <Button variant="primary" onclick={() => showReceiptModal = true}>Receive Goods</Button>
-        {/if}
-        <Button variant="secondary" onclick={() => store.selectedPO = null}>Close</Button>
-      </div>
+<Drawer bind:open title={po ? `PO ${po.po_number}` : 'Purchase Order'} width={580}>
+  {#if loading}
+    <div class="flex items-center justify-center py-16">
+      <Loader2 size={28} class="animate-spin text-text-muted" />
     </div>
-
-    <div class="card overflow-hidden">
-      <div class="px-6 py-4 border-b border-border">
-        <h2 class="text-base font-semibold text-text-primary">Information</h2>
+  {:else if !po}
+    <div class="flex flex-col items-center justify-center py-16 text-text-muted">
+      <Package class="w-12 h-12 mb-3" />
+      <p class="text-sm">Purchase order not found</p>
+    </div>
+  {:else}
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <Badge variant={getStatusVariant(po.status)} size="sm">{titleCase(po.status)}</Badge>
       </div>
-      <div class="p-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <span class="text-sm text-text-muted">Status</span>
-            <div class="mt-1">
-              <Badge variant={getStatusVariant(store.selectedPO.status)} size="sm">{store.selectedPO.status.replace(/_/g, ' ')}</Badge>
-            </div>
+
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <p class="text-text-muted mb-0.5">Supplier</p>
+          <p class="font-medium text-text-primary">{(po as any).supplier_name || `Supplier #${po.supplier_id}`}</p>
+        </div>
+        <div>
+          <p class="text-text-muted mb-0.5">Expected Date</p>
+          <p class="font-medium text-text-primary">{formatDate(po.expected_date)}</p>
+        </div>
+        <div>
+          <p class="text-text-muted mb-0.5">Payment Term</p>
+          <p class="font-medium text-text-primary">{po.payment_term || '-'}</p>
+        </div>
+        <div>
+          <p class="text-text-muted mb-0.5">Supplier Ref</p>
+          <p class="font-medium text-text-primary">{po.supplier_reference_number || '-'}</p>
+        </div>
+        <div class="col-span-2">
+          <p class="text-text-muted mb-0.5">Delivery Address</p>
+          <p class="font-medium text-text-primary">{po.delivery_address || '-'}</p>
+        </div>
+        <div class="col-span-2">
+          <p class="text-text-muted mb-0.5">Notes</p>
+          <p class="font-medium text-text-primary">{po.notes || '-'}</p>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-sm font-semibold text-text-primary mb-2">Items</h3>
+        <div class="border border-border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/50">
+              <tr class="border-b text-left text-xs text-text-muted">
+                <th class="px-3 py-2 font-semibold">Product</th>
+                <th class="px-3 py-2 font-semibold text-right">Qty</th>
+                <th class="px-3 py-2 font-semibold text-right">Unit Cost</th>
+                <th class="px-3 py-2 font-semibold text-right">Discount</th>
+                <th class="px-3 py-2 font-semibold text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#each po.items as item}
+                <tr>
+                  <td class="px-3 py-2.5 text-text-primary">{item.product_name || `Product #${item.product_id}`}</td>
+                  <td class="px-3 py-2.5 text-text-secondary text-right tabular-nums">{item.qty_ordered}</td>
+                  <td class="px-3 py-2.5 text-text-secondary text-right tabular-nums">{formatCurrency(item.unit_cost)}</td>
+                  <td class="px-3 py-2.5 text-text-secondary text-right tabular-nums">{formatCurrency(item.discount_amount)}</td>
+                  <td class="px-3 py-2.5 text-text-secondary text-right tabular-nums font-medium">{formatCurrency(item.subtotal)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="border-t border-border pt-4 space-y-1.5 text-sm">
+        <div class="flex justify-between text-text-secondary">
+          <span>Subtotal</span>
+          <span class="tabular-nums">{formatCurrency(po.subtotal)}</span>
+        </div>
+        {#if po.discount_amount}
+          <div class="flex justify-between text-text-secondary">
+            <span>Discount</span>
+            <span class="tabular-nums">-{formatCurrency(po.discount_amount)}</span>
           </div>
-          <div>
-            <span class="text-sm text-text-muted">Supplier</span>
-            <div class="mt-1 text-sm font-medium text-text-primary">{(store.selectedPO as any).supplier_name || 'N/A'}</div>
+        {/if}
+        {#if po.tax_amount}
+          <div class="flex justify-between text-text-secondary">
+            <span>Tax</span>
+            <span class="tabular-nums">{formatCurrency(po.tax_amount)}</span>
           </div>
-          <div>
-            <span class="text-sm text-text-muted">Expected Date</span>
-            <div class="mt-1 text-sm text-text-secondary">{formatDate(store.selectedPO.expected_date)}</div>
-          </div>
-          <div>
-            <span class="text-sm text-text-muted">Payment Term</span>
-            <div class="mt-1 text-sm text-text-secondary">{store.selectedPO.payment_term || '-'}</div>
-          </div>
-          <div class="sm:col-span-2">
-            <span class="text-sm text-text-muted">Delivery Address</span>
-            <div class="mt-1 text-sm text-text-secondary">{store.selectedPO.delivery_address || '-'}</div>
-          </div>
-          <div class="sm:col-span-2">
-            <span class="text-sm text-text-muted">Notes</span>
-            <div class="mt-1 text-sm text-text-secondary">{store.selectedPO.notes || '-'}</div>
-          </div>
+        {/if}
+        <div class="flex justify-between font-semibold text-text-primary text-base pt-1.5 border-t border-border">
+          <span>Grand Total</span>
+          <span class="tabular-nums">{formatCurrency(po.grand_total)}</span>
+        </div>
+      </div>
+
+      <div class="border-t border-border pt-4 grid grid-cols-2 gap-4 text-xs text-text-muted">
+        <div>
+          <p>Created: {formatDate(po.created_at)}</p>
+          {#if po.confirmed_at}<p>Confirmed: {formatDate(po.confirmed_at)}</p>{/if}
+          {#if po.cancelled_at}<p>Cancelled: {formatDate(po.cancelled_at)}</p>{/if}
         </div>
       </div>
     </div>
-
-    <div class="card overflow-hidden">
-      <div class="px-6 py-4 border-b border-border">
-        <h2 class="text-base font-semibold text-text-primary">Items</h2>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[600px]">
-          <thead class="bg-muted/50">
-            <tr class="border-b text-left text-xs text-text-muted">
-              <th class="px-4 py-3 font-semibold" scope="col">Product</th>
-              <th class="px-4 py-3 font-semibold" scope="col">SKU</th>
-              <th class="px-4 py-3 font-semibold text-right" scope="col">Qty Ordered</th>
-              <th class="px-4 py-3 font-semibold text-right" scope="col">Qty Received</th>
-              <th class="px-4 py-3 font-semibold text-right" scope="col">Unit Cost</th>
-              <th class="px-4 py-3 font-semibold text-right" scope="col">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            {#each store.selectedPO.items as item}
-              <tr>
-                <td class="px-4 py-3 text-sm">{item.product_name}</td>
-                <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{item.sku || '-'}</td>
-                <td class="px-4 py-3 text-sm text-text-secondary text-right tabular-nums">{item.qty_ordered}</td>
-                <td class="px-4 py-3 text-sm text-text-secondary text-right tabular-nums">{item.qty_received}</td>
-                <td class="px-4 py-3 text-sm text-text-secondary text-right tabular-nums">{formatCurrency(item.unit_cost)}</td>
-                <td class="px-4 py-3 text-sm text-text-secondary text-right tabular-nums">{formatCurrency(item.subtotal)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card overflow-hidden">
-      <div class="px-6 py-4 border-b border-border">
-        <h2 class="text-base font-semibold text-text-primary">Receiving History</h2>
-      </div>
-      <div class="p-6">
-        {#if store.receipts.length === 0}
-          <p class="text-text-muted text-sm">No receipts yet</p>
-        {:else}
-          <div class="space-y-4">
-            {#each store.receipts as receipt}
-              <div class="border border-border rounded-xl p-4">
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <div class="font-medium text-text-primary">{receipt.gr_number}</div>
-                    <div class="text-sm text-text-muted mt-0.5">Received at: {new Date(receipt.received_at).toLocaleString('id-ID')}</div>
-                    {#if receipt.delivery_order_number}
-                      <div class="text-sm text-text-muted mt-0.5">DO: {receipt.delivery_order_number}</div>
-                    {/if}
-                  </div>
-                  <div class="text-right">
-                    <div class="text-sm font-medium text-text-primary">{receipt.items.length} item(s)</div>
-                    <div class="text-sm text-text-muted mt-0.5">
-                      Good: {receipt.items.reduce((sum: number, i: any) => sum + i.qty_good, 0)} | 
-                      Damaged: {receipt.items.reduce((sum: number, i: any) => sum + i.qty_damaged, 0)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-
-  {#if showReceiptModal && store.selectedPO}
-    <GoodsReceiptModal poId={store.selectedPO.id!} bind:open={showReceiptModal} />
   {/if}
-{:else}
-  <div class="card p-8 text-center text-text-muted">Select a purchase order to view details</div>
-{/if}
+
+  {#snippet footer()}
+    <div class="flex items-center justify-between w-full">
+      <div></div>
+      <Button variant="secondary" size="sm" onclick={() => window.print()} disabled={!po}>
+        <Printer size={14} />
+        Print
+      </Button>
+    </div>
+  {/snippet}
+</Drawer>

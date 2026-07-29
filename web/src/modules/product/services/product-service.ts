@@ -6,7 +6,7 @@ const productCache = new Map<number, Promise<Product | null>>();
 export async function getProducts(filters: ProductFilters): Promise<{ data: Product[]; total: number }> {
   const params = new URLSearchParams({
     limit: filters.limit.toString(),
-    offset: filters.offset.toString(),
+    offset: (filters.offset ?? 0).toString(),
     search: filters.search || '',
   });
   if (filters.category && filters.category.length > 0) {
