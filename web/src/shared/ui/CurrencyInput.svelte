@@ -54,7 +54,7 @@
 
   $effect(() => {
     if (el) {
-      const formatted = fmt(value);
+      const formatted = fmt(value ?? 0);
       if (el.value !== formatted) {
         el.value = formatted;
       }
@@ -64,7 +64,7 @@
 
 <div class={cn(
   'flex items-center gap-1.5 bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200',
-  value > 0 ? 'border-primary-default' : '',
+  (value ?? 0) > 0 ? 'border-primary-default' : '',
   disabled ? 'opacity-40 cursor-not-allowed' : '',
   className
 )}>

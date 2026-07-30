@@ -109,7 +109,7 @@
           type: 'stock_update',
           title: 'Stok Diubah',
           description: `${data.sku} — ${status}`,
-          navigateTo: `/inventory/products/${data.id}`,
+          navigateTo: `/inventory/products?product_id=${data.id}`,
         });
       }),
       ws.on('product_updated', (data: any) => {
@@ -117,7 +117,7 @@
           type: 'product_updated',
           title: 'Produk Diubah',
           description: `${data.sku} — harga: Rp ${(data.price || 0).toLocaleString('id-ID')}`,
-          navigateTo: `/inventory/products/${data.id}`,
+          navigateTo: `/inventory/products?product_id=${data.id}`,
         });
       }),
     ];

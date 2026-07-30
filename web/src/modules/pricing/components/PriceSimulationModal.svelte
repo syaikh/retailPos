@@ -47,6 +47,27 @@
   }
 
   let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+  let productSearchContainer: HTMLDivElement | undefined = $state();
+  let productMenuStyle = $state('');
+
+  function computeProductSearchPosition() {
+    if (!productSearchContainer) return;
+    const r = productSearchContainer.getBoundingClientRect();
+    productMenuStyle = `position:fixed;top:${r.bottom + 4}px;left:${r.left}px;width:${r.width}px`;
+  }
+
+  $effect(() => {
+    if (productResults.length === 0) return;
+    computeProductSearchPosition();
+    function reposition() { computeProductSearchPosition(); }
+    window.addEventListener('scroll', reposition, { passive: true, capture: true });
+    window.addEventListener('resize', reposition, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
+    };
+  });
+
   function handleProductSearch() {
     clearTimeout(searchTimeout);
     if (productQuery.length < 2) { productResults = []; return; }
@@ -100,10 +121,10 @@
           <Button variant="ghost" size="sm" onclick={() => { selectedProduct = null; productQuery = ''; }}>Ganti</Button>
         </div>
       {:else}
-        <div class="relative">
+        <div bind:this={productSearchContainer} class="relative">
           <SearchBar bind:value={productQuery} placeholder="Cari produk..." oninput={handleProductSearch} id="sim-product" />
           {#if productResults.length > 0}
-            <div class="absolute z-20 top-full mt-1 w-full bg-surface-default border border-border rounded-xl shadow-lg max-h-48 overflow-y-auto">
+            <div style={productMenuStyle} class="fixed z-20 bg-surface-default border border-border rounded-xl shadow-lg max-h-48 overflow-y-auto">
               {#each productResults as p}
                 <button type="button" class="w-full px-3 py-2 text-left hover:bg-surface-hover transition-colors text-sm" onclick={() => selectProduct(p)}>
                   <span class="font-medium text-text-primary">{p.name}</span>

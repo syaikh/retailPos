@@ -61,7 +61,7 @@
   }
 </script>
 
-<Drawer bind:open title={po ? `PO ${po.po_number}` : 'Purchase Order'} width={580}>
+  <Drawer bind:open title={po ? po.po_number : 'Purchase Order'} width={580}>
   {#if loading}
     <div class="flex items-center justify-center py-16">
       <Loader2 size={28} class="animate-spin text-text-muted" />

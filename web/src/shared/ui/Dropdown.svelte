@@ -39,15 +39,35 @@
   let triggerEl: HTMLElement;
   let itemElements = $state<HTMLElement[]>([]);
   let focusedIndex = $state(-1);
+  let menuStyle = $state('');
 
-  const placementClasses: Record<Placement, string> = {
-    'bottom-start': 'left-0 top-full mt-1.5',
-    'bottom-end': 'right-0 top-full mt-1.5',
-    'bottom': 'left-1/2 -translate-x-1/2 top-full mt-1.5',
-    'top-start': 'left-0 bottom-full mb-1.5',
-    'top-end': 'right-0 bottom-full mb-1.5',
-    'top': 'left-1/2 -translate-x-1/2 bottom-full mb-1.5',
-  };
+  const gap = 6;
+
+  function computePosition() {
+    if (!container) return;
+    const r = container.getBoundingClientRect();
+
+    switch (placement) {
+      case 'bottom-start':
+        menuStyle = `position:fixed;top:${r.bottom + gap}px;left:${r.left}px`;
+        break;
+      case 'bottom-end':
+        menuStyle = `position:fixed;top:${r.bottom + gap}px;right:${window.innerWidth - r.right}px`;
+        break;
+      case 'bottom':
+        menuStyle = `position:fixed;top:${r.bottom + gap}px;left:${r.left + r.width / 2}px;transform:translateX(-50%)`;
+        break;
+      case 'top-start':
+        menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;left:${r.left}px`;
+        break;
+      case 'top-end':
+        menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;right:${window.innerWidth - r.right}px`;
+        break;
+      case 'top':
+        menuStyle = `position:fixed;bottom:${window.innerHeight - r.top + gap}px;left:${r.left + r.width / 2}px;transform:translateX(-50%)`;
+        break;
+    }
+  }
 
   function toggle() {
     open = !open;
@@ -75,6 +95,15 @@
 
   $effect(() => {
     if (!open) return;
+
+    computePosition();
+
+    function reposition() {
+      computePosition();
+    }
+
+    window.addEventListener('scroll', reposition, { passive: true, capture: true });
+    window.addEventListener('resize', reposition, { passive: true });
 
     let rafId: number;
 
@@ -109,6 +138,8 @@
       cancelAnimationFrame(rafId);
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
     };
   });
 
@@ -130,11 +161,11 @@
   {#if open}
     <div
       class={cn(
-        'absolute z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]',
-        placementClasses[placement],
+        'fixed z-50 bg-surface-default border border-border rounded-lg shadow-xl py-1 min-w-[160px]',
         menu && 'card-glass',
         menuClass,
       )}
+      style={menuStyle}
       role={menu ? 'menu' : undefined}
       aria-orientation={menu ? 'vertical' : undefined}
       tabindex="-1"

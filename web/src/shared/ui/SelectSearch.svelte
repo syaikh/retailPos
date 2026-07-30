@@ -30,14 +30,21 @@
   let open = $state(false);
   let search = $state('');
   let container: HTMLDivElement;
-  let searchInput: HTMLInputElement;
+  let searchInput: HTMLInputElement | undefined = $state();
   let buttonEl: HTMLButtonElement;
+  let menuStyle = $state('');
 
   const selectedLabel = $derived(options.find(o => o.value === value)?.label || '');
 
   const filteredOptions = $derived(
     search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options
   );
+
+  function computePosition() {
+    if (!container) return;
+    const r = container.getBoundingClientRect();
+    menuStyle = `position:fixed;top:${r.bottom + 6}px;left:${r.left}px;width:${r.width}px`;
+  }
 
   function openDropdown() {
     if (disabled) return;
@@ -54,12 +61,19 @@
 
   $effect(() => {
     if (open) {
+      computePosition();
       requestAnimationFrame(() => searchInput?.focus());
     }
   });
 
   $effect(() => {
     if (!open) return;
+
+    computePosition();
+
+    function reposition() { computePosition(); }
+    window.addEventListener('scroll', reposition, { passive: true, capture: true });
+    window.addEventListener('resize', reposition, { passive: true });
 
     function handleClickOutside(e: MouseEvent) {
       if (container && !container.contains(e.target as Node)) {
@@ -70,6 +84,7 @@
 
     function handleKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         open = false;
         search = '';
       }
@@ -84,6 +99,8 @@
       cancelAnimationFrame(raf);
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
     };
   });
 </script>
@@ -110,8 +127,8 @@
 
   {#if open}
     <div
-      style="position: absolute; top: calc(100% + 6px); left: 0; width: 100%;"
-      class="z-[60] bg-surface-default border border-border rounded-xl shadow-xl py-1 overflow-hidden"
+      style={menuStyle}
+      class="fixed z-[60] bg-surface-default border border-border rounded-xl shadow-xl py-1 overflow-hidden"
       role="listbox"
     >
       <div class="px-2 pb-1.5">

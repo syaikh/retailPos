@@ -139,7 +139,7 @@ let selectedProductIndex = $state(-1);
   async function loadPaymentMethods() {
     try {
       const r = await apiClient.get('/payment-methods');
-      const methods = (r.data.data || r.data || []) as Array<{ code: string; name: string; is_active?: boolean }>;
+      const methods = (r.data.data || r.data || []) as Array<{ code: string; name: string; is_active?: boolean; requires_reference?: boolean }>;
       const active = methods.filter(m => m.is_active !== false);
       if (active.length > 0) {
         paymentOptions = active.map(m => ({ id: m.code, label: m.name, icon: ShoppingCart, requiresReference: m.requires_reference }));

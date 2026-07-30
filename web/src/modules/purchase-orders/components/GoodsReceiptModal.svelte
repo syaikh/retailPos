@@ -6,7 +6,7 @@
   import { Loader2 } from 'lucide-svelte';
 
   const store = usePurchaseOrderStore();
-  let { poId, open = $bindable(false) }: { poId: number | null | undefined; open?: boolean } = $props();
+  let { poId, open = $bindable(false), onReceiptCreated }: { poId: number | null | undefined; open?: boolean; onReceiptCreated?: () => void } = $props();
   let po = $state<any>(null);
   let items = $state<any[]>([]);
   let saving = $state(false);
@@ -62,6 +62,7 @@
         items: validItems,
       });
       toast.success('Goods receipt created');
+      onReceiptCreated?.();
       handleClose();
     } catch (e: any) {
       toast.error(e.message || 'Failed to create goods receipt');
@@ -122,12 +123,16 @@
                   <td class="px-3 py-3 text-sm text-text-muted tabular-nums">{item.sku || '-'}</td>
                   <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{item.qty_ordered}</td>
                   <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{getRemainingQty(item)}</td>
-                  <td class="px-3 py-3">
-                    <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" />
-                  </td>
-                  <td class="px-3 py-3">
-                    <Input type="number" min={0} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" />
-                  </td>
+                  {#if getRemainingQty(item) <= 0}
+                    <td class="px-3 py-3 text-sm text-text-muted text-right tabular-nums" colspan="2">Fully received ({item.qty_received})</td>
+                  {:else}
+                    <td class="px-3 py-3">
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_damaged = Math.max(0, getRemainingQty(item) - item.qty_good); }} />
+                    </td>
+                    <td class="px-3 py-3">
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_good = Math.max(0, getRemainingQty(item) - item.qty_damaged); }} />
+                    </td>
+                  {/if}
                 </tr>
               {/each}
             </tbody>

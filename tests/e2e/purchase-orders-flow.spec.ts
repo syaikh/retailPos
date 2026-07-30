@@ -255,11 +255,13 @@ test.describe('Goods Receipts - Auth & Validation', () => {
     const storeBody = await storeRes.json();
     const store = (storeBody.data || storeBody)[0];
 
+    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     const poRes = await request.post(`${API_BASE}/api/purchase-orders`, {
       headers,
       data: {
         supplier_id: supplier.id,
         store_id: store.id,
+        expected_date: expDate,
         items: [{ product_id: product.id, qty_ordered: qtyOrdered, unit_cost: unitCost }],
       },
     });
@@ -306,11 +308,13 @@ test.describe('Purchase Orders - Delete Draft', () => {
     const prodBody = await prodRes.json();
     const product = (prodBody.data || [])[0];
 
+    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     const poRes = await request.post(`${API_BASE}/api/purchase-orders`, {
       headers,
       data: {
         supplier_id: supplier.id,
         store_id: store.id,
+        expected_date: expDate,
         items: [{ product_id: product.id, qty_ordered: 1, unit_cost: 1000 }],
       },
     });
@@ -333,11 +337,13 @@ test.describe('Purchase Orders - Delete Draft', () => {
     const prodBody = await prodRes.json();
     const product = (prodBody.data || [])[0];
 
+    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     const poRes = await request.post(`${API_BASE}/api/purchase-orders`, {
       headers,
       data: {
         supplier_id: supplier.id,
         store_id: store.id,
+        expected_date: expDate,
         items: [{ product_id: product.id, qty_ordered: 1, unit_cost: 1000 }],
       },
     });

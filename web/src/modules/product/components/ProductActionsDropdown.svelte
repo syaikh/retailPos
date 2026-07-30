@@ -25,9 +25,15 @@ let {
 let showDropdown = $state(false);
 let dropdownRef = $state<HTMLDivElement | null>(null);
 let buttonRef = $state<HTMLButtonElement | null>(null);
+let menuStyle = $state('');
+
+function computePosition() {
+  if (!buttonRef) return;
+  const r = buttonRef.getBoundingClientRect();
+  menuStyle = `position:fixed;top:${r.bottom + 4}px;right:${window.innerWidth - r.right}px`;
+}
 
 function toggleDropdown() {
-// Close other dropdowns by dispatching a custom event
   if (!showDropdown) {
     document.dispatchEvent(new CustomEvent('close-all-dropdowns'));
   }
@@ -47,6 +53,18 @@ onMount(() => {
   return () => {
     document.removeEventListener('close-all-dropdowns', closeHandler);
     document.removeEventListener('click', handleClickOutside);
+  };
+});
+
+$effect(() => {
+  if (!showDropdown) return;
+  computePosition();
+  function reposition() { computePosition(); }
+  window.addEventListener('scroll', reposition, { passive: true, capture: true });
+  window.addEventListener('resize', reposition, { passive: true });
+  return () => {
+    window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+    window.removeEventListener('resize', reposition);
   };
 });
 
@@ -82,7 +100,8 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
   {#if showDropdown}
     <div
       bind:this={dropdownRef}
-      class="absolute right-0 top-full mt-1 w-48 card-glass border border-border rounded-lg shadow-lg z-50 py-1"
+      class="fixed z-50 w-48 card-glass border border-border rounded-lg shadow-lg py-1"
+      style={menuStyle}
       role="menu"
       aria-orientation="vertical"
       tabindex="-1"

@@ -471,6 +471,18 @@
           fetchCategories(), fetchBrands(), fetchTaxClasses(), fetchUnitsOfMeasure(), fetchThresholds()
         ]);
         await fetchProducts(0, limit);
+
+        const pidParam = urlParams.get('product_id');
+        if (pidParam) {
+          const pid = parseInt(pidParam, 10);
+          if (!isNaN(pid) && pid > 0) {
+            const product = products.find(p => p.id === pid);
+            if (product) {
+              selectedProduct = product;
+              showDetailDrawer = true;
+            }
+          }
+        }
       } catch {
         console.error('Failed to initialize product page data');
       }

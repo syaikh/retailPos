@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Badge, Skeleton, SortableHeader, Dropdown } from '$shared/ui';
-  import { MoreVertical, Eye, Pencil, Package, Check } from 'lucide-svelte';
+  import { MoreVertical, Eye, Pencil, Package, Check, XCircle } from 'lucide-svelte';
   import type { PurchaseOrder } from '../types';
 
   let {
@@ -11,6 +11,7 @@
     canEdit = false,
     canConfirm = false,
     canReceive = false,
+    canCancel = false,
     sortBy = 'created_at',
     sortDir = 'desc',
     onsort = () => {},
@@ -18,6 +19,7 @@
     onedit = () => {},
     onconfirm = () => {},
     onreceive = () => {},
+    oncancel = () => {},
   }: {
     purchaseOrders?: PurchaseOrder[];
     loading?: boolean;
@@ -26,6 +28,7 @@
     canEdit?: boolean;
     canConfirm?: boolean;
     canReceive?: boolean;
+    canCancel?: boolean;
     sortBy?: string;
     sortDir?: 'asc' | 'desc';
     onsort?: (col: string) => void;
@@ -33,6 +36,7 @@
     onedit?: (po: PurchaseOrder) => void;
     onconfirm?: (po: PurchaseOrder) => void;
     onreceive?: (po: PurchaseOrder) => void;
+    oncancel?: (po: PurchaseOrder) => void;
   } = $props();
 
   function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted' {
@@ -134,7 +138,7 @@
       </thead>
       <tbody>
           {#each purchaseOrders as po (po.id)}
-            <tr class="border-b border-border transition-colors hover:bg-muted/50">
+            <tr class="border-b border-border transition-colors hover:bg-muted/50 cursor-pointer" onclick={() => onview(po)}>
               <td class="px-4 py-3 text-sm font-medium truncate">{po.po_number}</td>
               <td class="px-4 py-3 text-sm text-text-secondary truncate">{(po as any).supplier_name || 'N/A'}</td>
               <td class="px-4 py-3">
@@ -149,9 +153,10 @@
                   ...(canEdit && po.status === 'draft' ? [{ label: 'Edit', icon: Pencil, onclick: () => onedit(po) }] : []),
                   ...(canConfirm && po.status === 'draft' ? [{ label: 'Confirm', icon: Check, onclick: () => onconfirm(po) }] : []),
                   ...(canReceive && (po.status === 'confirmed' || po.status === 'partial_received') ? [{ label: 'Receive', icon: Package, onclick: () => onreceive(po) }] : []),
+                  ...(canCancel && (po.status === 'draft' || po.status === 'confirmed') ? [{ label: 'Cancel', icon: XCircle, onclick: () => oncancel(po) }] : []),
                 ]}>
                   {#snippet trigger({ toggle })}
-                    <button type="button" onclick={toggle} class="p-1 rounded-lg hover:bg-muted transition-colors" aria-label="Actions for {po.po_number}">
+                    <button type="button" onclick={(e) => { e.stopPropagation(); toggle(); }} class="p-1 rounded-lg hover:bg-muted transition-colors" aria-label="Actions for {po.po_number}">
                       <MoreVertical size={16} class="text-text-muted" />
                     </button>
                   {/snippet}

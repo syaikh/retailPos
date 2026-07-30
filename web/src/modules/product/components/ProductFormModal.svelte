@@ -50,6 +50,26 @@
   let showModalCategoryDropdown = $state(false);
   let pricingRules = $state<PricingRule[]>([]);
   let loadingPricing = $state(false);
+  let categoryContainer: HTMLDivElement;
+  let categoryMenuStyle = $state('');
+
+  function computeCategoryPosition() {
+    if (!categoryContainer) return;
+    const r = categoryContainer.getBoundingClientRect();
+    categoryMenuStyle = `position:fixed;top:${r.bottom + 8}px;left:${r.left}px;width:${r.width}px`;
+  }
+
+  $effect(() => {
+    if (!showModalCategoryDropdown) return;
+    computeCategoryPosition();
+    function reposition() { computeCategoryPosition(); }
+    window.addEventListener('scroll', reposition, { passive: true, capture: true });
+    window.addEventListener('resize', reposition, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
+    };
+  });
 
   let filteredModalCategories = $derived(
     categories.filter(cat =>
@@ -126,7 +146,7 @@
       </div>
       <div>
         <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category <span class="text-destructive">*</span></label>
-        <div class="relative">
+        <div bind:this={categoryContainer} class="relative">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <Input
             type="text"
@@ -153,7 +173,7 @@
             <ChevronDown size={16} class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           {/if}
           {#if showModalCategoryDropdown}
-            <div class="absolute top-full mt-2 w-full card-glass p-1.5 z-50 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+            <div style={categoryMenuStyle} class="fixed z-50 card-glass p-1.5 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
               {#if filteredModalCategories.length === 0}
                 <div class="px-3 py-2 text-sm text-text-muted">No categories found</div>
               {:else}

@@ -204,7 +204,7 @@ describe('buildChartConfig – no previous data', () => {
   it('includes prev dataset with zeros when prevChartData is empty', () => {
     const config = buildChartConfig({ ...baseParams, chartType: 'hourly', chartData: makeHourlyData([0, 1]), activePeriodType: 'yesterday', prevChartData: [] });
     expect(config.data.datasets).toHaveLength(2);
-    expect(config.data.datasets[1].data.every((v: number) => v === 0)).toBe(true);
+    expect(config.data.datasets[1].data.every((v: number | null) => v === 0)).toBe(true);
   });
 });
 

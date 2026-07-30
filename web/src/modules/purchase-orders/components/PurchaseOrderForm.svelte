@@ -208,7 +208,7 @@
   </div>
 
   {#if currentStep === 1}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="min-h-[340px] grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>Supplier <span class="text-danger">*</span></span>
@@ -260,6 +260,7 @@
       </div>
     </div>
   {:else}
+    <div class="min-h-[340px]">
     <div class="bg-muted/30 rounded-xl px-4 py-3 text-sm text-text-secondary mb-4">
       Supplier: <span class="font-medium text-text-primary">{suppliers.find(s => s.id === po.supplier_id)?.name || 'Unknown'}</span>
     </div>
@@ -282,7 +283,7 @@
         {#if po.items.length === 0}
           <p class="text-text-muted text-sm">No items added</p>
         {:else}
-          <div class="overflow-x-auto border border-border rounded-xl">
+          <div class="border border-border rounded-xl">
             <table class="w-full">
               <thead class="bg-muted/50">
                 <tr class="border-b text-left text-xs text-text-muted">
@@ -332,6 +333,7 @@
         {/if}
       </div>
     {/if}
+    </div>
   {/if}
 
   {#snippet footer()}

@@ -92,6 +92,19 @@ export async function getReceipts(poId: number): Promise<any[]> {
   }
 }
 
+export async function cancelPurchaseOrder(id: number): Promise<any | null> {
+  try {
+    const res = await apiFetch(`/api/purchase-orders/${id}/cancel`, { method: 'POST' });
+    if (res.ok) {
+      return await res.json();
+    }
+    const err = await res.json();
+    throw new Error(err.error?.message || err.message || 'Failed to cancel purchase order');
+  } catch (e) {
+    throw e;
+  }
+}
+
 export async function createGoodsReceipt(gr: any): Promise<any | null> {
   try {
     const res = await apiFetch('/api/goods-receipts', {

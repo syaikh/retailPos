@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { usePurchaseOrderStore } from '../stores/po-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { debounce } from '$shared/utils/debounce';
   import { Pagination } from '$shared/ui';
   import type { PurchaseOrder } from '../types';
   import PurchaseOrderForm from './PurchaseOrderForm.svelte';
@@ -21,6 +19,7 @@
   const canEdit = $derived(userPermissions.includes('purchase_order.update'));
   const canConfirm = $derived(userPermissions.includes('purchase_order.confirm'));
   const canReceive = $derived(userPermissions.includes('purchase_order.receive'));
+  const canCancel = $derived(userPermissions.includes('purchase_order.cancel'));
 
   let showForm = $state(false);
   let selectedPOForDetail = $state<number | null>(null);
@@ -28,12 +27,15 @@
   let selectedPOForReceipt = $state<number | null>(null);
   let showReceiptModal = $state(false);
 
-  onMount(() => {
-    store.load(store.currentFilters);
-  });
-
+  let firstLoad = true;
   let loadTimer: ReturnType<typeof setTimeout>;
   $effect(() => {
+    store.currentFilters;
+    if (firstLoad) {
+      firstLoad = false;
+      store.load(store.currentFilters);
+      return;
+    }
     clearTimeout(loadTimer);
     loadTimer = setTimeout(() => {
       store.page = 0;
@@ -61,7 +63,7 @@
     if (!confirm(`Confirm purchase order ${po.po_number}?`)) return;
     try {
       await store.confirm(po.id);
-      toast.success(`PO ${po.po_number} confirmed`);
+      toast.success(`${po.po_number} confirmed`);
       store.load(store.currentFilters);
     } catch (e: any) {
       toast.error(e.message || 'Failed to confirm');
@@ -71,6 +73,17 @@
   function handleReceipt(po: PurchaseOrder) {
     selectedPOForReceipt = po.id;
     showReceiptModal = true;
+  }
+
+  async function handleCancel(po: PurchaseOrder) {
+    if (!confirm(`Cancel purchase order ${po.po_number}?`)) return;
+    try {
+      await store.cancel(po.id);
+      toast.success(`${po.po_number} cancelled`);
+      store.load(store.currentFilters);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to cancel purchase order');
+    }
   }
 
   function handlePageChange(newOffset: number, newLimit: number) {
@@ -97,10 +110,6 @@
     bind:startDate={store.startDate}
     bind:endDate={store.endDate}
     {canCreate}
-    onsearch={() => { store.page = 0; store.load(store.currentFilters); }}
-    onstatuschange={() => { store.page = 0; store.load(store.currentFilters); }}
-    onstartdatechange={() => { store.page = 0; store.load(store.currentFilters); }}
-    onenddatechange={() => { store.page = 0; store.load(store.currentFilters); }}
     oncreate={handleCreate}
   />
 
@@ -113,6 +122,7 @@
       {canEdit}
       {canConfirm}
       {canReceive}
+      {canCancel}
       sortBy={store.sortBy}
       sortDir={store.sortDir}
       onsort={handleSort}
@@ -120,6 +130,7 @@
       onedit={handleEdit}
       onconfirm={handleConfirm}
       onreceive={handleReceipt}
+      oncancel={handleCancel}
     />
 
     {#if !store.loading && store.purchaseOrdersData.length > 0}
@@ -134,4 +145,4 @@
 
   <PurchaseOrderDetail bind:poId={selectedPOForDetail} bind:open={showDetail} />
 
-  <GoodsReceiptModal poId={selectedPOForReceipt} bind:open={showReceiptModal} />
+  <GoodsReceiptModal poId={selectedPOForReceipt} bind:open={showReceiptModal} onReceiptCreated={() => store.load(store.currentFilters)} />

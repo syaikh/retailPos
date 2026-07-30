@@ -90,17 +90,25 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		return fmt.Errorf("insufficient stock: current %d, requested %d", currentStock, quantityChange)
 	}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO product_stock (product_id, quantity, updated_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT ON CONSTRAINT product_stock_product_id_key
-		DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
-	`, productID, newStock)
+	tag, err := tx.Exec(ctx, `
+		UPDATE product_stock SET quantity = $1, updated_at = NOW()
+		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
+	`, newStock, productID)
 	if err != nil {
-		return fmt.Errorf("failed to upsert stock: %w", err)
+		return fmt.Errorf("failed to update stock: %w", err)
 	}
-
-	_, err = tx.Exec(ctx, `UPDATE products SET stock = $1 WHERE id = $2`, newStock, productID)
+	if tag.RowsAffected() == 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO product_stock (product_id, quantity, updated_at)
+			VALUES ($1, $2, NOW())
+		`, productID, newStock)
+		if err != nil {
+			return fmt.Errorf("failed to insert stock: %w", err)
+		}
+		_, err = tx.Exec(ctx, `UPDATE products SET stock = stock + $1 WHERE id = $2`, quantityChange, productID)
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE products SET stock = $1 WHERE id = $2`, newStock, productID)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to sync product stock: %w", err)
 	}
