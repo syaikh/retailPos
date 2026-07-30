@@ -52,7 +52,7 @@
     if (store.selectedPO) {
       po = { ...store.selectedPO, items: store.selectedPO.items?.map((item: any) => ({ ...item })) || [] };
       open = true;
-      currentStep = 2;
+      currentStep = 1;
     }
   });
 

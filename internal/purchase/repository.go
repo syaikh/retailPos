@@ -500,6 +500,7 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 
 	query := fmt.Sprintf(`
 		SELECT po.id, po.po_number, po.supplier_id, po.store_id, po.status, po.expected_date,
+		       po.payment_term,
 		       po.subtotal, po.discount_amount, po.tax_amount, po.grand_total, po.notes,
 		       po.confirmed_at, po.confirmed_by, po.cancelled_at, po.cancelled_by,
 		       po.created_by, po.updated_by, po.created_at, po.updated_at,
@@ -524,11 +525,13 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		var supplierName string
 		var confirmedBy, cancelledBy sql.NullInt64
 		var confirmedAt, cancelledAt, expectedDate sql.NullTime
+		var paymentTerm sql.NullString
 		var notes sql.NullString
 		var createdAt, updatedAt time.Time
 
 		err := rows.Scan(
 			&po.ID, &po.PONumber, &po.SupplierID, &po.StoreID, &po.Status, &expectedDate,
+			&paymentTerm,
 			&po.Subtotal, &po.DiscountAmount, &po.TaxAmount, &po.GrandTotal, &notes,
 			&confirmedAt, &confirmedBy, &cancelledAt, &cancelledBy,
 			&po.CreatedBy, &po.UpdatedBy, &createdAt, &updatedAt,
@@ -536,6 +539,9 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		)
 		if err != nil {
 			return nil, 0, err
+		}
+		if paymentTerm.Valid {
+			po.PaymentTerm = paymentTerm.String
 		}
 		po.SupplierName = supplierName
 		if expectedDate.Valid {

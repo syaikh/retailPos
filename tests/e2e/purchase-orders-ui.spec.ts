@@ -57,6 +57,175 @@ test.describe('Purchase Orders - UI Flow', () => {
     await logoutUI(page);
   });
 
+  test('payment term "Other" requires custom term input before proceeding', async ({ page, request }) => {
+    await page.goto('/purchase-orders');
+    await page.waitForTimeout(1000);
+
+    await page.locator('button').filter({ hasText: 'Create PO' }).click();
+    await page.waitForTimeout(500);
+
+    const formModal = page.locator('[role="dialog"][aria-label="Create Purchase Order"]');
+    await expect(formModal).toBeVisible({ timeout: 5000 });
+
+    // Fill required fields: Supplier & Expected Date
+    const supplierSelect = formModal.locator('label:has-text("Supplier")').locator('[aria-haspopup="listbox"]');
+    await supplierSelect.click();
+    await page.waitForTimeout(300);
+    await page.locator('[role="listbox"]').locator('[role="option"]').first().click();
+    await page.waitForTimeout(300);
+
+    const expectedDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    await formModal.locator('input[type="date"]').fill(expectedDate);
+
+    const nextBtn = formModal.locator('button').filter({ hasText: 'Next' });
+
+    // Initially Next should be enabled (default payment term is pre-filled)
+    await expect(nextBtn).toBeEnabled({ timeout: 3000 });
+
+    // Select "Other..." payment term
+    await formModal.locator('select').selectOption('Other');
+    await page.waitForTimeout(200);
+
+    // Custom term input should appear
+    const customInput = formModal.locator('input[placeholder="Enter custom term"]');
+    await expect(customInput).toBeVisible({ timeout: 3000 });
+
+    // Next should now be disabled because custom term is empty
+    await expect(nextBtn).toBeDisabled({ timeout: 3000 });
+
+    // Fill custom term
+    await customInput.fill('Net 7');
+    await page.waitForTimeout(200);
+
+    // Next should now be enabled
+    await expect(nextBtn).toBeEnabled({ timeout: 3000 });
+
+    // Proceed to Step 2 to finish creating PO and verify custom term is saved
+    await nextBtn.click();
+    await page.waitForTimeout(500);
+
+    // Step 2: select product
+    const productSelect = formModal.locator('button').filter({ hasText: 'Select product' });
+    await productSelect.first().click();
+    await page.waitForTimeout(300);
+    await page.locator('[role="listbox"]').locator('[role="option"]').first().click();
+    await page.waitForTimeout(300);
+
+    // Fill qty
+    const qtyInput = formModal.locator('input[inputmode="numeric"]').first();
+    await qtyInput.click();
+    await qtyInput.fill('5');
+
+    // Fill unit cost
+    const costInput = formModal.locator('input[inputmode="numeric"]').nth(1);
+    await costInput.click();
+    await costInput.pressSequentially(String(unitCost), { delay: 50 });
+
+    // Submit
+    const createBtn = formModal.locator('button').filter({ hasText: 'Create Draft' });
+
+    const createResponsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/purchase-orders') && resp.request().method() === 'POST'
+    );
+    await createBtn.click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(201);
+    const createBody = await createResponse.json();
+    const createdPO = createBody.data || createBody;
+
+    // Verify payment_term is "Net 7" in API response
+    expect(createdPO.payment_term).toBe('Net 7');
+
+    await expect(page.locator('text=Purchase order created')).toBeVisible({ timeout: 5000 });
+    await expect(formModal).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test('edit PO opens from Step 1, allows updating details then items', async ({ page, request }) => {
+    // Create a draft PO via API
+    const expDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const store = ((await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()).data ||
+      (await (await request.get(`${API_BASE}/api/stores/active`, { headers })).json()));
+
+    const poRes = await request.post(`${API_BASE}/api/purchase-orders`, {
+      headers,
+      data: {
+        supplier_id: supplier.id,
+        store_id: store.id,
+        expected_date: expDate,
+        payment_term: 'Cash on Delivery',
+        items: [{ product_id: product.id, qty_ordered: 3, unit_cost: unitCost, discount_amount: 0 }],
+      },
+    });
+    expect(poRes.ok()).toBeTruthy();
+    const poBody = await poRes.json();
+    const poId = (poBody.data || poBody).id;
+
+    // Navigate to PO list
+    await page.goto('/purchase-orders');
+    await page.waitForTimeout(1500);
+
+    // Find the PO row
+    const table = page.locator('[role="grid"][aria-label="Purchase orders"]');
+    const poNumber = (poBody.data || poBody).po_number;
+    const row = table.locator('tbody tr').filter({ hasText: poNumber }).first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+
+    // Click Edit from action dropdown
+    await row.locator('button[aria-label*="Actions for"]').click();
+    await page.waitForTimeout(300);
+    await page.locator('button').filter({ hasText: 'Edit' }).click();
+    await page.waitForTimeout(500);
+
+    // Verify modal opens with Edit title and shows Step 1
+    const editModal = page.locator('[role="dialog"][aria-label="Edit Purchase Order"]');
+    await expect(editModal).toBeVisible({ timeout: 5000 });
+
+    // Step 1 heading should be visible
+    await expect(editModal.locator('text=PO Details')).toBeVisible({ timeout: 3000 });
+
+    // Step 2 heading should NOT be active (currentStep === 1)
+    // Verify Step 1 fields are visible: Expected Date, Payment Term
+    await expect(editModal.locator('label:has-text("Expected Date")')).toBeVisible({ timeout: 3000 });
+    await expect(editModal.locator('label:has-text("Payment Term")')).toBeVisible({ timeout: 3000 });
+
+    // Verify Next button is enabled (fields are pre-filled)
+    const nextBtn = editModal.locator('button').filter({ hasText: 'Next' });
+    await expect(nextBtn).toBeEnabled({ timeout: 3000 });
+
+    // Update payment term to "Other" + custom
+    await editModal.locator('select').selectOption('Other');
+    await page.waitForTimeout(200);
+    const customInput = editModal.locator('input[placeholder="Enter custom term"]');
+    await expect(customInput).toBeVisible({ timeout: 3000 });
+    await customInput.fill('Net 14');
+
+    // Go to Step 2
+    await nextBtn.click();
+    await page.waitForTimeout(500);
+
+    // Verify Step 2 shows pre-filled items
+    await expect(editModal.locator('text=Items').last()).toBeVisible({ timeout: 3000 });
+
+    // Update PO
+    const updateBtn = editModal.locator('button').filter({ hasText: 'Update' });
+    await expect(updateBtn).toBeEnabled({ timeout: 3000 });
+
+    const updateResponsePromise = page.waitForResponse(
+      resp => resp.url().includes(`/api/purchase-orders/${poId}`) && resp.request().method() === 'PUT'
+    );
+    await updateBtn.click();
+    await updateResponsePromise;
+
+    await expect(page.locator('text=Purchase order updated')).toBeVisible({ timeout: 5000 });
+    await expect(editModal).not.toBeVisible({ timeout: 5000 });
+
+    // Verify via API that payment_term was updated
+    const detailRes = await request.get(`${API_BASE}/api/purchase-orders/${poId}`, { headers });
+    expect(detailRes.ok()).toBeTruthy();
+    const detailBody = await detailRes.json();
+    expect((detailBody.data || detailBody).payment_term).toBe('Net 14');
+  });
+
   test('full PO creation -> confirm -> receive -> stock increased -> table verification', async ({ page, request }) => {
     await page.goto('/purchase-orders');
     await page.waitForTimeout(1000);
