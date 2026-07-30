@@ -868,9 +868,10 @@ func TestE2E_ProductSearch(t *testing.T) {
 	router := setupE2ERouter(t)
 	token := loginAs(t, router, "superadmin", "admin123")
 
-	// Create a product with a known name
+	// Create products with known name, SKU, and barcode
 	sku := fmt.Sprintf("SEARCH-%d", time.Now().UnixNano())
-	prodBody := fmt.Sprintf(`{"sku":"%s","name":"Searchable Widget","price":10000,"cost":5000,"stock":50,"status":"active"}`, sku)
+	barcode := fmt.Sprintf("BC-%d", time.Now().UnixNano())
+	prodBody := fmt.Sprintf(`{"sku":"%s","name":"Searchable Widget","barcode":"%s","price":10000,"cost":5000,"stock":50,"status":"active"}`, sku, barcode)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/products", strings.NewReader(prodBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -878,6 +879,7 @@ func TestE2E_ProductSearch(t *testing.T) {
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusCreated, w.Code)
 
+	// ---- pricing endpoint (legacy) ----
 	t.Run("search by name returns matching products", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/products/search?q=Searchable&limit=10", nil)
@@ -890,7 +892,42 @@ func TestE2E_ProductSearch(t *testing.T) {
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(resp.Data), 1)
+		require.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.Equal(t, sku, resp.Data[0].SKU)
+		assert.Equal(t, "Searchable Widget", resp.Data[0].Name)
+	})
+
+	t.Run("search by SKU returns matching products", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/products/search?q="+sku+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []pricing.ProductSearchResult `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.Equal(t, sku, resp.Data[0].SKU)
+		assert.Equal(t, "Searchable Widget", resp.Data[0].Name)
+	})
+
+	t.Run("search by barcode returns matching products", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/products/search?q="+barcode+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []pricing.ProductSearchResult `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.Equal(t, sku, resp.Data[0].SKU)
 		assert.Equal(t, "Searchable Widget", resp.Data[0].Name)
 	})
 
@@ -907,6 +944,69 @@ func TestE2E_ProductSearch(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data)
+	})
+
+	// ---- product handler endpoint (exercises GetAllProducts with ILIKE fallback) ----
+	t.Run("product handler search by full SKU", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/products?search="+sku+"&limit=10", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []product.Product `json:"data"`
+			Total int               `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, resp.Total, 1)
+		require.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.Equal(t, sku, resp.Data[0].SKU)
+	})
+
+	t.Run("product handler search by full barcode", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/products?search="+barcode+"&limit=10", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []product.Product `json:"data"`
+			Total int               `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, resp.Total, 1)
+		require.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.Equal(t, sku, resp.Data[0].SKU)
+		if resp.Data[0].Barcode != nil {
+			assert.Equal(t, barcode, *resp.Data[0].Barcode)
+		}
+	})
+
+	t.Run("product handler search by partial SKU (last digits)", func(t *testing.T) {
+		// Extract last 3 digits of the SKU (format: SEARCH-<timestamp>)
+		partial := sku[len(sku)-3:]
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/products?search="+partial+"&limit=10", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []product.Product `json:"data"`
+			Total int               `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, resp.Total, 1)
+		found := false
+		for _, p := range resp.Data {
+			if p.SKU == sku {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected product with SKU %s to appear in partial search results for %q", sku, partial)
 	})
 }
 

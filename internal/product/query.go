@@ -20,7 +20,7 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	args := []interface{}{}
 	argIdx := 1
 	if search != "" {
-		query += fmt.Sprintf(" AND v.search_vector @@ plainto_tsquery('english', $%d)", argIdx)
+		query += fmt.Sprintf(" AND (v.search_vector @@ plainto_tsquery('english', $%[1]d) OR v.sku ILIKE '%%' || $%[1]d || '%%' OR COALESCE(v.barcode, '') ILIKE '%%' || $%[1]d || '%%')", argIdx)
 		args = append(args, search)
 		argIdx++
 	}
@@ -64,7 +64,7 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	args2 := []interface{}{}
 	argIdx2 := 1
 	if search != "" {
-		query2 += fmt.Sprintf(" AND v.search_vector @@ plainto_tsquery('english', $%d)", argIdx2)
+		query2 += fmt.Sprintf(" AND (v.search_vector @@ plainto_tsquery('english', $%[1]d) OR v.sku ILIKE '%%' || $%[1]d || '%%' OR COALESCE(v.barcode, '') ILIKE '%%' || $%[1]d || '%%')", argIdx2)
 		args2 = append(args2, search)
 		argIdx2++
 	}

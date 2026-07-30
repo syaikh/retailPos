@@ -30,6 +30,8 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	skuA := uniqueSKU("QF-SEARCH-A")
 	skuB := uniqueSKU("QF-SEARCH-B")
 	skuC := uniqueSKU("QF-SEARCH-C")
+	skuD := uniqueSKU("QF-SEARCH-D")
+	barcodeD := uniqueSKU("BC-SEARCH-D")
 
 	seedTestProduct(t, repo, ctx, &Product{
 		SKU: skuA, Name: "Alpha Gadget", Price: 10000, Cost: 5000,
@@ -42,6 +44,10 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	seedTestProduct(t, repo, ctx, &Product{
 		SKU: skuC, Name: "Omega Widget", Price: 30000, Cost: 15000,
 		Stock: 3, Status: "active",
+	})
+	seedTestProduct(t, repo, ctx, &Product{
+		SKU: skuD, Name: "Delta Barcode", Price: 40000, Cost: 20000,
+		Stock: 7, Status: "active", Barcode: &barcodeD,
 	})
 
 	t.Run("search matches by name", func(t *testing.T) {
@@ -58,6 +64,30 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
 		assert.Equal(t, "Beta Gadget", products[0].Name)
+	})
+
+	t.Run("search matches by partial SKU", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-SEARCH", nil, "", "", nil, nil, "", nil)
+		require.NoError(t, err)
+		// All 4 seeded products have "QF-SEARCH" prefix in their SKU
+		assert.GreaterOrEqual(t, total, 4, "expected at least 4 products (the QF-SEARCH group) to match partial SKU")
+		assert.GreaterOrEqual(t, len(products), 4)
+	})
+
+	t.Run("search matches by barcode", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, barcodeD, nil, "", "", nil, nil, "", nil)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		assert.Len(t, products, 1)
+		assert.Equal(t, skuD, products[0].SKU)
+	})
+
+	t.Run("search matches by partial barcode", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "BC-SEARCH", nil, "", "", nil, nil, "", nil)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		assert.Len(t, products, 1)
+		assert.Equal(t, skuD, products[0].SKU)
 	})
 
 	t.Run("search matches multiple via tsquery", func(t *testing.T) {
@@ -280,6 +310,27 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 		assert.Equal(t, 1, total)
 		assert.Len(t, products, 1)
 		assert.Equal(t, skuA, products[0].SKU)
+	})
+
+	t.Run("ILIKE partial SKU + status combined", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", nil, "", "", nil, nil, "active", nil)
+		require.NoError(t, err)
+		// skuA (active) should match; skuB (inactive) should not
+		assert.GreaterOrEqual(t, total, 1)
+		for _, p := range products {
+			assert.Equal(t, "active", p.Status)
+			assert.Contains(t, p.SKU, "QF-COMB")
+		}
+	})
+
+	t.Run("ILIKE partial SKU + category combined", func(t *testing.T) {
+		products, total, err := repo.GetAllProducts(ctx, 20, 0, "QF-COMB", []int{catID}, "", "", nil, nil, "", nil)
+		require.NoError(t, err)
+		// skuA and skuB have category catID and contain "QF-COMB"; skuC (no category) should not appear
+		assert.GreaterOrEqual(t, total, 2)
+		for _, p := range products {
+			assert.Contains(t, p.SKU, "QF-COMB")
+		}
 	})
 }
 
