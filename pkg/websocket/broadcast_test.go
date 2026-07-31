@@ -33,6 +33,9 @@ func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("product_updated"), EventProductUpdate)
 	assert.Equal(t, EventType("user_online_count"), EventUserOnline)
 	assert.Equal(t, EventType("po_received"), EventPOReceived)
+	assert.Equal(t, EventType("po_created"), EventPOCreated)
+	assert.Equal(t, EventType("po_confirmed"), EventPOConfirmed)
+	assert.Equal(t, EventType("po_cancelled"), EventPOCancelled)
 }
 
 func TestEventJSONMarshaling(t *testing.T) {
@@ -348,6 +351,123 @@ func TestBroadcastPOReceived_AdminReceivesWithStoreID(t *testing.T) {
 	}, 2*time.Second)
 	if !ok {
 		t.Fatal("timeout waiting for po_received broadcast with store_id")
+	}
+}
+
+func TestBroadcastPOEvents(t *testing.T) {
+	type eventCase struct {
+		name             string
+		broadcastType    EventType
+		wsEventName      string
+		assertPayload    func(*testing.T, []byte)
+	}
+
+	newEventCases := func() []eventCase {
+		return []eventCase{
+			{
+				name:          "POCreated",
+				broadcastType: EventPOCreated,
+				wsEventName:   "po_created",
+			},
+			{
+				name:          "POConfirmed",
+				broadcastType: EventPOConfirmed,
+				wsEventName:   "po_confirmed",
+			},
+			{
+				name:          "POCancelled",
+				broadcastType: EventPOCancelled,
+				wsEventName:   "po_cancelled",
+			},
+		}
+	}
+
+	t.Run("NilHub", func(t *testing.T) {
+		BroadcastPOCreated(nil, POCreatedEvent{POID: 1, PONumber: "PO-001"})
+		BroadcastPOConfirmed(nil, POConfirmedEvent{POID: 1, PONumber: "PO-001"})
+		BroadcastPOCancelled(nil, POCancelledEvent{POID: 1, PONumber: "PO-001"})
+	})
+
+	for _, tc := range newEventCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run("WithHub", func(t *testing.T) {
+				hub := newListenerHub()
+				go hub.Run()
+				defer hub.Shutdown()
+
+				client := registerClient(t, hub, 1, nil, true)
+				drainMessages(client.send)
+
+				var evt interface{}
+				switch tc.broadcastType {
+				case EventPOCreated:
+					evt = POCreatedEvent{POID: 42, PONumber: "PO-042"}
+				case EventPOConfirmed:
+					evt = POConfirmedEvent{POID: 42, PONumber: "PO-042"}
+				case EventPOCancelled:
+					evt = POCancelledEvent{POID: 42, PONumber: "PO-042"}
+				}
+
+			switch evt := evt.(type) {
+				case POCreatedEvent:
+					BroadcastPOCreated(hub, evt)
+				case POConfirmedEvent:
+					BroadcastPOConfirmed(hub, evt)
+				case POCancelledEvent:
+					BroadcastPOCancelled(hub, evt)
+				}
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "PO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast")
+				}
+
+				var event Event
+				err := json.Unmarshal([]byte(msg), &event)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.broadcastType, event.Type)
+			})
+
+			t.Run("StoreFiltering", func(t *testing.T) {
+				hub := newListenerHub()
+				go hub.Run()
+				defer hub.Shutdown()
+
+				store1 := intPtr(1)
+				store2 := intPtr(2)
+
+				regularClient := registerClient(t, hub, 1, store2, false)
+				drainMessages(regularClient.send)
+
+				var evt interface{}
+				switch tc.broadcastType {
+				case EventPOCreated:
+					evt = POCreatedEvent{POID: 1, PONumber: "PO-001", StoreID: store1}
+				case EventPOConfirmed:
+					evt = POConfirmedEvent{POID: 1, PONumber: "PO-001", StoreID: store1}
+				case EventPOCancelled:
+					evt = POCancelledEvent{POID: 1, PONumber: "PO-001", StoreID: store1}
+				}
+
+			switch evt := evt.(type) {
+				case POCreatedEvent:
+					BroadcastPOCreated(hub, evt)
+				case POConfirmedEvent:
+					BroadcastPOConfirmed(hub, evt)
+				case POCancelledEvent:
+					BroadcastPOCancelled(hub, evt)
+				}
+
+				_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if received {
+					t.Fatal("regular client at different store should not receive event")
+				}
+			})
+		})
 	}
 }
 

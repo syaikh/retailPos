@@ -45,6 +45,11 @@
     return () => clearTimeout(loadTimer);
   });
 
+  $effect(() => {
+    const unsubWS = store.subscribeToWS();
+    return () => unsubWS();
+  });
+
   function handleCreate() {
     store.selectedPO = null;
     showForm = true;

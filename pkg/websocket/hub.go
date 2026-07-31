@@ -69,6 +69,9 @@ const (
 	EventProductUpdate EventType = "product_updated"
 	EventUserOnline    EventType = "user_online_count"
 	EventPOReceived    EventType = "po_received"
+	EventPOCreated     EventType = "po_created"
+	EventPOConfirmed   EventType = "po_confirmed"
+	EventPOCancelled   EventType = "po_cancelled"
 )
 
 type Event struct {
@@ -595,6 +598,60 @@ func BroadcastPOReceived(hub *Hub, event POReceivedEvent) {
 	payload, _ := json.Marshal(event)
 	hub.Broadcast(Event{
 		Type:    EventPOReceived,
+		Payload: payload,
+		StoreID: event.StoreID,
+	})
+}
+
+type POCreatedEvent struct {
+	POID     int    `json:"po_id"`
+	PONumber string `json:"po_number"`
+	StoreID  *int   `json:"-"`
+}
+
+func BroadcastPOCreated(hub *Hub, event POCreatedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventPOCreated,
+		Payload: payload,
+		StoreID: event.StoreID,
+	})
+}
+
+type POConfirmedEvent struct {
+	POID     int    `json:"po_id"`
+	PONumber string `json:"po_number"`
+	StoreID  *int   `json:"-"`
+}
+
+func BroadcastPOConfirmed(hub *Hub, event POConfirmedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventPOConfirmed,
+		Payload: payload,
+		StoreID: event.StoreID,
+	})
+}
+
+type POCancelledEvent struct {
+	POID     int    `json:"po_id"`
+	PONumber string `json:"po_number"`
+	StoreID  *int   `json:"-"`
+}
+
+func BroadcastPOCancelled(hub *Hub, event POCancelledEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventPOCancelled,
 		Payload: payload,
 		StoreID: event.StoreID,
 	})

@@ -94,9 +94,10 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, "purchase_order.created", map[string]interface{}{
+	_ = s.eventBus.Publish(ctx, string(EventPOCreated), map[string]interface{}{
 		"po_id":     po.ID,
 		"po_number": po.PONumber,
+		"store_id":  po.StoreID,
 	})
 
 	return nil
@@ -237,9 +238,10 @@ func (s *Service) Confirm(ctx context.Context, id, userID int) error {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, "purchase_order.confirmed", map[string]interface{}{
+	_ = s.eventBus.Publish(ctx, string(EventPOConfirmed), map[string]interface{}{
 		"po_id":     id,
 		"po_number": existing.PONumber,
+		"store_id":  existing.StoreID,
 	})
 
 	return nil
@@ -281,9 +283,10 @@ func (s *Service) Cancel(ctx context.Context, id, userID int) error {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, "purchase_order.cancelled", map[string]interface{}{
+	_ = s.eventBus.Publish(ctx, string(EventPOCancelled), map[string]interface{}{
 		"po_id":     id,
 		"po_number": existing.PONumber,
+		"store_id":  existing.StoreID,
 	})
 
 	return nil
@@ -412,7 +415,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 
 	bgCtx := context.Background()
-	_ = s.eventBus.Publish(bgCtx, "goods_receipt.created", map[string]interface{}{
+	_ = s.eventBus.Publish(bgCtx, string(EventGoodsReceiptCreated), map[string]interface{}{
 		"gr_id":     gr.ID,
 		"gr_number": gr.GRNumber,
 		"po_id":     poID,

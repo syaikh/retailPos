@@ -1,5 +1,6 @@
 import { getPurchaseOrders, getPurchaseOrderById, createPurchaseOrder, updatePurchaseOrder, confirmPurchaseOrder, cancelPurchaseOrder, getReceipts, createGoodsReceipt } from '../services/po-service';
 import type { PurchaseOrder, PurchaseOrderFilters } from '../types';
+import { useWebSocket } from '$shared/api/websocket';
 
 let purchaseOrdersData = $state<PurchaseOrder[]>([]);
 let total = $state(0);
@@ -19,6 +20,7 @@ let selectedPO = $state<PurchaseOrder | null>(null);
 let receipts = $state<any[]>([]);
 
 let initialized = false;
+let wsSubscribed = false;
 
 export function usePurchaseOrderStore() {
   if (!initialized) {
@@ -122,6 +124,33 @@ export function usePurchaseOrderStore() {
 
     async receive(gr: any) {
       return createGoodsReceipt(gr);
+    },
+
+    subscribeToWS(): () => void {
+      if (wsSubscribed) return () => {};
+      wsSubscribed = true;
+      const ws = useWebSocket();
+      const reload = () => this.load({
+        search: searchQuery || undefined,
+        status: statusFilter || undefined,
+        supplier_id: supplierFilter || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        page,
+        pageSize,
+        sortBy,
+        sortDir,
+      });
+      const unsubs = [
+        ws.on('po_created', reload),
+        ws.on('po_confirmed', reload),
+        ws.on('po_cancelled', reload),
+        ws.on('po_received', reload),
+      ];
+      return () => {
+        unsubs.forEach(fn => fn());
+        wsSubscribed = false;
+      };
     },
   };
 }

@@ -381,6 +381,307 @@ func TestNewStockAdjustedListener(t *testing.T) {
 	})
 }
 
+func TestExtractPOEventFields(t *testing.T) {
+	t.Run("returns all fields when present", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     42,
+			"po_number": "PO-042",
+			"store_id":  5,
+		}
+		poID, poNumber, storeID := extractPOEventFields(payload)
+		assert.Equal(t, 42, poID)
+		assert.Equal(t, "PO-042", poNumber)
+		require.NotNil(t, storeID)
+		assert.Equal(t, 5, *storeID)
+	})
+
+	t.Run("handles float64 po_id and store_id (JSON unmarshaling)", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     float64(42),
+			"po_number": "PO-042",
+			"store_id":  float64(5),
+		}
+		poID, poNumber, storeID := extractPOEventFields(payload)
+		assert.Equal(t, 42, poID)
+		assert.Equal(t, "PO-042", poNumber)
+		require.NotNil(t, storeID)
+		assert.Equal(t, 5, *storeID)
+	})
+
+	t.Run("handles int64 po_id and store_id", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     int64(42),
+			"po_number": "PO-042",
+			"store_id":  int64(5),
+		}
+		poID, poNumber, storeID := extractPOEventFields(payload)
+		assert.Equal(t, 42, poID)
+		assert.Equal(t, "PO-042", poNumber)
+		require.NotNil(t, storeID)
+		assert.Equal(t, 5, *storeID)
+	})
+
+	t.Run("nil store_id when missing", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     1,
+			"po_number": "PO-001",
+		}
+		_, _, storeID := extractPOEventFields(payload)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("nil store_id when zero", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     1,
+			"po_number": "PO-001",
+			"store_id":  0,
+		}
+		_, _, storeID := extractPOEventFields(payload)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("nil store_id when zero float64", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     1,
+			"po_number": "PO-001",
+			"store_id":  float64(0),
+		}
+		_, _, storeID := extractPOEventFields(payload)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("nil store_id when negative", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     1,
+			"po_number": "PO-001",
+			"store_id":  -1,
+		}
+		_, _, storeID := extractPOEventFields(payload)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("zero values for missing po_id and po_number", func(t *testing.T) {
+		payload := map[string]interface{}{}
+		poID, poNumber, storeID := extractPOEventFields(payload)
+		assert.Equal(t, 0, poID)
+		assert.Equal(t, "", poNumber)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("wrong types fall back to zero values", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"po_id":     "not-an-int",
+			"po_number": 123,
+			"store_id":  "not-an-int",
+		}
+		poID, poNumber, storeID := extractPOEventFields(payload)
+		assert.Equal(t, 0, poID)
+		assert.Equal(t, "", poNumber)
+		assert.Nil(t, storeID)
+	})
+}
+
+type poListenerTestCase struct {
+	name           string
+	eventType      eventbus.EventType
+	broadcastType  EventType
+	wsEventName    string
+	newListener    func(hub *Hub) eventbus.Listener
+}
+
+func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
+	cases := []poListenerTestCase{
+		{
+			name:          "created",
+			eventType:     eventbus.EventType("purchase_order.created"),
+			broadcastType: EventPOCreated,
+			wsEventName:   "po_created",
+			newListener:   NewPOCreatedListener,
+		},
+		{
+			name:          "confirmed",
+			eventType:     eventbus.EventType("purchase_order.confirmed"),
+			broadcastType: EventPOConfirmed,
+			wsEventName:   "po_confirmed",
+			newListener:   NewPOConfirmedListener,
+		},
+		{
+			name:          "cancelled",
+			eventType:     eventbus.EventType("purchase_order.cancelled"),
+			broadcastType: EventPOCancelled,
+			wsEventName:   "po_cancelled",
+			newListener:   NewPOCancelledListener,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hub := newListenerHub()
+			go hub.Run()
+			defer hub.Shutdown()
+
+			client := registerClient(t, hub, 1, nil, true)
+			drainMessages(client.send)
+
+			listener := tc.newListener(hub)
+
+			t.Run("broadcasts on valid event", func(t *testing.T) {
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"po_id":     42,
+						"po_number": "PO-042",
+						"store_id":  5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "PO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast")
+				}
+				_ = msg
+			})
+
+			t.Run("wrong payload type returns nil without error", func(t *testing.T) {
+				drainMessages(client.send)
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type:    tc.eventType,
+					Payload: "not a map",
+				})
+				assert.NoError(t, err)
+
+				msg, found := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if found {
+					t.Fatalf("should not broadcast on wrong payload type, got: %s", msg)
+				}
+			})
+
+			t.Run("missing fields produce broadcast with correct event type", func(t *testing.T) {
+				drainMessages(client.send)
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type:    tc.eventType,
+					Payload: map[string]interface{}{},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast with empty payload")
+				}
+				var event Event
+				err = json.Unmarshal([]byte(msg), &event)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.broadcastType, event.Type)
+			})
+
+			t.Run("forwards store_id from payload", func(t *testing.T) {
+				drainMessages(client.send)
+
+				sid := 5
+				storeScopedClient := registerClient(t, hub, 2, &sid, false)
+				drainMessages(storeScopedClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"po_id":     99,
+						"po_number": "PO-099",
+						"store_id":  5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for store-scoped broadcast")
+				}
+				assert.Contains(t, msg, "PO-099")
+			})
+
+			t.Run("different store does not receive event", func(t *testing.T) {
+				drainMessages(client.send)
+
+				sid := 99
+				otherClient := registerClient(t, hub, 3, &sid, false)
+				drainMessages(otherClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"po_id":     55,
+						"po_number": "PO-055",
+						"store_id":  5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, found := waitForMessage(t, otherClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if found {
+					t.Fatalf("store-scoped client should not receive event for different store, got: %s", msg)
+				}
+			})
+
+			t.Run("admin receives event regardless of store", func(t *testing.T) {
+				drainMessages(client.send)
+
+				sid := 7
+				adminClient := registerClient(t, hub, 4, &sid, true)
+				drainMessages(adminClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"po_id":     77,
+						"po_number": "PO-077",
+						"store_id":  5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for admin to receive cross-store broadcast")
+				}
+				assert.Contains(t, msg, "PO-077")
+			})
+
+			t.Run("missing store_id broadcasts to all", func(t *testing.T) {
+				drainMessages(client.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"po_id":     111,
+						"po_number": "PO-111",
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast with missing store_id")
+				}
+				assert.Contains(t, msg, "PO-111")
+			})
+		})
+	}
+}
+
 func TestListener_EventTypes(t *testing.T) {
 	hub := newListenerHub()
 
@@ -396,6 +697,15 @@ func TestListener_EventTypes(t *testing.T) {
 
 	poListener := NewPOReceivedListener(hub)
 	assert.Equal(t, []eventbus.EventType{eventbus.EventType("goods_receipt.created")}, poListener.EventTypes())
+
+	createdListener := NewPOCreatedListener(hub)
+	assert.Contains(t, createdListener.EventTypes(), eventbus.EventType("purchase_order.created"))
+
+	confirmedListener := NewPOConfirmedListener(hub)
+	assert.Contains(t, confirmedListener.EventTypes(), eventbus.EventType("purchase_order.confirmed"))
+
+	cancelledListener := NewPOCancelledListener(hub)
+	assert.Contains(t, cancelledListener.EventTypes(), eventbus.EventType("purchase_order.cancelled"))
 }
 
 func TestNewPOReceivedListener(t *testing.T) {
