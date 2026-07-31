@@ -131,9 +131,9 @@ Contoh 3 - Cash + Card + E-Wallet:
 
 ---
 
-## 4. Purchase Order & Goods Receiving
+## 4. Purchase Order & Goods Receiving ✅
 
-### Penjelasan
+**Status:** SUDAH DIIMPLEMENTASI — `internal/purchase/`, `web/src/modules/purchase-orders/`, migrasi `007_purchase_orders.sql`, `008_add_cancel_permission.sql`, `009_add_do_sequence.sql`
 
 Alur pembelian barang dari supplier. Saat stok menipis atau butuh restock, toko buat **Purchase Order (PO)** ke supplier. Saat barang datang, admin **goods receiving** — mencatat berapa yang diterima dan stok otomatis bertambah.
 
@@ -166,23 +166,21 @@ Alur pembelian barang dari supplier. Saat stok menipis atau butuh restock, toko 
 | Fully Received | Semua barang sudah diterima |
 | Cancelled | PO dibatalkan |
 
-### Komponen yang Perlu Dibangun
+### Komponen yang Telah Dibangun
 
 **Backend:**
-- Tabel `purchase_orders` (po_number, supplier_id, store_id, status, total, expected_date, notes, created_by, confirmed_at, ...)
-- Tabel `purchase_order_items` (po_id, product_id, qty_ordered, qty_received, unit_cost, subtotal)
-- Tabel `goods_receipts` (gr_number, po_id, store_id, received_by, received_at, notes)
-- Tabel `goods_receipt_items` (gr_id, product_id, qty_received, condition [good/damaged], notes)
-- Auto-generate PO number (sequential)
-- Endpoint: CRUD PO, confirm PO, goods receive, list PO history
-- Update stok otomatis saat goods receiving (inventory movement type: `purchase_receipt`)
+- Tabel `purchase_orders` (po_number, supplier_id, store_id, status, financial fields, approval_status, payment_status, invoice_status, warehouse_id, currency, ...)
+- Tabel `purchase_order_items` (po_id, product_id, qty_ordered, qty_received, unit_cost, subtotal, snapshot name/sku/barcode/uom)
+- Tabel `goods_receipts` + `goods_receipt_items` (gr_number, po_id, store_id, received_by, received_at, notes, condition good/damaged)
+- Auto-generate nomor PO/GR + nomor DO (`do_seq`)
+- Endpoint: CRUD PO, confirm, cancel, list receipts, goods receive, update stok otomatis (inventory movement `purchase_receipt`)
+- Update PO real-time via WebSocket (store-scoped)
 
 **Frontend:**
-- Halaman PO list (filter status, supplier, tanggal)
-- Form create PO (pilih supplier, tambah item produk, input qty & harga)
-- Halaman goods receive (pilih PO, input jumlah diterima per item, catat kondisi)
-- Status badge berwarna untuk setiap status PO
-- Print PO (optional)
+- Halaman PO list (filter status, supplier, tanggal) + status badge berwarna
+- Form create/edit PO multi-step (pilih supplier, tambah item produk, qty & harga, financial summary)
+- Halaman goods receive (input jumlah diterima per item, catat kondisi, auto DO number)
+- Notification bell untuk update status PO
 
 ---
 
@@ -400,7 +398,7 @@ Skenario 3 - Percobaan bypass via API langsung:
 | 5 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
 | 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
 | 7 | Product Image | Peningkatan UX visual, relatif sederhana |
-| 8 | Purchase Order | Alur pembelian, butuh dependency lebih banyak |
+| 8 | ~~Purchase Order~~ | ✅ Selesai |
 
 ---
 
