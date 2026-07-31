@@ -252,6 +252,7 @@ func Initialize(p Providers) *Dependencies {
 	wsProductLookup := &productLookupAdapter{repo: d.ProductRepo}
 	d.Bus.Subscribe(websocket.NewSaleCreatedListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewProductUpdatedListener(d.Hub))
+	d.Bus.Subscribe(websocket.NewPOReceivedListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockAdjustedListener(d.Hub, wsProductLookup))
 	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener())
 	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))

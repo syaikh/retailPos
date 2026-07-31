@@ -222,7 +222,7 @@
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>Expected Date <span class="text-danger">*</span></span>
-          <Input type="date" bind:value={po.expected_date} min={todayJakarta} />
+          <Input type="date" bind:value={po.expected_date} min={todayJakarta} selectOnFocus />
         </label>
       </div>
       <div>
@@ -237,25 +237,25 @@
           </Input>
         </label>
         {#if selectedPaymentTerm === 'Other'}
-          <Input type="text" bind:value={customPaymentTerm} oninput={() => { po.payment_term = customPaymentTerm; }} placeholder="Enter custom term" class="mt-2" required />
+          <Input type="text" bind:value={customPaymentTerm} oninput={() => { po.payment_term = customPaymentTerm; }} placeholder="Enter custom term" class="mt-2" required selectOnFocus />
         {/if}
       </div>
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>Supplier Reference Number</span>
-          <Input type="text" bind:value={po.supplier_reference_number} />
+          <Input type="text" bind:value={po.supplier_reference_number} selectOnFocus />
         </label>
       </div>
       <div class="sm:col-span-2">
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>Delivery Address</span>
-          <Input tag="textarea" bind:value={po.delivery_address} rows={2} />
+          <Input tag="textarea" bind:value={po.delivery_address} rows={2} selectOnFocus />
         </label>
       </div>
       <div class="sm:col-span-2">
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
           <span>Notes</span>
-          <Input tag="textarea" bind:value={po.notes} rows={2} />
+          <Input tag="textarea" bind:value={po.notes} rows={2} selectOnFocus />
         </label>
       </div>
     </div>
@@ -308,7 +308,7 @@
                     </td>
                     <td class="px-3 py-2">
                       <div class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200">
-                        <input type="text" inputmode="numeric" value={displayNum(item.qty_ordered)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.qty_ordered = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.qty_ordered); if (el.value !== fmt) el.value = fmt; }} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
+                        <input type="text" inputmode="numeric" value={displayNum(item.qty_ordered)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.qty_ordered = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.qty_ordered); if (el.value !== fmt) el.value = fmt; }} onfocus={(e) => (e.target as HTMLInputElement).select()} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
                       </div>
                     </td>
                     <td class="px-3 py-2">
@@ -316,7 +316,7 @@
                     </td>
                     <td class="px-3 py-2">
                       <div class="flex items-center bg-bg-secondary border border-border-default rounded-xl px-3 h-[42px] w-full transition-colors duration-200">
-                        <input type="text" inputmode="numeric" value={displayNum(item.discount_amount)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.discount_amount = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.discount_amount); if (el.value !== fmt) el.value = fmt; }} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
+                        <input type="text" inputmode="numeric" value={displayNum(item.discount_amount)} oninput={(e) => { const el = e.target as HTMLInputElement; const raw = el.value.replace(/[^0-9]/g, ''); item.discount_amount = raw ? parseInt(raw, 10) : 0; const fmt = displayNum(item.discount_amount); if (el.value !== fmt) el.value = fmt; }} onfocus={(e) => (e.target as HTMLInputElement).select()} class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted" placeholder="0" />
                       </div>
                     </td>
                     <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{calculateSubtotal(item).toLocaleString('id-ID')}</td>
@@ -371,7 +371,7 @@
 
 <style>
   input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+    filter: brightness(0) invert(1);
     cursor: pointer;
   }
 </style>

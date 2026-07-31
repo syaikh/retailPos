@@ -92,5 +92,6 @@ describe('notifications store', () => {
     expect(getNotificationIcon('sale_created')).toBe('🛒');
     expect(getNotificationIcon('stock_update')).toBe('📦');
     expect(getNotificationIcon('product_updated')).toBe('✏️');
+    expect(getNotificationIcon('po_received')).toBe('📥');
   });
 });

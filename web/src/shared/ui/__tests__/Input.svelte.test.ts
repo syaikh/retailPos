@@ -34,4 +34,13 @@ describe('Input.svelte source-structure guards', () => {
   it('renders error message with id matching aria-describedby', () => {
     expect(src).toContain('id="{inputId}-error"');
   });
+
+  it('has selectOnFocus prop', () => {
+    expect(src).toContain('selectOnFocus = false');
+  });
+
+  it('calls select() on focus when selectOnFocus is true', () => {
+    expect(src).toContain('(e.target as HTMLInputElement | HTMLTextAreaElement).select()');
+    expect(src).toContain('onfocus={handleFocus}');
+  });
 });

@@ -71,6 +71,33 @@ type ProductLookup interface {
 	GetProductByID(ctx context.Context, id int) (sku string, name string, stock int, storeID *int, err error)
 }
 
+func NewPOReceivedListener(hub *Hub) eventbus.Listener {
+	return eventbus.NewListenerFunc(
+		[]eventbus.EventType{eventbus.EventType("goods_receipt.created")},
+		func(ctx context.Context, event eventbus.Event) error {
+			payload, ok := event.Payload.(map[string]interface{})
+			if !ok {
+				slog.Warn("[ws] unexpected payload type for goods_receipt.created", "type", fmt.Sprintf("%T", event.Payload))
+				return nil
+			}
+			poID, _ := payload["po_id"].(int)
+			poNumber, _ := payload["po_number"].(string)
+			grNumber, _ := payload["gr_number"].(string)
+			var storeID *int
+			if sid, ok := payload["store_id"].(int); ok && sid > 0 {
+				storeID = &sid
+			}
+			BroadcastPOReceived(hub, POReceivedEvent{
+				POID:     poID,
+				PONumber: poNumber,
+				GRNumber: grNumber,
+				StoreID:  storeID,
+			})
+			return nil
+		},
+	)
+}
+
 func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listener {
 	return eventbus.NewListenerFunc(
 		[]eventbus.EventType{eventbus.StockAdjusted},

@@ -32,6 +32,7 @@ func TestEventTypes(t *testing.T) {
 	assert.Equal(t, EventType("low_stock_alert"), EventLowStockAlert)
 	assert.Equal(t, EventType("product_updated"), EventProductUpdate)
 	assert.Equal(t, EventType("user_online_count"), EventUserOnline)
+	assert.Equal(t, EventType("po_received"), EventPOReceived)
 }
 
 func TestEventJSONMarshaling(t *testing.T) {
@@ -55,14 +56,7 @@ func TestBroadcastStockUpdate_NilHub(t *testing.T) {
 }
 
 func TestBroadcastStockUpdate_WithHub(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -97,14 +91,7 @@ func TestBroadcastSaleCreated_NilHub(t *testing.T) {
 }
 
 func TestBroadcastSaleCreated_WithHub(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -136,14 +123,7 @@ func TestBroadcastProductUpdate_NilHub(t *testing.T) {
 }
 
 func TestBroadcastProductUpdate_WithHub(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -176,14 +156,7 @@ func TestBroadcastLowStockAlert_NilHub(t *testing.T) {
 }
 
 func TestBroadcastLowStockAlert_WithHub(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -211,14 +184,7 @@ func TestBroadcastLowStockAlert_WithHub(t *testing.T) {
 }
 
 func TestBroadcastStockUpdate_StoreFiltering(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -265,14 +231,7 @@ doneStock:
 }
 
 func TestBroadcastSaleCreated_StoreFiltering(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -300,14 +259,7 @@ func TestBroadcastSaleCreated_StoreFiltering(t *testing.T) {
 }
 
 func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
-	}
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 
@@ -329,13 +281,12 @@ func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
 		StoreID: store1,
 	})
 
-	msg, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+	_, ok := waitForMessage(t, adminClient.send, func(s string) bool {
 		return strings.Contains(s, "product_updated")
 	}, 2*time.Second)
 	if !ok {
 		t.Fatal("timeout: admin should receive broadcast")
 	}
-	_ = msg
 
 	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
 		return strings.Contains(s, "product_updated")
@@ -345,15 +296,89 @@ func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
 	}
 }
 
-func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
-	hub := &Hub{
-		clients:         make(map[*Client]bool),
-		register:        make(chan *Client, 100),
-		unregister:      make(chan *Client, 100),
-		broadcast:       make(chan Event, 1000),
-		userConnections: make(map[int]int),
-		done:            make(chan struct{}),
+func TestBroadcastPOReceived_NilHub(t *testing.T) {
+	BroadcastPOReceived(nil, POReceivedEvent{POID: 1, PONumber: "PO-001", GRNumber: "GR-001"})
+}
+
+func TestBroadcastPOReceived_WithHub(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	BroadcastPOReceived(hub, POReceivedEvent{
+		POID:     42,
+		PONumber: "PO-042",
+		GRNumber: "GR-007",
+	})
+
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "po_received") && strings.Contains(s, "PO-042") && strings.Contains(s, "GR-007")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for po_received broadcast")
 	}
+
+	var event Event
+	err := json.Unmarshal([]byte(msg), &event)
+	assert.NoError(t, err)
+	assert.Equal(t, EventPOReceived, event.Type)
+}
+
+func TestBroadcastPOReceived_AdminReceivesWithStoreID(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	store1 := intPtr(1)
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	BroadcastPOReceived(hub, POReceivedEvent{
+		POID:     1,
+		PONumber: "PO-001",
+		GRNumber: "GR-001",
+		StoreID:  store1,
+	})
+
+	_, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "po_received")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for po_received broadcast with store_id")
+	}
+}
+
+func TestBroadcastPOReceived_StoreFiltering(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	store1 := intPtr(1)
+	store2 := intPtr(2)
+
+	regularClient := registerClient(t, hub, 1, store2, false)
+	drainMessages(regularClient.send)
+
+	BroadcastPOReceived(hub, POReceivedEvent{
+		POID:     1,
+		PONumber: "PO-001",
+		GRNumber: "GR-001",
+		StoreID:  store1,
+	})
+
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "po_received")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive po_received")
+	}
+}
+
+func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
+	hub := newListenerHub()
 	go hub.Run()
 	defer hub.Shutdown()
 

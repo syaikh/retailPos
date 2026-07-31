@@ -10,14 +10,17 @@ import (
 	"retail-pos-system/internal/eventbus"
 )
 
-func TestPurchaseService_CreateDraft(t *testing.T) {
+func newSvc(t *testing.T) (*Service, *eventbus.Bus, context.Context) {
+	t.Helper()
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
 	go bus.Run()
-	defer bus.Shutdown()
+	t.Cleanup(bus.Shutdown)
+	return NewService(repo, bus), bus, context.Background()
+}
 
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+func TestPurchaseService_CreateDraft(t *testing.T) {
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Draft Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-DRAFT-001", "Draft Product", 10000, 100)
@@ -48,13 +51,7 @@ func TestPurchaseService_CreateDraft(t *testing.T) {
 }
 
 func TestPurchaseService_Confirm(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Confirm Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-CONF-001", "Confirm Product", 10000, 100)
@@ -90,13 +87,7 @@ func TestPurchaseService_Confirm(t *testing.T) {
 }
 
 func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Cancel Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-CANCEL-001", "Cancel Product", 10000, 100)
@@ -123,7 +114,8 @@ func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
 	err = svc.Confirm(ctx, po.ID, userID)
 	require.NoError(t, err)
 
-	po, _ = svc.GetDetail(ctx, po.ID, nil)
+	po, err = svc.GetDetail(ctx, po.ID, nil)
+	require.NoError(t, err)
 
 	grItems := []CreateGRItemInput{
 		{
@@ -140,13 +132,7 @@ func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
 }
 
 func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Receive Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-RECV-001", "Receive Product", 10000, 100)
@@ -173,7 +159,8 @@ func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
 	err = svc.Confirm(ctx, po.ID, userID)
 	require.NoError(t, err)
 
-	po, _ = svc.GetDetail(ctx, po.ID, nil)
+	po, err = svc.GetDetail(ctx, po.ID, nil)
+	require.NoError(t, err)
 
 	grItems1 := []CreateGRItemInput{
 		{
@@ -207,13 +194,7 @@ func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
 }
 
 func TestPurchaseService_OverReceivePrevented(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc OverReceive Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-OVER-001", "OverReceive Product", 10000, 100)
@@ -240,7 +221,8 @@ func TestPurchaseService_OverReceivePrevented(t *testing.T) {
 	err = svc.Confirm(ctx, po.ID, userID)
 	require.NoError(t, err)
 
-	po, _ = svc.GetDetail(ctx, po.ID, nil)
+	po, err = svc.GetDetail(ctx, po.ID, nil)
+	require.NoError(t, err)
 
 	grItems := []CreateGRItemInput{
 		{
@@ -250,17 +232,132 @@ func TestPurchaseService_OverReceivePrevented(t *testing.T) {
 		},
 	}
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrOverReceiving)
+}
+
+func TestPurchaseService_UpdateDraft(t *testing.T) {
+	svc, _, ctx := newSvc(t)
+
+	supplierID := insertTestSupplier(t, ctx, "Svc Update Supplier")
+	prodID := insertTestProduct(t, ctx, "SVC-UPD-001", "Update Product", 10000, 100)
+	userID := insertTestUser(t, ctx, "po_update_user")
+
+	po := &PurchaseOrder{
+		SupplierID: supplierID,
+		StoreID:    1,
+		CreatedBy:  userID,
+		UpdatedBy:  userID,
+	}
+	items := []PurchaseOrderItem{
+		{
+			ProductID:  prodID,
+			QtyOrdered: 5,
+			UnitCost:   8000,
+		},
+	}
+
+	err := svc.CreateDraft(ctx, po, items)
+	require.NoError(t, err)
+
+	t.Run("updates draft PO with enriched product names", func(t *testing.T) {
+		updated := &PurchaseOrder{
+			SupplierID: supplierID,
+			StoreID:    1,
+			UpdatedBy:  userID,
+		}
+		updatedItems := []PurchaseOrderItem{
+			{
+				ProductID:  prodID,
+				QtyOrdered: 10,
+				UnitCost:   8000,
+			},
+		}
+
+		err := svc.UpdateDraft(ctx, po.ID, updated, updatedItems)
+		require.NoError(t, err)
+
+		fetched, err := svc.GetDetail(ctx, po.ID, nil)
+		require.NoError(t, err)
+		assert.Equal(t, StatusDraft, fetched.Status)
+		assert.Equal(t, "Update Product", fetched.Items[0].ProductName)
+		assert.Equal(t, "SVC-UPD-001", fetched.Items[0].SKU)
+		assert.Equal(t, 10, fetched.Items[0].QtyOrdered)
+		assert.Equal(t, 80000, fetched.Subtotal)
+		assert.Equal(t, 80000, fetched.GrandTotal)
+	})
+
+	t.Run("rejects update when PO is confirmed", func(t *testing.T) {
+		confirmPO := &PurchaseOrder{
+			SupplierID: supplierID,
+			StoreID:    1,
+			CreatedBy:  userID,
+			UpdatedBy:  userID,
+		}
+		confirmItems := []PurchaseOrderItem{
+			{ProductID: prodID, QtyOrdered: 3, UnitCost: 8000},
+		}
+		err := svc.CreateDraft(ctx, confirmPO, confirmItems)
+		require.NoError(t, err)
+		err = svc.Confirm(ctx, confirmPO.ID, userID)
+		require.NoError(t, err)
+
+		err = svc.UpdateDraft(ctx, confirmPO.ID, confirmPO, confirmItems)
+		assert.ErrorIs(t, err, ErrPurchaseOrderNotDraft)
+	})
+
+	t.Run("rejects update with zero UpdatedBy", func(t *testing.T) {
+		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1}, items)
+		assert.ErrorContains(t, err, "updated_by is required")
+	})
+
+	t.Run("empty items returns error", func(t *testing.T) {
+		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, nil)
+		assert.ErrorContains(t, err, "items cannot be empty")
+	})
+
+	t.Run("duplicate product IDs returns error", func(t *testing.T) {
+		dupItems := []PurchaseOrderItem{
+			{ProductID: prodID, QtyOrdered: 2, UnitCost: 8000},
+			{ProductID: prodID, QtyOrdered: 3, UnitCost: 8000},
+		}
+		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, dupItems)
+		assert.ErrorIs(t, err, ErrDuplicatePOItem)
+	})
+
+	t.Run("enriches items with product lookup even with discount_amount", func(t *testing.T) {
+		discountPO := &PurchaseOrder{
+			SupplierID: supplierID,
+			StoreID:    1,
+			CreatedBy:  userID,
+			UpdatedBy:  userID,
+		}
+		discountItems := []PurchaseOrderItem{
+			{ProductID: prodID, QtyOrdered: 10, UnitCost: 10000, DiscountAmount: 5000},
+		}
+		err := svc.CreateDraft(ctx, discountPO, discountItems)
+		require.NoError(t, err)
+
+		updated := &PurchaseOrder{
+			SupplierID: supplierID,
+			StoreID:    1,
+			UpdatedBy:  userID,
+		}
+		updatedItems := []PurchaseOrderItem{
+			{ProductID: prodID, QtyOrdered: 10, UnitCost: 10000, DiscountAmount: 5000},
+		}
+		err = svc.UpdateDraft(ctx, discountPO.ID, updated, updatedItems)
+		require.NoError(t, err)
+
+		fetched, err := svc.GetDetail(ctx, discountPO.ID, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "Update Product", fetched.Items[0].ProductName)
+		assert.Equal(t, 10, fetched.Items[0].QtyOrdered)
+		assert.Equal(t, 95000, fetched.Subtotal)
+	})
 }
 
 func TestPurchaseService_DuplicateItemRejected(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Dup Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-DUP-001", "Dup Product", 10000, 100)
@@ -294,13 +391,7 @@ func TestPurchaseService_DuplicateItemRejected(t *testing.T) {
 }
 
 func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
-	repo := NewRepository(dbPool)
-	bus := eventbus.New()
-	go bus.Run()
-	defer bus.Shutdown()
-
-	svc := NewService(repo, bus)
-	ctx := context.Background()
+	svc, _, ctx := newSvc(t)
 
 	supplierID := insertTestSupplier(t, ctx, "Svc Draft Receive Supplier")
 	prodID := insertTestProduct(t, ctx, "SVC-DRAFT-RECV-001", "Draft Receive Product", 10000, 100)
@@ -325,7 +416,8 @@ func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
 	err := svc.CreateDraft(ctx, po, items)
 	require.NoError(t, err)
 
-	po, _ = svc.GetDetail(ctx, po.ID, nil)
+	po, err = svc.GetDetail(ctx, po.ID, nil)
+	require.NoError(t, err)
 
 	grItems := []CreateGRItemInput{
 		{
@@ -335,5 +427,5 @@ func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
 		},
 	}
 	_, err = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidPOStatusForReceiving)
 }

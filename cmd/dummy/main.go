@@ -2429,6 +2429,39 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 
 					expectedDate := createdAt.AddDate(0, 0, 3+rand.Intn(12))
 
+					// Optional fields — ~50% chance to populate each
+					var paymentTerm, deliveryAddress, supplierRef, notes *string
+					if rand.Intn(2) == 0 {
+						terms := []string{"Cash on Delivery", "Net 7", "Net 14", "Net 30", "DP 50%"}
+						v := terms[rand.Intn(len(terms))]
+						paymentTerm = &v
+					}
+					if rand.Intn(2) == 0 {
+						v := fmt.Sprintf("Jl. Contoh No.%d, Jakarta", 1+rand.Intn(100))
+						deliveryAddress = &v
+					}
+					if rand.Intn(2) == 0 {
+						v := fmt.Sprintf("REF-%d", 1000+rand.Intn(9000))
+						supplierRef = &v
+					}
+					if rand.Intn(2) == 0 {
+						v := fmt.Sprintf("PO notes batch %d", job.seq)
+						notes = &v
+					}
+
+					// ~20% chance of discount_amount and tax_amount
+					var discAmt, taxAmt int
+					if rand.Intn(5) == 0 {
+						discAmt = int(float64(subtotal) * (0.05 + rand.Float64()*0.10))
+					}
+					if rand.Intn(5) == 0 {
+						taxAmt = int(float64(subtotal-discAmt) * 0.11)
+					}
+					grandTotal := subtotal - discAmt + taxAmt
+					if grandTotal < 0 {
+						grandTotal = subtotal
+					}
+
 					tx, err := db.BeginTx(ctx, nil)
 					if err != nil {
 						return poResult{}, fmt.Errorf("begin tx: %w", err)
@@ -2444,11 +2477,15 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					err = tx.QueryRowContext(ctx, `
 						INSERT INTO purchase_orders
 							(po_number, supplier_id, store_id, status, expected_date,
+							 payment_term, delivery_address, supplier_reference_number, notes,
+							 discount_amount, tax_amount,
 							 subtotal, grand_total, created_by, updated_by, created_at, updated_at)
-						VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$9)
+						VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
 						RETURNING id
 					`, poNum, supID, storeID, status, expectedDate,
-						subtotal, createdBy, updatedBy, createdAt,
+						paymentTerm, deliveryAddress, supplierRef, notes,
+						discAmt, taxAmt,
+						subtotal, grandTotal, createdBy, updatedBy, createdAt,
 					).Scan(&poID)
 					if err != nil {
 						return poResult{}, fmt.Errorf("insert PO: %w", err)
@@ -2605,13 +2642,26 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		grInserted++
 		grNum := fmt.Sprintf("GR-%s-%05d", receivedAt.Format("2006-01"), grInserted)
 
+		// Optional GR fields — ~50% chance
+		var doNumber, grNotes *string
+		if rand.Intn(2) == 0 {
+			v := fmt.Sprintf("DO-%s-%04d", receivedAt.Format("200601"), rand.Intn(9999))
+			doNumber = &v
+		}
+		if rand.Intn(2) == 0 {
+			v := fmt.Sprintf("GR notes for PO %d", po.poID)
+			grNotes = &v
+		}
+
 		var grID int
 		err = tx.QueryRowContext(ctx, `
 			INSERT INTO goods_receipts
-				(gr_number, purchase_order_id, store_id, received_by, received_at, created_at)
-			VALUES ($1,$2,$3,$4,$5,$5)
+				(gr_number, purchase_order_id, store_id, received_by, received_at,
+				 delivery_order_number, notes, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$5)
 			RETURNING id
 		`, grNum, po.poID, storeID, receivedBy, receivedAt,
+			doNumber, grNotes,
 		).Scan(&grID)
 		if err != nil {
 			return fmt.Errorf("insert GR: %w", err)

@@ -68,6 +68,7 @@ const (
 	EventLowStockAlert EventType = "low_stock_alert"
 	EventProductUpdate EventType = "product_updated"
 	EventUserOnline    EventType = "user_online_count"
+	EventPOReceived    EventType = "po_received"
 )
 
 type Event struct {
@@ -575,6 +576,25 @@ func BroadcastLowStockAlert(hub *Hub, event LowStockAlertEvent) {
 	payload, _ := json.Marshal(event)
 	hub.Broadcast(Event{
 		Type:    EventLowStockAlert,
+		Payload: payload,
+		StoreID: event.StoreID,
+	})
+}
+
+type POReceivedEvent struct {
+	POID     int    `json:"po_id"`
+	PONumber string `json:"po_number"`
+	GRNumber string `json:"gr_number"`
+	StoreID  *int   `json:"-"`
+}
+
+func BroadcastPOReceived(hub *Hub, event POReceivedEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    EventPOReceived,
 		Payload: payload,
 		StoreID: event.StoreID,
 	})

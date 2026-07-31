@@ -78,10 +78,7 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
       (await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json())).stock;
     expect(stock1).toBe(partialStock);
 
-    // ---- Navigate to PO list and wait for bell notification ----
-    await page.goto('/purchase-orders');
-    await page.waitForTimeout(2000);
-
+    // ---- Check bell notification (WS was just received, still in memory) ----
     const bellBtn = page.locator('button[aria-label="Notifications"]');
     await expect(bellBtn.locator('span').first()).toBeVisible({ timeout: 20000 });
 
@@ -97,15 +94,10 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
     await expect(stockNotif).toBeVisible({ timeout: 5000 });
     await expect(stockNotif).toContainText('Stok Diubah');
 
-    // Click notification -> should navigate to product page and open drawer
+    // Click notification -> should navigate to product page
     await stockNotif.click();
-    await page.waitForTimeout(1500);
-
-    // Verify product detail drawer shows partial stock
-    const drawer = page.locator('[role="dialog"][aria-label*="Product"]').or(page.locator('[role="dialog"]')).first();
-    if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await expect(drawer).toContainText(String(partialStock));
-    }
+    await page.waitForURL('**/products/**', { timeout: 10000 });
+    await expect(page.locator('h2, h3, [role="heading"]').filter({ hasText: product.name })).toBeVisible({ timeout: 5000 });
 
     // ---- FULL GR ----
     await page.goto('/purchase-orders');
@@ -125,10 +117,7 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
       (await (await request.get(`${API_BASE}/api/products/${product.id}`, { headers })).json())).stock;
     expect(stock2).toBe(finalStock);
 
-    // Wait for second bell notification
-    await page.reload();
-    await page.waitForTimeout(2000);
-
+    // Check second bell notification (WS was just received on current page)
     await expect(bellBtn.locator('span').first()).toBeVisible({ timeout: 20000 });
     await bellBtn.click();
     await page.waitForTimeout(500);
@@ -138,11 +127,8 @@ test.describe('Purchase Orders - Notification Bell on Goods Receipt', () => {
     await expect(notif2).toContainText('Stok Diubah');
 
     await notif2.click();
-    await page.waitForTimeout(1500);
-
-    if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await expect(drawer).toContainText(String(finalStock));
-    }
+    await page.waitForURL('**/products/**', { timeout: 10000 });
+    await expect(page.locator('h2, h3, [role="heading"]').filter({ hasText: product.name })).toBeVisible({ timeout: 5000 });
 
     // Verify table shows Fully Received
     await page.goto('/purchase-orders');

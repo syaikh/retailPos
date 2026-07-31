@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
 
-export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated';
+export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated' | 'po_received';
 
 export interface Notification {
   id: string;
@@ -74,5 +74,6 @@ export function getNotificationIcon(type: NotificationType): string {
     case 'sale_created': return '🛒';
     case 'stock_update': return '📦';
     case 'product_updated': return '✏️';
+    case 'po_received': return '📥';
   }
 }

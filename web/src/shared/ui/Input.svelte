@@ -10,6 +10,7 @@
     oninput: externalOninput,
     elementRef,
     error = '',
+    selectOnFocus = false,
     ...rest
   }: {
     tag?: 'input' | 'select' | 'textarea';
@@ -19,6 +20,7 @@
     oninput?: (e: Event) => void;
     elementRef?: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void;
     error?: string;
+    selectOnFocus?: boolean;
     [key: string]: unknown;
   } = $props();
 
@@ -33,6 +35,12 @@
   function refAction(el: Element) {
     elementRef?.(el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement);
     return {};
+  }
+
+  function handleFocus(e: FocusEvent) {
+    if (selectOnFocus) {
+      (e.target as HTMLInputElement | HTMLTextAreaElement).select();
+    }
   }
 </script>
 
@@ -49,6 +57,7 @@
     aria-invalid={!!error}
     aria-describedby={error ? `${inputId}-error` : undefined}
     oninput={handleInput}
+    onfocus={handleFocus}
     use:refAction
     {...rest}
   />
@@ -68,6 +77,7 @@
     aria-invalid={!!error}
     aria-describedby={error ? `${inputId}-error` : undefined}
     oninput={handleInput}
+    onfocus={handleFocus}
     use:refAction
     {...rest}
   >

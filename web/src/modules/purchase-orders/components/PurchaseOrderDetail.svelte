@@ -1,32 +1,54 @@
 <script lang="ts">
   import { Drawer, Badge, Button } from '$shared/ui';
-  import { getPurchaseOrderById } from '../services/po-service';
-  import type { PurchaseOrder } from '../types';
-  import { Loader2, Package, Printer } from 'lucide-svelte';
+  import { getPurchaseOrderById, getReceipts } from '../services/po-service';
+  import type { PurchaseOrder, GoodsReceipt } from '../types';
+  import { Loader2, Package, Printer, Pencil, Check, XCircle, Copy, Truck } from 'lucide-svelte';
 
   let {
     poId = $bindable(),
     open = $bindable(false),
+    reloadKey = 0,
+    onedit,
+    onconfirm,
+    oncancel,
+    onreceive,
+    canEdit = false,
+    canConfirm = false,
+    canCancel = false,
+    canReceive = false,
   }: {
     poId?: number | null;
     open?: boolean;
+    reloadKey?: number;
+    onedit?: (po: PurchaseOrder) => void;
+    onconfirm?: (po: PurchaseOrder) => void;
+    oncancel?: (po: PurchaseOrder) => void;
+    onreceive?: (po: PurchaseOrder) => void;
+    canEdit?: boolean;
+    canConfirm?: boolean;
+    canCancel?: boolean;
+    canReceive?: boolean;
   } = $props();
 
   let po = $state<PurchaseOrder | null>(null);
+  let receipts = $state<GoodsReceipt[]>([]);
   let loading = $state(false);
+  let poCopied = $state(false);
 
   $effect(() => {
     if (open && poId) {
       loadPO(poId);
     } else if (!open) {
-      po = null;
+      poCopied = false;
     }
+    reloadKey; // tracked dependency
   });
 
   async function loadPO(id: number) {
     loading = true;
     try {
       po = await getPurchaseOrderById(id);
+      receipts = await getReceipts(id);
     } catch {
       po = null;
     } finally {
@@ -74,6 +96,27 @@
   {:else}
     <div class="space-y-6">
       <div class="flex items-center justify-between">
+        <span class="flex items-center gap-3">
+          <span class="flex items-center gap-2">
+            <span class="text-base font-semibold">{po!.po_number}</span>
+            <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin nomor PO" aria-label="Salin nomor PO" onclick={() => { navigator.clipboard.writeText(po!.po_number!); poCopied = true; setTimeout(() => poCopied = false, 1500); }}>
+              {#if poCopied}
+                <span class="text-xs text-primary font-bold leading-none">✓</span>
+              {:else}
+                <Copy size={14} class="text-text-muted hover:text-primary" />
+              {/if}
+            </button>
+          </span>
+          {#if receipts.length > 0}
+            <span class="flex items-center gap-1.5 text-sm text-text-muted border-l border-border pl-3">
+              <Truck size={14} />
+              <span class="font-medium text-text-primary">DO#</span>
+              {#each receipts as r, i}
+                <span>{r.delivery_order_number || '-'}{i < receipts.length - 1 ? ',' : ''}</span>
+              {/each}
+            </span>
+          {/if}
+        </span>
         <Badge variant={getStatusVariant(po.status)} size="sm">{titleCase(po.status)}</Badge>
       </div>
 
@@ -166,8 +209,35 @@
   {/if}
 
   {#snippet footer()}
-    <div class="flex items-center justify-between w-full">
-      <div></div>
+    <div class="flex items-center justify-between w-full gap-2">
+      <div class="flex items-center gap-2">
+        {#if po}
+          {#if canEdit && po.status === 'draft'}
+            <Button variant="secondary" size="sm" onclick={() => onedit?.(po!)}>
+              <Pencil size={14} />
+              Edit
+            </Button>
+          {/if}
+          {#if canConfirm && po.status === 'draft'}
+            <Button variant="primary" size="sm" onclick={() => onconfirm?.(po!)}>
+              <Check size={14} />
+              Confirm
+            </Button>
+          {/if}
+          {#if canReceive && (po.status === 'confirmed' || po.status === 'partial_received')}
+            <Button variant="primary" size="sm" onclick={() => onreceive?.(po!)}>
+              <Package size={14} />
+              Receive
+            </Button>
+          {/if}
+          {#if canCancel && (po.status === 'draft' || po.status === 'confirmed')}
+            <Button variant="secondary" size="sm" onclick={() => oncancel?.(po!)}>
+              <XCircle size={14} />
+              Cancel PO
+            </Button>
+          {/if}
+        {/if}
+      </div>
       <Button variant="secondary" size="sm" onclick={() => window.print()} disabled={!po}>
         <Printer size={14} />
         Print

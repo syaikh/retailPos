@@ -24,6 +24,7 @@
   let showForm = $state(false);
   let selectedPOForDetail = $state<number | null>(null);
   let showDetail = $state(false);
+  let detailReloadKey = $state(0);
   let selectedPOForReceipt = $state<number | null>(null);
   let showReceiptModal = $state(false);
 
@@ -56,6 +57,7 @@
 
   function handleView(po: any) {
     selectedPOForDetail = po.id;
+    detailReloadKey += 1;
     showDetail = true;
   }
 
@@ -143,6 +145,18 @@
 
   <PurchaseOrderForm bind:open={showForm} />
 
-  <PurchaseOrderDetail bind:poId={selectedPOForDetail} bind:open={showDetail} />
+  <PurchaseOrderDetail
+    bind:poId={selectedPOForDetail}
+    bind:open={showDetail}
+    reloadKey={detailReloadKey}
+    {canEdit}
+    {canConfirm}
+    {canCancel}
+    {canReceive}
+    onedit={(po) => { showDetail = false; handleEdit(po); }}
+    onconfirm={(po) => { showDetail = false; handleConfirm(po); }}
+    oncancel={(po) => { showDetail = false; handleCancel(po); }}
+    onreceive={(po) => { showDetail = false; handleReceipt(po); }}
+  />
 
   <GoodsReceiptModal poId={selectedPOForReceipt} bind:open={showReceiptModal} onReceiptCreated={() => store.load(store.currentFilters)} />

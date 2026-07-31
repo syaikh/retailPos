@@ -393,6 +393,180 @@ func TestListener_EventTypes(t *testing.T) {
 	mock := &mockProductLookup{}
 	stockListener := NewStockAdjustedListener(hub, mock)
 	assert.Equal(t, []eventbus.EventType{eventbus.StockAdjusted}, stockListener.EventTypes())
+
+	poListener := NewPOReceivedListener(hub)
+	assert.Equal(t, []eventbus.EventType{eventbus.EventType("goods_receipt.created")}, poListener.EventTypes())
+}
+
+func TestNewPOReceivedListener(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	listener := NewPOReceivedListener(hub)
+	assert.Contains(t, listener.EventTypes(), eventbus.EventType("goods_receipt.created"))
+
+	t.Run("broadcasts po_received on valid event", func(t *testing.T) {
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{
+				"po_id":     42,
+				"po_number": "PO-042",
+				"gr_number": "GR-007",
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "po_received") && strings.Contains(s, "PO-042") && strings.Contains(s, "GR-007")
+		}, 2*time.Second)
+		if !ok {
+			t.Fatal("timeout waiting for po_received broadcast")
+		}
+		_ = msg
+	})
+
+	t.Run("wrong payload type returns nil without error", func(t *testing.T) {
+		drainMessages(client.send)
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type:    eventbus.EventType("goods_receipt.created"),
+			Payload: "not a map",
+		})
+		assert.NoError(t, err)
+
+		msg, found := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 300*time.Millisecond)
+		if found {
+			t.Fatalf("should not broadcast on wrong payload type, got: %s", msg)
+		}
+	})
+
+	t.Run("missing fields produce empty broadcast", func(t *testing.T) {
+		drainMessages(client.send)
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type:    eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 2*time.Second)
+		if !ok {
+			t.Fatal("timeout waiting for po_received with empty payload")
+		}
+		var event Event
+		err = json.Unmarshal([]byte(msg), &event)
+		assert.NoError(t, err)
+		assert.Equal(t, EventPOReceived, event.Type)
+	})
+
+	t.Run("forwards store_id from payload to broadcast event", func(t *testing.T) {
+		drainMessages(client.send)
+
+		sid := 5
+		storeScopedClient := registerClient(t, hub, 2, &sid, false)
+		drainMessages(storeScopedClient.send)
+
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{
+				"po_id":     99,
+				"po_number": "PO-099",
+				"gr_number": "GR-099",
+				"store_id":  5,
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 2*time.Second)
+		if !ok {
+			t.Fatal("timeout waiting for po_received with store_id")
+		}
+		assert.Contains(t, msg, "PO-099")
+		assert.Contains(t, msg, "GR-099")
+	})
+
+	t.Run("different store does not receive event", func(t *testing.T) {
+		drainMessages(client.send)
+
+		sid := 99
+		otherClient := registerClient(t, hub, 3, &sid, false)
+		drainMessages(otherClient.send)
+
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{
+				"po_id":     55,
+				"po_number": "PO-055",
+				"gr_number": "GR-055",
+				"store_id":  5,
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, found := waitForMessage(t, otherClient.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 300*time.Millisecond)
+		if found {
+			t.Fatalf("store-scoped client should not receive event for different store, got: %s", msg)
+		}
+	})
+
+	t.Run("admin receives event regardless of store", func(t *testing.T) {
+		drainMessages(client.send)
+
+		sid := 7
+		adminClient := registerClient(t, hub, 4, &sid, true)
+		drainMessages(adminClient.send)
+
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{
+				"po_id":     77,
+				"po_number": "PO-077",
+				"gr_number": "GR-077",
+				"store_id":  5,
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 2*time.Second)
+		if !ok {
+			t.Fatal("timeout waiting for admin to receive cross-store po_received")
+		}
+		assert.Contains(t, msg, "PO-077")
+	})
+
+	t.Run("missing store_id defaults to nil (broadcasts to all)", func(t *testing.T) {
+		drainMessages(client.send)
+
+		err := listener.HandleEvent(context.Background(), eventbus.Event{
+			Type: eventbus.EventType("goods_receipt.created"),
+			Payload: map[string]interface{}{
+				"po_id":     111,
+				"po_number": "PO-111",
+				"gr_number": "GR-111",
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+			return strings.Contains(s, "po_received")
+		}, 2*time.Second)
+		if !ok {
+			t.Fatal("timeout waiting for po_received with missing store_id")
+		}
+		assert.Contains(t, msg, "PO-111")
+	})
 }
 
 func TestHub_BroadcastUserCount(t *testing.T) {

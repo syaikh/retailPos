@@ -120,6 +120,14 @@
           navigateTo: `/inventory/products?product_id=${data.id}`,
         });
       }),
+      ws.on('po_received', (data: any) => {
+        notifications.push({
+          type: 'po_received',
+          title: 'PO Diterima',
+          description: `${data.po_number} — ${data.gr_number}`,
+          navigateTo: `/purchase-orders?po_id=${data.po_id}`,
+        });
+      }),
     ];
     return () => unsubs.forEach(fn => fn());
   });

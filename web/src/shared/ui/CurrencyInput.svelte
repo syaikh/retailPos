@@ -79,5 +79,6 @@
     {required}
     class="w-full bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted disabled:cursor-not-allowed"
     oninput={handleInput}
+    onfocus={(e) => (e.target as HTMLInputElement).select()}
   />
 </div>

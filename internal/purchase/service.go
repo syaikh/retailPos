@@ -109,6 +109,9 @@ func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, it
 	if po.SupplierID == 0 {
 		return fmt.Errorf("supplier_id is required")
 	}
+	if po.UpdatedBy == 0 {
+		return fmt.Errorf("updated_by is required")
+	}
 
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
@@ -144,6 +147,21 @@ func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, it
 	po.GrandTotal = po.Subtotal - po.DiscountAmount - po.TaxAmount
 	if po.GrandTotal < 0 {
 		po.GrandTotal = 0
+	}
+
+	productIDs := make([]int, len(items))
+	for i, item := range items {
+		productIDs[i] = item.ProductID
+	}
+	productMap, err := s.repo.GetProductNamesByIDs(ctx, productIDs)
+	if err != nil {
+		return fmt.Errorf("lookup products: %w", err)
+	}
+	for i, item := range items {
+		if info, ok := productMap[item.ProductID]; ok {
+			items[i].ProductName = info.Name
+			items[i].SKU = info.SKU
+		}
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -398,6 +416,8 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		"gr_id":     gr.ID,
 		"gr_number": gr.GRNumber,
 		"po_id":     poID,
+		"po_number": po.PONumber,
+		"store_id":  storeID,
 	})
 
 	if len(receiptItems) > 0 {

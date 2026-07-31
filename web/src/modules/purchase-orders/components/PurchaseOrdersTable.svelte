@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Badge, Skeleton, SortableHeader, Dropdown } from '$shared/ui';
-  import { MoreVertical, Eye, Pencil, Package, Check, XCircle } from 'lucide-svelte';
+  import { MoreVertical, Eye, Pencil, Package, Check, XCircle, Copy } from 'lucide-svelte';
   import type { PurchaseOrder } from '../types';
 
   let {
@@ -75,6 +75,18 @@
   function titleCase(str: string): string {
     return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
+
+  let copiedPOs = $state(new Set<number>());
+
+  function handleCopyPO(poId: number, poNumber: string) {
+    navigator.clipboard.writeText(poNumber);
+    copiedPOs = new Set([...copiedPOs, poId]);
+    setTimeout(() => {
+      const next = new Set(copiedPOs);
+      next.delete(poId);
+      copiedPOs = next;
+    }, 1500);
+  }
 </script>
 
 {#if loading}
@@ -82,12 +94,12 @@
     <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading purchase orders">
       <colgroup>
         <col style="width: 15%;" />
-        <col style="width: 22%;" />
+        <col style="width: 17%;" />
+        <col style="width: 18%;" />
+        <col style="width: 15%;" />
+        <col style="width: 15%;" />
         <col style="width: 12%;" />
-        <col style="width: 13%;" />
-        <col style="width: 13%;" />
-        <col style="width: 13%;" />
-        <col style="width: 12%;" />
+        <col style="width: 8%;" />
       </colgroup>
       <thead><tr><th>PO NUMBER</th><th>SUPPLIER</th><th>STATUS</th><th>EXPECTED DATE</th><th>GRAND TOTAL</th><th>CREATED AT</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
@@ -103,50 +115,61 @@
   </div>
 {:else}
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[900px]" style="table-layout: fixed;" role="grid" aria-label="Purchase orders">
+    <table class="w-full min-w-[1000px]" style="table-layout: fixed;" role="grid" aria-label="Purchase orders">
       <colgroup>
         <col style="width: 15%;" />
-        <col style="width: 22%;" />
+        <col style="width: 17%;" />
+        <col style="width: 18%;" />
+        <col style="width: 15%;" />
+        <col style="width: 15%;" />
         <col style="width: 12%;" />
-        <col style="width: 13%;" />
-        <col style="width: 13%;" />
-        <col style="width: 13%;" />
-        <col style="width: 12%;" />
+        <col style="width: 8%;" />
       </colgroup>
       <thead class="bg-muted/50">
         <tr class="border-b text-left text-sm text-text-muted">
-          <th class="px-4 py-3 font-semibold" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
             <SortableHeader label="PO NUMBER" column="po_number" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
             <SortableHeader label="SUPPLIER" column="supplier_name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
             <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
             <SortableHeader label="EXPECTED DATE" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold text-right" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">
             <SortableHeader label="GRAND TOTAL" column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
           </th>
-          <th class="px-4 py-3 font-semibold" scope="col">
+          <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
             <SortableHeader label="CREATED AT" column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold text-right" scope="col">ACTIONS</th>
+          <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">ACTIONS</th>
         </tr>
       </thead>
       <tbody>
           {#each purchaseOrders as po (po.id)}
             <tr class="border-b border-border transition-colors hover:bg-muted/50 cursor-pointer" onclick={() => onview(po)}>
-              <td class="px-4 py-3 text-sm font-medium truncate">{po.po_number}</td>
-              <td class="px-4 py-3 text-sm text-text-secondary truncate">{(po as any).supplier_name || 'N/A'}</td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3 text-sm font-medium max-w-0">
+                <span class="flex items-center gap-1.5">
+                  <span class="truncate">{po.po_number}</span>
+                  <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin nomor PO" aria-label="Salin nomor PO" onclick={(e) => { e.stopPropagation(); handleCopyPO(po.id, po.po_number); }}>
+                    {#if copiedPOs.has(po.id)}
+                      <span class="text-xs text-primary font-bold leading-none">✓</span>
+                    {:else}
+                      <Copy size={14} class="text-text-muted hover:text-primary" />
+                    {/if}
+                  </button>
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-text-secondary max-w-0"><span class="truncate block">{(po as any).supplier_name || 'N/A'}</span></td>
+              <td class="px-4 py-3 whitespace-nowrap">
                 <Badge variant={getStatusVariant(po.status)} size="sm">{titleCase(po.status)}</Badge>
               </td>
-              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.expected_date)}</td>
-              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums text-right">{formatCurrency(po.grand_total)}</td>
-              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums">{formatDate(po.created_at)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.expected_date)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums text-right whitespace-nowrap">{formatCurrency(po.grand_total)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.created_at)}</td>
               <td class="px-4 py-3 text-center">
                 <Dropdown items={[
                   ...(canView ? [{ label: 'View', icon: Eye, onclick: () => onview(po) }] : []),
