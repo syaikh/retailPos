@@ -117,7 +117,6 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
       headers,
       data: {
         purchase_order_id: poId,
-        delivery_order_number: `DO-E2E-${Date.now()}`,
         items: [
           {
             purchase_order_item_id: poItemId,
@@ -131,6 +130,7 @@ test.describe('Purchase Orders & Goods Receipts - Happy Path', () => {
     const body = await res.json();
     const gr = body.data || body;
     expect(gr.gr_number).toBeTruthy();
+    expect(gr.delivery_order_number).toMatch(/^DO-\d{4}-\d{6}$/);
     expect(gr.purchase_order_id).toBe(poId);
     expect(gr.items).toBeDefined();
     expect(gr.items.length).toBe(1);

@@ -342,13 +342,19 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		return nil, err
 	}
 
+	doNumber, err := s.repo.GetNextDONumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().In(shared.JakartaLocation()).Format(time.RFC3339)
 	gr := &GoodsReceipt{
-		GRNumber:        grNumber,
-		PurchaseOrderID: poID,
-		StoreID:         storeID,
-		ReceivedBy:      userID,
-		ReceivedAt:      now,
+		GRNumber:            grNumber,
+		DeliveryOrderNumber: doNumber,
+		PurchaseOrderID:     poID,
+		StoreID:             storeID,
+		ReceivedBy:          userID,
+		ReceivedAt:          now,
 	}
 
 	var grItems []GoodsReceiptItem
@@ -416,11 +422,12 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 
 	bgCtx := context.Background()
 	_ = s.eventBus.Publish(bgCtx, string(EventGoodsReceiptCreated), map[string]interface{}{
-		"gr_id":     gr.ID,
-		"gr_number": gr.GRNumber,
-		"po_id":     poID,
-		"po_number": po.PONumber,
-		"store_id":  storeID,
+		"gr_id":                gr.ID,
+		"gr_number":            gr.GRNumber,
+		"delivery_order_number": gr.DeliveryOrderNumber,
+		"po_id":                poID,
+		"po_number":            po.PONumber,
+		"store_id":             storeID,
 	})
 
 	if len(receiptItems) > 0 {

@@ -392,3 +392,9 @@ tbody tr {
   @apply transition-colors duration-150 hover:bg-surface-default/60;
 }
 
+/* Native date picker calendar indicator — white on dark theme */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+

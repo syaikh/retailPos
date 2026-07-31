@@ -10,7 +10,6 @@
   let po = $state<any>(null);
   let items = $state<any[]>([]);
   let saving = $state(false);
-  let deliveryOrderNumber = $state('');
   let notes = $state('');
 
   $effect(() => {
@@ -55,13 +54,13 @@
         toast.error('Please enter receiving quantities');
         return;
       }
-      await store.receive({
+      const result = await store.receive({
         purchase_order_id: poId,
-        delivery_order_number: deliveryOrderNumber,
         notes,
         items: validItems,
       });
-      toast.success('Goods receipt created');
+      const doNumber = result?.data?.delivery_order_number;
+      toast.success(doNumber ? `Goods receipt created (${doNumber})` : 'Goods receipt created');
       onReceiptCreated?.();
       handleClose();
     } catch (e: any) {
@@ -75,7 +74,6 @@
     open = false;
     po = null;
     items = [];
-    deliveryOrderNumber = '';
     notes = '';
   }
 </script>
@@ -87,19 +85,11 @@
     </div>
   {:else}
     <div class="space-y-6">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-            <span>Delivery Order Number</span>
-            <Input type="text" bind:value={deliveryOrderNumber} placeholder="DO-001" />
-          </label>
-        </div>
-        <div>
-          <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-            <span>Notes</span>
-            <Input type="text" bind:value={notes} placeholder="Receiving notes" />
-          </label>
-        </div>
+      <div>
+        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <span>Notes</span>
+          <Input type="text" bind:value={notes} placeholder="Receiving notes" />
+        </label>
       </div>
 
       <div>
@@ -127,10 +117,10 @@
                     <td class="px-3 py-3 text-sm text-text-muted text-right tabular-nums" colspan="2">Fully received ({item.qty_received})</td>
                   {:else}
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_damaged = Math.max(0, getRemainingQty(item) - item.qty_good); }} />
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_good} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_damaged = Math.max(0, getRemainingQty(item) - item.qty_good); }} />
                     </td>
                     <td class="px-3 py-3">
-                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_good = Math.max(0, getRemainingQty(item) - item.qty_damaged); }} />
+                      <Input type="number" min={0} max={getRemainingQty(item)} bind:value={item.qty_damaged} class="w-20 text-sm ml-auto" selectOnFocus oninput={() => { if (item.qty_good + item.qty_damaged > getRemainingQty(item)) item.qty_good = Math.max(0, getRemainingQty(item) - item.qty_damaged); }} />
                     </td>
                   {/if}
                 </tr>

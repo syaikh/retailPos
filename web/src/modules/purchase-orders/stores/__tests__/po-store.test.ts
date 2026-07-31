@@ -108,7 +108,7 @@ describe('po-store', () => {
       store = usePurchaseOrderStore();
       store.subscribeToWS();
 
-      const events = ws.on.mock.calls.map((c: [string]) => c[0]);
+      const events = ws.on.mock.calls.map(c => c[0]);
       expect(events).toEqual(['po_created', 'po_confirmed', 'po_cancelled', 'po_received']);
     });
 
@@ -119,7 +119,7 @@ describe('po-store', () => {
       store = usePurchaseOrderStore();
       const unsub = store.subscribeToWS();
 
-      const unsubCallbacks = ws.on.mock.results.map((r: { value: () => void }) => r.value);
+      const unsubCallbacks = ws.on.mock.results.map(r => r.value);
       expect(unsubCallbacks).toHaveLength(4);
 
       unsub();

@@ -368,10 +368,3 @@
     </div>
   {/snippet}
 </Modal>
-
-<style>
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: brightness(0) invert(1);
-    cursor: pointer;
-  }
-</style>

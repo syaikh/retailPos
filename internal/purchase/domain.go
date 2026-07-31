@@ -159,13 +159,12 @@ type UpdatePOItemRequest struct {
 }
 
 type CreateGoodsReceiptRequest struct {
-	PurchaseOrderID     int                     `json:"purchase_order_id" binding:"required"`
-	DeliveryOrderNumber string                  `json:"delivery_order_number,omitempty"`
-	ShippingMethod      string                  `json:"shipping_method,omitempty"`
-	DriverName          string                  `json:"driver_name,omitempty"`
-	VehiclePlateNumber  string                  `json:"vehicle_plate_number,omitempty"`
-	Notes               string                  `json:"notes,omitempty"`
-	Items               []CreateGRItemRequest   `json:"items" binding:"required"`
+	PurchaseOrderID    int                    `json:"purchase_order_id" binding:"required"`
+	ShippingMethod     string                 `json:"shipping_method,omitempty"`
+	DriverName         string                 `json:"driver_name,omitempty"`
+	VehiclePlateNumber string                 `json:"vehicle_plate_number,omitempty"`
+	Notes              string                 `json:"notes,omitempty"`
+	Items              []CreateGRItemRequest  `json:"items" binding:"required"`
 }
 
 type CreateGRItemRequest struct {

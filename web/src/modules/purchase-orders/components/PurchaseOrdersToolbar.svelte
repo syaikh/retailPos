@@ -181,7 +181,7 @@
         class="flex items-center gap-2 min-w-40 h-[38px] date-picker-trigger"
         onclick={openDatePicker}
       >
-        <CalendarDays size={16} class="text-text-secondary shrink-0" />
+        <CalendarDays size={16} class="text-white shrink-0" />
         <span class="text-sm font-medium truncate flex-1 text-left text-text-secondary">{dateRangeLabel}</span>
         <ChevronDown size={14} class="opacity-60 shrink-0" />
       </Button>

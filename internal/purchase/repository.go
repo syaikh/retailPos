@@ -45,6 +45,16 @@ func (r *Repository) GetNextGRNumber(ctx context.Context) (string, error) {
 	return fmt.Sprintf("GR-%d-%06d", year, seq), nil
 }
 
+func (r *Repository) GetNextDONumber(ctx context.Context) (string, error) {
+	var seq int
+	err := r.db.QueryRow(ctx, `SELECT nextval('do_seq')`).Scan(&seq)
+	if err != nil {
+		return "", fmt.Errorf("failed to get next DO number: %w", err)
+	}
+	year := time.Now().In(shared.JakartaLocation()).Year()
+	return fmt.Sprintf("DO-%d-%06d", year, seq), nil
+}
+
 func (r *Repository) CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *PurchaseOrder, items []PurchaseOrderItem) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
