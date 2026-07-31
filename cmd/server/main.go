@@ -120,7 +120,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.CORSOrigin},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: true,
@@ -155,6 +155,7 @@ func main() {
 		deps.ProductH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.PurchaseH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.SaleH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		deps.SaleH.RegisterCartRoutes(protected, noopAuth, permMiddleware)
 		deps.InventoryH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.CustomerH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.CategoryH.RegisterRoutes(protected, noopAuth, permMiddleware)

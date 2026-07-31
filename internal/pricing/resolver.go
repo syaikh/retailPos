@@ -17,6 +17,8 @@ type ResolverRepo interface {
 	GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error)
 	GetProductScopesBatch(ctx context.Context, productIDs []int) (map[int]ProductScope, error)
 	GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]PricingRule, error)
+	GetProductCostAndTax(ctx context.Context, productID int) (ProductCostTax, error)
+	GetProductCostAndTaxBatch(ctx context.Context, productIDs []int) (map[int]ProductCostTax, error)
 }
 
 // Resolver implements PriceResolver using a deterministic 8-step algorithm.
@@ -94,6 +96,87 @@ func (r *Resolver) ResolveBatch(ctx context.Context, items []ResolveItem) ([]Res
 	}
 
 	return results, nil
+}
+
+// ResolveSnapshot returns an immutable price snapshot (including cost & tax) for a single item.
+// The pricing engine runs the same deterministic algorithm as Resolve, then captures the
+// additional cost/tax fields and the snapshot timestamp.
+func (r *Resolver) ResolveSnapshot(ctx context.Context, rc ResolveContext) (*PriceSnapshot, error) {
+	resolved, err := r.Resolve(ctx, rc)
+	if err != nil {
+		return nil, err
+	}
+
+	costTax, err := r.repo.GetProductCostAndTax(ctx, rc.ProductID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PriceSnapshot{
+		ProductID:     rc.ProductID,
+		ProductName:   costTax.ProductName,
+		UnitPrice:     resolved.UnitPrice,
+		OriginalPrice: resolved.OriginalPrice,
+		Discount:      resolved.Discount,
+		PricingType:   resolved.PricingType,
+		PricingMethod: resolved.PricingMethod,
+		Rule:          resolved.Rule,
+		Cost:          costTax.Cost,
+		TaxClassID:    costTax.TaxClassID,
+		TaxRate:       costTax.TaxRate,
+		SnapshotAt:    time.Now().In(shared.JakartaLocation()),
+	}, nil
+}
+
+// ResolveSnapshotsBatch returns immutable price snapshots for multiple items.
+func (r *Resolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	if len(items) == 0 {
+		return []PriceSnapshot{}, nil
+	}
+
+	resolved, err := r.ResolveBatch(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[int]bool)
+	var productIDs []int
+	for _, item := range items {
+		if !seen[item.ProductID] {
+			seen[item.ProductID] = true
+			productIDs = append(productIDs, item.ProductID)
+		}
+	}
+
+	costTax, err := r.repo.GetProductCostAndTaxBatch(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().In(shared.JakartaLocation())
+	snapshots := make([]PriceSnapshot, len(items))
+	for i, item := range items {
+		ct, ok := costTax[item.ProductID]
+		if !ok {
+			ct = ProductCostTax{}
+		}
+		snapshots[i] = PriceSnapshot{
+			ProductID:     item.ProductID,
+			ProductName:   ct.ProductName,
+			UnitPrice:     resolved[i].UnitPrice,
+			OriginalPrice: resolved[i].OriginalPrice,
+			Discount:      resolved[i].Discount,
+			PricingType:   resolved[i].PricingType,
+			PricingMethod: resolved[i].PricingMethod,
+			Rule:          resolved[i].Rule,
+			Cost:          ct.Cost,
+			TaxClassID:    ct.TaxClassID,
+			TaxRate:       ct.TaxRate,
+			SnapshotAt:    now,
+		}
+	}
+
+	return snapshots, nil
 }
 
 // resolvePricing applies the deterministic resolution algorithm to a single product's

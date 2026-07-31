@@ -1,22 +1,21 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { Button } from '$shared/ui';
-  import { X, RotateCcw, Trash2 } from 'lucide-svelte';
+  import { X, RotateCcw } from 'lucide-svelte';
   import { tick } from 'svelte';
+  import type { CartSession } from '../../types';
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
 
   let {
     showModal = $bindable(false),
-    parkedSales = [],
+    heldCarts = [],
     onrecall = (id: number) => {},
-    oncancel = (id: number) => {},
   }: {
     showModal: boolean;
-    parkedSales: any[];
+    heldCarts: CartSession[];
     onrecall?: (id: number) => void;
-    oncancel?: (id: number) => void;
   } = $props();
 
   function close() {
@@ -57,36 +56,28 @@
         </button>
       </div>
 
-      {#if parkedSales.length === 0}
+      {#if heldCarts.length === 0}
         <p class="text-sm text-text-muted text-center py-8">No held sales</p>
       {:else}
         <div class="space-y-2">
-          {#each parkedSales as sale}
+          {#each heldCarts as cart (cart.id)}
             <div class="flex items-center justify-between px-3 py-3 rounded-lg border border-border hover:border-primary/40 transition-colors">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-text-primary truncate">{sale.invoice_number}</p>
+                <p class="text-sm font-medium text-text-primary truncate">Cart #{cart.id}</p>
                 <p class="text-xs text-text-muted">
-                  Rp {sale.total_amount?.toLocaleString('id-ID') || '0'} · {sale.items?.length || 0} items
+                  Rp {cart.total_amount?.toLocaleString('id-ID') || '0'} · {cart.items?.length || 0} items
                 </p>
               </div>
               <div class="flex items-center gap-1.5 shrink-0 ml-3">
                 <Button
                   data-action="recall"
-                  onclick={() => onrecall(sale.id)}
+                  onclick={() => onrecall(cart.id)}
                   variant="ghost"
                   size="sm"
                   class="text-xs text-primary-light hover:bg-primary-subtle"
                 >
                   <RotateCcw size={12} />
                   Recall
-                </Button>
-                <Button
-                  onclick={() => oncancel(sale.id)}
-                  variant="ghost"
-                  size="sm"
-                  class="text-xs text-danger hover:bg-danger-subtle"
-                >
-                  <Trash2 size={12} />
                 </Button>
               </div>
             </div>

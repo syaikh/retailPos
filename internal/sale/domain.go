@@ -54,6 +54,11 @@ type SaleItem struct {
 	PricingRuleType  *string `json:"pricing_rule_type,omitempty"`
 	PricingType      *string `json:"pricing_type,omitempty"`
 	OriginalPrice    *int    `json:"original_price,omitempty"`
+	Cost             int     `json:"cost,omitempty"`
+	TaxClassID       *int    `json:"tax_class_id,omitempty"`
+	TaxRate          *float64 `json:"tax_rate,omitempty"`
+	SnapshotCreatedAt string  `json:"snapshot_created_at,omitempty"`
+	ProductName      string  `json:"product_name,omitempty"`
 }
 
 type SalePayment struct {

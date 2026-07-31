@@ -83,6 +83,48 @@ func (m *mockPriceResolver) ResolveBatch(ctx context.Context, items []ResolveIte
 	return m.resolveBatchFn(ctx, items)
 }
 
+func (m *mockPriceResolver) ResolveSnapshot(ctx context.Context, rc ResolveContext) (*PriceSnapshot, error) {
+	if m.resolveFn != nil {
+		resolved, err := m.resolveFn(ctx, rc)
+		if err != nil {
+			return nil, err
+		}
+		return &PriceSnapshot{
+			ProductID:     rc.ProductID,
+			UnitPrice:     resolved.UnitPrice,
+			OriginalPrice: resolved.OriginalPrice,
+			Discount:      resolved.Discount,
+			PricingType:   resolved.PricingType,
+			PricingMethod: resolved.PricingMethod,
+			Rule:          resolved.Rule,
+		}, nil
+	}
+	return nil, nil
+}
+
+func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	if m.resolveBatchFn != nil {
+		resolved, err := m.resolveBatchFn(ctx, items)
+		if err != nil {
+			return nil, err
+		}
+		snapshots := make([]PriceSnapshot, len(resolved))
+		for i, r := range resolved {
+			snapshots[i] = PriceSnapshot{
+				ProductID:     items[i].ProductID,
+				UnitPrice:     r.UnitPrice,
+				OriginalPrice: r.OriginalPrice,
+				Discount:      r.Discount,
+				PricingType:   r.PricingType,
+				PricingMethod: r.PricingMethod,
+				Rule:          r.Rule,
+			}
+		}
+		return snapshots, nil
+	}
+	return nil, nil
+}
+
 type mockProductSearcher struct {
 	searchProductsFn func(ctx context.Context, query string, limit int) ([]ProductSearchResult, error)
 }

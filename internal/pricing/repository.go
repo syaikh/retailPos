@@ -47,6 +47,54 @@ func (r *Repository) GetProductScope(ctx context.Context, productID int) (catego
 	return categoryID, brandID, nil
 }
 
+func (r *Repository) GetProductCostAndTax(ctx context.Context, productID int) (ProductCostTax, error) {
+	var ct ProductCostTax
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(p.cost, 0), p.tax_class_id, tc.rate_percent, p.name
+		FROM products p
+		LEFT JOIN tax_classes tc ON tc.id = p.tax_class_id
+		WHERE p.id = $1 AND p.deleted_at IS NULL
+	`, productID).Scan(&ct.Cost, &ct.TaxClassID, &ct.TaxRate, &ct.ProductName)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return ProductCostTax{}, ErrProductNotFound
+		}
+		return ProductCostTax{}, err
+	}
+	return ct, nil
+}
+
+func (r *Repository) GetProductCostAndTaxBatch(ctx context.Context, productIDs []int) (map[int]ProductCostTax, error) {
+	if len(productIDs) == 0 {
+		return map[int]ProductCostTax{}, nil
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT p.id, COALESCE(p.cost, 0), p.tax_class_id, tc.rate_percent, p.name
+		FROM products p
+		LEFT JOIN tax_classes tc ON tc.id = p.tax_class_id
+		WHERE p.id = ANY($1) AND p.deleted_at IS NULL
+	`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]ProductCostTax, len(productIDs))
+	for rows.Next() {
+		var id int
+		var ct ProductCostTax
+		if err := rows.Scan(&id, &ct.Cost, &ct.TaxClassID, &ct.TaxRate, &ct.ProductName); err != nil {
+			return nil, err
+		}
+		result[id] = ct
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *Repository) GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error) {
 	if len(productIDs) == 0 {
 		return map[int]int{}, nil
