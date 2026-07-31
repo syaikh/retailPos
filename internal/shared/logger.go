@@ -22,7 +22,10 @@ func parseLogLevel(levelStr string) slog.Level {
 		return slog.LevelWarn
 	case "error":
 		return slog.LevelError
+	case "":
+		return slog.LevelInfo
 	default:
+		slog.Warn("unknown LOG_LEVEL, defaulting to info", "level", levelStr)
 		return slog.LevelInfo
 	}
 }
@@ -31,14 +34,14 @@ func InitLogger(env, levelStr string) {
 	once.Do(func() {
 		var handler slog.Handler
 		level := parseLogLevel(levelStr)
+		opts := &slog.HandlerOptions{
+			Level:     level,
+			AddSource: true,
+		}
 		if env == "production" {
-			handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-				Level: level,
-			})
+			handler = slog.NewJSONHandler(os.Stdout, opts)
 		} else {
-			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-				Level: level,
-			})
+			handler = slog.NewTextHandler(os.Stdout, opts)
 		}
 		globalLogger = slog.New(handler)
 		slog.SetDefault(globalLogger)

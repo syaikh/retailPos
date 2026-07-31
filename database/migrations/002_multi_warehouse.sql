@@ -6,6 +6,7 @@
 -- Created: 2026-07-24
 
 ALTER TABLE product_stock DROP CONSTRAINT IF EXISTS product_stock_product_id_key;
+ALTER TABLE product_stock DROP CONSTRAINT IF EXISTS uq_product_stock;
 
 ALTER TABLE product_stock ADD CONSTRAINT uq_product_stock
     UNIQUE NULLS NOT DISTINCT (product_id, warehouse_id, store_id);

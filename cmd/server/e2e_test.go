@@ -950,6 +950,7 @@ func TestE2E_ProductSearch(t *testing.T) {
 	t.Run("product handler search by full SKU", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/products?search="+sku+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -967,6 +968,7 @@ func TestE2E_ProductSearch(t *testing.T) {
 	t.Run("product handler search by full barcode", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/products?search="+barcode+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -989,6 +991,7 @@ func TestE2E_ProductSearch(t *testing.T) {
 		partial := sku[len(sku)-3:]
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/products?search="+partial+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -1357,7 +1360,7 @@ func TestE2E_SplitPayment(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-		t.Run("empty payments and no payment_method returns 400", func(t *testing.T) {
+	t.Run("empty payments and no payment_method returns 400", func(t *testing.T) {
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
 			"subtotal": 100000,

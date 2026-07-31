@@ -27,10 +27,10 @@ import (
 )
 
 const (
-	defaultMaxConns         = 25
-	defaultMinConns         = 5
-	defaultMaxConnLifetime  = 30 * time.Minute
-	defaultMaxConnIdleTime  = 5 * time.Minute
+	defaultMaxConns          = 25
+	defaultMinConns          = 5
+	defaultMaxConnLifetime   = 30 * time.Minute
+	defaultMaxConnIdleTime   = 5 * time.Minute
 	defaultHealthCheckPeriod = 15 * time.Second
 	defaultBodyLimit         = 32 << 20
 	defaultPort              = "9095"
@@ -115,12 +115,14 @@ func main() {
 		}
 	}()
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(middleware.RequestLoggingMiddleware())
+	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.CORSOrigin},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))

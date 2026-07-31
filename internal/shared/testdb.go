@@ -93,7 +93,9 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 		if _, err := pool.Exec(context.Background(), string(content)); err != nil {
 			return fmt.Errorf("exec %s: %w", f, err)
 		}
-		if _, err := pool.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1)", f); err != nil {
+		// Some migration files self-register into schema_migrations; ON CONFLICT
+		// keeps the recording step idempotent for those.
+		if _, err := pool.Exec(context.Background(), "INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", f); err != nil {
 			return fmt.Errorf("record %s: %w", f, err)
 		}
 	}

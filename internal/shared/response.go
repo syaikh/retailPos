@@ -1,8 +1,8 @@
 package shared
 
 import (
+	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,14 +10,14 @@ import (
 
 // Standard error codes for structured API error responses.
 const (
-	ErrBadRequest     = "BAD_REQUEST"
-	ErrNotFound       = "NOT_FOUND"
-	ErrUnauthorized   = "UNAUTHORIZED"
-	ErrForbidden      = "FORBIDDEN"
-	ErrConflict       = "CONFLICT"
-	ErrInternal       = "INTERNAL_ERROR"
-	ErrValidation     = "VALIDATION_ERROR"
-	ErrRateLimited    = "RATE_LIMITED"
+	ErrBadRequest   = "BAD_REQUEST"
+	ErrNotFound     = "NOT_FOUND"
+	ErrUnauthorized = "UNAUTHORIZED"
+	ErrForbidden    = "FORBIDDEN"
+	ErrConflict     = "CONFLICT"
+	ErrInternal     = "INTERNAL_ERROR"
+	ErrValidation   = "VALIDATION_ERROR"
+	ErrRateLimited  = "RATE_LIMITED"
 )
 
 type ErrorDetail struct {
@@ -59,7 +59,11 @@ func JSONError(c *gin.Context, status int, code, message string) {
 }
 
 func InternalError(c *gin.Context, err error) {
-	slog.Error("internal server error", "error", err)
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	LogError(ctx, "internal server error", err)
 	c.JSON(http.StatusInternalServerError, NewError(ErrInternal, "internal server error"))
 }
 

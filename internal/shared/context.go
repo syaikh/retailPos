@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"log/slog"
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -12,8 +12,10 @@ import (
 type CtxKey string
 
 const (
-	CtxKeyIPAddress CtxKey = "ipAddress"
-	CtxKeyUserAgent CtxKey = "userAgent"
+	CtxKeyIPAddress   CtxKey = "ipAddress"
+	CtxKeyUserAgent   CtxKey = "userAgent"
+	CtxKeyRequestID   CtxKey = "requestID"
+	CtxKeyRequestPath CtxKey = "requestPath"
 )
 
 func GetUserID(c *gin.Context) int {
@@ -85,15 +87,43 @@ func GetStoreIDInt(c *gin.Context) int {
 }
 
 func GetIPAddress(c *gin.Context) string {
-	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		slog.Warn("X-Forwarded-For header detected; using RemoteAddr instead", "xff", xff)
-	}
-
 	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
 	if err != nil {
 		return strings.TrimSpace(c.Request.RemoteAddr)
 	}
 	return host
+}
+
+func SetRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, CtxKeyRequestID, id)
+}
+
+func GetRequestID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value(CtxKeyRequestID); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func SetRequestPath(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, CtxKeyRequestPath, path)
+}
+
+func GetRequestPath(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value(CtxKeyRequestPath); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 func GetUserAgent(c *gin.Context) string {

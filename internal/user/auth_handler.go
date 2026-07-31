@@ -74,6 +74,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	ctx = context.WithValue(ctx, shared.CtxKeyUserAgent, shared.GetUserAgent(c))
 	resp, err := h.svc.Login(ctx, req.Username, req.Password)
 	if err != nil {
+		shared.LogWarn(c.Request.Context(), "failed login attempt",
+			"username", req.Username,
+			"ip", shared.GetIPAddress(c),
+			"user_agent", shared.GetUserAgent(c),
+		)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}

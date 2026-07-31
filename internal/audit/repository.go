@@ -27,6 +27,15 @@ func (r *Repository) CreateAuditLog(ctx context.Context, log *AuditLog) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`, log.UserID, log.Role, log.Action, log.EntityType, log.EntityID, ipAddr, log.UserAgent, log.OldValues, log.NewValues, log.Description).Scan(&log.ID)
+	if err != nil {
+		shared.LogError(ctx, "failed to write audit log",
+			err,
+			"action", log.Action,
+			"entity_type", log.EntityType,
+			"entity_id", log.EntityID,
+			"username", log.Username,
+		)
+	}
 	return err
 }
 
