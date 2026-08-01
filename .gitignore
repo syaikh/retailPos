@@ -12,6 +12,7 @@ migrate
 /server
 retail-pos-system
 retail-pos
+retail-pos-server
 /dummy
 backfill-audit-description
 /bin/

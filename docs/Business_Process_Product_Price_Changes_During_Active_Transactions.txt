@@ -1,0 +1,149 @@
+Business Process: Product Price Changes During Active Transactions
+
+Tujuan
+
+Memastikan perubahan harga, promo, dan aturan pricing tidak mengubah
+transaksi yang sudah dimulai, tanpa menghambat pekerjaan administrator.
+
+Pendekatan ini menghindari kebutuhan untuk membekukan seluruh perubahan
+selama masih ada shift yang aktif.
+
+Latar Belakang
+
+Pada sistem POS, terdapat dua jenis data:
+
+1.  Master Data
+
+-   Produk
+-   Harga produk
+-   Pricing Rules
+-   Discount Rules
+
+2.  Transaction Data
+
+-   Sale
+-   Sale Items
+-   Hold Transactions
+
+Master Data dapat berubah sewaktu-waktu.
+
+Sebaliknya, Transaction Data harus tetap konsisten sejak transaksi
+dimulai hingga selesai.
+
+Oleh karena itu, transaksi tidak boleh terus-menerus membaca harga dari
+master produk, melainkan menggunakan snapshot harga yang diambil ketika
+item dimasukkan ke transaksi.
+
+Prinsip Utama
+
+Perubahan harga hanya berlaku untuk transaksi yang belum memasukkan item
+tersebut.
+
+Dengan demikian: - transaksi yang sudah berjalan tetap konsisten; -
+transaksi baru otomatis menggunakan harga terbaru; - administrator tetap
+dapat melakukan perubahan tanpa menunggu seluruh shift selesai.
+
+Business Rules
+
+Rule 1 — Snapshot Harga per Item
+
+Saat kasir menambahkan item ke transaksi: 1. Sistem mengambil harga yang
+berlaku saat itu. 2. Harga disimpan ke Sale Item. 3. Setelah tersimpan,
+harga tidak berubah otomatis.
+
+Contoh:
+
+09:00 Harga Indomie = Rp3.500
+
+Kasir scan Indomie
+
+Sale Item: Product : Indomie Unit Price : Rp3.500
+
+Pukul 09:10 admin mengubah harga menjadi Rp3.000.
+
+Sale Item tetap: Unit Price = Rp3.500
+
+Rule 2 — Perubahan Harga
+
+Administrator dapat mengubah: - harga produk - biaya produk - pricing
+rule - discount rule
+
+Perubahan tersebut langsung menjadi harga aktif untuk transaksi
+berikutnya.
+
+Transaksi yang sudah memiliki snapshot harga tidak berubah.
+
+Rule 3 — Transaksi Baru
+
+Jika transaksi baru dibuat setelah harga berubah, transaksi menggunakan
+harga terbaru.
+
+Rule 4 — Hold Transaction
+
+Transaksi yang di-hold tetap dianggap sebagai transaksi yang sedang
+berjalan.
+
+Resume transaksi tidak melakukan refresh harga.
+
+Harga item yang sudah ada tetap menggunakan snapshot sebelumnya.
+
+Rule 5 — Menambah Item Setelah Resume
+
+Item yang sudah ada mempertahankan harga sebelumnya.
+
+Item baru menggunakan harga yang berlaku saat item tersebut ditambahkan.
+
+Setiap Sale Item memiliki snapshot harga masing-masing.
+
+Rule 6 — Mengubah Quantity
+
+Perubahan quantity tidak mengubah harga snapshot.
+
+Rule 7 — Void Item
+
+Jika item dihapus dari transaksi, snapshot harga ikut dihapus.
+
+Apabila item discan kembali, sistem mengambil harga terbaru.
+
+Rule 8 — Promo dan Pricing Rule
+
+Administrator tetap dapat: - membuat promo baru; - mengubah draft
+promo; - menjadwalkan promo; - membuat pricing rule yang belum aktif.
+
+Aktivasi promo berlaku untuk transaksi berikutnya.
+
+Transaksi yang sudah memiliki snapshot harga tidak berubah.
+
+Rule 9 — Hold Expiration
+
+Transaksi hold tidak disimpan tanpa batas.
+
+Disarankan memiliki kebijakan bisnis, misalnya: - otomatis dibatalkan
+saat shift ditutup; atau - memiliki masa berlaku tertentu (misalnya 8
+jam atau 24 jam).
+
+Keuntungan Pendekatan Ini
+
+-   Konsistensi transaksi.
+-   Operasional lebih fleksibel.
+-   Audit lebih mudah.
+-   Skalabel untuk banyak kasir, multi shift, dan operasional 24 jam.
+
+Ringkasan Business Rules
+
+-   Scan item → snapshot harga disimpan pada Sale Item.
+-   Admin mengubah harga → hanya memengaruhi item yang discan setelah
+    perubahan.
+-   Resume transaksi hold → harga item lama tetap digunakan.
+-   Tambah item setelah resume → menggunakan harga terbaru.
+-   Ubah quantity → harga snapshot tidak berubah.
+-   Void lalu scan ulang → menggunakan harga terbaru.
+-   Membuat promo draft → diizinkan kapan saja.
+-   Aktivasi promo → berlaku untuk transaksi berikutnya.
+
+Kesimpulan
+
+Fokus utama adalah membekukan data yang sudah menjadi bagian dari
+transaksi, bukan membekukan perubahan master data selama shift masih
+aktif. Pendekatan ini menjaga integritas transaksi sekaligus memberikan
+fleksibilitas operasional bagi administrator.

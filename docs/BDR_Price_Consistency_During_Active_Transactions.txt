@@ -1,0 +1,177 @@
+Business Decision Record (BDR)
+
+Feature
+
+Price Consistency During Active Transactions
+
+Status
+
+Accepted
+
+Problem Statement
+
+Administrator perlu dapat mengubah master data seperti harga produk,
+pricing rule, dan discount kapan saja untuk mendukung kebutuhan
+operasional.
+
+Namun, apabila transaksi yang sedang berlangsung terus membaca master
+data, perubahan tersebut dapat menyebabkan: - harga item berubah di
+tengah transaksi; - total transaksi menjadi tidak konsisten; - audit
+menjadi sulit; - pengalaman pelanggan menjadi buruk.
+
+Membekukan seluruh perubahan master data selama masih ada shift aktif
+akan menghambat operasional, terutama pada toko dengan banyak kasir atau
+operasional 24 jam.
+
+Business Objective
+
+-   Transaksi yang telah dimulai tetap konsisten hingga selesai.
+-   Administrator tetap dapat mengelola master data kapan saja.
+-   Perubahan master data hanya memengaruhi transaksi berikutnya.
+
+Business Principle
+
+Master Data dapat berubah kapan saja. Transaction Data tidak boleh
+berubah setelah terbentuk.
+
+Ketika suatu item ditambahkan ke transaksi, seluruh informasi yang
+memengaruhi harga menjadi bagian dari transaksi dan tidak lagi mengikuti
+perubahan pada master data.
+
+-   Master Data bersifat mutable.
+-   Transaction Data bersifat immutable.
+
+Key Business Decision
+
+Snapshot harga dibuat saat item ditambahkan ke transaksi.
+
+Bukan saat checkout, pembayaran, atau penutupan transaksi.
+
+Begitu kasir menambahkan item ke transaksi, sistem langsung menyimpan
+snapshot seluruh informasi pricing yang diperlukan.
+
+Scope
+
+Included
+
+-   Product Price
+-   Product Cost
+-   Pricing Rules
+-   Discount Rules
+-   Hold Transaction
+
+Excluded
+
+-   Refund
+-   Return
+-   Stock Opname
+-   Inventory Valuation
+-   Purchase Order
+
+Business Rules
+
+BR-01 — Snapshot Creation
+
+Saat item ditambahkan ke transaksi, sistem membuat snapshot seluruh
+informasi pricing, minimal: - Product ID - Product Name - Unit Price -
+Discount - Pricing Rule - Tax - Cost (bila diperlukan) - Informasi
+pricing lain yang memengaruhi total transaksi
+
+Snapshot menjadi bagian permanen dari transaksi.
+
+BR-02 — Immutable Transaction
+
+Setelah snapshot dibuat: - harga tidak berubah; - discount tidak
+berubah; - pricing rule tidak berubah;
+
+meskipun administrator mengubah master data.
+
+BR-03 — Master Data Update
+
+Administrator dapat mengubah harga produk, pricing rule, discount rule,
+dan cost produk. Perubahan hanya berlaku untuk snapshot yang dibuat
+setelah perubahan tersebut.
+
+BR-04 — New Transaction
+
+Transaksi baru menggunakan snapshot sesuai kondisi master data saat item
+ditambahkan.
+
+BR-05 — Hold Transaction
+
+Hold Transaction tetap dianggap sebagai transaksi yang sedang
+berlangsung.
+
+Saat resume: - snapshot tidak dibuat ulang; - harga tidak dihitung
+ulang; - discount tidak dihitung ulang.
+
+BR-06 — Add Item After Resume
+
+Item lama mempertahankan snapshot lama.
+
+Item baru menggunakan snapshot terbaru.
+
+BR-07 — Quantity Update
+
+Perubahan quantity tidak mengubah harga snapshot.
+
+BR-08 — Void Item
+
+Jika item dihapus lalu ditambahkan kembali, sistem membuat snapshot baru
+berdasarkan master data saat itu.
+
+BR-09 — Scheduled Promotion
+
+Promo, pricing rule, draft, dan penjadwalan boleh dibuat kapan saja.
+
+Aktivasi hanya memengaruhi item yang ditambahkan setelah promo aktif.
+
+Business Consequences
+
+-   Administrator tidak perlu menunggu shift selesai.
+-   Tidak ada perubahan harga di tengah transaksi.
+-   Audit lebih mudah.
+-   Mendukung multi-kasir dan operasional 24 jam.
+
+Trade-off: Dalam satu transaksi dapat terdapat item dengan snapshot
+harga berbeda apabila item ditambahkan pada waktu yang berbeda.
+
+Edge Cases
+
+-   Harga berubah saat transaksi hold → item lama tetap memakai snapshot
+    lama.
+-   Item baru setelah resume → memakai snapshot terbaru.
+-   Quantity berubah → snapshot tetap.
+-   Void lalu scan ulang → snapshot baru.
+-   Promo aktif saat transaksi berjalan → tidak memengaruhi item lama.
+-   Promo aktif sebelum scan → menggunakan promo baru.
+-   Admin mengubah harga berkali-kali → setiap item memakai snapshot
+    sesuai waktu scan.
+
+Business Impact
+
+Prinsip yang digunakan:
+
+Freeze the transaction, not the master data.
+
+Future Enhancements
+
+-   Scheduled Price Changes
+-   Price Versioning
+-   Approval Workflow
+-   Bulk Price Update
+-   Audit Trail
+-   Customer-specific Pricing
+-   Membership Pricing
+-   Multi-branch Pricing
+-   Dynamic Pricing
+
+Decision Summary
+
+-   Administrator boleh mengubah master data kapan saja — Accepted
+-   Snapshot dibuat saat item ditambahkan ke transaksi — Accepted
+-   Transaction Data immutable — Accepted
+-   Hold tidak refresh harga — Accepted
+-   Item baru setelah resume memakai snapshot terbaru — Accepted
+-   Freeze perubahan selama shift aktif — Rejected
+-   Refresh harga saat checkout — Rejected
