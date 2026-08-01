@@ -5,6 +5,8 @@
   import { logout, useAuthStore } from '$modules/auth';
   import { useShiftStore } from '$modules/shifts';
   import { Tooltip } from '$shared/ui';
+  import { routePermissions } from '$app/config/permissions';
+  import { hasPermission } from '$shared/utils/permissions';
 
   let {
     currentPath = $bindable('/'),
@@ -58,6 +60,14 @@
   );
 
   let canLogout = $derived(role !== 'cashier' || !shiftStore.activeShift);
+
+  let userPerms = $derived(authStore.user?.permissions || []);
+
+  function canAccess(href: string): boolean {
+    const required = routePermissions[href];
+    if (!required || required.length === 0) return true;
+    return required.some(p => hasPermission(userPerms, p));
+  }
 
   const navItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
     { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
@@ -122,18 +132,24 @@
   ];
 
   let visibleNavItems = $derived(
-    role === 'staff' ? staffNavItems :
+    (role === 'staff' ? staffNavItems :
     role === 'cashier' ? cashierNavItems :
     (role === 'manager' ? managerNavItems : navItems)
+    ).filter(item => canAccess(item.href))
   );
 
   let visibleMasterDataSubItems = $derived(
-    role === 'staff' ? staffMasterDataSubItems :
+    (role === 'staff' ? staffMasterDataSubItems :
     role === 'cashier' ? [] :
     (role === 'manager' ? managerMasterDataSubItems : masterDataSubItems)
+    ).filter(item => canAccess(item.href))
   );
 
-  let showAdminSection = $derived(role === 'admin' || role === 'superadmin');
+  let visibleAdminItems = $derived(
+    adminItems.filter(item => canAccess(item.href) && (!item.requiresSuperadmin || role === 'superadmin'))
+  );
+
+  let showAdminSection = $derived((role === 'admin' || role === 'superadmin') && visibleAdminItems.length > 0);
 
   function isActive(href: string) {
     if (href === '/') return currentPath === '/';
@@ -273,7 +289,7 @@
 
       {#if adminExpanded && !collapsed}
         <div id="sidebar-section-admin" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
-          {#each adminItems.filter(item => !item.requiresSuperadmin || role === 'superadmin') as item}
+          {#each visibleAdminItems as item}
       <button type="button" 
               onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
               class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9' : 'sidebar-item w-full text-left relative overflow-hidden py-2.5 pr-3 pl-9'}

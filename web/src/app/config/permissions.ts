@@ -7,6 +7,7 @@
  */
 
 export const routePermissions: Record<string, string[]> = {
+	'/': ['dashboard.view'],
 	'/pos': ['sale.create'],
 	'/inventory': ['product.view'],
 	'/inventory/products': ['product.view'],
@@ -27,6 +28,7 @@ export const routePermissions: Record<string, string[]> = {
 	'/pricing-rules': ['pricing.view'],
 	'/customer-groups': ['customer_group.view'],
 	'/suppliers': ['pricing.view'],
+	'/purchase-orders': ['purchase_order.view'],
 	'/shifts': ['shift.view'],
 	'/stock-opnames': ['stock_opname.view'],
 };

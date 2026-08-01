@@ -29,9 +29,3 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT 4, id FROM permissions
 WHERE code IN ('shift.view', 'shift.create')
 ON CONFLICT DO NOTHING;
-
--- Staff: add shift read only
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT 5, id FROM permissions
-WHERE code = 'shift.view'
-ON CONFLICT DO NOTHING;

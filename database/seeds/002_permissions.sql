@@ -26,10 +26,8 @@ INSERT INTO permissions (code, name, description) VALUES
 -- Sales
 ('sale.view', 'Baca penjualan', 'Lihat riwayat penjualan'),
 ('sale.create', 'Buat penjualan', 'Proses transaksi penjualan'),
-('sale.void', 'Void penjualan', 'Void/refund transaksi penjualan'),
 
 -- Inventory
-('inventory.view', 'Baca inventory', 'Lihat daftar inventory'),
 ('inventory.adjust', 'Adjust inventory', 'Penyesuaian stok manual'),
 ('inventory.export', 'Export inventory', 'Export data inventory'),
 

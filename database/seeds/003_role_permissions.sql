@@ -19,32 +19,29 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT 3, id FROM permissions
 WHERE code IN (
   'product.view', 'product.update',
-  'sale.view', 'sale.void',
+  'sale.view',
   'report.view', 'dashboard.view',
-  'inventory.view', 'inventory.adjust',
+  'inventory.adjust',
   'category.view'
 )
 ON CONFLICT DO NOTHING;
 
--- Cashier: sale + POS + Dashboard access (Dashboard + POS on frontend)
+-- Cashier: sale + POS access
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 4, id FROM permissions
 WHERE code IN (
   'product.view',
-  'sale.create', 'sale.view', 'sale.print',
-  'dashboard.view',
+  'sale.create', 'sale.view',
   'customer.view',
   'shift.create', 'shift.view'
 )
 ON CONFLICT DO NOTHING;
 
--- Staff: inventory + category read + Dashboard (Dashboard + Inventory on frontend)
+-- Staff: inventory + product read (Stock Opname counting)
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 5, id FROM permissions
 WHERE code IN (
   'product.view',
-  'inventory.view', 'inventory.adjust',
-  'category.view',
-  'dashboard.view'
+  'inventory.adjust'
 )
 ON CONFLICT DO NOTHING;
