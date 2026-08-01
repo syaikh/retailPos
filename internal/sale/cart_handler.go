@@ -70,7 +70,9 @@ func (h *Handler) cartError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrCartNotFound):
 		shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
-	case errors.Is(err, ErrCartNotOpen), errors.Is(err, ErrCartItemNotFound):
+	case errors.Is(err, ErrCartNotOwned):
+		shared.JSONError(c, http.StatusForbidden, shared.ErrForbidden, err.Error())
+	case errors.Is(err, ErrCartNotOpen), errors.Is(err, ErrCartItemNotFound), errors.Is(err, ErrCartEmpty):
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 	case errors.Is(err, ErrCartExpired):
 		shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())

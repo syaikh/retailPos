@@ -50,6 +50,7 @@ type mockSaleService struct {
 	holdCartFn                 func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	resumeCartFn               func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	checkoutCartFn             func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
+	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 }
 
 func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
@@ -164,6 +165,12 @@ func (m *mockSaleService) ResumeCart(ctx context.Context, cartID int, cashierID 
 func (m *mockSaleService) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 	if m.checkoutCartFn != nil {
 		return m.checkoutCartFn(ctx, cartID, payments, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
+	if m.checkoutCartWithPaymentMethodFn != nil {
+		return m.checkoutCartWithPaymentMethodFn(ctx, cartID, paymentMethod, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
@@ -294,6 +301,74 @@ func TestSaleHandler_CreateSale_BindJSONError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestSaleHandler_CreateSale_WithCartSessionID_DelegatesToCheckout(t *testing.T) {
+	checkoutCalled := false
+	var capturedPayments []CreatePaymentRequest
+	svc := &mockSaleService{
+		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+			checkoutCalled = true
+			assert.Equal(t, 5, cartID)
+			assert.Equal(t, 1, cashierID)
+			capturedPayments = payments
+			return &Sale{ID: 9, InvoiceNumber: "INV-CART-1", TotalAmount: 10000}, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.True(t, checkoutCalled, "CheckoutCart should be invoked")
+	require.Len(t, capturedPayments, 1)
+	assert.Equal(t, "CASH", capturedPayments[0].PaymentMethodCode)
+	assert.Equal(t, 10000, capturedPayments[0].Amount)
+}
+
+func TestSaleHandler_CreateSale_WithCartSessionID_ErrorPropagates(t *testing.T) {
+	svc := &mockSaleService{
+		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+			return nil, ErrCartNotFound
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"cart_session_id":999,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestSaleHandler_CreateSale_WithCartSessionID_AuditLogged(t *testing.T) {
+	auditCalled := false
+	svc := &mockSaleService{
+		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+			return &Sale{ID: 9, InvoiceNumber: "INV-CART-2", TotalAmount: 10000}, nil
+		},
+	}
+	auditSvc := &mockAuditCreator{
+		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+			auditCalled = true
+			assert.Equal(t, "create", log.Action)
+			assert.Equal(t, "sale", log.EntityType)
+			return nil
+		},
+	}
+	r := setupSaleHandler(svc, auditSvc)
+	body := `{"cart_session_id":5,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.True(t, auditCalled, "audit log should be created for cart-based sale")
 }
 
 func TestSaleHandler_CreateSale_NegativeDiscount(t *testing.T) {

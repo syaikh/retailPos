@@ -378,6 +378,31 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, sale.ID, 0)
 	})
+
+	t.Run("inconsistent payload rejected", func(t *testing.T) {
+		// RT-16: payload where subtotal != unit_price * quantity must be rejected.
+		sale := &Sale{
+			InvoiceNumber: "INV-SVC-PRICE-003",
+			CashierID:     insertTestCashier(t, ctx),
+			Subtotal:      9999,
+			TotalAmount:   9999,
+			PaymentMethod: "CASH",
+			Status:        "completed",
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  9999, // inconsistent with unit_price * qty
+			DPPAmount: 9999,
+			TaxAmount: 0,
+		}}
+
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 9999}})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "price mismatch")
+		assert.Equal(t, 0, sale.ID, "no sale should be persisted for an inconsistent payload")
+	})
 }
 
 func TestSaleService_ParkSale(t *testing.T) {

@@ -382,6 +382,18 @@ func (s *Service) ResumeCart(ctx context.Context, cartID int, cashierID int) (*C
 // CheckoutCart converts the cart into a completed sale using the stored snapshots,
 // deducts stock, records payments, and updates the shift totals atomically.
 func (s *Service) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+	return s.checkoutCart(ctx, cartID, payments, "", cashierID)
+}
+
+// CheckoutCartWithPaymentMethod checks out a cart using a single legacy
+// payment method code. The amount is derived from the recomputed sale total
+// inside the same locked transaction, so it cannot go stale the way a
+// handler-side pre-read of cart.TotalAmount could.
+func (s *Service) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
+	return s.checkoutCart(ctx, cartID, nil, paymentMethod, cashierID)
+}
+
+func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -410,7 +422,7 @@ func (s *Service) CheckoutCart(ctx context.Context, cartID int, payments []Creat
 		return nil, err
 	}
 	if len(cart.Items) == 0 {
-		return nil, errors.New("cart is empty")
+		return nil, ErrCartEmpty
 	}
 
 	// Build sale items from the immutable snapshots.
@@ -445,6 +457,13 @@ func (s *Service) CheckoutCart(ctx context.Context, cartID int, payments []Creat
 	}
 	if sale.TotalAmount < 0 {
 		sale.TotalAmount = 0
+	}
+
+	if legacyPaymentMethod != "" {
+		payments = []CreatePaymentRequest{{
+			PaymentMethodCode: legacyPaymentMethod,
+			Amount:            sale.TotalAmount,
+		}}
 	}
 
 	if err := s.finalizeSaleItems(ctx, tx, sale, items); err != nil {
@@ -529,17 +548,22 @@ func (s *Service) recalculateCartTotals(ctx context.Context, tx pgx.Tx, cartID i
 // recalculateCartTotalsFromItems computes totals from already-loaded items, avoiding
 // a second bulk read when the caller already has the item list in hand.
 func (s *Service) recalculateCartTotalsFromItems(ctx context.Context, tx pgx.Tx, cartID int, items []CartItem) error {
-	var subtotal, tax int
+	subtotal, discount, tax, total := computeCartTotals(items)
+	return s.repo.UpdateCartTotals(ctx, tx, cartID, subtotal, discount, tax, total)
+}
+
+// computeCartTotals aggregates line totals into cart-level totals.
+// Cart-level discounts are not applied on item add/update/remove, so discount is 0 here.
+func computeCartTotals(items []CartItem) (subtotal, discount, tax, total int) {
 	for _, item := range items {
 		subtotal += item.Subtotal
 		tax += item.TaxAmount
 	}
-	discount := 0
-	total := subtotal - discount
+	total = subtotal - discount
 	if total < 0 {
 		total = 0
 	}
-	return s.repo.UpdateCartTotals(ctx, tx, cartID, subtotal, discount, tax, total)
+	return subtotal, discount, tax, total
 }
 
 // computeLineTotals computes subtotal, DPP, and tax for a single line.

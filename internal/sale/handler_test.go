@@ -184,6 +184,157 @@ func TestHandler_CreateSale(t *testing.T) {
 	})
 }
 
+// insertOpenCartWithItem creates a server-side cart session with a single snapshot
+// item directly in the DB, returning the cart id.
+func insertOpenCartWithItem(t *testing.T, ctx context.Context, cashierID, prodID int, qty, unitPrice int) int {
+	t.Helper()
+	var cartID int
+	err := dbPool.QueryRow(ctx, `
+		INSERT INTO cart_sessions (cashier_id, status, subtotal, discount, tax, total_amount)
+		VALUES ($1, 'open', $2, 0, 0, $2)
+		RETURNING id
+	`, cashierID, qty*unitPrice).Scan(&cartID)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO cart_items (cart_session_id, product_id, product_name, quantity, unit_price, original_price, discount, cost, subtotal, dpp_amount, tax_amount, snapshot_created_at)
+		VALUES ($1, $2, $3, $4, $5, $5, 0, $6, $7, $7, 0, NOW())
+	`, cartID, prodID, "Cart Snapshot Item", qty, unitPrice, unitPrice/2, qty*unitPrice)
+	require.NoError(t, err)
+	return cartID
+}
+
+func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	r := setupSaleRouter()
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "HDL-CART-CHECKOUT", "Cart Checkout Product", 10000, 100)
+	cashierID := int(testCashierID)
+
+	t.Run("cart_session_id behaves like CheckoutCart", func(t *testing.T) {
+		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 2, 10000)
+
+		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":20000}]}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data Sale `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Greater(t, resp.Data.ID, 0)
+		assert.Equal(t, 20000, resp.Data.Subtotal)
+		assert.Equal(t, 20000, resp.Data.TotalAmount)
+		require.Len(t, resp.Data.Items, 1)
+		assert.Equal(t, 10000, resp.Data.Items[0].UnitPrice, "sale item should use the cart snapshot price")
+		assert.Equal(t, 2, resp.Data.Items[0].Quantity)
+
+		// Cart must be marked checked_out and stock deducted.
+		var status string
+		err = dbPool.QueryRow(ctx, `SELECT status FROM cart_sessions WHERE id = $1`, cartID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, "checked_out", status)
+
+		var stock int
+		err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stock)
+		require.NoError(t, err)
+		assert.Equal(t, 98, stock)
+	})
+
+	t.Run("cart_session_id falls back to legacy payment_method", func(t *testing.T) {
+		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 1, 10000)
+
+		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payment_method":"CASH"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data Sale `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Greater(t, resp.Data.ID, 0)
+		assert.Equal(t, 10000, resp.Data.TotalAmount)
+		assert.Equal(t, "CASH", resp.Data.PaymentMethod)
+	})
+
+	t.Run("cart_session_id not found returns 404", func(t *testing.T) {
+		body := `{"cart_session_id":999999,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("cart_session_id with no payments returns 400", func(t *testing.T) {
+		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 1, 10000)
+
+		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("cart_session_id of another cashier returns 403", func(t *testing.T) {
+		var otherID int
+		err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('sale_handler_other', 'sale_handler_other@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&otherID)
+		require.NoError(t, err)
+
+		cartID := insertOpenCartWithItem(t, ctx, otherID, prodID, 1, 10000)
+
+		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("cart_session_id with empty cart returns 409", func(t *testing.T) {
+		// Earlier subtests may have left an open cart for the same cashier, which
+		// would violate uq_cart_sessions_open_cashier.
+		_, err := dbPool.Exec(ctx, `
+			DELETE FROM cart_items WHERE cart_session_id IN (SELECT id FROM cart_sessions WHERE cashier_id = $1 AND status = 'open')
+		`, int(testCashierID))
+		require.NoError(t, err)
+		_, err = dbPool.Exec(ctx, `
+			DELETE FROM cart_sessions WHERE cashier_id = $1 AND status = 'open'
+		`, int(testCashierID))
+		require.NoError(t, err)
+
+		var cartID int
+		err = dbPool.QueryRow(ctx, `
+			INSERT INTO cart_sessions (cashier_id, status, subtotal, discount, tax, total_amount)
+			VALUES ($1, 'open', 0, 0, 0, 0)
+			RETURNING id
+		`, int(testCashierID)).Scan(&cartID)
+		require.NoError(t, err)
+
+		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/sales", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+}
+
 func TestHandler_GetSaleByID(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)

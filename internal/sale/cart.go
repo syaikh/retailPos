@@ -12,6 +12,7 @@ var (
 	ErrCartItemQuantity      = errors.New("quantity must be greater than zero")
 	ErrCartAlreadyCheckedOut = errors.New("cart session already checked out")
 	ErrCartNotOwned          = errors.New("cart session does not belong to the authenticated cashier")
+	ErrCartEmpty             = errors.New("cart is empty")
 )
 
 func (ci CartItem) ToSaleItem() SaleItem {

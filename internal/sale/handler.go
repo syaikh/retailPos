@@ -45,6 +45,7 @@ type SaleService interface {
 	HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
+	CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 }
 
 type Handler struct {
@@ -102,12 +103,13 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		CustomerID    *int              `json:"customer_id"`
 		ShiftID       *int              `json:"shift_id"`
 		StoreID       *int              `json:"store_id"`
-		Items         []createSaleItem  `json:"items" binding:"required"`
+		Items         []createSaleItem  `json:"items"`
 		Payments      []createPaymentReq `json:"payments"`
 		PaymentMethod string            `json:"payment_method"`
 		Discount      int               `json:"discount"`
 		Tax           int               `json:"tax"`
 		ParkedSaleID  *int              `json:"parked_sale_id"`
+		CartSessionID *int              `json:"cart_session_id"`
 	}
 
 	var req createSaleReq
@@ -128,6 +130,33 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		return
 	}
 	storeIDPtr := shared.GetStoreID(c)
+
+	// RT-16 case 3: when cart_session_id is provided, POST /sales behaves like
+	// CheckoutCart — the sale is built from the immutable cart snapshots.
+	if req.CartSessionID != nil {
+		// Backward compat: if only the legacy `payment_method` field is given,
+		// CheckoutCartWithPaymentMethod derives the amount from the recomputed
+		// sale total inside the checkout transaction (no lock-free pre-read).
+		if len(req.Payments) == 0 && req.PaymentMethod != "" {
+			h.createSaleFromCartWithPaymentMethod(c, ctx, *req.CartSessionID, req.PaymentMethod, cashierID, storeIDPtr)
+			return
+		}
+		payments := make([]CreatePaymentRequest, len(req.Payments))
+		for i, p := range req.Payments {
+			payments[i] = CreatePaymentRequest{
+				PaymentMethodCode: p.PaymentMethodCode,
+				Amount:            p.Amount,
+				ReferenceNumber:   p.ReferenceNumber,
+			}
+		}
+		h.createSaleFromCart(c, ctx, *req.CartSessionID, payments, cashierID, storeIDPtr)
+		return
+	}
+
+	if len(req.Items) == 0 {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "items is required")
+		return
+	}
 
 	invoiceNumber := req.InvoiceNumber
 	if invoiceNumber == "" {
@@ -233,6 +262,48 @@ func (h *Handler) CreateSale(c *gin.Context) {
 			IPAddress:   middleware.IPAddressFromContext(c.Request.Context()),
 			UserAgent:   middleware.UserAgentFromContext(c.Request.Context()),
 			Description: fmt.Sprintf("Created sale %s with total %d", sale.InvoiceNumber, sale.TotalAmount),
+		})
+	}
+
+	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, storeIDPtr); err == nil {
+		c.JSON(http.StatusCreated, gin.H{"data": detail})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": sale})
+}
+
+// createSaleFromCart handles POST /sales with cart_session_id (RT-16 case 3).
+// It delegates to CheckoutCart so the sale is built from immutable snapshots,
+// deducts stock, validates payments, and marks the cart as checked out.
+func (h *Handler) createSaleFromCart(c *gin.Context, ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int, storeIDPtr *int) {
+	sale, err := h.svc.CheckoutCart(ctx, cartID, payments, cashierID)
+	h.respondSaleFromCart(c, ctx, sale, err, cartID, storeIDPtr)
+}
+
+func (h *Handler) createSaleFromCartWithPaymentMethod(c *gin.Context, ctx context.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
+	sale, err := h.svc.CheckoutCartWithPaymentMethod(ctx, cartID, paymentMethod, cashierID)
+	h.respondSaleFromCart(c, ctx, sale, err, cartID, storeIDPtr)
+}
+
+func (h *Handler) respondSaleFromCart(c *gin.Context, ctx context.Context, sale *Sale, err error, cartID int, storeIDPtr *int) {
+	if err != nil {
+		h.cartError(c, err)
+		return
+	}
+
+	if h.auditSvc != nil {
+		actorID := middleware.UserIDFromContext(ctx)
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+			UserID:      actorID,
+			Username:    middleware.UsernameFromContext(ctx),
+			Role:        middleware.RoleFromContext(ctx),
+			Action:      "create",
+			EntityType:  "sale",
+			EntityID:    &sale.ID,
+			NewValues:   shared.ToJSONMap(sale),
+			IPAddress:   middleware.IPAddressFromContext(ctx),
+			UserAgent:   middleware.UserAgentFromContext(ctx),
+			Description: fmt.Sprintf("Checked out cart %d as sale %s (total %d)", cartID, sale.InvoiceNumber, sale.TotalAmount),
 		})
 	}
 

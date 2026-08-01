@@ -931,3 +931,159 @@ func TestResolver_Resolve_SingleCombinableRule(t *testing.T) {
 	assert.Equal(t, 80000, result.UnitPrice)
 	assert.Equal(t, 20000, result.Discount)
 }
+
+// ============================================================
+// RT-01..RT-04 — ResolveSnapshot / ResolveSnapshotsBatch
+// ============================================================
+
+// snapshotRepo returns a resolver seeded with cost/tax + base price for product 1.
+func snapshotRepo() *mockRepo {
+	cost := 2500
+	taxRate := 11.0
+	return &mockRepo{
+		basePrices: map[int]int{1: 3500, 2: 5000, 3: 7000},
+		costTax: map[int]ProductCostTax{
+			1: {Cost: cost, TaxRate: &taxRate, ProductName: "Product One"},
+			2: {Cost: 3000, TaxRate: &taxRate, ProductName: "Product Two"},
+			3: {Cost: 4000, ProductName: "Product Three"},
+		},
+	}
+}
+
+func TestResolver_ResolveSnapshot_NoRule(t *testing.T) {
+	repo := snapshotRepo()
+	resolver := NewResolver(repo)
+
+	before := time.Now()
+	snap, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	after := time.Now()
+
+	assert.Equal(t, 1, snap.ProductID)
+	assert.Equal(t, "Product One", snap.ProductName)
+	assert.Equal(t, 3500, snap.UnitPrice)
+	assert.Equal(t, 3500, snap.OriginalPrice)
+	assert.Equal(t, 0, snap.Discount)
+	assert.Equal(t, PricingTypeDefault, snap.PricingType)
+	assert.Nil(t, snap.Rule)
+	assert.Equal(t, 2500, snap.Cost)
+	require.NotNil(t, snap.TaxRate)
+	assert.Equal(t, 11.0, *snap.TaxRate)
+	assert.False(t, snap.SnapshotAt.IsZero())
+	assert.True(t, !snap.SnapshotAt.Before(before.Add(-time.Second)) && !snap.SnapshotAt.After(after.Add(time.Second)),
+		"SnapshotAt should be near now, got %v", snap.SnapshotAt)
+}
+
+func TestResolver_ResolveSnapshot_PromoRule(t *testing.T) {
+	repo := snapshotRepo()
+	repo.rules = map[int][]PricingRule{
+		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
+	}
+	resolver := NewResolver(repo)
+
+	snap, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.NoError(t, err)
+	assert.Equal(t, 3150, snap.UnitPrice)
+	assert.Equal(t, 3500, snap.OriginalPrice)
+	assert.Equal(t, 350, snap.Discount)
+	assert.Equal(t, PricingTypePromotion, snap.PricingType)
+	assert.Equal(t, PricingMethodDiscountPct, snap.PricingMethod)
+	require.NotNil(t, snap.Rule)
+	assert.Equal(t, 10, snap.Rule.ID)
+	assert.Equal(t, 2500, snap.Cost)
+}
+
+func TestResolver_ResolveSnapshot_QtyBelowMinimumUsesBase(t *testing.T) {
+	repo := snapshotRepo()
+	repo.rules = map[int][]PricingRule{
+		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 5, 1, true)},
+	}
+	resolver := NewResolver(repo)
+
+	snap, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 2})
+	require.NoError(t, err)
+	assert.Equal(t, 3500, snap.UnitPrice)
+	assert.Equal(t, 0, snap.Discount)
+	assert.Equal(t, PricingTypeDefault, snap.PricingType)
+
+	snap, err = resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 5})
+	require.NoError(t, err)
+	assert.Equal(t, 3150, snap.UnitPrice)
+	assert.Equal(t, PricingTypePromotion, snap.PricingType)
+}
+
+func TestResolver_ResolveSnapshot_Deterministic(t *testing.T) {
+	repo := snapshotRepo()
+	repo.rules = map[int][]PricingRule{
+		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
+	}
+	resolver := NewResolver(repo)
+
+	a, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 3})
+	require.NoError(t, err)
+	b, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 3})
+	require.NoError(t, err)
+
+	assert.Equal(t, a.UnitPrice, b.UnitPrice)
+	assert.Equal(t, a.OriginalPrice, b.OriginalPrice)
+	assert.Equal(t, a.Discount, b.Discount)
+	assert.Equal(t, a.PricingType, b.PricingType)
+	assert.Equal(t, a.Cost, b.Cost)
+	assert.Equal(t, a.TaxRate, b.TaxRate)
+}
+
+func TestResolver_ResolveSnapshotsBatch_OrderMatchesInput(t *testing.T) {
+	repo := snapshotRepo()
+	repo.rules = map[int][]PricingRule{
+		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
+	}
+	resolver := NewResolver(repo)
+
+	snaps, err := resolver.ResolveSnapshotsBatch(context.Background(), []ResolveItem{
+		{ProductID: 3, Quantity: 1},
+		{ProductID: 1, Quantity: 1},
+		{ProductID: 2, Quantity: 1},
+	})
+	require.NoError(t, err)
+	require.Len(t, snaps, 3)
+
+	assert.Equal(t, 3, snaps[0].ProductID)
+	assert.Equal(t, 7000, snaps[0].UnitPrice)
+	assert.Equal(t, "Product Three", snaps[0].ProductName)
+	assert.Equal(t, 4000, snaps[0].Cost)
+
+	assert.Equal(t, 1, snaps[1].ProductID)
+	assert.Equal(t, 3150, snaps[1].UnitPrice)
+	assert.Equal(t, PricingTypePromotion, snaps[1].PricingType)
+
+	assert.Equal(t, 2, snaps[2].ProductID)
+	assert.Equal(t, 5000, snaps[2].UnitPrice)
+}
+
+func TestResolver_ResolveSnapshotsBatch_EmptyInput(t *testing.T) {
+	resolver := NewResolver(snapshotRepo())
+	snaps, err := resolver.ResolveSnapshotsBatch(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, snaps)
+}
+
+func TestResolver_ResolveSnapshot_ProductNotFound(t *testing.T) {
+	repo := snapshotRepo()
+	resolver := NewResolver(repo)
+
+	_, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 999, Quantity: 1})
+	require.ErrorIs(t, err, ErrProductNotFound)
+}
+
+func TestResolver_ResolveSnapshot_ErrorPropagates(t *testing.T) {
+	// ResolveSnapshot resolves the price first, then fetches cost/tax. If the
+	// cost/tax lookup fails (no entry for product 1), the error must propagate
+	// and no partial snapshot may be returned.
+	repo := &mockRepo{
+		basePrices: map[int]int{1: 3500},
+		costTax:    map[int]ProductCostTax{2: {Cost: 500}}, // missing product 1
+	}
+	resolver := NewResolver(repo)
+	_, err := resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
+	require.ErrorIs(t, err, ErrProductNotFound)
+}
