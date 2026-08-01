@@ -11,7 +11,7 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 3. [Split Payment (Multi Payment Method)](#3-split-payment-multi-payment-method)
 4. [Purchase Order & Goods Receiving](#4-purchase-order--goods-receiving)
 5. [Stock Opname (Physical Count)](#5-stock-opname-physical-count)
-6. [Product Image Upload](#6-product-image-upload)
+6. [Store Management](#6-store-management)
 7. [Time-based Pricing Update](#7-time-based-pricing-update)
 8. [Admin Change Freeze During Active Shifts](#8-admin-change-freeze-during-active-shifts)
 9. [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions)
@@ -236,39 +236,48 @@ Stock Opname per 1 Juli 2026:
 
 ---
 
-## 6. Product Image Upload
+## 6. Store Management
+
+> **Status:** BACKEND SUDAH DIIMPLEMENTASI — `internal/store/` (CRUD + audit + import/export, wired di `cmd/server/main.go`). Yang belum ada: **halaman UI manajemen toko**.
 
 ### Penjelasan
 
-Produk saat ini hanya punya data text (nama, SKU, harga, stok). Fitur ini menambahkan **gambar produk** — memudahkan identifikasi visual, baik di halaman produk maupun di layar POS.
+Sistem saat ini mendukung **lebih dari satu toko/outlet** (`stores` table, `store_id` di sales, shifts, PO, cart, dll). Fitur ini menyediakan **halaman manajemen toko** di frontend agar admin bisa mengelola daftar toko/outlet (tambah, edit, nonaktifkan, hapus) tanpa harus akses database langsung.
 
-### Contoh Penggunaan
+### Contoh Workflow
 
 ```
-Produk: "Indomie Goreng"
-SKU: PRD-00145
-Gambar: [foto produk]
+1. Admin buka halaman Store Management:
+   - Daftar toko: Toko Pusat, Cabang Malioboro, Cabang Dipatiukur
+   - Status: aktif/nonaktif
 
-→ Di halaman produk: thumbnail ditampilkan di tabel/list
-→ Di POS: gambar produk muncul saat dipilih/scanned
+2. Admin tambah toko baru:
+   - Nama: "Cabang Bandung"
+   - Alamat: Jl. Merdeka No. 1
+   - Telepon: 022-123456
+
+3. Admin nonaktifkan toko yang tutup:
+   - Toko "Cabang Lama" → is_active = false
+   - Tidak muncul di dropdown POS/sales baru
 ```
+
+### Komponen Backend (Telah Dibangun)
+
+**Backend:**
+- Tabel `stores` (`000_squash.sql`) — name, address, phone, is_active
+- `internal/store/`: domain, repository, service, handler
+- Endpoint: `GET/POST /api/stores`, `GET/PUT/DELETE /api/stores/:id`, `GET /api/stores/active`
+- Permission: `store.view` / `store.create` / `store.update` / `store.delete`
+- Audit log untuk create/update/delete store
+- Import/export via framework reusable (schema `stores`)
 
 ### Komponen yang Perlu Dibangun
 
-**Backend:**
-- Kolom `image_url` atau `image_path` di tabel `products`
-- Endpoint upload gambar (`POST /api/products/:id/image`)
-- Endpoint hapus gambar (`DELETE /api/products/:id/image`)
-- Validasi: format (jpg, png, webp), max size (2MB)
-- Resize otomatis (thumbnail 200x200, medium 600x600)
-- Simpan file di `uploads/products/` (filesystem)
-
 **Frontend:**
-- Komponen upload gambar (drag & drop atau file picker) di form product create/edit
-- Preview gambar di product list (thumbnail)
-- Preview gambar besar di product detail
-- Gambar produk di halaman POS (saat pilih/scan produk)
-- Placeholder image jika produk belum ada gambar
+- Halaman Store Management (di module Settings/Admin): daftar toko (tabel), filter/search, status badge aktif/nonaktif
+- Form create/edit store (nama, alamat, telepon, status)
+- Konfirmasi hapus / tombol nonaktifkan
+- Integrasi dengan dropdown pemilihan toko yang sudah ada (POS, sales, PO)
 
 ---
  
@@ -459,8 +468,8 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 | 3 | ~~Split Payment~~ | ✅ Selesai |
 | 4 | ~~Price Consistency During Active Transactions~~ | ✅ Selesai (server-authorized snapshot) |
 | 5 | ~~Purchase Order~~ | ✅ Selesai |
-| 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
-| 7 | Product Image | Peningkatan UX visual, relatif sederhana |
+| 6 | Store Management | Backend selesai, frontend belum ada |
+| 7 | Stock Opname | Akurasi inventori, mencegah selisih stok |
 | ~~8~~ | ~~Admin Change Freeze During Active Shifts~~ | ~~Ditolak di BDR~~ — digantikan snapshot |
 | ~~9~~ | ~~Time-based Pricing Update~~ | ~~Ditolak di BDR~~ — hanya scheduled changes yang relevan |
 
@@ -470,5 +479,6 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 
 - **Returns & Refund:** Tidak akan diimplementasikan. Kebijakan toko: barang yang sudah dibeli tidak dapat direfund atau dikembalikan.
 - **Supplier Returns:** Baru relevan setelah Purchase Order terbangun.
+- **Product Image Upload:** Dibatalkan untuk saat ini (tidak diprioritaskan).
 - **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
 - Semua fitur baru harus mengikuti pattern Clean Architecture yang sudah ada (domain → repository → service → handler).
