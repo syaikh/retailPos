@@ -69,9 +69,11 @@ start_server() {
   "$SERVER_BINARY" "$@" &
   SERVER_PID=$!
 
-  # Wait until server is actually listening on the port
+  # Wait until server is actually listening on the port.
+  # Match only real LISTEN entries, not the `ss` header line (which would
+  # otherwise make this loop exit immediately and report success falsely).
   for i in $(seq 1 10); do
-    if ss -tlnp "sport = :$PORT" 2>/dev/null | grep -q .; then
+    if ss -tln "sport = :$PORT" 2>/dev/null | grep -q '^LISTEN'; then
       echo "Server started successfully (PID: $SERVER_PID)."
       return 0
     fi
@@ -82,16 +84,22 @@ start_server() {
 }
 
 cleanup() {
+  # Idempotent: guard against double-invocation (EXIT trap + signal handler).
+  if [ -n "${CLEANUP_DONE:-}" ]; then
+    return 0
+  fi
+  CLEANUP_DONE=1
   if [ -n "$SERVER_PID" ]; then
     echo "Shutting down server..."
     kill $SERVER_PID 2>/dev/null || true
     wait $SERVER_PID 2>/dev/null || true
   fi
   rm -f "$SERVER_BINARY"
-  exit 0
 }
 
-trap cleanup SIGINT SIGTERM
+# Ensure the server is stopped and the binary removed on any exit path,
+# including SIGINT/SIGTERM and `set -e` aborting on EOF from `read`.
+trap cleanup EXIT INT TERM
 
 start_server "$@" || true
 echo "Server is running. Press 'r' + Enter to restart, 'q' + Enter to quit."
@@ -100,6 +108,6 @@ while true; do
   read -r key
   case "$key" in
     r|R) start_server "$@" ;;
-    q|Q) cleanup ;;
+    q|Q) cleanup; exit 0 ;;
   esac
 done

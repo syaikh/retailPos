@@ -106,7 +106,9 @@
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
   ];
 
-  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [];
+  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
+    { label: 'Stock Opname', href: '/stock-opnames', icon: ClipboardList },
+  ];
 
   const staffMasterDataSubItems = [
     { label: 'Products',   href: '/inventory/products', icon: Package },

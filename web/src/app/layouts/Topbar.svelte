@@ -43,6 +43,7 @@
 		'/suppliers':          'Suppliers',
 		'/shifts':             'Shifts',
 		'/purchase-orders':    'Purchase Orders',
+		'/stock-opnames':      'Stock Opname',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',
 		'/units-of-measure/import-history': 'Import History',
@@ -59,6 +60,8 @@
 		'/stores/import-history':            { label: 'Stores', href: '/stores' },
 	};
 
+    const stockOpnameDetailMatch = path.match(/^\/stock-opnames\/(\d+)$/);
+
     const parts: { label: string; href: string }[] = [];
 
     if (path !== '/') {
@@ -73,9 +76,13 @@
       if (parent) {
         parts.push(parent);
       }
+
+      if (stockOpnameDetailMatch) {
+        parts.push({ label: 'Stock Opname', href: '/stock-opnames' });
+      }
     }
 
-    const label = map[path] || path;
+    const label = stockOpnameDetailMatch ? `Session #${stockOpnameDetailMatch[1]}` : (map[path] || path);
     parts.push({ label, href: path });
     return parts;
   }
