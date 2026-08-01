@@ -101,25 +101,28 @@
           animate:flip={{ duration: 300 }}
           transition:slide={{ duration: 250 }}
         >
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-text-primary truncate">{item.name}</p>
-            {#if item.discount > 0}
-              <p class="text-xs text-text-muted mt-0.5">
-                <span class="line-through">{item.original_price.toLocaleString('id-ID')}</span>
-                <span class="text-green-600 font-medium">{item.price.toLocaleString('id-ID')}</span>
-                × {item.quantity}
-                = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
-              </p>
-              {#if item.pricing_rule_name}
-                <p class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</p>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-text-primary truncate">{item.name}</p>
+              {#if item.discount > 0}
+                <p class="text-xs text-text-muted mt-0.5">
+                  <span class="line-through">{item.original_price.toLocaleString('id-ID')}</span>
+                  <span class="text-green-600 font-medium">{item.price.toLocaleString('id-ID')}</span>
+                  × {item.quantity}
+                  = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                </p>
+                {#if item.pricing_rule_name}
+                  <p class="text-[10px] text-primary-light mt-0.5 font-medium">{item.pricing_rule_name}</p>
+                {/if}
+              {:else}
+                <p class="text-xs text-text-muted mt-0.5">
+                  {item.price.toLocaleString('id-ID')} × {item.quantity}
+                  = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                </p>
               {/if}
-            {:else}
-              <p class="text-xs text-text-muted mt-0.5">
-                {item.price.toLocaleString('id-ID')} × {item.quantity}
-                = <span class="text-text-secondary font-medium">{(item.price * item.quantity).toLocaleString('id-ID')}</span>
-              </p>
-            {/if}
-          </div>
+              {#if item.snapshot_created_at}
+                <p class="text-[10px] text-text-muted mt-0.5" title="Harga dibekukan saat item ditambahkan">harga dibekukan</p>
+              {/if}
+            </div>
           <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
             <button
               class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
@@ -132,22 +135,12 @@
               type="number"
               min="1"
               max={item.stock || 999}
-              bind:value={item.quantity}
-              oninput={() => {
-                const maxStock = item.stock || 999;
-                if (item.quantity > maxStock) {
-                  item.quantity = maxStock;
-                }
-                onupdateqty(item.id, 0);
-              }}
-              onblur={() => {
-                if (item.quantity <= 0) onremovefromcart(item.id);
-                else {
-                  const maxStock = item.stock || 999;
-                  if (item.quantity > maxStock) {
-                    item.quantity = maxStock;
-                  }
-                }
+              value={item.quantity}
+              onchange={(e) => {
+                const parsed = Math.max(1, Math.min(item.stock || 999, Number(e.currentTarget.value) || 1));
+                const delta = parsed - item.quantity;
+                if (delta !== 0) onupdateqty(item.id, delta);
+                else e.currentTarget.value = String(item.quantity);
               }}
               onkeydown={(e) => {
                 if (e.key === 'Enter') {

@@ -328,14 +328,14 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 
 	prodID := insertTestProduct(t, ctx, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
 
-	t.Run("price mismatch logs warning and uses server price", func(t *testing.T) {
+	t.Run("price mismatch stored verbatim without re-resolve", func(t *testing.T) {
 		svc.SetPriceStore(&mockPriceStore{prices: map[int]int{prodID: 15000}})
 
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-PRICE-001",
 			CashierID:     insertTestCashier(t, ctx),
-			Subtotal:      15000,
-			TotalAmount:   15000,
+			Subtotal:      10000,
+			TotalAmount:   10000,
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
@@ -348,10 +348,10 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 			TaxAmount: 0,
 		}}
 
-		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 15000}})
+		err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 		require.NoError(t, err)
-		assert.Equal(t, 15000, sale.Subtotal)
-		assert.Equal(t, 15000, items[0].UnitPrice)
+		assert.Equal(t, 10000, sale.Subtotal, "direct-sale prices are stored verbatim")
+		assert.Equal(t, 10000, items[0].UnitPrice, "client-submitted unit price is preserved")
 	})
 
 	t.Run("price match succeeds", func(t *testing.T) {
@@ -798,6 +798,34 @@ func (m *mockPriceResolver) ResolveBatch(ctx context.Context, items []pricing.Re
 	return result, nil
 }
 
+func (m *mockPriceResolver) ResolveSnapshot(ctx context.Context, rc pricing.ResolveContext) (*pricing.PriceSnapshot, error) {
+	return &pricing.PriceSnapshot{
+		ProductID:     rc.ProductID,
+		UnitPrice:     10000,
+		OriginalPrice: 10000,
+		Discount:      0,
+		PricingType:   pricing.PricingTypeDefault,
+		PricingMethod: pricing.PricingMethodFixedPrice,
+		Cost:          5000,
+	}, nil
+}
+
+func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []pricing.ResolveItem) ([]pricing.PriceSnapshot, error) {
+	result := make([]pricing.PriceSnapshot, len(items))
+	for i := range items {
+		result[i] = pricing.PriceSnapshot{
+			ProductID:     items[i].ProductID,
+			UnitPrice:     10000,
+			OriginalPrice: 10000,
+			Discount:      0,
+			PricingType:   pricing.PricingTypeDefault,
+			PricingMethod: pricing.PricingMethodFixedPrice,
+			Cost:          5000,
+		}
+	}
+	return result, nil
+}
+
 type mockSimplePriceStore struct {
 	prices map[int]int
 }
@@ -824,9 +852,9 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-RESOLV-001",
 		CashierID:     insertTestCashier(t, ctx),
-		Subtotal:      0,
+		Subtotal:      19998,
 		Tax:           0,
-		TotalAmount:   0,
+		TotalAmount:   19998,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
@@ -839,10 +867,10 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 20000}})
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 19998}})
 	require.NoError(t, err)
-	assert.Equal(t, 20000, sale.TotalAmount, "resolver overrides prices to 10000 each x2 items")
-	assert.Equal(t, 10000, items[0].UnitPrice, "resolver should override unit price")
+	assert.Equal(t, 19998, sale.TotalAmount, "direct-sale prices are stored verbatim, not re-resolved")
+	assert.Equal(t, 9999, items[0].UnitPrice, "direct-sale unit price is preserved from the request")
 }
 
 func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
@@ -860,8 +888,8 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-NOBATCH-001",
 		CashierID:     insertTestCashier(t, ctx),
-		Subtotal:      7500,
-		TotalAmount:   7500,
+		Subtotal:      7000,
+		TotalAmount:   7000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
@@ -874,10 +902,10 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 		TaxAmount: 0,
 	}}
 
-	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 7500}})
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 7000}})
 	require.NoError(t, err)
-	assert.Equal(t, 7500, sale.Subtotal, "non-batch price store should set server price")
-	assert.Equal(t, 7500, items[0].UnitPrice, "server price should override client price")
+	assert.Equal(t, 7000, sale.Subtotal, "direct-sale prices are stored verbatim, not overridden by the price store")
+	assert.Equal(t, 7000, items[0].UnitPrice, "client-submitted price is preserved")
 }
 
 func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {

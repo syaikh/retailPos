@@ -16,6 +16,7 @@ const (
 	SaleCreated    EventType = "sale.created"
 	ProductUpdated EventType = "product.updated"
 	StockAdjusted  EventType = "stock.adjusted"
+	CartCheckedOut EventType = "cart.checked_out"
 )
 
 // Event bersifat IMMUTABLE setelah dipublikasikan.

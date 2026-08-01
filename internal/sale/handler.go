@@ -33,6 +33,18 @@ type SaleService interface {
 	CancelParkedSale(ctx context.Context, saleID int) error
 	ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
 	GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error)
+
+	CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
+	GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error)
+	GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error)
+	UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
+	AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
+	UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
+	RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
+	HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 }
 
 type Handler struct {

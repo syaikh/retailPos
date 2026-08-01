@@ -7,9 +7,12 @@
    import { debounce } from '$shared/utils/debounce';
    import { useWebSocket } from '$shared/api/websocket';
    import { getTodayInJakarta } from '$shared/utils/jakartaTime';
-   import { resolvePrices } from '$modules/pricing/services/pricing-service';
-   import { parkSale, listParkedSales, recallParkedSale, cancelParkedSale } from '../services/pos-service';
-   import type { PaymentAllocation } from '../types';
+   import {
+     createCart, getOpenCart, getHeldCarts,
+     addCartItem, updateCartItemQuantity, removeCartItem,
+     holdCart, resumeCart, checkoutCart, updateCartCustomer,
+   } from '../services/pos-service';
+   import type { PaymentAllocation, CartItem, CartSession } from '../types';
    import type { Sale, SaleItem } from '$modules/sales/types';
   import type { Customer } from '$modules/customers/types';
 
@@ -25,8 +28,9 @@
 
 const authStore = useAuthStore();
 
-  interface CartItem {
+  interface DisplayCartItem {
     id: number;
+    product_id: number;
     name: string;
     price: number;
     original_price: number;
@@ -40,10 +44,11 @@ const authStore = useAuthStore();
     pricing_rule_type?: string;
     pricing_type?: string;
     discount?: number;
+    snapshot_created_at?: string;
     [key: string]: unknown;
   }
 
-   let cart: CartItem[] = $state([]);
+   let cart: DisplayCartItem[] = $derived(cartItems.map(ci => toDisplayItem(ci)));
 let products: any[] = $state([]);
 let total: number = $state(0);
    let searchQuery = $state('');
@@ -71,10 +76,14 @@ let selectedProductIndex = $state(-1);
     let showCart = $state(false);
     let capturedPayments = $state<PaymentAllocation[]>([]);
 
-  let parkedSales = $state<any[]>([]);
+  let heldCarts = $state<CartSession[]>([]);
   let showParkedModal = $state(false);
   let holdingSale = $state(false);
-  let recalledSaleId = $state<number | null>(null);
+
+  let activeCartId = $state<number | null>(null);
+  let cartSession = $state<CartSession | null>(null);
+  let cartItems: CartItem[] = $state([]);
+  let cartLoading = $state(false);
 
    let customers: Customer[] = $state([]);
    let selectedCustomerId = $state<number | null>(null);
@@ -89,23 +98,45 @@ let selectedProductIndex = $state(-1);
        || '';
    })());
 
-  const subtotal = $derived(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
-  const taxAmount = $derived(cart.reduce((sum, item) => {
-    const rate = item.tax_rate || 0;
-    if (rate <= 0) return sum;
-    const lineTotal = item.price * item.quantity;
-    const dpp = Math.round(lineTotal * 100 / (100 + rate));
-    return sum + (lineTotal - dpp);
-  }, 0));
-  const taxDisplay = $derived(taxAmount); 
-  const totalAmount = $derived(subtotal);
+  const subtotal = $derived(cartSession?.subtotal ?? 0);
+  const taxAmount = $derived(cartSession?.tax ?? 0);
+  const taxDisplay = $derived(taxAmount);
+  const totalAmount = $derived(cartSession?.total_amount ?? 0);
   const dppDisplay = $derived(subtotal - taxAmount);
-  const totalItems = $derived(cart.reduce((sum, item) => sum + item.quantity, 0));
+  const totalItems = $derived(cartItems.reduce((sum, item) => sum + item.quantity, 0));
 
   const displayProducts = $derived(products.map(p => ({
     ...p,
-    stock: Math.max(0, p.stock - cart.filter(c => c.id === p.id).reduce((sum, c) => sum + c.quantity, 0)),
+    stock: Math.max(0, p.stock - cartItems.filter(c => c.product_id === p.id).reduce((sum, c) => sum + c.quantity, 0)),
   })));
+
+  function toDisplayItem(ci: CartItem): DisplayCartItem {
+    const product = products.find(p => p.id === ci.product_id);
+    return {
+      id: ci.id,
+      product_id: ci.product_id,
+      name: ci.product_name,
+      price: ci.unit_price,
+      original_price: ci.original_price,
+      quantity: ci.quantity,
+      stock: product?.stock ?? 999,
+      tax_rate: ci.tax_rate,
+      sku: product?.sku || '',
+      barcode: product?.barcode,
+      pricing_rule_id: ci.pricing_rule_id,
+      pricing_rule_name: ci.pricing_rule_name,
+      pricing_rule_type: ci.pricing_rule_type,
+      pricing_type: ci.pricing_type,
+      discount: ci.discount,
+      snapshot_created_at: ci.snapshot_created_at,
+    };
+  }
+
+  function applyCartSession(session: CartSession) {
+    cartSession = session;
+    cartItems = session.items || [];
+    activeCartId = session.id;
+  }
 
   async function fetchProducts(isSearch = false) {
     try {
@@ -200,86 +231,86 @@ let selectedProductIndex = $state(-1);
     }
   }
 
-  function addToCart(product: CartItem) {
-    const existing = cart.find((item) => item.id === product.id);
-    if (existing) {
-      const maxStock = existing.stock || 999;
-      if (existing.quantity >= maxStock) {
-        toast.info(`Max stock reached: ${existing.name} (${maxStock})`);
-        return;
-      }
-      existing.quantity++;
-      cart = cart;
-    } else {
-      cart.push({ ...product, quantity: 1, original_price: product.price });
-      cart = cart;
-    }
-    resolveCartPrices();
+  async function ensureCart(): Promise<number> {
+    if (activeCartId) return activeCartId;
+    const shiftStore = useShiftStore();
+    const payload: { store_id?: number; shift_id?: number; customer_id?: number } = {
+      store_id: (authStore.user as any)?.store_id,
+    };
+    if (shiftStore.activeShift?.id) payload.shift_id = shiftStore.activeShift.id;
+    if (selectedCustomerId) payload.customer_id = selectedCustomerId;
+    const cart = await createCart(payload);
+    applyCartSession(cart);
+    return cart.id;
   }
 
-  function removeFromCart(id: number) {
-    const idx = cart.findIndex((item) => item.id === id);
-    if (idx !== -1) cart.splice(idx, 1);
-    cart = cart;
-    resolveCartPrices();
-  }
-
-  function updateQty(id: number, delta: number) {
-    const item = cart.find((i) => i.id === id);
-    if (item) {
-      const newQty = item.quantity + delta;
-      const maxStock = item.stock || 999;
-      if (newQty <= 0) {
-        removeFromCart(id);
-      } else if (newQty > maxStock) {
-        item.quantity = maxStock;
-        toast.info(`Max stock for ${item.name} is ${maxStock}`);
-      } else {
-        item.quantity = newQty;
-      }
-      cart = cart;
-      resolveCartPrices();
-    }
-  }
-
-  let pricingResolving = $state(false);
-
-  async function resolveCartPrices() {
-    if (cart.length === 0) return;
-    pricingResolving = true;
+  async function addToCart(product: CartItem) {
+    if (cartLoading) return;
+    cartLoading = true;
     try {
+      const cartId = await ensureCart();
+      const existing = cartItems.find(ci => ci.product_id === product.id);
       const selectedCustomer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
-      const storeId = (authStore.user as any)?.store_id || undefined;
-      const items = cart.map((item) => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        customer_group_id: (selectedCustomer as any)?.customer_group_id || undefined,
-        store_id: storeId
-      }));
-      const results = await resolvePrices(items);
-      for (let i = 0; i < cart.length; i++) {
-        const result = results[i];
-        if (result) {
-          cart[i].price = result.unit_price;
-          cart[i].original_price = result.original_price;
-          cart[i].discount = result.discount;
-          cart[i].pricing_type = result.pricing_type;
-          if (result.rule) {
-            cart[i].pricing_rule_id = result.rule.id;
-            cart[i].pricing_rule_name = result.rule.name;
-            cart[i].pricing_rule_type = result.rule.pricing_type;
-          } else {
-            cart[i].pricing_rule_id = undefined;
-            cart[i].pricing_rule_name = undefined;
-            cart[i].pricing_rule_type = undefined;
-          }
-        }
+      const customerGroupId = (selectedCustomer as any)?.customer_group_id || undefined;
+      const shiftStore = useShiftStore();
+      const shiftId = shiftStore.activeShift?.id;
+      let session: CartSession;
+      if (existing) {
+        session = await updateCartItemQuantity(cartId, existing.id, existing.quantity + 1);
+      } else {
+        session = await addCartItem(cartId, {
+          product_id: product.id,
+          quantity: 1,
+          customer_group_id: customerGroupId,
+          store_id: cartSession?.store_id,
+          shift_id: shiftId,
+          customer_id: selectedCustomerId || undefined,
+        });
       }
-      cart = cart;
-    } catch (err) {
-      console.warn('Pricing resolution failed, using base prices', err);
+      applyCartSession(session);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.message || 'Failed to add item';
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to add item');
     } finally {
-      pricingResolving = false;
+      cartLoading = false;
+    }
+  }
+
+  async function removeFromCart(id: number) {
+    if (!activeCartId) return;
+    cartLoading = true;
+    try {
+      const session = await removeCartItem(activeCartId, id);
+      applyCartSession(session);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.message || 'Failed to remove item';
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to remove item');
+    } finally {
+      cartLoading = false;
+    }
+  }
+
+  async function updateQty(id: number, delta: number) {
+    const item = cartItems.find(i => i.id === id);
+    if (!item || !activeCartId) return;
+    const newQty = item.quantity + delta;
+    const maxStock = item.max_stock ?? products.find(p => p.id === item.product_id)?.stock ?? 999;
+    if (newQty <= 0) {
+      await removeFromCart(id);
+      return;
+    }
+    const finalQty = newQty > maxStock ? maxStock : newQty;
+    if (finalQty !== item.quantity) {
+      cartLoading = true;
+      try {
+        const session = await updateCartItemQuantity(activeCartId, id, finalQty);
+        applyCartSession(session);
+      } catch (err: any) {
+        const errMsg = err.response?.data?.error || err.message || 'Failed to update quantity';
+        toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to update quantity');
+      } finally {
+        cartLoading = false;
+      }
     }
   }
 
@@ -297,54 +328,22 @@ let selectedProductIndex = $state(-1);
     });
   }
 
-   async function processCheckout(parkedSaleId?: number | null, payments?: PaymentAllocation[]) {
-    if (cart.length === 0) {
+   async function processCheckout(payments?: PaymentAllocation[]) {
+    if (!activeCartId || cartItems.length === 0) {
       toast.error('Cart is empty');
       return;
     }
     checkingOut = true;
     try {
-      const items = cart.map((item) => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        unit_price: item.price,
-        subtotal: item.price * item.quantity,
-        ...(item.pricing_rule_id ? {
-          pricing_rule_id: item.pricing_rule_id,
-          pricing_rule_name: item.pricing_rule_name,
-          pricing_rule_type: item.pricing_rule_type,
-          pricing_type: item.pricing_type,
-          original_price: item.original_price,
-        } : {}),
-      }));
-      const activeShift = useShiftStore().activeShift;
-      const payload: any = {
-        cashier_id: (authStore.user as any)?.id || 1,
-        store_id: (authStore.user as any)?.store_id || null,
-        shift_id: activeShift?.id || null,
-        subtotal,
-        discount: 0,
-        tax: taxAmount,
-        total_amount: totalAmount,
-        payment_method: payments?.map(p => p.payment_method_code).join(',') || 'CASH',
-        customer_id: selectedCustomerId,
-        status: 'completed',
-        items,
-      };
-      if (payments && payments.length > 0) {
-        payload.payments = payments;
-      }
-      if (parkedSaleId) {
-        payload.parked_sale_id = parkedSaleId;
-      }
-      const response = await apiClient.post('/sales', payload);
-      lastSale = response.data?.data || response.data;
+      const response = await checkoutCart(activeCartId, payments || []);
+      lastSale = response as Sale;
       if (payments) {
         capturedPayments = payments;
       }
-      recalledSaleId = null;
       toast.success('Sale completed');
-      cart = [];
+      cartSession = null;
+      cartItems = [];
+      activeCartId = null;
       await fetchProducts(false);
     } catch (err: any) {
       const errData = err.response?.data?.error;
@@ -356,103 +355,70 @@ let selectedProductIndex = $state(-1);
     }
   }
 
-  function clearCart() {
-    cart = [];
-    recalledSaleId = null;
+  async function clearCart() {
+    if (!activeCartId) return;
+    cartLoading = true;
+    try {
+      const removals = cartItems.map(item => removeCartItem(activeCartId, item.id));
+      const sessions = await Promise.all(removals);
+      const last = sessions[sessions.length - 1];
+      if (last) applyCartSession(last);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.message || 'Failed to clear cart';
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to clear cart');
+    } finally {
+      cartLoading = false;
+    }
   }
 
   async function holdSale() {
-    if (cart.length === 0) {
+    if (!activeCartId || cartItems.length === 0) {
       toast.error('Cart is empty');
       return;
     }
     holdingSale = true;
     try {
-      const items = cart.map((item) => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        subtotal: item.price * item.quantity,
-      }));
-       await parkSale({
-        items,
-        recalled_sale_id: recalledSaleId,
-      });
-      toast.success('Sale parked');
-      cart = [];
-      recalledSaleId = null;
-      await fetchParkedSales();
+      await holdCart(activeCartId);
+      toast.success('Sale held');
+      cartSession = null;
+      cartItems = [];
+      activeCartId = null;
+      await fetchHeldCarts();
     } catch (err: any) {
-        const parkErr = err.response?.data?.error;
-      toast.error(typeof parkErr === 'string' ? parkErr : parkErr?.message || 'Failed to park sale');
+      const errData = err.response?.data?.error;
+      toast.error(typeof errData === 'string' ? errData : errData?.message || 'Failed to hold sale');
     } finally {
       holdingSale = false;
     }
   }
 
-  async function fetchParkedSales() {
+  async function fetchHeldCarts() {
     try {
-      parkedSales = await listParkedSales();
+      heldCarts = await getHeldCarts();
     } catch (err) {
-      console.warn('Failed to load parked sales', err);
+      console.warn('Failed to load held carts', err);
     }
   }
 
-  async function recallSale(saleId: number) {
+  async function recallSale(cartId: number) {
     try {
-      recalledSaleId = null;
-      const recalled = await recallParkedSale(saleId);
-      recalledSaleId = saleId;
-      if (recalled.items && recalled.items.length > 0) {
-        cart = recalled.items.map((item: any) => {
-          const product = products.find((p: any) => p.id === item.product_id);
-          return {
-            id: item.product_id,
-            name: product?.name || item.name || `Product #${item.product_id}`,
-            price: item.unit_price,
-            original_price: item.unit_price,
-            quantity: item.quantity,
-            stock: product?.stock ?? 999,
-            sku: product?.sku || '',
-          };
-        });
-        resolveCartPrices();
-      }
+      const session = await resumeCart(cartId);
+      applyCartSession(session);
       showParkedModal = false;
-      toast.success('Sale recalled');
-      await fetchParkedSales();
+      toast.success('Sale resumed');
+      await fetchHeldCarts();
     } catch (err: any) {
-      const recallErr = err.response?.data?.error;
-      toast.error(typeof recallErr === 'string' ? recallErr : recallErr?.message || 'Failed to recall sale');
+      const errData = err.response?.data?.error;
+      toast.error(typeof errData === 'string' ? errData : errData?.message || 'Failed to resume sale');
     }
   }
 
-  async function cancelParked(id: number) {
-    try {
-      await cancelParkedSale(id);
-      toast.success('Parked sale cancelled');
-      await fetchParkedSales();
-    } catch (err: any) {
-      const cancelErr = err.response?.data?.error;
-      toast.error(typeof cancelErr === 'string' ? cancelErr : cancelErr?.message || 'Failed to cancel parked sale');
-    }
-  }
-
-   async function printReceipt() {
-    if (!lastSale || !lastSale.invoice_number) return;
-    let sale = lastSale;
-    if (!sale.items || sale.items.length === 0) {
-      try {
-        const detail = await apiClient.get(`/sales/${sale.id}`);
-        sale = detail.data?.data || detail.data;
-      } catch (_) { return; }
-    }
-    if (!sale || !sale.items || sale.items.length === 0) return;
-    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+   function buildReceiptPayload(sale: Sale, payments: PaymentAllocation[], customer: Customer | undefined) {
     const saleTaxAmount = sale.tax || 0;
-    const paymentsList = capturedPayments.length > 0
-      ? capturedPayments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ')
+    const paymentsList = payments.length > 0
+      ? payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ')
       : (sale.payment_method || 'Cash');
-    printReceiptStore.set({
+    return {
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
       items: (sale.items || []).map((item) => ({
@@ -467,8 +433,8 @@ let selectedProductIndex = $state(-1);
       subtotal_dpp: sale.total_amount - saleTaxAmount,
       tax: saleTaxAmount,
       paymentMethod: paymentsList,
-      payments: capturedPayments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
-      cashReceived: capturedPayments.find(p => p.payment_method_code === 'CASH')?.amount || sale.total_amount,
+      payments: payments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
+      cashReceived: payments.find(p => p.payment_method_code === 'CASH')?.amount || sale.total_amount,
       changeDue: 0,
       customer_name: customer?.name,
       total_savings: (sale.items || []).reduce((sum: number, item: any) => {
@@ -477,12 +443,37 @@ let selectedProductIndex = $state(-1);
         }
         return sum;
       }, 0),
-    });
+    };
+  }
+
+   async function printReceipt() {
+    if (!lastSale || !lastSale.invoice_number) return;
+    let sale = lastSale;
+    if (!sale.items || sale.items.length === 0) {
+      try {
+        const detail = await apiClient.get(`/sales/${sale.id}`);
+        sale = detail.data?.data || detail.data;
+      } catch (_) { return; }
+    }
+    if (!sale || !sale.items || sale.items.length === 0) return;
+    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+    printReceiptStore.set(buildReceiptPayload(sale, paymentsListFromSale(sale), customer));
     setTimeout(() => {
       window.print();
       setTimeout(() => printReceiptStore.set(null), 1000);
     }, 300);
    }
+
+  function paymentsListFromSale(sale: Sale): PaymentAllocation[] {
+    if (capturedPayments.length > 0) return capturedPayments;
+    if (sale.payment_method) {
+      return sale.payment_method.split(',').map((code: string) => ({
+        payment_method_code: code.trim(),
+        amount: sale.total_amount,
+      }));
+    }
+    return [];
+  }
 
   function handlePageChange(newOffset: number) {
     offset = newOffset;
@@ -490,7 +481,7 @@ let selectedProductIndex = $state(-1);
   }
 
    function openCheckoutModal() {
-    if (cart.length === 0) {
+    if (cartItems.length === 0) {
       toast.error('Cart is empty');
       return;
     }
@@ -500,55 +491,28 @@ let selectedProductIndex = $state(-1);
    function closeCheckoutModal() {
     showCheckoutModal = false;
     capturedPayments = [];
-    recalledSaleId = null;
    }
 
-   function finalizeSale(payments: PaymentAllocation[]) {
-    if (cart.length === 0) return;
-    const capturedRecalledSaleId = recalledSaleId;
-    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
-    capturedPayments = payments;
-    closeCheckoutModal();
-    processCheckout(capturedRecalledSaleId, payments).then(() => {
-      if (lastSale && lastSale.items) {
-        const taxAmt = lastSale.tax || 0;
-        const paymentLines = payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ');
-        printReceiptStore.set({
-          invoice_number: lastSale.invoice_number,
-          created_at: lastSale.created_at,
-          items: lastSale.items.map((item) => ({
-            name: item.name || '',
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            original_price: item.original_price,
-            pricing_rule_name: item.pricing_rule_name,
-            pricing_type: item.pricing_type,
-          })),
-          total_amount: lastSale.total_amount,
-          subtotal_dpp: lastSale.total_amount - taxAmt,
-          tax: taxAmt,
-          paymentMethod: paymentLines,
-          payments: payments.map(p => ({ method: p.payment_method_code, amount: p.amount })),
-          cashReceived: payments.find(p => p.payment_method_code === 'CASH')?.amount || lastSale.total_amount,
-          changeDue: 0,
-          customer_name: customer?.name,
-          total_savings: lastSale.items.reduce((sum: number, item: any) => {
-            if (item.original_price && item.original_price > item.unit_price) {
-              return sum + (item.original_price - item.unit_price) * item.quantity;
-            }
-            return sum;
-          }, 0),
-        });
-        setTimeout(() => {
-          window.print();
-          setTimeout(() => printReceiptStore.set(null), 1000);
-        }, 300);
-      }
-    }).catch((err: any) => {
-      console.error('Checkout failed:', err);
-      toast.error('Checkout failed. Please try again.');
-    });
-   }
+    function finalizeSale(payments: PaymentAllocation[]) {
+     if (cartItems.length === 0) return;
+     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+     capturedPayments = payments;
+     closeCheckoutModal();
+     processCheckout(payments).then(() => {
+       if (lastSale && lastSale.items) {
+         const taxAmt = lastSale.tax || 0;
+         const paymentLines = payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ');
+         printReceiptStore.set(buildReceiptPayload(lastSale, payments, customer));
+         setTimeout(() => {
+           window.print();
+           setTimeout(() => printReceiptStore.set(null), 1000);
+         }, 300);
+       }
+     }).catch((err: any) => {
+       console.error('Checkout failed:', err);
+       toast.error('Checkout failed. Please try again.');
+     });
+    }
 
    $effect(() => {
     if (showCheckoutModal) {
@@ -561,7 +525,7 @@ let selectedProductIndex = $state(-1);
   function handleGlobalKeydown(event: KeyboardEvent) {
     if (event.altKey && event.key === 'Delete') {
       event.preventDefault();
-      if (cart.length > 0) {
+      if (cartItems.length > 0) {
         clearCart();
         toast.info('Cart cleared');
       }
@@ -591,12 +555,12 @@ let selectedProductIndex = $state(-1);
     }
     if (event.key === 'F5') {
       event.preventDefault();
-      fetchParkedSales().then(() => { showParkedModal = true; });
+      fetchHeldCarts().then(() => { showParkedModal = true; });
       return;
     }
     if (event.key === 'F6') {
       event.preventDefault();
-      if (cart.length > 0) {
+      if (cartItems.length > 0) {
         holdSale();
       }
       return;
@@ -671,6 +635,10 @@ let selectedProductIndex = $state(-1);
       fetchCustomers();
       isInitialMount = false;
       focusSearch();
+      try {
+        const open = await getOpenCart();
+        applyCartSession(open);
+      } catch (_) { /* no open cart yet */ }
       try {
         const endDate = getTodayInJakarta();
         const startDate = '2025-01-01';
@@ -762,14 +730,14 @@ let selectedProductIndex = $state(-1);
           {dppDisplay}
           {lastSale}
           {checkingOut}
-          parkedSaleCount={parkedSales.filter(s => s.status === 'parked').length}
+          parkedSaleCount={heldCarts.length}
           onupdateqty={updateQty}
           onremovefromcart={removeFromCart}
           onclearcart={clearCart}
           oncheckout={openCheckoutModal}
           onprintreceipt={printReceipt}
           onholdsale={holdSale}
-          onopenparkedmodal={() => { fetchParkedSales().then(() => { showParkedModal = true; }); }}
+          onopenparkedmodal={() => { fetchHeldCarts().then(() => { showParkedModal = true; }); }}
           class="!h-auto !max-h-none !sticky-none"
         />
       </div>
@@ -787,14 +755,14 @@ let selectedProductIndex = $state(-1);
       {dppDisplay}
       {lastSale}
       {checkingOut}
-      parkedSaleCount={parkedSales.filter(s => s.status === 'parked').length}
+      parkedSaleCount={heldCarts.length}
       onupdateqty={updateQty}
       onremovefromcart={removeFromCart}
       onclearcart={clearCart}
       oncheckout={openCheckoutModal}
       onprintreceipt={printReceipt}
       onholdsale={holdSale}
-      onopenparkedmodal={() => { fetchParkedSales().then(() => { showParkedModal = true; }); }}
+      onopenparkedmodal={() => { fetchHeldCarts().then(() => { showParkedModal = true; }); }}
     />
   </div>
 </div>
@@ -818,7 +786,7 @@ let selectedProductIndex = $state(-1);
   bind:customerSearch
   {customerResults}
   {customerSearching}
-  onselectcustomer={(id) => { 
+  onselectcustomer={(id) => {
     selectedCustomerId = id;
     if (id) {
       const found = customerResults.find(c => c.id === id);
@@ -826,15 +794,17 @@ let selectedProductIndex = $state(-1);
         customers = [...customers, found];
       }
     }
+    if (activeCartId) {
+      updateCartCustomer(activeCartId, id).then(applyCartSession).catch(() => {});
+    }
     showCustomerModal = false;
   }}
 />
 
 <ParkedSalesModal
   bind:showModal={showParkedModal}
-  {parkedSales}
+  {heldCarts}
   onrecall={recallSale}
-  oncancel={cancelParked}
 />
 
 <style>

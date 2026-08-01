@@ -16,6 +16,7 @@ type mockRepo struct {
 	basePrices map[int]int
 	scopes     map[int]ProductScope
 	rules      map[int][]PricingRule
+	costTax    map[int]ProductCostTax
 }
 
 func (m *mockRepo) GetBasePrice(_ context.Context, productID int) (int, error) {
@@ -66,6 +67,24 @@ func (m *mockRepo) GetActiveRulesBatch(_ context.Context, productIDs []int, now 
 	for _, pid := range productIDs {
 		if rules, ok := m.rules[pid]; ok {
 			result[pid] = rules
+		}
+	}
+	return result, nil
+}
+
+func (m *mockRepo) GetProductCostAndTax(_ context.Context, productID int) (ProductCostTax, error) {
+	ct, ok := m.costTax[productID]
+	if !ok {
+		return ProductCostTax{}, ErrProductNotFound
+	}
+	return ct, nil
+}
+
+func (m *mockRepo) GetProductCostAndTaxBatch(_ context.Context, productIDs []int) (map[int]ProductCostTax, error) {
+	result := make(map[int]ProductCostTax, len(productIDs))
+	for _, pid := range productIDs {
+		if ct, ok := m.costTax[pid]; ok {
+			result[pid] = ct
 		}
 	}
 	return result, nil

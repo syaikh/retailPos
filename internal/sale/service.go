@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -32,6 +31,7 @@ type Service struct {
 	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
 	resolver   pricing.PriceResolver
+	cartConfig CartConfig
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) *Service {
@@ -47,12 +47,32 @@ func (s *Service) SetPriceResolver(r pricing.PriceResolver) {
 }
 
 func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
+	if err := s.finalizeSaleItems(ctx, tx, sale, items); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateCheckoutItems validates the internal consistency of submitted sale items.
+// It does NOT re-resolve prices — prices are treated as immutable snapshots.
+func validateCheckoutItems(items []SaleItem) error {
 	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
 		}
+		if item.UnitPrice < 0 {
+			return fmt.Errorf("invalid unit price %d for product %d", item.UnitPrice, item.ProductID)
+		}
+		if item.Subtotal != item.UnitPrice*item.Quantity {
+			return fmt.Errorf("price mismatch: subtotal %d does not match unit price %d * quantity %d for product %d",
+				item.Subtotal, item.UnitPrice, item.Quantity, item.ProductID)
+		}
 	}
+	return nil
+}
 
+// deductStock checks and deducts stock for the given items.
+func deductStock(ctx context.Context, tx pgx.Tx, items []SaleItem) error {
 	productIDs := make([]int, len(items))
 	for i, item := range items {
 		productIDs[i] = item.ProductID
@@ -94,90 +114,6 @@ func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, i
 		WHERE product_stock.product_id = v.product_id AND warehouse_id IS NULL AND store_id IS NULL`, stockPIDs, stockQtys)
 	if err != nil {
 		return fmt.Errorf("batch deduct stock: %w", err)
-	}
-
-	if s.resolver != nil {
-		resolveItems := make([]pricing.ResolveItem, len(items))
-		for i, item := range items {
-			resolveItems[i] = pricing.ResolveItem{ProductID: item.ProductID, Quantity: item.Quantity}
-		}
-
-		resolved, err := s.resolver.ResolveBatch(ctx, resolveItems)
-		if err != nil {
-			return fmt.Errorf("resolve prices: %w", err)
-		}
-
-		sale.Subtotal = 0
-		for i := range items {
-			r := resolved[i]
-
-			if clientUnitPrice := items[i].UnitPrice; clientUnitPrice != r.UnitPrice {
-				slog.Warn("price mismatch", "product_id", items[i].ProductID, "server_price", r.UnitPrice, "client_price", clientUnitPrice)
-			}
-
-			items[i].UnitPrice = r.UnitPrice
-			items[i].Subtotal = r.UnitPrice * items[i].Quantity
-			items[i].OriginalPrice = &r.OriginalPrice
-
-			if r.Rule != nil {
-				ruleID := r.Rule.ID
-				ruleName := r.Rule.Name
-				ruleType := string(r.Rule.PricingType)
-				pt := string(r.PricingType)
-				items[i].PricingRuleID = &ruleID
-				items[i].PricingRuleName = &ruleName
-				items[i].PricingRuleType = &ruleType
-				items[i].PricingType = &pt
-			} else {
-				pt := string(pricing.PricingTypeDefault)
-				items[i].PricingType = &pt
-			}
-
-			sale.Subtotal += items[i].Subtotal
-		}
-	} else if s.priceStore != nil {
-		productIDs := make([]int, len(items))
-		for i, item := range items {
-			productIDs[i] = item.ProductID
-		}
-
-		var prices map[int]int
-		if batchGetter, ok := s.priceStore.(ProductBatchPriceGetter); ok {
-			prices, err = batchGetter.GetProductPrices(ctx, productIDs)
-			if err != nil {
-				return fmt.Errorf("batch lookup prices: %w", err)
-			}
-		} else {
-			prices = make(map[int]int, len(productIDs))
-			for _, pid := range productIDs {
-				p, err := s.priceStore.GetProductPrice(ctx, pid)
-				if err != nil {
-					return fmt.Errorf("lookup price for product %d: %w", pid, err)
-				}
-				prices[pid] = p
-			}
-		}
-
-		sale.Subtotal = 0
-		for i, item := range items {
-			serverPrice, ok := prices[item.ProductID]
-			if !ok {
-				return fmt.Errorf("price not found for product %d", item.ProductID)
-			}
-
-			if clientUnitPrice := item.UnitPrice; clientUnitPrice != serverPrice {
-				slog.Warn("price mismatch", "product_id", item.ProductID, "server_price", serverPrice, "client_price", clientUnitPrice)
-			}
-
-			items[i].UnitPrice = serverPrice
-			items[i].Subtotal = serverPrice * item.Quantity
-			sale.Subtotal += items[i].Subtotal
-		}
-	}
-
-	sale.TotalAmount = sale.Subtotal - sale.Discount
-	if sale.TotalAmount < 0 {
-		sale.TotalAmount = 0
 	}
 
 	return nil
@@ -269,18 +205,8 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, 
 		return err
 	}
 
-	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, validatedPayments); err != nil {
+	if err := s.finalizeSaleCreation(ctx, tx, sale, items, validatedPayments); err != nil {
 		return err
-	}
-
-	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, validatedPayments); err != nil {
-			return fmt.Errorf("update shift totals: %w", err)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
 	}
 
 	sale.Items = items
@@ -380,7 +306,6 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Lock the parked row to prevent concurrent checkouts
 	var parkedStatus string
 	err = tx.QueryRow(ctx, `
 		SELECT status FROM sales WHERE id = $1 AND status = 'recalled' FOR UPDATE
@@ -412,27 +337,35 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
-	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, validatedPayments); err != nil {
-		return err
-	}
-
-	// Cancel the parked sale
-	if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID); err != nil {
-		return fmt.Errorf("consume parked sale: %w", err)
-	}
-
-	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, validatedPayments); err != nil {
-			return fmt.Errorf("update shift totals: %w", err)
+	if parkedSaleID != nil {
+		if err := s.repo.ConsumeParkedSale(ctx, tx, *parkedSaleID); err != nil {
+			return err
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+	if err := s.finalizeSaleCreation(ctx, tx, sale, items, validatedPayments); err != nil {
+		return err
 	}
 
 	sale.Items = items
 	_ = s.eventBus.Publish(ctx, "sale.created", sale)
 
+	return nil
+}
+
+func (s *Service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem, payments []SalePayment) error {
+	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, payments); err != nil {
+		return err
+	}
+	if sale.ShiftID != nil {
+		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, payments); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	sale.Items = items
+	_ = s.eventBus.Publish(ctx, "sale.created", sale)
 	return nil
 }

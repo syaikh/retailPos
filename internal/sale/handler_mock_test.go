@@ -38,6 +38,18 @@ type mockSaleService struct {
 	cancelParkedSaleFn         func(ctx context.Context, saleID int) error
 	listParkedSalesFn          func(ctx context.Context, cashierID int) ([]Sale, error)
 	getParkedSaleByIDFn        func(ctx context.Context, saleID int, cashierID int) (*Sale, error)
+
+	createOrGetOpenCartFn      func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
+	getOpenCartFn              func(ctx context.Context, cashierID int) (*CartSession, error)
+	getCartByIDFn              func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	listHeldCartsFn            func(ctx context.Context, cashierID int) ([]CartSession, error)
+	updateCartCustomerFn       func(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
+	addCartItemFn              func(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
+	updateCartItemQuantityFn   func(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
+	removeCartItemFn           func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
+	holdCartFn                 func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	resumeCartFn               func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	checkoutCartFn             func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 }
 
 func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
@@ -87,6 +99,73 @@ func (m *mockSaleService) ListParkedSales(ctx context.Context, cashierID int) ([
 }
 func (m *mockSaleService) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
 	return m.getParkedSaleByIDFn(ctx, saleID, cashierID)
+}
+
+func (m *mockSaleService) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
+	if m.createOrGetOpenCartFn != nil {
+		return m.createOrGetOpenCartFn(ctx, cashierID, storeID, shiftID, customerID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error) {
+	if m.getOpenCartFn != nil {
+		return m.getOpenCartFn(ctx, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+	if m.getCartByIDFn != nil {
+		return m.getCartByIDFn(ctx, cartID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error) {
+	if m.listHeldCartsFn != nil {
+		return m.listHeldCartsFn(ctx, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
+	if m.updateCartCustomerFn != nil {
+		return m.updateCartCustomerFn(ctx, cartID, customerID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
+	if m.addCartItemFn != nil {
+		return m.addCartItemFn(ctx, cartID, productID, quantity, customerGroupID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
+	if m.updateCartItemQuantityFn != nil {
+		return m.updateCartItemQuantityFn(ctx, cartID, itemID, quantity, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error) {
+	if m.removeCartItemFn != nil {
+		return m.removeCartItemFn(ctx, cartID, itemID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+	if m.holdCartFn != nil {
+		return m.holdCartFn(ctx, cartID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+	if m.resumeCartFn != nil {
+		return m.resumeCartFn(ctx, cartID, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
+}
+func (m *mockSaleService) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+	if m.checkoutCartFn != nil {
+		return m.checkoutCartFn(ctx, cartID, payments, cashierID)
+	}
+	return nil, fmt.Errorf("not mocked")
 }
 
 type mockAuditCreator struct {

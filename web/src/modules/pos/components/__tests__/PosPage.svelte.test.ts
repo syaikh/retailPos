@@ -73,8 +73,10 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain('displayProducts');
   });
 
-  it('includes shift_id in checkout payload', () => {
-    expect(src).toContain('shift_id: activeShift?.id || null');
+  it('uses server cart checkout via checkoutCart', () => {
+    expect(src).toContain('checkoutCart(activeCartId, payments');
+    expect(src).toContain('import {');
+    expect(src).toContain('holdCart, resumeCart, checkoutCart');
   });
 
   it('loads active shift from shiftStore on mount', () => {
@@ -133,7 +135,7 @@ describe('PosPage.svelte source-structure guards', () => {
   });
 
   it('includes payments array in receipt data', () => {
-    expect(src).toContain("payments: capturedPayments.map");
+    expect(src).toContain('payments: payments.map');
   });
 
   it('handles nested error objects from API responses', () => {

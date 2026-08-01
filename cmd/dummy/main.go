@@ -1625,127 +1625,116 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 
 // injectShifts opens and closes shifts for each day/cashier, linking sales to shifts.
 // Runs after all sales are injected so it can query completed sales grouped by date + cashier.
+// Optimized: 3 set-based SQL statements instead of one query per day + 4 queries per shift.
 func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time) error {
-	// Normalize to midnight Jakarta time so day range [current, dayEnd)
+	// Normalize to midnight Jakarta time so day range [start, end)
 	// covers the full calendar day, matching how injectDailySales generates
 	// timestamps via randomTime24Hour (which uses date components only).
-	current := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, jakartaTZ)
-	endDateMidnight := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, jakartaTZ).AddDate(0, 0, 1)
+	start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, jakartaTZ)
+	end := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, jakartaTZ).AddDate(0, 0, 1)
 
 	// Pick a default store (first active store, or NULL)
-	var defaultStoreID *int
+	var storeIDArg any
 	var sid int
 	if err := db.QueryRowContext(ctx, `SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1`).Scan(&sid); err == nil {
-		defaultStoreID = &sid
+		storeIDArg = sid
 	}
 
+	// 1) Create one open shift per (cashier, Jakarta date) with completed sales.
+	//    Opening time 07:00–08:59 WIB, opening balance 500k–2M.
+	rows, err := db.QueryContext(ctx, `
+		INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
+		SELECT s.cashier_id, $1, 'open',
+		       ((500 + floor(random() * 1501)) * 1000)::int,
+		       (s.sale_date + time '07:00:00'
+		           + (floor(random() * 2)) * interval '1 hour'
+		           + floor(random() * 60) * interval '1 minute') AT TIME ZONE 'Asia/Jakarta',
+		       NOW(), NOW()
+		FROM (
+		    SELECT cashier_id, (created_at AT TIME ZONE 'Asia/Jakarta')::date AS sale_date
+		    FROM sales
+		    WHERE status = 'completed' AND cashier_id IS NOT NULL
+		      AND created_at >= $2 AND created_at < $3
+		    GROUP BY cashier_id, sale_date
+		) s
+		RETURNING id
+	`, storeIDArg, start, end)
+	if err != nil {
+		return fmt.Errorf("open shifts: %w", err)
+	}
+	defer rows.Close()
+
 	shiftCount := 0
-
-	for !current.After(endDateMidnight) {
-		dayEnd := current.AddDate(0, 0, 1)
-
-		cashierIDs, err := func() ([]int, error) {
-			rows, err := db.QueryContext(ctx, `
-				SELECT DISTINCT cashier_id FROM sales
-				WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'
-				ORDER BY cashier_id
-			`, current, dayEnd)
-			if err != nil {
-				return nil, err
-			}
-			defer rows.Close()
-
-			var ids []int
-			for rows.Next() {
-				var id int
-				if err := rows.Scan(&id); err == nil {
-					ids = append(ids, id)
-				}
-			}
-			return ids, rows.Err()
-		}()
-		if err != nil {
-			return fmt.Errorf("query cashiers for %s: %w", current.Format("2006-01-02"), err)
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("scan shift id: %w", err)
 		}
+		shiftCount++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate shift ids: %w", err)
+	}
+	rows.Close()
 
-		for _, cashierID := range cashierIDs {
-			shiftOpen := time.Date(current.Year(), current.Month(), current.Day(),
-				7+rand.Intn(2), rand.Intn(60), 0, 0, jakartaTZ)
-			openingBalance := (500 + rand.Intn(1501)) * 1000
+	if shiftCount == 0 {
+		fmt.Printf("   🎲 Created 0 shifts across %d days\n", int(endDate.Sub(startDate).Hours()/24)+1)
+		return nil
+	}
 
-			var storeIDArg interface{}
-			if defaultStoreID != nil {
-				storeIDArg = *defaultStoreID
-			} else {
-				storeIDArg = nil
-			}
+	// 2) Link completed sales to the matching open shift for the same cashier + Jakarta date.
+	//    updated_at = created_at restricts the join to shifts created in this run.
+	if _, err := db.ExecContext(ctx, `
+		UPDATE sales s
+		SET shift_id = sh.id
+		FROM shifts sh
+		WHERE s.status = 'completed' AND s.shift_id IS NULL
+		  AND s.cashier_id = sh.user_id
+		  AND sh.status = 'open' AND sh.updated_at = sh.created_at
+		  AND (s.created_at AT TIME ZONE 'Asia/Jakarta')::date = (sh.opened_at AT TIME ZONE 'Asia/Jakarta')::date
+	`); err != nil {
+		return fmt.Errorf("link sales to shifts: %w", err)
+	}
 
-			var shiftID int
-			err := db.QueryRowContext(ctx, `
-				INSERT INTO shifts (user_id, store_id, status, opening_balance, opened_at, created_at, updated_at)
-				VALUES ($1, $2, 'open', $3, $4, $4, $4)
-				RETURNING id
-			`, cashierID, storeIDArg, openingBalance, shiftOpen).Scan(&shiftID)
-			if err != nil {
-				return fmt.Errorf("open shift cashier %d on %s: %w", cashierID, current.Format("2006-01-02"), err)
-			}
-
-			_, err = db.ExecContext(ctx, `
-				UPDATE sales SET shift_id = $1
-				WHERE cashier_id = $2 AND created_at >= $3 AND created_at < $4 AND status = 'completed'
-			`, shiftID, cashierID, current, dayEnd)
-			if err != nil {
-				return fmt.Errorf("link sales to shift %d: %w", shiftID, err)
-			}
-
-			var cashSales, nonCashSales, totalSales, transCount int
-			err = db.QueryRowContext(ctx, `
-				SELECT
-					COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0),
-					COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0),
-					COALESCE(SUM(total_amount), 0),
-					COUNT(*)
-				FROM sales
-				WHERE shift_id = $1 AND status = 'completed'
-			`, shiftID).Scan(&cashSales, &nonCashSales, &totalSales, &transCount)
-			if err != nil {
-				return fmt.Errorf("calc totals for shift %d: %w", shiftID, err)
-			}
-
-			closeHour := 20 + rand.Intn(3)
-			closeMin := rand.Intn(60)
-			shiftClose := time.Date(current.Year(), current.Month(), current.Day(),
-				closeHour, closeMin, 0, 0, jakartaTZ)
-
-			// Random variance simulates real-world cash counting error
-			variance := rand.Intn(20001) - 10000
-			closingBalance := openingBalance + cashSales + variance
-			discrepancy := closingBalance - openingBalance - cashSales
-			const discThreshold = 50000
-			needsReview := discrepancy < -discThreshold || discrepancy > discThreshold
-
-			_, err = db.ExecContext(ctx, `
-				UPDATE shifts
-				SET status = 'closed',
-				    closing_balance = $1,
-				    cash_sales = $2,
-				    non_cash_sales = $3,
-				    total_sales = $4,
-				    transaction_count = $5,
-				    discrepancy = $6,
-				    needs_review = $7,
-				    closed_at = $8,
-				    updated_at = $8
-				WHERE id = $9
-			`, closingBalance, cashSales, nonCashSales, totalSales, transCount,
-				discrepancy, needsReview, shiftClose, shiftID)
-			if err != nil {
-				return fmt.Errorf("close shift %d: %w", shiftID, err)
-			}
-			shiftCount++
-		}
-
-		current = dayEnd
+	// 3) Aggregate totals per shift and close each one. Random variance simulates
+	//    real-world cash counting error; closing time 20:00–22:59 WIB.
+	if _, err := db.ExecContext(ctx, `
+		WITH totals AS (
+		    SELECT shift_id,
+		           COALESCE(SUM(CASE WHEN LOWER(payment_method) = 'cash' THEN total_amount ELSE 0 END), 0) AS cash_sales,
+		           COALESCE(SUM(CASE WHEN LOWER(payment_method) != 'cash' THEN total_amount ELSE 0 END), 0) AS non_cash_sales,
+		           COALESCE(SUM(total_amount), 0) AS total_sales,
+		           COUNT(*) AS transaction_count
+		    FROM sales
+		    WHERE shift_id IS NOT NULL AND status = 'completed'
+		    GROUP BY shift_id
+		),
+		close_vals AS (
+		    SELECT sh.id,
+		           t.cash_sales, t.non_cash_sales, t.total_sales, t.transaction_count,
+		           (floor(random() * 20001) - 10000)::int AS variance,
+		           ((sh.opened_at AT TIME ZONE 'Asia/Jakarta')::date + time '20:00:00'
+		               + (floor(random() * 3)) * interval '1 hour'
+		               + floor(random() * 60) * interval '1 minute') AT TIME ZONE 'Asia/Jakarta' AS closed_at
+		    FROM shifts sh
+		    JOIN totals t ON t.shift_id = sh.id
+		    WHERE sh.updated_at = sh.created_at
+		)
+		UPDATE shifts sh
+		SET status = 'closed',
+		    cash_sales = cv.cash_sales,
+		    non_cash_sales = cv.non_cash_sales,
+		    total_sales = cv.total_sales,
+		    transaction_count = cv.transaction_count,
+		    closing_balance = sh.opening_balance + cv.cash_sales + cv.variance,
+		    discrepancy = cv.variance,
+		    needs_review = (cv.variance < -50000 OR cv.variance > 50000),
+		    closed_at = cv.closed_at,
+		    updated_at = cv.closed_at
+		FROM close_vals cv
+		WHERE sh.id = cv.id
+	`); err != nil {
+		return fmt.Errorf("close shifts: %w", err)
 	}
 
 	fmt.Printf("   🎲 Created %d shifts across %d days\n", shiftCount, int(endDate.Sub(startDate).Hours()/24)+1)
@@ -2429,13 +2418,10 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 
 					expectedDate := createdAt.AddDate(0, 0, 3+rand.Intn(12))
 
-					// Optional fields — ~50% chance to populate each
-					var paymentTerm, deliveryAddress, supplierRef, notes *string
-					if rand.Intn(2) == 0 {
-						terms := []string{"Cash on Delivery", "Net 7", "Net 14", "Net 30", "DP 50%"}
-						v := terms[rand.Intn(len(terms))]
-						paymentTerm = &v
-					}
+					// Payment term always filled; other optional fields ~50% chance each
+					terms := []string{"Cash on Delivery", "Net 7", "Net 14", "Net 30", "DP 50%"}
+					paymentTerm := terms[rand.Intn(len(terms))]
+					var deliveryAddress, supplierRef, notes *string
 					if rand.Intn(2) == 0 {
 						v := fmt.Sprintf("Jl. Contoh No.%d, Jakarta", 1+rand.Intn(100))
 						deliveryAddress = &v
@@ -2690,8 +2676,8 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					qtyGood = 1
 				}
 			}
-			if rand.Intn(100) < 5 {
-				// 5% chance of damaged goods
+			if rand.Intn(100) < 5 && qtyGood >= 2 {
+				// 5% chance of damaged goods (only when qtyGood >= 2 to avoid Intn(0))
 				qtyDamaged = 1 + rand.Intn(qtyGood/2)
 				if qtyDamaged > qtyGood {
 					qtyDamaged = qtyGood

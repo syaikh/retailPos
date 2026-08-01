@@ -50,16 +50,23 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 			if item.OriginalPrice != nil {
 				origPrice = *item.OriginalPrice
 			}
+			productName := item.Name
+			if item.ProductName != "" {
+				productName = item.ProductName
+			}
 			rows[i] = []interface{}{
 				sale.ID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
 				item.DPPAmount, item.TaxAmount,
 				item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.PricingType,
 				origPrice,
+				item.Cost, item.TaxClassID, item.TaxRate,
+				time.Now(), productName,
 			}
 		}
 		_, err = tx.CopyFrom(ctx, pgx.Identifier{"sale_items"},
 			[]string{"sale_id", "product_id", "quantity", "unit_price", "subtotal", "dpp_amount", "tax_amount",
-				"pricing_rule_id", "pricing_rule_name", "pricing_rule_type", "pricing_type", "original_price"},
+				"pricing_rule_id", "pricing_rule_name", "pricing_rule_type", "pricing_type", "original_price",
+				"cost", "tax_class_id", "tax_rate", "snapshot_created_at", "product_name"},
 			pgx.CopyFromRows(rows),
 		)
 		if err != nil {
@@ -129,11 +136,13 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 		       COALESCE(
 		           (SELECT jsonb_agg(jsonb_build_object(
 		               'id', si.id, 'sale_id', si.sale_id, 'product_id', si.product_id,
-		               'name', p.name, 'quantity', si.quantity, 'unit_price', si.unit_price,
+		               'name', COALESCE(si.product_name, p.name), 'quantity', si.quantity, 'unit_price', si.unit_price,
 		               'subtotal', si.subtotal, 'dpp_amount', si.dpp_amount, 'tax_amount', si.tax_amount,
 		               'pricing_rule_id', si.pricing_rule_id, 'pricing_rule_name', si.pricing_rule_name,
 		               'pricing_rule_type', si.pricing_rule_type, 'pricing_type', si.pricing_type,
-		               'original_price', si.original_price
+		               'original_price', si.original_price,
+		               'cost', si.cost, 'tax_class_id', si.tax_class_id, 'tax_rate', si.tax_rate,
+		               'snapshot_created_at', si.snapshot_created_at, 'product_name', si.product_name
 		           )) FROM sale_items si
 		           JOIN products p ON si.product_id = p.id
 		           WHERE si.sale_id = s.id),

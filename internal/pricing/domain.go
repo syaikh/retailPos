@@ -85,10 +85,37 @@ type ResolvedPrice struct {
 	Rule          *PricingRule  `json:"rule,omitempty"`
 }
 
+// PriceSnapshot is the immutable result of a price resolution for a single item.
+// It carries cost & tax information captured at snapshot time.
+type PriceSnapshot struct {
+	ProductID     int
+	ProductName   string
+	UnitPrice     int
+	OriginalPrice int
+	Discount      int
+	PricingType   PricingType
+	PricingMethod PricingMethod
+	Rule          *PricingRule
+	Cost          int
+	TaxClassID    *int
+	TaxRate       *float64
+	SnapshotAt    time.Time
+}
+
+// ProductCostTax holds the cost and tax-class information of a product at snapshot time.
+type ProductCostTax struct {
+	Cost       int
+	TaxClassID *int
+	TaxRate    *float64
+	ProductName string
+}
+
 // PriceResolver is the public interface for the pricing subsystem.
 type PriceResolver interface {
 	Resolve(ctx context.Context, rc ResolveContext) (*ResolvedPrice, error)
 	ResolveBatch(ctx context.Context, items []ResolveItem) ([]ResolvedPrice, error)
+	ResolveSnapshot(ctx context.Context, rc ResolveContext) (*PriceSnapshot, error)
+	ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error)
 }
 
 // ResolveContext carries the full context for price resolution.

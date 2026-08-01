@@ -178,6 +178,7 @@ func Initialize(p Providers) *Dependencies {
 	d.ProductSvc = product.NewService(d.ProductRepo, d.CategoryRepo, d.BrandRepo, d.UOMRepo, d.Bus)
 	d.PurchaseSvc = purchase.NewService(d.PurchaseRepo, d.Bus)
 	d.SaleSvc = sale.NewService(d.SaleRepo, d.Bus)
+	d.SaleSvc.SetCartConfig(sale.CartConfig{HoldTTLHours: p.Config.CartHoldTTLHours})
 
 	priceStore := &productPriceAdapter{repo: d.ProductRepo}
 	d.SaleSvc.SetPriceStore(priceStore)
