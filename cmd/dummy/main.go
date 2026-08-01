@@ -210,14 +210,15 @@ func main() {
 	productsFlag := flag.Int("products", 0, "Number of products to generate (random if 0)")
 	daysFlag := flag.Int("days", 0, "Number of days to generate data for (0 = interactive prompt)")
 	categoriesFlag := flag.Int("categories", 0, "Number of categories to ensure exist (random if 0)")
+	stockOpnamesFlag := flag.Int("stock-opnames", 0, "Number of stock opname sessions to inject (auto ~1/month if 0)")
 	flag.Parse()
 
-	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag); err != nil {
+	if err := run(*truncateFlag, *productsFlag, *daysFlag, *categoriesFlag, *stockOpnamesFlag); err != nil {
 		log.Fatalf("Dummy seeder failed: %v", err)
 	}
 }
 
-func run(truncateData bool, numProducts, numDays, numCategories int) error {
+func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames int) error {
 	ctx := context.Background()
 
 	// Validate parameters
@@ -399,6 +400,12 @@ func run(truncateData bool, numProducts, numDays, numCategories int) error {
 		return fmt.Errorf("failed to sync invoice sequence: %w", err)
 	}
 
+	// 9b. Inject stock opname sessions (realistic, mostly approved history + one active session)
+	fmt.Printf("📦 Injecting stock opname sessions...\n")
+	if err := injectStockOpnames(ctx, db, startDate, endDate, numStockOpnames); err != nil {
+		return fmt.Errorf("failed to inject stock opnames: %w", err)
+	}
+
 	// 10. Generate audit log entries for all created data
 	fmt.Printf("📋 Generating audit log entries...\n")
 	if err := generateAuditLogs(ctx, db, userIDs, categoryIDs, startDate, endDate); err != nil {
@@ -473,6 +480,10 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 		"goods_receipts",
 		"purchase_order_items",
 		"purchase_orders",
+		"stock_opname_assignments",
+		"stock_opname_counts",
+		"stock_opname_items",
+		"stock_opnames",
 		"sale_items",
 		"product_stock",
 		"inventory_movements",
@@ -1210,7 +1221,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 			VALUES ($1, GREATEST(0, COALESCE((
 				SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
 			), 0) - $2), NOW())
-			ON CONFLICT (product_id) DO UPDATE SET
+			ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
 				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
 				updated_at = NOW()`)
 		if err != nil {
@@ -1248,7 +1259,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 				args = append(args, productID, qty)
 				i += 2
 			}
-			sb.WriteString(` ON CONFLICT (product_id) DO UPDATE SET
+			sb.WriteString(` ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
 				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
 				updated_at = NOW()`)
 
@@ -2708,7 +2719,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO product_stock (product_id, quantity, updated_at)
 				VALUES ($1, $2, NOW())
-				ON CONFLICT (product_id) DO UPDATE SET
+				ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
 					quantity = product_stock.quantity + $2,
 					updated_at = NOW()
 			`, item.productID, qtyGood)

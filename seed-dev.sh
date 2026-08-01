@@ -1,7 +1,7 @@
 #!/bin/bash
 # Seed dummy data to postgres-dev
 # Usage: ./seed-dev.sh [flags]
-#   Flags passed to seeder: -products=100 -days=180 -truncate=false
+#   Flags passed to seeder: -products=100 -days=180 -truncate=false -stock-opnames=3
 #   Note: -days=0 triggers interactive selection
 
 set -e
