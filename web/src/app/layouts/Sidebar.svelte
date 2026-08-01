@@ -20,7 +20,7 @@
   let adminExpanded = $state(false);
   let masterDataExpanded = $state(false);
 
-  const isAdminPath = $derived(currentPath.startsWith('/admin'));
+  const isAdminPath = $derived(currentPath.startsWith('/admin') || currentPath.startsWith('/stores'));
   const isMasterDataPath = $derived(
     currentPath.startsWith('/inventory/products') ||
     currentPath.startsWith('/categories') ||
@@ -111,6 +111,7 @@
   ];
 
   const adminItems = [
+    { label: 'Stores',      href: '/stores',       icon: Store },
     { label: 'Users',       href: '/admin/users',       icon: Users },
     { label: 'Roles',       href: '/admin/roles',       icon: Shield },
     { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText, requiresSuperadmin: true },

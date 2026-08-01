@@ -34,6 +34,8 @@
 		'/admin/users':        'Users',
 		'/admin/roles':        'Roles',
 		'/admin/audit-logs':   'Audit Logs',
+		'/stores':             'Stores',
+		'/stores/import-history': 'Import History',
 		'/brands':             'Brands',
 		'/units-of-measure':   'Units',
 		'/pricing-rules':      'Pricing Rules',
@@ -54,6 +56,7 @@
 		'/units-of-measure/import-history':  { label: 'Units', href: '/units-of-measure' },
 		'/customers/import-history':         { label: 'Customers', href: '/customers' },
 		'/products/import-history':          { label: 'Products', href: '/inventory/products' },
+		'/stores/import-history':            { label: 'Stores', href: '/stores' },
 	};
 
     const parts: { label: string; href: string }[] = [];
@@ -61,7 +64,7 @@
     if (path !== '/') {
       parts.push({ label: 'Home', href: '/' });
 
-      const adminPaths = ['/admin/users', '/admin/roles', '/admin/audit-logs'];
+      const adminPaths = ['/admin/users', '/admin/roles', '/admin/audit-logs', '/stores'];
       if (adminPaths.includes(path)) {
         parts.push({ label: 'Administration', href: '/admin' });
       }

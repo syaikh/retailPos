@@ -14,6 +14,7 @@
     '/units-of-measure/import-history': 'uoms',
     '/customers/import-history': 'customers',
     '/products/import-history': 'products',
+    '/stores/import-history': 'stores',
   };
 
   const moduleDisplay: Record<string, string> = {
@@ -22,6 +23,7 @@
     uoms: 'Units of Measure',
     customers: 'Customers',
     products: 'Products',
+    stores: 'Stores',
   };
 
   const moduleParent: Record<string, string> = {
@@ -30,6 +32,7 @@
     uoms: '/units-of-measure',
     customers: '/customers',
     products: '/inventory/products',
+    stores: '/stores',
   };
 
   let currentPath = $state(getPath());

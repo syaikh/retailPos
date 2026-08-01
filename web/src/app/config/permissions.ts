@@ -20,6 +20,7 @@ export const routePermissions: Record<string, string[]> = {
 	'/admin/users': ['user.view'],
 	'/admin/roles': ['role.view'],
 	'/admin/audit-logs': ['audit.view'],
+	'/stores': ['store.view'],
 	'/admin/categories': ['category.view'],
 	'/admin/brands': ['product.view'],
 	'/admin/units-of-measure': ['product.view'],

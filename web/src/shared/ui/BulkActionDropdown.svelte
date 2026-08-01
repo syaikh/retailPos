@@ -13,6 +13,7 @@
     products: '/products/import-history',
     customer_groups: '/customer-groups/import-history',
     suppliers: '/suppliers/import-history',
+    stores: '/stores/import-history',
   };
 
   let {

@@ -49,9 +49,52 @@ test.describe('Sidebar RBAC Visibility', () => {
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
-    await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Dashboard' })).toHaveCount(0);
     await expect(sidebar.getByRole('button', { name: 'Point of Sale' })).toBeVisible();
     await expect(sidebar.getByRole('button', { name: 'Transactions' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Shifts' })).toBeVisible();
+  });
+
+  test('superadmin sees Stores under Administration', async ({ page }) => {
+    await loginUI(page, TEST_USERS.superadmin.username, TEST_USERS.superadmin.password);
+    await page.goto('http://localhost:5173/');
+    const sidebar = page.locator('aside');
+    await expect(sidebar).toBeVisible();
+
+    await sidebar.getByRole('button', { name: 'Administration' }).click();
+    await page.waitForTimeout(500);
+    await expect(sidebar.getByRole('button', { name: 'Stores' })).toBeVisible();
+  });
+
+  test('admin sees Stores under Administration', async ({ page }) => {
+    await loginUI(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
+    await page.goto('http://localhost:5173/');
+    const sidebar = page.locator('aside');
+    await expect(sidebar).toBeVisible();
+
+    await sidebar.getByRole('button', { name: 'Administration' }).click();
+    await page.waitForTimeout(500);
+    await expect(sidebar.getByRole('button', { name: 'Stores' })).toBeVisible();
+  });
+
+  test('manager does not see Stores navigation item', async ({ page }) => {
+    await loginUI(page, 'manager', 'admin123');
+    await page.goto('http://localhost:5173/');
+    const sidebar = page.locator('aside');
+    await expect(sidebar).toBeVisible();
+
+    await expect(sidebar.getByRole('button', { name: 'Administration' })).toHaveCount(0);
+    await expect(sidebar.getByRole('button', { name: 'Stores' })).toHaveCount(0);
+  });
+
+  test('cashier does not see Stores navigation item', async ({ page }) => {
+    await loginUI(page, TEST_USERS.cashier.username, TEST_USERS.cashier.password);
+    await page.goto('http://localhost:5173/');
+    const sidebar = page.locator('aside');
+    await expect(sidebar).toBeVisible();
+
+    await expect(sidebar.getByRole('button', { name: 'Administration' })).toHaveCount(0);
+    await expect(sidebar.getByRole('button', { name: 'Stores' })).toHaveCount(0);
   });
 
   test('sidebar navigates to correct pages', async ({ page }) => {
