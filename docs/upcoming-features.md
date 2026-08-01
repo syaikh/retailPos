@@ -14,6 +14,7 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 6. [Product Image Upload](#6-product-image-upload)
 7. [Time-based Pricing Update](#7-time-based-pricing-update)
 8. [Admin Change Freeze During Active Shifts](#8-admin-change-freeze-during-active-shifts)
+9. [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions)
 
 ---
 
@@ -273,6 +274,8 @@ Gambar: [foto produk]
  
 ## 7. Time-based Pricing Update
 
+> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** dan digantikan oleh [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions) (server-authorized snapshot). Harga boleh berubah kapan saja; transaksi yang sedang berlangsung tidak terpengaruh karena harga dibekukan per-item saat ditambahkan. Sisa gagasan *scheduled price changes* masih relevan sebagai future enhancement (lihat ADR §6).
+
 ### Penjelasan
 
 Perubahan harga (pricing rule, diskon, promosi) hanya diperbolehkan dilakukan pada **window waktu tertentu** saat toko tutup atau shift kasir tidak aktif. Alasan: perubahan harga di tengah shift dapat menyebabkan **price mismatch** antara harga yang ditampilkan di layar POS dengan harga authoritative di backend, yang berujung pada discrepancy fisik uang di kas.
@@ -322,6 +325,8 @@ Jam 14:00 - Admin coba ubah harga:
 ---
  
 ## 8. Admin Change Freeze During Active Shifts
+
+> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** (menghambat operasional toko multi-kasir / 24 jam) dan digantikan oleh [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions). Perubahan master data (harga, cost, pricing rule, discount) tetap diizinkan kapan saja; transaksi yang berlangsung tidak terpengaruh.
 
 ### Penjelasan
 
@@ -387,6 +392,64 @@ Skenario 3 - Percobaan bypass via API langsung:
 
 ---
  
+## 9. Price Consistency During Active Transactions ✅
+
+**Status:** SUDAH DIIMPLEMENTASI — migrasi `010_sale_price_snapshot.sql`, `internal/pricing` (`ResolveSnapshot`/`ResolveSnapshotsBatch`), `internal/sale` (cart service + `CheckoutCart`), `web/src/modules/pos/services/pos-service.ts`, E2E `tests/e2e/price-consistency.spec.ts`
+
+Prinsip: **freeze the transaction, not the master data.** Saat sebuah item ditambahkan ke transaksi, seluruh informasi yang memengaruhi harga (harga, cost, tax, pricing rule) menjadi snapshot yang immutable dan tidak lagi mengikuti perubahan master data.
+
+### Alur Kerja
+
+```
+Kasir add item → POST /api/pos/cart/:id/items
+                 ├─ baca master data terbaru
+                 ├─ pricing engine resolve 1× (ResolveSnapshot)
+                 ├─ persist snapshot ke cart_items (immutable)
+                 └─ kembalikan snapshot ke frontend
+
+Kasir checkout → POST /api/pos/cart/:id/checkout
+                 ├─ lock cart (FOR UPDATE)
+                 ├─ validasi payment terhadap total snapshot
+                 ├─ cek & kurangi stok
+                 ├─ salin cart_items → sale_items (verbatim, tanpa re-resolve)
+                 └─ publish sale.created
+```
+
+### Komponen yang Telah Dibangun
+
+**Backend:**
+- Tabel `cart_sessions` (status open/held/checked_out/cancelled/expired, `expired_at` untuk TTL hold) dan `cart_items` (snapshot per item: unit_price, original_price, discount, cost, tax_rate, pricing_rule, snapshot_created_at)
+- Kolom snapshot pada `sale_items` — jejak harga lengkap di transaksi final
+- `internal/pricing`: `ResolveSnapshot` (+ batch) — pricing engine dijalankan **sekali saat add item**
+- `internal/sale`: service cart (create/get/add/qty/void/hold/resume/checkout/customer), `CheckoutCart` menyalin snapshot verbatim tanpa re-resolve
+- Endpoint POS cart: `POST/GET /api/pos/cart`, `POST /api/pos/cart/items`, `PATCH/DELETE /api/pos/cart/items/:itemId`, `GET /api/pos/cart/:id`, `POST /api/pos/cart/:id/hold|resume|checkout`, `PATCH /api/pos/cart/:id/customer`
+- `POST /api/sales` dengan `cart_session_id` — checkout via alur sales biasa dengan perilaku yang sama seperti `CheckoutCart`
+
+**Frontend:**
+- `PosPage.svelte` — mutasi keranjang via service server-side (`addCartItem`, `holdCart`, `resumeCart`, `checkoutCart`); **tidak** ada lagi `resolveCartPrices()` / `pricing/resolve`
+- Hold/recall via `ParkedSalesModal.svelte` + endpoint baru
+- `pos-service.ts` — semua operasi cart server-side
+
+### Aturan yang Dipenuhi
+
+| Business Rule | Implementasi |
+|---------------|--------------|
+| BR-01 Snapshot dibuat saat add | `POST /api/pos/cart/:id/items` → resolver + persist ke `cart_items` |
+| BR-02 Transaksi immutable | Checkout menyalin snapshot verbatim; tidak ada re-resolve |
+| BR-03 Perubahan master data | Hanya memengaruhi snapshot yang dibuat setelahnya |
+| BR-05 Hold/Resume | Tidak re-resolve harga; snapshot lama tetap |
+| BR-07 Perubahan quantity | Hanya ubah quantity + subtotal; `unit_price` beku |
+| BR-08 Void item | Hapus snapshot; scan ulang → snapshot baru |
+| BR-09 Promo terjadwal | Aktivasi hanya memengaruhi add item berikutnya |
+
+### Test Coverage
+
+- Unit: `internal/pricing/resolver_test.go` (RT-01), `internal/sale/service_test.go`, `internal/sale/domain_test.go`
+- Integration: `internal/sale/handler_test.go`, `internal/sale/cart_service_test.go`, `repository_test.go`
+- E2E: `tests/e2e/price-consistency.spec.ts` — 11 skenario perubahan harga/promo di tengah transaksi
+
+---
+
 ## Prioritas Implementasi
 
 | Urutan | Fitur | Alasan |
@@ -394,11 +457,12 @@ Skenario 3 - Percobaan bypass via API langsung:
 | 1 | ~~Shift Management~~ | ✅ Selesai |
 | 2 | ~~Hold & Recall~~ | ✅ Selesai |
 | 3 | ~~Split Payment~~ | ✅ Selesai |
-| 4 | Admin Change Freeze During Active Shifts | Mencegah perubahan harga/stok saat shift aktif, mengurangi price mismatch |
-| 5 | Time-based Pricing Update | Kontrol waktu perubahan harga, mencegah discrepancy di tengah shift |
+| 4 | ~~Price Consistency During Active Transactions~~ | ✅ Selesai (server-authorized snapshot) |
+| 5 | ~~Purchase Order~~ | ✅ Selesai |
 | 6 | Stock Opname | Akurasi inventori, mencegah selisih stok |
 | 7 | Product Image | Peningkatan UX visual, relatif sederhana |
-| 8 | ~~Purchase Order~~ | ✅ Selesai |
+| ~~8~~ | ~~Admin Change Freeze During Active Shifts~~ | ~~Ditolak di BDR~~ — digantikan snapshot |
+| ~~9~~ | ~~Time-based Pricing Update~~ | ~~Ditolak di BDR~~ — hanya scheduled changes yang relevan |
 
 ---
 
@@ -406,4 +470,5 @@ Skenario 3 - Percobaan bypass via API langsung:
 
 - **Returns & Refund:** Tidak akan diimplementasikan. Kebijakan toko: barang yang sudah dibeli tidak dapat direfund atau dikembalikan.
 - **Supplier Returns:** Baru relevan setelah Purchase Order terbangun.
+- **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
 - Semua fitur baru harus mengikuti pattern Clean Architecture yang sudah ada (domain → repository → service → handler).
