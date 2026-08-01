@@ -72,6 +72,14 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
+	// Reset app data between runs so E2E tests are self-contained. Reference
+	// data seeded by migrations (roles, permissions, payment_methods) is not
+	// truncated; superadmin and permissions are re-seeded below.
+	if err := shared.TruncateTestData(pool); err != nil {
+		e2ePool.Close()
+		os.Exit(0)
+	}
+
 	// Seed the superadmin user in case migrations ran previously and data was truncated
 	_, _ = pool.Exec(context.Background(),
 		`INSERT INTO users (username, email, password_hash, role_id, is_active)
