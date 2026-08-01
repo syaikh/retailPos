@@ -53,6 +53,7 @@
     '/admin/units-of-measure': 'Unit of Measure Management',
     '/shifts':             'Shift Management',
     '/purchase-orders':    'Purchase Orders',
+    '/stock-opnames':      'Stock Opname',
   };
 
   const pageModules = {
@@ -85,12 +86,15 @@
     '/admin/units-of-measure': () => import('$modules/settings/components/UnitsOfMeasurePage.svelte'),
     '/shifts':              () => import('$modules/shifts/components/ShiftsPage.svelte'),
     '/purchase-orders':     () => import('$modules/purchase-orders/components/PurchaseOrdersPage.svelte'),
+    '/stock-opnames':       () => import('$modules/stock-opname/components/StockOpnamesPage.svelte'),
   };
 
   let loadId = 0;
 
   async function getComponent(path) {
-    const loader = pageModules[path];
+    const loader = pageModules[path] ?? (path.startsWith('/stock-opnames/')
+      ? () => import('$modules/stock-opname/components/StockOpnameDetailPage.svelte')
+      : null);
     if (!loader) return NotFoundPage;
     const id = ++loadId;
     try {

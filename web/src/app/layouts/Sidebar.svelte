@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
@@ -66,6 +66,7 @@
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
     { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
+    { label: 'Stock Opname',  href: '/stock-opnames',      icon: ClipboardList },
   ];
 
   const masterDataSubItems = [
@@ -85,6 +86,7 @@
     { label: 'Reports',       href: '/reports',           icon: BarChart3 },
     { label: 'Shifts',        href: '/shifts',             icon: Clock },
     { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
+    { label: 'Stock Opname',  href: '/stock-opnames',      icon: ClipboardList },
   ];
 
   const managerMasterDataSubItems = [
@@ -133,6 +135,7 @@
 
   function isActive(href: string) {
     if (href === '/') return currentPath === '/';
+    if (href === '/stock-opnames') return currentPath === '/stock-opnames' || currentPath.startsWith('/stock-opnames/');
     return currentPath === href;
   }
 

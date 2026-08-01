@@ -75,14 +75,19 @@ BEGIN
         WHERE si.product_id = p.id
           AND si.product_name IS NULL
           AND si.id > last_id
-        ORDER BY si.id
-        LIMIT batch_size
-        RETURNING si.id INTO last_id;
+          AND si.id IN (
+              SELECT id
+              FROM sale_items
+              WHERE product_name IS NULL
+                AND id > last_id
+              ORDER BY id
+              LIMIT batch_size
+          );
 
         GET DIAGNOSTICS rows_updated = ROW_COUNT;
-        IF rows_updated = 0 THEN
-            EXIT;
-        END IF;
+        EXIT WHEN rows_updated = 0;
+
+        SELECT MAX(id) INTO last_id FROM sale_items WHERE product_name IS NOT NULL;
         COMMIT;
         PERFORM pg_sleep(0.05);
     END LOOP;

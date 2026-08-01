@@ -6,6 +6,7 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 
 - **Point of Sale (POS)** — Transaksi penjualan dengan scanner, diskon, split payment (multi metode pembayaran), dan hold & recall (parked sales)
 - **Purchase Order & Goods Receiving** — Alur pembelian dari supplier: draft → confirmed → received, penerimaan barang parsial, auto-generate nomor PO/GR/DO
+- **Stock Opname** — Sesi perhitungan stok fisik (draft → counting → pending approval → approved/cancelled) dengan snapshot inventori, multi-counter assignment, blind count, recount workflow, dan auto-adjustment stok saat approval (FR-001 s.d. FR-044)
 - **Shift Management** — Buka/tutup shift kasir, opening/closing balance, discrepancy review & audit
 - **Pricing Engine** — Aturan harga (special price / promotion) berbasis produk, kategori, brand, customer group, dan store; workflow approval (draft → pending → approved/rejected); resolver harga real-time
 - **Supplier Management** — CRUD supplier, tautan produk-supplier, preferred supplier, bulk actions
@@ -264,6 +265,29 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
 | POST | `/inventory/adjust` | Penyesuaian stok manual | `inventory.adjust` |
+
+#### Stock Opname
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| POST | `/stock-opnames` | Buat sesi Stock Opname (generate snapshot) | `stock_opname.create` |
+| GET | `/stock-opnames` | List sesi (filter status/scope, pagination) | `stock_opname.view` |
+| GET | `/stock-opnames/:id` | Detail sesi | `stock_opname.view` |
+| POST | `/stock-opnames/:id/cancel` | Batalkan sesi draft | `stock_opname.cancel` |
+| POST | `/stock-opnames/:id/assignments` | Assign counter/supervisor | `stock_opname.assign` |
+| GET | `/stock-opnames/:id/assignments` | List assignment sesi | `stock_opname.view` |
+| PUT | `/stock-opnames/:id/assignments/:assignmentId` | Reassign counter | `stock_opname.assign` |
+| PUT | `/stock-opnames/items/:itemId/count` | Simpan hasil counting (autosave) | `stock_opname.count` |
+| GET | `/stock-opnames/items/:itemId/counts` | Riwayat counting per item | `stock_opname.view` |
+| POST | `/stock-opnames/:id/start` | Mulai counting (Draft → Counting) | `stock_opname.count` |
+| POST | `/stock-opnames/:id/submit` | Submit hasil counting | `stock_opname.submit` |
+| POST | `/stock-opnames/:id/approve` | Approve sesi (adjust stok & replay movement) | `stock_opname.approve` |
+| POST | `/stock-opnames/:id/reject` | Reject sesi | `stock_opname.reject` |
+| POST | `/stock-opnames/:id/recount` | Request recount | `stock_opname.recount` |
+| POST | `/stock-opnames/:id/resume` | Resume counting (Needs Recount → Counting) | `stock_opname.count` |
+| GET | `/stock-opnames/:id/summary` | Ringkasan progres sesi | `stock_opname.view` |
+| GET | `/stock-opnames/:id/difference` | Laporan selisih stok | `stock_opname.view` |
+| GET | `/stock-opnames/:id/export` | Export laporan (CSV/Excel/PDF) | `stock_opname.export` |
 
 #### Customers & Customer Groups
 

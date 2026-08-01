@@ -94,6 +94,7 @@ Migrations must be applied **before** deploying a new server binary. The server 
 Key migrations with deployment ordering constraints:
 - `006_consolidate_permissions.sql` — must be applied before the binary that removed `normalizePermissionCode`
 - `009_add_do_sequence.sql` — creates the `do_seq` sequence required by `GetNextDONumber`; if the binary that auto-generates DO numbers on goods receipt is deployed first, every `POST /api/goods-receipts` will fail with a missing `do_seq` relation
+- `012_stock_opname.sql` — creates the `so_seq` sequence, `stock_opnames` family of tables, and seeds `stock_opname.*` permissions/role grants; must be applied before the binary that added the Stock Opname endpoints, otherwise `POST /api/stock-opnames` fails with a missing `so_seq` relation and permission checks fail for `stock_opname.*` codes
 
 ## Filesystem Convention
 

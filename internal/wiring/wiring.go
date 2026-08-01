@@ -28,6 +28,7 @@ import (
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/shift"
+	"retail-pos-system/internal/stockopname"
 	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
@@ -90,6 +91,7 @@ type Dependencies struct {
 	CustomerGroupRepo *customergroup.Repository
 	StoreRepo       *store.Repository
 	ShiftRepo       *shift.Repository
+	StockOpnameRepo *stockopname.Repository
 
 	UserSvc         *user.Service
 	AuthSvc         *user.AuthService
@@ -108,6 +110,7 @@ type Dependencies struct {
 	CustomerGroupSvc *customergroup.Service
 	StoreSvc        *store.Service
 	ShiftSvc        *shift.Service
+	StockOpnameSvc  *stockopname.Service
 
 	UserH           *user.Handler
 	AuthH           *user.AuthHandler
@@ -126,6 +129,7 @@ type Dependencies struct {
 	CustomerGroupH  *customergroup.Handler
 	StoreH          *store.Handler
 	ShiftH          *shift.Handler
+	StockOpnameH    *stockopname.Handler
 
 	IEH             *ieh.Handler
 
@@ -171,6 +175,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)
+	d.StockOpnameRepo = stockopname.NewRepository(p.DB)
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)
 	d.UserSvc = user.NewService(d.UserRepo)
@@ -196,6 +201,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupSvc = customergroup.NewService(d.CustomerGroupRepo)
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
+	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
@@ -215,6 +221,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupH = customergroup.NewHandler(d.CustomerGroupSvc, d.AuditSvc)
 	d.StoreH = store.NewHandler(d.StoreSvc, d.AuditSvc)
 	d.ShiftH = shift.NewHandler(d.ShiftSvc, d.AuditSvc)
+	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)

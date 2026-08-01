@@ -1,0 +1,2860 @@
+# Stock Opname Design Specification
+
+Version 1.0 (Draft)
+
+Status : Approved for Implementation (Pending Review)
+
+Module : Inventory – Stock Opname
+
+Related Modules
+
+* Inventory
+* Inventory Movement
+* Sales
+* Purchase Order
+* Goods Receiving
+* Warehouse
+* Reporting
+* Audit Trail
+
+---
+
+# 1. Document Control
+
+| Item          | Value                                  |
+| ------------- | -------------------------------------- |
+| Document      | Stock Opname Design Specification      |
+| Version       | 1.0                                    |
+| Status        | Draft for Review                       |
+| Owner         | Product & Engineering                  |
+| Audience      | Product Owner, Engineering, QA, DevOps |
+| Last Update   | 2026-08-01                             |
+| Target System | Retail POS System                      |
+
+---
+
+## 1.1 Purpose
+
+Dokumen ini mendefinisikan spesifikasi bisnis dan teknis implementasi fitur **Stock Opname** pada Retail POS System.
+
+Dokumen ini menjadi **single source of truth** bagi seluruh tim selama proses implementasi.
+
+Semua perubahan terhadap desain harus dilakukan melalui Architecture Decision Record (ADR) atau Change Request.
+
+---
+
+## 1.2 Objectives
+
+Implementasi Stock Opname harus mampu:
+
+* menghasilkan stok inventori yang akurat;
+* mendukung operasional toko tanpa menghentikan transaksi;
+* menyediakan audit trail yang lengkap;
+* mendukung proses approval;
+* mengurangi potensi fraud;
+* menjaga konsistensi inventory.
+
+---
+
+## 1.3 Out of Scope
+
+Versi 1.0 tidak mencakup:
+
+* Batch / Lot Number
+* Expired Date Management
+* Serial Number Inventory
+* Offline Stock Opname
+* Automatic Cycle Count Scheduler
+* Notification Engine
+* Dashboard Analytics
+
+Seluruh fitur tersebut menjadi kandidat **Future Enhancement**.
+
+---
+
+# 2. Executive Summary
+
+Stock Opname merupakan proses bisnis untuk memastikan jumlah stok fisik sesuai dengan data inventori yang tersimpan di sistem.
+
+Pada implementasi sederhana, proses ini hanya mengubah nilai stok berdasarkan hasil perhitungan fisik. Pendekatan tersebut berisiko menimbulkan inkonsistensi apabila transaksi penjualan, pembelian, transfer, atau penyesuaian stok tetap berlangsung selama proses penghitungan.
+
+Spesifikasi ini mengadopsi pendekatan **Snapshot + Movement Replay**.
+
+Saat sesi Stock Opname dibuat, sistem mengambil snapshot kondisi inventori sebagai titik acuan. Seluruh inventory movement yang terjadi selama proses penghitungan tetap diperbolehkan berlangsung dan akan diproses kembali (replay) ketika sesi disetujui. Dengan pendekatan ini operasional toko tidak perlu dihentikan dan hasil penyesuaian stok tetap akurat.
+
+Selain itu, desain ini memperkenalkan:
+
+* multi-counter assignment;
+* blind counting;
+* recount;
+* approval workflow;
+* immutable audit trail;
+* atomic inventory adjustment;
+* movement replay.
+
+Pendekatan ini dipilih agar sistem mampu digunakan pada operasional retail skala kecil maupun menengah tanpa mengorbankan integritas data inventori.
+
+---
+
+# 3. Scope
+
+Dokumen ini mencakup seluruh spesifikasi untuk modul Stock Opname.
+
+## 3.1 Business Scope
+
+* Create Session
+* Counting
+* Blind Count
+* Barcode Counting
+* Recount
+* Approval
+* Inventory Adjustment
+* Audit Trail
+* Reporting
+
+---
+
+## 3.2 Technical Scope
+
+* Database
+* REST API
+* Business Rules
+* Inventory Adjustment Engine
+* Security
+* Permission
+* State Machine
+* Test Strategy
+
+---
+
+## 3.3 Integration Scope
+
+Stock Opname berintegrasi dengan:
+
+* Product
+* Inventory
+* Inventory Movement
+* Sales
+* Purchase Order
+* Goods Receiving
+* Warehouse
+* User Management
+* Reporting
+
+---
+
+# 4. Glossary
+
+| Istilah              | Definisi                                                                          |
+| -------------------- | --------------------------------------------------------------------------------- |
+| Stock Opname         | Proses menghitung stok fisik dan membandingkannya dengan stok sistem.             |
+| Snapshot             | Salinan kondisi inventori pada saat sesi dibuat.                                  |
+| Opening Quantity     | Jumlah stok pada saat snapshot dibuat.                                            |
+| Physical Quantity    | Jumlah stok hasil penghitungan fisik.                                             |
+| Expected Quantity    | Jumlah stok yang seharusnya tersedia setelah seluruh inventory movement direplay. |
+| Difference           | Selisih antara Physical Quantity dan Expected Quantity.                           |
+| Inventory Adjustment | Koreksi stok berdasarkan hasil Stock Opname.                                      |
+| Replay               | Proses menghitung kembali inventory movement sejak snapshot dibuat.               |
+| Counter              | Petugas yang melakukan penghitungan stok.                                         |
+| Supervisor           | Petugas yang melakukan review hasil penghitungan.                                 |
+| Manager              | Pihak yang memberikan approval.                                                   |
+| Session              | Satu aktivitas Stock Opname untuk suatu scope tertentu.                           |
+| Scope                | Area yang dihitung, misalnya Store, Warehouse, Category, atau Product tertentu.   |
+
+---
+
+# 5. Business Overview
+
+## 5.1 Business Background
+
+Stock Opname merupakan proses periodik yang bertujuan memastikan data inventori tetap akurat.
+
+Selisih stok dapat disebabkan oleh:
+
+* kehilangan barang;
+* barang rusak;
+* kesalahan penerimaan barang;
+* kesalahan transaksi penjualan;
+* kesalahan transfer;
+* shrinkage;
+* human error;
+* barang ditemukan kembali.
+
+Stock Opname bukan hanya proses memperbarui jumlah stok, tetapi juga menjadi mekanisme pengendalian internal untuk memastikan akurasi aset perusahaan.
+
+---
+
+## 5.2 Business Objectives
+
+Implementasi Stock Opname memiliki tujuan:
+
+* menjaga akurasi inventori;
+* mengurangi shrinkage;
+* menyediakan jejak audit;
+* meningkatkan akuntabilitas petugas;
+* mempermudah investigasi selisih stok;
+* mendukung proses audit internal maupun eksternal.
+
+---
+
+## 5.3 Key Principles
+
+Spesifikasi ini dibangun berdasarkan prinsip berikut.
+
+### Inventory Integrity
+
+Tidak boleh ada inventory movement yang hilang.
+
+---
+
+### Continuous Operation
+
+Operasional toko tetap berjalan selama Stock Opname berlangsung.
+
+---
+
+### Auditability
+
+Seluruh perubahan harus dapat ditelusuri.
+
+---
+
+### Accountability
+
+Setiap tindakan memiliki pengguna, waktu, dan alasan yang tercatat.
+
+---
+
+### Atomicity
+
+Approval hanya berhasil apabila seluruh inventory adjustment berhasil diproses.
+
+---
+
+### Separation of Duties
+
+Petugas yang melakukan penghitungan tidak boleh menjadi approver pada sesi yang sama.
+
+---
+
+# 6. Business Workflow
+
+## 6.1 High-Level Workflow
+
+```text
+Create Session
+        │
+        ▼
+Generate Snapshot
+        │
+        ▼
+Assign Counter(s)
+        │
+        ▼
+Counting
+        │
+        ▼
+Submit
+        │
+        ▼
+Manager Review
+        │
+        ├─────────────┐
+        ▼             │
+Approve          Request Recount
+        │             │
+        ▼             ▼
+Replay Movement   Counting
+        │             │
+        ▼             │
+Inventory Adjustment │
+        │             │
+        ▼             │
+Approved ◄────────────┘
+```
+
+---
+
+## 6.2 Lifecycle
+
+```text
+Draft
+  │
+  ▼
+Counting
+  │
+  ▼
+Pending Approval
+  ├───────────────┐
+  ▼               ▼
+Approved      Needs Recount
+                  │
+                  ▼
+              Counting
+```
+
+Terminal State:
+
+* Approved
+* Cancelled
+
+---
+
+## 6.3 Business Process
+
+1. Sistem membuat sesi Stock Opname.
+2. Sistem mengambil snapshot inventori.
+3. Counter ditugaskan pada sesi.
+4. Counter melakukan penghitungan fisik.
+5. Sistem menyimpan hasil penghitungan secara bertahap.
+6. Counter mengirimkan hasil penghitungan.
+7. Manager melakukan review.
+8. Manager dapat:
+
+   * menyetujui hasil,
+   * meminta recount,
+   * atau membatalkan sesi (sesuai aturan bisnis).
+9. Saat approval:
+
+   * inventory movement sejak snapshot direplay;
+   * expected quantity dihitung;
+   * difference dihitung;
+   * inventory adjustment dibuat;
+   * audit trail dicatat.
+10. Sesi selesai.
+
+---
+
+# 7. Functional Requirements (FR)
+
+## 7.1 Session Management
+
+### FR-001 — Create Stock Opname Session
+
+**Description**
+
+Sistem harus dapat membuat sesi Stock Opname baru untuk scope tertentu.
+
+**Priority**
+
+Critical
+
+**Precondition**
+
+* Scope valid.
+* Tidak ada sesi aktif lain pada scope yang sama.
+
+**Postcondition**
+
+* Session dibuat dengan status **Draft**.
+* Snapshot inventori dibuat.
+
+---
+
+### FR-002 — Generate Inventory Snapshot
+
+**Description**
+
+Saat sesi dibuat, sistem harus menghasilkan snapshot inventori sebagai titik acuan penghitungan.
+
+**Priority**
+
+Critical
+
+---
+
+### FR-003 — Scope Validation
+
+**Description**
+
+Sistem harus memvalidasi bahwa scope yang dipilih tersedia dan aktif.
+
+---
+
+### FR-004 — Prevent Duplicate Active Session
+
+**Description**
+
+Sistem tidak boleh mengizinkan lebih dari satu sesi aktif untuk scope yang sama.
+
+---
+
+### FR-005 — Cancel Draft Session
+
+Session Draft dapat dibatalkan.
+
+Session yang telah dibatalkan tidak boleh menghasilkan inventory adjustment.
+
+---
+
+# 7.2 Assignment
+
+### FR-006 — Assign Multiple Counters
+
+Sistem harus mendukung lebih dari satu Counter pada satu sesi.
+
+---
+
+### FR-007 — Assign Supervisor
+
+Sistem harus mendukung penugasan Supervisor.
+
+---
+
+### FR-008 — Reassign Counter
+
+Counter dapat diganti selama sesi belum selesai.
+
+---
+
+### FR-009 — Assignment History
+
+Seluruh perubahan assignment harus tercatat.
+
+---
+
+# 7.3 Counting
+
+### FR-010 — Record Physical Quantity
+
+Counter dapat memasukkan jumlah fisik.
+
+---
+
+### FR-011 — Barcode Counting
+
+Counter dapat mencari produk menggunakan barcode.
+
+---
+
+### FR-012 — Autosave
+
+Hasil hitung harus tersimpan secara otomatis.
+
+---
+
+### FR-013 — Blind Count
+
+Counter tidak boleh melihat stok sistem selama proses counting apabila mode Blind Count diaktifkan.
+
+---
+
+### FR-014 — Count Progress
+
+Sistem harus menghitung progres counting.
+
+---
+
+### FR-015 — Multiple Recount
+
+Sistem harus mendukung recount tanpa menghapus histori penghitungan sebelumnya.
+
+---
+
+### FR-016 — Count History
+
+Seluruh histori counting harus tersimpan.
+
+---
+
+# 7.4 Submission
+
+### FR-017 — Submit Session
+
+Counter dapat mengirimkan hasil counting.
+
+---
+
+### FR-018 — Validate Submission
+
+Submit hanya berhasil apabila seluruh item telah dihitung.
+
+---
+
+### FR-019 — Lock Session
+
+Setelah submit, sesi tidak dapat diedit.
+
+---
+
+# 7.5 Approval
+
+### FR-020 — Review Session
+
+Manager dapat meninjau hasil counting.
+
+---
+
+### FR-021 — Approve Session
+
+Manager dapat menyetujui sesi.
+
+---
+
+### FR-022 — Reject Session
+
+Manager dapat menolak sesi.
+
+---
+
+### FR-023 — Request Recount
+
+Manager dapat meminta recount.
+
+---
+
+### FR-024 — Approval Comment
+
+Manager harus dapat memberikan alasan approval atau rejection.
+
+---
+
+# 7.6 Inventory Adjustment
+
+### FR-025 — Replay Inventory Movement
+
+Sistem harus menghitung ulang seluruh inventory movement sejak snapshot dibuat.
+
+---
+
+### FR-026 — Calculate Expected Quantity
+
+Expected Quantity harus dihitung berdasarkan hasil replay.
+
+---
+
+### FR-027 — Calculate Difference
+
+Difference dihitung menggunakan:
+
+```text
+Physical Quantity - Expected Quantity
+```
+
+---
+
+### FR-028 — Create Inventory Adjustment
+
+Sistem harus membuat inventory adjustment berdasarkan difference.
+
+---
+
+### FR-029 — Atomic Adjustment
+
+Seluruh adjustment harus diproses dalam satu transaksi database.
+
+---
+
+### FR-030 — Rollback on Failure
+
+Jika satu adjustment gagal maka seluruh adjustment harus dibatalkan.
+
+---
+
+# 7.7 Audit
+
+### FR-031 — Immutable Audit Trail
+
+Seluruh aktivitas harus dicatat.
+
+Audit tidak boleh diubah maupun dihapus.
+
+---
+
+### FR-032 — Inventory Movement History
+
+Movement yang direplay harus dapat ditelusuri kembali.
+
+---
+
+### FR-033 — Count History
+
+Seluruh histori counting harus tersedia.
+
+---
+
+# 7.8 Reporting
+
+### FR-034 — Session Summary
+
+Sistem harus menyediakan ringkasan hasil Stock Opname.
+
+---
+
+### FR-035 — Difference Report
+
+Sistem harus menyediakan laporan selisih stok.
+
+---
+
+### FR-036 — Adjustment Report
+
+Sistem harus menyediakan laporan seluruh inventory adjustment.
+
+---
+
+### FR-037 — Export Report
+
+Laporan dapat diekspor.
+
+---
+
+# 7.9 Security
+
+### FR-038 — Role Based Access Control
+
+Seluruh operasi harus mengikuti Role Based Access Control (RBAC).
+
+---
+
+### FR-039 — Separation of Duties
+
+Counter yang melakukan counting tidak boleh meng-approve sesi yang sama.
+
+---
+
+### FR-040 — Permission Validation
+
+Seluruh endpoint harus melakukan validasi permission.
+
+---
+
+### FR-041 — Audit Authorization Failure
+
+Akses yang ditolak harus dicatat pada audit.
+
+---
+
+# 7.10 Performance
+
+### FR-042 — Large Session
+
+Sistem harus mampu menangani minimal **10.000 SKU** dalam satu sesi.
+
+---
+
+### FR-043 — Concurrent Counting
+
+Sistem harus mendukung banyak Counter secara bersamaan.
+
+---
+
+### FR-044 — Barcode Performance
+
+Pencarian barcode harus tetap responsif pada sesi besar.
+
+---
+
+# 8. Architecture Decision Records (ADR)
+
+## ADR-001 — Movement Strategy
+
+### Decision
+
+Menggunakan **Movement Replay**.
+
+### Rationale
+
+* Operasional toko tetap berjalan.
+* Tidak memerlukan lock inventory.
+* Hasil adjustment lebih akurat.
+
+---
+
+## ADR-002 — Snapshot Timing
+
+### Decision
+
+Snapshot dibuat ketika sesi Stock Opname dibuat.
+
+### Rationale
+
+* Menjadi titik awal replay.
+* Menghindari inkonsistensi data.
+
+---
+
+## ADR-003 — Counting History
+
+### Decision
+
+Menggunakan tabel **`stock_opname_counts`**.
+
+### Rationale
+
+* Mendukung recount.
+* Mendukung multi-counter.
+* Menyimpan histori penghitungan.
+* Audit lebih lengkap.
+
+---
+
+## ADR-004 — Session Assignment
+
+### Decision
+
+Menggunakan tabel **`stock_opname_assignments`**.
+
+### Rationale
+
+* Mendukung banyak Counter.
+* Mendukung Supervisor.
+* Mendukung reassign.
+* Riwayat assignment tetap tersedia.
+
+---
+
+## ADR-005 — Inventory Adjustment
+
+### Decision
+
+Approval menggunakan **Atomic Database Transaction**.
+
+### Rationale
+
+* Mencegah partial adjustment.
+* Menjamin konsistensi inventori.
+
+---
+
+## ADR-006 — Audit Strategy
+
+### Decision
+
+Audit bersifat **append-only**.
+
+### Rationale
+
+* Memenuhi kebutuhan audit.
+* Mencegah manipulasi histori.
+
+---
+
+## ADR-007 — Separation of Duties
+
+### Decision
+
+Counter tidak boleh menjadi approver pada sesi yang sama.
+
+### Rationale
+
+* Mengurangi risiko fraud.
+* Mendukung prinsip internal control.
+
+---
+
+## ADR-008 — Soft Delete
+
+### Decision
+
+Session menggunakan **soft delete** (`deleted_at`).
+
+### Rationale
+
+* Histori tetap tersedia.
+* Mendukung audit dan investigasi.
+
+---
+
+```
+9. Business Rules (BR)
+9.1 Session Rules
+9.2 Counting Rules
+9.3 Submission Rules
+9.4 Approval Rules
+9.5 Inventory Adjustment Rules
+9.6 Audit Rules
+9.7 Security Rules
+
+10. State Machine
+10.1 Session State
+10.2 Item State
+10.3 State Transition Matrix
+10.4 Invalid Transition
+```
+
+Ini akan jauh lebih mudah dibaca.
+
+---
+
+# 9. Business Rules (BR)
+
+> **Catatan**
+>
+> Seluruh Business Rule pada bab ini bersifat **mandatory**.
+> Setiap rule harus memiliki implementasi pada backend dan minimal satu test case pada Test Specification.
+
+---
+
+# 9.1 Session Rules
+
+## BR-001 — Session Scope Uniqueness
+
+**Related Requirement**
+
+FR-004
+
+### Rule
+
+Dalam satu waktu hanya boleh terdapat **satu Stock Opname Session aktif** untuk satu scope yang sama.
+
+### Violation
+
+```
+HTTP 409 Conflict
+```
+
+---
+
+## BR-002 — Snapshot Generation
+
+**Related Requirement**
+
+FR-002
+
+Snapshot inventory harus dibuat tepat setelah Session berhasil dibuat.
+
+Snapshot tidak boleh dibuat ulang.
+
+---
+
+## BR-003 — Draft Session Editable
+
+Session dengan status
+
+```
+Draft
+```
+
+boleh:
+
+* edit informasi
+* assign counter
+* generate item ulang
+
+---
+
+## BR-004 — Approved Session Immutable
+
+Session dengan status
+
+```
+Approved
+```
+
+tidak boleh diubah.
+
+---
+
+## BR-005 — Cancelled Session Immutable
+
+Session yang telah dibatalkan tidak boleh diaktifkan kembali.
+
+---
+
+# 9.2 Counting Rules
+
+## BR-006 — Physical Quantity Required
+
+Seluruh item wajib memiliki
+
+```
+Physical Quantity
+```
+
+---
+
+## BR-007 — Negative Quantity
+
+Physical Quantity tidak boleh negatif.
+
+---
+
+## BR-008 — Blind Count
+
+Jika Blind Count aktif
+
+Counter tidak boleh melihat
+
+* Opening Qty
+* Expected Qty
+* Difference
+
+---
+
+## BR-009 — Count History
+
+Setiap perubahan Physical Quantity harus menghasilkan record baru pada
+
+```
+stock_opname_counts
+```
+
+---
+
+## BR-010 — Recount
+
+Recount tidak boleh menghapus histori sebelumnya.
+
+---
+
+## BR-011 — Autosave
+
+Perubahan Quantity harus langsung disimpan.
+
+---
+
+## BR-012 — Barcode Validation
+
+Barcode yang tidak dikenal
+
+↓
+
+ditolak.
+
+---
+
+# 9.3 Submission Rules
+
+## BR-013 — All Items Counted
+
+Submit hanya diperbolehkan apabila seluruh item telah dihitung.
+
+---
+
+## BR-014 — Session Lock
+
+Setelah Submit
+
+↓
+
+Session menjadi read only.
+
+---
+
+## BR-015 — Double Submit
+
+Submit kedua
+
+↓
+
+ditolak.
+
+---
+
+# 9.4 Approval Rules
+
+## BR-016 — Manager Approval
+
+Approval hanya dapat dilakukan oleh
+
+* Manager
+* Administrator
+
+---
+
+## BR-017 — Separation of Duties
+
+Counter yang menghitung
+
+↓
+
+tidak boleh approve.
+
+---
+
+## BR-018 — Approval Comment
+
+Approval maupun Reject harus memiliki alasan.
+
+---
+
+## BR-019 — Recount
+
+Manager dapat mengembalikan session menjadi
+
+```
+Needs Recount
+```
+
+---
+
+## BR-020 — Approved Session
+
+Approval menghasilkan
+
+* Inventory Adjustment
+* Audit
+* Inventory Movement
+
+---
+
+# 9.5 Inventory Adjustment Rules
+
+## BR-021 — Replay Strategy
+
+Expected Quantity dihitung menggunakan
+
+```
+Snapshot
+
++
+
+Movement Replay
+```
+
+---
+
+## BR-022 — Difference Formula
+
+```
+Difference
+
+=
+
+Physical Quantity
+
+-
+
+Expected Quantity
+```
+
+---
+
+## BR-023 — Zero Difference
+
+Difference
+
+```
+0
+```
+
+↓
+
+Tidak membuat Inventory Adjustment.
+
+---
+
+## BR-024 — Positive Difference
+
+Difference
+
+```
+>0
+```
+
+↓
+
+Increase Inventory
+
+---
+
+## BR-025 — Negative Difference
+
+Difference
+
+```
+<0
+```
+
+↓
+
+Decrease Inventory
+
+---
+
+## BR-026 — Atomic Transaction
+
+Seluruh adjustment diproses dalam satu transaction.
+
+---
+
+## BR-027 — Rollback
+
+Jika satu adjustment gagal
+
+↓
+
+Rollback seluruh transaction.
+
+---
+
+# 9.6 Audit Rules
+
+## BR-028 — Immutable Audit
+
+Audit
+
+↓
+
+INSERT ONLY
+
+---
+
+## BR-029 — Audit Timestamp
+
+Seluruh audit harus memiliki timestamp.
+
+---
+
+## BR-030 — Audit User
+
+Seluruh audit harus memiliki User ID.
+
+---
+
+## BR-031 — Audit Action
+
+Minimal action:
+
+* CREATE
+* UPDATE
+* SUBMIT
+* APPROVE
+* REJECT
+* RECOUNT
+* CANCEL
+
+---
+
+# 9.7 Security Rules
+
+## BR-032 — RBAC
+
+Semua endpoint wajib memeriksa permission.
+
+---
+
+## BR-033 — Assignment Validation
+
+Counter hanya boleh menghitung session yang ditugaskan.
+
+---
+
+## BR-034 — Supervisor Permission
+
+Supervisor tidak boleh approve.
+
+---
+
+## BR-035 — Admin Permission
+
+Administrator dapat melakukan seluruh operasi sesuai kebijakan organisasi.
+
+---
+
+# 10. State Machine
+
+## 10.1 Session State
+
+```
+                 +----------------+
+                 |     Draft      |
+                 +----------------+
+                         |
+                         v
+                 +----------------+
+                 |    Counting    |
+                 +----------------+
+                         |
+                         v
+              +----------------------+
+              | Pending Approval     |
+              +----------------------+
+                  |             |
+          Approve |             | Recount
+                  |             |
+                  v             v
+          +---------------+  +------------------+
+          |   Approved    |  | Needs Recount    |
+          +---------------+  +------------------+
+                                   |
+                                   v
+                             +-------------+
+                             |  Counting   |
+                             +-------------+
+
+Draft
+  |
+Cancel
+  v
++---------------+
+|   Cancelled   |
++---------------+
+```
+
+---
+
+## 10.2 State Transition Matrix
+
+| Current State    | Action          | Next State       |
+| ---------------- | --------------- | ---------------- |
+| Draft            | Start Counting  | Counting         |
+| Draft            | Cancel          | Cancelled        |
+| Counting         | Submit          | Pending Approval |
+| Pending Approval | Approve         | Approved         |
+| Pending Approval | Request Recount | Needs Recount    |
+| Needs Recount    | Resume Counting | Counting         |
+
+---
+
+## 10.3 Invalid Transition
+
+| Current   | Action  | Result   |
+| --------- | ------- | -------- |
+| Approved  | Edit    | Rejected |
+| Approved  | Submit  | Rejected |
+| Approved  | Cancel  | Rejected |
+| Cancelled | Submit  | Rejected |
+| Cancelled | Approve | Rejected |
+
+---
+
+## 10.4 State Constraints
+
+| State            | Constraint            |
+| ---------------- | --------------------- |
+| Draft            | Editable              |
+| Counting         | Physical Qty editable |
+| Pending Approval | Read-only             |
+| Needs Recount    | Editable              |
+| Approved         | Immutable             |
+| Cancelled        | Immutable             |
+
+---
+
+# 11. Database Design
+
+## 11.1 Design Principles
+
+Seluruh desain database harus memenuhi prinsip berikut:
+
+1. **Normalization** minimal hingga Third Normal Form (3NF).
+2. **Auditability**, seluruh aktivitas penting dapat ditelusuri.
+3. **History Preservation**, histori tidak boleh hilang.
+4. **Soft Delete** untuk entitas utama.
+5. **Referential Integrity** menggunakan Foreign Key.
+6. **Optimized Query** melalui indeks pada kolom pencarian utama.
+7. **Transactional Consistency** untuk seluruh proses approval.
+
+---
+
+# 11.2 Entity Relationship Overview
+
+```text
+stock_opnames
+        │
+        ├──────────────┐
+        │              │
+        ▼              ▼
+stock_opname_items   stock_opname_assignments
+        │
+        ▼
+stock_opname_counts
+
+stock_opnames
+        │
+        ▼
+inventory_movements
+
+stock_opnames
+        │
+        ▼
+audit_logs
+```
+
+---
+
+# 11.3 Table : stock_opnames
+
+### Purpose
+
+Menyimpan informasi utama sesi Stock Opname.
+
+---
+
+### Columns
+
+| Column         | Type      | Constraint    |
+| -------------- | --------- | ------------- |
+| id             | bigint    | PK            |
+| session_number | varchar   | UNIQUE        |
+| scope_type     | varchar   | NOT NULL      |
+| scope_id       | bigint    | NOT NULL      |
+| warehouse_id   | bigint    | FK            |
+| blind_count    | boolean   | default false |
+| status         | varchar   | indexed       |
+| created_by     | bigint    | FK            |
+| approved_by    | bigint    | nullable      |
+| approved_at    | timestamp | nullable      |
+| cancelled_at   | timestamp | nullable      |
+| deleted_at     | timestamp | nullable      |
+| created_at     | timestamp | NOT NULL      |
+| updated_at     | timestamp | NOT NULL      |
+
+---
+
+### Related Requirements
+
+* FR-001
+* FR-002
+* FR-004
+* ADR-002
+
+---
+
+### Index
+
+```sql
+idx_stock_opname_status
+
+idx_stock_opname_scope
+
+idx_stock_opname_created
+```
+
+---
+
+# 11.4 Table : stock_opname_items
+
+### Purpose
+
+Menyimpan snapshot setiap produk yang menjadi bagian dari sesi Stock Opname.
+
+---
+
+### Columns
+
+| Column          | Type          |
+| --------------- | ------------- |
+| id              | bigint        |
+| stock_opname_id | bigint FK     |
+| product_id      | bigint FK     |
+| opening_qty     | decimal(18,4) |
+| expected_qty    | decimal(18,4) |
+| physical_qty    | decimal(18,4) |
+| difference_qty  | decimal(18,4) |
+| adjustment_qty  | decimal(18,4) |
+| status          | varchar       |
+
+---
+
+### Catatan Desain
+
+Tabel ini **tidak** menyimpan:
+
+* counted_by
+* counted_at
+
+Karena histori counting dipindahkan ke tabel:
+
+```text
+stock_opname_counts
+```
+
+---
+
+# 11.5 Table : stock_opname_counts
+
+### Purpose
+
+Menyimpan seluruh histori penghitungan fisik.
+
+---
+
+### Columns
+
+| Column               | Type          |
+| -------------------- | ------------- |
+| id                   | bigint        |
+| stock_opname_item_id | bigint FK     |
+| count_sequence       | integer       |
+| physical_qty         | decimal(18,4) |
+| counted_by           | bigint FK     |
+| counted_at           | timestamp     |
+| remarks              | text          |
+
+---
+
+### Related ADR
+
+ADR-003
+
+---
+
+### Business Rules
+
+* BR-009
+* BR-010
+
+---
+
+# 11.6 Table : stock_opname_assignments
+
+### Purpose
+
+Menyimpan petugas yang ditugaskan pada sesi.
+
+---
+
+### Columns
+
+| Column          | Type      |
+| --------------- | --------- |
+| id              | bigint    |
+| stock_opname_id | bigint FK |
+| user_id         | bigint FK |
+| role            | varchar   |
+| assigned_at     | timestamp |
+
+---
+
+### Catatan
+
+Menggantikan kolom:
+
+```text
+assigned_to
+```
+
+---
+
+### Related ADR
+
+ADR-004
+
+---
+
+# 11.7 Foreign Key
+
+| Child                                    | Parent                |
+| ---------------------------------------- | --------------------- |
+| stock_opname_items.stock_opname_id       | stock_opnames.id      |
+| stock_opname_items.product_id            | products.id           |
+| stock_opname_counts.stock_opname_item_id | stock_opname_items.id |
+| stock_opname_assignments.stock_opname_id | stock_opnames.id      |
+| stock_opname_assignments.user_id         | users.id              |
+
+---
+
+# 11.8 Recommended Index
+
+## stock_opnames
+
+```text
+(status)
+
+(scope_type, scope_id)
+
+(created_at)
+```
+
+---
+
+## stock_opname_items
+
+```text
+(stock_opname_id)
+
+(product_id)
+
+(status)
+```
+
+---
+
+## stock_opname_counts
+
+```text
+(stock_opname_item_id)
+
+(counted_at)
+```
+
+---
+
+## stock_opname_assignments
+
+```text
+(stock_opname_id)
+
+(user_id)
+```
+
+---
+
+# 11.9 Database Constraints
+
+## Unique Session
+
+```text
+(scope_type, scope_id)
+
+WHERE status IN
+
+Draft
+
+Counting
+
+Pending Approval
+
+Needs Recount
+```
+
+---
+
+## Count Sequence
+
+```text
+count_sequence
+
+>=1
+```
+
+---
+
+## Physical Qty
+
+```text
+>=0
+```
+
+---
+
+# 11.10 Soft Delete Policy
+
+Soft delete diterapkan pada:
+
+* stock_opnames
+
+Tidak diterapkan pada:
+
+* stock_opname_items
+* stock_opname_counts
+* stock_opname_assignments
+
+Karena tabel tersebut merupakan histori audit.
+
+---
+
+# 12. Adjustment Engine
+
+## 12.1 Objective
+
+Menghasilkan inventory adjustment yang akurat tanpa menghentikan operasional toko.
+
+---
+
+## 12.2 Algorithm
+
+```text
+Create Session
+
+↓
+
+Snapshot Inventory
+
+↓
+
+Counting
+
+↓
+
+Submit
+
+↓
+
+Replay Inventory Movement
+
+↓
+
+Expected Qty
+
+↓
+
+Difference
+
+↓
+
+Inventory Adjustment
+
+↓
+
+Approved
+```
+
+---
+
+# 12.3 Formula
+
+```text
+Expected Qty
+
+=
+
+Opening Qty
+
++
+
+Inventory Movement Replay
+```
+
+---
+
+```text
+Difference
+
+=
+
+Physical Qty
+
+-
+
+Expected Qty
+```
+
+---
+
+```text
+Adjustment
+
+=
+
+Difference
+```
+
+---
+
+# 12.4 Approval Transaction
+
+Seluruh langkah berikut wajib berada dalam **satu transaksi database**:
+
+1. Validasi status sesi.
+2. Validasi permission approver.
+3. Replay seluruh inventory movement.
+4. Hitung expected quantity.
+5. Hitung difference.
+6. Buat inventory adjustment.
+7. Perbarui stok produk.
+8. Simpan inventory movement.
+9. Simpan audit log.
+10. Ubah status menjadi **Approved**.
+11. Commit.
+
+Apabila salah satu langkah gagal, transaksi **harus di-rollback** sehingga tidak ada perubahan parsial.
+
+---
+
+# 12.5 Pseudocode
+
+```text
+BEGIN TRANSACTION
+
+validateSession()
+
+validatePermission()
+
+for each item
+
+    expected = replayMovement()
+
+    difference = physical - expected
+
+    if difference != 0
+
+        createAdjustment()
+
+        updateInventory()
+
+createAudit()
+
+approveSession()
+
+COMMIT
+
+ON ERROR
+
+ROLLBACK
+```
+
+---
+
+# 12.6 Concurrency Strategy
+
+Pendekatan yang digunakan adalah **Movement Replay**, bukan inventory lock.
+
+Konsekuensinya:
+
+* penjualan tetap dapat dilakukan,
+* pembelian tetap dapat dilakukan,
+* transfer tetap dapat dilakukan,
+* adjustment lain tetap dapat dilakukan,
+
+selama seluruh inventory movement tercatat dan dapat direplay saat approval.
+
+---
+
+# 12.7 Failure Handling
+
+| Kondisi            | Tindakan |
+| ------------------ | -------- |
+| Replay gagal       | Rollback |
+| Update stok gagal  | Rollback |
+| Audit gagal        | Rollback |
+| Duplicate approval | Tolak    |
+| Status tidak valid | Tolak    |
+
+---
+
+# 13. REST API Specification
+
+## 13.1 API Design Principles
+
+Seluruh endpoint harus memenuhi prinsip berikut:
+
+1. RESTful API.
+2. Stateless.
+3. JSON Request/Response.
+4. Idempotent untuk operasi yang sesuai.
+5. Role Based Authorization (RBAC).
+6. Seluruh perubahan data dicatat pada audit log.
+7. Menggunakan transaksi database untuk operasi kritikal.
+
+---
+
+# 13.2 Session Management API
+
+## API-001 — Create Session
+
+```
+POST /api/v1/stock-opnames
+```
+
+### Purpose
+
+Membuat sesi Stock Opname baru.
+
+### Related Requirements
+
+* FR-001
+* FR-002
+* FR-004
+
+### Permission
+
+```
+stock_opname.create
+```
+
+### Request
+
+```json
+{
+  "scope_type": "warehouse",
+  "scope_id": 1,
+  "blind_count": true
+}
+```
+
+### Success
+
+```
+201 Created
+```
+
+### Possible Errors
+
+| Status | Keterangan                                |
+| ------ | ----------------------------------------- |
+| 400    | Request tidak valid                       |
+| 403    | Tidak memiliki permission                 |
+| 409    | Masih ada sesi aktif pada scope yang sama |
+
+---
+
+## API-002 — Get Session Detail
+
+```
+GET /api/v1/stock-opnames/{id}
+```
+
+Permission
+
+```
+stock_opname.read
+```
+
+---
+
+## API-003 — List Sessions
+
+```
+GET /api/v1/stock-opnames
+```
+
+Support:
+
+* pagination
+* filtering
+* sorting
+
+---
+
+## API-004 — Cancel Session
+
+```
+POST /api/v1/stock-opnames/{id}/cancel
+```
+
+Related BR
+
+* BR-005
+
+---
+
+# 13.3 Assignment API
+
+## API-005 — Assign Counter
+
+```
+POST /api/v1/stock-opnames/{id}/assignments
+```
+
+Permission
+
+```
+stock_opname.assign
+```
+
+Related
+
+* FR-006
+* ADR-004
+
+---
+
+## API-006 — Reassign Counter
+
+```
+PUT /api/v1/stock-opnames/{id}/assignments/{assignmentId}
+```
+
+---
+
+## API-007 — Get Assignments
+
+```
+GET /api/v1/stock-opnames/{id}/assignments
+```
+
+---
+
+# 13.4 Counting API
+
+## API-008 — Save Count
+
+```
+PUT /api/v1/stock-opnames/items/{itemId}/count
+```
+
+Related
+
+* FR-010
+* BR-011
+
+Request
+
+```json
+{
+    "physical_qty": 20
+}
+```
+
+Behavior
+
+* Autosave
+* Menambah record pada `stock_opname_counts`
+* Tidak mengubah histori sebelumnya
+
+---
+
+## API-009 — Barcode Lookup
+
+```
+GET /api/v1/products/barcode/{barcode}
+```
+
+Related
+
+FR-011
+
+---
+
+## API-010 — Submit Session
+
+```
+POST /api/v1/stock-opnames/{id}/submit
+```
+
+Related
+
+FR-017
+
+BR-013
+
+---
+
+# 13.5 Approval API
+
+## API-011 — Approve Session
+
+```
+POST /api/v1/stock-opnames/{id}/approve
+```
+
+Related
+
+* FR-021
+* ADR-005
+
+Behavior
+
+* Replay movement
+* Inventory adjustment
+* Audit
+* Commit transaction
+
+---
+
+## API-012 — Reject Session
+
+```
+POST /api/v1/stock-opnames/{id}/reject
+```
+
+---
+
+## API-013 — Request Recount
+
+```
+POST /api/v1/stock-opnames/{id}/recount
+```
+
+---
+
+# 13.6 Reporting API
+
+## API-014 — Session Summary
+
+```
+GET /api/v1/stock-opnames/{id}/summary
+```
+
+---
+
+## API-015 — Difference Report
+
+```
+GET /api/v1/stock-opnames/{id}/difference
+```
+
+---
+
+## API-016 — Export Report
+
+```
+GET /api/v1/stock-opnames/{id}/export
+```
+
+Support
+
+* PDF
+* Excel
+* CSV
+
+---
+
+# 13.7 API Error Standard
+
+| HTTP | Meaning               |
+| ---- | --------------------- |
+| 200  | Success               |
+| 201  | Created               |
+| 204  | No Content            |
+| 400  | Bad Request           |
+| 401  | Unauthorized          |
+| 403  | Forbidden             |
+| 404  | Not Found             |
+| 409  | Conflict              |
+| 422  | Validation Error      |
+| 500  | Internal Server Error |
+
+---
+
+# 14. Security & Authorization
+
+## 14.1 Security Principles
+
+Implementasi Stock Opname harus memenuhi prinsip:
+
+* Least Privilege
+* Separation of Duties
+* Immutable Audit
+* Authentication Required
+* Authorization Required
+
+---
+
+## 14.2 Roles
+
+| Role          | Tanggung Jawab                                     |
+| ------------- | -------------------------------------------------- |
+| Counter       | Melakukan penghitungan                             |
+| Supervisor    | Review hasil counting                              |
+| Manager       | Approval                                           |
+| Administrator | Konfigurasi & override sesuai kebijakan organisasi |
+
+---
+
+## 14.3 Permission Matrix
+
+| Permission     | Counter | Supervisor | Manager | Admin |
+| -------------- | :-----: | :--------: | :-----: | :---: |
+| Create Session |    ❌    |      ❌     |    ✅    |   ✅   |
+| Assign Counter |    ❌    |      ✅     |    ✅    |   ✅   |
+| Counting       |    ✅    |      ❌     |    ❌    |   ✅   |
+| Submit         |    ✅    |      ❌     |    ❌    |   ✅   |
+| Review         |    ❌    |      ✅     |    ✅    |   ✅   |
+| Approve        |    ❌    |      ❌     |    ✅    |   ✅   |
+| Reject         |    ❌    |      ❌     |    ✅    |   ✅   |
+| Recount        |    ❌    |      ✅     |    ✅    |   ✅   |
+| Cancel         |    ❌    |      ❌     |    ✅    |   ✅   |
+| View Report    |    ✅    |      ✅     |    ✅    |   ✅   |
+
+---
+
+## 14.4 Authentication
+
+Seluruh endpoint harus menggunakan mekanisme autentikasi yang berlaku pada sistem POS.
+
+Endpoint tanpa autentikasi tidak diperbolehkan.
+
+---
+
+## 14.5 Authorization
+
+Setiap endpoint wajib memvalidasi:
+
+* status pengguna,
+* role,
+* permission,
+* assignment (untuk Counter),
+* state session.
+
+---
+
+## 14.6 Audit Events
+
+Minimal event berikut harus dicatat:
+
+* Session Created
+* Assignment Changed
+* Count Saved
+* Submit
+* Approve
+* Reject
+* Request Recount
+* Inventory Adjustment
+* Cancel Session
+
+---
+
+## 14.7 Security Constraints
+
+1. Counter tidak boleh meng-approve sesi yang sama.
+2. Supervisor tidak boleh mengubah hasil hitung Counter.
+3. Session Approved bersifat immutable.
+4. Audit log tidak boleh diperbarui atau dihapus.
+5. Semua perubahan stok harus dapat ditelusuri hingga pengguna yang melakukan tindakan.
+
+---
+
+# 15. Reporting
+
+## 15.1 Session Summary
+
+Menampilkan:
+
+* nomor sesi,
+* tanggal,
+* scope,
+* jumlah SKU,
+* jumlah item selesai dihitung,
+* status,
+* Counter,
+* Supervisor,
+* Manager.
+
+---
+
+## 15.2 Difference Report
+
+Menampilkan:
+
+* Opening Quantity,
+* Expected Quantity,
+* Physical Quantity,
+* Difference,
+* Nilai selisih (jika tersedia informasi biaya).
+
+---
+
+## 15.3 Adjustment Report
+
+Menampilkan seluruh inventory adjustment yang dihasilkan dari proses approval.
+
+---
+
+## 15.4 Audit Report
+
+Menampilkan kronologi seluruh aktivitas selama siklus hidup sesi Stock Opname.
+
+---
+
+## 15.5 Export
+
+Sistem harus mendukung ekspor laporan dalam format:
+
+* PDF
+* Microsoft Excel (.xlsx)
+* CSV
+
+---
+
+# 16. Non-Functional Requirements (NFR)
+
+## 16.1 Performance
+
+### NFR-001 — Session Creation
+
+Sistem harus dapat membuat sesi Stock Opname untuk **10.000 SKU** dalam waktu maksimal **30 detik** pada spesifikasi server yang direkomendasikan.
+
+---
+
+### NFR-002 — Counting Response Time
+
+Penyimpanan hasil penghitungan (autosave) harus memiliki waktu respons rata-rata kurang dari **500 ms** pada kondisi normal.
+
+---
+
+### NFR-003 — Approval Processing
+
+Proses approval untuk sesi dengan **10.000 SKU** harus selesai dalam waktu maksimal **60 detik**, termasuk replay inventory movement dan inventory adjustment.
+
+---
+
+### NFR-004 — Barcode Lookup
+
+Pencarian produk menggunakan barcode harus memberikan respons dalam waktu kurang dari **300 ms**.
+
+---
+
+## 16.2 Availability
+
+### NFR-005
+
+Sistem harus tetap dapat digunakan oleh pengguna lain selama proses Stock Opname berlangsung.
+
+---
+
+### NFR-006
+
+Inventory Movement tidak boleh dihentikan selama terdapat sesi Stock Opname aktif.
+
+---
+
+## 16.3 Reliability
+
+### NFR-007
+
+Approval harus bersifat **atomic**.
+
+---
+
+### NFR-008
+
+Tidak boleh terjadi partial inventory adjustment.
+
+---
+
+### NFR-009
+
+Audit log harus tetap tersimpan walaupun terjadi kegagalan approval (selama transaksi audit memang dirancang terpisah). Jika audit menjadi bagian dari transaksi utama, maka seluruh transaksi di-rollback.
+
+---
+
+## 16.4 Security
+
+### NFR-010
+
+Seluruh endpoint wajib menggunakan autentikasi.
+
+---
+
+### NFR-011
+
+Seluruh endpoint wajib melakukan otorisasi berbasis RBAC.
+
+---
+
+### NFR-012
+
+Seluruh aktivitas penting harus tercatat pada audit log.
+
+---
+
+## 16.5 Scalability
+
+### NFR-013
+
+Sistem harus mendukung minimal:
+
+* 100.000 produk
+* 100 pengguna aktif
+* 10 Counter melakukan counting secara bersamaan
+
+---
+
+# 17. Test Strategy
+
+## 17.1 Testing Scope
+
+Pengujian meliputi:
+
+* Unit Test
+* Integration Test
+* API Test
+* Performance Test
+* Security Test
+* User Acceptance Test (UAT)
+
+---
+
+## 17.2 Test Categories
+
+| Kategori         | Tujuan                                |
+| ---------------- | ------------------------------------- |
+| Unit Test        | Menguji business logic                |
+| Integration Test | Menguji interaksi database            |
+| API Test         | Menguji kontrak REST API              |
+| Performance Test | Mengukur performa sistem              |
+| Security Test    | Memastikan kontrol akses              |
+| UAT              | Memastikan kebutuhan bisnis terpenuhi |
+
+---
+
+## 17.3 Sample Test Cases
+
+### TC-001 — Create Session
+
+**Related**
+
+* FR-001
+* BR-001
+* API-001
+
+**Expected Result**
+
+Session berhasil dibuat dengan status **Draft** dan snapshot inventori berhasil dihasilkan.
+
+---
+
+### TC-002 — Prevent Duplicate Session
+
+**Related**
+
+* FR-004
+* BR-001
+
+**Expected Result**
+
+Pembuatan sesi kedua pada scope yang sama ditolak dengan **HTTP 409 Conflict**.
+
+---
+
+### TC-003 — Blind Count
+
+**Related**
+
+* FR-013
+* BR-008
+
+**Expected Result**
+
+Counter tidak dapat melihat Opening Quantity, Expected Quantity, maupun Difference.
+
+---
+
+### TC-004 — Request Recount
+
+**Related**
+
+* FR-023
+* BR-019
+
+**Expected Result**
+
+Status sesi berubah menjadi **Needs Recount** dan histori penghitungan sebelumnya tetap tersedia.
+
+---
+
+### TC-005 — Atomic Approval
+
+**Related**
+
+* FR-029
+* BR-026
+* ADR-005
+
+**Expected Result**
+
+Apabila salah satu inventory adjustment gagal, seluruh transaksi di-rollback dan tidak ada perubahan stok.
+
+---
+
+### TC-006 — Separation of Duties
+
+**Related**
+
+* FR-039
+* BR-017
+* ADR-007
+
+**Expected Result**
+
+Counter yang melakukan counting tidak dapat melakukan approval pada sesi yang sama.
+
+---
+
+## 17.4 Regression Test
+
+Setiap perubahan pada modul berikut harus memicu regression test:
+
+* Inventory
+* Sales
+* Goods Receiving
+* Inventory Movement
+* Stock Adjustment
+* Warehouse
+
+---
+
+# 18. Traceability Matrix
+
+## 18.1 Requirement Traceability
+
+| FR     | BR     | ADR     | API     | DB                       | TC     |
+| ------ | ------ | ------- | ------- | ------------------------ | ------ |
+| FR-001 | BR-001 | ADR-002 | API-001 | stock_opnames            | TC-001 |
+| FR-002 | BR-002 | -       | API-001 | stock_opname_items       | TC-001 |
+| FR-003 | BR-001 | ADR-002 | API-001 | stock_opnames            | TC-001 |
+| FR-004 | BR-001 | ADR-002 | API-001 | uq_stock_opname_active_scope | TC-002 |
+| FR-005 | BR-005 | -       | API-004 | stock_opnames            | TC-004 |
+| FR-006 | BR-033 | ADR-004 | API-005 | stock_opname_assignments | TC-006 |
+| FR-007 | BR-034 | -       | API-005 | stock_opname_assignments | TC-006 |
+| FR-008 | BR-033 | -       | API-006 | stock_opname_assignments | TC-006 |
+| FR-009 | BR-003 | -       | API-007 | stock_opname_assignments | TC-006 |
+| FR-010 | BR-006 | ADR-003 | API-008 | stock_opname_counts      | TC-003 |
+| FR-011 | BR-012 | -       | API-009 | products                 | TC-003 |
+| FR-012 | BR-011 | ADR-003 | API-008 | stock_opname_counts      | TC-003 |
+| FR-013 | BR-008 | ADR-003 | API-008 | stock_opname_items       | TC-003 |
+| FR-014 | BR-006 | -       | API-014 | stock_opname_items       | TC-004 |
+| FR-015 | BR-010 | -       | API-013 | stock_opname_counts      | TC-005 |
+| FR-016 | BR-009 | -       | API-008 | stock_opname_counts      | TC-003 |
+| FR-017 | BR-013 | -       | API-010 | stock_opnames            | TC-005 |
+| FR-018 | BR-013 | -       | API-010 | stock_opname_items       | TC-005 |
+| FR-019 | BR-014 | -       | API-010 | stock_opnames            | TC-005 |
+| FR-020 | BR-003 | -       | API-007 | stock_opname_items       | TC-005 |
+| FR-021 | BR-016 | ADR-005 | API-011 | stock_opnames            | TC-005 |
+| FR-022 | BR-016 | -       | API-012 | stock_opnames            | TC-005 |
+| FR-023 | BR-019 | -       | API-013 | stock_opnames            | TC-005 |
+| FR-024 | BR-018 | -       | API-011 | stock_opnames            | TC-005 |
+| FR-025 | BR-021 | ADR-005 | API-011 | inventory_movements      | TC-005 |
+| FR-026 | BR-022 | ADR-005 | API-011 | product_stock            | TC-005 |
+| FR-027 | BR-022 | ADR-005 | API-011 | stock_opname_items       | TC-005 |
+| FR-028 | BR-022 | ADR-005 | API-011 | inventory_movements      | TC-005 |
+| FR-029 | BR-026 | ADR-005 | API-011 | inventory_movements      | TC-005 |
+| FR-030 | BR-027 | ADR-005 | API-011 | inventory_movements      | TC-005 |
+| FR-031 | BR-028 | ADR-005 | API-011 | audit_logs               | TC-005 |
+| FR-032 | BR-022 | -       | API-015 | inventory_movements      | TC-005 |
+| FR-033 | BR-009 | -       | API-008 | stock_opname_counts      | TC-003 |
+| FR-034 | BR-006 | -       | API-014 | stock_opname_items       | TC-004 |
+| FR-035 | BR-022 | -       | API-015 | stock_opname_items       | TC-004 |
+| FR-036 | BR-022 | -       | API-015 | inventory_movements      | TC-004 |
+| FR-037 | BR-023 | -       | API-016 | stock_opname_items       | TC-004 |
+| FR-038 | BR-032 | -       | -       | role_permissions         | TC-007 |
+| FR-039 | BR-017 | ADR-007 | API-011 | stock_opnames            | TC-006 |
+| FR-040 | BR-032 | -       | -       | -                        | TC-007 |
+| FR-041 | BR-031 | -       | -       | audit_logs               | TC-007 |
+| FR-042 | BR-002 | -       | API-003 | stock_opname_items       | TC-008 |
+| FR-043 | BR-006 | -       | API-008 | stock_opname_counts      | TC-008 |
+| FR-044 | BR-012 | -       | API-009 | products                 | TC-008 |
+
+> **Catatan:** Matrix di atas merefleksikan implementasi versi 1.0. Detail test case (TC-001 s.d. TC-008) mengacu pada test suite `internal/stockopname` (repository, service, handler) dan vitest di `web/src/modules/stock-opname`.
+
+---
+
+# 19. Future Enhancements
+
+Fitur berikut berada di luar ruang lingkup versi 1.0 namun direkomendasikan untuk roadmap berikutnya.
+
+## FE-001
+
+Cycle Count Scheduler
+
+---
+
+## FE-002
+
+Mobile Stock Opname
+
+---
+
+## FE-003
+
+Offline Counting
+
+---
+
+## FE-004
+
+Serial Number Tracking
+
+---
+
+## FE-005
+
+Batch & Lot Number
+
+---
+
+## FE-006
+
+Expiry Date Management
+
+---
+
+## FE-007
+
+Photo Evidence
+
+Counter dapat melampirkan foto kondisi fisik barang sebagai bukti hasil penghitungan.
+
+---
+
+## FE-008
+
+Dashboard Analytics
+
+Visualisasi shrinkage, tren selisih stok, dan performa Stock Opname.
+
+---
+
+## FE-009
+
+RFID Integration
+
+Dukungan pembacaan stok menggunakan RFID.
+
+---
+
+# 20. Definition of Done (DoD)
+
+Implementasi fitur Stock Opname dinyatakan selesai apabila seluruh kriteria berikut terpenuhi.
+
+### Functional
+
+* Seluruh Functional Requirement (FR-001 s.d. FR-044) telah diimplementasikan.
+* Seluruh Business Rule (BR-001 s.d. BR-035) telah diterapkan.
+
+---
+
+### Technical
+
+* Database migration berhasil dijalankan.
+* Seluruh endpoint REST API tersedia dan terdokumentasi.
+* Audit log berfungsi.
+* Inventory adjustment menggunakan transaksi atomik.
+
+---
+
+### Quality
+
+* Seluruh Unit Test lulus.
+* Seluruh Integration Test lulus.
+* Seluruh API Test lulus.
+* Tidak terdapat bug dengan tingkat **Critical** maupun **High**.
+
+---
+
+### Performance
+
+* Memenuhi seluruh Non-Functional Requirement.
+
+---
+
+### Documentation
+
+* Dokumentasi API diperbarui.
+* Database schema diperbarui.
+* Traceability Matrix diperbarui.
+* Change Log diperbarui.
+
+---
+
+# 21. Change Log
+
+| Version | Date       | Description                  |
+| ------- | ---------- | ---------------------------- |
+| 1.0     | 2026-08-01 | Initial Design Specification |
+
+---
+
+# Appendix A — Glossary Reference
+
+Dokumen ini menggunakan istilah yang didefinisikan pada **Bab 4 – Glossary**.
+
+---
+
+# Appendix B — Reference Documents
+
+* Business Requirement Document (BRD)
+* Product Requirement Document (PRD)
+* Architecture Decision Record (ADR)
+* REST API Standard
+* Database Naming Convention
+
+---
+
+# Appendix C — Error Code Catalog
+
+## C.1 Purpose
+
+Dokumen ini mendefinisikan seluruh **business error code** yang digunakan oleh modul Stock Opname.
+
+Setiap error terdiri dari:
+
+* Business Error Code
+* HTTP Status
+* Error Message
+* Description
+* Resolution
+
+---
+
+## C.2 Naming Convention
+
+```text
+SO-XXX
+```
+
+Contoh
+
+```text
+SO-001
+SO-002
+SO-003
+```
+
+---
+
+# C.3 Session Errors
+
+| Code   | HTTP | Message                       | Description                                            | Resolution                               |
+| ------ | ---- | ----------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| SO-001 | 409  | Active session already exists | Masih terdapat Stock Opname aktif pada scope yang sama | Selesaikan atau batalkan sesi sebelumnya |
+| SO-002 | 404  | Session not found             | Session tidak ditemukan                                | Periksa ID session                       |
+| SO-003 | 409  | Invalid session state         | Operasi tidak diperbolehkan pada status saat ini       | Ikuti state machine                      |
+| SO-004 | 403  | Session is locked             | Session sudah tidak dapat diubah                       | Gunakan Request Recount bila diperlukan  |
+| SO-005 | 409  | Session already approved      | Session telah disetujui                                | Tidak dapat diubah lagi                  |
+
+---
+
+# C.4 Counting Errors
+
+| Code   | HTTP | Message                    | Description                        |
+| ------ | ---- | -------------------------- | ---------------------------------- |
+| SO-101 | 400  | Physical quantity required | Physical Qty wajib diisi           |
+| SO-102 | 400  | Invalid quantity           | Quantity tidak boleh negatif       |
+| SO-103 | 404  | Product not found          | Produk tidak ditemukan             |
+| SO-104 | 404  | Barcode not found          | Barcode tidak terdaftar            |
+| SO-105 | 403  | User not assigned          | Counter tidak ditugaskan pada sesi |
+
+---
+
+# C.5 Approval Errors
+
+| Code   | HTTP | Message                     | Description                     |
+| ------ | ---- | --------------------------- | ------------------------------- |
+| SO-201 | 409  | Session not submitted       | Session belum disubmit          |
+| SO-202 | 403  | Approval not allowed        | User tidak memiliki hak approve |
+| SO-203 | 409  | Approval already completed  | Approval sudah dilakukan        |
+| SO-204 | 409  | Replay failed               | Replay inventory movement gagal |
+| SO-205 | 500  | Inventory adjustment failed | Inventory adjustment gagal      |
+
+---
+
+# C.6 Security Errors
+
+| Code   | HTTP | Message                        |
+| ------ | ---- | ------------------------------ |
+| SO-301 | 401  | Authentication required        |
+| SO-302 | 403  | Permission denied              |
+| SO-303 | 403  | Separation of duties violation |
+| SO-304 | 403  | Session ownership violation    |
+
+---
+
+# C.7 Validation Errors
+
+| Code   | HTTP | Message                  |
+| ------ | ---- | ------------------------ |
+| SO-401 | 400  | Invalid request          |
+| SO-402 | 422  | Validation failed        |
+| SO-403 | 400  | Missing required field   |
+| SO-404 | 400  | Invalid state transition |
+
+---
+
+# C.8 Internal Errors
+
+| Code   | HTTP | Message            |
+| ------ | ---- | ------------------ |
+| SO-501 | 500  | Database error     |
+| SO-502 | 500  | Transaction failed |
+| SO-503 | 500  | Unexpected error   |
+| SO-504 | 500  | Audit log failed   |
+
+---
+
+# C.9 Standard Error Response
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "SO-205",
+    "message": "Inventory adjustment failed",
+    "details": "Unable to update inventory for Product ID 123",
+    "trace_id": "9cbab6c8-4d94-49c4-bd2e-f75b0d5c44aa"
+  }
+}
+```
+
+---
+
+# Appendix D — Sequence Diagram
+
+---
+
+# D.1 Create Stock Opname Session
+
+```text
+Manager
+   |
+   | Create Session
+   v
+REST API
+   |
+   | Validate Permission
+   v
+Service
+   |
+   | Validate Active Session
+   |
+   | Generate Snapshot
+   |
+   | Save Session
+   |
+   | Save Items
+   |
+   v
+Database
+
+Database
+   |
+   v
+
+201 Created
+```
+
+---
+
+# D.2 Counting Flow
+
+```text
+Counter
+   |
+Scan Barcode
+   |
+   v
+REST API
+   |
+Validate Assignment
+   |
+Load Product
+   |
+Save Count
+   |
+Insert Count History
+   |
+Commit
+   |
+Return Success
+```
+
+---
+
+# D.3 Submit Session
+
+```text
+Counter
+   |
+Submit
+   |
+REST API
+   |
+Validate Session
+   |
+Check All Items Counted
+   |
+Lock Session
+   |
+Update Status
+   |
+Pending Approval
+```
+
+---
+
+# D.4 Approval Flow
+
+```text
+Manager
+   |
+Approve
+   |
+REST API
+   |
+Validate Permission
+   |
+Validate State
+   |
+Replay Inventory Movement
+   |
+Calculate Expected Qty
+   |
+Calculate Difference
+   |
+Create Inventory Adjustment
+   |
+Update Inventory
+   |
+Insert Inventory Movement
+   |
+Insert Audit
+   |
+Approve Session
+   |
+Commit
+```
+
+---
+
+# D.5 Request Recount
+
+```text
+Manager
+   |
+Request Recount
+   |
+REST API
+   |
+Update Status
+   |
+Needs Recount
+   |
+Notify Counter
+```
+
+---
+
+# D.6 Inventory Adjustment Algorithm
+
+```text
+For Each Item
+      |
+      v
+Opening Qty
+      |
+Replay Movement
+      |
+Expected Qty
+      |
+Compare
+      |
+Difference
+      |
+Difference == 0 ?
+   /              \
+ Yes              No
+ |                 |
+Skip      Create Adjustment
+                  |
+          Update Inventory
+                  |
+          Record Movement
+                  |
+              Next Item
+```
+
+---
+
+# D.7 Complete Lifecycle
+
+```text
+            +----------------+
+            |     Draft      |
+            +----------------+
+                    |
+                    v
+            +----------------+
+            |    Counting    |
+            +----------------+
+                    |
+                    v
+       +-------------------------+
+       | Pending Approval        |
+       +-------------------------+
+          |                 |
+Approve   |                 | Recount
+          |                 |
+          v                 v
+ +----------------+   +------------------+
+ |    Approved    |   | Needs Recount    |
+ +----------------+   +------------------+
+                             |
+                             v
+                      +---------------+
+                      |   Counting    |
+                      +---------------+
+
+Draft
+  |
+Cancel
+  |
+  v
++---------------+
+|  Cancelled    |
++---------------+
+```

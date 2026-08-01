@@ -28,4 +28,5 @@ export const routePermissions: Record<string, string[]> = {
 	'/customer-groups': ['customer_group.view'],
 	'/suppliers': ['pricing.view'],
 	'/shifts': ['shift.view'],
+	'/stock-opnames': ['stock_opname.view'],
 };

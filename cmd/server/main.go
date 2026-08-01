@@ -170,6 +170,7 @@ func main() {
 		deps.PricingH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.SupplierH.RegisterRoutes(protected, noopAuth, permMiddleware)
 		deps.ShiftH.RegisterRoutes(protected, noopAuth, permMiddleware)
+		deps.StockOpnameH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	router.GET("/health", func(c *gin.Context) {
