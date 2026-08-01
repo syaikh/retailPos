@@ -194,6 +194,13 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, 
 		return err
 	}
 
+	codes := make([]string, len(validatedPayments))
+	for i, p := range validatedPayments {
+		codes[i] = p.PaymentMethodCode
+	}
+	sale.PaymentMethod = strings.Join(codes, ",")
+	sale.Payments = validatedPayments
+
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
 		return err
 	}
@@ -319,6 +326,13 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
+	codes := make([]string, len(validatedPayments))
+	for i, p := range validatedPayments {
+		codes[i] = p.PaymentMethodCode
+	}
+	sale.PaymentMethod = strings.Join(codes, ",")
+	sale.Payments = validatedPayments
+
 	if err := s.repo.CreateSale(ctx, tx, sale, items); err != nil {
 		return err
 	}
@@ -340,13 +354,6 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 }
 
 func (s *Service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem, payments []SalePayment) error {
-	codes := make([]string, len(payments))
-	for i, p := range payments {
-		codes[i] = p.PaymentMethodCode
-	}
-	sale.PaymentMethod = strings.Join(codes, ",")
-	sale.Payments = payments
-
 	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, payments); err != nil {
 		return err
 	}
