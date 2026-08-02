@@ -2,15 +2,44 @@ package stockopname
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+type capturingEventBus struct {
+	mu       sync.Mutex
+	published []struct {
+		topic string
+		event interface{}
+	}
+}
+
+func (b *capturingEventBus) Publish(_ context.Context, topic string, event interface{}) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.published = append(b.published, struct {
+		topic string
+		event interface{}
+	}{topic: topic, event: event})
+	return nil
+}
+
+func (b *capturingEventBus) topics() []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := make([]string, 0, len(b.published))
+	for _, p := range b.published {
+		out = append(out, p.topic)
+	}
+	return out
+}
+
 func TestService_CreateSession(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	insertTestUser(t, ctx, 9101, "so_svc_user_9101")
@@ -30,7 +59,7 @@ func TestService_CreateSession(t *testing.T) {
 
 func TestService_CreateSessionInvalidScope(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 
 	_, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "all", ScopeID: 1}, 1)
@@ -42,7 +71,7 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 	// creating a fresh session for a scope after truncating nothing (items
 	// exist from other tests, so this test only validates the error path shape).
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	_ = ctx
 	// validation errors take precedence
@@ -66,7 +95,7 @@ func countAllItems(t *testing.T, svc *Service, ctx context.Context, sessionID, c
 
 func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9102
@@ -141,7 +170,7 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 
 func TestService_RejectAndRecount(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9104
@@ -178,7 +207,7 @@ func TestService_RejectAndRecount(t *testing.T) {
 
 func TestService_CancelSession(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9106
@@ -201,7 +230,7 @@ func TestService_CancelSession(t *testing.T) {
 
 func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9107
@@ -247,7 +276,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 
 func TestService_ListAssignableUsers(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	insertTestUserWithRole(t, ctx, 9201, "so_staff_9201", 5)
@@ -263,7 +292,7 @@ func TestService_ListAssignableUsers(t *testing.T) {
 
 func TestService_AssignCounterRoleValidation(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9203
@@ -303,7 +332,7 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 
 func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9206
@@ -332,7 +361,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 
 func TestService_BlindCountMasksQuantities(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9109
@@ -375,4 +404,89 @@ func TestService_BlindCountMasksQuantities(t *testing.T) {
 	reportBlind, err := svc.DifferenceReport(ctx, s.ID, counterID)
 	require.NoError(t, err)
 	assert.Equal(t, float64(0), reportBlind.Items[0].OpeningQty)
+}
+
+func TestService_PublishesStatusEvents(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := &capturingEventBus{}
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9110
+	counterID := 9111
+	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9110", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9111", 5)
+	p := insertTestProduct(t, ctx, "SO-SVC-EVT-001")
+	insertTestStock(t, ctx, p, 10)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
+	require.NoError(t, err)
+	require.Contains(t, bus.topics(), EventStockOpnameCreated)
+
+	// cancel publishes cancelled event
+	require.NoError(t, svc.CancelSession(ctx, session.ID, managerID))
+	require.Contains(t, bus.topics(), EventStockOpnameCancelled)
+}
+
+func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := &capturingEventBus{}
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9112
+	counterID := 9113
+	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9112", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9113", 5)
+	p := insertTestProduct(t, ctx, "SO-SVC-EVT-002")
+	insertTestStock(t, ctx, p, 10)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 103}, managerID)
+	require.NoError(t, err)
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
+	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
+	countAllItems(t, svc, ctx, session.ID, counterID, p, 10)
+	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
+
+	require.Contains(t, bus.topics(), EventStockOpnameSubmitted)
+
+	// payload carries session info
+	bus.mu.Lock()
+	var found bool
+	for _, pr := range bus.published {
+		if pr.topic == EventStockOpnameSubmitted {
+			m, ok := pr.event.(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, session.ID, m["session_id"])
+			assert.Equal(t, session.SessionNumber, m["session_number"])
+			assert.Equal(t, StatusPendingApproval, m["status"])
+			found = true
+		}
+	}
+	bus.mu.Unlock()
+	assert.True(t, found)
+}
+
+func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := &capturingEventBus{}
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9114
+	counterID := 9115
+	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9114", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9115", 5)
+	p := insertTestProduct(t, ctx, "SO-SVC-EVT-003")
+	insertTestStock(t, ctx, p, 10)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 104}, managerID)
+	require.NoError(t, err)
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
+	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
+	countAllItems(t, svc, ctx, session.ID, counterID, p, 10)
+	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
+	require.NoError(t, svc.ApproveSession(ctx, session.ID, managerID, "ok"))
+
+	require.Contains(t, bus.topics(), EventStockOpnameApproved)
 }

@@ -37,6 +37,11 @@
     return () => clearTimeout(loadTimer);
   });
 
+  $effect(() => {
+    const unsubWS = store.subscribeToWS();
+    return () => unsubWS();
+  });
+
   function handlePageChange(newOffset: number, newLimit: number) {
     store.pageSize = newLimit;
     store.page = Math.floor(newOffset / newLimit);

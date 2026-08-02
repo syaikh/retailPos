@@ -11,6 +11,7 @@ import (
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/stockopname"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -706,6 +707,16 @@ func TestListener_EventTypes(t *testing.T) {
 
 	cancelledListener := NewPOCancelledListener(hub)
 	assert.Contains(t, cancelledListener.EventTypes(), eventbus.EventType("purchase_order.cancelled"))
+
+	soListener := NewStockOpnameStatusListener(hub)
+	assert.ElementsMatch(t, []eventbus.EventType{
+		eventbus.EventType(stockopname.EventStockOpnameCreated),
+		eventbus.EventType(stockopname.EventStockOpnameSubmitted),
+		eventbus.EventType(stockopname.EventStockOpnameApproved),
+		eventbus.EventType(stockopname.EventStockOpnameRejected),
+		eventbus.EventType(stockopname.EventStockOpnameRecount),
+		eventbus.EventType(stockopname.EventStockOpnameCancelled),
+	}, soListener.EventTypes())
 }
 
 func TestNewPOReceivedListener(t *testing.T) {
@@ -901,5 +912,118 @@ func TestHub_BroadcastUserCount(t *testing.T) {
 		assert.Equal(t, 1, payload.Count)
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for user count broadcast")
+	}
+}
+
+func TestNewStockOpnameStatusListener(t *testing.T) {
+	cases := []struct {
+		name          string
+		eventType     eventbus.EventType
+		broadcastType EventType
+		wsEventName   string
+	}{
+	{
+		name:          "created",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameCreated),
+		broadcastType: EventSOCreated,
+		wsEventName:   "so_created",
+	},
+	{
+		name:          "submitted",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameSubmitted),
+		broadcastType: EventSOSubmitted,
+		wsEventName:   "so_submitted",
+	},
+	{
+		name:          "approved",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameApproved),
+		broadcastType: EventSOApproved,
+		wsEventName:   "so_approved",
+	},
+	{
+		name:          "rejected",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameRejected),
+		broadcastType: EventSORejected,
+		wsEventName:   "so_rejected",
+	},
+	{
+		name:          "needs_recount",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameRecount),
+		broadcastType: EventSORecount,
+		wsEventName:   "so_needs_recount",
+	},
+	{
+		name:          "cancelled",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameCancelled),
+		broadcastType: EventSOCancelled,
+		wsEventName:   "so_cancelled",
+	},
+}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hub := newListenerHub()
+			go hub.Run()
+			defer hub.Shutdown()
+
+			client := registerClient(t, hub, 1, nil, true)
+			drainMessages(client.send)
+
+			listener := NewStockOpnameStatusListener(hub)
+
+			t.Run("broadcasts on valid event", func(t *testing.T) {
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "SO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast")
+				}
+				assert.Contains(t, msg, tc.broadcastType)
+				assert.Contains(t, msg, `"session_id":42`)
+				assert.Contains(t, msg, "SO-042")
+			})
+
+			t.Run("wrong payload type returns nil without error", func(t *testing.T) {
+				drainMessages(client.send)
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type:    tc.eventType,
+					Payload: "not a map",
+				})
+				assert.NoError(t, err)
+
+				msg, found := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if found {
+					t.Fatalf("should not broadcast on wrong payload type, got: %s", msg)
+				}
+			})
+
+			t.Run("zero session_id produces no broadcast", func(t *testing.T) {
+				drainMessages(client.send)
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type:    tc.eventType,
+					Payload: map[string]interface{}{},
+				})
+				assert.NoError(t, err)
+
+				msg, found := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if found {
+					t.Fatalf("should not broadcast when session_id is missing, got: %s", msg)
+				}
+			})
+		})
 	}
 }

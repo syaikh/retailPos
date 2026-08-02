@@ -18,6 +18,7 @@ import {
   getSessionSummary,
   exportStockOpname,
 } from '../services/stock-opname-service';
+import { useWebSocket } from '$shared/api/websocket';
 import type {
   StockOpnameSession,
   StockOpnameAssignment,
@@ -47,6 +48,7 @@ let page = $state(0);
 let pageSize = $state(20);
 
 let abortController: AbortController | null = null;
+let wsSubscribed = false;
 
 export function useStockOpnameStore() {
   return {
@@ -192,6 +194,32 @@ export function useStockOpnameStore() {
 
     async exportCSV(id: number): Promise<Blob> {
       return exportStockOpname(id);
+    },
+
+    subscribeToWS(onStatus?: (data: any) => void): () => void {
+      if (wsSubscribed) return () => {};
+      wsSubscribed = true;
+      const ws = useWebSocket();
+      const reload = (data: any) => {
+        this.loadSessions(this.currentFilters);
+        const cur = current;
+        if (cur && cur.id === data.session_id) {
+          this.loadSession(cur.id);
+        }
+        onStatus?.(data);
+      };
+      const unsubs = [
+        ws.on('so_created', reload),
+        ws.on('so_submitted', reload),
+        ws.on('so_approved', reload),
+        ws.on('so_rejected', reload),
+        ws.on('so_needs_recount', reload),
+        ws.on('so_cancelled', reload),
+      ];
+      return () => {
+        unsubs.forEach(fn => fn());
+        wsSubscribed = false;
+      };
     },
 
     clearCurrent() {

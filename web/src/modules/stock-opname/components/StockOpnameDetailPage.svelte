@@ -4,9 +4,9 @@
   import { useStockOpnameStore } from '../stores/stock-opname-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
+  import { Badge, Button, Card, Dropdown, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
-  import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
+  import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
   import { STOCK_OPNAME_STATUS_LABELS } from '../types';
   import type { StockOpnameSession } from '../types';
 
@@ -26,6 +26,7 @@
   let session = $state<StockOpnameSession | null>(null);
   let loading = $state(true);
   let searchQuery = $state('');
+  let statusFilter = $state('');
 
   let showAssignModal = $state(false);
   let assignUserId = $state(0);
@@ -69,21 +70,54 @@
     }
   }
 
+  $effect(() => {
+    const unsubWS = store.subscribeToWS();
+    return () => unsubWS();
+  });
+
+  // Keep the page session in sync when the store refreshes the current
+  // session after a WebSocket status event arrives.
+  $effect(() => {
+    if (store.current?.id === sessionId) {
+      session = store.current;
+    }
+  });
+
   const filteredItems = $derived(
     session?.items?.filter(it =>
-      !searchQuery ||
-      it.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      it.sku.toLowerCase().includes(searchQuery.toLowerCase())
+      (!statusFilter || it.status === statusFilter) &&
+      (!searchQuery ||
+        it.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        it.sku.toLowerCase().includes(searchQuery.toLowerCase()))
     ) ?? []
   );
 
   $effect(() => {
     searchQuery;
+    statusFilter;
     pageOffset = 0;
   });
 
   const paginatedItems = $derived(filteredItems.slice(pageOffset, pageOffset + pageLimit));
   const totalFiltered = $derived(filteredItems.length);
+
+  const itemStatusOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'counted', label: 'Counted' },
+  ];
+
+  const itemStatusLabel = $derived(
+    itemStatusOptions.find(s => s.value === statusFilter)?.label || 'All Status'
+  );
+
+  const itemStatusItems = $derived([
+    { label: 'All Status', checked: statusFilter === '', onclick: () => { statusFilter = ''; } },
+    ...itemStatusOptions.map(opt => ({
+      label: opt.label,
+      checked: statusFilter === opt.value,
+      onclick: () => { statusFilter = opt.value; },
+    })),
+  ]);
 
   function handlePageChange(newOffset: number, newLimit: number) {
     if (newLimit && newLimit !== pageLimit) pageLimit = newLimit;
@@ -355,8 +389,22 @@
     <Card class="p-4">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h3 class="text-sm font-semibold text-text-primary">Items</h3>
-        <div class="w-64 max-w-full">
-          <Input type="text" placeholder="Search product / SKU..." bind:value={searchQuery} />
+        <div class="flex flex-wrap items-center gap-2">
+          <Dropdown placement="bottom-start" items={itemStatusItems}>
+            {#snippet trigger({ toggle })}
+              <button
+                type="button"
+                class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
+                onclick={toggle}
+              >
+                <span>{itemStatusLabel}</span>
+                <ChevronDown size={14} class="text-text-muted shrink-0" />
+              </button>
+            {/snippet}
+          </Dropdown>
+          <div class="w-64 max-w-full">
+            <Input type="text" placeholder="Search product / SKU..." bind:value={searchQuery} />
+          </div>
         </div>
       </div>
 

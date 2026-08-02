@@ -201,7 +201,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupSvc = customergroup.NewService(d.CustomerGroupRepo)
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
-	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo)
+	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
@@ -264,6 +264,7 @@ func Initialize(p Providers) *Dependencies {
 	d.Bus.Subscribe(websocket.NewPOCreatedListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewPOConfirmedListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewPOCancelledListener(d.Hub))
+	d.Bus.Subscribe(websocket.NewStockOpnameStatusListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockAdjustedListener(d.Hub, wsProductLookup))
 	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener())
 	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))

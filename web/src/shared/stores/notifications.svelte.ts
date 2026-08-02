@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
 
-export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated' | 'po_received';
+export type NotificationType = 'low_stock' | 'sale_created' | 'stock_update' | 'product_updated' | 'po_received' | 'so_created' | 'so_submitted' | 'so_approved' | 'so_rejected' | 'so_needs_recount' | 'so_cancelled';
 
 export interface Notification {
   id: string;
@@ -75,5 +75,17 @@ export function getNotificationIcon(type: NotificationType): string {
     case 'stock_update': return '📦';
     case 'product_updated': return '✏️';
     case 'po_received': return '📥';
+    case 'so_created': return '📋';
+    case 'so_submitted': return '✅';
+    case 'so_approved': return '👍';
+    case 'so_rejected': return '❌';
+    case 'so_needs_recount': return '🔄';
+    case 'so_cancelled': return '🚫';
   }
+}
+
+export const STOCK_OPNAME_VIEW_PERMISSION = 'stock_opname.view';
+
+export function canReceiveStockOpnameNotifications(permissions: string[] | undefined | null): boolean {
+  return !!permissions?.includes(STOCK_OPNAME_VIEW_PERMISSION);
 }

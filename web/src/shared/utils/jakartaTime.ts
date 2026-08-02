@@ -286,8 +286,9 @@ export function getCompletedDaysInCurrentWeek(): number {
   // If dayOfWeek === 4 (Thursday), yesterday was Wednesday -> 3 days (threshold met!)
   // If dayOfWeek === 0 (Sunday), yesterday was Saturday -> 6 days
   
-  if (dayOfWeek === 1) return 0; // Monday - no completed days in current week
-  return dayOfWeek - 1; // Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+  // Completed days = days from Monday to yesterday:
+  // Monday=0, Tuesday=1, ..., Saturday=5, Sunday=6
+  return (dayOfWeek + 6) % 7;
 }
 
 // ---------------------------------------------------------------------------

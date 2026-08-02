@@ -93,5 +93,20 @@ describe('notifications store', () => {
     expect(getNotificationIcon('stock_update')).toBe('📦');
     expect(getNotificationIcon('product_updated')).toBe('✏️');
     expect(getNotificationIcon('po_received')).toBe('📥');
+    expect(getNotificationIcon('so_created')).toBe('📋');
+    expect(getNotificationIcon('so_submitted')).toBe('✅');
+    expect(getNotificationIcon('so_approved')).toBe('👍');
+    expect(getNotificationIcon('so_rejected')).toBe('❌');
+    expect(getNotificationIcon('so_needs_recount')).toBe('🔄');
+    expect(getNotificationIcon('so_cancelled')).toBe('🚫');
+  });
+
+  it('canReceiveStockOpnameNotifications allows stock_opname.view', async () => {
+    const { canReceiveStockOpnameNotifications } = await import('../notifications.svelte');
+    expect(canReceiveStockOpnameNotifications(['dashboard.view', 'stock_opname.view'])).toBe(true);
+    expect(canReceiveStockOpnameNotifications(['stock_opname.count'])).toBe(false);
+    expect(canReceiveStockOpnameNotifications([])).toBe(false);
+    expect(canReceiveStockOpnameNotifications(undefined)).toBe(false);
+    expect(canReceiveStockOpnameNotifications(null)).toBe(false);
   });
 });

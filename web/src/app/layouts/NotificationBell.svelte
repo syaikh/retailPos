@@ -10,10 +10,15 @@
     notifications,
     formatRelativeTime,
     getNotificationIcon,
+    canReceiveStockOpnameNotifications,
     type Notification,
   } from '$shared/stores/notifications.svelte';
+  import { useAuthStore } from '$modules/auth';
 
   const ws = useWebSocket();
+  const authStore = useAuthStore();
+
+  const canSeeStockOpname = $derived(canReceiveStockOpnameNotifications(authStore.user?.permissions));
 
   let open = $state(false);
   let container = $state<HTMLElement>();
@@ -126,6 +131,60 @@
           title: 'PO Diterima',
           description: `${data.po_number} — ${data.gr_number}`,
           navigateTo: `/purchase-orders?po_id=${data.po_id}`,
+        });
+      }),
+      ws.on('so_created', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_created',
+          title: 'Stock Opname Dibuat',
+          description: `Sesi ${data.session_number} dibuat`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
+        });
+      }),
+      ws.on('so_submitted', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_submitted',
+          title: 'Stock Opname Diserahkan',
+          description: `Sesi ${data.session_number} menunggu persetujuan`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
+        });
+      }),
+      ws.on('so_approved', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_approved',
+          title: 'Stock Opname Disetujui',
+          description: `Sesi ${data.session_number} disetujui`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
+        });
+      }),
+      ws.on('so_rejected', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_rejected',
+          title: 'Stock Opname Ditolak',
+          description: `Sesi ${data.session_number} ditolak — perlu penghitungan ulang`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
+        });
+      }),
+      ws.on('so_needs_recount', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_needs_recount',
+          title: 'Perlu Penghitungan Ulang',
+          description: `Sesi ${data.session_number} diminta penghitungan ulang`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
+        });
+      }),
+      ws.on('so_cancelled', (data: any) => {
+        if (!canSeeStockOpname) return;
+        notifications.push({
+          type: 'so_cancelled',
+          title: 'Stock Opname Dibatalkan',
+          description: `Sesi ${data.session_number} dibatalkan`,
+          navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
     ];

@@ -9,6 +9,7 @@ import (
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/stockopname"
 )
 
 func NewSaleCreatedListener(hub *Hub) eventbus.Listener {
@@ -232,4 +233,63 @@ func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listene
 			return nil
 		},
 	)
+}
+
+// stockOpnameEventTypes maps a stock opname eventbus topic to its websocket
+// event type. Only status transitions are broadcast; item-level counts are
+// deliberately excluded to preserve blind counting (BR-008).
+var stockOpnameEventTypes = map[eventbus.EventType]EventType{
+	eventbus.EventType(stockopname.EventStockOpnameCreated):   EventSOCreated,
+	eventbus.EventType(stockopname.EventStockOpnameSubmitted): EventSOSubmitted,
+	eventbus.EventType(stockopname.EventStockOpnameApproved):  EventSOApproved,
+	eventbus.EventType(stockopname.EventStockOpnameRejected):  EventSORejected,
+	eventbus.EventType(stockopname.EventStockOpnameRecount):   EventSORecount,
+	eventbus.EventType(stockopname.EventStockOpnameCancelled): EventSOCancelled,
+}
+
+func NewStockOpnameStatusListener(hub *Hub) eventbus.Listener {
+	eventTypes := make([]eventbus.EventType, 0, len(stockOpnameEventTypes))
+	for et := range stockOpnameEventTypes {
+		eventTypes = append(eventTypes, et)
+	}
+	return eventbus.NewListenerFunc(
+		eventTypes,
+		func(ctx context.Context, event eventbus.Event) error {
+			wsType, ok := stockOpnameEventTypes[event.Type]
+			if !ok {
+				slog.Warn("[ws] unknown stock opname event", "type", event.Type)
+				return nil
+			}
+			payload, ok := event.Payload.(map[string]interface{})
+			if !ok {
+				slog.Warn("[ws] unexpected payload type for stock opname event", "type", fmt.Sprintf("%T", event.Payload))
+				return nil
+			}
+			sessionID := extractSessionID(payload)
+			if sessionID == 0 {
+				return nil
+			}
+			sessionNumber, _ := payload["session_number"].(string)
+			status, _ := payload["status"].(string)
+			BroadcastStockOpnameStatus(hub, wsType, StockOpnameStatusEvent{
+				SessionID:     sessionID,
+				SessionNumber: sessionNumber,
+				Status:        status,
+			})
+			return nil
+		},
+	)
+}
+
+func extractSessionID(payload map[string]interface{}) int {
+	switch v := payload["session_id"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	default:
+		return 0
+	}
 }

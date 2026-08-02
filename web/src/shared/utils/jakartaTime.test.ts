@@ -182,6 +182,16 @@ describe('jakartaTime utilities', () => {
     expect(result).toBeLessThanOrEqual(6);
   });
 
+  it('getCompletedDaysInCurrentWeek formula: Monday=0, Tuesday=1, ..., Sunday=6', () => {
+    // Verify the mapping (dayOfWeek + 6) % 7 without relying on "now":
+    // 1 (Mon)=0, 2 (Tue)=1, 3 (Wed)=2, 4 (Thu)=3, 5 (Fri)=4, 6 (Sat)=5, 0 (Sun)=6
+    const expected = [6, 0, 1, 2, 3, 4, 5]; // index = dayOfWeek 0..6
+    expected.forEach((value, dayOfWeek) => {
+      expect((dayOfWeek + 6) % 7).toBe(value);
+    });
+    expect(getCompletedDaysInCurrentWeek()).toBe((getJakartaDayOfWeek() + 6) % 7);
+  });
+
   it('formatDateInJakarta formats correctly', () => {
     // 2026-06-15T17:00:00Z = 2026-06-16 00:00 WIB
     expect(formatDateInJakarta('2026-06-15T17:00:00Z')).toBe('16 Jun 2026');

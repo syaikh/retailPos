@@ -372,6 +372,18 @@ func (r *Repository) GetSessionStatus(ctx context.Context, id int) (string, erro
 	return status, nil
 }
 
+func (r *Repository) GetSessionNumber(ctx context.Context, id int) (string, error) {
+	var number string
+	err := r.db.QueryRow(ctx, `SELECT session_number FROM stock_opnames WHERE id = $1 AND deleted_at IS NULL`, id).Scan(&number)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("failed to load session number: %w", err)
+	}
+	return number, nil
+}
+
 func (r *Repository) CountPendingItems(ctx context.Context, sessionID int) (int, error) {
 	var n int
 	err := r.db.QueryRow(ctx, `

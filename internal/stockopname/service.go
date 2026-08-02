@@ -3,17 +3,50 @@ package stockopname
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
+
+	"retail-pos-system/internal/shared"
 )
 
 type Service struct {
-	repo *Repository
+	repo     *Repository
+	eventBus shared.EventBus
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, eventBus shared.EventBus) *Service {
+	return &Service{repo: repo, eventBus: eventBus}
 }
+
+// publishStatusEvent broadcasts a stock opname status transition to the
+// event bus. Only session-level status changes are published; item-level
+// counts are excluded to preserve blind counting (BR-008).
+func (s *Service) publishStatusEvent(ctx context.Context, topic string, sessionID int, status string) {
+	if s.eventBus == nil {
+		return
+	}
+	sessionNumber, err := s.repo.GetSessionNumber(ctx, sessionID)
+	if err != nil {
+		slog.Warn("[stock-opname] failed to load session number for status event", "session_id", sessionID, "error", err)
+		return
+	}
+	_ = s.eventBus.Publish(ctx, topic, map[string]interface{}{
+		"session_id":     sessionID,
+		"session_number": sessionNumber,
+		"status":         status,
+	})
+}
+
+// Status event topics published to the event bus.
+const (
+	EventStockOpnameCreated     = "stock_opname.created"
+	EventStockOpnameSubmitted   = "stock_opname.submitted"
+	EventStockOpnameApproved    = "stock_opname.approved"
+	EventStockOpnameRejected    = "stock_opname.rejected"
+	EventStockOpnameRecount     = "stock_opname.needs_recount"
+	EventStockOpnameCancelled   = "stock_opname.cancelled"
+)
 
 func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, userID int) (*Session, error) {
 	if !validScopes[req.ScopeType] {
@@ -68,6 +101,7 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
+	s.publishStatusEvent(ctx, EventStockOpnameCreated, session.ID, session.Status)
 	return session, nil
 }
 
@@ -136,7 +170,11 @@ func (s *Service) validateAssigneeRole(ctx context.Context, userID int, role str
 }
 
 func (s *Service) CancelSession(ctx context.Context, id, userID int) error {
-	return s.repo.CancelSession(ctx, id, userID)
+	if err := s.repo.CancelSession(ctx, id, userID); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameCancelled, id, StatusCancelled)
+	return nil
 }
 
 func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role string) error {
@@ -263,7 +301,11 @@ func (s *Service) SubmitSession(ctx context.Context, id, userID int) error {
 	if pending > 0 {
 		return ErrNotAllItemsCounted
 	}
-	return s.repo.UpdateStatus(ctx, id, StatusCounting, StatusPendingApproval)
+	if err := s.repo.UpdateStatus(ctx, id, StatusCounting, StatusPendingApproval); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameSubmitted, id, StatusPendingApproval)
+	return nil
 }
 
 // StartCounting transitions a draft session into the counting state. Only an
@@ -350,7 +392,11 @@ func (s *Service) ApproveSession(ctx context.Context, id, userID int, comment st
 	if err := s.repo.ApproveSessionStatus(ctx, tx, id, userID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameApproved, id, StatusApproved)
+	return nil
 }
 
 func (s *Service) RejectSession(ctx context.Context, id, userID int, comment string) error {
@@ -364,7 +410,11 @@ func (s *Service) RejectSession(ctx context.Context, id, userID int, comment str
 	if status != StatusPendingApproval {
 		return ErrInvalidState
 	}
-	return s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount)
+	if err := s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameRejected, id, StatusNeedsRecount)
+	return nil
 }
 
 func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment string) error {
@@ -375,7 +425,11 @@ func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment st
 	if status != StatusPendingApproval {
 		return ErrInvalidState
 	}
-	return s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount)
+	if err := s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameRecount, id, StatusNeedsRecount)
+	return nil
 }
 
 func (s *Service) ResumeCounting(ctx context.Context, id, userID int) error {

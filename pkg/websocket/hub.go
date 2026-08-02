@@ -72,6 +72,12 @@ const (
 	EventPOCreated     EventType = "po_created"
 	EventPOConfirmed   EventType = "po_confirmed"
 	EventPOCancelled   EventType = "po_cancelled"
+	EventSOCreated     EventType = "so_created"
+	EventSOSubmitted   EventType = "so_submitted"
+	EventSOApproved    EventType = "so_approved"
+	EventSORejected    EventType = "so_rejected"
+	EventSORecount     EventType = "so_needs_recount"
+	EventSOCancelled   EventType = "so_cancelled"
 )
 
 type Event struct {
@@ -654,6 +660,23 @@ func BroadcastPOCancelled(hub *Hub, event POCancelledEvent) {
 		Type:    EventPOCancelled,
 		Payload: payload,
 		StoreID: event.StoreID,
+	})
+}
+
+type StockOpnameStatusEvent struct {
+	SessionID     int    `json:"session_id"`
+	SessionNumber string `json:"session_number"`
+	Status        string `json:"status"`
+}
+
+func BroadcastStockOpnameStatus(hub *Hub, eventType EventType, event StockOpnameStatusEvent) {
+	if hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(event)
+	hub.Broadcast(Event{
+		Type:    eventType,
+		Payload: payload,
 	})
 }
 
