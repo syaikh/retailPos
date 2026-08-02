@@ -271,10 +271,12 @@ func NewStockOpnameStatusListener(hub *Hub) eventbus.Listener {
 			}
 			sessionNumber, _ := payload["session_number"].(string)
 			status, _ := payload["status"].(string)
+			storeID := extractStoreID(payload)
 			BroadcastStockOpnameStatus(hub, wsType, StockOpnameStatusEvent{
 				SessionID:     sessionID,
 				SessionNumber: sessionNumber,
 				Status:        status,
+				StoreID:       storeID,
 			})
 			return nil
 		},

@@ -26,16 +26,26 @@ func (s *Service) publishStatusEvent(ctx context.Context, topic string, sessionI
 	if s.eventBus == nil {
 		return
 	}
-	sessionNumber, err := s.repo.GetSessionNumber(ctx, sessionID)
+	sessionNumber, storeID, err := s.repo.GetSessionBroadcastMeta(ctx, sessionID)
 	if err != nil {
-		slog.Warn("[stock-opname] failed to load session number for status event", "session_id", sessionID, "error", err)
+		slog.Warn("[stock-opname] failed to load session broadcast meta for status event", "session_id", sessionID, "error", err)
 		return
 	}
 	_ = s.eventBus.Publish(ctx, topic, map[string]interface{}{
 		"session_id":     sessionID,
 		"session_number": sessionNumber,
 		"status":         status,
+		"store_id":       storeIDOrZero(storeID),
 	})
+}
+
+// storeIDOrZero normalizes a store id for event payloads: nil or non-positive
+// values are sent as 0 so the websocket layer treats the event as global.
+func storeIDOrZero(storeID *int) int {
+	if storeID == nil || *storeID <= 0 {
+		return 0
+	}
+	return *storeID
 }
 
 // Status event topics published to the event bus.
@@ -83,11 +93,29 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		return nil, err
 	}
 
+	var storeID *int
+	switch req.ScopeType {
+	case "store":
+		sid := int(req.ScopeID)
+		storeID = &sid
+	case "warehouse":
+		whID := req.WarehouseID
+		if whID == nil {
+			id := int(req.ScopeID)
+			whID = &id
+		}
+		storeID, err = s.repo.GetWarehouseStoreID(ctx, *whID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	session := &Session{
 		SessionNumber: number,
 		ScopeType:     req.ScopeType,
 		ScopeID:       req.ScopeID,
 		WarehouseID:   req.WarehouseID,
+		StoreID:       storeID,
 		BlindCount:    req.BlindCount,
 		Status:        StatusDraft,
 		CreatedBy:     userID,

@@ -2,6 +2,7 @@ package stockopname
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -67,6 +68,24 @@ func insertTestUserWithRole(t *testing.T, ctx context.Context, id int, username 
 		 VALUES ($1, $2, $3, 'hash', $4)
 		 ON CONFLICT (id) DO NOTHING`,
 		id, username, username+"@test.com", roleID,
+	)
+	require.NoError(t, err)
+}
+
+func insertTestStore(t *testing.T, ctx context.Context, id int) {
+	t.Helper()
+	_, err := dbPool.Exec(ctx,
+		`INSERT INTO stores (id, name, is_active) VALUES ($1, $2, true) ON CONFLICT (id) DO NOTHING`,
+		id, fmt.Sprintf("Test Store %d", id),
+	)
+	require.NoError(t, err)
+}
+
+func insertTestWarehouse(t *testing.T, ctx context.Context, id, storeID int, code string) {
+	t.Helper()
+	_, err := dbPool.Exec(ctx,
+		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES ($1, $2, $3, $4, true) ON CONFLICT (id) DO NOTHING`,
+		id, fmt.Sprintf("Test WH %d", id), code, storeID,
 	)
 	require.NoError(t, err)
 }
@@ -434,6 +453,131 @@ func TestRepository_GetUserRoleName(t *testing.T) {
 
 	_, err = repo.GetUserRoleName(ctx, 999999)
 	require.ErrorIs(t, err, ErrAssigneeNotFound)
+}
+
+func TestRepository_GetSessionBroadcastMeta(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUser(t, ctx, 9501, "so_meta_user_9501")
+	insertTestStore(t, ctx, 9502)
+
+	t.Run("returns store id for store-scoped session", func(t *testing.T) {
+		sid := 9502
+		s := &Session{
+			SessionNumber: "SO-META-001",
+			ScopeType:     "store",
+			ScopeID:       9502,
+			StoreID:       &sid,
+			BlindCount:    false,
+			Status:        StatusDraft,
+			CreatedBy:     9501,
+		}
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		require.NoError(t, repo.CreateSession(ctx, tx, s))
+		require.NoError(t, tx.Commit(ctx))
+
+		number, storeID, err := repo.GetSessionBroadcastMeta(ctx, s.ID)
+		require.NoError(t, err)
+		assert.Equal(t, s.SessionNumber, number)
+		require.NotNil(t, storeID)
+		assert.Equal(t, 9502, *storeID)
+
+		// v1 enforces a single global active session; end it before the next case.
+		require.NoError(t, repo.CancelSession(ctx, s.ID, 9501))
+	})
+
+	t.Run("returns nil store id for global session", func(t *testing.T) {
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		s := &Session{SessionNumber: "SO-META-002", ScopeType: "category", ScopeID: 1, BlindCount: false, Status: StatusDraft, CreatedBy: 9501}
+		require.NoError(t, repo.CreateSession(ctx, tx, s))
+		require.NoError(t, tx.Commit(ctx))
+
+		number, storeID, err := repo.GetSessionBroadcastMeta(ctx, s.ID)
+		require.NoError(t, err)
+		assert.Equal(t, s.SessionNumber, number)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("returns ErrNotFound for missing session", func(t *testing.T) {
+		_, _, err := repo.GetSessionBroadcastMeta(ctx, -1)
+		require.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestRepository_GetWarehouseStoreID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	insertTestStore(t, ctx, 9601)
+	insertTestStore(t, ctx, 9602)
+	insertTestWarehouse(t, ctx, 9601, 9601, "SO-WH-9601")
+	_, err := dbPool.Exec(ctx,
+		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9602, 'Test WH 9602', 'SO-WH-9602', NULL, true) ON CONFLICT (id) DO NOTHING`,
+	)
+	require.NoError(t, err)
+
+	t.Run("returns linked store", func(t *testing.T) {
+		storeID, err := repo.GetWarehouseStoreID(ctx, 9601)
+		require.NoError(t, err)
+		require.NotNil(t, storeID)
+		assert.Equal(t, 9601, *storeID)
+	})
+
+	t.Run("returns nil for warehouse without store", func(t *testing.T) {
+		storeID, err := repo.GetWarehouseStoreID(ctx, 9602)
+		require.NoError(t, err)
+		assert.Nil(t, storeID)
+	})
+
+	t.Run("returns nil for unknown warehouse", func(t *testing.T) {
+		storeID, err := repo.GetWarehouseStoreID(ctx, 999999)
+		require.NoError(t, err)
+		assert.Nil(t, storeID)
+	})
+}
+
+func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUser(t, ctx, 9701, "so_store_roundtrip_9701")
+	insertTestStore(t, ctx, 9702)
+
+	tx, err := repo.BeginTx(ctx)
+	require.NoError(t, err)
+	sid := 9702
+	s := &Session{
+		SessionNumber: "SO-RT-9701",
+		ScopeType:     "store",
+		ScopeID:       9702,
+		StoreID:       &sid,
+		BlindCount:    false,
+		Status:        StatusDraft,
+		CreatedBy:     9701,
+	}
+	require.NoError(t, repo.CreateSession(ctx, tx, s))
+	require.NoError(t, tx.Commit(ctx))
+
+	got, err := repo.GetSession(ctx, s.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.StoreID)
+	assert.Equal(t, 9702, *got.StoreID)
+
+	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, total, 1)
+	var listed *Session
+	for i := range sessions {
+		if sessions[i].ID == s.ID {
+			listed = &sessions[i]
+			break
+		}
+	}
+	require.NotNil(t, listed)
+	require.NotNil(t, listed.StoreID)
+	assert.Equal(t, 9702, *listed.StoreID)
 }
 
 func TestRepository_ListSessions(t *testing.T) {

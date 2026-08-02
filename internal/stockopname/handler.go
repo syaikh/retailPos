@@ -49,7 +49,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 func (h *Handler) CreateSession(c *gin.Context) {
 	var req CreateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)
@@ -125,7 +125,7 @@ func (h *Handler) AssignCounter(c *gin.Context) {
 	}
 	var req AssignRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	if err := h.svc.AssignCounter(c.Request.Context(), id, req.UserID, req.Role); err != nil {
@@ -164,7 +164,7 @@ func (h *Handler) ReassignCounter(c *gin.Context) {
 	}
 	var req ReassignRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	if err := h.svc.ReassignCounter(c.Request.Context(), id, assignmentID, req.Role); err != nil {
@@ -184,7 +184,7 @@ func (h *Handler) SaveCount(c *gin.Context) {
 	}
 	var req SaveCountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)
@@ -249,7 +249,7 @@ func (h *Handler) ApproveSession(c *gin.Context) {
 	}
 	var req ApproveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)
@@ -269,7 +269,7 @@ func (h *Handler) RejectSession(c *gin.Context) {
 	}
 	var req RejectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)
@@ -289,7 +289,7 @@ func (h *Handler) RequestRecount(c *gin.Context) {
 	}
 	var req RecountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, fmt.Errorf("invalid request: %w", err))
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)

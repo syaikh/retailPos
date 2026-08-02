@@ -43,6 +43,7 @@ func TestService_CreateSession(t *testing.T) {
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	insertTestUser(t, ctx, 9101, "so_svc_user_9101")
+	insertTestStore(t, ctx, 100)
 	p := insertTestProduct(t, ctx, "SO-SVC-CREATE-001")
 	insertTestStock(t, ctx, p, 5)
 
@@ -79,6 +80,69 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnsupportedScope)
 }
 
+func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUserWithRole(t, ctx, 9401, "so_scope_manager_9401", 3)
+	insertTestStore(t, ctx, 9401)
+	insertTestStore(t, ctx, 9402)
+	insertTestWarehouse(t, ctx, 9401, 9402, "SO-WH-9401")
+	p := insertTestProduct(t, ctx, "SO-SVC-STORE-001")
+	insertTestStock(t, ctx, p, 5)
+
+	t.Run("store scope resolves to scope id", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9401}, 9401)
+		require.NoError(t, err)
+		require.NotNil(t, session.StoreID)
+		assert.Equal(t, 9401, *session.StoreID)
+	})
+
+	t.Run("warehouse scope resolves to warehouse store", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		wid := 9401
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401, WarehouseID: &wid}, 9401)
+		require.NoError(t, err)
+		require.NotNil(t, session.StoreID)
+		assert.Equal(t, 9402, *session.StoreID)
+	})
+
+	t.Run("warehouse without linked store leaves store nil", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		_, err := dbPool.Exec(ctx,
+			`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9403, 'Test WH 9403', 'SO-WH-9403', NULL, true) ON CONFLICT (id) DO NOTHING`,
+		)
+		require.NoError(t, err)
+		wid := 9403
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401, WarehouseID: &wid}, 9401)
+		require.NoError(t, err)
+		assert.Nil(t, session.StoreID)
+	})
+
+	t.Run("warehouse scope without warehouse id resolves via scope id", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401}, 9401)
+		require.NoError(t, err)
+		require.NotNil(t, session.StoreID)
+		assert.Equal(t, 9402, *session.StoreID)
+	})
+
+	t.Run("category scope leaves store nil", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: 9401}, 9401)
+		require.NoError(t, err)
+		assert.Nil(t, session.StoreID)
+	})
+
+	t.Run("store scope with missing store fails", func(t *testing.T) {
+		resetStockOpname(t, ctx)
+		_, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 989999}, 9401)
+		require.Error(t, err)
+	})
+}
+
 func countAllItems(t *testing.T, svc *Service, ctx context.Context, sessionID, counterID int, overrideProductID int, overrideQty float64) {
 	t.Helper()
 	sess, err := svc.GetSessionForUser(ctx, sessionID, counterID)
@@ -102,6 +166,7 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	counterID := 9103
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9102", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9103", 5)
+	insertTestStore(t, ctx, 101)
 	p := insertTestProduct(t, ctx, "SO-SVC-FLOW-001")
 	insertTestStock(t, ctx, p, 20)
 
@@ -177,6 +242,7 @@ func TestService_RejectAndRecount(t *testing.T) {
 	counterID := 9105
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9104", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9105", 5)
+	insertTestStore(t, ctx, 102)
 	p := insertTestProduct(t, ctx, "SO-SVC-REJ-001")
 	insertTestStock(t, ctx, p, 3)
 
@@ -212,6 +278,7 @@ func TestService_CancelSession(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9106
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9106", 3)
+	insertTestStore(t, ctx, 103)
 	p := insertTestProduct(t, ctx, "SO-SVC-CANCEL-001")
 	insertTestStock(t, ctx, p, 4)
 
@@ -237,6 +304,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	counterID := 9108
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9107", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9108", 5)
+	insertTestStore(t, ctx, 104)
 	p := insertTestProduct(t, ctx, "SO-SVC-SUM-001")
 	insertTestStock(t, ctx, p, 8)
 
@@ -301,6 +369,7 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9203", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9204", 5)
 	insertTestUserWithRole(t, ctx, staffID, "so_staff_9205", 5)
+	insertTestStore(t, ctx, 9203)
 	p := insertTestProduct(t, ctx, "SO-SVC-ROLE-001")
 	insertTestStock(t, ctx, p, 5)
 
@@ -339,6 +408,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	counterID := 9207
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9206", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9207", 5)
+	insertTestStore(t, ctx, 9206)
 	p := insertTestProduct(t, ctx, "SO-SVC-REASSIGN-001")
 	insertTestStock(t, ctx, p, 5)
 
@@ -416,12 +486,27 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 	counterID := 9111
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9110", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9111", 5)
+	insertTestStore(t, ctx, 102)
 	p := insertTestProduct(t, ctx, "SO-SVC-EVT-001")
 	insertTestStock(t, ctx, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
 	require.NoError(t, err)
 	require.Contains(t, bus.topics(), EventStockOpnameCreated)
+
+	// payload carries store_id for store-scoped sessions
+	bus.mu.Lock()
+	var found bool
+	for _, pr := range bus.published {
+		if pr.topic == EventStockOpnameCreated {
+			m, ok := pr.event.(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, 102, m["store_id"])
+			found = true
+		}
+	}
+	bus.mu.Unlock()
+	assert.True(t, found, "expected a created event payload")
 
 	// cancel publishes cancelled event
 	require.NoError(t, svc.CancelSession(ctx, session.ID, managerID))
@@ -438,6 +523,7 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	counterID := 9113
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9112", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9113", 5)
+	insertTestStore(t, ctx, 103)
 	p := insertTestProduct(t, ctx, "SO-SVC-EVT-002")
 	insertTestStock(t, ctx, p, 10)
 
@@ -477,6 +563,7 @@ func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
 	counterID := 9115
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9114", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9115", 5)
+	insertTestStore(t, ctx, 104)
 	p := insertTestProduct(t, ctx, "SO-SVC-EVT-003")
 	insertTestStock(t, ctx, p, 10)
 
@@ -489,4 +576,48 @@ func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
 	require.NoError(t, svc.ApproveSession(ctx, session.ID, managerID, "ok"))
 
 	require.Contains(t, bus.topics(), EventStockOpnameApproved)
+}
+
+func TestStoreIDOrZero(t *testing.T) {
+	positive := 5
+	assert.Equal(t, 5, storeIDOrZero(&positive))
+
+	zero := 0
+	assert.Equal(t, 0, storeIDOrZero(&zero))
+
+	negative := -3
+	assert.Equal(t, 0, storeIDOrZero(&negative))
+
+	assert.Equal(t, 0, storeIDOrZero(nil))
+}
+
+func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := &capturingEventBus{}
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9116
+	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9116", 3)
+	p := insertTestProduct(t, ctx, "SO-SVC-EVT-004")
+	insertTestStock(t, ctx, p, 10)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: 9116}, managerID)
+	require.NoError(t, err)
+	assert.Nil(t, session.StoreID)
+
+	require.Contains(t, bus.topics(), EventStockOpnameCreated)
+
+	bus.mu.Lock()
+	defer bus.mu.Unlock()
+	var found bool
+	for _, pr := range bus.published {
+		if pr.topic == EventStockOpnameCreated {
+			m, ok := pr.event.(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, 0, m["store_id"], "global sessions should publish store_id 0")
+			found = true
+		}
+	}
+	assert.True(t, found)
 }

@@ -667,6 +667,7 @@ type StockOpnameStatusEvent struct {
 	SessionID     int    `json:"session_id"`
 	SessionNumber string `json:"session_number"`
 	Status        string `json:"status"`
+	StoreID       *int   `json:"-"`
 }
 
 func BroadcastStockOpnameStatus(hub *Hub, eventType EventType, event StockOpnameStatusEvent) {
@@ -677,6 +678,7 @@ func BroadcastStockOpnameStatus(hub *Hub, eventType EventType, event StockOpname
 	hub.Broadcast(Event{
 		Type:    eventType,
 		Payload: payload,
+		StoreID: event.StoreID,
 	})
 }
 

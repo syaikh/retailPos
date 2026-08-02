@@ -1024,6 +1024,133 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 					t.Fatalf("should not broadcast when session_id is missing, got: %s", msg)
 				}
 			})
+
+			t.Run("forwards store_id and scopes to matching store", func(t *testing.T) {
+				sid := 5
+				storeScopedClient := registerClient(t, hub, 2, &sid, false)
+				drainMessages(storeScopedClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+						"store_id":       5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "SO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for store-scoped broadcast")
+				}
+				assert.Contains(t, msg, `"session_id":42`)
+				assert.Contains(t, msg, `"status":"pending_approval"`)
+			})
+
+			t.Run("different store does not receive event", func(t *testing.T) {
+				sid := 99
+				otherClient := registerClient(t, hub, 3, &sid, false)
+				drainMessages(otherClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+						"store_id":       5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, found := waitForMessage(t, otherClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 300*time.Millisecond)
+				if found {
+					t.Fatalf("store-scoped client should not receive event for different store, got: %s", msg)
+				}
+			})
+
+			t.Run("admin receives event regardless of store", func(t *testing.T) {
+				sid := 7
+				adminClient := registerClient(t, hub, 4, &sid, true)
+				drainMessages(adminClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+						"store_id":       5,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "SO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for admin to receive cross-store broadcast")
+				}
+				assert.Contains(t, msg, `"session_id":42`)
+				assert.Contains(t, msg, `"status":"pending_approval"`)
+			})
+
+			t.Run("missing store_id broadcasts to all stores", func(t *testing.T) {
+				sid := 5
+				storeScopedClient := registerClient(t, hub, 5, &sid, false)
+				drainMessages(storeScopedClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "SO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast with missing store_id")
+				}
+				assert.Contains(t, msg, `"session_id":42`)
+				assert.Contains(t, msg, `"status":"pending_approval"`)
+			})
+
+			t.Run("zero store_id broadcasts to all stores", func(t *testing.T) {
+				sid := 5
+				storeScopedClient := registerClient(t, hub, 6, &sid, false)
+				drainMessages(storeScopedClient.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: map[string]interface{}{
+						"session_id":     42,
+						"session_number": "SO-042",
+						"status":         "pending_approval",
+						"store_id":       0,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName) && strings.Contains(s, "SO-042")
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast with zero store_id")
+				}
+				assert.Contains(t, msg, `"session_id":42`)
+				assert.Contains(t, msg, `"status":"pending_approval"`)
+			})
 		})
 	}
 }

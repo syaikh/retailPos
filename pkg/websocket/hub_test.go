@@ -402,6 +402,35 @@ func TestHub_ShouldReceiveEvent(t *testing.T) {
 	}
 }
 
+func TestShouldReceiveEvent_StoreScopedSO(t *testing.T) {
+	hub := &Hub{}
+	soEvents := []EventType{
+		EventSOCreated,
+		EventSOSubmitted,
+		EventSOApproved,
+		EventSORejected,
+		EventSORecount,
+		EventSOCancelled,
+	}
+
+	store1 := intPtr(1)
+	store2 := intPtr(2)
+
+	for _, et := range soEvents {
+		t.Run(string(et), func(t *testing.T) {
+			sameStore := &Client{storeID: store1, isAdmin: false}
+			otherStore := &Client{storeID: store2, isAdmin: false}
+			admin := &Client{storeID: store2, isAdmin: true}
+
+			event := &Event{Type: et, StoreID: store1}
+
+			assert.True(t, hub.ShouldReceiveEvent(sameStore, event), "client in same store should receive so_* event")
+			assert.False(t, hub.ShouldReceiveEvent(otherStore, event), "non-admin client in different store should be rejected")
+			assert.True(t, hub.ShouldReceiveEvent(admin, event), "admin should bypass store filter")
+		})
+	}
+}
+
 func TestHub_Unregister(t *testing.T) {
 	hub := &Hub{
 		clients:         make(map[*Client]bool),

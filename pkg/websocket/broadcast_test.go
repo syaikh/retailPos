@@ -526,3 +526,66 @@ func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
 		t.Fatal("regular client at different store should not receive low_stock_alert")
 	}
 }
+
+func TestBroadcastStockOpnameStatus_NilHub(t *testing.T) {
+	BroadcastStockOpnameStatus(nil, EventSOCreated, StockOpnameStatusEvent{SessionID: 1, SessionNumber: "SO-001", Status: "draft"})
+}
+
+func TestBroadcastStockOpnameStatus_WithHub(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	client := registerClient(t, hub, 1, nil, true)
+	drainMessages(client.send)
+
+	BroadcastStockOpnameStatus(hub, EventSOCreated, StockOpnameStatusEvent{
+		SessionID:     42,
+		SessionNumber: "SO-042",
+		Status:        "draft",
+	})
+
+	msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		return strings.Contains(s, "so_created") && strings.Contains(s, "SO-042")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for stock opname status broadcast")
+	}
+	assert.Contains(t, msg, `"session_id":42`)
+	assert.Contains(t, msg, `"status":"draft"`)
+}
+
+func TestBroadcastStockOpnameStatus_StoreFiltering(t *testing.T) {
+	hub := newListenerHub()
+	go hub.Run()
+	defer hub.Shutdown()
+
+	store1 := intPtr(1)
+	store2 := intPtr(2)
+
+	regularClient := registerClient(t, hub, 1, store2, false)
+	adminClient := registerClient(t, hub, 2, store1, true)
+	drainMessages(regularClient.send)
+	drainMessages(adminClient.send)
+
+	BroadcastStockOpnameStatus(hub, EventSOCreated, StockOpnameStatusEvent{
+		SessionID:     42,
+		SessionNumber: "SO-042",
+		Status:        "draft",
+		StoreID:       store1,
+	})
+
+	_, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+		return strings.Contains(s, "so_created")
+	}, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout: admin should receive store-scoped so_created")
+	}
+
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "so_created")
+	}, 300*time.Millisecond)
+	if received {
+		t.Fatal("regular client at different store should not receive store-scoped so_created")
+	}
+}

@@ -112,10 +112,10 @@ func (r *Repository) GetUserRoleName(ctx context.Context, userID int) (string, e
 func (r *Repository) CreateSession(ctx context.Context, tx pgx.Tx, s *Session) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, blind_count, status, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
-	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.BlindCount, s.Status, s.CreatedBy).
+	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.StoreID, s.BlindCount, s.Status, s.CreatedBy).
 		Scan(&s.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert stock opname session: %w", err)
@@ -147,15 +147,15 @@ func (r *Repository) InsertSessionItems(ctx context.Context, tx pgx.Tx, sessionI
 
 func (r *Repository) GetActiveSessionByScope(ctx context.Context, _ string, _ int64) (*Session, error) {
 	var s Session
-	var warehouseID sql.NullInt64
+	var warehouseID, storeID sql.NullInt64
 	var createdAt time.Time
 	err := r.db.QueryRow(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, blind_count, status, created_by, created_at
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by, created_at
 		FROM stock_opnames
 		WHERE status IN ('draft', 'counting', 'pending_approval', 'needs_recount')
 		  AND deleted_at IS NULL
 		LIMIT 1
-	`).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &s.BlindCount, &s.Status, &s.CreatedBy, &createdAt)
+	`).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount, &s.Status, &s.CreatedBy, &createdAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -165,6 +165,10 @@ func (r *Repository) GetActiveSessionByScope(ctx context.Context, _ string, _ in
 	if warehouseID.Valid {
 		v := int(warehouseID.Int64)
 		s.WarehouseID = &v
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		s.StoreID = &v
 	}
 	s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &s, nil
@@ -195,14 +199,14 @@ type queryer interface {
 
 func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*Session, error) {
 	var s Session
-	var warehouseID, approvedBy sql.NullInt64
+	var warehouseID, storeID, approvedBy sql.NullInt64
 	var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, blind_count, status,
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
 		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at
 		FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &s.BlindCount,
+	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
 		&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -213,6 +217,10 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 	if warehouseID.Valid {
 		v := int(warehouseID.Int64)
 		s.WarehouseID = &v
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		s.StoreID = &v
 	}
 	if approvedBy.Valid {
 		v := int(approvedBy.Int64)
@@ -293,7 +301,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, blind_count, status, created_by,
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by,
 		       approved_by, approved_at, cancelled_at, created_at, updated_at
 		FROM stock_opnames
 		WHERE `+whereSQL+`
@@ -307,15 +315,19 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 	var sessions []Session
 	for rows.Next() {
 		var s Session
-		var warehouseID, approvedBy sql.NullInt64
+		var warehouseID, storeID, approvedBy sql.NullInt64
 		var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
-		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &s.BlindCount,
+		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
 			&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan session: %w", err)
 		}
 		if warehouseID.Valid {
 			v := int(warehouseID.Int64)
 			s.WarehouseID = &v
+		}
+		if storeID.Valid {
+			v := int(storeID.Int64)
+			s.StoreID = &v
 		}
 		if approvedBy.Valid {
 			v := int(approvedBy.Int64)
@@ -372,16 +384,43 @@ func (r *Repository) GetSessionStatus(ctx context.Context, id int) (string, erro
 	return status, nil
 }
 
-func (r *Repository) GetSessionNumber(ctx context.Context, id int) (string, error) {
+// GetSessionBroadcastMeta returns the session number and store_id in a single
+// query, used to build real-time status event payloads.
+func (r *Repository) GetSessionBroadcastMeta(ctx context.Context, id int) (string, *int, error) {
 	var number string
-	err := r.db.QueryRow(ctx, `SELECT session_number FROM stock_opnames WHERE id = $1 AND deleted_at IS NULL`, id).Scan(&number)
+	var storeID sql.NullInt64
+	err := r.db.QueryRow(ctx, `
+		SELECT session_number, store_id FROM stock_opnames WHERE id = $1 AND deleted_at IS NULL
+	`, id).Scan(&number, &storeID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return "", ErrNotFound
+			return "", nil, ErrNotFound
 		}
-		return "", fmt.Errorf("failed to load session number: %w", err)
+		return "", nil, fmt.Errorf("failed to load session broadcast meta: %w", err)
 	}
-	return number, nil
+	if !storeID.Valid {
+		return number, nil, nil
+	}
+	v := int(storeID.Int64)
+	return number, &v, nil
+}
+
+// GetWarehouseStoreID returns the store_id linked to a warehouse, or nil when
+// the warehouse does not exist or has no linked store.
+func (r *Repository) GetWarehouseStoreID(ctx context.Context, warehouseID int) (*int, error) {
+	var storeID sql.NullInt64
+	err := r.db.QueryRow(ctx, `SELECT store_id FROM warehouses WHERE id = $1`, warehouseID).Scan(&storeID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to load warehouse store: %w", err)
+	}
+	if !storeID.Valid {
+		return nil, nil
+	}
+	v := int(storeID.Int64)
+	return &v, nil
 }
 
 func (r *Repository) CountPendingItems(ctx context.Context, sessionID int) (int, error) {
