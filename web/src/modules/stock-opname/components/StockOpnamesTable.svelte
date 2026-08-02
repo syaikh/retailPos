@@ -38,6 +38,10 @@
         return 'default';
     }
   }
+
+  function getScopeLabel(session: StockOpnameSession): string {
+    return session.scope_name ? `${session.scope_type} · ${session.scope_name}` : `${session.scope_type} #${session.scope_id}`;
+  }
 </script>
 
 {#if loading}
@@ -88,7 +92,7 @@
           {#each sessions as session (session.id)}
             <tr class="border-b border-border transition-colors hover:bg-muted/50 cursor-pointer" onclick={() => onview(session)}>
               <td class="px-4 py-3 text-sm font-medium max-w-0"><span class="truncate block">{session.session_number}</span></td>
-              <td class="px-4 py-3 text-sm text-text-secondary whitespace-nowrap">{session.scope_type} #{session.scope_id}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary whitespace-nowrap">{getScopeLabel(session)}</td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <Badge variant={getStatusVariant(session.status)} size="sm">{STOCK_OPNAME_STATUS_LABELS[session.status] || session.status}</Badge>
               </td>

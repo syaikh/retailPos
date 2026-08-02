@@ -306,7 +306,7 @@
   </div>
 {:else if session}
   <div class="space-y-5">
-    <PageHeader title={session.session_number} subtitle={`${session.scope_type} scope #${session.scope_id}`}>
+    <PageHeader title={session.session_number} subtitle={session.scope_name ? `${session.scope_type} · ${session.scope_name}` : `${session.scope_type} scope #${session.scope_id}`}>
       {#snippet actions()}
         <Button variant="ghost" onclick={() => goto('/stock-opnames')}>
           <ArrowLeft class="w-4 h-4" /> Back

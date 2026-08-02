@@ -17,6 +17,19 @@ type Repository struct {
 	db shared.DBPool
 }
 
+// scopeNameExpr resolves a human-readable name for a session's scope
+// (store, warehouse, category, or product) from the id stored in scope_id.
+// It is a correlated subquery over the outer stock_opnames row, so it must
+// only be appended to SELECTs that read from stock_opnames without an alias.
+const scopeNameExpr = `
+	COALESCE(CASE scope_type
+		WHEN 'store' THEN (SELECT name FROM stores WHERE id = scope_id)
+		WHEN 'warehouse' THEN (SELECT name FROM warehouses WHERE id = scope_id)
+		WHEN 'category' THEN (SELECT name FROM categories WHERE id = scope_id)
+		WHEN 'product' THEN (SELECT name FROM products WHERE id = scope_id)
+	END, '') AS scope_name`
+
+
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
@@ -203,11 +216,11 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 	var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
 	err := q.QueryRow(ctx, `
 		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
-		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at
+		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at,`+scopeNameExpr+`
 		FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
-		&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt)
+		&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt, &s.ScopeName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
@@ -302,7 +315,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
 		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by,
-		       approved_by, approved_at, cancelled_at, created_at, updated_at
+		       approved_by, approved_at, cancelled_at, created_at, updated_at,`+scopeNameExpr+`
 		FROM stock_opnames
 		WHERE `+whereSQL+`
 		ORDER BY created_at DESC
@@ -318,7 +331,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 		var warehouseID, storeID, approvedBy sql.NullInt64
 		var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
 		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
-			&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt); err != nil {
+			&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt, &s.ScopeName); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan session: %w", err)
 		}
 		if warehouseID.Valid {

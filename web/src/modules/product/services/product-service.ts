@@ -1,5 +1,5 @@
 import apiClient from '$shared/api/http-client';
-import type { Product, ProductFilters, Category, Brand, TaxClass, UnitOfMeasure, StockThreshold, ProductFormData } from '../types';
+import type { Product, ProductFilters, Category, Brand, TaxClass, UnitOfMeasure, StockThreshold, ProductFormData, Warehouse } from '../types';
 
 const productCache = new Map<number, Promise<Product | null>>();
 
@@ -95,6 +95,22 @@ export async function getBrands(): Promise<Brand[]> {
 
 export async function getTaxClasses(): Promise<TaxClass[]> {
   const r = await apiClient.get('/tax-classes');
+  return r.data.data || [];
+}
+
+export async function getWarehouses(): Promise<Warehouse[]> {
+  const r = await apiClient.get('/warehouses');
+  return r.data.data || [];
+}
+
+export interface ProductOption {
+  id: number;
+  sku: string;
+  name: string;
+}
+
+export async function getProductOptions(): Promise<ProductOption[]> {
+  const r = await apiClient.get('/products/options');
   return r.data.data || [];
 }
 

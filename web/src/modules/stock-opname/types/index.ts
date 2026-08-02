@@ -3,6 +3,7 @@ export interface StockOpnameSession {
   session_number: string;
   scope_type: 'store' | 'warehouse' | 'category' | 'product';
   scope_id: number;
+  scope_name: string;
   warehouse_id: number | null;
   blind_count: boolean;
   status: 'draft' | 'counting' | 'pending_approval' | 'needs_recount' | 'approved' | 'cancelled';

@@ -187,6 +187,42 @@ func TestProductRepository_WarehouseCRUD(t *testing.T) {
 	})
 }
 
+func TestProductRepository_ActiveProductOptions(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	t.Run("only returns active, non-deleted products", func(t *testing.T) {
+		sku := uniqueSKU("OPTIONS")
+		_, err := dbPool.Exec(ctx,
+			`INSERT INTO products (sku, name, price, cost, stock, status) VALUES ($1, 'Options Test', 10000, 5000, 10, 'active')`,
+			sku,
+		)
+		require.NoError(t, err)
+
+		// A soft-deleted product with the same name must be excluded
+		softSKU := uniqueSKU("OPTIONS-DEL")
+		_, err = dbPool.Exec(ctx,
+			`INSERT INTO products (sku, name, price, cost, stock, status, deleted_at) VALUES ($1, 'Options Test Deleted', 10000, 5000, 10, 'active', NOW())`,
+			softSKU,
+		)
+		require.NoError(t, err)
+
+		options, err := repo.GetActiveProductOptions(ctx)
+		require.NoError(t, err)
+		assert.NotNil(t, options)
+
+		var foundActive bool
+		for _, opt := range options {
+			if opt.SKU == sku {
+				foundActive = true
+				assert.NotEmpty(t, opt.Name)
+			}
+			assert.NotEqual(t, softSKU, opt.SKU)
+		}
+		assert.True(t, foundActive)
+	})
+}
+
 func TestProductRepository_DeletedProductRestore(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

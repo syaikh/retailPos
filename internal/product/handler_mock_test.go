@@ -16,15 +16,17 @@ import (
 )
 
 type mockProductService struct {
-	getAllFn func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
-	getByIDsFn        func(ctx context.Context, ids []int) ([]Product, error)
-	getByIDFn         func(ctx context.Context, id, storeID int) (*Product, error)
-	createFn          func(ctx context.Context, product *Product) error
-	updateFn          func(ctx context.Context, product *Product) error
-	deleteFn          func(ctx context.Context, id int, storeID *int) error
-	bulkStatusFn      func(ctx context.Context, ids []int, isActive bool, storeID *int) error
-	nextSKUFn         func(ctx context.Context) (string, error)
-	getTaxClassesFn   func(ctx context.Context) ([]TaxClass, error)
+	getAllFn            func(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
+	getByIDsFn          func(ctx context.Context, ids []int) ([]Product, error)
+	getByIDFn           func(ctx context.Context, id, storeID int) (*Product, error)
+	createFn            func(ctx context.Context, product *Product) error
+	updateFn            func(ctx context.Context, product *Product) error
+	deleteFn            func(ctx context.Context, id int, storeID *int) error
+	bulkStatusFn        func(ctx context.Context, ids []int, isActive bool, storeID *int) error
+	nextSKUFn           func(ctx context.Context) (string, error)
+	getTaxClassesFn     func(ctx context.Context) ([]TaxClass, error)
+	getWarehousesFn     func(ctx context.Context) ([]Warehouse, error)
+	getProductOptionsFn func(ctx context.Context) ([]ProductOption, error)
 }
 
 func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
@@ -56,6 +58,18 @@ func (m *mockProductService) GetNextSKU(ctx context.Context) (string, error) {
 }
 func (m *mockProductService) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 	return m.getTaxClassesFn(ctx)
+}
+func (m *mockProductService) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
+	if m.getWarehousesFn != nil {
+		return m.getWarehousesFn(ctx)
+	}
+	return []Warehouse{}, nil
+}
+func (m *mockProductService) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+	if m.getProductOptionsFn != nil {
+		return m.getProductOptionsFn(ctx)
+	}
+	return []ProductOption{}, nil
 }
 
 var _ ProductService = (*mockProductService)(nil)
@@ -558,6 +572,86 @@ func TestMockHandler_GetStockThresholds(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "warning")
 	assert.Contains(t, w.Body.String(), "critical")
+}
+
+func TestMockHandler_ListWarehouses(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := &mockProductService{
+			getWarehousesFn: func(ctx context.Context) ([]Warehouse, error) {
+				return []Warehouse{{ID: 1, Name: "Main WH", Code: "WH-01"}}, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/warehouses", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Main WH")
+	})
+
+	t.Run("nil becomes empty array", func(t *testing.T) {
+		svc := &mockProductService{
+			getWarehousesFn: func(ctx context.Context) ([]Warehouse, error) {
+				return nil, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/warehouses", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "[]")
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockProductService{
+			getWarehousesFn: func(ctx context.Context) ([]Warehouse, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/warehouses", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestMockHandler_ListProductOptions(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := &mockProductService{
+			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
+				return []ProductOption{{ID: 1, SKU: "SKU-1", Name: "Apple"}}, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products/options", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Apple")
+	})
+
+	t.Run("nil becomes empty array", func(t *testing.T) {
+		svc := &mockProductService{
+			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
+				return nil, nil
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products/options", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "[]")
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &mockProductService{
+			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		r := setupMockProductRouter(svc)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/products/options", nil))
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }
 
 func TestMockHandler_GetNextSKU_ServiceError(t *testing.T) {

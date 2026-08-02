@@ -98,4 +98,14 @@ export interface StockThreshold {
   critical: number;
 }
 
+export interface Warehouse {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  store_id?: number | null;
+  is_active?: boolean;
+  created_at?: string;
+}
+
 

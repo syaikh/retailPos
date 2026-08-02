@@ -125,6 +125,9 @@ func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, err
 func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
 	return s.repo.GetAllWarehouses(ctx, nil)
 }
+func (s *Service) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+	return s.repo.GetActiveProductOptions(ctx)
+}
 
 func strPtr(s string) *string {
 	if s == "" {

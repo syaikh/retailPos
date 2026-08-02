@@ -604,3 +604,68 @@ func TestRepository_ListSessions(t *testing.T) {
 		assert.Equal(t, StatusDraft, s.Status)
 	}
 }
+
+func TestRepository_ScopeName(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUser(t, ctx, 9701, "so_scope_user_9701")
+	insertTestStore(t, ctx, 9701)
+	insertTestStore(t, ctx, 9702)
+	insertTestWarehouse(t, ctx, 9701, 9702, "SO-WH-9701")
+
+	var categoryID int
+	require.NoError(t, dbPool.QueryRow(ctx, `INSERT INTO categories (name) VALUES ('Scope Cat 9701') RETURNING id`).Scan(&categoryID))
+	productID := insertTestProduct(t, ctx, "SO-SCOPE-9701")
+
+	create := func(scopeType string, scopeID int64) *Session {
+		t.Helper()
+		s := &Session{
+			SessionNumber: fmt.Sprintf("SO-SCOPE-%d-%s", scopeID, scopeType),
+			ScopeType:     scopeType,
+			ScopeID:       scopeID,
+			BlindCount:    false,
+			Status:        StatusDraft,
+			CreatedBy:     9701,
+		}
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		require.NoError(t, repo.CreateSession(ctx, tx, s))
+		require.NoError(t, tx.Commit(ctx))
+		return s
+	}
+	// v1 enforces a single global active session; end each before the next.
+	expectName := map[string]string{
+		"store":    "Test Store 9701",
+		"warehouse": "Test WH 9701",
+		"category": "Scope Cat 9701",
+		"product":  "Test Product SO-SCOPE-9701",
+	}
+	order := []struct{ scopeType string; scopeID int64 }{
+		{"store", 9701},
+		{"warehouse", 9701},
+		{"category", int64(categoryID)},
+		{"product", int64(productID)},
+	}
+	for _, tc := range order {
+		s := create(tc.scopeType, tc.scopeID)
+		got, err := repo.GetSession(ctx, s.ID)
+		require.NoError(t, err)
+		assert.Equal(t, expectName[tc.scopeType], got.ScopeName, "GetSession scope_name for %s", tc.scopeType)
+
+		listed, total, err := repo.ListSessions(ctx, 10, 0, "", "")
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, total, 1)
+		found := false
+		for _, l := range listed {
+			if l.ID == s.ID {
+				assert.Equal(t, expectName[tc.scopeType], l.ScopeName, "ListSessions scope_name for %s", tc.scopeType)
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "session %d not listed for %s", s.ID, tc.scopeType)
+
+		require.NoError(t, repo.CancelSession(ctx, s.ID, 9701))
+	}
+}

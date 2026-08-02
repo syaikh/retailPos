@@ -616,6 +616,29 @@ func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Ware
 	return warehouses, nil
 }
 
+func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+	query := "SELECT id, sku, name FROM products WHERE deleted_at IS NULL AND status = 'active' ORDER BY name"
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var options []ProductOption
+	for rows.Next() {
+		var opt ProductOption
+		if err := rows.Scan(&opt.ID, &opt.SKU, &opt.Name); err != nil {
+			return nil, err
+		}
+		options = append(options, opt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return options, nil
+}
+
 func (r *Repository) GetOrCreateCategoryIDByName(ctx context.Context, name string) (int, error) {
 	var id int
 	err := r.db.QueryRow(ctx, "SELECT id FROM categories WHERE name = $1 AND is_active = true", name).Scan(&id)

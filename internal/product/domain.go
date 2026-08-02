@@ -78,3 +78,9 @@ type Warehouse struct {
 	IsActive  bool   `json:"is_active"`
 	CreatedAt string `json:"created_at,omitempty"`
 }
+
+type ProductOption struct {
+	ID   int    `json:"id"`
+	SKU  string `json:"sku"`
+	Name string `json:"name"`
+}

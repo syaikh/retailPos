@@ -57,6 +57,7 @@ type Session struct {
 	SessionNumber string          `json:"session_number"`
 	ScopeType     string          `json:"scope_type"`
 	ScopeID       int64           `json:"scope_id"`
+	ScopeName     string          `json:"scope_name"`
 	WarehouseID   *int            `json:"warehouse_id,omitempty"`
 	StoreID       *int            `json:"store_id,omitempty"`
 	BlindCount    bool            `json:"blind_count"`
