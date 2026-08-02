@@ -48,8 +48,7 @@ const authStore = useAuthStore();
     [key: string]: unknown;
   }
 
-   let cart: DisplayCartItem[] = $derived(cartItems.map(ci => toDisplayItem(ci)));
-let products: any[] = $state([]);
+   let products: any[] = $state([]);
 let total: number = $state(0);
    let searchQuery = $state('');
    let loading = $state(false);
@@ -83,6 +82,7 @@ let selectedProductIndex = $state(-1);
   let activeCartId = $state<number | null>(null);
   let cartSession = $state<CartSession | null>(null);
   let cartItems: CartItem[] = $state([]);
+  const cart = $derived(cartItems.map(ci => toDisplayItem(ci)));
   let cartLoading = $state(false);
 
    let customers: Customer[] = $state([]);
@@ -294,7 +294,7 @@ let selectedProductIndex = $state(-1);
     const item = cartItems.find(i => i.id === id);
     if (!item || !activeCartId) return;
     const newQty = item.quantity + delta;
-    const maxStock = item.max_stock ?? products.find(p => p.id === item.product_id)?.stock ?? 999;
+    const maxStock = products.find(p => p.id === item.product_id)?.stock ?? 999;
     if (newQty <= 0) {
       await removeFromCart(id);
       return;
@@ -357,9 +357,10 @@ let selectedProductIndex = $state(-1);
 
   async function clearCart() {
     if (!activeCartId) return;
+    const cartId = activeCartId;
     cartLoading = true;
     try {
-      const removals = cartItems.map(item => removeCartItem(activeCartId, item.id));
+      const removals = cartItems.map(item => removeCartItem(cartId, item.id));
       const sessions = await Promise.all(removals);
       const last = sessions[sessions.length - 1];
       if (last) applyCartSession(last);
@@ -456,7 +457,7 @@ let selectedProductIndex = $state(-1);
       } catch (_) { return; }
     }
     if (!sale || !sale.items || sale.items.length === 0) return;
-    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+    const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : undefined;
     printReceiptStore.set(buildReceiptPayload(sale, paymentsListFromSale(sale), customer));
     setTimeout(() => {
       window.print();
@@ -495,7 +496,7 @@ let selectedProductIndex = $state(-1);
 
     function finalizeSale(payments: PaymentAllocation[]) {
      if (cartItems.length === 0) return;
-     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+     const customer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : undefined;
      capturedPayments = payments;
      closeCheckoutModal();
      processCheckout(payments).then(() => {

@@ -4,6 +4,7 @@ import {
   getStockOpname,
   cancelStockOpname,
   assignCounter,
+  getAssignableUsers,
   getAssignments,
   reassignCounter,
   saveCount,
@@ -20,6 +21,7 @@ import {
 import type {
   StockOpnameSession,
   StockOpnameAssignment,
+  AssignableUser,
   CountRecord,
   SessionSummary,
   StockOpnameFilters,
@@ -34,6 +36,8 @@ let total = $state(0);
 let loading = $state(false);
 let current = $state<StockOpnameSession | null>(null);
 let currentAssignments = $state<StockOpnameAssignment[]>([]);
+let assignableUsers = $state<AssignableUser[]>([]);
+let assignableLoading = $state(false);
 let currentSummary = $state<SessionSummary | null>(null);
 let countHistory = $state<Record<number, CountRecord[]>>({});
 
@@ -51,6 +55,8 @@ export function useStockOpnameStore() {
     get loading() { return loading; },
     get current() { return current; },
     get currentAssignments() { return currentAssignments; },
+    get assignableUsers() { return assignableUsers; },
+    get assignableLoading() { return assignableLoading; },
     get currentSummary() { return currentSummary; },
     get statusFilter() { return statusFilter; },
     set statusFilter(v: string) { statusFilter = v; },
@@ -113,6 +119,17 @@ export function useStockOpnameStore() {
     async cancelSession(id: number) {
       await cancelStockOpname(id);
       await this.loadSession(id);
+    },
+
+    async loadAssignableUsers(search?: string) {
+      assignableLoading = true;
+      try {
+        assignableUsers = await getAssignableUsers(search);
+      } catch {
+        assignableUsers = [];
+      } finally {
+        assignableLoading = false;
+      }
     },
 
     async assign(id: number, payload: AssignPayload) {
@@ -180,6 +197,7 @@ export function useStockOpnameStore() {
     clearCurrent() {
       current = null;
       currentAssignments = [];
+      assignableUsers = [];
       currentSummary = null;
       countHistory = {};
     },

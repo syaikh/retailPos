@@ -119,8 +119,8 @@
 <Modal bind:open={showCreateModal} title="New Stock Opname" size="md">
   {#snippet children()}
     <div class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">Scope Type</label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Scope Type</span>
         <Input tag="select" bind:value={createScopeType}>
           {#snippet children()}
             <option value="store">Store</option>
@@ -129,11 +129,11 @@
             <option value="product">Product</option>
           {/snippet}
         </Input>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">Scope ID</label>
+      </label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Scope ID</span>
         <Input type="number" bind:value={createScopeID} min={1} />
-      </div>
+      </label>
       <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
         <input type="checkbox" bind:checked={createBlind} class="accent-primary" />
         Blind count (hide system quantities from counters)

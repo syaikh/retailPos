@@ -57,11 +57,16 @@ func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int)
 
 func insertTestUser(t *testing.T, ctx context.Context, id int, username string) {
 	t.Helper()
+	insertTestUserWithRole(t, ctx, id, username, 1)
+}
+
+func insertTestUserWithRole(t *testing.T, ctx context.Context, id int, username string, roleID int) {
+	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO users (id, username, email, password_hash, role_id)
-		 VALUES ($1, $2, $3, 'hash', 1)
+		 VALUES ($1, $2, $3, 'hash', $4)
 		 ON CONFLICT (id) DO NOTHING`,
-		id, username, username+"@test.com",
+		id, username, username+"@test.com", roleID,
 	)
 	require.NoError(t, err)
 }
@@ -385,6 +390,50 @@ func TestRepository_ApprovalFlow(t *testing.T) {
 	assert.Equal(t, float64(10), session.Items[0].ExpectedQty)
 	assert.Equal(t, float64(2), session.Items[0].DifferenceQty)
 	assert.Equal(t, float64(2), session.Items[0].AdjustmentQty)
+}
+
+func TestRepository_ListAssignableUsers(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUserWithRole(t, ctx, 9301, "so_cashier_9301", 4)
+	insertTestUserWithRole(t, ctx, 9302, "so_staff_9302", 5)
+	insertTestUserWithRole(t, ctx, 9303, "so_manager_9303", 3)
+	insertTestUserWithRole(t, ctx, 9304, "so_admin_9304", 2)
+	insertTestUserWithRole(t, ctx, 9305, "so_super_9305", 1)
+
+	users, err := repo.ListAssignableUsers(ctx, "")
+	require.NoError(t, err)
+	got := map[string]bool{}
+	for _, u := range users {
+		got[u.Username] = true
+	}
+	assert.True(t, got["so_cashier_9301"], "cashier should be assignable")
+	assert.True(t, got["so_staff_9302"], "staff should be assignable")
+	assert.True(t, got["so_manager_9303"], "manager should be assignable")
+	assert.True(t, got["so_admin_9304"], "admin should be assignable")
+	assert.False(t, got["so_super_9305"], "superadmin should not be assignable")
+
+	// search narrows results
+	users, err = repo.ListAssignableUsers(ctx, "manager")
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.Equal(t, "so_manager_9303", users[0].Username)
+	assert.Equal(t, "manager", users[0].RoleName)
+}
+
+func TestRepository_GetUserRoleName(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUserWithRole(t, ctx, 9306, "so_staff_9306", 5)
+
+	role, err := repo.GetUserRoleName(ctx, 9306)
+	require.NoError(t, err)
+	assert.Equal(t, "staff", role)
+
+	_, err = repo.GetUserRoleName(ctx, 999999)
+	require.ErrorIs(t, err, ErrAssigneeNotFound)
 }
 
 func TestRepository_ListSessions(t *testing.T) {

@@ -2,6 +2,7 @@ import apiClient from '$shared/api/http-client';
 import type {
   StockOpnameSession,
   StockOpnameAssignment,
+  AssignableUser,
   CountRecord,
   SessionSummary,
   StockOpnameFilters,
@@ -45,6 +46,12 @@ export async function cancelStockOpname(id: number): Promise<void> {
 
 export async function assignCounter(id: number, payload: AssignPayload): Promise<void> {
   await apiClient.post(`/stock-opnames/${id}/assignments`, payload);
+}
+
+export async function getAssignableUsers(search?: string): Promise<AssignableUser[]> {
+  const params = search ? `?${new URLSearchParams({ search })}` : '';
+  const res = await apiClient.get(`/stock-opnames/assignable-users${params}`);
+  return res.data.data || [];
 }
 
 export async function getAssignments(id: number): Promise<StockOpnameAssignment[]> {

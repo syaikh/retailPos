@@ -9,14 +9,14 @@ export function calculateTax(items: CartItem[]): number {
   return items.reduce((sum, item) => {
     const rate = item.tax_rate || 0;
     if (rate <= 0) return sum;
-    const lineTotal = item.price * item.quantity;
+    const lineTotal = item.unit_price * item.quantity;
     const dpp = Math.round(lineTotal * 100 / (100 + rate));
     return sum + (lineTotal - dpp);
   }, 0);
 }
 
 export function calculateSubtotal(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 }
 
 export function calculateTotalItems(items: CartItem[]): number {
@@ -34,10 +34,10 @@ export function buildCheckoutPayload(
   const tax = calculateTax(cart);
   return {
     items: cart.map((item) => ({
-      product_id: item.id,
+      product_id: item.product_id,
       quantity: item.quantity,
-      unit_price: item.price,
-      subtotal: item.price * item.quantity,
+      unit_price: item.unit_price,
+      subtotal: item.unit_price * item.quantity,
       ...(item.pricing_rule_id ? {
         pricing_rule_id: item.pricing_rule_id,
         pricing_rule_name: item.pricing_rule_name,

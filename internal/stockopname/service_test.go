@@ -71,8 +71,8 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9102
 	counterID := 9103
-	insertTestUser(t, ctx, managerID, "so_manager_9102")
-	insertTestUser(t, ctx, counterID, "so_counter_9103")
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9102", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9103", 5)
 	p := insertTestProduct(t, ctx, "SO-SVC-FLOW-001")
 	insertTestStock(t, ctx, p, 20)
 
@@ -146,8 +146,8 @@ func TestService_RejectAndRecount(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9104
 	counterID := 9105
-	insertTestUser(t, ctx, managerID, "so_manager_9104")
-	insertTestUser(t, ctx, counterID, "so_counter_9105")
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9104", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9105", 5)
 	p := insertTestProduct(t, ctx, "SO-SVC-REJ-001")
 	insertTestStock(t, ctx, p, 3)
 
@@ -182,7 +182,7 @@ func TestService_CancelSession(t *testing.T) {
 	ctx := context.Background()
 	resetStockOpname(t, ctx)
 	managerID := 9106
-	insertTestUser(t, ctx, managerID, "so_manager_9106")
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9106", 3)
 	p := insertTestProduct(t, ctx, "SO-SVC-CANCEL-001")
 	insertTestStock(t, ctx, p, 4)
 
@@ -206,8 +206,8 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9107
 	counterID := 9108
-	insertTestUser(t, ctx, managerID, "so_manager_9107")
-	insertTestUser(t, ctx, counterID, "so_counter_9108")
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9107", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9108", 5)
 	p := insertTestProduct(t, ctx, "SO-SVC-SUM-001")
 	insertTestStock(t, ctx, p, 8)
 
@@ -245,6 +245,91 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	}
 }
 
+func TestService_ListAssignableUsers(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUserWithRole(t, ctx, 9201, "so_staff_9201", 5)
+	insertTestUserWithRole(t, ctx, 9202, "so_manager_9202", 3)
+
+	users, err := svc.ListAssignableUsers(ctx, "920")
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	for _, u := range users {
+		assert.NotEmpty(t, u.RoleName)
+	}
+}
+
+func TestService_AssignCounterRoleValidation(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9203
+	counterID := 9204
+	staffID := 9205
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9203", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9204", 5)
+	insertTestUserWithRole(t, ctx, staffID, "so_staff_9205", 5)
+	p := insertTestProduct(t, ctx, "SO-SVC-ROLE-001")
+	insertTestStock(t, ctx, p, 5)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9203}, managerID)
+	require.NoError(t, err)
+
+	// counter role only for staff/cashier
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
+
+	// manager cannot be assigned as counter
+	err = svc.AssignCounter(ctx, session.ID, managerID, AssignmentRoleCounter)
+	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
+
+	// staff cannot be assigned as supervisor
+	err = svc.AssignCounter(ctx, session.ID, staffID, AssignmentRoleSupervisor)
+	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
+
+	// manager can be supervisor
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, managerID, AssignmentRoleSupervisor))
+
+	// unknown/inactive assignee rejected
+	err = svc.AssignCounter(ctx, session.ID, 999999, AssignmentRoleCounter)
+	require.ErrorIs(t, err, ErrAssigneeNotFound)
+
+	// invalid role string rejected before validation
+	err = svc.AssignCounter(ctx, session.ID, counterID, "bogus")
+	require.ErrorContains(t, err, "invalid assignment role")
+}
+
+func TestService_ReassignCounterRoleValidation(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	managerID := 9206
+	counterID := 9207
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9206", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9207", 5)
+	p := insertTestProduct(t, ctx, "SO-SVC-REASSIGN-001")
+	insertTestStock(t, ctx, p, 5)
+
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9206}, managerID)
+	require.NoError(t, err)
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
+
+	assignments, err := repo.ListAssignments(ctx, session.ID)
+	require.NoError(t, err)
+	require.Len(t, assignments, 1)
+
+	// staff cannot be promoted to supervisor
+	err = svc.ReassignCounter(ctx, session.ID, assignments[0].ID, AssignmentRoleSupervisor)
+	require.ErrorIs(t, err, ErrInvalidAssigneeRole)
+
+	// unknown assignment rejected
+	err = svc.ReassignCounter(ctx, session.ID, 999999, AssignmentRoleCounter)
+	require.ErrorIs(t, err, ErrAssignmentNotFound)
+}
+
 func TestService_BlindCountMasksQuantities(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo)
@@ -252,8 +337,8 @@ func TestService_BlindCountMasksQuantities(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9109
 	counterID := 9110
-	insertTestUser(t, ctx, managerID, "so_manager_9109")
-	insertTestUser(t, ctx, counterID, "so_counter_9110")
+	insertTestUserWithRole(t, ctx, managerID, "so_manager_9109", 3)
+	insertTestUserWithRole(t, ctx, counterID, "so_counter_9110", 5)
 	p := insertTestProduct(t, ctx, "SO-SVC-BLIND-001")
 	insertTestStock(t, ctx, p, 30)
 

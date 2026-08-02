@@ -27,6 +27,7 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.POST("/stock-opnames", auth, perm("stock_opname.create"), h.CreateSession)
 	r.GET("/stock-opnames", auth, perm("stock_opname.view"), h.ListSessions)
+	r.GET("/stock-opnames/assignable-users", auth, perm("stock_opname.assign"), h.ListAssignableUsers)
 	r.GET("/stock-opnames/:id", auth, perm("stock_opname.view"), h.GetSession)
 	r.POST("/stock-opnames/:id/cancel", auth, perm("stock_opname.cancel"), h.CancelSession)
 	r.POST("/stock-opnames/:id/assignments", auth, perm("stock_opname.assign"), h.AssignCounter)
@@ -76,6 +77,15 @@ func (h *Handler) ListSessions(c *gin.Context) {
 		return
 	}
 	shared.JSONPaginated(c, sessions, total, limit, offset)
+}
+
+func (h *Handler) ListAssignableUsers(c *gin.Context) {
+	users, err := h.svc.ListAssignableUsers(c.Request.Context(), c.Query("search"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
 func (h *Handler) GetSession(c *gin.Context) {
@@ -436,6 +446,8 @@ func writeError(c *gin.Context, err error) {
 		status, code = http.StatusNotFound, "SO-103"
 	case errors.Is(err, ErrInvalidQuantity):
 		status, code = http.StatusBadRequest, "SO-102"
+	case errors.Is(err, ErrInvalidAssigneeRole), errors.Is(err, ErrAssigneeNotFound):
+		status, code = http.StatusBadRequest, "SO-104"
 	case errors.Is(err, ErrApprovalCommentReq):
 		status, code = http.StatusUnprocessableEntity, "SO-402"
 	case errors.Is(err, ErrUnsupportedScope):

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import type { CartItem } from '../../types';
 
-const mockCart = [
-  { id: 1, name: 'Item A', sku: 'A', price: 10000, original_price: 10000, stock: 10, quantity: 2, tax_rate: 11 },
-  { id: 2, name: 'Item B', sku: 'B', price: 5000, original_price: 5000, stock: 5, quantity: 3, tax_rate: 0 },
+const mockCart: CartItem[] = [
+  { id: 1, cart_session_id: 1, product_id: 1, product_name: 'Item A', unit_price: 10000, original_price: 10000, quantity: 2, tax_rate: 11, discount: 0, cost: 0, subtotal: 20000, dpp_amount: 0, tax_amount: 0 },
+  { id: 2, cart_session_id: 1, product_id: 2, product_name: 'Item B', unit_price: 5000, original_price: 5000, quantity: 3, tax_rate: 0, discount: 0, cost: 0, subtotal: 15000, dpp_amount: 0, tax_amount: 0 },
 ];
 
 describe('pos-utils', () => {

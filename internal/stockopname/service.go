@@ -107,6 +107,34 @@ func (s *Service) ListSessions(ctx context.Context, limit, offset int, status, s
 	return s.repo.ListSessions(ctx, limit, offset, status, search)
 }
 
+// ListAssignableUsers returns active users eligible for stock opname
+// assignment, optionally filtered by username/email search.
+func (s *Service) ListAssignableUsers(ctx context.Context, search string) ([]AssignableUser, error) {
+	return s.repo.ListAssignableUsers(ctx, search)
+}
+
+// allowedAssigneeRoles maps an assignment role to the system roles permitted
+// to hold it. Counters are drawn from floor staff; supervisors must be
+// manager-level or above.
+var allowedAssigneeRoles = map[string]map[string]bool{
+	AssignmentRoleCounter:    {"cashier": true, "staff": true},
+	AssignmentRoleSupervisor: {"manager": true, "admin": true},
+}
+
+// validateAssigneeRole ensures the user holding an assignment is compatible
+// with the requested assignment role (e.g. a staff member cannot be
+// supervisor). Returns ErrInvalidAssigneeRole otherwise.
+func (s *Service) validateAssigneeRole(ctx context.Context, userID int, role string) error {
+	userRole, err := s.repo.GetUserRoleName(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !allowedAssigneeRoles[role][userRole] {
+		return ErrInvalidAssigneeRole
+	}
+	return nil
+}
+
 func (s *Service) CancelSession(ctx context.Context, id, userID int) error {
 	return s.repo.CancelSession(ctx, id, userID)
 }
@@ -114,6 +142,9 @@ func (s *Service) CancelSession(ctx context.Context, id, userID int) error {
 func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role string) error {
 	if role != AssignmentRoleCounter && role != AssignmentRoleSupervisor {
 		return fmt.Errorf("invalid assignment role %q", role)
+	}
+	if err := s.validateAssigneeRole(ctx, userID, role); err != nil {
+		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, sessionID)
 	if err != nil {
@@ -136,6 +167,13 @@ func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role
 func (s *Service) ReassignCounter(ctx context.Context, sessionID, assignmentID int, role string) error {
 	if role != AssignmentRoleCounter && role != AssignmentRoleSupervisor {
 		return fmt.Errorf("invalid assignment role %q", role)
+	}
+	userID, err := s.repo.GetAssignmentUserID(ctx, sessionID, assignmentID)
+	if err != nil {
+		return err
+	}
+	if err := s.validateAssigneeRole(ctx, userID, role); err != nil {
+		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, sessionID)
 	if err != nil {

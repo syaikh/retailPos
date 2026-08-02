@@ -3,7 +3,7 @@
   import { Button } from '$shared/ui';
   import { X, RotateCcw } from 'lucide-svelte';
   import { tick } from 'svelte';
-  import type { CartSession } from '../../types';
+  import type { CartSession } from '../types';
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;

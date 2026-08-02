@@ -3,6 +3,7 @@ package stockopname
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -59,6 +60,53 @@ func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, e
 		items = append(items, it)
 	}
 	return items, rows.Err()
+}
+
+// ListAssignableUsers returns active users eligible for assignment to a stock
+// opname session (counters and supervisors). Superadmins are excluded as they
+// sit outside the day-to-day assignment flow.
+func (r *Repository) ListAssignableUsers(ctx context.Context, search string) ([]AssignableUser, error) {
+	query := `
+		SELECT u.id, u.username, u.email, u.role_id, r.name
+		FROM users u
+		JOIN roles r ON r.id = u.role_id
+		WHERE u.deleted_at IS NULL AND u.is_active = true
+		  AND r.name IN ('cashier', 'staff', 'manager', 'admin')
+		  AND ($1 = '' OR u.username ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%')
+		ORDER BY u.username ASC`
+	rows, err := r.db.Query(ctx, query, search)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list assignable users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []AssignableUser
+	for rows.Next() {
+		var u AssignableUser
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.RoleID, &u.RoleName); err != nil {
+			return nil, fmt.Errorf("failed to scan assignable user: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// GetUserRoleName returns the role name for a user, or empty string when the
+// user does not exist or is inactive.
+func (r *Repository) GetUserRoleName(ctx context.Context, userID int) (string, error) {
+	var roleName string
+	err := r.db.QueryRow(ctx, `
+		SELECT r.name
+		FROM users u
+		JOIN roles r ON r.id = u.role_id
+		WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = true`, userID).Scan(&roleName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrAssigneeNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get user role: %w", err)
+	}
+	return roleName, nil
 }
 
 func (r *Repository) CreateSession(ctx context.Context, tx pgx.Tx, s *Session) error {
@@ -391,6 +439,22 @@ func (r *Repository) UpdateAssignmentRole(ctx context.Context, tx pgx.Tx, sessio
 		return ErrAssignmentNotFound
 	}
 	return nil
+}
+
+// GetAssignmentUserID returns the user assigned to an assignment, or
+// ErrAssignmentNotFound when it does not exist.
+func (r *Repository) GetAssignmentUserID(ctx context.Context, sessionID, assignmentID int) (int, error) {
+	var userID int
+	err := r.db.QueryRow(ctx, `
+		SELECT user_id FROM stock_opname_assignments WHERE id = $1 AND stock_opname_id = $2`,
+		assignmentID, sessionID).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrAssignmentNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to get assignment user: %w", err)
+	}
+	return userID, nil
 }
 
 func (r *Repository) ListAssignments(ctx context.Context, sessionID int) ([]Assignment, error) {

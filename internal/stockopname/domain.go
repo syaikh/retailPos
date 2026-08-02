@@ -21,6 +21,8 @@ var (
 	ErrNoPermission         = errors.New("user lacks permission")
 	ErrAdjustmentFailed     = errors.New("inventory adjustment failed")
 	ErrProductNotFound      = errors.New("product not found")
+	ErrInvalidAssigneeRole  = errors.New("user role is not valid for this assignment role")
+	ErrAssigneeNotFound     = errors.New("assignee user not found or inactive")
 )
 
 const (
@@ -95,6 +97,14 @@ type Assignment struct {
 	Username      string `json:"username"`
 	Role          string `json:"role"`
 	AssignedAt    string `json:"assigned_at"`
+}
+
+type AssignableUser struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	RoleID   int    `json:"role_id"`
+	RoleName string `json:"role_name"`
 }
 
 type SessionSummary struct {

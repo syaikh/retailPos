@@ -45,6 +45,14 @@ export interface StockOpnameAssignment {
   assigned_at: string;
 }
 
+export interface AssignableUser {
+  id: number;
+  username: string;
+  email: string;
+  role_id: number;
+  role_name: string;
+}
+
 export interface SessionSummary {
   total_items: number;
   counted_items: number;

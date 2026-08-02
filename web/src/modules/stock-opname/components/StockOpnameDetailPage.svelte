@@ -4,7 +4,7 @@
   import { useStockOpnameStore } from '../stores/stock-opname-store.svelte';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
-  import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Skeleton } from '$shared/ui';
+  import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
   import { STOCK_OPNAME_STATUS_LABELS } from '../types';
@@ -28,7 +28,7 @@
   let searchQuery = $state('');
 
   let showAssignModal = $state(false);
-  let assignUserId = $state('');
+  let assignUserId = $state(0);
   let assignRole = $state('counter');
   let assigning = $state(false);
 
@@ -42,9 +42,19 @@
   let approveComment = $state('');
   let actionInProgress = $state(false);
 
+  let pageLimit = $state(20);
+  let pageOffset = $state(0);
+
   onMount(async () => {
-    await reload();
+    await Promise.all([reload(), store.loadAssignableUsers()]);
   });
+
+  const assignableUserOptions = $derived(
+    store.assignableUsers.map(u => ({
+      value: u.id,
+      label: `${u.username} — ${u.role_name}`,
+    }))
+  );
 
   async function reload() {
     loading = true;
@@ -67,8 +77,24 @@
     ) ?? []
   );
 
+  $effect(() => {
+    searchQuery;
+    pageOffset = 0;
+  });
+
+  const paginatedItems = $derived(filteredItems.slice(pageOffset, pageOffset + pageLimit));
+  const totalFiltered = $derived(filteredItems.length);
+
+  function handlePageChange(newOffset: number, newLimit: number) {
+    if (newLimit && newLimit !== pageLimit) pageLimit = newLimit;
+    pageOffset = newOffset;
+  }
+
   const isCounter = $derived(
-    !!authStore.user?.id && !!session?.assignments?.some(a => a.user_id === authStore.user.id && a.role === 'counter')
+    (() => {
+      const uid = authStore.user?.id;
+      return !!uid && !!session?.assignments?.some(a => a.user_id === uid && a.role === 'counter');
+    })()
   );
   const canEnterCount = $derived(canCount && isCounter && (session?.status === 'counting' || session?.status === 'needs_recount'));
 
@@ -87,10 +113,10 @@
   async function handleAssign() {
     assigning = true;
     try {
-      await store.assign(sessionId, { user_id: Number(assignUserId), role: assignRole as any });
+      await store.assign(sessionId, { user_id: assignUserId, role: assignRole as any });
       toast.success('Counter assigned');
       showAssignModal = false;
-      assignUserId = '';
+      assignUserId = 0;
       await reload();
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message || e.message || 'Failed to assign counter');
@@ -254,38 +280,38 @@
         {#if canExport}
           <Button variant="secondary" onclick={doExport}>Export CSV</Button>
         {/if}
-        {#if canAssign && (session.status === 'draft' || session.status === 'counting' || session.status === 'needs_recount')}
+        {#if canAssign && (session?.status === 'draft' || session?.status === 'counting' || session?.status === 'needs_recount')}
           <Button variant="secondary" onclick={() => (showAssignModal = true)}>Assign Counter</Button>
         {/if}
-        {#if canCount && isCounter && session.status === 'draft'}
+        {#if canCount && isCounter && session?.status === 'draft'}
           <Button onclick={handleStart} disabled={actionInProgress}>Start Counting</Button>
         {/if}
-        {#if canSubmit && isCounter && session.status === 'counting'}
+        {#if canSubmit && isCounter && session?.status === 'counting'}
           <Button onclick={handleSubmit} disabled={actionInProgress}>
             <Send class="w-4 h-4" /> Submit for Approval
           </Button>
         {/if}
-        {#if canRecount && session.status === 'pending_approval'}
+        {#if canRecount && session?.status === 'pending_approval'}
           <Button variant="secondary" onclick={handleRecount} disabled={actionInProgress}>
             <RotateCcw class="w-4 h-4" /> Request Recount
           </Button>
         {/if}
-        {#if canApprove && session.status === 'pending_approval'}
+        {#if canApprove && session?.status === 'pending_approval'}
           <Button variant="success" onclick={() => { approveComment = ''; showApproveModal = true; }}>
             <CheckCircle2 class="w-4 h-4" /> Approve
           </Button>
         {/if}
-        {#if canReject && session.status === 'pending_approval'}
+        {#if canReject && session?.status === 'pending_approval'}
           <Button variant="danger" onclick={() => { approveComment = ''; showApproveModal = true; }}>
             <XCircle class="w-4 h-4" /> Reject
           </Button>
         {/if}
-        {#if canCount && isCounter && session.status === 'needs_recount'}
+        {#if canCount && isCounter && session?.status === 'needs_recount'}
           <Button onclick={handleResume} disabled={actionInProgress}>
             <ClipboardCheck class="w-4 h-4" /> Resume Counting
           </Button>
         {/if}
-        {#if canCancel && (session.status === 'draft' || session.status === 'counting' || session.status === 'needs_recount')}
+        {#if canCancel && (session?.status === 'draft' || session?.status === 'counting' || session?.status === 'needs_recount')}
           <Button variant="danger" onclick={handleCancel} disabled={actionInProgress}>Cancel</Button>
         {/if}
       {/snippet}
@@ -335,7 +361,7 @@
       </div>
 
       {#if filteredItems.length === 0}
-        <EmptyState title="No items" description="No products match the current filter." />
+        <EmptyState title="No items" subtitle="No products match the current filter." />
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm text-left whitespace-nowrap">
@@ -353,7 +379,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-border/60">
-              {#each filteredItems as item}
+              {#each paginatedItems as item}
                 <tr class="hover:bg-surface-subtle">
                   <td class="px-3 py-2.5 font-medium text-text-primary">{item.product_name}</td>
                   <td class="px-3 py-2.5 text-text-secondary">{item.sku}</td>
@@ -377,29 +403,40 @@
             </tbody>
           </table>
         </div>
+        {#if totalFiltered > 0}
+          <div class="px-4 py-3 bg-surface-subtle/30 border-t border-border/50">
+            <Pagination total={totalFiltered} limit={pageLimit} offset={pageOffset} onPageChange={handlePageChange} />
+          </div>
+        {/if}
       {/if}
     </Card>
   </div>
 {:else}
-  <EmptyState title="Session not found" description="This stock opname session could not be loaded." />
+  <EmptyState title="Session not found" subtitle="This stock opname session could not be loaded." />
 {/if}
 
 <Modal bind:open={showAssignModal} title="Assign Counter" size="sm">
   {#snippet children()}
     <div class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">User ID</label>
-        <Input type="number" bind:value={assignUserId} min={1} placeholder="e.g. 3" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">Role</label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>User</span>
+        <SelectSearch
+          bind:value={assignUserId}
+          options={assignableUserOptions}
+          placeholder={store.assignableLoading ? 'Loading users...' : 'Select user'}
+          searchPlaceholder="Search by username or email"
+          notFoundText="No matching users"
+        />
+      </label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Role</span>
         <Input tag="select" bind:value={assignRole}>
           {#snippet children()}
             <option value="counter">Counter</option>
             <option value="supervisor">Supervisor</option>
           {/snippet}
         </Input>
-      </div>
+      </label>
     </div>
   {/snippet}
   {#snippet footer()}
@@ -413,14 +450,14 @@
 <Modal bind:open={showCountModal} title={countTarget ? `Count: ${countTarget.product_name}` : ''} size="sm">
   {#snippet children()}
     <div class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">Physical Quantity</label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Physical Quantity</span>
         <Input type="number" bind:value={countValue} min={0} step="any" placeholder="0" autofocus />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-text-secondary mb-1">Remarks</label>
+      </label>
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Remarks</span>
         <Input tag="textarea" bind:value={countRemarks} placeholder="Optional notes" />
-      </div>
+      </label>
     </div>
   {/snippet}
   {#snippet footer()}
@@ -433,10 +470,10 @@
 
 <Modal bind:open={showApproveModal} title="Approval Action" size="sm">
   {#snippet children()}
-    <div>
-      <label class="block text-sm font-medium text-text-secondary mb-1">Comment (required)</label>
+    <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+      <span>Comment (required)</span>
       <Input tag="textarea" bind:value={approveComment} placeholder="Approval / rejection notes" />
-    </div>
+    </label>
   {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
