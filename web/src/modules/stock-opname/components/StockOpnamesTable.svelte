@@ -48,12 +48,12 @@
   <div class="overflow-x-auto">
     <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading stock opname sessions">
       <colgroup>
-        <col style="width: 20%;" />
-        <col style="width: 18%;" />
-        <col style="width: 18%;" />
-        <col style="width: 10%;" />
-        <col style="width: 22%;" />
-        <col style="width: 12%;" />
+        <col style="width: 15%;" />
+        <col style="width: 26%;" />
+        <col style="width: 14%;" />
+        <col style="width: 8%;" />
+        <col style="width: 26%;" />
+        <col style="width: 11%;" />
       </colgroup>
       <thead><tr><th>SESSION</th><th>SCOPE</th><th>STATUS</th><th>BLIND</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(6) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
@@ -71,12 +71,12 @@
   <div class="overflow-x-auto">
     <table class="w-full min-w-[800px]" style="table-layout: fixed;" role="grid" aria-label="Stock opname sessions">
       <colgroup>
-        <col style="width: 20%;" />
-        <col style="width: 18%;" />
-        <col style="width: 18%;" />
-        <col style="width: 10%;" />
-        <col style="width: 22%;" />
-        <col style="width: 12%;" />
+        <col style="width: 15%;" />
+        <col style="width: 26%;" />
+        <col style="width: 14%;" />
+        <col style="width: 8%;" />
+        <col style="width: 26%;" />
+        <col style="width: 11%;" />
       </colgroup>
       <thead class="bg-muted/50">
         <tr class="border-b text-left text-sm text-text-muted">
@@ -92,7 +92,7 @@
           {#each sessions as session (session.id)}
             <tr class="border-b border-border transition-colors hover:bg-muted/50 cursor-pointer" onclick={() => onview(session)}>
               <td class="px-4 py-3 text-sm font-medium max-w-0"><span class="truncate block">{session.session_number}</span></td>
-              <td class="px-4 py-3 text-sm text-text-secondary whitespace-nowrap">{getScopeLabel(session)}</td>
+              <td class="px-4 py-3 text-sm text-text-secondary max-w-0"><span class="truncate block" title={getScopeLabel(session)}>{getScopeLabel(session)}</span></td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <Badge variant={getStatusVariant(session.status)} size="sm">{STOCK_OPNAME_STATUS_LABELS[session.status] || session.status}</Badge>
               </td>
