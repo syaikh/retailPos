@@ -31,7 +31,7 @@ func NewHandler(svc InventoryService, auditSvc audit.AuditCreator) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.POST("/inventory/adjust", auth, perm("inventory.adjust"), h.AdjustStock)
-	r.GET("/inventory/locations", auth, perm("inventory.adjust"), h.ListLocationStock)
+	r.GET("/inventory/locations", auth, perm("product.view"), h.ListLocationStock)
 	r.POST("/inventory/locations", auth, perm("inventory.adjust"), h.SetLocationStock)
 	r.POST("/inventory/locations/transfer", auth, perm("inventory.adjust"), h.TransferLocationStock)
 }

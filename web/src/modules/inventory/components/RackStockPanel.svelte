@@ -49,28 +49,41 @@
   async function load() {
     if (!productId) {
       rackRows = [];
+      locations = [];
       return;
     }
     loading = true;
+    let rows: LocationStockItem[] = [];
     try {
-      const [rows, locRes] = await Promise.all([
-        getLocationStock(productId),
-        getStorageLocations({ is_active: true, limit: 500, offset: 0 }),
-      ]);
-      rackRows = rows;
-      locations = locRes.data;
+      rows = await getLocationStock(productId);
     } catch {
-      rackRows = [];
-      locations = [];
       toast.error('Gagal memuat stok rak');
-    } finally {
-      loading = false;
     }
+    rackRows = rows;
+
+    // Location metadata is only needed for the set/transfer modals (gated by
+    // canAdjust); rack rows already carry their own location labels, so
+    // read-only viewers never need the storage-locations call. A metadata
+    // failure must not blank the rack rows.
+    let locs: StorageLocation[] = [];
+    if (canAdjust) {
+      try {
+        const locRes = await getStorageLocations({ is_active: true, limit: 500, offset: 0 });
+        locs = locRes.data;
+      } catch {
+        locs = [];
+      }
+    }
+    locations = locs;
+    loading = false;
   }
 
   $effect(() => {
     if (productId) load();
-    else rackRows = [];
+    else {
+      rackRows = [];
+      locations = [];
+    }
   });
 
   function openSet(locationId?: number) {

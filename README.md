@@ -594,6 +594,7 @@ Migrations terkini:
 - `018_storage_locations.sql` — Tabel `storage_locations` + permission `storage_location.*`
 - `019_remove_remaining_orphaned_role_grants.sql` — Revoke `store.create/update/delete` dan `customer_group.create/update/delete` dari Manager (least-privilege)
 - `020_per_rack_stock.sql` — Kolom `product_stock.location_id` (FK → storage_locations, unique `NULLS NOT DISTINCT` 4 kolom), kolom `stock_opnames.location_id` + scope `location`
+- `021_grant_storage_location_view.sql` — Grant `storage_location.view` ke Manager/Staff/Cashier (panel stok rak di detail produk + scope picker stock opname)
 
 ---
 

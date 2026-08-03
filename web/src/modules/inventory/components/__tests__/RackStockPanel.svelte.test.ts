@@ -57,4 +57,10 @@ describe('RackStockPanel.svelte source-structure guards', () => {
   it('documents rack stock as a sub-account of global stock', () => {
     expect(src).toContain('sub-akun dari stok global');
   });
+
+  it('loads rack rows independently of location metadata (read-only safe)', () => {
+    expect(src).toContain('rows = await getLocationStock(productId);');
+    expect(src).toContain('if (canAdjust) {');
+    expect(src).toContain('getStorageLocations({ is_active: true, limit: 500, offset: 0 })');
+  });
 });
