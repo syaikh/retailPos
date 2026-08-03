@@ -69,6 +69,8 @@ func (r *Repository) ResolveScopeName(ctx context.Context, q queryer, scopeType 
 		table = "suppliers"
 	case "product":
 		table = "products"
+	case "location":
+		table = "storage_locations"
 	default:
 		return "", nil
 	}
@@ -100,6 +102,8 @@ func (r *Repository) ScopeProductIDs(ctx context.Context, q queryer, scope Scope
 		query = `SELECT DISTINCT product_id FROM product_suppliers WHERE supplier_id = $1`
 	case "product":
 		query = `SELECT id FROM products WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`
+	case "location":
+		query = `SELECT DISTINCT product_id FROM product_stock WHERE location_id = $1`
 	case "manual":
 		query = `SELECT id FROM products WHERE deleted_at IS NULL AND status = 'active'`
 	default:

@@ -13,6 +13,7 @@
     getWarehouses,
   } from '$modules/product/services/product-service';
   import { getSuppliers } from '$modules/supplier/services/supplier-service';
+  import { getStorageLocations } from '$modules/storage-location/services/storage-location-service';
   import type { StockOpnameSession, StockOpnameScopeType } from '../types';
   import { STOCK_OPNAME_SCOPE_LABELS, STOCK_OPNAME_SCOPE_TYPES } from '../types';
   import StockOpnamesToolbar from './StockOpnamesToolbar.svelte';
@@ -72,6 +73,12 @@
         loaded = options.map((p) => ({
           value: p.id,
           label: p.sku ? `${p.name} (${p.sku})` : p.name,
+        }));
+      } else if (type === 'location') {
+        const res = await getStorageLocations({ is_active: true, limit: 500, offset: 0 });
+        loaded = res.data.map((l) => ({
+          value: l.id,
+          label: l.code ? `${l.name} (${l.code})` : l.name,
         }));
       }
       optionCache = { ...optionCache, [type]: loaded };
@@ -271,6 +278,9 @@
             {/if}
           </div>
         {/each}
+        {#if createRows.some((r) => r.scope_type === 'location') && createRows.length > 1}
+          <p class="text-xs text-amber-600">Storage Location scope must be the only scope — remove the other rows.</p>
+        {/if}
       </div>
 
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">

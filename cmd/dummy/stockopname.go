@@ -235,7 +235,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		stockStmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO product_stock (product_id, quantity, updated_at)
 			VALUES ($1, $2, NOW())
-			ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
+			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
 		`)
 		if err != nil {
 			_ = tx.Rollback()

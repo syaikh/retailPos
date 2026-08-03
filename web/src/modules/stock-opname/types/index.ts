@@ -1,4 +1,4 @@
-export type StockOpnameScopeType = 'store' | 'warehouse' | 'category' | 'brand' | 'supplier' | 'product' | 'manual';
+export type StockOpnameScopeType = 'store' | 'warehouse' | 'category' | 'brand' | 'supplier' | 'product' | 'location' | 'manual';
 
 export type StockOpnameStatus =
   | 'draft'
@@ -29,6 +29,7 @@ export interface StockOpnameSession {
   scopes: StockOpnameScope[];
   warehouse_id: number | null;
   store_id: number | null;
+  location_id: number | null;
   blind_count: boolean;
   notes: string;
   status: StockOpnameStatus;
@@ -219,6 +220,7 @@ export const STOCK_OPNAME_SCOPE_LABELS: Record<StockOpnameScopeType, string> = {
   brand: 'Brand',
   supplier: 'Supplier',
   product: 'Product',
+  location: 'Storage Location (Rack)',
   manual: 'Manual (all active products)',
 };
 
@@ -229,5 +231,6 @@ export const STOCK_OPNAME_SCOPE_TYPES: StockOpnameScopeType[] = [
   'brand',
   'supplier',
   'product',
+  'location',
   'manual',
 ];

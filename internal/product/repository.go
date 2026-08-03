@@ -414,7 +414,7 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 	if storeIDVal != nil {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
-			ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET quantity = $3
+			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity
 		`, product.ID, storeIDVal, product.Stock)
 		if err != nil {
 			return fmt.Errorf("failed to sync product stock: %w", err)

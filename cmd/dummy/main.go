@@ -1231,7 +1231,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 			VALUES ($1, GREATEST(0, COALESCE((
 				SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
 			), 0) - $2), NOW())
-			ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
+			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
 				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
 				updated_at = NOW()`)
 		if err != nil {
@@ -1269,7 +1269,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 				args = append(args, productID, qty)
 				i += 2
 			}
-			sb.WriteString(` ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
+			sb.WriteString(` ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
 				quantity = GREATEST(0, product_stock.quantity - EXCLUDED.quantity),
 				updated_at = NOW()`)
 
@@ -2729,7 +2729,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO product_stock (product_id, quantity, updated_at)
 				VALUES ($1, $2, NOW())
-				ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET
+				ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET
 					quantity = product_stock.quantity + $2,
 					updated_at = NOW()
 			`, item.productID, qtyGood)

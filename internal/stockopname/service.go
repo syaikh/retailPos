@@ -70,6 +70,7 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	if len(scopes) == 0 {
 		return nil, ErrNoScopes
 	}
+	hasLocationScope := false
 	for _, sc := range scopes {
 		if !validScopes[sc.ScopeType] {
 			return nil, ErrUnsupportedScope
@@ -77,6 +78,12 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		if sc.ScopeID <= 0 && sc.ScopeType != "manual" {
 			return nil, ErrScopeIDRequired
 		}
+		if sc.ScopeType == "location" {
+			hasLocationScope = true
+		}
+	}
+	if hasLocationScope && len(scopes) != 1 {
+		return nil, ErrLocationScopeSingle
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -147,24 +154,12 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		return nil, &ScopeOverlapError{SKUs: skuValues(skus, conflictIDs)}
 	}
 
-	items, err := s.repo.LoadSnapshotProductsByIDs(ctx, tx, productIDList(candidate))
-	if err != nil {
-		return nil, err
-	}
-	if len(items) == 0 {
-		return nil, ErrNoItems
-	}
-
-	number, err := s.repo.GetNextSessionNumber(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	var storeID *int
 	if req.StoreID != nil {
 		storeID = req.StoreID
 	}
 	var warehouseID = req.WarehouseID
+	var locationID *int
 	for _, sc := range scopes {
 		switch sc.ScopeType {
 		case "store":
@@ -182,7 +177,36 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 				}
 				storeID = sid
 			}
+		case "location":
+			lid := int(sc.ScopeID)
+			locationID = &lid
+			wid, sid, err := s.repo.GetLocationScope(ctx, tx, lid)
+			if err != nil {
+				return nil, err
+			}
+			warehouseID = wid
+			storeID = sid
 		}
+	}
+
+	var items []SessionItem
+	if locationID != nil {
+		items, err = s.repo.LoadSnapshotProductsByLocation(ctx, tx, *locationID, productIDList(candidate))
+	} else {
+		items, err = s.repo.LoadSnapshotProductsByIDs(ctx, tx, productIDList(candidate))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, ErrNoItems
+	}
+
+	// Generate the session number only after every validation above has passed
+	// so a failed scope/snapshot does not burn an so_seq value.
+	number, err := s.repo.GetNextSessionNumber(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	primary := sessionScopes[0]
@@ -195,6 +219,7 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		Scopes:        sessionScopes,
 		WarehouseID:   warehouseID,
 		StoreID:       storeID,
+		LocationID:    locationID,
 		BlindCount:    req.BlindCount,
 		Notes:         req.Notes,
 		Status:        StatusDraft,
@@ -537,7 +562,12 @@ func (s *Service) VerifySession(ctx context.Context, id, userID int, comment str
 	for i, it := range items {
 		productIDs[i] = it.ProductID
 	}
-	stock, err := s.repo.LockStockForProducts(ctx, tx, productIDs)
+	var stock map[int]int
+	if session.LocationID != nil {
+		stock, err = s.repo.LockStockForLocation(ctx, tx, productIDs, *session.LocationID)
+	} else {
+		stock, err = s.repo.LockStockForProducts(ctx, tx, productIDs)
+	}
 	if err != nil {
 		return err
 	}
@@ -652,7 +682,12 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 	for i, it := range items {
 		productIDs[i] = it.ProductID
 	}
-	stock, err := s.repo.LockStockForProducts(ctx, tx, productIDs)
+	var stock map[int]int
+	if session.LocationID != nil {
+		stock, err = s.repo.LockStockForLocation(ctx, tx, productIDs, *session.LocationID)
+	} else {
+		stock, err = s.repo.LockStockForProducts(ctx, tx, productIDs)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -683,11 +718,16 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 		if diff == 0 {
 			continue
 		}
-		newQty := int(math.Round(expected + diff))
-		if err := s.repo.UpdateProductStock(ctx, tx, it.ProductID, newQty); err != nil {
+		delta := int(math.Round(diff))
+		if session.LocationID != nil {
+			err = s.repo.UpdateLocationStock(ctx, tx, it.ProductID, *session.LocationID, session.WarehouseID, session.StoreID, delta)
+		} else {
+			err = s.repo.UpdateProductStock(ctx, tx, it.ProductID, int(math.Round(expected+diff)))
+		}
+		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
 		}
-		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: int(math.Round(diff)), Notes: reason})
+		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: delta, Notes: reason})
 	}
 
 	// A zero-discrepancy count still posts an adjustment document recording the

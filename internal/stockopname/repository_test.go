@@ -50,7 +50,7 @@ func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int)
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)
-		 ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
+		 ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity`,
 		productID, quantity,
 	)
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func insertTestStockWarehouse(t *testing.T, ctx context.Context, productID, ware
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, warehouse_id, quantity) VALUES ($1, $2, $3)
-		 ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
+		 ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity`,
 		productID, warehouseID, quantity,
 	)
 	require.NoError(t, err)

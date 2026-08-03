@@ -20,6 +20,15 @@ func ParsePaginationParams(limitStr, offsetStr string) (int, int) {
 	return limit, offset
 }
 
+// ParseIntParam parses an optional integer query parameter, returning 0 when
+// absent or malformed.
+func ParseIntParam(s string) (int, error) {
+	if s == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(s)
+}
+
 var allowedSortColumns = map[string]map[string]bool{
 	"products": {"name": true, "sku": true, "price": true, "stock": true, "created_at": true, "updated_at": true},
 	"sales":    {"created_at": true, "total_amount": true, "invoice_number": true},

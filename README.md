@@ -592,6 +592,8 @@ Migrations terkini:
 - `016_stock_opname_scope_workflow.sql` — Workflow stock opname 9-state, multi-scope session, recount requests, permission `stock_opname.verify/post/close/report`
 - `017_stock_opname_adjustment_ledger.sql` — Ledger penyesuaian (`inventory_adjustments` + items, sequence `ia_seq`)
 - `018_storage_locations.sql` — Tabel `storage_locations` + permission `storage_location.*`
+- `019_remove_remaining_orphaned_role_grants.sql` — Revoke `store.create/update/delete` dan `customer_group.create/update/delete` dari Manager (least-privilege)
+- `020_per_rack_stock.sql` — Kolom `product_stock.location_id` (FK → storage_locations, unique `NULLS NOT DISTINCT` 4 kolom), kolom `stock_opnames.location_id` + scope `location`
 
 ---
 

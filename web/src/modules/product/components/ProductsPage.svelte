@@ -667,10 +667,12 @@
   {criticalThreshold}
   canEdit={canEdit}
   canDelete={isSuperAdmin || isAdmin}
+  canAdjustStock={allowedStockRoles.includes(getUserRoleName())}
   isSensitive={isSensitive}
   isFullAudit={isFullAudit}
   isSuperAdmin={isSuperAdmin}
   isAdmin={isAdmin}
+  onstockchanged={() => fetchProducts(offset, limit)}
   onedit={() => {
     showDetailDrawer = false;
     modalMode = 'edit';

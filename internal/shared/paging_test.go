@@ -33,6 +33,35 @@ func TestParsePaginationParams(t *testing.T) {
 	}
 }
 
+func TestParseIntParam(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{"empty string", "", 0, false},
+		{"positive", "42", 42, false},
+		{"zero", "0", 0, false},
+		{"negative", "-3", -3, false},
+		{"whitespace", "  7 ", 0, true},
+		{"non-numeric", "abc", 0, true},
+		{"partial numeric", "12abc", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseIntParam(tt.input)
+			assert.Equal(t, tt.want, got)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestSanitizeSortBy(t *testing.T) {
 	tests := []struct {
 		name     string

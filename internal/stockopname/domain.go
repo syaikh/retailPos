@@ -30,6 +30,9 @@ var (
 	ErrAlreadyClosed        = errors.New("session already closed")
 	ErrAdjustmentNotFound   = errors.New("inventory adjustment not found")
 	ErrOpenCommentReq       = errors.New("comment is required to open the session")
+	ErrLocationScopeSingle  = errors.New("location scope must be used alone")
+	ErrLocationNotFound     = errors.New("storage location not found")
+	ErrLocationInactive     = errors.New("storage location is inactive")
 )
 
 const (
@@ -66,6 +69,7 @@ var validScopes = map[string]bool{
 	"supplier":  true,
 	"product":   true,
 	"manual":    true,
+	"location":  true,
 }
 
 // SessionScope is one lookup scope of a session. A session may span several
@@ -89,6 +93,7 @@ type Session struct {
 	Scopes          []SessionScope  `json:"scopes,omitempty"`
 	WarehouseID     *int            `json:"warehouse_id,omitempty"`
 	StoreID         *int            `json:"store_id,omitempty"`
+	LocationID      *int            `json:"location_id,omitempty"`
 	BlindCount      bool            `json:"blind_count"`
 	Notes           string          `json:"notes,omitempty"`
 	Status          string          `json:"status"`

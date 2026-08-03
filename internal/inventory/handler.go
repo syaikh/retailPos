@@ -15,6 +15,9 @@ import (
 
 type InventoryService interface {
 	AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
+	ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error)
+	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error
+	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error
 }
 
 type Handler struct {
@@ -28,6 +31,9 @@ func NewHandler(svc InventoryService, auditSvc audit.AuditCreator) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
 	r.POST("/inventory/adjust", auth, perm("inventory.adjust"), h.AdjustStock)
+	r.GET("/inventory/locations", auth, perm("inventory.adjust"), h.ListLocationStock)
+	r.POST("/inventory/locations", auth, perm("inventory.adjust"), h.SetLocationStock)
+	r.POST("/inventory/locations/transfer", auth, perm("inventory.adjust"), h.TransferLocationStock)
 }
 
 func (h *Handler) AdjustStock(c *gin.Context) {

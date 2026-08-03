@@ -5,6 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { getPricingRules } from '$modules/pricing/services/pricing-service';
   import type { PricingRule } from '$modules/pricing/types';
+  import RackStockPanel from '$modules/inventory/components/RackStockPanel.svelte';
 
   let {
     selectedProduct,
@@ -14,6 +15,7 @@
     criticalThreshold = 5,
     canEdit = false,
     canDelete = false,
+    canAdjustStock = false,
     isSensitive = false,
     isFullAudit = false,
     isSuperAdmin = false,
@@ -21,6 +23,7 @@
     oncopy = (_value: string, _field: string) => {},
     onedit = () => {},
     ondelete = () => {},
+    onstockchanged = () => {},
   }: {
     selectedProduct: any;
     showDetailDrawer: boolean;
@@ -29,6 +32,7 @@
     criticalThreshold?: number;
     canEdit?: boolean;
     canDelete?: boolean;
+    canAdjustStock?: boolean;
     isSensitive?: boolean;
     isFullAudit?: boolean;
     isSuperAdmin?: boolean;
@@ -36,6 +40,7 @@
     oncopy?: (value: string, field: string) => void;
     onedit?: () => void;
     ondelete?: () => void;
+    onstockchanged?: () => void;
   } = $props();
 
   let stock_stk = $derived(selectedProduct?.stock ?? 0);
@@ -205,6 +210,13 @@
         {/if}
       </div>
     </div>
+
+    <RackStockPanel
+      productId={selectedProduct.id}
+      productName={selectedProduct.name || ''}
+      canAdjust={canAdjustStock}
+      onChanged={onstockchanged}
+    />
 
     <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
       <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">

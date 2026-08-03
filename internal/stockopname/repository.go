@@ -128,10 +128,10 @@ func (r *Repository) GetUserRoleName(ctx context.Context, userID int) (string, e
 func (r *Repository) CreateSession(ctx context.Context, tx pgx.Tx, s *Session) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by, scope_name, title, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), NULLIF($11, ''))
+		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, store_id, location_id, blind_count, status, created_by, scope_name, title, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), NULLIF($12, ''))
 		RETURNING id, created_at, updated_at
-	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.StoreID, s.BlindCount, s.Status, s.CreatedBy,
+	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.StoreID, s.LocationID, s.BlindCount, s.Status, s.CreatedBy,
 		s.ScopeName, s.Title, s.Notes).
 		Scan(&s.ID, &createdAt, &updatedAt)
 	if err != nil {
@@ -192,10 +192,10 @@ type queryer interface {
 
 func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*Session, error) {
 	var s Session
-	var warehouseID, storeID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
+	var warehouseID, storeID, locationID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
 	var approvedAt, cancelledAt, createdAt, updatedAt, openedAt, verifiedAt, postedAt, closedAt sql.NullTime
 	err := q.QueryRow(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, location_id, blind_count, status,
 		       COALESCE(title,''), COALESCE(notes,''),
 		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at,
 		       opened_by, opened_at, verified_by, verified_at,
@@ -203,7 +203,7 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 		       total_difference, total_adjustment,`+scopeNameExpr+`
 		FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
+	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &locationID, &s.BlindCount,
 		&s.Status, &s.Title, &s.Notes, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt,
 		&openedBy, &openedAt, &verifiedBy, &verifiedAt,
 		&postedBy, &postedAt, &closedBy, &closedAt,
@@ -221,6 +221,10 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		s.StoreID = &v
+	}
+	if locationID.Valid {
+		v := int(locationID.Int64)
+		s.LocationID = &v
 	}
 	assignAuditCols(&s.ApprovedBy, approvedBy, &s.ApprovedAt, approvedAt)
 	assignAuditCols(&s.OpenedBy, openedBy, &s.OpenedAt, openedAt)
@@ -311,7 +315,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, location_id, blind_count, status,
 		       COALESCE(title,''), COALESCE(notes,''), created_by,
 		       approved_by, approved_at, cancelled_at, created_at, updated_at,
 		       opened_by, opened_at, verified_by, verified_at,
@@ -329,9 +333,9 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 	var sessions []Session
 	for rows.Next() {
 		var s Session
-		var warehouseID, storeID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
+		var warehouseID, storeID, locationID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
 		var approvedAt, cancelledAt, createdAt, updatedAt, openedAt, verifiedAt, postedAt, closedAt sql.NullTime
-		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
+		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &locationID, &s.BlindCount,
 			&s.Status, &s.Title, &s.Notes, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt,
 			&openedBy, &openedAt, &verifiedBy, &verifiedAt,
 			&postedBy, &postedAt, &closedBy, &closedAt,
@@ -345,6 +349,10 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 		if storeID.Valid {
 			v := int(storeID.Int64)
 			s.StoreID = &v
+		}
+		if locationID.Valid {
+			v := int(locationID.Int64)
+			s.LocationID = &v
 		}
 		assignAuditCols(&s.ApprovedBy, approvedBy, &s.ApprovedAt, approvedAt)
 		assignAuditCols(&s.OpenedBy, openedBy, &s.OpenedAt, openedAt)
@@ -690,16 +698,29 @@ type approvalItem struct {
 
 func (r *Repository) LockSessionForApproval(ctx context.Context, tx pgx.Tx, id int) (*Session, error) {
 	var s Session
+	var warehouseID, storeID, locationID sql.NullInt64
 	err := tx.QueryRow(ctx, `
-		SELECT id, session_number, status, blind_count FROM stock_opnames
+		SELECT id, session_number, status, blind_count, warehouse_id, store_id, location_id FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
 		FOR UPDATE
-	`, id).Scan(&s.ID, &s.SessionNumber, &s.Status, &s.BlindCount)
+	`, id).Scan(&s.ID, &s.SessionNumber, &s.Status, &s.BlindCount, &warehouseID, &storeID, &locationID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to lock session: %w", err)
+	}
+	if warehouseID.Valid {
+		v := int(warehouseID.Int64)
+		s.WarehouseID = &v
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		s.StoreID = &v
+	}
+	if locationID.Valid {
+		v := int(locationID.Int64)
+		s.LocationID = &v
 	}
 	return &s, nil
 }

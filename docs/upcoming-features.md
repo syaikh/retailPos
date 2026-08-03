@@ -286,11 +286,11 @@ Sistem saat ini mendukung **lebih dari satu toko/outlet** (`stores` table, `stor
 
 ## 7. Storage Locations ✅
 
-**Status:** SUDAH DIIMPLEMENTASI — `internal/storagelocation/`, `web/src/modules/storage-location/`, migrasi `018_storage_locations.sql`
+**Status:** SUDAH DIIMPLEMENTASI — `internal/storagelocation/`, `web/src/modules/storage-location/`, migrasi `018_storage_locations.sql`. Per-rack stock tracking (fase 2) juga sudah selesai — `internal/inventory/location_*`, `internal/stockopname` scope `location`, migrasi `020_per_rack_stock.sql`.
 
 ### Penjelasan
 
-Master data **lokasi penyimpanan** (rak/gudang) tempat produk disimpan. Setiap lokasi bisa dikaitkan ke warehouse atau store (scope). Ini adalah fase 1 dari per-rack stock tracking — saat ini hanya master data; tracking stok per lokasi dan stock opname per lokasi direncanakan di fase berikutnya.
+Master data **lokasi penyimpanan** (rak/gudang) tempat produk disimpan. Setiap lokasi bisa dikaitkan ke warehouse atau store (scope). Setelah migrasi `020`, tracking stok per lokasi (sub-akun dari stok global) dan stock opname per lokasi sudah aktif.
 
 ### Contoh Workflow
 
@@ -305,8 +305,13 @@ Master data **lokasi penyimpanan** (rak/gudang) tempat produk disimpan. Setiap l
    - Scope: warehouse / store
    - Catatan: dekat pintu masuk
 
-3. Admin nonaktifkan lokasi yang tidak dipakai:
-   - Lokasi "RAK-Z-99" → is_active = false
+3. Admin buka detail produk → panel "Stok Rak (Lokasi)":
+   - Set: tentukan jumlah eksak di sebuah lokasi
+   - Transfer: pindahkan jumlah antar lokasi
+
+4. Stock opname dengan scope "Storage Location (Rack)":
+   - Hitung produk yang berada di satu rak
+   - Saat di-post, stok rak dikoreksi ke angka fisik, lalu stok global dihitung ulang dari angka fisik tersebut: (global lama − rak lama, minimal 0) + rak baru
 ```
 
 ### Komponen yang Telah Dibangun
@@ -316,10 +321,15 @@ Master data **lokasi penyimpanan** (rak/gudang) tempat produk disimpan. Setiap l
 - `internal/storagelocation/`: domain, repository, service, handler (+ audit log untuk create/update/delete)
 - Endpoint: `GET/POST /api/storage-locations`, `GET/PUT/DELETE /api/storage-locations/:id`, `PUT/DELETE /api/storage-locations/bulk`
 - Permissions: `storage_location.view` / `storage_location.create` / `storage_location.update` / `storage_location.delete`
+- Migrasi `020_per_rack_stock.sql`: `product_stock.location_id` FK + unique `(product_id, warehouse_id, store_id, location_id)`, `stock_opnames.location_id`, scope `location`
+- Inventory rack-stock: `GET/POST /api/inventory/locations`, `POST /api/inventory/locations/transfer` (reuse permission `inventory.adjust`)
+- Stock opname scope `location` (wajib scope tunggal), snapshot/lock/update per lokasi, rekonsiliasi global saat posting
 
 **Frontend:**
 - `web/src/modules/storage-location/` — halaman list (`StorageLocationsPage.svelte`), tabel, toolbar/filter, modal create/edit/delete, service + types, unit tests
 - Route `/storage-locations` + label di sidebar/topbar, permission `storage_location.view`
+- `web/src/modules/inventory/components/RackStockPanel.svelte` — panel stok rak di detail produk (set/transfer)
+- Scope picker stock opname mendukung tipe `location` ("Storage Location (Rack)")
 
 ---
 

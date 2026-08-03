@@ -346,6 +346,15 @@ This records an inventory adjustment; the note is kept as the reason.
 
 > Stock is also changed automatically when a sale completes (reduced), when a purchase order is received (increased), and when a stock opname is posted.
 
+### Rack Stock (Stok Rak)
+
+Opening a product's **detail drawer** shows a **Stok Rak (Lokasi)** panel listing how much of the product sits in each storage location (rack/shelf). Rack rows are a *sub-account* of the global stock — set/transfer operations never change the global stock number.
+
+- **Tambah Stok / Set** — records the exact quantity of the product in a chosen location (upsert; overwrites the current rack figure).
+- **Transfer** — moves a quantity from one location to another (requires the source to have enough stock).
+
+Rack stock is reconciled automatically when a **stock opname scoped to a storage location** is posted: the rack row is corrected to the physical count, and the global stock is recomputed from that count (see §13), so a rack count reconciles the sub-account with the global number.
+
 ### Low Stock Alerts
 
 Thresholds are configured system-wide (defaults: warning 10, critical 5). Products at or below the critical level are highlighted in red and trigger a dashboard alert and a notification.
@@ -429,7 +438,7 @@ Suppliers are used by Purchase Orders — when creating a PO you pick a supplier
 - **Tambah Lokasi** → **Kode** (required, e.g. `RAK-A-01`) and **Nama** (required, e.g. `Rak A - Baris 1`), a scope (**Gudang**/warehouse or **Toko**/store), and optional **Catatan** (notes).
 - **Edit** and **Delete** via the row's action menu; bulk **Aktifkan / Nonaktifkan / Hapus**.
 
-This is master data only (Phase 1). Rack-level stock tracking and rack-aware stock opname are planned for later phases.
+This is master data only for the location itself. Rack-level stock tracking is live — see **Rack Stock (Stok Rak)** in §6 — and rack-aware stock counts are available via the **Storage Location (Rack)** scope in §13.
 
 ---
 
@@ -570,6 +579,7 @@ Draft → Open → Counting → Verification → Approved → Posted → Closed
 3. Optional **Blind count** checkbox — *hide system quantities from counters* (counters only see physical numbers, so they are not biased).
 4. Add one or more **Scopes** — pick a scope type (e.g. store, warehouse, category, product, etc.) and the specific value. A "manual" row covers **all active products**.
    - The session covers the union of the selected scopes. Sessions may run in parallel as long as they never count the same SKU.
+   - **Storage Location (Rack)** is a scope type that counts the products sitting in one rack. It must be the *only* scope of the session. Expected quantities come from the rack's `product_stock` row (products with no rack row are expected at 0). When the session is **posted**, the rack row is corrected to the physical count, and the global stock is recomputed as *the old global minus the old rack figure (never below 0), plus the new rack count*, with `products.stock` synced to the result — so a rack count reconciles the sub-account with the global number even when sales have caused the two to drift apart.
 5. Optional **Notes**, then create.
 
 ### Assigning Counters
