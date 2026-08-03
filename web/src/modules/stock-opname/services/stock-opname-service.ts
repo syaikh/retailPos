@@ -10,9 +10,11 @@ import type {
   AssignPayload,
   ReassignPayload,
   SaveCountPayload,
-  ApprovePayload,
+  VerifyPayload,
   RejectPayload,
   RecountPayload,
+  PostAdjustmentPayload,
+  Adjustment,
 } from '../types';
 
 export async function createStockOpname(payload: CreateStockOpnamePayload): Promise<StockOpnameSession> {
@@ -38,6 +40,10 @@ export async function listStockOpnames(
 export async function getStockOpname(id: number): Promise<StockOpnameSession> {
   const res = await apiClient.get(`/stock-opnames/${id}`);
   return res.data.data;
+}
+
+export async function openStockOpname(id: number, comment: string): Promise<void> {
+  await apiClient.post(`/stock-opnames/${id}/open`, { comment });
 }
 
 export async function cancelStockOpname(id: number): Promise<void> {
@@ -80,8 +86,8 @@ export async function submitSession(id: number): Promise<void> {
   await apiClient.post(`/stock-opnames/${id}/submit`);
 }
 
-export async function approveSession(id: number, payload: ApprovePayload): Promise<void> {
-  await apiClient.post(`/stock-opnames/${id}/approve`, payload);
+export async function verifySession(id: number, payload: VerifyPayload): Promise<void> {
+  await apiClient.post(`/stock-opnames/${id}/verify`, payload);
 }
 
 export async function rejectSession(id: number, payload: RejectPayload): Promise<void> {
@@ -96,6 +102,15 @@ export async function resumeCounting(id: number): Promise<void> {
   await apiClient.post(`/stock-opnames/${id}/resume`);
 }
 
+export async function postAdjustment(id: number, payload: PostAdjustmentPayload): Promise<Adjustment> {
+  const res = await apiClient.post(`/stock-opnames/${id}/post-adjustment`, payload);
+  return res.data.data;
+}
+
+export async function closeStockOpname(id: number): Promise<void> {
+  await apiClient.post(`/stock-opnames/${id}/close`);
+}
+
 export async function getSessionSummary(id: number): Promise<SessionSummary> {
   const res = await apiClient.get(`/stock-opnames/${id}/summary`);
   return res.data.data;
@@ -103,6 +118,26 @@ export async function getSessionSummary(id: number): Promise<SessionSummary> {
 
 export async function getDifferenceReport(id: number): Promise<StockOpnameSession> {
   const res = await apiClient.get(`/stock-opnames/${id}/difference`);
+  return res.data.data;
+}
+
+export async function listAdjustments(
+  filters: { status?: string; search?: string; limit: number; offset: number },
+  signal?: AbortSignal
+): Promise<{ data: Adjustment[]; total: number }> {
+  const params = new URLSearchParams({
+    limit: filters.limit.toString(),
+    offset: filters.offset.toString(),
+  });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+
+  const res = await apiClient.get(`/stock-opnames/adjustments?${params.toString()}`, { signal });
+  return { data: res.data.data || [], total: res.data.total || 0 };
+}
+
+export async function getAdjustment(id: number): Promise<Adjustment> {
+  const res = await apiClient.get(`/stock-opnames/adjustments/${id}`);
   return res.data.data;
 }
 

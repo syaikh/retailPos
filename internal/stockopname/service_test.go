@@ -44,7 +44,7 @@ func TestService_CreateSession(t *testing.T) {
 	resetStockOpname(t, ctx)
 	insertTestUser(t, ctx, 9101, "so_svc_user_9101")
 	insertTestStore(t, ctx, 100)
-	p := insertTestProduct(t, ctx, "SO-SVC-CREATE-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-CREATE-001", 100)
 	insertTestStock(t, ctx, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 100}, 9101)
@@ -53,9 +53,9 @@ func TestService_CreateSession(t *testing.T) {
 	assert.NotEmpty(t, session.SessionNumber)
 	assert.Equal(t, 9101, session.CreatedBy)
 
-	// active session exists for same scope -> conflict
+	// overlapping active session on the same SKU -> per-SKU overlap conflict
 	_, err = svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 100}, 9101)
-	require.ErrorIs(t, err, ErrActiveSessionExists)
+	require.ErrorIs(t, err, ErrScopeOverlap)
 }
 
 func TestService_CreateSessionInvalidScope(t *testing.T) {
@@ -89,7 +89,8 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	insertTestStore(t, ctx, 9401)
 	insertTestStore(t, ctx, 9402)
 	insertTestWarehouse(t, ctx, 9401, 9402, "SO-WH-9401")
-	p := insertTestProduct(t, ctx, "SO-SVC-STORE-001")
+	catID := insertTestCategory(t, ctx, "SO Cat 9401")
+	p := insertTestProductStore(t, ctx, "SO-SVC-STORE-001", 9401)
 	insertTestStock(t, ctx, p, 5)
 
 	t.Run("store scope resolves to scope id", func(t *testing.T) {
@@ -103,6 +104,9 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	t.Run("warehouse scope resolves to warehouse store", func(t *testing.T) {
 		resetStockOpname(t, ctx)
 		wid := 9401
+		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-001", 9401)
+		insertTestStockWarehouse(t, ctx, whP, 9401, 5)
+		insertTestStock(t, ctx, whP, 5)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401, WarehouseID: &wid}, 9401)
 		require.NoError(t, err)
 		require.NotNil(t, session.StoreID)
@@ -115,14 +119,20 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 			`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9403, 'Test WH 9403', 'SO-WH-9403', NULL, true) ON CONFLICT (id) DO NOTHING`,
 		)
 		require.NoError(t, err)
+		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-002", 9401)
+		insertTestStockWarehouse(t, ctx, whP, 9403, 5)
+		insertTestStock(t, ctx, whP, 5)
 		wid := 9403
-		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401, WarehouseID: &wid}, 9401)
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9403, WarehouseID: &wid}, 9401)
 		require.NoError(t, err)
 		assert.Nil(t, session.StoreID)
 	})
 
 	t.Run("warehouse scope without warehouse id resolves via scope id", func(t *testing.T) {
 		resetStockOpname(t, ctx)
+		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-003", 9401)
+		insertTestStockWarehouse(t, ctx, whP, 9401, 5)
+		insertTestStock(t, ctx, whP, 5)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401}, 9401)
 		require.NoError(t, err)
 		require.NotNil(t, session.StoreID)
@@ -131,7 +141,9 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 
 	t.Run("category scope leaves store nil", func(t *testing.T) {
 		resetStockOpname(t, ctx)
-		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: 9401}, 9401)
+		catP := insertTestProductCategory(t, ctx, "SO-SVC-CAT-001", catID)
+		insertTestStock(t, ctx, catP, 5)
+		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: int64(catID)}, 9401)
 		require.NoError(t, err)
 		assert.Nil(t, session.StoreID)
 	})
@@ -157,7 +169,7 @@ func countAllItems(t *testing.T, svc *Service, ctx context.Context, sessionID, c
 	}
 }
 
-func TestService_AssignAndSubmitAndApprove(t *testing.T) {
+func TestService_AssignVerifyPostClose(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
@@ -167,7 +179,7 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9102", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9103", 5)
 	insertTestStore(t, ctx, 101)
-	p := insertTestProduct(t, ctx, "SO-SVC-FLOW-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-FLOW-001", 101)
 	insertTestStock(t, ctx, p, 20)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 101}, managerID)
@@ -205,19 +217,19 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	// count all items; override target product with 25
 	countAllItems(t, svc, ctx, session.ID, counterID, p, 25)
 
-	// submit now works
+	// submit now works -> verification
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 
-	// counter cannot approve (separation of duties)
-	err = svc.ApproveSession(ctx, session.ID, counterID, "approve")
+	// counter cannot verify (separation of duties)
+	err = svc.VerifySession(ctx, session.ID, counterID, "approve")
 	require.ErrorIs(t, err, ErrSeparationOfDuties)
 
-	// approve requires comment
-	err = svc.ApproveSession(ctx, session.ID, managerID, "  ")
+	// verify requires comment
+	err = svc.VerifySession(ctx, session.ID, managerID, "  ")
 	require.ErrorIs(t, err, ErrApprovalCommentReq)
 
-	// manager approves -> stock adjusted 20 -> 25
-	require.NoError(t, svc.ApproveSession(ctx, session.ID, managerID, "ok"))
+	// manager verifies -> approved, stock NOT yet changed (still 20)
+	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
 	status, err := repo.GetSessionStatus(ctx, session.ID)
 	require.NoError(t, err)
@@ -226,11 +238,47 @@ func TestService_AssignAndSubmitAndApprove(t *testing.T) {
 	var qty int
 	err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, p).Scan(&qty)
 	require.NoError(t, err)
+	assert.Equal(t, 20, qty)
+
+	// verifying an approved session is invalid state
+	err = svc.VerifySession(ctx, session.ID, managerID, "again")
+	require.ErrorIs(t, err, ErrInvalidState)
+
+	// post adjustment applies stock 20 -> 25 and writes a ledger document
+	adj, err := svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok", Notes: "post it"})
+	require.NoError(t, err)
+	require.NotEmpty(t, adj.AdjustmentNumber)
+	assert.Contains(t, adj.AdjustmentNumber, "IA-")
+
+	status, err = repo.GetSessionStatus(ctx, session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, StatusPosted, status)
+
+	err = dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, p).Scan(&qty)
+	require.NoError(t, err)
 	assert.Equal(t, 25, qty)
 
-	// approving an approved session is invalid state
-	err = svc.ApproveSession(ctx, session.ID, managerID, "again")
+	// posting a posted session is invalid state
+	_, err = svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "again"})
 	require.ErrorIs(t, err, ErrInvalidState)
+
+	// close finalises the record
+	require.NoError(t, svc.CloseSession(ctx, session.ID, managerID))
+	status, err = repo.GetSessionStatus(ctx, session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, StatusClosed, status)
+
+	// closing a closed session is invalid state
+	err = svc.CloseSession(ctx, session.ID, managerID)
+	require.ErrorIs(t, err, ErrInvalidState)
+
+	// adjustment document is retrievable with items
+	got, err := svc.GetAdjustment(ctx, adj.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Items, 1)
+	assert.Equal(t, float64(20), got.Items[0].ExpectedQty)
+	assert.Equal(t, float64(25), got.Items[0].PhysicalQty)
+	assert.Equal(t, float64(5), got.Items[0].DifferenceQty)
 }
 
 func TestService_RejectAndRecount(t *testing.T) {
@@ -243,7 +291,7 @@ func TestService_RejectAndRecount(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9104", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9105", 5)
 	insertTestStore(t, ctx, 102)
-	p := insertTestProduct(t, ctx, "SO-SVC-REJ-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-REJ-001", 102)
 	insertTestStock(t, ctx, p, 3)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
@@ -279,7 +327,7 @@ func TestService_CancelSession(t *testing.T) {
 	managerID := 9106
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9106", 3)
 	insertTestStore(t, ctx, 103)
-	p := insertTestProduct(t, ctx, "SO-SVC-CANCEL-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-CANCEL-001", 103)
 	insertTestStock(t, ctx, p, 4)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 103}, managerID)
@@ -305,7 +353,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9107", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9108", 5)
 	insertTestStore(t, ctx, 104)
-	p := insertTestProduct(t, ctx, "SO-SVC-SUM-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-SUM-001", 104)
 	insertTestStock(t, ctx, p, 8)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 104}, managerID)
@@ -322,7 +370,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
 	countAllItems(t, svc, ctx, session.ID, counterID, p, 6)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
-	require.NoError(t, svc.ApproveSession(ctx, session.ID, managerID, "ok"))
+	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
 	sum, err = svc.Summary(ctx, session.ID, counterID)
 	require.NoError(t, err)
@@ -340,6 +388,11 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 			assert.Equal(t, -2.0, it.DifferenceQty)
 		}
 	}
+
+	// post applies the -2 difference to stock, then close finalises
+	_, err = svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok"})
+	require.NoError(t, err)
+	require.NoError(t, svc.CloseSession(ctx, session.ID, managerID))
 }
 
 func TestService_ListAssignableUsers(t *testing.T) {
@@ -370,7 +423,7 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9204", 5)
 	insertTestUserWithRole(t, ctx, staffID, "so_staff_9205", 5)
 	insertTestStore(t, ctx, 9203)
-	p := insertTestProduct(t, ctx, "SO-SVC-ROLE-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-ROLE-001", 9203)
 	insertTestStock(t, ctx, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9203}, managerID)
@@ -409,7 +462,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_manager_9206", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_counter_9207", 5)
 	insertTestStore(t, ctx, 9206)
-	p := insertTestProduct(t, ctx, "SO-SVC-REASSIGN-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-REASSIGN-001", 9206)
 	insertTestStock(t, ctx, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9206}, managerID)
@@ -487,7 +540,7 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9110", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9111", 5)
 	insertTestStore(t, ctx, 102)
-	p := insertTestProduct(t, ctx, "SO-SVC-EVT-001")
+	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-001", 102)
 	insertTestStock(t, ctx, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
@@ -524,7 +577,7 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9112", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9113", 5)
 	insertTestStore(t, ctx, 103)
-	p := insertTestProduct(t, ctx, "SO-SVC-EVT-002")
+	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-002", 103)
 	insertTestStock(t, ctx, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 103}, managerID)
@@ -553,7 +606,7 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	assert.True(t, found)
 }
 
-func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
+func TestService_VerifyPublishesApprovedEvent(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
@@ -564,7 +617,7 @@ func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9114", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9115", 5)
 	insertTestStore(t, ctx, 104)
-	p := insertTestProduct(t, ctx, "SO-SVC-EVT-003")
+	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-003", 104)
 	insertTestStock(t, ctx, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 104}, managerID)
@@ -573,7 +626,7 @@ func TestService_ApprovePublishesApprovedEvent(t *testing.T) {
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
 	countAllItems(t, svc, ctx, session.ID, counterID, p, 10)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
-	require.NoError(t, svc.ApproveSession(ctx, session.ID, managerID, "ok"))
+	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
 	require.Contains(t, bus.topics(), EventStockOpnameApproved)
 }
@@ -599,10 +652,11 @@ func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
 	resetStockOpname(t, ctx)
 	managerID := 9116
 	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9116", 3)
-	p := insertTestProduct(t, ctx, "SO-SVC-EVT-004")
+	catID := insertTestCategory(t, ctx, "SO Global Cat 9116")
+	p := insertTestProductCategory(t, ctx, "SO-SVC-EVT-004", catID)
 	insertTestStock(t, ctx, p, 10)
 
-	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: 9116}, managerID)
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: int64(catID)}, managerID)
 	require.NoError(t, err)
 	assert.Nil(t, session.StoreID)
 

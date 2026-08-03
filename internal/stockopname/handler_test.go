@@ -104,7 +104,7 @@ func TestHandler_CreateSession(t *testing.T) {
 	resetStockOpname(t, ctx)
 	insertTestUserWithRole(t, ctx, 9601, "so_hdl_u9601", 3)
 	insertTestStore(t, ctx, 9601)
-	p := insertTestProduct(t, ctx, "SO-HDL-CREATE-001")
+	p := insertTestProductStore(t, ctx, "SO-HDL-CREATE-001", 9601)
 	insertTestStock(t, ctx, p, 10)
 
 	t.Run("store scope creates session", func(t *testing.T) {
@@ -142,13 +142,13 @@ func TestHandler_CreateSession(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("duplicate active session returns 409", func(t *testing.T) {
+	t.Run("overlapping active session returns 409", func(t *testing.T) {
 		resetStockOpname(t, ctx)
 		r := setupStockOpnameRouter()
 		createHandlerSession(t, ctx, r, "store", 9601)
 		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"store","scope_id":9601}`)
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "SO-001")
+		assert.Contains(t, w.Body.String(), "SO-405")
 	})
 
 	t.Run("store scope for missing store returns error", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestHandler_ListAndGetSession(t *testing.T) {
 	resetStockOpname(t, ctx)
 	insertTestUserWithRole(t, ctx, 9602, "so_hdl_u9602", 3)
 	insertTestStore(t, ctx, 9602)
-	p := insertTestProduct(t, ctx, "SO-HDL-LIST-001")
+	p := insertTestProductStore(t, ctx, "SO-HDL-LIST-001", 9602)
 	insertTestStock(t, ctx, p, 10)
 	r := setupStockOpnameRouter()
 	sessionID := createHandlerSession(t, ctx, r, "store", 9602)
@@ -208,7 +208,7 @@ func TestHandler_AssignAndCountFlow(t *testing.T) {
 	insertTestUserWithRole(t, ctx, managerID, "so_hdl_u9603", 3)
 	insertTestUserWithRole(t, ctx, counterID, "so_hdl_u9604", 5)
 	insertTestStore(t, ctx, 9603)
-	p := insertTestProduct(t, ctx, "SO-HDL-FLOW-001")
+	p := insertTestProductStore(t, ctx, "SO-HDL-FLOW-001", 9603)
 	insertTestStock(t, ctx, p, 10)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
@@ -271,10 +271,26 @@ func TestHandler_AssignAndCountFlow(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "5")
 	})
 
-	t.Run("approve without comment returns 422", func(t *testing.T) {
-		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/approve", sessionID), `{"comment":""}`)
+	t.Run("submit session to verification", func(t *testing.T) {
+		w := postJSON(t, counterRouter, fmt.Sprintf("/stock-opnames/%d/submit", sessionID), "")
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("verify without comment returns 422", func(t *testing.T) {
+		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/verify", sessionID), `{"comment":""}`)
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 		assert.Contains(t, w.Body.String(), "SO-402")
+	})
+
+	t.Run("manager verifies session", func(t *testing.T) {
+		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/verify", sessionID), `{"comment":"ok"}`)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("post adjustment writes ledger document", func(t *testing.T) {
+		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/post-adjustment", sessionID), `{"comment":"ok"}`)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "IA-")
 	})
 
 	t.Run("recount on non-pending session returns 409", func(t *testing.T) {
@@ -299,8 +315,8 @@ func TestHandler_AssignAndCountFlow(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "session_number")
 	})
 
-	t.Run("cancel session", func(t *testing.T) {
-		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/cancel", sessionID), "")
+	t.Run("close session", func(t *testing.T) {
+		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/close", sessionID), "")
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 

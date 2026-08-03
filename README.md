@@ -270,24 +270,30 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 
 | Method | Endpoint | Description | Permission |
 |--------|----------|-------------|------------|
-| POST | `/stock-opnames` | Buat sesi Stock Opname (generate snapshot) | `stock_opname.create` |
+| POST | `/stock-opnames` | Buat sesi Stock Opname (multi-scope snapshot) | `stock_opname.create` |
 | GET | `/stock-opnames` | List sesi (filter status/scope, pagination) | `stock_opname.view` |
 | GET | `/stock-opnames/:id` | Detail sesi | `stock_opname.view` |
-| POST | `/stock-opnames/:id/cancel` | Batalkan sesi draft | `stock_opname.cancel` |
+| GET | `/stock-opnames/assignable-users` | Daftar user yang bisa di-assign | `stock_opname.assign` |
+| POST | `/stock-opnames/:id/open` | Buka sesi (Draft → Open) | `stock_opname.create` |
+| POST | `/stock-opnames/:id/cancel` | Batalkan sesi (draft/open/counting/needs_recount) | `stock_opname.cancel` |
 | POST | `/stock-opnames/:id/assignments` | Assign counter/supervisor | `stock_opname.assign` |
 | GET | `/stock-opnames/:id/assignments` | List assignment sesi | `stock_opname.view` |
 | PUT | `/stock-opnames/:id/assignments/:assignmentId` | Reassign counter | `stock_opname.assign` |
 | PUT | `/stock-opnames/items/:itemId/count` | Simpan hasil counting (autosave) | `stock_opname.count` |
 | GET | `/stock-opnames/items/:itemId/counts` | Riwayat counting per item | `stock_opname.view` |
-| POST | `/stock-opnames/:id/start` | Mulai counting (Draft → Counting) | `stock_opname.count` |
-| POST | `/stock-opnames/:id/submit` | Submit hasil counting | `stock_opname.submit` |
-| POST | `/stock-opnames/:id/approve` | Approve sesi (adjust stok & replay movement) | `stock_opname.approve` |
-| POST | `/stock-opnames/:id/reject` | Reject sesi | `stock_opname.reject` |
-| POST | `/stock-opnames/:id/recount` | Request recount | `stock_opname.recount` |
+| POST | `/stock-opnames/:id/start` | Mulai counting (Draft/Open → Counting) | `stock_opname.count` |
+| POST | `/stock-opnames/:id/submit` | Submit hasil counting (Counting → Verification) | `stock_opname.submit` |
+| POST | `/stock-opnames/:id/verify` | Verifikasi (persist selisih, belum ubah stok; Verification → Approved) | `stock_opname.verify` |
+| POST | `/stock-opnames/:id/reject` | Reject sesi (Verification → Needs Recount) | `stock_opname.verify` |
+| POST | `/stock-opnames/:id/recount` | Request recount (Verification → Needs Recount) | `stock_opname.recount` |
 | POST | `/stock-opnames/:id/resume` | Resume counting (Needs Recount → Counting) | `stock_opname.count` |
+| POST | `/stock-opnames/:id/post-adjustment` | Posting penyesuaian ke stok + buat dokumen IA- (Approved → Posted) | `stock_opname.post` |
+| POST | `/stock-opnames/:id/close` | Tutup sesi (Posted → Closed) | `stock_opname.close` |
 | GET | `/stock-opnames/:id/summary` | Ringkasan progres sesi | `stock_opname.view` |
 | GET | `/stock-opnames/:id/difference` | Laporan selisih stok | `stock_opname.view` |
 | GET | `/stock-opnames/:id/export` | Export laporan (CSV/Excel/PDF) | `stock_opname.export` |
+| GET | `/stock-opnames/adjustments` | Laporan penyesuaian (dokumen IA-) | `stock_opname.report` |
+| GET | `/stock-opnames/adjustments/:id` | Detail dokumen penyesuaian | `stock_opname.report` |
 
 #### Customers & Customer Groups
 

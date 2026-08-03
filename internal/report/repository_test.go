@@ -94,17 +94,17 @@ func seedSale(t *testing.T, ctx context.Context) (saleID int, productID int, sal
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
 	if err != nil {
-		os.Exit(0)
+		os.Exit(1)
 	}
 	dbPool = pool
 	defer pool.Close()
 
 	if err := shared.RunMigrations(pool, "../../database/migrations"); err != nil {
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	if err := shared.TruncateTestData(pool); err != nil {
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	os.Exit(m.Run())

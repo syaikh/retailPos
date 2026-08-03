@@ -54,6 +54,8 @@
     '/shifts':             'Shift Management',
     '/purchase-orders':    'Purchase Orders',
     '/stock-opnames':      'Stock Opname',
+    '/stock-opnames/adjustments': 'Stock Opname Adjustments',
+    '/storage-locations':  'Storage Locations',
   };
 
   const pageModules = {
@@ -87,6 +89,8 @@
     '/shifts':              () => import('$modules/shifts/components/ShiftsPage.svelte'),
     '/purchase-orders':     () => import('$modules/purchase-orders/components/PurchaseOrdersPage.svelte'),
     '/stock-opnames':       () => import('$modules/stock-opname/components/StockOpnamesPage.svelte'),
+    '/stock-opnames/adjustments': () => import('$modules/stock-opname/components/AdjustmentsReportPage.svelte'),
+    '/storage-locations':   () => import('$modules/storage-location/components/StorageLocationsPage.svelte'),
   };
 
   let loadId = 0;

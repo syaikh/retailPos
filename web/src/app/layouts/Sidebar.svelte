@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList } from 'lucide-svelte';
+  import { LayoutDashboard, ShoppingCart, Package, BarChart3, Users, Shield, ScrollText, ChevronDown, ChevronLeft, ChevronRight, LogOut, Store, User, Tag, Database, Building2, Ruler, Truck, Percent, Clock, ClipboardList, Warehouse } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import { goto, getPath } from '$app/router';
   import { logout, useAuthStore } from '$modules/auth';
@@ -31,7 +31,8 @@
     currentPath.startsWith('/units-of-measure') ||
     currentPath.startsWith('/pricing-rules') ||
     currentPath.startsWith('/customer-groups') ||
-    currentPath.startsWith('/suppliers')
+    currentPath.startsWith('/suppliers') ||
+    currentPath.startsWith('/storage-locations')
   );
 
   $effect(() => {
@@ -88,6 +89,7 @@
     { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
     { label: 'Customer Groups', href: '/customer-groups', icon: Users },
     { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
+    { label: 'Storage Locations', href: '/storage-locations', icon: Warehouse },
   ];
 
   const managerNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
@@ -108,6 +110,7 @@
     { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
     { label: 'Customer Groups', href: '/customer-groups', icon: Users },
     { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
+    { label: 'Storage Locations', href: '/storage-locations', icon: Warehouse },
   ];
 
   const cashierNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [

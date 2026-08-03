@@ -44,6 +44,7 @@
 		'/shifts':             'Shifts',
 		'/purchase-orders':    'Purchase Orders',
 		'/stock-opnames':      'Stock Opname',
+		'/storage-locations':  'Storage Locations',
 		'/categories/import-history': 'Import History',
 		'/brands/import-history':     'Import History',
 		'/units-of-measure/import-history': 'Import History',

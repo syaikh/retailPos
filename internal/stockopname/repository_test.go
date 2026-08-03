@@ -19,18 +19,18 @@ func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
 	if err != nil {
 		println("NEWTESTDB ERR:", err.Error())
-		os.Exit(0)
+		os.Exit(1)
 	}
 	dbPool = pool
 	defer pool.Close()
 
 	if err := shared.RunMigrations(pool, "../../database/migrations"); err != nil {
 		println("RUNMIGRATIONS ERR:", err.Error())
-		os.Exit(0)
+		os.Exit(1)
 	}
 	if err := shared.TruncateTestData(pool); err != nil {
 		println("TRUNCATE ERR:", err.Error())
-		os.Exit(0)
+		os.Exit(1)
 	}
 	os.Exit(m.Run())
 }
@@ -54,6 +54,50 @@ func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int)
 		productID, quantity,
 	)
 	require.NoError(t, err)
+}
+
+func insertTestStockWarehouse(t *testing.T, ctx context.Context, productID, warehouseID, quantity int) {
+	t.Helper()
+	_, err := dbPool.Exec(ctx,
+		`INSERT INTO product_stock (product_id, warehouse_id, quantity) VALUES ($1, $2, $3)
+		 ON CONFLICT (product_id, warehouse_id, store_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
+		productID, warehouseID, quantity,
+	)
+	require.NoError(t, err)
+}
+
+// insertTestProductStore inserts a product linked to a store so store-scoped
+// cycle counts pick it up (ScopeProductIDs filters products.store_id).
+func insertTestProductStore(t *testing.T, ctx context.Context, sku string, storeID int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, status, store_id) VALUES ($1, $2, 10000, 'active', $3) RETURNING id`,
+		sku, "Test Product "+sku, storeID,
+	).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
+func insertTestCategory(t *testing.T, ctx context.Context, name string) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx, `INSERT INTO categories (name) VALUES ($1) RETURNING id`, name).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
+// insertTestProductCategory inserts a product in a category so category-scoped
+// cycle counts pick it up.
+func insertTestProductCategory(t *testing.T, ctx context.Context, sku string, categoryID int) int {
+	t.Helper()
+	var id int
+	err := dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, status, category_id) VALUES ($1, $2, 10000, 'active', $3) RETURNING id`,
+		sku, "Test Product "+sku, categoryID,
+	).Scan(&id)
+	require.NoError(t, err)
+	return id
 }
 
 func insertTestUser(t *testing.T, ctx context.Context, id int, username string) {
@@ -378,12 +422,12 @@ func TestRepository_ApprovalFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 10, stock[p])
 
-	require.NoError(t, repo.UpdateItemAdjustment(ctx, txAppr, items[0].ID, 10, 2, 2))
+	require.NoError(t, repo.UpdateItemAdjustment(ctx, txAppr, items[0].ID, 10, 2, 2, "adjustment reason"))
 	require.NoError(t, repo.UpdateProductStock(ctx, txAppr, p, 12))
 	require.NoError(t, repo.InsertMovements(ctx, txAppr, s.ID, 9007, []movementRow{
 		{ProductID: p, QuantityChange: 2, Notes: "adjustment"},
 	}))
-	require.NoError(t, repo.ApproveSessionStatus(ctx, txAppr, s.ID, 9007))
+	require.NoError(t, repo.MarkSessionVerified(ctx, txAppr, s.ID, 9007))
 	require.NoError(t, txAppr.Commit(ctx))
 
 	// verify stock changed

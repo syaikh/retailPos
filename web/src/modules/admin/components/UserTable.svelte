@@ -134,6 +134,9 @@
                 <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
               </div>
             </td>
+            <td class="p-4 text-sm text-text-muted">
+              {user.reports_to_username || '—'}
+            </td>
             <td class="p-4 text-text-muted text-sm leading-relaxed">
               {#if user.last_login}
                 <span class="block">{formatDateInJakarta(user.last_login)}</span>
@@ -141,9 +144,6 @@
               {:else}
                 Never
               {/if}
-            </td>
-            <td class="p-4 text-sm text-text-muted">
-              {user.reports_to_username || '—'}
             </td>
             <td class="p-4 text-center">
               <div class="flex items-center justify-center gap-2">

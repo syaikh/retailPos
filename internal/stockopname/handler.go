@@ -28,7 +28,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/stock-opnames", auth, perm("stock_opname.create"), h.CreateSession)
 	r.GET("/stock-opnames", auth, perm("stock_opname.view"), h.ListSessions)
 	r.GET("/stock-opnames/assignable-users", auth, perm("stock_opname.assign"), h.ListAssignableUsers)
+	r.GET("/stock-opnames/adjustments", auth, perm("stock_opname.report"), h.ListAdjustments)
+	r.GET("/stock-opnames/adjustments/:id", auth, perm("stock_opname.report"), h.GetAdjustment)
 	r.GET("/stock-opnames/:id", auth, perm("stock_opname.view"), h.GetSession)
+	r.POST("/stock-opnames/:id/open", auth, perm("stock_opname.create"), h.OpenSession)
 	r.POST("/stock-opnames/:id/cancel", auth, perm("stock_opname.cancel"), h.CancelSession)
 	r.POST("/stock-opnames/:id/assignments", auth, perm("stock_opname.assign"), h.AssignCounter)
 	r.GET("/stock-opnames/:id/assignments", auth, perm("stock_opname.view"), h.GetAssignments)
@@ -37,10 +40,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.GET("/stock-opnames/items/:itemId/counts", auth, perm("stock_opname.view"), h.GetCountHistory)
 	r.POST("/stock-opnames/:id/start", auth, perm("stock_opname.count"), h.StartCounting)
 	r.POST("/stock-opnames/:id/submit", auth, perm("stock_opname.submit"), h.SubmitSession)
-	r.POST("/stock-opnames/:id/approve", auth, perm("stock_opname.approve"), h.ApproveSession)
-	r.POST("/stock-opnames/:id/reject", auth, perm("stock_opname.reject"), h.RejectSession)
+	r.POST("/stock-opnames/:id/verify", auth, perm("stock_opname.verify"), h.VerifySession)
+	r.POST("/stock-opnames/:id/reject", auth, perm("stock_opname.verify"), h.RejectSession)
 	r.POST("/stock-opnames/:id/recount", auth, perm("stock_opname.recount"), h.RequestRecount)
 	r.POST("/stock-opnames/:id/resume", auth, perm("stock_opname.count"), h.ResumeCounting)
+	r.POST("/stock-opnames/:id/post-adjustment", auth, perm("stock_opname.post"), h.PostAdjustment)
+	r.POST("/stock-opnames/:id/close", auth, perm("stock_opname.close"), h.CloseSession)
 	r.GET("/stock-opnames/:id/summary", auth, perm("stock_opname.view"), h.Summary)
 	r.GET("/stock-opnames/:id/difference", auth, perm("stock_opname.view"), h.DifferenceReport)
 	r.GET("/stock-opnames/:id/export", auth, perm("stock_opname.export"), h.ExportReport)
@@ -241,24 +246,105 @@ func (h *Handler) SubmitSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func (h *Handler) ApproveSession(c *gin.Context) {
+func (h *Handler) OpenSession(c *gin.Context) {
 	id, ok := idParam(c, "id")
 	if !ok {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	var req ApproveRequest
+	var req OpenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.ApproveSession(c.Request.Context(), id, uid, req.Comment); err != nil {
+	if err := h.svc.OpenSession(c.Request.Context(), id, uid, req.Comment); err != nil {
 		writeError(c, err)
 		return
 	}
-	h.writeAudit(c, "approve", id, fmt.Sprintf("Approved stock opname session #%d", id), map[string]interface{}{"comment": req.Comment})
+	h.writeAudit(c, "open", id, fmt.Sprintf("Opened stock opname session #%d", id), map[string]interface{}{"comment": req.Comment})
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (h *Handler) VerifySession(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
+		return
+	}
+	var req VerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
+		return
+	}
+	uid := userID(c)
+	if err := h.svc.VerifySession(c.Request.Context(), id, uid, req.Comment); err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "verify", id, fmt.Sprintf("Verified stock opname session #%d", id), map[string]interface{}{"comment": req.Comment})
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (h *Handler) PostAdjustment(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
+		return
+	}
+	var req PostAdjustmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
+		return
+	}
+	uid := userID(c)
+	adjustment, err := h.svc.PostAdjustment(c.Request.Context(), id, uid, &req)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "post", id, fmt.Sprintf("Posted adjustment %s for session #%d", adjustment.AdjustmentNumber, id),
+		map[string]interface{}{"adjustment_number": adjustment.AdjustmentNumber, "notes": req.Notes})
+	c.JSON(http.StatusOK, gin.H{"data": adjustment})
+}
+
+func (h *Handler) CloseSession(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
+		return
+	}
+	uid := userID(c)
+	if err := h.svc.CloseSession(c.Request.Context(), id, uid); err != nil {
+		writeError(c, err)
+		return
+	}
+	h.writeAudit(c, "close", id, fmt.Sprintf("Closed stock opname session #%d", id), nil)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (h *Handler) ListAdjustments(c *gin.Context) {
+	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
+	adjustments, total, err := h.svc.ListAdjustments(c.Request.Context(), limit, offset, c.Query("status"), c.Query("search"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	shared.JSONPaginated(c, adjustments, total, limit, offset)
+}
+
+func (h *Handler) GetAdjustment(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
+		return
+	}
+	adjustment, err := h.svc.GetAdjustment(c.Request.Context(), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": adjustment})
 }
 
 func (h *Handler) RejectSession(c *gin.Context) {
@@ -428,13 +514,12 @@ func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		status, code = http.StatusNotFound, "SO-002"
-	case errors.Is(err, ErrActiveSessionExists):
-		status, code = http.StatusConflict, "SO-001"
 	case errors.Is(err, ErrInvalidState):
 		status, code = http.StatusConflict, "SO-003"
 	case errors.Is(err, ErrSessionLocked):
 		status, code = http.StatusForbidden, "SO-004"
-	case errors.Is(err, ErrAlreadySubmitted), errors.Is(err, ErrAlreadyApproved):
+	case errors.Is(err, ErrAlreadySubmitted), errors.Is(err, ErrAlreadyApproved),
+		errors.Is(err, ErrAlreadyVerified), errors.Is(err, ErrAlreadyPosted), errors.Is(err, ErrAlreadyClosed):
 		status, code = http.StatusConflict, "SO-203"
 	case errors.Is(err, ErrNotAllItemsCounted):
 		status, code = http.StatusConflict, "SO-201"
@@ -448,10 +533,16 @@ func writeError(c *gin.Context, err error) {
 		status, code = http.StatusBadRequest, "SO-102"
 	case errors.Is(err, ErrInvalidAssigneeRole), errors.Is(err, ErrAssigneeNotFound):
 		status, code = http.StatusBadRequest, "SO-104"
-	case errors.Is(err, ErrApprovalCommentReq):
+	case errors.Is(err, ErrApprovalCommentReq), errors.Is(err, ErrOpenCommentReq):
 		status, code = http.StatusUnprocessableEntity, "SO-402"
-	case errors.Is(err, ErrUnsupportedScope):
+	case errors.Is(err, ErrUnsupportedScope), errors.Is(err, ErrScopeIDRequired):
 		status, code = http.StatusBadRequest, "SO-401"
+	case errors.Is(err, ErrNoScopes):
+		status, code = http.StatusBadRequest, "SO-406"
+	case errors.Is(err, ErrScopeOverlap):
+		status, code = http.StatusConflict, "SO-405"
+	case errors.Is(err, ErrAdjustmentNotFound):
+		status, code = http.StatusNotFound, "SO-408"
 	case errors.Is(err, ErrAdjustmentFailed):
 		status, code = http.StatusInternalServerError, "SO-205"
 	default:

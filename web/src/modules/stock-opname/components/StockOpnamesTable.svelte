@@ -25,13 +25,17 @@
     switch (status) {
       case 'draft':
         return 'muted';
+      case 'open':
       case 'counting':
         return 'primary';
-      case 'pending_approval':
+      case 'verification':
       case 'needs_recount':
         return 'warning';
       case 'approved':
+      case 'posted':
         return 'success';
+      case 'closed':
+        return 'muted';
       case 'cancelled':
         return 'danger';
       default:

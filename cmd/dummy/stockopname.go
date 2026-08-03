@@ -13,13 +13,15 @@ import (
 // injectStockOpnames seeds realistic stock opname sessions across the date range.
 //
 // Real-world distribution:
-//   - Historical sessions are mostly approved (with full count history, expected
-//     qty, differences, adjustments and inventory movements), ~20% cancelled.
+//   - Historical sessions are mostly completed (posted + closed, with full count
+//     history, expected qty, differences, adjustment ledger documents and
+//     inventory movements); a minority are left "posted" but not yet closed, and
+//     ~20% cancelled.
 //   - The most recent session is left in an active "counting" state with partial
 //     counts so the module has an in-progress case to demo.
 //
-// Because BR-001 enforces a single active session globally, only the newest
-// session may use a non-terminal status.
+// Overlap is enforced per scope at creation, and the newest session is left in
+// a "counting" state so the module has an in-progress case to demo.
 func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time.Time, numSessions int) error {
 	// Pick counters (cashier/staff) and approvers/managers.
 	counterUserIDs := getUserIDsByRoles(ctx, db, "cashier", "staff")
@@ -88,6 +90,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 	itemsCreated := 0
 	countsCreated := 0
 	movementsCreated := 0
+	adjustmentsCreated := 0
 
 	for i := 0; i < numSessions; i++ {
 		// Spread session dates across the range, oldest first.
@@ -101,13 +104,17 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			createdAt = ref.Add(-time.Duration(3600+rand.Intn(2*3600)) * time.Second)
 		}
 
-		// Only the most recent session may be active (BR-001 single active session).
+		// Only the most recent session is left active (for the in-progress demo).
 		isMostRecent := i == numSessions-1
-		status := "approved"
+		status := "posted"
 		if isMostRecent {
 			status = "counting"
 		} else if rand.Intn(100) < 20 {
 			status = "cancelled"
+		}
+		isClosed := status == "posted" && rand.Intn(100) < 70
+		if isClosed {
+			status = "closed"
 		}
 
 		createdBy := managerUserIDs[rand.Intn(len(managerUserIDs))]
@@ -157,6 +164,21 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		if err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("insert stock opname session: %w", err)
+		}
+
+		// Populate the extensible scopes table so the UI renders the session scope.
+		var scopeName string
+		if scopeType == "store" {
+			_ = db.QueryRowContext(ctx, `
+				SELECT COALESCE(name, '') FROM stores WHERE id = $1
+			`, scopeID).Scan(&scopeName)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO stock_opname_session_scopes (stock_opname_id, scope_type, scope_id, scope_name)
+			VALUES ($1,$2,$3,$4)
+		`, sessionID, scopeType, scopeID, scopeName); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("insert stock opname scope: %w", err)
 		}
 
 		// Assignments: one supervisor + 1-3 counters.
@@ -243,6 +265,8 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 
 		var counterIdx int
 		var approverID = managerUserIDs[rand.Intn(len(managerUserIDs))]
+		var totalDiff, totalAdj float64
+		adjustmentItems := make([]adjustmentSeedLine, 0)
 
 		for _, p := range products {
 			var physical float64
@@ -250,7 +274,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			itemStatus := "pending"
 
 			switch status {
-			case "approved":
+			case "posted", "closed":
 				// All items counted; ~85% match expected, 10% small discrepancy,
 				// 5% larger discrepancy (shrinkage / damage / overcount).
 				physical = p.qty
@@ -319,12 +343,12 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			}
 			countsCreated++
 
-			if status != "approved" {
+			if status != "posted" && status != "closed" {
 				continue
 			}
 
-			// Approved: set expected/diff/adjustment on every counted item (mirrors
-			// Service.ApproveSession). Expected qty is the snapshot stock at session time.
+			// Posted/closed: set expected/diff/adjustment on every counted item (mirrors
+			// Service.VerifySession). Expected qty is the snapshot stock at session time.
 			expected := p.qty
 			if _, err := tx.ExecContext(ctx, `
 				UPDATE stock_opname_items
@@ -335,11 +359,25 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				return fmt.Errorf("update stock opname item adjustment: %w", err)
 			}
 
+			totalDiff += diff
+			totalAdj += diff
+
+			notes := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", sessionNumber, physical, expected)
+			if diff != 0 {
+				adjustmentItems = append(adjustmentItems, adjustmentSeedLine{
+					productID: p.productID,
+					expected:  expected,
+					physical:  physical,
+					diff:      diff,
+					reason:    notes,
+				})
+			}
+
 			if diff == 0 {
 				continue
 			}
 
-			// Approved with discrepancy: correct stock to physical and record a movement.
+			// Correct stock to physical and record a movement.
 			newQty := int(physical)
 			if _, err := stockStmt.ExecContext(ctx, p.productID, newQty); err != nil {
 				_ = tx.Rollback()
@@ -350,7 +388,6 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 				return fmt.Errorf("sync products.stock: %w", err)
 			}
 
-			notes := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", sessionNumber, physical, expected)
 			movementAt := createdAt.Add(time.Duration(rand.Intn(12*3600)+8*3600) * time.Second)
 			if _, err := movementStmt.ExecContext(ctx, p.productID, int(diff), sessionID, approverID, notes, movementAt); err != nil {
 				_ = tx.Rollback()
@@ -359,15 +396,72 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			movementsCreated++
 		}
 
-		// Terminal state fields.
+		// Terminal state fields. Posted/closed sessions mirror the verify -> post ->
+		// close path: a manager verifies, posts (creating an IA- document) and closes.
 		switch status {
-		case "approved":
-			approvedAt := createdAt.Add(time.Duration(rand.Intn(24*3600)+24*3600) * time.Second)
+		case "posted", "closed":
+			postedAt := createdAt.Add(time.Duration(rand.Intn(24*3600)+24*3600) * time.Second)
+			verifiedAt := postedAt.Add(-time.Duration(1800+rand.Intn(3600)) * time.Second)
+			openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
 			if _, err := tx.ExecContext(ctx, `
-				UPDATE stock_opnames SET approved_by = $1, approved_at = $2, updated_at = $2 WHERE id = $3
-			`, approverID, approvedAt, sessionID); err != nil {
+				UPDATE stock_opnames
+				SET opened_by = $1, opened_at = $2,
+				    verified_by = $1, verified_at = $3,
+				    posted_by = $1, posted_at = $4,
+				    total_difference = $5, total_adjustment = $6,
+				    updated_at = $4
+				WHERE id = $7
+			`, approverID, openedAt, verifiedAt, postedAt, totalDiff, totalAdj, sessionID); err != nil {
 				_ = tx.Rollback()
-				return fmt.Errorf("set approved session: %w", err)
+				return fmt.Errorf("set posted session: %w", err)
+			}
+			if len(adjustmentItems) > 0 {
+				var iaSeq int
+				if err := tx.QueryRowContext(ctx, `SELECT nextval('ia_seq')`).Scan(&iaSeq); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("nextval ia_seq: %w", err)
+				}
+				adjNumber := fmt.Sprintf("IA-%d-%06d", createdAt.Year(), iaSeq)
+				adjNotes := fmt.Sprintf("Posted from stock opname %s", sessionNumber)
+				var adjustmentID int
+				if err := tx.QueryRowContext(ctx, `
+					INSERT INTO inventory_adjustments (adjustment_number, session_id, status, notes, created_by, created_at)
+					VALUES ($1,$2,'posted',$3,$4,$5)
+					RETURNING id
+				`, adjNumber, sessionID, adjNotes, approverID, postedAt).Scan(&adjustmentID); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("insert inventory adjustment: %w", err)
+				}
+				adjustmentsCreated++
+				for _, line := range adjustmentItems {
+					if _, err := tx.ExecContext(ctx, `
+						INSERT INTO inventory_adjustment_items
+							(adjustment_id, product_id, warehouse_id, store_id, expected_qty, physical_qty,
+							 difference_qty, adjustment_qty, unit_cost, line_total, reason, created_at)
+						VALUES ($1,$2,NULL,NULL,$3,$4,$5,$5,0,0,$6,$7)
+					`, adjustmentID, line.productID, line.expected, line.physical, line.diff, line.reason, postedAt); err != nil {
+						_ = tx.Rollback()
+						return fmt.Errorf("insert inventory adjustment item: %w", err)
+					}
+				}
+			}
+			if status == "closed" {
+				closedAt := postedAt.Add(time.Duration(rand.Intn(3600)+300) * time.Second)
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE stock_opnames SET closed_by = $1, closed_at = $2, updated_at = $2 WHERE id = $3
+				`, approverID, closedAt, sessionID); err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("set closed session: %w", err)
+				}
+			}
+		case "counting":
+			// Active session: mark it as opened for a realistic draft -> open -> counting path.
+			openedAt := createdAt.Add(time.Duration(rand.Intn(3600)+600) * time.Second)
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE stock_opnames SET opened_by = $1, opened_at = $2, updated_at = $2 WHERE id = $3
+			`, approverID, openedAt, sessionID); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("set opened session: %w", err)
 			}
 		case "cancelled":
 			cancelledAt := createdAt.Add(time.Duration(rand.Intn(6*3600)+1800) * time.Second)
@@ -386,9 +480,18 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 		sessionsCreated++
 	}
 
-	fmt.Printf("   🎲 Created %d stock opname sessions (%d items, %d counts, %d stock movements)\n",
-		sessionsCreated, itemsCreated, countsCreated, movementsCreated)
+	fmt.Printf("   🎲 Created %d stock opname sessions (%d items, %d counts, %d stock movements, %d adjustments)\n",
+		sessionsCreated, itemsCreated, countsCreated, movementsCreated, adjustmentsCreated)
 	return nil
+}
+
+// adjustmentSeedLine is one posted adjustment line (per SKU) for a completed session.
+type adjustmentSeedLine struct {
+	productID int
+	expected  float64
+	physical  float64
+	diff      float64
+	reason    string
 }
 
 // stockOpnameSnapshot mirrors the app's LoadSnapshotProducts query.

@@ -711,8 +711,11 @@ func TestListener_EventTypes(t *testing.T) {
 	soListener := NewStockOpnameStatusListener(hub)
 	assert.ElementsMatch(t, []eventbus.EventType{
 		eventbus.EventType(stockopname.EventStockOpnameCreated),
+		eventbus.EventType(stockopname.EventStockOpnameOpened),
 		eventbus.EventType(stockopname.EventStockOpnameSubmitted),
 		eventbus.EventType(stockopname.EventStockOpnameApproved),
+		eventbus.EventType(stockopname.EventStockOpnamePosted),
+		eventbus.EventType(stockopname.EventStockOpnameClosed),
 		eventbus.EventType(stockopname.EventStockOpnameRejected),
 		eventbus.EventType(stockopname.EventStockOpnameRecount),
 		eventbus.EventType(stockopname.EventStockOpnameCancelled),
@@ -929,6 +932,12 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 		wsEventName:   "so_created",
 	},
 	{
+		name:          "opened",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameOpened),
+		broadcastType: EventSOOpened,
+		wsEventName:   "so_opened",
+	},
+	{
 		name:          "submitted",
 		eventType:     eventbus.EventType(stockopname.EventStockOpnameSubmitted),
 		broadcastType: EventSOSubmitted,
@@ -939,6 +948,18 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 		eventType:     eventbus.EventType(stockopname.EventStockOpnameApproved),
 		broadcastType: EventSOApproved,
 		wsEventName:   "so_approved",
+	},
+	{
+		name:          "posted",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnamePosted),
+		broadcastType: EventSOPosted,
+		wsEventName:   "so_posted",
+	},
+	{
+		name:          "closed",
+		eventType:     eventbus.EventType(stockopname.EventStockOpnameClosed),
+		broadcastType: EventSOClosed,
+		wsEventName:   "so_closed",
 	},
 	{
 		name:          "rejected",

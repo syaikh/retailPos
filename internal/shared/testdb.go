@@ -123,6 +123,7 @@ func TruncateTestData(pool *pgxpool.Pool) error {
 		"sales", "sale_items", "sale_payments",
 		"inventory_movements",
 		"stock_opnames",
+		"storage_locations",
 		"audit_logs",
 	}
 	return TruncateAll(pool, tables...)

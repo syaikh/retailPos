@@ -17,16 +17,19 @@ type Repository struct {
 	db shared.DBPool
 }
 
-// scopeNameExpr resolves a human-readable name for a session's scope
-// (store, warehouse, category, or product) from the id stored in scope_id.
-// It is a correlated subquery over the outer stock_opnames row, so it must
-// only be appended to SELECTs that read from stock_opnames without an alias.
+// scopeNameExpr resolves a human-readable name for a session's primary scope
+// from the id stored in scope_id. It is a correlated subquery over the outer
+// stock_opnames row, so it must only be appended to SELECTs that read from
+// stock_opnames without an alias.
 const scopeNameExpr = `
 	COALESCE(CASE scope_type
 		WHEN 'store' THEN (SELECT name FROM stores WHERE id = scope_id)
 		WHEN 'warehouse' THEN (SELECT name FROM warehouses WHERE id = scope_id)
 		WHEN 'category' THEN (SELECT name FROM categories WHERE id = scope_id)
+		WHEN 'brand' THEN (SELECT name FROM brands WHERE id = scope_id)
+		WHEN 'supplier' THEN (SELECT name FROM suppliers WHERE id = scope_id)
 		WHEN 'product' THEN (SELECT name FROM products WHERE id = scope_id)
+		WHEN 'manual' THEN scope_name
 	END, '') AS scope_name`
 
 
@@ -125,10 +128,11 @@ func (r *Repository) GetUserRoleName(ctx context.Context, userID int) (string, e
 func (r *Repository) CreateSession(ctx context.Context, tx pgx.Tx, s *Session) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
-		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO stock_opnames (session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by, scope_name, title, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), NULLIF($11, ''))
 		RETURNING id, created_at, updated_at
-	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.StoreID, s.BlindCount, s.Status, s.CreatedBy).
+	`, s.SessionNumber, s.ScopeType, s.ScopeID, s.WarehouseID, s.StoreID, s.BlindCount, s.Status, s.CreatedBy,
+		s.ScopeName, s.Title, s.Notes).
 		Scan(&s.ID, &createdAt, &updatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert stock opname session: %w", err)
@@ -158,35 +162,6 @@ func (r *Repository) InsertSessionItems(ctx context.Context, tx pgx.Tx, sessionI
 	return nil
 }
 
-func (r *Repository) GetActiveSessionByScope(ctx context.Context, _ string, _ int64) (*Session, error) {
-	var s Session
-	var warehouseID, storeID sql.NullInt64
-	var createdAt time.Time
-	err := r.db.QueryRow(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by, created_at
-		FROM stock_opnames
-		WHERE status IN ('draft', 'counting', 'pending_approval', 'needs_recount')
-		  AND deleted_at IS NULL
-		LIMIT 1
-	`).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount, &s.Status, &s.CreatedBy, &createdAt)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to query active session: %w", err)
-	}
-	if warehouseID.Valid {
-		v := int(warehouseID.Int64)
-		s.WarehouseID = &v
-	}
-	if storeID.Valid {
-		v := int(storeID.Int64)
-		s.StoreID = &v
-	}
-	s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	return &s, nil
-}
-
 func (r *Repository) GetSession(ctx context.Context, id int) (*Session, error) {
 	s, err := r.getSessionHeader(ctx, r.db, id)
 	if err != nil {
@@ -197,6 +172,11 @@ func (r *Repository) GetSession(ctx context.Context, id int) (*Session, error) {
 		return nil, err
 	}
 	s.Items = items
+	scopes, err := r.LoadSessionScopes(ctx, r.db, id)
+	if err != nil {
+		return nil, err
+	}
+	s.Scopes = scopes
 	assignments, err := r.ListAssignments(ctx, id)
 	if err != nil {
 		return nil, err
@@ -212,15 +192,22 @@ type queryer interface {
 
 func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*Session, error) {
 	var s Session
-	var warehouseID, storeID, approvedBy sql.NullInt64
-	var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
+	var warehouseID, storeID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
+	var approvedAt, cancelledAt, createdAt, updatedAt, openedAt, verifiedAt, postedAt, closedAt sql.NullTime
 	err := q.QueryRow(ctx, `
 		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
-		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at,`+scopeNameExpr+`
+		       COALESCE(title,''), COALESCE(notes,''),
+		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at,
+		       opened_by, opened_at, verified_by, verified_at,
+		       posted_by, posted_at, closed_by, closed_at,
+		       total_difference, total_adjustment,`+scopeNameExpr+`
 		FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
-		&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt, &s.ScopeName)
+		&s.Status, &s.Title, &s.Notes, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt,
+		&openedBy, &openedAt, &verifiedBy, &verifiedAt,
+		&postedBy, &postedAt, &closedBy, &closedAt,
+		&s.TotalDifference, &s.TotalAdjustment, &s.ScopeName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
@@ -235,13 +222,11 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 		v := int(storeID.Int64)
 		s.StoreID = &v
 	}
-	if approvedBy.Valid {
-		v := int(approvedBy.Int64)
-		s.ApprovedBy = &v
-	}
-	if approvedAt.Valid {
-		s.ApprovedAt = approvedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
-	}
+	assignAuditCols(&s.ApprovedBy, approvedBy, &s.ApprovedAt, approvedAt)
+	assignAuditCols(&s.OpenedBy, openedBy, &s.OpenedAt, openedAt)
+	assignAuditCols(&s.VerifiedBy, verifiedBy, &s.VerifiedAt, verifiedAt)
+	assignAuditCols(&s.PostedBy, postedBy, &s.PostedAt, postedAt)
+	assignAuditCols(&s.ClosedBy, closedBy, &s.ClosedAt, closedAt)
 	if cancelledAt.Valid {
 		s.CancelledAt = cancelledAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
@@ -252,6 +237,18 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 		s.UpdatedAt = updatedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 	}
 	return &s, nil
+}
+
+// assignAuditCols copies a nullable user id / timestamp pair onto the session
+// audit fields when the database value is present.
+func assignAuditCols(userField **int, user sql.NullInt64, timeField *string, ts sql.NullTime) {
+	if user.Valid {
+		v := int(user.Int64)
+		*userField = &v
+	}
+	if ts.Valid {
+		*timeField = ts.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
+	}
 }
 
 func (r *Repository) getItems(ctx context.Context, q queryer, sessionID int) ([]SessionItem, error) {
@@ -314,8 +311,12 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
-		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status, created_by,
-		       approved_by, approved_at, cancelled_at, created_at, updated_at,`+scopeNameExpr+`
+		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, blind_count, status,
+		       COALESCE(title,''), COALESCE(notes,''), created_by,
+		       approved_by, approved_at, cancelled_at, created_at, updated_at,
+		       opened_by, opened_at, verified_by, verified_at,
+		       posted_by, posted_at, closed_by, closed_at,
+		       total_difference, total_adjustment,`+scopeNameExpr+`
 		FROM stock_opnames
 		WHERE `+whereSQL+`
 		ORDER BY created_at DESC
@@ -328,10 +329,13 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 	var sessions []Session
 	for rows.Next() {
 		var s Session
-		var warehouseID, storeID, approvedBy sql.NullInt64
-		var approvedAt, cancelledAt, createdAt, updatedAt sql.NullTime
+		var warehouseID, storeID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
+		var approvedAt, cancelledAt, createdAt, updatedAt, openedAt, verifiedAt, postedAt, closedAt sql.NullTime
 		if err := rows.Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount,
-			&s.Status, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt, &s.ScopeName); err != nil {
+			&s.Status, &s.Title, &s.Notes, &s.CreatedBy, &approvedBy, &approvedAt, &cancelledAt, &createdAt, &updatedAt,
+			&openedBy, &openedAt, &verifiedBy, &verifiedAt,
+			&postedBy, &postedAt, &closedBy, &closedAt,
+			&s.TotalDifference, &s.TotalAdjustment, &s.ScopeName); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan session: %w", err)
 		}
 		if warehouseID.Valid {
@@ -342,13 +346,11 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 			v := int(storeID.Int64)
 			s.StoreID = &v
 		}
-		if approvedBy.Valid {
-			v := int(approvedBy.Int64)
-			s.ApprovedBy = &v
-		}
-		if approvedAt.Valid {
-			s.ApprovedAt = approvedAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
-		}
+		assignAuditCols(&s.ApprovedBy, approvedBy, &s.ApprovedAt, approvedAt)
+		assignAuditCols(&s.OpenedBy, openedBy, &s.OpenedAt, openedAt)
+		assignAuditCols(&s.VerifiedBy, verifiedBy, &s.VerifiedAt, verifiedAt)
+		assignAuditCols(&s.PostedBy, postedBy, &s.PostedAt, postedAt)
+		assignAuditCols(&s.ClosedBy, closedBy, &s.ClosedAt, closedAt)
 		if cancelledAt.Valid {
 			s.CancelledAt = cancelledAt.Time.In(shared.JakartaLocation()).Format(time.RFC3339)
 		}
@@ -367,7 +369,7 @@ func (r *Repository) CancelSession(ctx context.Context, id, userID int) error {
 	tag, err := r.db.Exec(ctx, `
 		UPDATE stock_opnames
 		SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-		WHERE id = $1 AND status IN ('draft', 'counting') AND deleted_at IS NULL
+		WHERE id = $1 AND status IN ('draft', 'open', 'counting', 'needs_recount') AND deleted_at IS NULL
 	`, id)
 	if err != nil {
 		return fmt.Errorf("failed to cancel session: %w", err)
@@ -683,11 +685,11 @@ type approvalItem struct {
 	ID         int
 	ProductID  int
 	PhysicalQy float64
+	UnitCost   float64
 }
 
 func (r *Repository) LockSessionForApproval(ctx context.Context, tx pgx.Tx, id int) (*Session, error) {
 	var s Session
-	var approvedBy sql.NullInt64
 	err := tx.QueryRow(ctx, `
 		SELECT id, session_number, status, blind_count FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
@@ -699,13 +701,15 @@ func (r *Repository) LockSessionForApproval(ctx context.Context, tx pgx.Tx, id i
 		}
 		return nil, fmt.Errorf("failed to lock session: %w", err)
 	}
-	_ = approvedBy
 	return &s, nil
 }
 
 func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]approvalItem, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT id, product_id, physical_qty FROM stock_opname_items WHERE stock_opname_id = $1
+		SELECT i.id, i.product_id, i.physical_qty, COALESCE(p.cost, 0)
+		FROM stock_opname_items i
+		LEFT JOIN products p ON p.id = i.product_id
+		WHERE i.stock_opname_id = $1
 	`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load approval items: %w", err)
@@ -715,7 +719,7 @@ func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID
 	var items []approvalItem
 	for rows.Next() {
 		var it approvalItem
-		if err := rows.Scan(&it.ID, &it.ProductID, &it.PhysicalQy); err != nil {
+		if err := rows.Scan(&it.ID, &it.ProductID, &it.PhysicalQy, &it.UnitCost); err != nil {
 			return nil, fmt.Errorf("failed to scan approval item: %w", err)
 		}
 		items = append(items, it)
@@ -747,12 +751,12 @@ func (r *Repository) LockStockForProducts(ctx context.Context, tx pgx.Tx, produc
 	return stock, rows.Err()
 }
 
-func (r *Repository) UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64) error {
+func (r *Repository) UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64, reason string) error {
 	_, err := tx.Exec(ctx, `
 		UPDATE stock_opname_items
-		SET expected_qty = $2, difference_qty = $3, adjustment_qty = $4, updated_at = NOW()
+		SET expected_qty = $2, difference_qty = $3, adjustment_qty = $4, reason = NULLIF($5, ''), updated_at = NOW()
 		WHERE id = $1
-	`, itemID, expected, diff, adj)
+	`, itemID, expected, diff, adj, reason)
 	if err != nil {
 		return fmt.Errorf("failed to update item adjustment: %w", err)
 	}
@@ -806,30 +810,3 @@ func (r *Repository) InsertMovements(ctx context.Context, tx pgx.Tx, sessionID, 
 	return nil
 }
 
-func (r *Repository) ApproveSessionStatus(ctx context.Context, tx pgx.Tx, id, userID int) error {
-	_, err := tx.Exec(ctx, `
-		UPDATE stock_opnames
-		SET status = 'approved', approved_by = $2, approved_at = NOW(), updated_at = NOW()
-		WHERE id = $1
-	`, id, userID)
-	if err != nil {
-		return fmt.Errorf("failed to approve session: %w", err)
-	}
-	return nil
-}
-
-func (r *Repository) GetItemByProductID(ctx context.Context, sessionID, productID int) (*SessionItem, error) {
-	var it SessionItem
-	err := r.db.QueryRow(ctx, `
-		SELECT id, stock_opname_id, product_id, physical_qty, status
-		FROM stock_opname_items
-		WHERE stock_opname_id = $1 AND product_id = $2
-	`, sessionID, productID).Scan(&it.ID, &it.StockOpnameID, &it.ProductID, &it.PhysicalQty, &it.Status)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to load item by product: %w", err)
-	}
-	return &it, nil
-}

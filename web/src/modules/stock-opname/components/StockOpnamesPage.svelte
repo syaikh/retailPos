@@ -4,9 +4,17 @@
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { Button, Input, Modal, Pagination, SelectSearch } from '$shared/ui';
+  import { Plus, Trash2 } from 'lucide-svelte';
   import { getActiveStores } from '$modules/stores';
-  import { getCategories, getProductOptions, getWarehouses } from '$modules/product/services/product-service';
-  import type { StockOpnameSession } from '../types';
+  import {
+    getBrands,
+    getCategories,
+    getProductOptions,
+    getWarehouses,
+  } from '$modules/product/services/product-service';
+  import { getSuppliers } from '$modules/supplier/services/supplier-service';
+  import type { StockOpnameSession, StockOpnameScopeType } from '../types';
+  import { STOCK_OPNAME_SCOPE_LABELS, STOCK_OPNAME_SCOPE_TYPES } from '../types';
   import StockOpnamesToolbar from './StockOpnamesToolbar.svelte';
   import StockOpnamesTable from './StockOpnamesTable.svelte';
 
@@ -15,50 +23,76 @@
   const userPermissions = $derived(authStore.user?.permissions || []);
   const canCreate = $derived(userPermissions.includes('stock_opname.create'));
   const canExport = $derived(userPermissions.includes('stock_opname.export'));
+  const canReport = $derived(userPermissions.includes('stock_opname.report'));
+
+  interface CreateScopeRow {
+    scope_type: StockOpnameScopeType;
+    scope_id: number | undefined;
+  }
 
   let showCreateModal = $state(false);
   let creating = $state(false);
-  let createScopeType = $state('store');
-  let createScopeID = $state<number | undefined>(undefined);
+  let createTitle = $state('');
+  let createNotes = $state('');
   let createBlind = $state(false);
-  let scopeOptions = $state<{ value: number; label: string }[]>([]);
-  let scopeOptionsLoading = $state(false);
-  let scopeLoadSeq = 0;
+  let createRows = $state<CreateScopeRow[]>([{ scope_type: 'store', scope_id: undefined }]);
 
-  async function loadScopeOptions() {
-    const seq = ++scopeLoadSeq;
-    scopeOptionsLoading = true;
-    scopeOptions = [];
-    createScopeID = undefined;
+  let optionCache = $state<Partial<Record<StockOpnameScopeType, { value: number; label: string }[]>>>({});
+  let optionsLoading = $state(false);
+
+  function scopeOptionsFor(type: StockOpnameScopeType): { value: number; label: string }[] {
+    return optionCache[type] ?? [];
+  }
+
+  async function loadOptions(type: StockOpnameScopeType) {
+    if (optionCache[type] || type === 'manual') return;
+    optionsLoading = true;
     try {
       let loaded: { value: number; label: string }[] = [];
-      if (createScopeType === 'store') {
+      if (type === 'store') {
         const stores = await getActiveStores();
         loaded = stores.map((s) => ({ value: s.id, label: s.name }));
-      } else if (createScopeType === 'warehouse') {
+      } else if (type === 'warehouse') {
         const warehouses = await getWarehouses();
         loaded = warehouses.map((w) => ({
           value: w.id,
           label: w.code ? `${w.name} (${w.code})` : w.name,
         }));
-      } else if (createScopeType === 'category') {
+      } else if (type === 'category') {
         const categories = await getCategories();
         loaded = categories.map((c) => ({ value: c.id, label: c.name }));
-      } else if (createScopeType === 'product') {
+      } else if (type === 'brand') {
+        const brands = await getBrands();
+        loaded = brands.map((b) => ({ value: b.id, label: b.name }));
+      } else if (type === 'supplier') {
+        const res = await getSuppliers({ limit: 500, offset: 0, is_active: true });
+        loaded = res.data.map((s) => ({ value: s.id, label: s.name }));
+      } else if (type === 'product') {
         const options = await getProductOptions();
         loaded = options.map((p) => ({
           value: p.id,
           label: p.sku ? `${p.name} (${p.sku})` : p.name,
         }));
       }
-      if (seq !== scopeLoadSeq) return;
-      scopeOptions = loaded;
+      optionCache = { ...optionCache, [type]: loaded };
     } catch {
-      if (seq !== scopeLoadSeq) return;
-      scopeOptions = [];
+      optionCache = { ...optionCache, [type]: [] };
     } finally {
-      if (seq === scopeLoadSeq) scopeOptionsLoading = false;
+      optionsLoading = false;
     }
+  }
+
+  function addRow() {
+    createRows = [...createRows, { scope_type: 'store', scope_id: undefined }];
+  }
+
+  function removeRow(index: number) {
+    createRows = createRows.filter((_, i) => i !== index);
+  }
+
+  function onRowTypeChange(row: CreateScopeRow) {
+    row.scope_id = undefined;
+    loadOptions(row.scope_type);
   }
 
   let firstLoad = true;
@@ -90,28 +124,34 @@
   }
 
   function handleCreate() {
-    createScopeType = 'store';
-    createScopeID = undefined;
+    createTitle = '';
+    createNotes = '';
     createBlind = false;
+    createRows = [{ scope_type: 'store', scope_id: undefined }];
     showCreateModal = true;
-    loadScopeOptions();
-  }
-
-  function handleScopeTypeChange() {
-    loadScopeOptions();
+    loadOptions('store');
   }
 
   async function submitCreate() {
-    if (createScopeID == null) {
-      toast.error('Please select a scope');
+    const scopes = createRows.map((row) => ({
+      scope_type: row.scope_type,
+      scope_id: row.scope_type === 'manual' ? 0 : (row.scope_id ?? 0),
+    }));
+    if (scopes.length === 0) {
+      toast.error('Add at least one scope');
+      return;
+    }
+    if (scopes.some((s) => s.scope_type !== 'manual' && s.scope_id <= 0)) {
+      toast.error('Select a scope for every non-manual row');
       return;
     }
     creating = true;
     try {
       const session = await store.createSession({
-        scope_type: createScopeType,
-        scope_id: createScopeID,
+        title: createTitle || undefined,
+        scopes,
         blind_count: createBlind,
+        notes: createNotes || undefined,
       });
       toast.success(`Stock opname ${session.session_number} created`);
       showCreateModal = false;
@@ -150,6 +190,7 @@
     bind:searchQuery={store.searchFilter}
     bind:statusFilter={store.statusFilter}
     {canCreate}
+    {canReport}
     oncreate={handleCreate}
   />
 
@@ -174,37 +215,69 @@
 <Modal bind:open={showCreateModal} title="New Stock Opname" size="md">
   {#snippet children()}
     <div class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <span>Title</span>
+          <Input type="text" bind:value={createTitle} placeholder="Optional title" />
+        </label>
+        <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer self-end pb-2.5">
+          <input type="checkbox" bind:checked={createBlind} class="accent-primary" />
+          Blind count (hide system quantities from counters)
+        </label>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-text-secondary">Scopes</span>
+          <Button variant="secondary" size="sm" onclick={addRow}>
+            <Plus class="w-4 h-4" /> Add Scope
+          </Button>
+        </div>
+        {#each createRows as row, i (i)}
+          <div class="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-3 items-start">
+            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+              <span>Type</span>
+              <Input tag="select" bind:value={row.scope_type} onchange={() => onRowTypeChange(row)}>
+                {#snippet children()}
+                  {#each STOCK_OPNAME_SCOPE_TYPES as t}
+                    <option value={t}>{STOCK_OPNAME_SCOPE_LABELS[t]}</option>
+                  {/each}
+                {/snippet}
+              </Input>
+            </label>
+            <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+              <span>Scope</span>
+              {#if row.scope_type === 'manual'}
+                <div class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted">
+                  All active products
+                </div>
+              {:else if optionsLoading && !optionCache[row.scope_type]}
+                <div class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted">Loading...</div>
+              {:else}
+                <SelectSearch
+                  bind:value={row.scope_id}
+                  options={scopeOptionsFor(row.scope_type)}
+                  placeholder="Select scope..."
+                  searchPlaceholder="Search..."
+                  disabled={scopeOptionsFor(row.scope_type).length === 0}
+                  notFoundText="No matching scope found"
+                />
+              {/if}
+            </label>
+            {#if createRows.length > 1}
+              <Button variant="ghost" size="sm" class="self-end mb-1" onclick={() => removeRow(i)} aria-label="Remove scope">
+                <Trash2 class="w-4 h-4" />
+              </Button>
+            {/if}
+          </div>
+        {/each}
+      </div>
+
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Scope Type</span>
-        <Input tag="select" bind:value={createScopeType} onchange={handleScopeTypeChange}>
-          {#snippet children()}
-            <option value="store">Store</option>
-            <option value="warehouse">Warehouse</option>
-            <option value="category">Category</option>
-            <option value="product">Product</option>
-          {/snippet}
-        </Input>
+        <span>Notes</span>
+        <Input tag="textarea" bind:value={createNotes} placeholder="Optional notes" rows={2} />
       </label>
-      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Scope</span>
-        {#if scopeOptionsLoading}
-          <div class="rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-muted">Loading...</div>
-        {:else}
-          <SelectSearch
-            bind:value={createScopeID}
-            options={scopeOptions}
-            placeholder="Select scope..."
-            searchPlaceholder="Search..."
-            disabled={scopeOptions.length === 0}
-            notFoundText="No matching scope found"
-          />
-        {/if}
-      </label>
-      <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-        <input type="checkbox" bind:checked={createBlind} class="accent-primary" />
-        Blind count (hide system quantities from counters)
-      </label>
-      <p class="text-xs text-text-muted">All active products with general stock will be included in the session.</p>
+      <p class="text-xs text-text-muted">The session covers the union of all selected scopes. Sessions may run in parallel as long as they never count the same SKU.</p>
     </div>
   {/snippet}
   {#snippet footer()}

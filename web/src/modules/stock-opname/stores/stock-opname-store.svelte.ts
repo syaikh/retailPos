@@ -2,6 +2,7 @@ import {
   createStockOpname,
   listStockOpnames,
   getStockOpname,
+  openStockOpname,
   cancelStockOpname,
   assignCounter,
   getAssignableUsers,
@@ -11,11 +12,15 @@ import {
   getCountHistory,
   submitSession,
   startCounting,
-  approveSession,
+  verifySession,
   rejectSession,
   requestRecount,
   resumeCounting,
+  postAdjustment,
+  closeStockOpname,
   getSessionSummary,
+  listAdjustments,
+  getAdjustment,
   exportStockOpname,
 } from '../services/stock-opname-service';
 import { useWebSocket } from '$shared/api/websocket';
@@ -30,6 +35,8 @@ import type {
   AssignPayload,
   ReassignPayload,
   SaveCountPayload,
+  PostAdjustmentPayload,
+  Adjustment,
 } from '../types';
 
 let sessions = $state<StockOpnameSession[]>([]);
@@ -41,6 +48,11 @@ let assignableUsers = $state<AssignableUser[]>([]);
 let assignableLoading = $state(false);
 let currentSummary = $state<SessionSummary | null>(null);
 let countHistory = $state<Record<number, CountRecord[]>>({});
+
+let adjustments = $state<Adjustment[]>([]);
+let adjustmentsTotal = $state(0);
+let adjustmentsLoading = $state(false);
+let currentAdjustment = $state<Adjustment | null>(null);
 
 let statusFilter = $state('');
 let searchFilter = $state('');
@@ -60,6 +72,10 @@ export function useStockOpnameStore() {
     get assignableUsers() { return assignableUsers; },
     get assignableLoading() { return assignableLoading; },
     get currentSummary() { return currentSummary; },
+    get adjustments() { return adjustments; },
+    get adjustmentsTotal() { return adjustmentsTotal; },
+    get adjustmentsLoading() { return adjustmentsLoading; },
+    get currentAdjustment() { return currentAdjustment; },
     get statusFilter() { return statusFilter; },
     set statusFilter(v: string) { statusFilter = v; },
     get searchFilter() { return searchFilter; },
@@ -118,6 +134,11 @@ export function useStockOpnameStore() {
       }
     },
 
+    async open(id: number, comment: string) {
+      await openStockOpname(id, comment);
+      await this.loadSession(id);
+    },
+
     async cancelSession(id: number) {
       await cancelStockOpname(id);
       await this.loadSession(id);
@@ -172,8 +193,8 @@ export function useStockOpnameStore() {
       await this.loadSession(id);
     },
 
-    async approve(id: number, comment: string) {
-      await approveSession(id, { comment });
+    async verify(id: number, comment: string) {
+      await verifySession(id, { comment });
       await this.loadSession(id);
     },
 
@@ -190,6 +211,41 @@ export function useStockOpnameStore() {
     async resume(id: number) {
       await resumeCounting(id);
       await this.loadSession(id);
+    },
+
+    async post(id: number, payload: PostAdjustmentPayload): Promise<Adjustment> {
+      const adjustment = await postAdjustment(id, payload);
+      await this.loadSession(id);
+      return adjustment;
+    },
+
+    async close(id: number) {
+      await closeStockOpname(id);
+      await this.loadSession(id);
+    },
+
+    async loadAdjustments(filters: { status?: string; search?: string; limit: number; offset: number }) {
+      abortController?.abort();
+      const controller = new AbortController();
+      abortController = controller;
+
+      adjustmentsLoading = true;
+      try {
+        const result = await listAdjustments(filters, controller.signal);
+        if (controller.signal.aborted) return;
+        adjustments = result.data;
+        adjustmentsTotal = result.total;
+      } catch {
+        if (controller.signal.aborted) return;
+        adjustments = [];
+        adjustmentsTotal = 0;
+      } finally {
+        if (!controller.signal.aborted) adjustmentsLoading = false;
+      }
+    },
+
+    async loadAdjustment(id: number) {
+      currentAdjustment = await getAdjustment(id);
     },
 
     async exportCSV(id: number): Promise<Blob> {
@@ -210,8 +266,11 @@ export function useStockOpnameStore() {
       };
       const unsubs = [
         ws.on('so_created', reload),
+        ws.on('so_opened', reload),
         ws.on('so_submitted', reload),
         ws.on('so_approved', reload),
+        ws.on('so_posted', reload),
+        ws.on('so_closed', reload),
         ws.on('so_rejected', reload),
         ws.on('so_needs_recount', reload),
         ws.on('so_cancelled', reload),

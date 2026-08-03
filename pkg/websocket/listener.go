@@ -240,8 +240,11 @@ func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listene
 // deliberately excluded to preserve blind counting (BR-008).
 var stockOpnameEventTypes = map[eventbus.EventType]EventType{
 	eventbus.EventType(stockopname.EventStockOpnameCreated):   EventSOCreated,
+	eventbus.EventType(stockopname.EventStockOpnameOpened):    EventSOOpened,
 	eventbus.EventType(stockopname.EventStockOpnameSubmitted): EventSOSubmitted,
 	eventbus.EventType(stockopname.EventStockOpnameApproved):  EventSOApproved,
+	eventbus.EventType(stockopname.EventStockOpnamePosted):    EventSOPosted,
+	eventbus.EventType(stockopname.EventStockOpnameClosed):    EventSOClosed,
 	eventbus.EventType(stockopname.EventStockOpnameRejected):  EventSORejected,
 	eventbus.EventType(stockopname.EventStockOpnameRecount):   EventSORecount,
 	eventbus.EventType(stockopname.EventStockOpnameCancelled): EventSOCancelled,

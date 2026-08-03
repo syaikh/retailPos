@@ -7,14 +7,16 @@
   import { Badge, Button, Card, Dropdown, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
-  import { STOCK_OPNAME_STATUS_LABELS } from '../types';
+  import { STOCK_OPNAME_STATUS_LABELS, STOCK_OPNAME_SCOPE_LABELS } from '../types';
   import type { StockOpnameSession } from '../types';
 
   const store = useStockOpnameStore();
   const authStore = useAuthStore();
   const userPermissions = $derived(authStore.user?.permissions || []);
-  const canApprove = $derived(userPermissions.includes('stock_opname.approve'));
-  const canReject = $derived(userPermissions.includes('stock_opname.reject'));
+  const canOpen = $derived(userPermissions.includes('stock_opname.create'));
+  const canVerify = $derived(userPermissions.includes('stock_opname.verify'));
+  const canPost = $derived(userPermissions.includes('stock_opname.post'));
+  const canClose = $derived(userPermissions.includes('stock_opname.close'));
   const canRecount = $derived(userPermissions.includes('stock_opname.recount'));
   const canCancel = $derived(userPermissions.includes('stock_opname.cancel'));
   const canCount = $derived(userPermissions.includes('stock_opname.count'));
@@ -39,9 +41,19 @@
   let countRemarks = $state('');
   let counting = $state(false);
 
-  let showApproveModal = $state(false);
-  let approveComment = $state('');
+  let actionModal = $state<'open' | 'verify' | 'reject' | 'recount' | 'post' | null>(null);
+  let actionComment = $state('');
+  let postNotes = $state('');
   let actionInProgress = $state(false);
+
+  function getOpenModal() { return actionModal === 'open'; }
+  function setOpenModal(v: boolean) { actionModal = v ? 'open' : null; }
+
+  function getVerifyModal() { return actionModal === 'verify' || actionModal === 'reject' || actionModal === 'recount'; }
+  function setVerifyModal(v: boolean) { if (!v) actionModal = null; }
+
+  function getPostModal() { return actionModal === 'post'; }
+  function setPostModal(v: boolean) { actionModal = v ? 'post' : null; }
 
   let pageLimit = $state(20);
   let pageOffset = $state(0);
@@ -135,13 +147,26 @@
   function statusBadge(status: string) {
     switch (status) {
       case 'draft': return 'muted';
+      case 'open': return 'primary';
       case 'counting': return 'primary';
-      case 'pending_approval': return 'warning';
+      case 'verification': return 'warning';
       case 'needs_recount': return 'warning';
       case 'approved': return 'success';
+      case 'posted': return 'primary';
+      case 'closed': return 'muted';
       case 'cancelled': return 'danger';
       default: return 'default';
     }
+  }
+
+  function scopeSummary(s: StockOpnameSession): string {
+    const scopes = s.scopes?.length ? s.scopes : [{ scope_type: s.scope_type, scope_name: s.scope_name }];
+    const label = (sc: any) => {
+      const base = STOCK_OPNAME_SCOPE_LABELS[sc.scope_type as keyof typeof STOCK_OPNAME_SCOPE_LABELS] || sc.scope_type;
+      if (sc.scope_type === 'manual') return base;
+      return sc.scope_name ? `${base}: ${sc.scope_name}` : `${base} #${sc.scope_id}`;
+    };
+    return scopes.map(label).join(' + ');
   }
 
   async function handleAssign() {
@@ -199,11 +224,11 @@
   }
 
   async function handleSubmit() {
-    if (!confirm(`Submit stock opname ${session?.session_number} for approval?`)) return;
+    if (!confirm(`Submit stock opname ${session?.session_number} for verification?`)) return;
     actionInProgress = true;
     try {
       await store.submit(sessionId);
-      toast.success('Submitted for approval');
+      toast.success('Submitted for verification');
       await reload();
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message || e.message || 'Failed to submit');
@@ -212,27 +237,40 @@
     }
   }
 
-  async function handleApprove() {
+  async function handleOpen() {
     actionInProgress = true;
     try {
-      await store.approve(sessionId, approveComment);
-      toast.success('Stock opname approved — inventory adjusted');
-      showApproveModal = false;
+      await store.open(sessionId, actionComment);
+      toast.success('Session opened');
+      actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to approve');
+      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to open session');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
+  async function handleVerify() {
+    actionInProgress = true;
+    try {
+      await store.verify(sessionId, actionComment);
+      toast.success('Stock opname verified — approved, inventory not yet adjusted');
+      actionModal = null;
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to verify');
     } finally {
       actionInProgress = false;
     }
   }
 
   async function handleReject() {
-    if (!confirm(`Reject stock opname ${session?.session_number} and request recount?`)) return;
     actionInProgress = true;
     try {
-      await store.reject(sessionId, approveComment);
+      await store.reject(sessionId, actionComment);
       toast.success('Rejected — recount requested');
-      showApproveModal = false;
+      actionModal = null;
       await reload();
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message || e.message || 'Failed to reject');
@@ -242,11 +280,11 @@
   }
 
   async function handleRecount() {
-    if (!confirm(`Request recount for stock opname ${session?.session_number}?`)) return;
     actionInProgress = true;
     try {
-      await store.recount(sessionId, 'Recount requested');
+      await store.recount(sessionId, actionComment);
       toast.success('Recount requested');
+      actionModal = null;
       await reload();
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message || e.message || 'Failed to request recount');
@@ -262,7 +300,35 @@
       toast.success('Counting resumed');
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to resume');
+      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to resume counting');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
+  async function handlePost() {
+    actionInProgress = true;
+    try {
+      const adjustment = await store.post(sessionId, { comment: actionComment || undefined, notes: postNotes || undefined });
+      toast.success(`Adjustment ${adjustment.adjustment_number} posted — inventory adjusted`);
+      actionModal = null;
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to post adjustment');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
+  async function handleClose() {
+    if (!confirm(`Close stock opname ${session?.session_number}? This finalises the record.`)) return;
+    actionInProgress = true;
+    try {
+      await store.close(sessionId);
+      toast.success('Stock opname closed');
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to close');
     } finally {
       actionInProgress = false;
     }
@@ -306,7 +372,7 @@
   </div>
 {:else if session}
   <div class="space-y-5">
-    <PageHeader title={session.session_number} subtitle={session.scope_name ? `${session.scope_type} · ${session.scope_name}` : `${session.scope_type} scope #${session.scope_id}`}>
+    <PageHeader title={session.title || session.session_number} subtitle={scopeSummary(session)}>
       {#snippet actions()}
         <Button variant="ghost" onclick={() => goto('/stock-opnames')}>
           <ArrowLeft class="w-4 h-4" /> Back
@@ -314,29 +380,30 @@
         {#if canExport}
           <Button variant="secondary" onclick={doExport}>Export CSV</Button>
         {/if}
-        {#if canAssign && (session?.status === 'draft' || session?.status === 'counting' || session?.status === 'needs_recount')}
+        {#if canAssign && (session?.status === 'draft' || session?.status === 'open' || session?.status === 'counting' || session?.status === 'needs_recount')}
           <Button variant="secondary" onclick={() => (showAssignModal = true)}>Assign Counter</Button>
         {/if}
-        {#if canCount && isCounter && session?.status === 'draft'}
+        {#if canOpen && session?.status === 'draft'}
+          <Button onclick={() => { actionComment = ''; actionModal = 'open'; }} disabled={actionInProgress}>Open Session</Button>
+        {/if}
+        {#if canCount && isCounter && (session?.status === 'draft' || session?.status === 'open')}
           <Button onclick={handleStart} disabled={actionInProgress}>Start Counting</Button>
         {/if}
         {#if canSubmit && isCounter && session?.status === 'counting'}
           <Button onclick={handleSubmit} disabled={actionInProgress}>
-            <Send class="w-4 h-4" /> Submit for Approval
+            <Send class="w-4 h-4" /> Submit for Verification
           </Button>
         {/if}
-        {#if canRecount && session?.status === 'pending_approval'}
-          <Button variant="secondary" onclick={handleRecount} disabled={actionInProgress}>
+        {#if canRecount && session?.status === 'verification'}
+          <Button variant="secondary" onclick={() => { actionComment = ''; actionModal = 'recount'; }} disabled={actionInProgress}>
             <RotateCcw class="w-4 h-4" /> Request Recount
           </Button>
         {/if}
-        {#if canApprove && session?.status === 'pending_approval'}
-          <Button variant="success" onclick={() => { approveComment = ''; showApproveModal = true; }}>
-            <CheckCircle2 class="w-4 h-4" /> Approve
+        {#if canVerify && session?.status === 'verification'}
+          <Button variant="success" onclick={() => { actionComment = ''; actionModal = 'verify'; }} disabled={actionInProgress}>
+            <CheckCircle2 class="w-4 h-4" /> Verify
           </Button>
-        {/if}
-        {#if canReject && session?.status === 'pending_approval'}
-          <Button variant="danger" onclick={() => { approveComment = ''; showApproveModal = true; }}>
+          <Button variant="danger" onclick={() => { actionComment = ''; actionModal = 'reject'; }} disabled={actionInProgress}>
             <XCircle class="w-4 h-4" /> Reject
           </Button>
         {/if}
@@ -345,7 +412,15 @@
             <ClipboardCheck class="w-4 h-4" /> Resume Counting
           </Button>
         {/if}
-        {#if canCancel && (session?.status === 'draft' || session?.status === 'counting' || session?.status === 'needs_recount')}
+        {#if canPost && session?.status === 'approved'}
+          <Button variant="success" onclick={() => { actionComment = ''; postNotes = ''; actionModal = 'post'; }} disabled={actionInProgress}>
+            Post Adjustment
+          </Button>
+        {/if}
+        {#if canClose && session?.status === 'posted'}
+          <Button onclick={handleClose} disabled={actionInProgress}>Close Session</Button>
+        {/if}
+        {#if canCancel && (session?.status === 'draft' || session?.status === 'open' || session?.status === 'counting' || session?.status === 'needs_recount')}
           <Button variant="danger" onclick={handleCancel} disabled={actionInProgress}>Cancel</Button>
         {/if}
       {/snippet}
@@ -361,17 +436,23 @@
         <div class="mt-1 font-semibold text-text-primary">{session.blind_count ? 'Enabled' : 'Disabled'}</div>
       </Card>
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Total Items</div>
-        <div class="mt-1 font-semibold text-text-primary">{store.currentSummary?.total_items ?? session.items?.length ?? 0}</div>
-      </Card>
-      <Card class="p-4">
-        <div class="text-sm text-text-muted">Counted</div>
-        <div class="mt-1 font-semibold text-text-primary">
-          {store.currentSummary?.counted_items ?? 0}
-          <span class="text-text-muted font-normal">/ {store.currentSummary?.total_items ?? 0}</span>
+        <div class="text-sm text-text-muted">Total Difference</div>
+        <div class="mt-1 font-semibold tabular-nums {session.total_difference === 0 ? 'text-text-primary' : session.total_difference > 0 ? 'text-success-light' : 'text-danger-light'}">
+          {session.total_difference || '—'}
         </div>
       </Card>
+      <Card class="p-4">
+        <div class="text-sm text-text-muted">Total Adjustment</div>
+        <div class="mt-1 font-semibold tabular-nums text-text-primary">{session.total_adjustment || '—'}</div>
+      </Card>
     </div>
+
+    {#if session.notes}
+      <Card class="p-4">
+        <div class="text-sm text-text-muted">Notes</div>
+        <div class="mt-1 text-sm text-text-primary">{session.notes}</div>
+      </Card>
+    {/if}
 
     {#if session.assignments && session.assignments.length > 0}
       <Card class="p-4">
@@ -516,18 +597,71 @@
   {/snippet}
 </Modal>
 
-<Modal bind:open={showApproveModal} title="Approval Action" size="sm">
-  {#snippet children()}
-    <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-      <span>Comment (required)</span>
-      <Input tag="textarea" bind:value={approveComment} placeholder="Approval / rejection notes" />
-    </label>
-  {/snippet}
-  {#snippet footer()}
-    <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showApproveModal = false)}>Cancel</Button>
-      <Button variant="danger" onclick={handleReject} disabled={actionInProgress || !approveComment}>Reject</Button>
-      <Button variant="success" onclick={handleApprove} disabled={actionInProgress || !approveComment}>Approve</Button>
-    </div>
-  {/snippet}
-</Modal>
+{#if actionModal === 'open'}
+  <Modal bind:open={getOpenModal, setOpenModal} title="Open Session" size="sm">
+    {#snippet children()}
+      <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+        <span>Comment (required)</span>
+        <Input tag="textarea" bind:value={actionComment} placeholder="Why is this session being opened?" />
+      </label>
+    {/snippet}
+    {#snippet footer()}
+      <div class="flex justify-end gap-3 w-full">
+        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
+        <Button onclick={handleOpen} disabled={actionInProgress || !actionComment.trim()}>Open</Button>
+      </div>
+    {/snippet}
+  </Modal>
+{:else if actionModal === 'verify' || actionModal === 'reject' || actionModal === 'recount'}
+  <Modal bind:open={getVerifyModal, setVerifyModal} title={actionModal === 'verify' ? 'Verify Stock Opname' : actionModal === 'reject' ? 'Reject Stock Opname' : 'Request Recount'} size="sm">
+    {#snippet children()}
+      <div class="space-y-2">
+        <p class="text-sm text-text-secondary">
+          {#if actionModal === 'verify'}
+            Verifying approves the count without changing inventory. Posting is a separate step.
+          {:else if actionModal === 'reject'}
+            Rejecting returns the session to counting.
+          {:else}
+            Requesting a recount returns the session to counting.
+          {/if}
+        </p>
+        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <span>Comment (required)</span>
+          <Input tag="textarea" bind:value={actionComment} placeholder="Verification / rejection / recount notes" />
+        </label>
+      </div>
+    {/snippet}
+    {#snippet footer()}
+      <div class="flex justify-end gap-3 w-full">
+        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
+        <Button variant={actionModal === 'verify' ? 'success' : 'danger'} onclick={actionModal === 'verify' ? handleVerify : actionModal === 'reject' ? handleReject : handleRecount} disabled={actionInProgress || !actionComment.trim()}>
+          {actionModal === 'verify' ? 'Verify' : actionModal === 'reject' ? 'Reject' : 'Request Recount'}
+        </Button>
+      </div>
+    {/snippet}
+  </Modal>
+{:else if actionModal === 'post'}
+  <Modal bind:open={getPostModal, setPostModal} title="Post Adjustment" size="sm">
+    {#snippet children()}
+      <div class="space-y-2">
+        <p class="text-sm text-text-secondary">
+          Posting applies the verified differences to inventory and creates an adjustment document (IA-...).
+        </p>
+        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <span>Notes</span>
+          <Input tag="textarea" bind:value={postNotes} placeholder="Optional adjustment notes" />
+        </label>
+        <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
+          <span>Comment (optional)</span>
+          <Input tag="textarea" bind:value={actionComment} placeholder="Optional comment" />
+        </label>
+      </div>
+    {/snippet}
+    {#snippet footer()}
+      <div class="flex justify-end gap-3 w-full">
+        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
+        <Button variant="success" onclick={handlePost} disabled={actionInProgress}>Post Adjustment</Button>
+      </div>
+    {/snippet}
+  </Modal>
+{/if}

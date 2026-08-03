@@ -29,6 +29,7 @@ import (
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/stockopname"
+	"retail-pos-system/internal/storagelocation"
 	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
@@ -92,6 +93,7 @@ type Dependencies struct {
 	StoreRepo       *store.Repository
 	ShiftRepo       *shift.Repository
 	StockOpnameRepo *stockopname.Repository
+	StorageLocationRepo *storagelocation.Repository
 
 	UserSvc         *user.Service
 	AuthSvc         *user.AuthService
@@ -111,6 +113,7 @@ type Dependencies struct {
 	StoreSvc        *store.Service
 	ShiftSvc        *shift.Service
 	StockOpnameSvc  *stockopname.Service
+	StorageLocationSvc *storagelocation.Service
 
 	UserH           *user.Handler
 	AuthH           *user.AuthHandler
@@ -130,6 +133,7 @@ type Dependencies struct {
 	StoreH          *store.Handler
 	ShiftH          *shift.Handler
 	StockOpnameH    *stockopname.Handler
+	StorageLocationH *storagelocation.Handler
 
 	IEH             *ieh.Handler
 
@@ -176,6 +180,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)
 	d.StockOpnameRepo = stockopname.NewRepository(p.DB)
+	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)
 	d.UserSvc = user.NewService(d.UserRepo)
@@ -202,6 +207,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
 	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
+	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)
 	d.AuthH = user.NewAuthHandler(d.AuthSvc, d.AuditSvc)
@@ -222,6 +228,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StoreH = store.NewHandler(d.StoreSvc, d.AuditSvc)
 	d.ShiftH = shift.NewHandler(d.ShiftSvc, d.AuditSvc)
 	d.StockOpnameH = stockopname.NewHandler(d.StockOpnameSvc, d.AuditSvc)
+	d.StorageLocationH = storagelocation.NewHandler(d.StorageLocationSvc, d.AuditSvc)
 
 	schemaReg := schema.NewRegistry()
 	_ = schemaReg.Register(category.Schema)

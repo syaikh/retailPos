@@ -449,11 +449,12 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	type sysUser struct {
 		id, roleID                    int
 		username, email, passwordHash string
+		reportsTo                     *int
 		isActive                      bool
 	}
 	var systemUsers []sysUser
 	rows, err := db.QueryContext(ctx, `
-		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.is_active
+		SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.reports_to, u.is_active
 		FROM users u
 		JOIN roles r ON r.id = u.role_id
 		WHERE r.is_system = true
@@ -465,7 +466,12 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 	if err == nil {
 		for rows.Next() {
 			var u sysUser
-			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &u.isActive); err == nil {
+			var reportsTo sql.NullInt64
+			if err := rows.Scan(&u.id, &u.username, &u.email, &u.passwordHash, &u.roleID, &reportsTo, &u.isActive); err == nil {
+				if reportsTo.Valid {
+					v := int(reportsTo.Int64)
+					u.reportsTo = &v
+				}
 				systemUsers = append(systemUsers, u)
 			}
 		}
@@ -515,9 +521,13 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 
 	// Restore system users
 	for _, u := range systemUsers {
+		var reportsTo interface{}
+		if u.reportsTo != nil {
+			reportsTo = *u.reportsTo
+		}
 		_, err := db.ExecContext(ctx,
-			`INSERT INTO users (id, username, email, password_hash, role_id, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()) ON CONFLICT (id) DO NOTHING`,
-			u.id, u.username, u.email, u.passwordHash, u.roleID, u.isActive,
+			`INSERT INTO users (id, username, email, password_hash, role_id, reports_to, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) ON CONFLICT (id) DO NOTHING`,
+			u.id, u.username, u.email, u.passwordHash, u.roleID, reportsTo, u.isActive,
 		)
 		if err != nil {
 			log.Printf("Warning: failed to restore system user %d: %v", u.id, err)

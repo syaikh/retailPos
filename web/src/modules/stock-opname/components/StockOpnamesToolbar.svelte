@@ -1,12 +1,14 @@
 <script lang="ts">
+  import { goto } from '$app/router';
   import { SearchBar, Button, Dropdown } from '$shared/ui';
-  import { Plus, ChevronDown } from 'lucide-svelte';
+  import { Plus, ChevronDown, ReceiptText } from 'lucide-svelte';
   import { STOCK_OPNAME_STATUS_LABELS } from '../types';
 
   let {
     searchQuery = $bindable(''),
     statusFilter = $bindable(''),
     canCreate = false,
+    canReport = false,
     onsearch = () => {},
     onstatuschange = () => {},
     oncreate = () => {},
@@ -14,6 +16,7 @@
     searchQuery?: string;
     statusFilter?: string;
     canCreate?: boolean;
+    canReport?: boolean;
     onsearch?: () => void;
     onstatuschange?: () => void;
     oncreate?: () => void;
@@ -52,6 +55,11 @@
         </button>
       {/snippet}
     </Dropdown>
+    {#if canReport}
+      <Button variant="secondary" class="shrink-0" onclick={() => goto('/stock-opnames/adjustments')}>
+        <ReceiptText size={16} /> Adjustments
+      </Button>
+    {/if}
     {#if canCreate}
       <Button variant="primary" class="shrink-0 shadow-glow-primary-sm" onclick={oncreate}>
         <Plus size={18} /> New Stock Opname

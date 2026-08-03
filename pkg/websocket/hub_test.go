@@ -406,8 +406,11 @@ func TestShouldReceiveEvent_StoreScopedSO(t *testing.T) {
 	hub := &Hub{}
 	soEvents := []EventType{
 		EventSOCreated,
+		EventSOOpened,
 		EventSOSubmitted,
 		EventSOApproved,
+		EventSOPosted,
+		EventSOClosed,
 		EventSORejected,
 		EventSORecount,
 		EventSOCancelled,

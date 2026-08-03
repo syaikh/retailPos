@@ -50,36 +50,33 @@ func storeIDOrZero(storeID *int) int {
 
 // Status event topics published to the event bus.
 const (
-	EventStockOpnameCreated     = "stock_opname.created"
-	EventStockOpnameSubmitted   = "stock_opname.submitted"
-	EventStockOpnameApproved    = "stock_opname.approved"
-	EventStockOpnameRejected    = "stock_opname.rejected"
-	EventStockOpnameRecount     = "stock_opname.needs_recount"
-	EventStockOpnameCancelled   = "stock_opname.cancelled"
+	EventStockOpnameCreated   = "stock_opname.created"
+	EventStockOpnameOpened    = "stock_opname.opened"
+	EventStockOpnameSubmitted = "stock_opname.submitted"
+	EventStockOpnameApproved  = "stock_opname.approved"
+	EventStockOpnamePosted    = "stock_opname.posted"
+	EventStockOpnameClosed    = "stock_opname.closed"
+	EventStockOpnameRejected  = "stock_opname.rejected"
+	EventStockOpnameRecount   = "stock_opname.needs_recount"
+	EventStockOpnameCancelled = "stock_opname.cancelled"
 )
 
+// CreateSession creates a stock opname session that spans one or more scopes.
+// Overlapping active sessions are rejected per-SKU (parallel sessions may run
+// as long as they never both count the same SKU). Creation is serialised with
+// an advisory lock so the overlap check is race-free.
 func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, userID int) (*Session, error) {
-	if !validScopes[req.ScopeType] {
-		return nil, ErrUnsupportedScope
+	scopes := normalizeScopes(req)
+	if len(scopes) == 0 {
+		return nil, ErrNoScopes
 	}
-	if req.ScopeID <= 0 {
-		return nil, fmt.Errorf("scope_id is required")
-	}
-
-	active, err := s.repo.GetActiveSessionByScope(ctx, req.ScopeType, req.ScopeID)
-	if err != nil {
-		return nil, err
-	}
-	if active != nil {
-		return nil, ErrActiveSessionExists
-	}
-
-	items, err := s.repo.LoadSnapshotProducts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(items) == 0 {
-		return nil, ErrNoItems
+	for _, sc := range scopes {
+		if !validScopes[sc.ScopeType] {
+			return nil, ErrUnsupportedScope
+		}
+		if sc.ScopeID <= 0 && sc.ScopeType != "manual" {
+			return nil, ErrScopeIDRequired
+		}
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -88,39 +85,125 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := s.repo.AcquireCreateLock(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	// Resolve scope display names and build the candidate product universe.
+	sessionScopes := make([]SessionScope, 0, len(scopes))
+	candidate := make(map[int]bool)
+	for _, sc := range scopes {
+		name := sc.ScopeName
+		if name == "" {
+			n, err := s.repo.ResolveScopeName(ctx, tx, sc.ScopeType, sc.ScopeID)
+			if err != nil {
+				return nil, err
+			}
+			name = n
+		}
+		sessionScopes = append(sessionScopes, SessionScope{ScopeType: sc.ScopeType, ScopeID: sc.ScopeID, ScopeName: name})
+		ids, err := s.repo.ScopeProductIDs(ctx, tx, sc)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			candidate[id] = true
+		}
+	}
+	if len(candidate) == 0 {
+		return nil, ErrNoItems
+	}
+
+	// Enforce the per-SKU overlap rule against other in-progress sessions.
+	active, err := s.repo.ListActiveSessions(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	var conflictIDs []int
+	seen := make(map[int]bool)
+	for _, sess := range active {
+		otherScopes, err := s.repo.LoadSessionScopes(ctx, tx, sess.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, osc := range otherScopes {
+			ids, err := s.repo.ScopeProductIDs(ctx, tx, Scope{ScopeType: osc.ScopeType, ScopeID: osc.ScopeID})
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range ids {
+				if candidate[id] && !seen[id] {
+					seen[id] = true
+					conflictIDs = append(conflictIDs, id)
+				}
+			}
+		}
+	}
+	if len(conflictIDs) > 0 {
+		skus, err := s.repo.GetProductSKUs(ctx, conflictIDs)
+		if err != nil {
+			return nil, err
+		}
+		return nil, &ScopeOverlapError{SKUs: skuValues(skus, conflictIDs)}
+	}
+
+	items, err := s.repo.LoadSnapshotProductsByIDs(ctx, tx, productIDList(candidate))
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, ErrNoItems
+	}
+
 	number, err := s.repo.GetNextSessionNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var storeID *int
-	switch req.ScopeType {
-	case "store":
-		sid := int(req.ScopeID)
-		storeID = &sid
-	case "warehouse":
-		whID := req.WarehouseID
-		if whID == nil {
-			id := int(req.ScopeID)
-			whID = &id
-		}
-		storeID, err = s.repo.GetWarehouseStoreID(ctx, *whID)
-		if err != nil {
-			return nil, err
+	if req.StoreID != nil {
+		storeID = req.StoreID
+	}
+	var warehouseID = req.WarehouseID
+	for _, sc := range scopes {
+		switch sc.ScopeType {
+		case "store":
+			sid := int(sc.ScopeID)
+			storeID = &sid
+		case "warehouse":
+			if warehouseID == nil {
+				wid := int(sc.ScopeID)
+				warehouseID = &wid
+			}
+			if storeID == nil {
+				sid, err := s.repo.GetWarehouseStoreID(ctx, int(sc.ScopeID))
+				if err != nil {
+					return nil, err
+				}
+				storeID = sid
+			}
 		}
 	}
 
+	primary := sessionScopes[0]
 	session := &Session{
 		SessionNumber: number,
-		ScopeType:     req.ScopeType,
-		ScopeID:       req.ScopeID,
-		WarehouseID:   req.WarehouseID,
+		Title:         req.Title,
+		ScopeType:     primary.ScopeType,
+		ScopeID:       primary.ScopeID,
+		ScopeName:     primary.ScopeName,
+		Scopes:        sessionScopes,
+		WarehouseID:   warehouseID,
 		StoreID:       storeID,
 		BlindCount:    req.BlindCount,
+		Notes:         req.Notes,
 		Status:        StatusDraft,
 		CreatedBy:     userID,
 	}
 	if err := s.repo.CreateSession(ctx, tx, session); err != nil {
+		return nil, err
+	}
+	if err := s.repo.InsertSessionScopes(ctx, tx, session.ID, sessionScopes); err != nil {
 		return nil, err
 	}
 	if err := s.repo.InsertSessionItems(ctx, tx, session.ID, items); err != nil {
@@ -132,6 +215,46 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	s.publishStatusEvent(ctx, EventStockOpnameCreated, session.ID, session.Status)
 	return session, nil
 }
+
+func normalizeScopes(req *CreateSessionRequest) []Scope {
+	if len(req.Scopes) > 0 {
+		return req.Scopes
+	}
+	if req.ScopeType == "" {
+		return nil
+	}
+	return []Scope{{ScopeType: req.ScopeType, ScopeID: req.ScopeID, ScopeName: ""}}
+}
+
+func productIDList(set map[int]bool) []int {
+	out := make([]int, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	return out
+}
+
+func skuValues(skus map[int]string, ids []int) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if sku := skus[id]; sku != "" {
+			out = append(out, sku)
+		}
+	}
+	return out
+}
+
+// ScopeOverlapError reports which SKUs cannot be counted because they are
+// already part of another in-progress session.
+type ScopeOverlapError struct {
+	SKUs []string
+}
+
+func (e *ScopeOverlapError) Error() string {
+	return fmt.Sprintf("%v: %s", ErrScopeOverlap, strings.Join(e.SKUs, ", "))
+}
+
+func (e *ScopeOverlapError) Unwrap() error { return ErrScopeOverlap }
 
 // GetSessionForUser returns the session, masking system quantities for
 // counters when blind count is enabled (BR-008).
@@ -307,6 +430,27 @@ func (s *Service) GetCountHistory(ctx context.Context, itemID int) ([]CountRecor
 	return s.repo.GetCountHistory(ctx, itemID)
 }
 
+// OpenSession moves a draft session into 'open', signalling the cycle count is
+// ready for counting (Draft --Open--> Open).
+func (s *Service) OpenSession(ctx context.Context, id, userID int, comment string) error {
+	if strings.TrimSpace(comment) == "" {
+		return ErrOpenCommentReq
+	}
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := s.repo.MarkSessionOpened(ctx, tx, id, userID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameOpened, id, StatusOpen)
+	return nil
+}
+
 func (s *Service) SubmitSession(ctx context.Context, id, userID int) error {
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
@@ -329,21 +473,21 @@ func (s *Service) SubmitSession(ctx context.Context, id, userID int) error {
 	if pending > 0 {
 		return ErrNotAllItemsCounted
 	}
-	if err := s.repo.UpdateStatus(ctx, id, StatusCounting, StatusPendingApproval); err != nil {
+	if err := s.repo.UpdateStatus(ctx, id, StatusCounting, StatusVerification); err != nil {
 		return err
 	}
-	s.publishStatusEvent(ctx, EventStockOpnameSubmitted, id, StatusPendingApproval)
+	s.publishStatusEvent(ctx, EventStockOpnameSubmitted, id, StatusVerification)
 	return nil
 }
 
-// StartCounting transitions a draft session into the counting state. Only an
-// assigned counter can start counting (state machine: Draft --Start Counting--> Counting).
+// StartCounting transitions a draft or open session into the counting state.
+// Only an assigned counter can start counting.
 func (s *Service) StartCounting(ctx context.Context, id, userID int) error {
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
 		return err
 	}
-	if status != StatusDraft {
+	if status != StatusDraft && status != StatusOpen {
 		return ErrInvalidState
 	}
 	counter, err := s.repo.IsCounterAssigned(ctx, id, userID)
@@ -353,10 +497,13 @@ func (s *Service) StartCounting(ctx context.Context, id, userID int) error {
 	if !counter {
 		return ErrNotAssigned
 	}
-	return s.repo.UpdateStatus(ctx, id, StatusDraft, StatusCounting)
+	return s.repo.UpdateStatus(ctx, id, status, StatusCounting)
 }
 
-func (s *Service) ApproveSession(ctx context.Context, id, userID int, comment string) error {
+// VerifySession approves a submitted count without applying it to stock: the
+// live-stock snapshot is computed (expected/difference preview persisted) and
+// the session moves to 'approved'. Posting is a separate, later step.
+func (s *Service) VerifySession(ctx context.Context, id, userID int, comment string) error {
 	if strings.TrimSpace(comment) == "" {
 		return ErrApprovalCommentReq
 	}
@@ -371,7 +518,7 @@ func (s *Service) ApproveSession(ctx context.Context, id, userID int, comment st
 	if err != nil {
 		return err
 	}
-	if session.Status != StatusPendingApproval {
+	if session.Status != StatusVerification {
 		return ErrInvalidState
 	}
 	counter, err := s.repo.IsCounterAssigned(ctx, id, userID)
@@ -395,29 +542,22 @@ func (s *Service) ApproveSession(ctx context.Context, id, userID int, comment st
 		return err
 	}
 
-	movements := make([]movementRow, 0, len(items))
+	var totalDiff, totalAdj float64
 	for _, it := range items {
 		expected := float64(stock[it.ProductID])
 		diff := it.PhysicalQy - expected
 		adj := diff
-		if err := s.repo.UpdateItemAdjustment(ctx, tx, it.ID, expected, diff, adj); err != nil {
+		reason := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", session.SessionNumber, it.PhysicalQy, expected)
+		if err := s.repo.UpdateItemAdjustment(ctx, tx, it.ID, expected, diff, adj, reason); err != nil {
 			return err
 		}
-		if diff == 0 {
-			continue
-		}
-		newQty := int(math.Round(expected + diff))
-		if err := s.repo.UpdateProductStock(ctx, tx, it.ProductID, newQty); err != nil {
-			return fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
-		}
-		notes := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", session.SessionNumber, it.PhysicalQy, expected)
-		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: int(math.Round(diff)), Notes: notes})
+		totalDiff += diff
+		totalAdj += adj
 	}
-
-	if err := s.repo.InsertMovements(ctx, tx, id, userID, movements); err != nil {
+	if err := s.repo.MarkSessionTotals(ctx, tx, id, totalDiff, totalAdj); err != nil {
 		return err
 	}
-	if err := s.repo.ApproveSessionStatus(ctx, tx, id, userID); err != nil {
+	if err := s.repo.MarkSessionVerified(ctx, tx, id, userID); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -435,10 +575,10 @@ func (s *Service) RejectSession(ctx context.Context, id, userID int, comment str
 	if err != nil {
 		return err
 	}
-	if status != StatusPendingApproval {
+	if status != StatusVerification {
 		return ErrInvalidState
 	}
-	if err := s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount); err != nil {
+	if err := s.repo.UpdateStatus(ctx, id, StatusVerification, StatusNeedsRecount); err != nil {
 		return err
 	}
 	s.publishStatusEvent(ctx, EventStockOpnameRejected, id, StatusNeedsRecount)
@@ -446,14 +586,20 @@ func (s *Service) RejectSession(ctx context.Context, id, userID int, comment str
 }
 
 func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment string) error {
+	if strings.TrimSpace(comment) == "" {
+		return ErrApprovalCommentReq
+	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
 		return err
 	}
-	if status != StatusPendingApproval {
+	if status != StatusVerification {
 		return ErrInvalidState
 	}
-	if err := s.repo.UpdateStatus(ctx, id, StatusPendingApproval, StatusNeedsRecount); err != nil {
+	if err := s.repo.InsertRecountRequest(ctx, id, userID, comment); err != nil {
+		return err
+	}
+	if err := s.repo.UpdateStatus(ctx, id, StatusVerification, StatusNeedsRecount); err != nil {
 		return err
 	}
 	s.publishStatusEvent(ctx, EventStockOpnameRecount, id, StatusNeedsRecount)
@@ -469,6 +615,138 @@ func (s *Service) ResumeCounting(ctx context.Context, id, userID int) error {
 		return ErrInvalidState
 	}
 	return s.repo.UpdateStatus(ctx, id, StatusNeedsRecount, StatusCounting)
+}
+
+// PostAdjustment applies an approved session's differences to live stock,
+// records an inventory adjustment document (own number from ia_seq) and emits
+// inventory movements. Expected quantities are recomputed from live stock at
+// posting time so the ledger always reflects reality (BR: expected = live at
+// posting).
+func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostAdjustmentRequest) (*Adjustment, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	session, err := s.repo.LockSessionForApproval(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if session.Status != StatusApproved {
+		return nil, ErrInvalidState
+	}
+	counter, err := s.repo.IsCounterAssigned(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if counter {
+		return nil, ErrSeparationOfDuties
+	}
+
+	items, err := s.repo.LoadApprovalItems(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	productIDs := make([]int, len(items))
+	for i, it := range items {
+		productIDs[i] = it.ProductID
+	}
+	stock, err := s.repo.LockStockForProducts(ctx, tx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	adjItems := make([]AdjustmentItem, 0, len(items))
+	movements := make([]movementRow, 0, len(items))
+	var totalDiff, totalAdj float64
+	for _, it := range items {
+		expected := float64(stock[it.ProductID])
+		diff := it.PhysicalQy - expected
+		adj := diff
+		reason := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", session.SessionNumber, it.PhysicalQy, expected)
+		if err := s.repo.UpdateItemAdjustment(ctx, tx, it.ID, expected, diff, adj, reason); err != nil {
+			return nil, err
+		}
+		totalDiff += diff
+		totalAdj += adj
+		adjItems = append(adjItems, AdjustmentItem{
+			ProductID:     it.ProductID,
+			ExpectedQty:   expected,
+			PhysicalQty:   it.PhysicalQy,
+			DifferenceQty: diff,
+			AdjustmentQty: adj,
+			UnitCost:      it.UnitCost,
+			LineTotal:     adj * it.UnitCost,
+			Reason:        reason,
+		})
+		if diff == 0 {
+			continue
+		}
+		newQty := int(math.Round(expected + diff))
+		if err := s.repo.UpdateProductStock(ctx, tx, it.ProductID, newQty); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
+		}
+		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: int(math.Round(diff)), Notes: reason})
+	}
+
+	// A zero-discrepancy count still posts an adjustment document recording the
+	// verified quantities (all differences zero, no stock movements) so the
+	// session advances to 'posted' and can be closed.
+	if err := s.repo.InsertMovements(ctx, tx, id, userID, movements); err != nil {
+		return nil, err
+	}
+
+	number, err := s.repo.GetNextAdjustmentNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+	adjustment := &Adjustment{
+		AdjustmentNumber: number,
+		SessionID:        id,
+		Notes:            req.Notes,
+		CreatedBy:        userID,
+	}
+	if err := s.repo.InsertAdjustment(ctx, tx, adjustment); err != nil {
+		return nil, err
+	}
+	if err := s.repo.InsertAdjustmentItems(ctx, tx, adjustment.ID, adjItems); err != nil {
+		return nil, err
+	}
+	if err := s.repo.MarkSessionTotals(ctx, tx, id, totalDiff, totalAdj); err != nil {
+		return nil, err
+	}
+	if err := s.repo.MarkSessionPosted(ctx, tx, id, userID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnamePosted, id, StatusPosted)
+
+	posted, err := s.repo.GetAdjustmentBySession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return posted, nil
+}
+
+// CloseSession closes a posted session. Deviations are already applied to
+// stock during posting; closing only finalises the record.
+func (s *Service) CloseSession(ctx context.Context, id, userID int) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := s.repo.MarkSessionClosed(ctx, tx, id, userID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishStatusEvent(ctx, EventStockOpnameClosed, id, StatusClosed)
+	return nil
 }
 
 func (s *Service) Summary(ctx context.Context, id, userID int) (*SessionSummary, error) {
@@ -500,9 +778,19 @@ func (s *Service) DifferenceReport(ctx context.Context, id, userID int) (*Sessio
 	return s.GetSessionForUser(ctx, id, userID)
 }
 
+// ListAdjustments returns posted adjustment documents (paginated).
+func (s *Service) ListAdjustments(ctx context.Context, limit, offset int, status, search string) ([]Adjustment, int, error) {
+	return s.repo.ListAdjustments(ctx, limit, offset, status, search)
+}
+
+// GetAdjustment returns a single adjustment document by id.
+func (s *Service) GetAdjustment(ctx context.Context, id int) (*Adjustment, error) {
+	return s.repo.GetAdjustment(ctx, id)
+}
+
 func isEditableStatus(status string) bool {
 	switch status {
-	case StatusDraft, StatusCounting, StatusNeedsRecount:
+	case StatusDraft, StatusOpen, StatusCounting, StatusNeedsRecount:
 		return true
 	}
 	return false
