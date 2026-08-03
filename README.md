@@ -6,7 +6,9 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 
 - **Point of Sale (POS)** — Transaksi penjualan dengan scanner, diskon, split payment (multi metode pembayaran), dan hold & recall (parked sales)
 - **Purchase Order & Goods Receiving** — Alur pembelian dari supplier: draft → confirmed → received, penerimaan barang parsial, auto-generate nomor PO/GR/DO
-- **Stock Opname** — Sesi perhitungan stok fisik (draft → counting → pending approval → approved/cancelled) dengan snapshot inventori, multi-counter assignment, blind count, recount workflow, dan auto-adjustment stok saat approval (FR-001 s.d. FR-044)
+- **Stock Opname** — Sesi perhitungan stok fisik dengan workflow 9-state (draft → open → counting → verification → needs_recount → approved → posted → closed/cancelled), multi-scope session (store/warehouse/category/product), multi-counter assignment, blind count, recount workflow, adjustment ledger (dokumen IA-), dan auto-adjustment stok saat posting (FR-001 s.d. FR-044)
+- **Storage Locations** — Master data lokasi penyimpanan (rak/gudang) dengan scope warehouse/store, CRUD + bulk actions (fase 1 dari per-rack stock tracking)
+- **Store Management** — CRUD toko/outlet + halaman UI manajemen toko (daftar, status aktif/nonaktif)
 - **Shift Management** — Buka/tutup shift kasir, opening/closing balance, discrepancy review & audit
 - **Pricing Engine** — Aturan harga (special price / promotion) berbasis produk, kategori, brand, customer group, dan store; workflow approval (draft → pending → approved/rejected); resolver harga real-time
 - **Supplier Management** — CRUD supplier, tautan produk-supplier, preferred supplier, bulk actions
@@ -143,6 +145,8 @@ internal/
 ├── sale/              # POS transaction, split payment, parked sales, export
 ├── shared/            # Shared types, logger, response helpers
 ├── shift/             # Cashier shift management
+├── stockopname/       # Stock opname sessions (count, verify, post adjustment)
+├── storagelocation/   # Storage locations (racks/shelves) CRUD
 ├── store/             # Store CRUD
 ├── supplier/          # Supplier CRUD + product-supplier links
 ├── uom/               # Unit of Measure CRUD + import adapter
@@ -163,6 +167,8 @@ internal/
 | `internal/pricing/resolver.go` | Harga final resolver (rule → harga efektif) |
 | `internal/purchase/service.go` | Purchase order & goods receipt logic |
 | `internal/shift/service.go` | Shift lifecycle (open/close/review/audit) |
+| `internal/stockopname/service.go` | Stock opname workflow (9-state lifecycle, count/verify/post) |
+| `internal/storagelocation/service.go` | Storage location CRUD |
 | `internal/sale/service.go` | POS transaction, parked sales, split payment |
 | `internal/shared/logger.go` | Structured logging (slog) |
 | `database/migrations/000_squash.sql` | Baseline schema (role, user, product, sale, inventory, dll) |
@@ -295,6 +301,18 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 | GET | `/stock-opnames/adjustments` | Laporan penyesuaian (dokumen IA-) | `stock_opname.report` |
 | GET | `/stock-opnames/adjustments/:id` | Detail dokumen penyesuaian | `stock_opname.report` |
 
+#### Storage Locations
+
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | `/storage-locations` | List lokasi penyimpanan (search, filter is_active) | `storage_location.view` |
+| GET | `/storage-locations/:id` | Detail lokasi | `storage_location.view` |
+| POST | `/storage-locations` | Buat lokasi (scope warehouse/store) | `storage_location.create` |
+| PUT | `/storage-locations/:id` | Update lokasi | `storage_location.update` |
+| DELETE | `/storage-locations/:id` | Hapus lokasi | `storage_location.delete` |
+| PUT | `/storage-locations/bulk` | Bulk update | `storage_location.update` |
+| DELETE | `/storage-locations/bulk` | Bulk delete | `storage_location.delete` |
+
 #### Customers & Customer Groups
 
 | Method | Endpoint | Description | Permission |
@@ -411,7 +429,7 @@ Base path: `/api`. Semua endpoint require JWT (via `Authorization: Bearer` atau 
 
 #### Import & Export
 
-Module yang didukung: `products`, `categories`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`.
+Module yang didukung: `products`, `categories`, `brands`, `uoms`, `customers`, `pricing_rules`, `suppliers`, `stores`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -469,6 +487,9 @@ web/src/
 │   ├── sales/         # Sales history
 │   ├── settings/      # Settings
 │   ├── shifts/        # Shift management
+│   ├── stock-opname/  # Stock opname (list, detail, counting, adjustments report)
+│   ├── storage-location/ # Storage locations management
+│   ├── stores/        # Store management
 │   └── supplier/      # Supplier management
 ├── shared/            # API client (axios), websocket, services, stores, types, utils (Jakarta time, permissions)
 │   └── ui/            # Shared UI components (Modal, DataTable, Pagination, dll)
@@ -547,9 +568,9 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **10 migrations (000–009)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
+Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **18 migrations (000–018)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql` dan `009_add_do_sequence.sql`) — lihat AGENTS.md.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`) — lihat AGENTS.md.
 
 Migrations terkini:
 - `000_squash.sql` — Baseline schema + seed data awal (roles, permissions, users, payment methods, customer groups)
@@ -562,6 +583,15 @@ Migrations terkini:
 - `007_purchase_orders.sql` — Tabel PO, goods receipts, permission purchase_order.*
 - `008_add_cancel_permission.sql` — Permission `purchase_order.cancel`
 - `009_add_do_sequence.sql` — Sequence `do_seq` untuk nomor DO
+- `010_sale_price_snapshot.sql` — Tabel `cart_sessions` + `cart_items` (snapshot harga immutable), kolom snapshot di `sale_items`
+- `011_add_staff_user.sql` — Seed user staff (inventory + dashboard)
+- `012_stock_opname.sql` — Sesi stock opname (`stock_opnames`, items, counts, assignments), sequence `so_seq`, permission `stock_opname.*`
+- `013_remove_dead_permissions.sql` — Hapus permission yang tidak pernah dipakai (sale.print, sale.void, inventory.view, supplier_cost.*)
+- `014_remove_orphaned_role_grants.sql` — Revoke permission yang tidak punya UI dari seeded roles (least-privilege cleanup)
+- `015_stock_opname_store_id.sql` — Kolom `store_id` di `stock_opnames` + backfill data lama
+- `016_stock_opname_scope_workflow.sql` — Workflow stock opname 9-state, multi-scope session, recount requests, permission `stock_opname.verify/post/close/report`
+- `017_stock_opname_adjustment_ledger.sql` — Ledger penyesuaian (`inventory_adjustments` + items, sequence `ia_seq`)
+- `018_storage_locations.sql` — Tabel `storage_locations` + permission `storage_location.*`
 
 ---
 
@@ -609,6 +639,13 @@ Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `pro
 | `customer_group.create/update/delete` | ✅ | ✅ | – | – | – |
 | `store.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `store.create/update/delete` | ✅ | ✅ | – | – | – |
+| `storage_location.view` | ✅ | ✅ | – | – | – |
+| `storage_location.create/update/delete` | ✅ | ✅ | – | – | – |
+| `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | – | ✅ | ✅ |
+| `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | – |
+| `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | – |
+| `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | – |
 | `pricing.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – |
 | `pricing.delete` | ✅ | ✅ | – | – | – |

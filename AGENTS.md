@@ -95,6 +95,9 @@ Key migrations with deployment ordering constraints:
 - `006_consolidate_permissions.sql` — must be applied before the binary that removed `normalizePermissionCode`
 - `009_add_do_sequence.sql` — creates the `do_seq` sequence required by `GetNextDONumber`; if the binary that auto-generates DO numbers on goods receipt is deployed first, every `POST /api/goods-receipts` will fail with a missing `do_seq` relation
 - `012_stock_opname.sql` — creates the `so_seq` sequence, `stock_opnames` family of tables, and seeds `stock_opname.*` permissions/role grants; must be applied before the binary that added the Stock Opname endpoints, otherwise `POST /api/stock-opnames` fails with a missing `so_seq` relation and permission checks fail for `stock_opname.*` codes
+- `016_stock_opname_scope_workflow.sql` — reworks the Stock Opname workflow to 9 states (draft/open/counting/verification/needs_recount/approved/posted/closed/cancelled), adds multi-scope sessions + recount requests, seeds `stock_opname.verify/post/close/report` and removes legacy `approve`/`reject`; must be applied before the binary that uses the new status codes and permissions, otherwise approval flows fail with unknown permission codes
+- `017_stock_opname_adjustment_ledger.sql` — creates the `ia_seq` sequence and `inventory_adjustments`/`inventory_adjustment_items` ledger; must be applied before the binary that auto-generates adjustment numbers (IA-) on stock opname posting, otherwise `POST /api/stock-opnames/:id/post-adjustment` fails with a missing `ia_seq` relation
+- `018_storage_locations.sql` — creates the `storage_locations` table and seeds `storage_location.*` permissions/role grants; must be applied before the binary that added the Storage Locations endpoints, otherwise `POST /api/storage-locations` fails with a missing `storage_locations` relation and permission checks fail for `storage_location.*` codes
 
 ## Filesystem Convention
 

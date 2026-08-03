@@ -12,9 +12,10 @@ Dokumen ini menjelaskan fitur-fitur baru yang akan ditambahkan ke Retail POS Sys
 4. [Purchase Order & Goods Receiving](#4-purchase-order--goods-receiving)
 5. [Stock Opname (Physical Count)](#5-stock-opname-physical-count)
 6. [Store Management](#6-store-management)
-7. [Time-based Pricing Update](#7-time-based-pricing-update)
-8. [Admin Change Freeze During Active Shifts](#8-admin-change-freeze-during-active-shifts)
-9. [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions)
+7. [Storage Locations](#7-storage-locations)
+8. [Time-based Pricing Update](#8-time-based-pricing-update)
+9. [Admin Change Freeze During Active Shifts](#9-admin-change-freeze-during-active-shifts)
+10. [Price Consistency During Active Transactions](#10-price-consistency-during-active-transactions)
 
 ---
 
@@ -185,7 +186,9 @@ Alur pembelian barang dari supplier. Saat stok menipis atau butuh restock, toko 
 
 ---
 
-## 5. Stock Opname (Physical Count)
+## 5. Stock Opname (Physical Count) ✅
+
+**Status:** SUDAH DIIMPLEMENTASI — `internal/stockopname/`, `web/src/modules/stock-opname/`, migrasi `012_stock_opname.sql`, `015_stock_opname_store_id.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`
 
 ### Penjelasan
 
@@ -202,43 +205,45 @@ Stock Opname per 1 Juli 2026:
 | Produk B   | 80          | 80         |  0      | OK              |
 | Produk C   | 200         | 195        | -5      | Hilang          |
 
-→ Setelah disetujui:
-  - Stok sistem Produk A: 150 → 148 (adjust -2)
+→ Setelah diverifikasi & di-post:
+  - Sesi: Draft → Open → Counting → Verification → Approved → Posted → Closed
+  - Saat posting, stok sistem Produk A: 150 → 148 (adjust -2)
   - Stok sistem Produk C: 200 → 195 (adjust -5)
   - Inventory movement tercatat: type = "stock_opname"
+  - Dokumen penyesuaian IA- dibuat di ledger (inventory_adjustments)
 ```
 
 ### Status Stock Opname
 
 | Status | Keterangan |
 |--------|------------|
-| Draft | Sesi opname baru, bisa diedit |
-| Pending Approval | Sudah selesai dihitung, menunggu approval manager |
-| Approved | Disetujui, stok sistem otomatis di-adjust |
-| Rejected | Ditolak, perlu dihitung ulang |
+| Draft | Sesi baru dibuat, bisa diedit |
+| Open | Sesi dibuka, menunggu counting dimulai |
+| Counting | Petugas menghitung stok fisik (autosave per item) |
+| Verification | Hasil counting disubmit, menunggu verifikasi supervisor |
+| Needs Recount | Ditolak / diminta hitung ulang |
+| Approved | Terverifikasi, selisih di-persist (stok belum berubah) |
+| Posted | Penyesuaian di-posting ke stok + dokumen IA- dibuat |
+| Closed | Sesi ditutup (akhir alur) |
+| Cancelled | Sesi dibatalkan (dari Draft/Open/Counting/Needs Recount) |
 
-### Komponen yang Perlu Dibangun
+### Komponen yang Telah Dibangun
 
 **Backend:**
-- Tabel `stock_opnames` (id, store_id, status, notes, counted_by, confirmed_by, counted_at, confirmed_at)
-- Tabel `stock_opname_items` (opname_id, product_id, system_qty, physical_qty, difference, notes)
-- Endpoint: create opname session, save counts, submit for approval, approve/reject, list history
-- Saat approve: auto-adjust stok + create inventory_movements (type: `stock_opname`)
-- Laporan selisih stok per sesi opname
+- Tabel: `stock_opnames` (store_id, status, notes), `stock_opname_items`, `stock_opname_counts`, `stock_opname_assignments`, `stock_opname_session_scopes` (scope store/warehouse/category/product), `stock_opname_recount_requests`, `inventory_adjustments` + `inventory_adjustment_items` (ledger, sequence `ia_seq`)
+- Multi-scope session (store / warehouse / category / product), store-scoped WebSocket broadcast, assign counter/supervisor (role-validated), blind count + recount workflow
+- Endpoint: create, open, cancel, assign/reassign, start, count (autosave), counts history, submit, verify, reject, recount, resume, post-adjustment (auto-adjust stok + dokumen IA-), close, summary, difference report, export (CSV/Excel/PDF), adjustments report
+- Permissions: `stock_opname.*` (view/create/assign/count/submit/verify/post/close/report/cancel/export), dot-notation
 
 **Frontend:**
-- Halaman: buat sesi opname → input stok fisik per produk (dengan stok sistem sebagai referensi)
-- Filter/search produk saat input
-- Ringkasan selisih (total item, total selisih, item perlu perhatian)
-- Tombol submit untuk approval
-- Approval view untuk manager (lihat selisih, approve/reject)
-- Riwayat stock opname
+- Halaman: daftar sesi (filter status/scope, pagination), detail sesi, form create (multi-scope + dropdown scope), counting UI per item dengan stok sistem sebagai referensi, approval view untuk supervisor, riwayat counting, laporan selisih, adjustments report (dokumen IA-)
+- Real-time status update via WebSocket (store-scoped) + notification bell (permission-gated)
 
 ---
 
-## 6. Store Management
+## 6. Store Management ✅
 
-> **Status:** BACKEND SUDAH DIIMPLEMENTASI — `internal/store/` (CRUD + audit + import/export, wired di `cmd/server/main.go`). Yang belum ada: **halaman UI manajemen toko**.
+**Status:** SUDAH DIIMPLEMENTASI — `internal/store/`, `web/src/modules/stores/`
 
 ### Penjelasan
 
@@ -271,19 +276,57 @@ Sistem saat ini mendukung **lebih dari satu toko/outlet** (`stores` table, `stor
 - Audit log untuk create/update/delete store
 - Import/export via framework reusable (schema `stores`)
 
-### Komponen yang Perlu Dibangun
+### Komponen yang Telah Dibangun
 
 **Frontend:**
-- Halaman Store Management (di module Settings/Admin): daftar toko (tabel), filter/search, status badge aktif/nonaktif
-- Form create/edit store (nama, alamat, telepon, status)
-- Konfirmasi hapus / tombol nonaktifkan
+- `web/src/modules/stores/` — `StoresPage.svelte` (daftar toko dengan tabel, status badge aktif/nonaktif), service + types, unit tests
+- Route `/stores` + label di sidebar/topbar, permission `store.view`
 - Integrasi dengan dropdown pemilihan toko yang sudah ada (POS, sales, PO)
+---
+
+## 7. Storage Locations ✅
+
+**Status:** SUDAH DIIMPLEMENTASI — `internal/storagelocation/`, `web/src/modules/storage-location/`, migrasi `018_storage_locations.sql`
+
+### Penjelasan
+
+Master data **lokasi penyimpanan** (rak/gudang) tempat produk disimpan. Setiap lokasi bisa dikaitkan ke warehouse atau store (scope). Ini adalah fase 1 dari per-rack stock tracking — saat ini hanya master data; tracking stok per lokasi dan stock opname per lokasi direncanakan di fase berikutnya.
+
+### Contoh Workflow
+
+```
+1. Admin buka halaman Storage Locations:
+   - Daftar lokasi: Rak A-01 (Warehouse Pusat), Rak B-02 (Toko Pusat)
+   - Status: aktif/nonaktif, scope (warehouse / store)
+
+2. Admin tambah lokasi baru:
+   - Kode: "RAK-C-01"
+   - Nama: "Rak C-01 – Snack"
+   - Scope: warehouse / store
+   - Catatan: dekat pintu masuk
+
+3. Admin nonaktifkan lokasi yang tidak dipakai:
+   - Lokasi "RAK-Z-99" → is_active = false
+```
+
+### Komponen yang Telah Dibangun
+
+**Backend:**
+- Tabel `storage_locations` (code, name, warehouse_id, store_id, notes, is_active) dengan constraint scope (warehouse atau store), unique code
+- `internal/storagelocation/`: domain, repository, service, handler (+ audit log untuk create/update/delete)
+- Endpoint: `GET/POST /api/storage-locations`, `GET/PUT/DELETE /api/storage-locations/:id`, `PUT/DELETE /api/storage-locations/bulk`
+- Permissions: `storage_location.view` / `storage_location.create` / `storage_location.update` / `storage_location.delete`
+
+**Frontend:**
+- `web/src/modules/storage-location/` — halaman list (`StorageLocationsPage.svelte`), tabel, toolbar/filter, modal create/edit/delete, service + types, unit tests
+- Route `/storage-locations` + label di sidebar/topbar, permission `storage_location.view`
 
 ---
- 
-## 7. Time-based Pricing Update
 
-> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** dan digantikan oleh [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions) (server-authorized snapshot). Harga boleh berubah kapan saja; transaksi yang sedang berlangsung tidak terpengaruh karena harga dibekukan per-item saat ditambahkan. Sisa gagasan *scheduled price changes* masih relevan sebagai future enhancement (lihat ADR §6).
+ 
+## 8. Time-based Pricing Update
+
+> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** dan digantikan oleh [Price Consistency During Active Transactions](#10-price-consistency-during-active-transactions) (server-authorized snapshot). Harga boleh berubah kapan saja; transaksi yang sedang berlangsung tidak terpengaruh karena harga dibekukan per-item saat ditambahkan. Sisa gagasan *scheduled price changes* masih relevan sebagai future enhancement (lihat ADR §6).
 
 ### Penjelasan
 
@@ -333,9 +376,9 @@ Jam 14:00 - Admin coba ubah harga:
 
 ---
  
-## 8. Admin Change Freeze During Active Shifts
+## 9. Admin Change Freeze During Active Shifts
 
-> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** (menghambat operasional toko multi-kasir / 24 jam) dan digantikan oleh [Price Consistency During Active Transactions](#9-price-consistency-during-active-transactions). Perubahan master data (harga, cost, pricing rule, discount) tetap diizinkan kapan saja; transaksi yang berlangsung tidak terpengaruh.
+> **Status: DITOLAK / DIGANTI** — pendekatan ini **ditolak di BDR** (menghambat operasional toko multi-kasir / 24 jam) dan digantikan oleh [Price Consistency During Active Transactions](#10-price-consistency-during-active-transactions). Perubahan master data (harga, cost, pricing rule, discount) tetap diizinkan kapan saja; transaksi yang berlangsung tidak terpengaruh.
 
 ### Penjelasan
 
@@ -401,7 +444,7 @@ Skenario 3 - Percobaan bypass via API langsung:
 
 ---
  
-## 9. Price Consistency During Active Transactions ✅
+## 10. Price Consistency During Active Transactions ✅
 
 **Status:** SUDAH DIIMPLEMENTASI — migrasi `010_sale_price_snapshot.sql`, `internal/pricing` (`ResolveSnapshot`/`ResolveSnapshotsBatch`), `internal/sale` (cart service + `CheckoutCart`), `web/src/modules/pos/services/pos-service.ts`, E2E `tests/e2e/price-consistency.spec.ts`
 
@@ -468,10 +511,11 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 | 3 | ~~Split Payment~~ | ✅ Selesai |
 | 4 | ~~Price Consistency During Active Transactions~~ | ✅ Selesai (server-authorized snapshot) |
 | 5 | ~~Purchase Order~~ | ✅ Selesai |
-| 6 | Store Management | Backend selesai, frontend belum ada |
-| 7 | Stock Opname | Akurasi inventori, mencegah selisih stok |
+| 6 | ~~Store Management~~ | ✅ Selesai |
+| 7 | ~~Stock Opname~~ | ✅ Selesai (workflow 9-state + adjustment ledger) |
 | ~~8~~ | ~~Admin Change Freeze During Active Shifts~~ | ~~Ditolak di BDR~~ — digantikan snapshot |
 | ~~9~~ | ~~Time-based Pricing Update~~ | ~~Ditolak di BDR~~ — hanya scheduled changes yang relevan |
+| 10 | Storage Locations | ✅ Selesai (master data; per-rack stock = fase berikutnya) |
 
 ---
 
@@ -481,4 +525,5 @@ Kasir checkout → POST /api/pos/cart/:id/checkout
 - **Supplier Returns:** Baru relevan setelah Purchase Order terbangun.
 - **Product Image Upload:** Dibatalkan untuk saat ini (tidak diprioritaskan).
 - **Admin Change Freeze & Time-based Pricing Update:** Ditolak di BDR — memblokir perubahan master data saat shift aktif menghambat operasional. Digantikan oleh *Price Consistency During Active Transactions* (snapshot dibuat saat add item; master data tetap mutable).
+- **Storage Locations:** Master data sudah dibangun. Fase berikutnya: per-rack stock tracking dan stock opname per lokasi.
 - Semua fitur baru harus mengikuti pattern Clean Architecture yang sudah ada (domain → repository → service → handler).
