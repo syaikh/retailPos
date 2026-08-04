@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -39,22 +40,22 @@ func NewHandler(svc ShiftService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/shifts/open", auth, perm("shift.create"), h.OpenShift)
-	r.POST("/shifts/:id/close", auth, perm("shift.create"), h.CloseShift)
-	r.POST("/shifts/close-all", auth, perm("shift.create"), h.CloseAll)
-	r.POST("/shifts/:id/review", auth, perm("shift.review"), h.ReviewShift)
-	r.POST("/shifts/:id/audit", auth, perm("shift.audit"), h.AuditShift)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/shifts/open", auth, perm(permissions.ShiftCreate), h.OpenShift)
+	r.POST("/shifts/:id/close", auth, perm(permissions.ShiftCreate), h.CloseShift)
+	r.POST("/shifts/close-all", auth, perm(permissions.ShiftCreate), h.CloseAll)
+	r.POST("/shifts/:id/review", auth, perm(permissions.ShiftReview), h.ReviewShift)
+	r.POST("/shifts/:id/audit", auth, perm(permissions.ShiftAudit), h.AuditShift)
 	r.GET("/shifts/active", auth, h.GetActiveShift)
-	r.GET("/shifts", auth, perm("shift.view"), h.ListShifts)
-	r.GET("/shifts/export", auth, perm("shift.view"), h.ExportShifts)
-	r.GET("/shifts/:id", auth, perm("shift.view"), h.GetShiftByID)
+	r.GET("/shifts", auth, perm(permissions.ShiftView), h.ListShifts)
+	r.GET("/shifts/export", auth, perm(permissions.ShiftView), h.ExportShifts)
+	r.GET("/shifts/:id", auth, perm(permissions.ShiftView), h.GetShiftByID)
 }
 
 func (h *Handler) OpenShift(c *gin.Context) {
 	var req struct {
 		StoreID        *int `json:"store_id"`
-		OpeningBalance int   `json:"opening_balance"`
+		OpeningBalance int  `json:"opening_balance"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})

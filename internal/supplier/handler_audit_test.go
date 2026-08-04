@@ -10,6 +10,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -30,18 +31,18 @@ func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditL
 }
 
 type mockSupplierServiceForAudit struct {
-	getByIDFn              func(ctx context.Context, id int) (*Supplier, error)
-	getAllFn              func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
-	createFn              func(ctx context.Context, supplier *Supplier) error
-	updateFn              func(ctx context.Context, supplier *Supplier) error
-	deleteFn              func(ctx context.Context, id int) error
-	linkProductFn         func(ctx context.Context, ps *ProductSupplier) error
-	unlinkProductFn       func(ctx context.Context, productID, supplierID int) error
-	getProductSupplierFn  func(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
-	setPreferredSupplierFn func(ctx context.Context, productID, supplierID int) error
-	updateProductSupplierFn func(ctx context.Context, ps *ProductSupplier) error
-	bulkUpdateFn           func(ctx context.Context, ids []int, isActive bool) (int, error)
-	bulkDeleteFn           func(ctx context.Context, ids []int) (int, error)
+	getByIDFn                 func(ctx context.Context, id int) (*Supplier, error)
+	getAllFn                  func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
+	createFn                  func(ctx context.Context, supplier *Supplier) error
+	updateFn                  func(ctx context.Context, supplier *Supplier) error
+	deleteFn                  func(ctx context.Context, id int) error
+	linkProductFn             func(ctx context.Context, ps *ProductSupplier) error
+	unlinkProductFn           func(ctx context.Context, productID, supplierID int) error
+	getProductSupplierFn      func(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
+	setPreferredSupplierFn    func(ctx context.Context, productID, supplierID int) error
+	updateProductSupplierFn   func(ctx context.Context, ps *ProductSupplier) error
+	bulkUpdateFn              func(ctx context.Context, ids []int, isActive bool) (int, error)
+	bulkDeleteFn              func(ctx context.Context, ids []int) (int, error)
 	getProductsBySupplierIDFn func(ctx context.Context, supplierID int) ([]ProductSupplier, error)
 }
 
@@ -176,7 +177,7 @@ func TestAuditHandler_CreateSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"name":"Audit Supplier","code":"AUDIT-1","contact_name":"Jane","is_active":true}`
@@ -225,7 +226,7 @@ func TestAuditHandler_UpdateSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"name":"Updated Supplier"}`
@@ -267,7 +268,7 @@ func TestAuditHandler_DeleteSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -303,7 +304,7 @@ func TestAuditHandler_LinkProduct(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"product_id":1,"unit_cost":5000}`
@@ -341,7 +342,7 @@ func TestAuditHandler_UnlinkProduct(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -380,7 +381,7 @@ func TestAuditHandler_UpdateProductSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"unit_cost":7000}`
@@ -418,7 +419,7 @@ func TestAuditHandler_SetPreferredSupplier(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -454,7 +455,7 @@ func TestAuditHandler_BulkUpdate(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"ids":[1,2,3],"is_active":false}`
@@ -492,7 +493,7 @@ func TestAuditHandler_BulkDelete(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	body := `{"ids":[1,2,3]}`

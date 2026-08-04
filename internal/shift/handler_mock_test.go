@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 )
 
 func init() {
@@ -21,15 +22,15 @@ func init() {
 }
 
 type mockShiftService struct {
-	openShiftFn        func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
-	closeShiftFn       func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
-	closeAllFn         func(ctx context.Context, userID int) ([]int, error)
-	getActiveShiftFn   func(ctx context.Context, userID int) (*Shift, error)
-	listShiftsFn       func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
-	getShiftByIDFn     func(ctx context.Context, shiftID int) (*Shift, error)
-	reviewShiftFn      func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
-	auditShiftFn       func(ctx context.Context, shiftID int) (*Shift, int, error)
-	exportShiftsFn     func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	openShiftFn      func(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
+	closeShiftFn     func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	closeAllFn       func(ctx context.Context, userID int) ([]int, error)
+	getActiveShiftFn func(ctx context.Context, userID int) (*Shift, error)
+	listShiftsFn     func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	getShiftByIDFn   func(ctx context.Context, shiftID int) (*Shift, error)
+	reviewShiftFn    func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	auditShiftFn     func(ctx context.Context, shiftID int) (*Shift, int, error)
+	exportShiftsFn   func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -86,7 +87,7 @@ func setupShiftHandler(svc ShiftService, auditSvc audit.AuditCreator) *gin.Engin
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r
@@ -309,8 +310,8 @@ func TestShiftHandler_ListShifts_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Data []Shift `json:"data"`
-		Total int    `json:"total"`
+		Data  []Shift `json:"data"`
+		Total int     `json:"total"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)

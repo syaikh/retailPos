@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -36,16 +37,16 @@ func NewHandler(svc ReportService) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/dashboard/stats", auth, perm("dashboard.view"), h.GetDashboardStats)
-	r.GET("/dashboard/live", auth, perm("dashboard.view"), h.GetLiveDashboardStats)
-	r.GET("/dashboard/chart", auth, perm("report.view"), h.GetSalesChartData)
-	r.GET("/dashboard/chart/weekly", auth, perm("report.view"), h.GetSalesWeeklyReport)
-	r.GET("/dashboard/chart/monthly", auth, perm("report.view"), h.GetSalesMonthlyReport)
-	r.GET("/dashboard/comparison", auth, perm("report.view"), h.GetPeriodComparison)
-	r.POST("/dashboard/export", auth, perm("report.view"), h.ExportDashboard)
-	r.GET("/dashboard/years", auth, perm("report.view"), h.GetAvailableYears)
-	r.GET("/dashboard/pricing-breakdown", auth, perm("report.view"), h.GetPricingBreakdown)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/dashboard/stats", auth, perm(permissions.DashboardView), h.GetDashboardStats)
+	r.GET("/dashboard/live", auth, perm(permissions.DashboardView), h.GetLiveDashboardStats)
+	r.GET("/dashboard/chart", auth, perm(permissions.ReportView), h.GetSalesChartData)
+	r.GET("/dashboard/chart/weekly", auth, perm(permissions.ReportView), h.GetSalesWeeklyReport)
+	r.GET("/dashboard/chart/monthly", auth, perm(permissions.ReportView), h.GetSalesMonthlyReport)
+	r.GET("/dashboard/comparison", auth, perm(permissions.ReportView), h.GetPeriodComparison)
+	r.POST("/dashboard/export", auth, perm(permissions.ReportView), h.ExportDashboard)
+	r.GET("/dashboard/years", auth, perm(permissions.ReportView), h.GetAvailableYears)
+	r.GET("/dashboard/pricing-breakdown", auth, perm(permissions.ReportView), h.GetPricingBreakdown)
 }
 
 // GetDashboardStats godoc

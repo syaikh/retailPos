@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 )
 
 type mockAuditCreator struct {
@@ -147,7 +148,7 @@ func setupPricingMockRouter(svc PricingService, resolver PriceResolver, searcher
 	})
 	h := NewHandler(svc, resolver, auditSvc)
 	h.SetProductSearcher(searcher)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r

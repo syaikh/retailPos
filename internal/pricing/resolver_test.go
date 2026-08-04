@@ -433,8 +433,8 @@ func TestResolver_Resolve_ProductScopeWins(t *testing.T) {
 		scopes:     map[int]ProductScope{1: {CategoryID: &catID}},
 		rules: map[int][]PricingRule{
 			1: {
-				rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 14000, 1, 0, true),  // category match (score 2)
-				rule(11, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true),  // product match (score 3)
+				rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 14000, 1, 0, true), // category match (score 2)
+				rule(11, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true),    // product match (score 3)
 			},
 		},
 	}
@@ -550,12 +550,12 @@ func TestResolver_ResolveBatch_CombinableRules(t *testing.T) {
 		scopes:     map[int]ProductScope{1: {}, 2: {}},
 		rules: map[int][]PricingRule{
 			1: {
-				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),  // combinable 10%
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),   // combinable 10%
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // combinable 5000 off
 			},
 			2: {
 				ruleAdvanced(20, PricingTypeSpecialPrice, PricingMethodFixedPrice, 30000, 1, nil, 5, true, false, nil, nil, nil, nil, nil, nil, nil), // non-combinable fixed
-				ruleAdvanced(21, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),     // combinable 10%
+				ruleAdvanced(21, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),       // combinable 10%
 			},
 		},
 	}
@@ -588,7 +588,7 @@ func TestResolver_Resolve_NoStacking_BestSingleRule(t *testing.T) {
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{
 			1: {
-				rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 0, true),   // 10% off
+				rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 0, true),      // 10% off
 				rule(11, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, 1, true), // 80000 fixed, higher priority
 			},
 		},
@@ -807,9 +807,9 @@ func TestResolver_Resolve_StackingThreePromotions(t *testing.T) {
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{
 			1: {
-				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 1
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),   // priority 1
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 2
-				ruleAdvanced(12, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 3, true, true, nil, nil, nil, nil, nil, nil, nil),  // priority 3
+				ruleAdvanced(12, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 3, true, true, nil, nil, nil, nil, nil, nil, nil),    // priority 3
 			},
 		},
 	}
@@ -828,7 +828,7 @@ func TestResolver_Resolve_StackingBestNonCombinablePlusCombinable(t *testing.T) 
 		rules: map[int][]PricingRule{
 			1: {
 				ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, nil, 5, true, false, nil, nil, nil, nil, nil, nil, nil), // best non-combinable: 80000
-				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),  // combinable: 10% → 72000
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),       // combinable: 10% → 72000
 			},
 		},
 	}
@@ -847,7 +847,7 @@ func TestResolver_Resolve_StackingFixedPriceThenPercent(t *testing.T) {
 		rules: map[int][]PricingRule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodFixedPrice, 150000, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // fixed → 150000
-				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil),   // 10% → 135000
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil),    // 10% → 135000
 			},
 		},
 	}
@@ -883,8 +883,8 @@ func TestResolver_Resolve_StackingPriorityOrder(t *testing.T) {
 		basePrices: map[int]int{1: 100000},
 		rules: map[int][]PricingRule{
 			1: {
-				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 10, true, true, nil, nil, nil, nil, nil, nil, nil),   // priority 10
-				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 1
+				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 10, true, true, nil, nil, nil, nil, nil, nil, nil),    // priority 10
+				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),    // priority 1
 				ruleAdvanced(12, PricingTypePromotion, PricingMethodDiscountAmt, 10000, 1, nil, 5, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 5
 			},
 		},

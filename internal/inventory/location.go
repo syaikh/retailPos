@@ -83,10 +83,10 @@ func (h *Handler) SetLocationStock(c *gin.Context) {
 // @Router       /inventory/locations/transfer [post]
 func (h *Handler) TransferLocationStock(c *gin.Context) {
 	var req struct {
-		ProductID       int `json:"product_id"`
-		FromLocationID  int `json:"from_location_id"`
-		ToLocationID    int `json:"to_location_id"`
-		Quantity        int `json:"quantity"`
+		ProductID      int `json:"product_id"`
+		FromLocationID int `json:"from_location_id"`
+		ToLocationID   int `json:"to_location_id"`
+		Quantity       int `json:"quantity"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})

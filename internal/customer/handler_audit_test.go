@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func setupMockCustomerRouterWithAudit(svc CustomerService) *gin.Engine {
 	})
 	auditSvc := &mockAuditCreator{}
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r

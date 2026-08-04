@@ -601,48 +601,48 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 }
 
 type PricingRuleImportRow struct {
-	Row              int
-	ProductID        *int
-	CategoryID       *int
-	BrandID          *int
-	PricingType      string
-	PricingMethod    string
-	PricingValue     float64
-	Name             string
-	MinimumQuantity  int
-	MaximumQuantity  *int
-	Priority         int
-	IsActive         bool
-	EffectiveFrom    *time.Time
-	EffectiveUntil   *time.Time
-	CustomerGroupID  *int
-	StoreID          *int
-	RecurrenceDays   []string
-	TimeFrom         *string
-	TimeTo           *string
-	AllowCombine     bool
+	Row             int
+	ProductID       *int
+	CategoryID      *int
+	BrandID         *int
+	PricingType     string
+	PricingMethod   string
+	PricingValue    float64
+	Name            string
+	MinimumQuantity int
+	MaximumQuantity *int
+	Priority        int
+	IsActive        bool
+	EffectiveFrom   *time.Time
+	EffectiveUntil  *time.Time
+	CustomerGroupID *int
+	StoreID         *int
+	RecurrenceDays  []string
+	TimeFrom        *string
+	TimeTo          *string
+	AllowCombine    bool
 }
 
 type PricingRuleImportPayload struct {
-	ProductID        *int
-	CategoryID       *int
-	BrandID          *int
-	PricingType      string
-	PricingMethod    string
-	PricingValue     float64
-	Name             string
-	MinimumQuantity  int
-	MaximumQuantity  *int
-	Priority         int
-	IsActive         bool
-	EffectiveFrom    *time.Time
-	EffectiveUntil   *time.Time
-	CustomerGroupID  *int
-	StoreID          *int
-	RecurrenceDays   []string
-	TimeFrom         *string
-	TimeTo           *string
-	AllowCombine     bool
+	ProductID       *int
+	CategoryID      *int
+	BrandID         *int
+	PricingType     string
+	PricingMethod   string
+	PricingValue    float64
+	Name            string
+	MinimumQuantity int
+	MaximumQuantity *int
+	Priority        int
+	IsActive        bool
+	EffectiveFrom   *time.Time
+	EffectiveUntil  *time.Time
+	CustomerGroupID *int
+	StoreID         *int
+	RecurrenceDays  []string
+	TimeFrom        *string
+	TimeTo          *string
+	AllowCombine    bool
 }
 
 func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []PricingRuleImportPayload) (int, error) {

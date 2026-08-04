@@ -140,5 +140,3 @@ func nilStr(s *string) string {
 	}
 	return *s
 }
-
-

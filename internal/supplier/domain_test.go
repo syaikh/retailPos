@@ -36,12 +36,12 @@ func TestSupplier_WithValues(t *testing.T) {
 	phone := "+628123456789"
 	email := "supplier@example.com"
 	s := Supplier{
-		ID:        1,
-		Name:      "PT Maju Jaya",
-		Code:       "SUP-001",
-		Phone:     &phone,
-		Email:     &email,
-		IsActive:  true,
+		ID:       1,
+		Name:     "PT Maju Jaya",
+		Code:     "SUP-001",
+		Phone:    &phone,
+		Email:    &email,
+		IsActive: true,
 	}
 
 	assert.Equal(t, 1, s.ID)

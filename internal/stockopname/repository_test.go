@@ -680,12 +680,15 @@ func TestRepository_ScopeName(t *testing.T) {
 	}
 	// v1 enforces a single global active session; end each before the next.
 	expectName := map[string]string{
-		"store":    "Test Store 9701",
+		"store":     "Test Store 9701",
 		"warehouse": "Test WH 9701",
-		"category": "Scope Cat 9701",
-		"product":  "Test Product SO-SCOPE-9701",
+		"category":  "Scope Cat 9701",
+		"product":   "Test Product SO-SCOPE-9701",
 	}
-	order := []struct{ scopeType string; scopeID int64 }{
+	order := []struct {
+		scopeType string
+		scopeID   int64
+	}{
 		{"store", 9701},
 		{"warehouse", 9701},
 		{"category", int64(categoryID)},

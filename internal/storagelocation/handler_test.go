@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -34,7 +35,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func testPermMiddleware(perm string) gin.HandlerFunc {
+func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}

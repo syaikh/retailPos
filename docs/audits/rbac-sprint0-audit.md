@@ -490,7 +490,7 @@ Annotation yang ditambahkan saat Fase 5:
 
 | # | Debt | Prioritas |
 |---|------|-----------|
-| 1 | Backend Permission Registry `internal/permissions/permissions.go` (~162 string literal) | HIGH |
+| 1 | Backend Permission Registry `internal/permissions/permissions.go` (~162 string literal) — **SELESAI** (item 1 Sprint 1) | HIGH |
 | 2 | Ownership enforcement backend: `GET /shifts` (`ListShifts`) tidak menscope ownership | HIGH |
 | 3 | 10 backend endpoints tanpa permission check (§2A) | MEDIUM |
 | 4 | Supplier endpoints pakai `pricing.*` namespace (§2B) | MEDIUM |

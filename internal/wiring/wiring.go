@@ -12,7 +12,6 @@ import (
 	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	ieh "retail-pos-system/internal/platform/importexport/handler"
@@ -22,6 +21,7 @@ import (
 	"retail-pos-system/internal/platform/importexport/schema"
 	"retail-pos-system/internal/platform/importexport/template"
 	"retail-pos-system/internal/platform/importexport/validation"
+	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/purchase"
 	"retail-pos-system/internal/report"
@@ -76,72 +76,72 @@ func (a *productPriceAdapter) GetProductPrice(ctx context.Context, productID int
 }
 
 type Dependencies struct {
-	UserRepo        *user.Repository
-	ProductRepo     *product.Repository
-	PurchaseRepo    *purchase.Repository
-	SaleRepo        *sale.Repository
-	InventoryRepo   *inventory.Repository
-	CustomerRepo    *customer.Repository
-	CategoryRepo    *category.Repository
-	BrandRepo       *brand.Repository
-	UOMRepo         *uom.Repository
-	AuditRepo       *audit.Repository
-	ReportRepo      *report.Repository
-	PricingRepo     *pricing.Repository
-	SupplierRepo    *supplier.Repository
-	CustomerGroupRepo *customergroup.Repository
-	StoreRepo       *store.Repository
-	ShiftRepo       *shift.Repository
-	StockOpnameRepo *stockopname.Repository
+	UserRepo            *user.Repository
+	ProductRepo         *product.Repository
+	PurchaseRepo        *purchase.Repository
+	SaleRepo            *sale.Repository
+	InventoryRepo       *inventory.Repository
+	CustomerRepo        *customer.Repository
+	CategoryRepo        *category.Repository
+	BrandRepo           *brand.Repository
+	UOMRepo             *uom.Repository
+	AuditRepo           *audit.Repository
+	ReportRepo          *report.Repository
+	PricingRepo         *pricing.Repository
+	SupplierRepo        *supplier.Repository
+	CustomerGroupRepo   *customergroup.Repository
+	StoreRepo           *store.Repository
+	ShiftRepo           *shift.Repository
+	StockOpnameRepo     *stockopname.Repository
 	StorageLocationRepo *storagelocation.Repository
 
-	UserSvc         *user.Service
-	AuthSvc         *user.AuthService
-	ProductSvc      *product.Service
-	PurchaseSvc     *purchase.Service
-	SaleSvc         *sale.Service
-	InventorySvc    *inventory.Service
-	CustomerSvc     *customer.Service
-	CategorySvc     *category.Service
-	BrandSvc        *brand.Service
-	UOMSvc          *uom.Service
-	AuditSvc        *audit.Service
-	ReportSvc       *report.Service
-	PricingSvc      *pricing.Service
-	SupplierSvc     *supplier.Service
-	CustomerGroupSvc *customergroup.Service
-	StoreSvc        *store.Service
-	ShiftSvc        *shift.Service
-	StockOpnameSvc  *stockopname.Service
+	UserSvc            *user.Service
+	AuthSvc            *user.AuthService
+	ProductSvc         *product.Service
+	PurchaseSvc        *purchase.Service
+	SaleSvc            *sale.Service
+	InventorySvc       *inventory.Service
+	CustomerSvc        *customer.Service
+	CategorySvc        *category.Service
+	BrandSvc           *brand.Service
+	UOMSvc             *uom.Service
+	AuditSvc           *audit.Service
+	ReportSvc          *report.Service
+	PricingSvc         *pricing.Service
+	SupplierSvc        *supplier.Service
+	CustomerGroupSvc   *customergroup.Service
+	StoreSvc           *store.Service
+	ShiftSvc           *shift.Service
+	StockOpnameSvc     *stockopname.Service
 	StorageLocationSvc *storagelocation.Service
 
-	UserH           *user.Handler
-	AuthH           *user.AuthHandler
-	ProductH        *product.Handler
-	PurchaseH       *purchase.Handler
-	SaleH           *sale.Handler
-	InventoryH      *inventory.Handler
-	CustomerH       *customer.Handler
-	CategoryH       *category.Handler
-	BrandH          *brand.Handler
-	UOMH            *uom.Handler
-	AuditH          *audit.Handler
-	ReportH         *report.Handler
-	PricingH        *pricing.Handler
-	SupplierH       *supplier.Handler
-	CustomerGroupH  *customergroup.Handler
-	StoreH          *store.Handler
-	ShiftH          *shift.Handler
-	StockOpnameH    *stockopname.Handler
+	UserH            *user.Handler
+	AuthH            *user.AuthHandler
+	ProductH         *product.Handler
+	PurchaseH        *purchase.Handler
+	SaleH            *sale.Handler
+	InventoryH       *inventory.Handler
+	CustomerH        *customer.Handler
+	CategoryH        *category.Handler
+	BrandH           *brand.Handler
+	UOMH             *uom.Handler
+	AuditH           *audit.Handler
+	ReportH          *report.Handler
+	PricingH         *pricing.Handler
+	SupplierH        *supplier.Handler
+	CustomerGroupH   *customergroup.Handler
+	StoreH           *store.Handler
+	ShiftH           *shift.Handler
+	StockOpnameH     *stockopname.Handler
 	StorageLocationH *storagelocation.Handler
 
-	IEH             *ieh.Handler
+	IEH *ieh.Handler
 
 	PricingResolver *pricing.Resolver
 
-	Bus             *eventbus.Bus
-	Hub             *websocket.Hub
-	Cache           *cache.Cache
+	Bus   *eventbus.Bus
+	Hub   *websocket.Hub
+	Cache *cache.Cache
 }
 
 type Providers struct {

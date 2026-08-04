@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -57,18 +58,18 @@ func NewHandler(svc SaleService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/sales", auth, perm("sale.create"), h.CreateSale)
-	r.GET("/sales", auth, perm("sale.view"), h.GetSalesHistory)
-	r.GET("/sales/export", auth, perm("report.view"), h.ExportSales)
-	r.GET("/sales/:id", auth, perm("sale.view"), h.GetSaleByID)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/sales", auth, perm(permissions.SaleCreate), h.CreateSale)
+	r.GET("/sales", auth, perm(permissions.SaleView), h.GetSalesHistory)
+	r.GET("/sales/export", auth, perm(permissions.ReportView), h.ExportSales)
+	r.GET("/sales/:id", auth, perm(permissions.SaleView), h.GetSaleByID)
 	r.GET("/payment-methods/:code", auth, h.GetPaymentMethodByCode)
 
-	r.POST("/sales/parked", auth, perm("sale.park"), h.ParkSale)
-	r.GET("/sales/parked", auth, perm("sale.park"), h.ListParkedSales)
-	r.GET("/sales/parked/:id", auth, perm("sale.park"), h.GetParkedSaleByID)
-	r.POST("/sales/parked/:id/recall", auth, perm("sale.park"), h.RecallParkedSale)
-	r.DELETE("/sales/parked/:id", auth, perm("sale.park"), h.CancelParkedSale)
+	r.POST("/sales/parked", auth, perm(permissions.SalePark), h.ParkSale)
+	r.GET("/sales/parked", auth, perm(permissions.SalePark), h.ListParkedSales)
+	r.GET("/sales/parked/:id", auth, perm(permissions.SalePark), h.GetParkedSaleByID)
+	r.POST("/sales/parked/:id/recall", auth, perm(permissions.SalePark), h.RecallParkedSale)
+	r.DELETE("/sales/parked/:id", auth, perm(permissions.SalePark), h.CancelParkedSale)
 }
 
 func (h *Handler) RegisterPaymentMethodsPublicRoutes(r *gin.RouterGroup) {
@@ -99,17 +100,17 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		ReferenceNumber   string `json:"reference_number"`
 	}
 	type createSaleReq struct {
-		InvoiceNumber string            `json:"invoice_number"`
-		CustomerID    *int              `json:"customer_id"`
-		ShiftID       *int              `json:"shift_id"`
-		StoreID       *int              `json:"store_id"`
-		Items         []createSaleItem  `json:"items"`
+		InvoiceNumber string             `json:"invoice_number"`
+		CustomerID    *int               `json:"customer_id"`
+		ShiftID       *int               `json:"shift_id"`
+		StoreID       *int               `json:"store_id"`
+		Items         []createSaleItem   `json:"items"`
 		Payments      []createPaymentReq `json:"payments"`
-		PaymentMethod string            `json:"payment_method"`
-		Discount      int               `json:"discount"`
-		Tax           int               `json:"tax"`
-		ParkedSaleID  *int              `json:"parked_sale_id"`
-		CartSessionID *int              `json:"cart_session_id"`
+		PaymentMethod string             `json:"payment_method"`
+		Discount      int                `json:"discount"`
+		Tax           int                `json:"tax"`
+		ParkedSaleID  *int               `json:"parked_sale_id"`
+		CartSessionID *int               `json:"cart_session_id"`
 	}
 
 	var req createSaleReq
@@ -539,10 +540,10 @@ func (h *Handler) ParkSale(c *gin.Context) {
 		Subtotal  int `json:"subtotal"`
 	}
 	type parkSaleReq struct {
-		InvoiceNumber string           `json:"invoice_number"`
-		Items         []createSaleItem `json:"items" binding:"required"`
-		PaymentMethod string           `json:"payment_method"`
-		RecalledSaleID *int            `json:"recalled_sale_id"`
+		InvoiceNumber  string           `json:"invoice_number"`
+		Items          []createSaleItem `json:"items" binding:"required"`
+		PaymentMethod  string           `json:"payment_method"`
+		RecalledSaleID *int             `json:"recalled_sale_id"`
 	}
 
 	var req parkSaleReq

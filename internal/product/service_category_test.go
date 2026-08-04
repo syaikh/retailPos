@@ -144,5 +144,3 @@ func TestService_GetAllProducts_NoCategory(t *testing.T) {
 	_, _, err := svc.GetAllProducts(ctx, 10, 0, "", "", "", "", nil, nil, nil, "", nil)
 	assert.NoError(t, err)
 }
-
-

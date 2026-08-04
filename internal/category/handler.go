@@ -8,6 +8,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -31,12 +32,12 @@ func NewHandler(svc CategoryService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.GET("/categories", h.ListCategories)
-	r.GET("/categories/manage", auth, perm("category.view"), h.ListCategoriesManagement)
-	r.POST("/categories", auth, perm("category.create"), h.CreateCategoryHandler)
-	r.PUT("/categories/:id", auth, perm("category.update"), h.UpdateCategoryHandler)
-	r.DELETE("/categories/:id", auth, perm("category.delete"), h.DeleteCategoryHandler)
+	r.GET("/categories/manage", auth, perm(permissions.CategoryView), h.ListCategoriesManagement)
+	r.POST("/categories", auth, perm(permissions.CategoryCreate), h.CreateCategoryHandler)
+	r.PUT("/categories/:id", auth, perm(permissions.CategoryUpdate), h.UpdateCategoryHandler)
+	r.DELETE("/categories/:id", auth, perm(permissions.CategoryDelete), h.DeleteCategoryHandler)
 }
 
 func (h *Handler) ListCategories(c *gin.Context) {

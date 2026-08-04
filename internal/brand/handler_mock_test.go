@@ -8,17 +8,19 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockBrandService struct {
-	getAllFn         func(ctx context.Context) ([]Brand, error)
+	getAllFn          func(ctx context.Context) ([]Brand, error)
 	getAllPaginatedFn func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error)
-	getByIDFn        func(ctx context.Context, id int) (*Brand, error)
-	createFn         func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
-	updateFn         func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
-	deleteFn         func(ctx context.Context, id int) error
+	getByIDFn         func(ctx context.Context, id int) (*Brand, error)
+	createFn          func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
+	updateFn          func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	deleteFn          func(ctx context.Context, id int) error
 }
 
 func (m *mockBrandService) GetAll(ctx context.Context) ([]Brand, error) {
@@ -52,7 +54,7 @@ func setupMockBrandRouter(svc BrandService) *gin.Engine {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	h.RegisterPublicRoutes(r.Group("/"))

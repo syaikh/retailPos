@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -61,20 +62,20 @@ func NewHandler(svc UserService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/admin/users", auth, perm("user.view"), h.ListUsers)
-	r.POST("/admin/users", auth, perm("user.create"), h.CreateUser)
-	r.PUT("/admin/users/:id", auth, perm("user.update"), h.UpdateUser)
-	r.DELETE("/admin/users/:id", auth, perm("user.delete"), h.DeleteUser)
-	r.GET("/admin/users/:id/subordinates", auth, perm("user.view"), h.GetSubordinates)
-	r.GET("/admin/users/:id/manager", auth, perm("user.view"), h.GetManager)
-	r.GET("/admin/users/org-chart", auth, perm("user.view"), h.GetOrgChart)
-	r.GET("/admin/roles", auth, perm("role.view"), h.ListRoles)
-	r.POST("/admin/roles", auth, perm("role.create"), h.CreateRole)
-	r.PUT("/admin/roles/:id", auth, perm("role.update"), h.UpdateRole)
-	r.PUT("/admin/roles/:id/permissions", auth, perm("role.update"), h.UpdateRolePermissions)
-	r.DELETE("/admin/roles/:id", auth, perm("role.delete"), h.DeleteRole)
-	r.GET("/admin/permissions", auth, perm("role.view"), h.ListPermissions)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/admin/users", auth, perm(permissions.UserView), h.ListUsers)
+	r.POST("/admin/users", auth, perm(permissions.UserCreate), h.CreateUser)
+	r.PUT("/admin/users/:id", auth, perm(permissions.UserUpdate), h.UpdateUser)
+	r.DELETE("/admin/users/:id", auth, perm(permissions.UserDelete), h.DeleteUser)
+	r.GET("/admin/users/:id/subordinates", auth, perm(permissions.UserView), h.GetSubordinates)
+	r.GET("/admin/users/:id/manager", auth, perm(permissions.UserView), h.GetManager)
+	r.GET("/admin/users/org-chart", auth, perm(permissions.UserView), h.GetOrgChart)
+	r.GET("/admin/roles", auth, perm(permissions.RoleView), h.ListRoles)
+	r.POST("/admin/roles", auth, perm(permissions.RoleCreate), h.CreateRole)
+	r.PUT("/admin/roles/:id", auth, perm(permissions.RoleUpdate), h.UpdateRole)
+	r.PUT("/admin/roles/:id/permissions", auth, perm(permissions.RoleUpdate), h.UpdateRolePermissions)
+	r.DELETE("/admin/roles/:id", auth, perm(permissions.RoleDelete), h.DeleteRole)
+	r.GET("/admin/permissions", auth, perm(permissions.RoleView), h.ListPermissions)
 }
 
 type CreateUserRequest struct {

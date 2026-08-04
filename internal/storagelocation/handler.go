@@ -7,6 +7,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -21,15 +22,15 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	sl := r.Group("/storage-locations")
-	sl.GET("", auth, perm("storage_location.view"), h.List)
-	sl.GET("/:id", auth, perm("storage_location.view"), h.GetByID)
-	sl.POST("", auth, perm("storage_location.create"), h.Create)
-	sl.PUT("/:id", auth, perm("storage_location.update"), h.Update)
-	sl.DELETE("/:id", auth, perm("storage_location.delete"), h.Delete)
-	sl.PUT("/bulk", auth, perm("storage_location.update"), h.BulkUpdate)
-	sl.DELETE("/bulk", auth, perm("storage_location.delete"), h.BulkDelete)
+	sl.GET("", auth, perm(permissions.StorageLocationView), h.List)
+	sl.GET("/:id", auth, perm(permissions.StorageLocationView), h.GetByID)
+	sl.POST("", auth, perm(permissions.StorageLocationCreate), h.Create)
+	sl.PUT("/:id", auth, perm(permissions.StorageLocationUpdate), h.Update)
+	sl.DELETE("/:id", auth, perm(permissions.StorageLocationDelete), h.Delete)
+	sl.PUT("/bulk", auth, perm(permissions.StorageLocationUpdate), h.BulkUpdate)
+	sl.DELETE("/bulk", auth, perm(permissions.StorageLocationDelete), h.BulkDelete)
 }
 
 // List godoc

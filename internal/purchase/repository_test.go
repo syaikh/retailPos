@@ -92,11 +92,11 @@ func TestPurchaseRepository_CreateAndGetPO(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 10,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  10,
+			UnitCost:    8000,
 			ProductName: "PO Repo Product",
-			SKU:        "PO-REPO-001",
+			SKU:         "PO-REPO-001",
 		},
 	}
 
@@ -142,11 +142,11 @@ func TestPurchaseRepository_ConfirmAndCancel(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 5,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  5,
+			UnitCost:    8000,
 			ProductName: "PO Confirm Product",
-			SKU:        "PO-CONF-001",
+			SKU:         "PO-CONF-001",
 		},
 	}
 
@@ -206,11 +206,11 @@ func TestPurchaseRepository_GoodsReceipt(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 20,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  20,
+			UnitCost:    8000,
 			ProductName: "PO GR Product",
-			SKU:        "PO-GR-001",
+			SKU:         "PO-GR-001",
 		},
 	}
 
@@ -240,10 +240,10 @@ func TestPurchaseRepository_GoodsReceipt(t *testing.T) {
 	grNumber, err := repo.GetNextGRNumber(ctx)
 	require.NoError(t, err)
 	gr := &GoodsReceipt{
-		GRNumber:        grNumber,
-		PurchaseOrderID: po.ID,
-		StoreID:         1,
-		ReceivedBy:      userID,
+		GRNumber:            grNumber,
+		PurchaseOrderID:     po.ID,
+		StoreID:             1,
+		ReceivedBy:          userID,
 		DeliveryOrderNumber: "DO-001",
 	}
 	grItems := []GoodsReceiptItem{

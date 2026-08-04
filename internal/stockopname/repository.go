@@ -32,7 +32,6 @@ const scopeNameExpr = `
 		WHEN 'manual' THEN scope_name
 	END, '') AS scope_name`
 
-
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
@@ -830,4 +829,3 @@ func (r *Repository) InsertMovements(ctx context.Context, tx pgx.Tx, sessionID, 
 	}
 	return nil
 }
-

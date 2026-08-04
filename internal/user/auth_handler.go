@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,7 @@ func NewAuthHandler(svc AuthLoginService, auditSvc audit.AuditCreator) *AuthHand
 	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth, csrf gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup, auth, csrf gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.POST("/validate", auth, csrf, h.ValidateSession)
 	r.POST("/logout", auth, csrf, h.Logout)
 }

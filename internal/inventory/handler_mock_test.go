@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,7 +58,7 @@ func setupMockInventoryRouter(svc InventoryService) *gin.Engine {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r
@@ -248,7 +250,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		r := gin.New()
 		r.Use(func(c *gin.Context) { c.Next() })
-		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+		h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 			return func(c *gin.Context) { c.Next() }
 		})
 		body := `{"product_id":42,"location_id":5,"quantity":1}`

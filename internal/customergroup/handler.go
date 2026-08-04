@@ -7,6 +7,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -21,15 +22,15 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	cg := r.Group("/customer-groups")
-	cg.GET("", auth, perm("customer_group.view"), h.List)
-	cg.GET("/:id", auth, perm("customer_group.view"), h.GetByID)
-	cg.POST("", auth, perm("customer_group.create"), h.Create)
-	cg.PUT("/:id", auth, perm("customer_group.update"), h.Update)
-	cg.DELETE("/:id", auth, perm("customer_group.delete"), h.Delete)
-	cg.PUT("/bulk", auth, perm("customer_group.update"), h.BulkUpdate)
-	cg.DELETE("/bulk", auth, perm("customer_group.delete"), h.BulkDelete)
+	cg.GET("", auth, perm(permissions.CustomerGroupView), h.List)
+	cg.GET("/:id", auth, perm(permissions.CustomerGroupView), h.GetByID)
+	cg.POST("", auth, perm(permissions.CustomerGroupCreate), h.Create)
+	cg.PUT("/:id", auth, perm(permissions.CustomerGroupUpdate), h.Update)
+	cg.DELETE("/:id", auth, perm(permissions.CustomerGroupDelete), h.Delete)
+	cg.PUT("/bulk", auth, perm(permissions.CustomerGroupUpdate), h.BulkUpdate)
+	cg.DELETE("/bulk", auth, perm(permissions.CustomerGroupDelete), h.BulkDelete)
 }
 
 // List godoc

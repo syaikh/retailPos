@@ -5,14 +5,14 @@ import "errors"
 // ==================== DOMAIN ERRORS ====================
 
 var (
-	ErrPaymentTotalMismatch      = errors.New("total payments do not match sale total amount")
-	ErrDuplicatePaymentMethod    = errors.New("duplicate payment method in split payment")
-	ErrPaymentMethodInactive     = errors.New("payment method is not active")
-	ErrPaymentReferenceRequired  = errors.New("reference number is required for this payment method")
-	ErrZeroPaymentAmount         = errors.New("payment amount must be greater than zero")
-	ErrInvalidPaymentMethod      = errors.New("invalid payment method code")
-	ErrMaxPaymentsExceeded       = errors.New("maximum number of payment entries exceeded")
-	ErrMultipleCashPayments      = errors.New("only one cash payment per transaction is allowed")
+	ErrPaymentTotalMismatch     = errors.New("total payments do not match sale total amount")
+	ErrDuplicatePaymentMethod   = errors.New("duplicate payment method in split payment")
+	ErrPaymentMethodInactive    = errors.New("payment method is not active")
+	ErrPaymentReferenceRequired = errors.New("reference number is required for this payment method")
+	ErrZeroPaymentAmount        = errors.New("payment amount must be greater than zero")
+	ErrInvalidPaymentMethod     = errors.New("invalid payment method code")
+	ErrMaxPaymentsExceeded      = errors.New("maximum number of payment entries exceeded")
+	ErrMultipleCashPayments     = errors.New("only one cash payment per transaction is allowed")
 )
 
 const MaxPaymentsPerSale = 10
@@ -40,25 +40,25 @@ type Sale struct {
 }
 
 type SaleItem struct {
-	ID               int     `json:"id"`
-	SaleID           int     `json:"sale_id"`
-	ProductID        int     `json:"product_id"`
-	Name             string  `json:"name"`
-	Quantity         int     `json:"quantity"`
-	UnitPrice        int     `json:"unit_price"`
-	Subtotal         int     `json:"subtotal"`
-	DPPAmount        int     `json:"dpp_amount"`
-	TaxAmount        int     `json:"tax_amount"`
-	PricingRuleID    *int    `json:"pricing_rule_id,omitempty"`
-	PricingRuleName  *string `json:"pricing_rule_name,omitempty"`
-	PricingRuleType  *string `json:"pricing_rule_type,omitempty"`
-	PricingType      *string `json:"pricing_type,omitempty"`
-	OriginalPrice    *int    `json:"original_price,omitempty"`
-	Cost             int     `json:"cost,omitempty"`
-	TaxClassID       *int    `json:"tax_class_id,omitempty"`
-	TaxRate          *float64 `json:"tax_rate,omitempty"`
-	SnapshotCreatedAt string  `json:"snapshot_created_at,omitempty"`
-	ProductName      string  `json:"product_name,omitempty"`
+	ID                int      `json:"id"`
+	SaleID            int      `json:"sale_id"`
+	ProductID         int      `json:"product_id"`
+	Name              string   `json:"name"`
+	Quantity          int      `json:"quantity"`
+	UnitPrice         int      `json:"unit_price"`
+	Subtotal          int      `json:"subtotal"`
+	DPPAmount         int      `json:"dpp_amount"`
+	TaxAmount         int      `json:"tax_amount"`
+	PricingRuleID     *int     `json:"pricing_rule_id,omitempty"`
+	PricingRuleName   *string  `json:"pricing_rule_name,omitempty"`
+	PricingRuleType   *string  `json:"pricing_rule_type,omitempty"`
+	PricingType       *string  `json:"pricing_type,omitempty"`
+	OriginalPrice     *int     `json:"original_price,omitempty"`
+	Cost              int      `json:"cost,omitempty"`
+	TaxClassID        *int     `json:"tax_class_id,omitempty"`
+	TaxRate           *float64 `json:"tax_rate,omitempty"`
+	SnapshotCreatedAt string   `json:"snapshot_created_at,omitempty"`
+	ProductName       string   `json:"product_name,omitempty"`
 }
 
 type SalePayment struct {

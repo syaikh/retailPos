@@ -17,6 +17,7 @@ import (
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -50,7 +51,7 @@ func setupStockOpnameRouterAs(userID int, role string) *gin.Engine {
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
-	perm := func(code string) gin.HandlerFunc {
+	perm := func(code permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	}
 	h.RegisterRoutes(r.Group("/"), auth, perm)

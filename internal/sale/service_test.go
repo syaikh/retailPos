@@ -576,20 +576,20 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 
 	makeSale := func(inv string, total int) (*Sale, []SaleItem) {
 		return &Sale{
-			InvoiceNumber: inv,
-			CashierID:     cashierID,
-			Subtotal:      total,
-			TotalAmount:   total,
-			PaymentMethod: "",
-			Status:        "completed",
-		}, []SaleItem{{
-			ProductID: prodID,
-			Quantity:  1,
-			UnitPrice: total,
-			Subtotal:  total,
-			DPPAmount: total,
-			TaxAmount: 0,
-		}}
+				InvoiceNumber: inv,
+				CashierID:     cashierID,
+				Subtotal:      total,
+				TotalAmount:   total,
+				PaymentMethod: "",
+				Status:        "completed",
+			}, []SaleItem{{
+				ProductID: prodID,
+				Quantity:  1,
+				UnitPrice: total,
+				Subtotal:  total,
+				DPPAmount: total,
+				TaxAmount: 0,
+			}}
 	}
 
 	t.Run("success single cash payment", func(t *testing.T) {

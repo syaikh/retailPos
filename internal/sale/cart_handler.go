@@ -11,6 +11,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
 
@@ -29,18 +30,18 @@ type CartService interface {
 }
 
 // RegisterCartRoutes registers the POS cart API under the given router group.
-func (h *Handler) RegisterCartRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/pos/cart", auth, perm("sale.create"), h.CreateOrGetOpenCart)
-	r.GET("/pos/cart", auth, perm("sale.create"), h.GetOpenCart)
-	r.GET("/pos/cart/held", auth, perm("sale.create"), h.ListHeldCarts)
-	r.GET("/pos/cart/:id", auth, perm("sale.create"), h.GetCart)
-	r.POST("/pos/cart/items", auth, perm("sale.create"), h.AddCartItem)
-	r.PATCH("/pos/cart/items/:itemId", auth, perm("sale.create"), h.UpdateCartItemQuantity)
-	r.DELETE("/pos/cart/items/:itemId", auth, perm("sale.create"), h.RemoveCartItem)
-	r.PATCH("/pos/cart/:id/customer", auth, perm("sale.create"), h.UpdateCartCustomer)
-	r.POST("/pos/cart/:id/hold", auth, perm("sale.create"), h.HoldCart)
-	r.POST("/pos/cart/:id/resume", auth, perm("sale.create"), h.ResumeCart)
-	r.POST("/pos/cart/:id/checkout", auth, perm("sale.create"), h.CheckoutCart)
+func (h *Handler) RegisterCartRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/pos/cart", auth, perm(permissions.SaleCreate), h.CreateOrGetOpenCart)
+	r.GET("/pos/cart", auth, perm(permissions.SaleCreate), h.GetOpenCart)
+	r.GET("/pos/cart/held", auth, perm(permissions.SaleCreate), h.ListHeldCarts)
+	r.GET("/pos/cart/:id", auth, perm(permissions.SaleCreate), h.GetCart)
+	r.POST("/pos/cart/items", auth, perm(permissions.SaleCreate), h.AddCartItem)
+	r.PATCH("/pos/cart/items/:itemId", auth, perm(permissions.SaleCreate), h.UpdateCartItemQuantity)
+	r.DELETE("/pos/cart/items/:itemId", auth, perm(permissions.SaleCreate), h.RemoveCartItem)
+	r.PATCH("/pos/cart/:id/customer", auth, perm(permissions.SaleCreate), h.UpdateCartCustomer)
+	r.POST("/pos/cart/:id/hold", auth, perm(permissions.SaleCreate), h.HoldCart)
+	r.POST("/pos/cart/:id/resume", auth, perm(permissions.SaleCreate), h.ResumeCart)
+	r.POST("/pos/cart/:id/checkout", auth, perm(permissions.SaleCreate), h.CheckoutCart)
 }
 
 func (h *Handler) cartCashierID(c *gin.Context) (int, bool) {

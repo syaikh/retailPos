@@ -179,10 +179,10 @@ func TestAdapter_MapToEntity(t *testing.T) {
 
 	t.Run("missing min qty defaults to 1", func(t *testing.T) {
 		row := map[string]interface{}{
-			"ProductID":   float64(10),
-			"PricingType": "promotion",
+			"ProductID":     float64(10),
+			"PricingType":   "promotion",
 			"PricingMethod": "fixed_price",
-			"Name":        "Default MinQty",
+			"Name":          "Default MinQty",
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)

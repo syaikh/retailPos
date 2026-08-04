@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +41,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func testPermMiddleware(perm string) gin.HandlerFunc {
+func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}

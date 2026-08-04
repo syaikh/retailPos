@@ -10,6 +10,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -24,31 +25,31 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/stock-opnames", auth, perm("stock_opname.create"), h.CreateSession)
-	r.GET("/stock-opnames", auth, perm("stock_opname.view"), h.ListSessions)
-	r.GET("/stock-opnames/assignable-users", auth, perm("stock_opname.assign"), h.ListAssignableUsers)
-	r.GET("/stock-opnames/adjustments", auth, perm("stock_opname.report"), h.ListAdjustments)
-	r.GET("/stock-opnames/adjustments/:id", auth, perm("stock_opname.report"), h.GetAdjustment)
-	r.GET("/stock-opnames/:id", auth, perm("stock_opname.view"), h.GetSession)
-	r.POST("/stock-opnames/:id/open", auth, perm("stock_opname.create"), h.OpenSession)
-	r.POST("/stock-opnames/:id/cancel", auth, perm("stock_opname.cancel"), h.CancelSession)
-	r.POST("/stock-opnames/:id/assignments", auth, perm("stock_opname.assign"), h.AssignCounter)
-	r.GET("/stock-opnames/:id/assignments", auth, perm("stock_opname.view"), h.GetAssignments)
-	r.PUT("/stock-opnames/:id/assignments/:assignmentId", auth, perm("stock_opname.assign"), h.ReassignCounter)
-	r.PUT("/stock-opnames/items/:itemId/count", auth, perm("stock_opname.count"), h.SaveCount)
-	r.GET("/stock-opnames/items/:itemId/counts", auth, perm("stock_opname.view"), h.GetCountHistory)
-	r.POST("/stock-opnames/:id/start", auth, perm("stock_opname.count"), h.StartCounting)
-	r.POST("/stock-opnames/:id/submit", auth, perm("stock_opname.submit"), h.SubmitSession)
-	r.POST("/stock-opnames/:id/verify", auth, perm("stock_opname.verify"), h.VerifySession)
-	r.POST("/stock-opnames/:id/reject", auth, perm("stock_opname.verify"), h.RejectSession)
-	r.POST("/stock-opnames/:id/recount", auth, perm("stock_opname.recount"), h.RequestRecount)
-	r.POST("/stock-opnames/:id/resume", auth, perm("stock_opname.count"), h.ResumeCounting)
-	r.POST("/stock-opnames/:id/post-adjustment", auth, perm("stock_opname.post"), h.PostAdjustment)
-	r.POST("/stock-opnames/:id/close", auth, perm("stock_opname.close"), h.CloseSession)
-	r.GET("/stock-opnames/:id/summary", auth, perm("stock_opname.view"), h.Summary)
-	r.GET("/stock-opnames/:id/difference", auth, perm("stock_opname.view"), h.DifferenceReport)
-	r.GET("/stock-opnames/:id/export", auth, perm("stock_opname.export"), h.ExportReport)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/stock-opnames", auth, perm(permissions.StockOpnameCreate), h.CreateSession)
+	r.GET("/stock-opnames", auth, perm(permissions.StockOpnameView), h.ListSessions)
+	r.GET("/stock-opnames/assignable-users", auth, perm(permissions.StockOpnameAssign), h.ListAssignableUsers)
+	r.GET("/stock-opnames/adjustments", auth, perm(permissions.StockOpnameReport), h.ListAdjustments)
+	r.GET("/stock-opnames/adjustments/:id", auth, perm(permissions.StockOpnameReport), h.GetAdjustment)
+	r.GET("/stock-opnames/:id", auth, perm(permissions.StockOpnameView), h.GetSession)
+	r.POST("/stock-opnames/:id/open", auth, perm(permissions.StockOpnameCreate), h.OpenSession)
+	r.POST("/stock-opnames/:id/cancel", auth, perm(permissions.StockOpnameCancel), h.CancelSession)
+	r.POST("/stock-opnames/:id/assignments", auth, perm(permissions.StockOpnameAssign), h.AssignCounter)
+	r.GET("/stock-opnames/:id/assignments", auth, perm(permissions.StockOpnameView), h.GetAssignments)
+	r.PUT("/stock-opnames/:id/assignments/:assignmentId", auth, perm(permissions.StockOpnameAssign), h.ReassignCounter)
+	r.PUT("/stock-opnames/items/:itemId/count", auth, perm(permissions.StockOpnameCount), h.SaveCount)
+	r.GET("/stock-opnames/items/:itemId/counts", auth, perm(permissions.StockOpnameView), h.GetCountHistory)
+	r.POST("/stock-opnames/:id/start", auth, perm(permissions.StockOpnameCount), h.StartCounting)
+	r.POST("/stock-opnames/:id/submit", auth, perm(permissions.StockOpnameSubmit), h.SubmitSession)
+	r.POST("/stock-opnames/:id/verify", auth, perm(permissions.StockOpnameVerify), h.VerifySession)
+	r.POST("/stock-opnames/:id/reject", auth, perm(permissions.StockOpnameVerify), h.RejectSession)
+	r.POST("/stock-opnames/:id/recount", auth, perm(permissions.StockOpnameRecount), h.RequestRecount)
+	r.POST("/stock-opnames/:id/resume", auth, perm(permissions.StockOpnameCount), h.ResumeCounting)
+	r.POST("/stock-opnames/:id/post-adjustment", auth, perm(permissions.StockOpnamePost), h.PostAdjustment)
+	r.POST("/stock-opnames/:id/close", auth, perm(permissions.StockOpnameClose), h.CloseSession)
+	r.GET("/stock-opnames/:id/summary", auth, perm(permissions.StockOpnameView), h.Summary)
+	r.GET("/stock-opnames/:id/difference", auth, perm(permissions.StockOpnameView), h.DifferenceReport)
+	r.GET("/stock-opnames/:id/export", auth, perm(permissions.StockOpnameExport), h.ExportReport)
 }
 
 func (h *Handler) CreateSession(c *gin.Context) {

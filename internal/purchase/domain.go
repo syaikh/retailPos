@@ -3,17 +3,17 @@ package purchase
 import "errors"
 
 var (
-	ErrPurchaseOrderNotFound        = errors.New("purchase order not found")
-	ErrPurchaseOrderNotDraft        = errors.New("purchase order is not in draft status")
+	ErrPurchaseOrderNotFound         = errors.New("purchase order not found")
+	ErrPurchaseOrderNotDraft         = errors.New("purchase order is not in draft status")
 	ErrPurchaseOrderAlreadyConfirmed = errors.New("purchase order is already confirmed")
-	ErrPurchaseOrderCancelled       = errors.New("purchase order is cancelled")
-	ErrPurchaseOrderHasReceipts     = errors.New("cannot cancel purchase order that has receipts")
-	ErrPOItemNotFound               = errors.New("purchase order item not found")
-	ErrOverReceiving                = errors.New("received quantity exceeds remaining ordered quantity")
-	ErrInvalidReceivingQty          = errors.New("invalid receiving quantity")
-	ErrDuplicatePOItem              = errors.New("duplicate product in purchase order items")
-	ErrInvalidPOStatusForReceiving  = errors.New("purchase order is not in a receivable status")
-	ErrNoItemsToReceive             = errors.New("no items to receive")
+	ErrPurchaseOrderCancelled        = errors.New("purchase order is cancelled")
+	ErrPurchaseOrderHasReceipts      = errors.New("cannot cancel purchase order that has receipts")
+	ErrPOItemNotFound                = errors.New("purchase order item not found")
+	ErrOverReceiving                 = errors.New("received quantity exceeds remaining ordered quantity")
+	ErrInvalidReceivingQty           = errors.New("invalid receiving quantity")
+	ErrDuplicatePOItem               = errors.New("duplicate product in purchase order items")
+	ErrInvalidPOStatusForReceiving   = errors.New("purchase order is not in a receivable status")
+	ErrNoItemsToReceive              = errors.New("no items to receive")
 )
 
 const (
@@ -29,45 +29,45 @@ const (
 type DomainEvent string
 
 const (
-	EventPOCreated         DomainEvent = "purchase_order.created"
-	EventPOConfirmed       DomainEvent = "purchase_order.confirmed"
-	EventPOCancelled       DomainEvent = "purchase_order.cancelled"
+	EventPOCreated           DomainEvent = "purchase_order.created"
+	EventPOConfirmed         DomainEvent = "purchase_order.confirmed"
+	EventPOCancelled         DomainEvent = "purchase_order.cancelled"
 	EventGoodsReceiptCreated DomainEvent = "goods_receipt.created"
 )
 
 type PurchaseOrder struct {
-	ID                      int                `json:"id"`
-	PONumber                string             `json:"po_number"`
-	SupplierID              int                `json:"supplier_id"`
-	SupplierName            string             `json:"supplier_name"`
-	StoreID                 int                `json:"store_id"`
-	WarehouseID             *int               `json:"warehouse_id,omitempty"`
-	Status                  string             `json:"status"`
-	ExpectedDate            string             `json:"expected_date,omitempty"`
-	PaymentTerm             string             `json:"payment_term,omitempty"`
-	DeliveryAddress         string             `json:"delivery_address,omitempty"`
-	SupplierReferenceNumber string             `json:"supplier_reference_number,omitempty"`
-	ApprovalStatus           string             `json:"approval_status,omitempty"`
-	PaymentStatus            string             `json:"payment_status,omitempty"`
-	InvoiceStatus            string             `json:"invoice_status,omitempty"`
-	CurrencyCode             string             `json:"currency_code,omitempty"`
-	ExchangeRate             int                `json:"exchange_rate,omitempty"`
-	ApprovedBy               *int               `json:"approved_by,omitempty"`
-	ApprovedAt               string             `json:"approved_at,omitempty"`
-	Subtotal                 int                `json:"subtotal"`
-	DiscountAmount           int                `json:"discount_amount"`
-	TaxAmount                int                `json:"tax_amount"`
-	GrandTotal               int                `json:"grand_total"`
-	Notes                    string             `json:"notes,omitempty"`
-	ConfirmedAt              string             `json:"confirmed_at,omitempty"`
-	ConfirmedBy              *int               `json:"confirmed_by,omitempty"`
-	CancelledAt              string             `json:"cancelled_at,omitempty"`
-	CancelledBy              *int               `json:"cancelled_by,omitempty"`
-	CreatedBy                int                `json:"created_by"`
-	UpdatedBy                int                `json:"updated_by"`
-	CreatedAt                string             `json:"created_at"`
-	UpdatedAt                string             `json:"updated_at"`
-	Items                    []PurchaseOrderItem `json:"items,omitempty"`
+	ID                      int                 `json:"id"`
+	PONumber                string              `json:"po_number"`
+	SupplierID              int                 `json:"supplier_id"`
+	SupplierName            string              `json:"supplier_name"`
+	StoreID                 int                 `json:"store_id"`
+	WarehouseID             *int                `json:"warehouse_id,omitempty"`
+	Status                  string              `json:"status"`
+	ExpectedDate            string              `json:"expected_date,omitempty"`
+	PaymentTerm             string              `json:"payment_term,omitempty"`
+	DeliveryAddress         string              `json:"delivery_address,omitempty"`
+	SupplierReferenceNumber string              `json:"supplier_reference_number,omitempty"`
+	ApprovalStatus          string              `json:"approval_status,omitempty"`
+	PaymentStatus           string              `json:"payment_status,omitempty"`
+	InvoiceStatus           string              `json:"invoice_status,omitempty"`
+	CurrencyCode            string              `json:"currency_code,omitempty"`
+	ExchangeRate            int                 `json:"exchange_rate,omitempty"`
+	ApprovedBy              *int                `json:"approved_by,omitempty"`
+	ApprovedAt              string              `json:"approved_at,omitempty"`
+	Subtotal                int                 `json:"subtotal"`
+	DiscountAmount          int                 `json:"discount_amount"`
+	TaxAmount               int                 `json:"tax_amount"`
+	GrandTotal              int                 `json:"grand_total"`
+	Notes                   string              `json:"notes,omitempty"`
+	ConfirmedAt             string              `json:"confirmed_at,omitempty"`
+	ConfirmedBy             *int                `json:"confirmed_by,omitempty"`
+	CancelledAt             string              `json:"cancelled_at,omitempty"`
+	CancelledBy             *int                `json:"cancelled_by,omitempty"`
+	CreatedBy               int                 `json:"created_by"`
+	UpdatedBy               int                 `json:"updated_by"`
+	CreatedAt               string              `json:"created_at"`
+	UpdatedAt               string              `json:"updated_at"`
+	Items                   []PurchaseOrderItem `json:"items,omitempty"`
 }
 
 type PurchaseOrderItem struct {
@@ -120,15 +120,15 @@ type GoodsReceiptItem struct {
 }
 
 type CreatePurchaseOrderRequest struct {
-	SupplierID              int                     `json:"supplier_id" binding:"required"`
-	StoreID                 *int                    `json:"store_id,omitempty"`
-	WarehouseID             *int                    `json:"warehouse_id,omitempty"`
-	ExpectedDate            string                  `json:"expected_date,omitempty"`
-	PaymentTerm             string                  `json:"payment_term,omitempty"`
-	DeliveryAddress         string                  `json:"delivery_address,omitempty"`
-	SupplierReferenceNumber string                  `json:"supplier_reference_number,omitempty"`
-	Notes                   string                  `json:"notes,omitempty"`
-	Items                   []CreatePOItemRequest   `json:"items" binding:"required"`
+	SupplierID              int                   `json:"supplier_id" binding:"required"`
+	StoreID                 *int                  `json:"store_id,omitempty"`
+	WarehouseID             *int                  `json:"warehouse_id,omitempty"`
+	ExpectedDate            string                `json:"expected_date,omitempty"`
+	PaymentTerm             string                `json:"payment_term,omitempty"`
+	DeliveryAddress         string                `json:"delivery_address,omitempty"`
+	SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
+	Notes                   string                `json:"notes,omitempty"`
+	Items                   []CreatePOItemRequest `json:"items" binding:"required"`
 }
 
 type CreatePOItemRequest struct {
@@ -140,13 +140,13 @@ type CreatePOItemRequest struct {
 }
 
 type UpdatePurchaseOrderRequest struct {
-	SupplierID              int                    `json:"supplier_id" binding:"required"`
-	ExpectedDate            string                 `json:"expected_date,omitempty"`
-	PaymentTerm             string                 `json:"payment_term,omitempty"`
-	DeliveryAddress         string                 `json:"delivery_address,omitempty"`
-	SupplierReferenceNumber string                 `json:"supplier_reference_number,omitempty"`
-	Notes                   string                 `json:"notes,omitempty"`
-	Items                   []UpdatePOItemRequest  `json:"items" binding:"required"`
+	SupplierID              int                   `json:"supplier_id" binding:"required"`
+	ExpectedDate            string                `json:"expected_date,omitempty"`
+	PaymentTerm             string                `json:"payment_term,omitempty"`
+	DeliveryAddress         string                `json:"delivery_address,omitempty"`
+	SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
+	Notes                   string                `json:"notes,omitempty"`
+	Items                   []UpdatePOItemRequest `json:"items" binding:"required"`
 }
 
 type UpdatePOItemRequest struct {
@@ -159,12 +159,12 @@ type UpdatePOItemRequest struct {
 }
 
 type CreateGoodsReceiptRequest struct {
-	PurchaseOrderID    int                    `json:"purchase_order_id" binding:"required"`
-	ShippingMethod     string                 `json:"shipping_method,omitempty"`
-	DriverName         string                 `json:"driver_name,omitempty"`
-	VehiclePlateNumber string                 `json:"vehicle_plate_number,omitempty"`
-	Notes              string                 `json:"notes,omitempty"`
-	Items              []CreateGRItemRequest  `json:"items" binding:"required"`
+	PurchaseOrderID    int                   `json:"purchase_order_id" binding:"required"`
+	ShippingMethod     string                `json:"shipping_method,omitempty"`
+	DriverName         string                `json:"driver_name,omitempty"`
+	VehiclePlateNumber string                `json:"vehicle_plate_number,omitempty"`
+	Notes              string                `json:"notes,omitempty"`
+	Items              []CreateGRItemRequest `json:"items" binding:"required"`
 }
 
 type CreateGRItemRequest struct {
@@ -182,11 +182,11 @@ type CreateGRItemInput struct {
 }
 
 type PurchaseReceiptPayload struct {
-	POID    int                    `json:"po_id"`
-	GRID    int                    `json:"gr_id"`
-	StoreID int                    `json:"store_id"`
-	UserID  int                    `json:"user_id"`
-	Items   []PurchaseReceiptItem  `json:"items"`
+	POID    int                   `json:"po_id"`
+	GRID    int                   `json:"gr_id"`
+	StoreID int                   `json:"store_id"`
+	UserID  int                   `json:"user_id"`
+	Items   []PurchaseReceiptItem `json:"items"`
 }
 
 type PurchaseReceiptItem struct {

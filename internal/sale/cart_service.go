@@ -507,8 +507,8 @@ func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 	sale.Items = items
 	_ = s.eventBus.Publish(ctx, "sale.created", sale)
 	_ = s.eventBus.Publish(ctx, "cart.checked_out", &CartCheckedOutEvent{
-		CartID:   cartID,
-		SaleID:   sale.ID,
+		CartID:    cartID,
+		SaleID:    sale.ID,
 		CashierID: cart.CashierID,
 	})
 

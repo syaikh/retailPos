@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func testPermMiddleware(perm string) gin.HandlerFunc {
+func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}

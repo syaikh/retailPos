@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	"retail-pos-system/internal/platform/importexport/history"
@@ -20,28 +21,28 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var modulePerms = map[string]string{
-	"categories:import":   "category.import",
-	"categories:export":   "category.export",
-	"categories:history":  "category.import",
-	"brands:import":       "product.import",
-	"brands:export":       "product.export",
-	"brands:history":      "product.import",
-	"uoms:import":         "product.import",
-	"uoms:export":         "product.export",
-	"uoms:history":        "product.import",
-	"customers:import":    "customer.import",
-	"customers:export":    "customer.export",
-	"customers:history":   "customer.import",
-	"products:import":     "product.import",
-	"products:export":     "product.export",
-	"products:history":    "product.import",
-	"pricing_rules:import":  "pricing.create",
-	"pricing_rules:export":  "pricing.view",
-	"pricing_rules:history": "pricing.view",
-	"suppliers:import":      "supplier.create",
-	"suppliers:export":      "supplier.view",
-	"suppliers:history":     "supplier.view",
+var modulePerms = map[string]permissions.Code{
+	"categories:import":     permissions.CategoryImport,
+	"categories:export":     permissions.CategoryExport,
+	"categories:history":    permissions.CategoryImport,
+	"brands:import":         permissions.ProductImport,
+	"brands:export":         permissions.ProductExport,
+	"brands:history":        permissions.ProductImport,
+	"uoms:import":           permissions.ProductImport,
+	"uoms:export":           permissions.ProductExport,
+	"uoms:history":          permissions.ProductImport,
+	"customers:import":      permissions.CustomerImport,
+	"customers:export":      permissions.CustomerExport,
+	"customers:history":     permissions.CustomerImport,
+	"products:import":       permissions.ProductImport,
+	"products:export":       permissions.ProductExport,
+	"products:history":      permissions.ProductImport,
+	"pricing_rules:import":  permissions.PricingCreate,
+	"pricing_rules:export":  permissions.PricingView,
+	"pricing_rules:history": permissions.PricingView,
+	"suppliers:import":      permissions.PricingCreate,
+	"suppliers:export":      permissions.PricingView,
+	"suppliers:history":     permissions.PricingView,
 }
 
 type Handler struct {
@@ -52,7 +53,7 @@ type Handler struct {
 	templateEng  *template.Engine
 	progressEng  *progress.Engine
 	historyStore HistoryReader
-	permFunc     func(string) gin.HandlerFunc
+	permFunc     func(permissions.Code) gin.HandlerFunc
 }
 
 // HistoryReader abstracts the history store for testing.
@@ -73,7 +74,7 @@ func NewHandler(schemaReg *schema.Registry, adapterReg *importexport.AdapterRegi
 	}
 }
 
-func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	h.permFunc = perm
 	r := rg.Group("/import-export")
 	r.Use(auth)
@@ -99,12 +100,12 @@ func (h *Handler) requirePerm(action string) gin.HandlerFunc {
 			return
 		}
 		key := module + ":" + action
-		permStr, ok := modulePerms[key]
+		permCode, ok := modulePerms[key]
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, shared.NewError(shared.ErrForbidden, "permission not defined for module"))
 			return
 		}
-		h.permFunc(permStr)(c)
+		h.permFunc(permCode)(c)
 	}
 }
 

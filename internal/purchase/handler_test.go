@@ -15,6 +15,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/permissions"
 )
 
 func setupHandlerTest(t *testing.T) (*gin.Engine, *Handler, int) {
@@ -37,7 +38,7 @@ func setupHandlerTest(t *testing.T) (*gin.Engine, *Handler, int) {
 		c.Set("storeID", intPtr(1))
 		c.Next()
 	}
-	perm := func(code string) gin.HandlerFunc {
+	perm := func(code permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -35,7 +36,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func testPermMiddleware(perm string) gin.HandlerFunc {
+func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}

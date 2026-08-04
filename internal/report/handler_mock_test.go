@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +83,7 @@ func setupReportHandler(svc ReportService) *gin.Engine {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r
@@ -166,7 +168,7 @@ func TestReportHandler_GetDashboardStats_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -623,7 +625,7 @@ func TestReportHandler_Comparison_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -651,7 +653,7 @@ func TestReportHandler_Live_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -678,7 +680,7 @@ func TestReportHandler_Years_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()
@@ -698,7 +700,7 @@ func setupReportValidationRouter() *gin.Engine {
 		c.Next()
 	})
 	h := NewHandler(nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r
@@ -1031,7 +1033,7 @@ func TestReportHandler_GetPricingBreakdown_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := &Handler{svc: svc}
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	w := httptest.NewRecorder()

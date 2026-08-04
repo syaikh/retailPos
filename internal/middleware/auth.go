@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/user"
 
@@ -72,7 +73,7 @@ func RoleMiddleware(requiredRole string) gin.HandlerFunc {
 	}
 }
 
-func RequirePermission(permission string) gin.HandlerFunc {
+func RequirePermission(permission permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		perms, exists := c.Get("permissions")
 		if !exists {
@@ -80,8 +81,8 @@ func RequirePermission(permission string) gin.HandlerFunc {
 			return
 		}
 
-		permissions := perms.([]string)
-		if !hasPermission(permissions, permission) {
+		userPermissions := perms.([]string)
+		if !hasPermission(userPermissions, permission) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":    shared.ErrorDetail{Code: shared.ErrForbidden, Message: "insufficient permission"},
 				"required": permission,
@@ -93,7 +94,7 @@ func RequirePermission(permission string) gin.HandlerFunc {
 	}
 }
 
-func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
+func RequireAnyPermission(requiredPerms ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userPerms, exists := c.Get("permissions")
 		if !exists {
@@ -102,8 +103,8 @@ func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
 		}
 
 		userPermissions := userPerms.([]string)
-		for _, perm := range permissions {
-			if hasPermission(userPermissions, perm) {
+		for _, perm := range requiredPerms {
+			if hasPermission(userPermissions, permissions.Code(perm)) {
 				c.Next()
 				return
 			}
@@ -111,7 +112,7 @@ func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
 
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"error":        shared.ErrorDetail{Code: shared.ErrForbidden, Message: "insufficient permissions"},
-			"required_any": permissions,
+			"required_any": requiredPerms,
 		})
 	}
 }
@@ -151,9 +152,9 @@ func extractToken(c *gin.Context) string {
 	return ""
 }
 
-func hasPermission(userPerms []string, requiredPerm string) bool {
+func hasPermission(userPerms []string, requiredPerm permissions.Code) bool {
 	for _, perm := range userPerms {
-		if perm == requiredPerm {
+		if perm == string(requiredPerm) {
 			return true
 		}
 	}

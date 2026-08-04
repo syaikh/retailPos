@@ -169,9 +169,9 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 		{
 			name: "with color",
 			row: map[string]interface{}{
-				"_row":   9,
-				"Name":   "ColoredGroup",
-				"Color":  "#ABCDEF",
+				"_row":  9,
+				"Name":  "ColoredGroup",
+				"Color": "#ABCDEF",
 			},
 			want: CustomerGroupImportRow{
 				Row:      9,

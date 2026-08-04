@@ -9,6 +9,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -60,15 +61,15 @@ func NewHandler(svc ProductService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	r.GET("/products", h.GetProducts)
 	r.GET("/products/next-sku", h.GetNextSKU)
 
 	r.GET("/products/:id", auth, h.GetProductByID)
-	r.POST("/products", auth, perm("product.create"), h.CreateProduct)
-	r.PUT("/products/:id", auth, perm("product.update"), h.UpdateProduct)
-	r.DELETE("/products/:id", auth, perm("product.delete"), h.DeleteProduct)
-	r.POST("/products/bulk/status", auth, perm("product.update"), h.BulkUpdateProductStatus)
+	r.POST("/products", auth, perm(permissions.ProductCreate), h.CreateProduct)
+	r.PUT("/products/:id", auth, perm(permissions.ProductUpdate), h.UpdateProduct)
+	r.DELETE("/products/:id", auth, perm(permissions.ProductDelete), h.DeleteProduct)
+	r.POST("/products/bulk/status", auth, perm(permissions.ProductUpdate), h.BulkUpdateProductStatus)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {

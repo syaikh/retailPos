@@ -7,6 +7,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -21,14 +22,14 @@ func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
 	sg := r.Group("/stores")
-	sg.GET("", auth, perm("store.view"), h.List)
-	sg.GET("/active", auth, perm("store.view"), h.ListActive)
-	sg.GET("/:id", auth, perm("store.view"), h.GetByID)
-	sg.POST("", auth, perm("store.create"), h.Create)
-	sg.PUT("/:id", auth, perm("store.update"), h.Update)
-	sg.DELETE("/:id", auth, perm("store.delete"), h.Delete)
+	sg.GET("", auth, perm(permissions.StoreView), h.List)
+	sg.GET("/active", auth, perm(permissions.StoreView), h.ListActive)
+	sg.GET("/:id", auth, perm(permissions.StoreView), h.GetByID)
+	sg.POST("", auth, perm(permissions.StoreCreate), h.Create)
+	sg.PUT("/:id", auth, perm(permissions.StoreUpdate), h.Update)
+	sg.DELETE("/:id", auth, perm(permissions.StoreDelete), h.Delete)
 }
 
 // List godoc

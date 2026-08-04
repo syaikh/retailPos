@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	"retail-pos-system/internal/platform/importexport/history"
@@ -112,7 +113,7 @@ func setupTestHandler() (*Handler, *gin.Engine, *progress.Engine) {
 		c.Set("storeID", 0)
 		c.Next()
 	}
-	perm := func(_ string) gin.HandlerFunc {
+	perm := func(_ permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -400,7 +401,7 @@ func TestHandler_ExportCSV(t *testing.T) {
 			c.Set("storeID", 0)
 			c.Next()
 		}
-		perm := func(_ string) gin.HandlerFunc {
+		perm := func(_ permissions.Code) gin.HandlerFunc {
 			return func(c *gin.Context) {
 				c.Next()
 			}
@@ -453,7 +454,7 @@ func TestHandler_ExportXLSX(t *testing.T) {
 			c.Set("storeID", 0)
 			c.Next()
 		}
-		perm := func(_ string) gin.HandlerFunc {
+		perm := func(_ permissions.Code) gin.HandlerFunc {
 			return func(c *gin.Context) {
 				c.Next()
 			}
@@ -521,7 +522,7 @@ func TestHandler_PermissionDenied(t *testing.T) {
 		c.Next()
 	}
 	permCalled := false
-	perm := func(permStr string) gin.HandlerFunc {
+	perm := func(permStr permissions.Code) gin.HandlerFunc {
 		permCalled = true
 		return func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden: " + permStr})
@@ -585,7 +586,7 @@ func TestHandler_ListModules_Empty(t *testing.T) {
 		c.Set("storeID", 0)
 		c.Next()
 	}
-	perm := func(_ string) gin.HandlerFunc {
+	perm := func(_ permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -671,7 +672,7 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 		c.Set("storeID", 0)
 		c.Next()
 	}
-	perm := func(_ string) gin.HandlerFunc {
+	perm := func(_ permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -833,7 +834,7 @@ func TestHandler_DownloadTemplate_TemplateDisabled(t *testing.T) {
 		c.Set("storeID", 0)
 		c.Next()
 	}
-	perm := func(_ string) gin.HandlerFunc {
+	perm := func(_ permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	}
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
@@ -938,7 +939,7 @@ func TestHandler_DownloadTemplate_AdapterError(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()
@@ -966,7 +967,7 @@ func TestHandler_DownloadTemplate_LoadRefError(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()
@@ -992,7 +993,7 @@ func TestHandler_Export_AdapterError(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()
@@ -1020,7 +1021,7 @@ func TestHandler_Export_ExportDataError(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()
@@ -1047,7 +1048,7 @@ func TestHandler_ListImportHistory_ListJobsError(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, nil)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Set("storeID", 0); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()
@@ -1087,7 +1088,7 @@ func setupHandlerWithHistory(hs HistoryReader) (*gin.Engine, *progress.Engine) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, hs)
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Set("storeID", 0); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 	return r, progEng
 }
@@ -1223,7 +1224,7 @@ func TestHandler_GetImportDetail_GetProgressNotFound(t *testing.T) {
 	h := NewHandler(schemaReg, adapterReg, importEng, exportEng, templateEng, progEng, &mockHistoryStore{})
 	r := gin.New()
 	auth := func(c *gin.Context) { c.Set("userID", 1); c.Next() }
-	perm := func(_ string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
+	perm := func(_ permissions.Code) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }
 	h.RegisterRoutes(r.Group("/api"), auth, perm)
 
 	w := httptest.NewRecorder()

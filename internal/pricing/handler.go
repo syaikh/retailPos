@@ -9,6 +9,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -48,18 +49,18 @@ func (h *Handler) SetProductSearcher(s ProductSearcher) {
 	h.searcher = s
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/pricing-rules", auth, perm("pricing.view"), h.ListRules)
-	r.GET("/pricing-rules/:id", auth, perm("pricing.view"), h.GetRule)
-	r.POST("/pricing-rules", auth, perm("pricing.create"), h.CreateRule)
-	r.PUT("/pricing-rules/:id", auth, perm("pricing.update"), h.UpdateRule)
-	r.DELETE("/pricing-rules/:id", auth, perm("pricing.delete"), h.DeleteRule)
-	r.POST("/pricing-rules/check-conflicts", auth, perm("pricing.view"), h.CheckConflicts)
-	r.POST("/pricing-rules/:id/submit", auth, perm("pricing.update"), h.SubmitForApproval)
-	r.POST("/pricing-rules/:id/approve", auth, perm("pricing.update"), h.ApproveRule)
-	r.POST("/pricing-rules/:id/reject", auth, perm("pricing.update"), h.RejectRule)
-	r.POST("/pricing/resolve", auth, perm("pricing.view"), h.ResolvePrices)
-	r.GET("/products/search", auth, perm("pricing.view"), h.SearchProducts)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/pricing-rules", auth, perm(permissions.PricingView), h.ListRules)
+	r.GET("/pricing-rules/:id", auth, perm(permissions.PricingView), h.GetRule)
+	r.POST("/pricing-rules", auth, perm(permissions.PricingCreate), h.CreateRule)
+	r.PUT("/pricing-rules/:id", auth, perm(permissions.PricingUpdate), h.UpdateRule)
+	r.DELETE("/pricing-rules/:id", auth, perm(permissions.PricingDelete), h.DeleteRule)
+	r.POST("/pricing-rules/check-conflicts", auth, perm(permissions.PricingView), h.CheckConflicts)
+	r.POST("/pricing-rules/:id/submit", auth, perm(permissions.PricingUpdate), h.SubmitForApproval)
+	r.POST("/pricing-rules/:id/approve", auth, perm(permissions.PricingUpdate), h.ApproveRule)
+	r.POST("/pricing-rules/:id/reject", auth, perm(permissions.PricingUpdate), h.RejectRule)
+	r.POST("/pricing/resolve", auth, perm(permissions.PricingView), h.ResolvePrices)
+	r.GET("/products/search", auth, perm(permissions.PricingView), h.SearchProducts)
 }
 
 // ListRules godoc

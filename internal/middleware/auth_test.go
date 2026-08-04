@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -149,25 +151,25 @@ func TestHasPermission(t *testing.T) {
 	tests := []struct {
 		name      string
 		userPerms []string
-		required  string
+		required  permissions.Code
 		want      bool
 	}{
 		{
 			name:      "permission exists",
 			userPerms: []string{"a", "b", "c"},
-			required:  "b",
+			required:  permissions.Code("b"),
 			want:      true,
 		},
 		{
 			name:      "permission not found",
 			userPerms: []string{"a", "b"},
-			required:  "c",
+			required:  permissions.Code("c"),
 			want:      false,
 		},
 		{
 			name:      "empty permissions",
 			userPerms: []string{},
-			required:  "a",
+			required:  permissions.Code("a"),
 			want:      false,
 		},
 	}
@@ -294,27 +296,27 @@ func TestRequirePermission(t *testing.T) {
 		name     string
 		perms    interface{}
 		setPerms bool
-		required string
+		required permissions.Code
 		wantCode int
 	}{
 		{
 			name:     "permission granted",
 			perms:    []string{"sale.create", "sale.view"},
 			setPerms: true,
-			required: "sale.create",
+			required: permissions.SaleCreate,
 			wantCode: http.StatusOK,
 		},
 		{
 			name:     "permission denied",
 			perms:    []string{"sale.view"},
 			setPerms: true,
-			required: "sale.create",
+			required: permissions.SaleCreate,
 			wantCode: http.StatusForbidden,
 		},
 		{
 			name:     "no permissions in context",
 			setPerms: false,
-			required: "sale.create",
+			required: permissions.SaleCreate,
 			wantCode: http.StatusUnauthorized,
 		},
 	}
@@ -482,12 +484,12 @@ func TestNewModularAuthMiddleware_ValidToken(t *testing.T) {
 	middleware := NewModularAuthMiddleware(authService)
 
 	authClaims := user.AuthClaims{
-		ID:         1,
-		Username:   "testuser",
-		RoleID:     1,
-		Role:       "superadmin",
+		ID:          1,
+		Username:    "testuser",
+		RoleID:      1,
+		Role:        "superadmin",
 		Permissions: []string{"sale.create", "report.view"},
-		StoreID:    intPtr(2),
+		StoreID:     intPtr(2),
 	}
 	claims := jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),

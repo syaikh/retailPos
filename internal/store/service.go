@@ -33,10 +33,10 @@ func (s *Service) Create(ctx context.Context, req StoreCreateRequest) (*Store, e
 	}
 
 	st := &Store{
-		Name:      name,
-		Address:   strings.TrimSpace(req.Address),
-		Phone:     strings.TrimSpace(req.Phone),
-		IsActive:  true,
+		Name:     name,
+		Address:  strings.TrimSpace(req.Address),
+		Phone:    strings.TrimSpace(req.Phone),
+		IsActive: true,
 	}
 	if err := s.repo.Create(ctx, st); err != nil {
 		return nil, err

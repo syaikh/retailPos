@@ -366,14 +366,14 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 			return nil, ErrPOItemNotFound
 		}
 
-	remaining := poItem.QtyOrdered - poItem.QtyReceived
-	if reqItem.QtyGood < 0 || reqItem.QtyDamaged < 0 {
-		return nil, ErrInvalidReceivingQty
-	}
-	if reqItem.QtyGood+reqItem.QtyDamaged > remaining {
-		return nil, fmt.Errorf("%w: received quantity exceeds remaining for product %d: ordered=%d, remaining=%d, requested=%d", ErrOverReceiving,
-			poItem.ProductID, poItem.QtyOrdered, remaining, reqItem.QtyGood+reqItem.QtyDamaged)
-	}
+		remaining := poItem.QtyOrdered - poItem.QtyReceived
+		if reqItem.QtyGood < 0 || reqItem.QtyDamaged < 0 {
+			return nil, ErrInvalidReceivingQty
+		}
+		if reqItem.QtyGood+reqItem.QtyDamaged > remaining {
+			return nil, fmt.Errorf("%w: received quantity exceeds remaining for product %d: ordered=%d, remaining=%d, requested=%d", ErrOverReceiving,
+				poItem.ProductID, poItem.QtyOrdered, remaining, reqItem.QtyGood+reqItem.QtyDamaged)
+		}
 
 		grItem := GoodsReceiptItem{
 			PurchaseOrderItemID: reqItem.PurchaseOrderItemID,
@@ -422,12 +422,12 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 
 	bgCtx := context.Background()
 	_ = s.eventBus.Publish(bgCtx, string(EventGoodsReceiptCreated), map[string]interface{}{
-		"gr_id":                gr.ID,
-		"gr_number":            gr.GRNumber,
+		"gr_id":                 gr.ID,
+		"gr_number":             gr.GRNumber,
 		"delivery_order_number": gr.DeliveryOrderNumber,
-		"po_id":                poID,
-		"po_number":            po.PONumber,
-		"store_id":             storeID,
+		"po_id":                 poID,
+		"po_number":             po.PONumber,
+		"store_id":              storeID,
 	})
 
 	if len(receiptItems) > 0 {

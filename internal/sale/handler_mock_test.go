@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/permissions"
 )
 
 func init() {
@@ -39,17 +40,17 @@ type mockSaleService struct {
 	listParkedSalesFn          func(ctx context.Context, cashierID int) ([]Sale, error)
 	getParkedSaleByIDFn        func(ctx context.Context, saleID int, cashierID int) (*Sale, error)
 
-	createOrGetOpenCartFn      func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
-	getOpenCartFn              func(ctx context.Context, cashierID int) (*CartSession, error)
-	getCartByIDFn              func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	listHeldCartsFn            func(ctx context.Context, cashierID int) ([]CartSession, error)
-	updateCartCustomerFn       func(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
-	addCartItemFn              func(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
-	updateCartItemQuantityFn   func(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
-	removeCartItemFn           func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
-	holdCartFn                 func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	resumeCartFn               func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
-	checkoutCartFn             func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
+	createOrGetOpenCartFn           func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
+	getOpenCartFn                   func(ctx context.Context, cashierID int) (*CartSession, error)
+	getCartByIDFn                   func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	listHeldCartsFn                 func(ctx context.Context, cashierID int) ([]CartSession, error)
+	updateCartCustomerFn            func(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error)
+	addCartItemFn                   func(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error)
+	updateCartItemQuantityFn        func(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error)
+	removeCartItemFn                func(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error)
+	holdCartFn                      func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	resumeCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
+	checkoutCartFn                  func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
 }
 
@@ -195,7 +196,7 @@ func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine 
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	h.RegisterPaymentMethodsPublicRoutes(r.Group("/public"))

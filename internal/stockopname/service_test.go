@@ -10,7 +10,7 @@ import (
 )
 
 type capturingEventBus struct {
-	mu       sync.Mutex
+	mu        sync.Mutex
 	published []struct {
 		topic string
 		event interface{}

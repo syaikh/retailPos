@@ -9,6 +9,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -42,23 +43,23 @@ func NewHandler(svc SupplierService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/suppliers", auth, perm("pricing.view"), h.ListSuppliers)
-	r.GET("/suppliers/:id", auth, perm("pricing.view"), h.GetSupplier)
-	r.POST("/suppliers", auth, perm("pricing.create"), h.CreateSupplier)
-	r.PUT("/suppliers/:id", auth, perm("pricing.update"), h.UpdateSupplier)
-	r.DELETE("/suppliers/:id", auth, perm("pricing.delete"), h.DeleteSupplier)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/suppliers", auth, perm(permissions.PricingView), h.ListSuppliers)
+	r.GET("/suppliers/:id", auth, perm(permissions.PricingView), h.GetSupplier)
+	r.POST("/suppliers", auth, perm(permissions.PricingCreate), h.CreateSupplier)
+	r.PUT("/suppliers/:id", auth, perm(permissions.PricingUpdate), h.UpdateSupplier)
+	r.DELETE("/suppliers/:id", auth, perm(permissions.PricingDelete), h.DeleteSupplier)
 
-	r.PUT("/suppliers/bulk", auth, perm("pricing.update"), h.BulkUpdate)
-	r.DELETE("/suppliers/bulk", auth, perm("pricing.delete"), h.BulkDelete)
+	r.PUT("/suppliers/bulk", auth, perm(permissions.PricingUpdate), h.BulkUpdate)
+	r.DELETE("/suppliers/bulk", auth, perm(permissions.PricingDelete), h.BulkDelete)
 
-	r.GET("/suppliers/:id/products", auth, perm("pricing.view"), h.GetProductsBySupplier)
-	r.POST("/suppliers/:id/products", auth, perm("pricing.update"), h.LinkProduct)
-	r.DELETE("/suppliers/:id/products/:productId", auth, perm("pricing.update"), h.UnlinkProduct)
-	r.PUT("/suppliers/:id/products/:productId", auth, perm("pricing.update"), h.UpdateProductSupplier)
-	r.POST("/suppliers/:id/products/:productId/preferred", auth, perm("pricing.update"), h.SetPreferredSupplier)
+	r.GET("/suppliers/:id/products", auth, perm(permissions.PricingView), h.GetProductsBySupplier)
+	r.POST("/suppliers/:id/products", auth, perm(permissions.PricingUpdate), h.LinkProduct)
+	r.DELETE("/suppliers/:id/products/:productId", auth, perm(permissions.PricingUpdate), h.UnlinkProduct)
+	r.PUT("/suppliers/:id/products/:productId", auth, perm(permissions.PricingUpdate), h.UpdateProductSupplier)
+	r.POST("/suppliers/:id/products/:productId/preferred", auth, perm(permissions.PricingUpdate), h.SetPreferredSupplier)
 
-	r.GET("/products/:id/suppliers", auth, perm("pricing.view"), h.GetSuppliersByProduct)
+	r.GET("/products/:id/suppliers", auth, perm(permissions.PricingView), h.GetSuppliersByProduct)
 }
 
 // ListSuppliers godoc

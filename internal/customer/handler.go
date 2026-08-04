@@ -10,6 +10,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -36,14 +37,14 @@ func NewHandler(svc CustomerService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/customers", auth, perm("customer.view"), h.GetCustomers)
-	r.GET("/customers/:id", auth, perm("customer.view"), h.GetCustomerByID)
-	r.POST("/customers", auth, perm("customer.create"), h.CreateCustomer)
-	r.PUT("/customers/:id", auth, perm("customer.update"), h.UpdateCustomer)
-	r.DELETE("/customers/:id", auth, perm("customer.delete"), h.DeleteCustomer)
-	r.POST("/customers/bulk/status", auth, perm("customer.update"), h.BulkUpdateCustomerStatus)
-	r.POST("/customers/bulk/delete", auth, perm("customer.delete"), h.BulkDeleteCustomers)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/customers", auth, perm(permissions.CustomerView), h.GetCustomers)
+	r.GET("/customers/:id", auth, perm(permissions.CustomerView), h.GetCustomerByID)
+	r.POST("/customers", auth, perm(permissions.CustomerCreate), h.CreateCustomer)
+	r.PUT("/customers/:id", auth, perm(permissions.CustomerUpdate), h.UpdateCustomer)
+	r.DELETE("/customers/:id", auth, perm(permissions.CustomerDelete), h.DeleteCustomer)
+	r.POST("/customers/bulk/status", auth, perm(permissions.CustomerUpdate), h.BulkUpdateCustomerStatus)
+	r.POST("/customers/bulk/delete", auth, perm(permissions.CustomerDelete), h.BulkDeleteCustomers)
 }
 
 var phoneRegex = regexp.MustCompile(`^[0-9+\-() ]{7,20}$`)

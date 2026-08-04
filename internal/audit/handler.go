@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -24,11 +25,11 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.GET("/audit-logs", auth, perm("audit.view"), h.ListAuditLogs)
-	r.GET("/audit-logs/:id", auth, perm("audit.view"), h.GetAuditLog)
-	r.GET("/audit-logs/export", auth, perm("audit.view"), h.ExportAuditLogs)
-	r.GET("/audit-logs/entity-types", auth, perm("audit.view"), h.ListEntityTypes)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.GET("/audit-logs", auth, perm(permissions.AuditView), h.ListAuditLogs)
+	r.GET("/audit-logs/:id", auth, perm(permissions.AuditView), h.GetAuditLog)
+	r.GET("/audit-logs/export", auth, perm(permissions.AuditView), h.ExportAuditLogs)
+	r.GET("/audit-logs/entity-types", auth, perm(permissions.AuditView), h.ListEntityTypes)
 }
 
 func (h *Handler) ListAuditLogs(c *gin.Context) {

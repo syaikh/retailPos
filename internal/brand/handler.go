@@ -8,6 +8,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -31,10 +32,10 @@ func NewHandler(svc BrandService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/brands", auth, perm("product.create"), h.CreateBrand)
-	r.PUT("/brands/:id", auth, perm("product.update"), h.UpdateBrand)
-	r.DELETE("/brands/:id", auth, perm("product.delete"), h.DeleteBrand)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/brands", auth, perm(permissions.ProductCreate), h.CreateBrand)
+	r.PUT("/brands/:id", auth, perm(permissions.ProductUpdate), h.UpdateBrand)
+	r.DELETE("/brands/:id", auth, perm(permissions.ProductDelete), h.DeleteBrand)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {

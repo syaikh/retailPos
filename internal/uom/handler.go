@@ -8,6 +8,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -31,10 +32,10 @@ func NewHandler(svc UOMService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/units-of-measure", auth, perm("product.create"), h.CreateUnitOfMeasure)
-	r.PUT("/units-of-measure/:id", auth, perm("product.update"), h.UpdateUnitOfMeasure)
-	r.DELETE("/units-of-measure/:id", auth, perm("product.delete"), h.DeleteUnitOfMeasure)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/units-of-measure", auth, perm(permissions.ProductCreate), h.CreateUnitOfMeasure)
+	r.PUT("/units-of-measure/:id", auth, perm(permissions.ProductUpdate), h.UpdateUnitOfMeasure)
+	r.DELETE("/units-of-measure/:id", auth, perm(permissions.ProductDelete), h.DeleteUnitOfMeasure)
 }
 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {

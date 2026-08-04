@@ -3,48 +3,48 @@ package stockopname
 import "errors"
 
 var (
-	ErrNotFound             = errors.New("stock opname session not found")
-	ErrInvalidState         = errors.New("invalid session state for this operation")
-	ErrSessionLocked        = errors.New("session is locked")
-	ErrAlreadySubmitted     = errors.New("session already submitted")
-	ErrAlreadyApproved      = errors.New("session already approved")
-	ErrNotAllItemsCounted   = errors.New("all items must be counted before submit")
-	ErrNotAssigned          = errors.New("user is not assigned to this session")
-	ErrSeparationOfDuties   = errors.New("counter cannot approve or verify the same session")
-	ErrItemNotFound         = errors.New("stock opname item not found")
-	ErrAssignmentNotFound   = errors.New("assignment not found")
-	ErrInvalidQuantity      = errors.New("invalid quantity")
-	ErrApprovalCommentReq   = errors.New("approval/rejection comment is required")
-	ErrUnsupportedScope     = errors.New("unsupported scope type")
-	ErrNoItems              = errors.New("session has no items to count")
-	ErrNoPermission         = errors.New("user lacks permission")
-	ErrAdjustmentFailed     = errors.New("inventory adjustment failed")
-	ErrProductNotFound      = errors.New("product not found")
-	ErrInvalidAssigneeRole  = errors.New("user role is not valid for this assignment role")
-	ErrAssigneeNotFound     = errors.New("assignee user not found or inactive")
-	ErrNoScopes             = errors.New("at least one scope is required")
-	ErrScopeIDRequired      = errors.New("scope_id is required for this scope type")
-	ErrScopeOverlap         = errors.New("scope overlaps an active session")
-	ErrAlreadyVerified      = errors.New("session already verified")
-	ErrAlreadyPosted        = errors.New("session already posted")
-	ErrAlreadyClosed        = errors.New("session already closed")
-	ErrAdjustmentNotFound   = errors.New("inventory adjustment not found")
-	ErrOpenCommentReq       = errors.New("comment is required to open the session")
-	ErrLocationScopeSingle  = errors.New("location scope must be used alone")
-	ErrLocationNotFound     = errors.New("storage location not found")
-	ErrLocationInactive     = errors.New("storage location is inactive")
+	ErrNotFound            = errors.New("stock opname session not found")
+	ErrInvalidState        = errors.New("invalid session state for this operation")
+	ErrSessionLocked       = errors.New("session is locked")
+	ErrAlreadySubmitted    = errors.New("session already submitted")
+	ErrAlreadyApproved     = errors.New("session already approved")
+	ErrNotAllItemsCounted  = errors.New("all items must be counted before submit")
+	ErrNotAssigned         = errors.New("user is not assigned to this session")
+	ErrSeparationOfDuties  = errors.New("counter cannot approve or verify the same session")
+	ErrItemNotFound        = errors.New("stock opname item not found")
+	ErrAssignmentNotFound  = errors.New("assignment not found")
+	ErrInvalidQuantity     = errors.New("invalid quantity")
+	ErrApprovalCommentReq  = errors.New("approval/rejection comment is required")
+	ErrUnsupportedScope    = errors.New("unsupported scope type")
+	ErrNoItems             = errors.New("session has no items to count")
+	ErrNoPermission        = errors.New("user lacks permission")
+	ErrAdjustmentFailed    = errors.New("inventory adjustment failed")
+	ErrProductNotFound     = errors.New("product not found")
+	ErrInvalidAssigneeRole = errors.New("user role is not valid for this assignment role")
+	ErrAssigneeNotFound    = errors.New("assignee user not found or inactive")
+	ErrNoScopes            = errors.New("at least one scope is required")
+	ErrScopeIDRequired     = errors.New("scope_id is required for this scope type")
+	ErrScopeOverlap        = errors.New("scope overlaps an active session")
+	ErrAlreadyVerified     = errors.New("session already verified")
+	ErrAlreadyPosted       = errors.New("session already posted")
+	ErrAlreadyClosed       = errors.New("session already closed")
+	ErrAdjustmentNotFound  = errors.New("inventory adjustment not found")
+	ErrOpenCommentReq      = errors.New("comment is required to open the session")
+	ErrLocationScopeSingle = errors.New("location scope must be used alone")
+	ErrLocationNotFound    = errors.New("storage location not found")
+	ErrLocationInactive    = errors.New("storage location is inactive")
 )
 
 const (
-	StatusDraft         = "draft"
-	StatusOpen          = "open"
-	StatusCounting      = "counting"
-	StatusVerification  = "verification"
-	StatusNeedsRecount  = "needs_recount"
-	StatusApproved      = "approved"
-	StatusPosted        = "posted"
-	StatusClosed        = "closed"
-	StatusCancelled     = "cancelled"
+	StatusDraft        = "draft"
+	StatusOpen         = "open"
+	StatusCounting     = "counting"
+	StatusVerification = "verification"
+	StatusNeedsRecount = "needs_recount"
+	StatusApproved     = "approved"
+	StatusPosted       = "posted"
+	StatusClosed       = "closed"
+	StatusCancelled    = "cancelled"
 	// StatusPendingApproval is retained as an alias for external consumers of
 	// the archived v1 state; the active workflow uses StatusVerification.
 	StatusPendingApproval = StatusVerification
@@ -164,14 +164,14 @@ type SessionSummary struct {
 }
 
 type CountRecord struct {
-	ID               int     `json:"id"`
-	StockOpnameItemID int    `json:"stock_opname_item_id"`
-	CountSequence    int     `json:"count_sequence"`
-	PhysicalQty      float64 `json:"physical_qty"`
-	CountedBy        int     `json:"counted_by"`
-	CountedByUser    string  `json:"counted_by_user"`
-	CountedAt        string  `json:"counted_at"`
-	Remarks          string  `json:"remarks,omitempty"`
+	ID                int     `json:"id"`
+	StockOpnameItemID int     `json:"stock_opname_item_id"`
+	CountSequence     int     `json:"count_sequence"`
+	PhysicalQty       float64 `json:"physical_qty"`
+	CountedBy         int     `json:"counted_by"`
+	CountedByUser     string  `json:"counted_by_user"`
+	CountedAt         string  `json:"counted_at"`
+	Remarks           string  `json:"remarks,omitempty"`
 }
 
 // Adjustment is the source-of-truth ledger document emitted when differences
@@ -220,14 +220,14 @@ type Scope struct {
 }
 
 type CreateSessionRequest struct {
-	Title       string        `json:"title"`
-	Scopes      []Scope       `json:"scopes"`
-	ScopeType   string        `json:"scope_type"`
-	ScopeID     int64         `json:"scope_id"`
-	WarehouseID *int          `json:"warehouse_id,omitempty"`
-	StoreID     *int          `json:"store_id,omitempty"`
-	BlindCount  bool          `json:"blind_count"`
-	Notes       string        `json:"notes"`
+	Title       string  `json:"title"`
+	Scopes      []Scope `json:"scopes"`
+	ScopeType   string  `json:"scope_type"`
+	ScopeID     int64   `json:"scope_id"`
+	WarehouseID *int    `json:"warehouse_id,omitempty"`
+	StoreID     *int    `json:"store_id,omitempty"`
+	BlindCount  bool    `json:"blind_count"`
+	Notes       string  `json:"notes"`
 }
 
 type OpenRequest struct {

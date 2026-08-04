@@ -8,6 +8,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -29,11 +30,11 @@ func NewHandler(svc InventoryService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/inventory/adjust", auth, perm("inventory.adjust"), h.AdjustStock)
-	r.GET("/inventory/locations", auth, perm("product.view"), h.ListLocationStock)
-	r.POST("/inventory/locations", auth, perm("inventory.adjust"), h.SetLocationStock)
-	r.POST("/inventory/locations/transfer", auth, perm("inventory.adjust"), h.TransferLocationStock)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/inventory/adjust", auth, perm(permissions.InventoryAdjust), h.AdjustStock)
+	r.GET("/inventory/locations", auth, perm(permissions.ProductView), h.ListLocationStock)
+	r.POST("/inventory/locations", auth, perm(permissions.InventoryAdjust), h.SetLocationStock)
+	r.POST("/inventory/locations/transfer", auth, perm(permissions.InventoryAdjust), h.TransferLocationStock)
 }
 
 func (h *Handler) AdjustStock(c *gin.Context) {

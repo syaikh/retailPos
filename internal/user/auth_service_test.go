@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/config"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -608,7 +609,7 @@ func TestAuthService_Login_WithIPContext(t *testing.T) {
 	assert.Equal(t, "", resp.User.Password)
 }
 
-func testDummyPerm(perm string) gin.HandlerFunc {
+func testDummyPerm(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) { c.Next() }
 }
 

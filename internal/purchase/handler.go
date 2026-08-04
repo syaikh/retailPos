@@ -9,6 +9,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
@@ -35,16 +36,16 @@ func NewHandler(svc PurchaseService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(string) gin.HandlerFunc) {
-	r.POST("/purchase-orders", auth, perm("purchase_order.create"), h.CreateDraft)
-	r.GET("/purchase-orders", auth, perm("purchase_order.view"), h.ListPOs)
-	r.GET("/purchase-orders/:id", auth, perm("purchase_order.view"), h.GetPO)
-	r.PUT("/purchase-orders/:id", auth, perm("purchase_order.update"), h.UpdateDraft)
-	r.DELETE("/purchase-orders/:id", auth, perm("purchase_order.delete"), h.DeleteDraft)
-	r.POST("/purchase-orders/:id/confirm", auth, perm("purchase_order.confirm"), h.ConfirmPO)
-	r.POST("/purchase-orders/:id/cancel", auth, perm("purchase_order.cancel"), h.CancelPO)
-	r.GET("/purchase-orders/:id/receipts", auth, perm("purchase_order.view"), h.GetReceipts)
-	r.POST("/goods-receipts", auth, perm("purchase_order.receive"), h.CreateGoodsReceipt)
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
+	r.POST("/purchase-orders", auth, perm(permissions.PurchaseOrderCreate), h.CreateDraft)
+	r.GET("/purchase-orders", auth, perm(permissions.PurchaseOrderView), h.ListPOs)
+	r.GET("/purchase-orders/:id", auth, perm(permissions.PurchaseOrderView), h.GetPO)
+	r.PUT("/purchase-orders/:id", auth, perm(permissions.PurchaseOrderUpdate), h.UpdateDraft)
+	r.DELETE("/purchase-orders/:id", auth, perm(permissions.PurchaseOrderDelete), h.DeleteDraft)
+	r.POST("/purchase-orders/:id/confirm", auth, perm(permissions.PurchaseOrderConfirm), h.ConfirmPO)
+	r.POST("/purchase-orders/:id/cancel", auth, perm(permissions.PurchaseOrderCancel), h.CancelPO)
+	r.GET("/purchase-orders/:id/receipts", auth, perm(permissions.PurchaseOrderView), h.GetReceipts)
+	r.POST("/goods-receipts", auth, perm(permissions.PurchaseOrderReceive), h.CreateGoodsReceipt)
 }
 
 func toDomainItems(reqItems []CreatePOItemRequest) []PurchaseOrderItem {
@@ -85,14 +86,14 @@ func stringValue(s *string) string {
 
 func (h *Handler) CreateDraft(c *gin.Context) {
 	var req struct {
-		SupplierID              int                  `json:"supplier_id" binding:"required"`
-		StoreID                 *int                 `json:"store_id,omitempty"`
-		WarehouseID             *int                 `json:"warehouse_id,omitempty"`
-		ExpectedDate            string               `json:"expected_date,omitempty"`
-		PaymentTerm             string               `json:"payment_term,omitempty"`
-		DeliveryAddress         string               `json:"delivery_address,omitempty"`
-		SupplierReferenceNumber string               `json:"supplier_reference_number,omitempty"`
-		Notes                   string               `json:"notes,omitempty"`
+		SupplierID              int                   `json:"supplier_id" binding:"required"`
+		StoreID                 *int                  `json:"store_id,omitempty"`
+		WarehouseID             *int                  `json:"warehouse_id,omitempty"`
+		ExpectedDate            string                `json:"expected_date,omitempty"`
+		PaymentTerm             string                `json:"payment_term,omitempty"`
+		DeliveryAddress         string                `json:"delivery_address,omitempty"`
+		SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
+		Notes                   string                `json:"notes,omitempty"`
 		Items                   []CreatePOItemRequest `json:"items" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -156,12 +157,12 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 	}
 
 	var req struct {
-		SupplierID              int                  `json:"supplier_id" binding:"required"`
-		ExpectedDate            string               `json:"expected_date,omitempty"`
-		PaymentTerm             string               `json:"payment_term,omitempty"`
-		DeliveryAddress         string               `json:"delivery_address,omitempty"`
-		SupplierReferenceNumber string               `json:"supplier_reference_number,omitempty"`
-		Notes                   string               `json:"notes,omitempty"`
+		SupplierID              int                   `json:"supplier_id" binding:"required"`
+		ExpectedDate            string                `json:"expected_date,omitempty"`
+		PaymentTerm             string                `json:"payment_term,omitempty"`
+		DeliveryAddress         string                `json:"delivery_address,omitempty"`
+		SupplierReferenceNumber string                `json:"supplier_reference_number,omitempty"`
+		Notes                   string                `json:"notes,omitempty"`
 		Items                   []UpdatePOItemRequest `json:"items" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,7 +172,7 @@ func TestMockHandler_GetProductByID_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -195,7 +197,7 @@ func TestMockHandler_GetProductByID_WithInvalidStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -224,7 +226,7 @@ func TestMockHandler_UpdateProduct_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -255,7 +257,7 @@ func TestMockHandler_DeleteProduct_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -282,7 +284,7 @@ func TestMockHandler_BulkUpdateStatus_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -311,7 +313,7 @@ func TestMockHandler_GetProducts_WithStoreID(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 
@@ -336,7 +338,7 @@ func TestMockHandler_GetProducts_WithInvalidStoreIDType(t *testing.T) {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 

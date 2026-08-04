@@ -34,11 +34,11 @@ func TestPurchaseService_CreateDraft(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 5,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  5,
+			UnitCost:    8000,
 			ProductName: "Draft Product",
-			SKU:        "SVC-DRAFT-001",
+			SKU:         "SVC-DRAFT-001",
 		},
 	}
 
@@ -65,11 +65,11 @@ func TestPurchaseService_Confirm(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 5,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  5,
+			UnitCost:    8000,
 			ProductName: "Confirm Product",
-			SKU:        "SVC-CONF-001",
+			SKU:         "SVC-CONF-001",
 		},
 	}
 
@@ -101,11 +101,11 @@ func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 10,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  10,
+			UnitCost:    8000,
 			ProductName: "Cancel Product",
-			SKU:        "SVC-CANCEL-001",
+			SKU:         "SVC-CANCEL-001",
 		},
 	}
 
@@ -146,11 +146,11 @@ func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 10,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  10,
+			UnitCost:    8000,
 			ProductName: "Receive Product",
-			SKU:        "SVC-RECV-001",
+			SKU:         "SVC-RECV-001",
 		},
 	}
 
@@ -208,11 +208,11 @@ func TestPurchaseService_OverReceivePrevented(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 10,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  10,
+			UnitCost:    8000,
 			ProductName: "OverReceive Product",
-			SKU:        "SVC-OVER-001",
+			SKU:         "SVC-OVER-001",
 		},
 	}
 
@@ -371,18 +371,18 @@ func TestPurchaseService_DuplicateItemRejected(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 5,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  5,
+			UnitCost:    8000,
 			ProductName: "Dup Product",
-			SKU:        "SVC-DUP-001",
+			SKU:         "SVC-DUP-001",
 		},
 		{
-			ProductID:  prodID,
-			QtyOrdered: 3,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  3,
+			UnitCost:    8000,
 			ProductName: "Dup Product",
-			SKU:        "SVC-DUP-001",
+			SKU:         "SVC-DUP-001",
 		},
 	}
 
@@ -405,11 +405,11 @@ func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
 	}
 	items := []PurchaseOrderItem{
 		{
-			ProductID:  prodID,
-			QtyOrdered: 5,
-			UnitCost:   8000,
+			ProductID:   prodID,
+			QtyOrdered:  5,
+			UnitCost:    8000,
 			ProductName: "Draft Receive Product",
-			SKU:        "SVC-DRAFT-RECV-001",
+			SKU:         "SVC-DRAFT-RECV-001",
 		},
 	}
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"retail-pos-system/internal/permissions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +86,7 @@ func setupMockProductRouter(svc ProductService) *gin.Engine {
 		c.Next()
 	})
 	h := NewHandler(svc, nil)
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	h.RegisterPublicRoutes(r.Group("/"))

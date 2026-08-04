@@ -16,6 +16,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/permissions"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -37,7 +38,7 @@ func testAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func testPermMiddleware(perm string) gin.HandlerFunc {
+func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}
@@ -88,7 +89,7 @@ func setupProductRouterWithAudit() (*gin.Engine, *mockProductAudit) {
 		c.Set("storeID", &sid)
 		c.Next()
 	})
-	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(string) gin.HandlerFunc {
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(permissions.Code) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
 	return r, mockAudit

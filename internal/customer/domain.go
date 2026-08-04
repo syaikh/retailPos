@@ -1,23 +1,23 @@
 package customer
 
 type Customer struct {
-	ID              int     `json:"id"`
-	Name            string  `json:"name"`
-	Phone           *string `json:"phone,omitempty"`
-	Email           *string `json:"email,omitempty"`
-	Address         *string `json:"address,omitempty"`
-	TaxID           *string `json:"tax_id,omitempty"`
-	CustomerGroupID *int    `json:"customer_group_id,omitempty"`
+	ID                int     `json:"id"`
+	Name              string  `json:"name"`
+	Phone             *string `json:"phone,omitempty"`
+	Email             *string `json:"email,omitempty"`
+	Address           *string `json:"address,omitempty"`
+	TaxID             *string `json:"tax_id,omitempty"`
+	CustomerGroupID   *int    `json:"customer_group_id,omitempty"`
 	CustomerGroupName *string `json:"customer_group_name,omitempty"`
-	LoyaltyPoints   int     `json:"loyalty_points"`
-	TotalSpent      int     `json:"total_spent"`
-	LastPurchaseAt  *string `json:"last_purchase_at,omitempty"`
-	Note            *string `json:"note,omitempty"`
-	StoreID         *int    `json:"store_id,omitempty"`
-	IsActive        bool    `json:"is_active"`
-	IsWalkIn        bool    `json:"is_walk_in"`
-	CreatedAt       string  `json:"created_at,omitempty"`
-	UpdatedAt       string  `json:"updated_at,omitempty"`
+	LoyaltyPoints     int     `json:"loyalty_points"`
+	TotalSpent        int     `json:"total_spent"`
+	LastPurchaseAt    *string `json:"last_purchase_at,omitempty"`
+	Note              *string `json:"note,omitempty"`
+	StoreID           *int    `json:"store_id,omitempty"`
+	IsActive          bool    `json:"is_active"`
+	IsWalkIn          bool    `json:"is_walk_in"`
+	CreatedAt         string  `json:"created_at,omitempty"`
+	UpdatedAt         string  `json:"updated_at,omitempty"`
 }
 
 type CustomerCreateRequest struct {
