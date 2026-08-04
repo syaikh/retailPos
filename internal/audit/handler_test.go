@@ -230,6 +230,14 @@ func TestHandler_ExportAuditLogs(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "handler_export_test")
 	})
+
+	t.Run("exports with id filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/audit-logs/export?format=csv&user_id=1&entity_id=2", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestHandler_GetAuditLog(t *testing.T) {

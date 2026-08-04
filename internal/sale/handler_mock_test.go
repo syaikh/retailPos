@@ -203,6 +203,84 @@ func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine 
 	return r
 }
 
+// setupSaleHandlerUser builds a handler with a configurable userID context
+// value (nil omits the key entirely) so the auth branches of the sale
+// handlers can be exercised.
+func setupSaleHandlerUser(svc SaleService, auditSvc audit.AuditCreator, userID interface{}) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		if userID != nil {
+			c.Set("userID", userID)
+		}
+		c.Set("storeID", nil)
+		c.Next()
+	})
+	h := NewHandler(svc, auditSvc)
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	h.RegisterPaymentMethodsPublicRoutes(r.Group("/public"))
+	return r
+}
+
+// TestSaleHandler_UserContextBranches covers the missing/invalid userID
+// branches in CreateSale, ParkSale, ListParkedSales and GetParkedSaleByID.
+func TestSaleHandler_UserContextBranches(t *testing.T) {
+	svc := &mockSaleService{}
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}]}`
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{"create sale", http.MethodPost, "/sales", `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"payment_method":"cash"}`},
+		{"park sale", http.MethodPost, "/sales/parked", body},
+		{"list parked", http.MethodGet, "/sales/parked", ""},
+		{"get parked by id", http.MethodGet, "/sales/parked/1", ""},
+	}
+
+	t.Run("missing userID", func(t *testing.T) {
+		r := setupSaleHandlerUser(svc, nil, nil)
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				var req *http.Request
+				if tc.body == "" {
+					req = httptest.NewRequest(tc.method, tc.path, nil)
+				} else {
+					req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+					req.Header.Set("Content-Type", "application/json")
+				}
+				r.ServeHTTP(w, req)
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Contains(t, w.Body.String(), "user not authenticated")
+			})
+		}
+	})
+
+	t.Run("non-int userID", func(t *testing.T) {
+		r := setupSaleHandlerUser(svc, nil, "not-an-int")
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				var req *http.Request
+				if tc.body == "" {
+					req = httptest.NewRequest(tc.method, tc.path, nil)
+				} else {
+					req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+					req.Header.Set("Content-Type", "application/json")
+				}
+				r.ServeHTTP(w, req)
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Contains(t, w.Body.String(), "invalid user ID in context")
+			})
+		}
+	})
+}
+
 func TestSaleHandler_CreateSale_Success(t *testing.T) {
 	var capturedSale *Sale
 	svc := &mockSaleService{
@@ -1051,6 +1129,45 @@ func TestSaleHandler_CancelParkedSale_InvalidID(t *testing.T) {
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("DELETE", "/sales/parked/abc", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestSaleHandler_CreateSale_ParkedSaleNotRecalled covers the conflict
+// response when a checkout references a parked sale that is not in the
+// recalled state.
+func TestSaleHandler_CreateSale_ParkedSaleNotRecalled(t *testing.T) {
+	svc := &mockSaleService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+			return ErrParkedSaleNotRecalled
+		},
+		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
+			return "INV-NOT-RECALLED-001", nil
+		},
+		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
+			return &PaymentMethod{Code: "CASH", Name: "Cash"}, nil
+		},
+	}
+	r := setupSaleHandler(svc, nil)
+	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}],"parked_sale_id":1,"payment_method":"CASH"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "parked sale already checked out or cancelled")
+}
+
+// TestSaleHandler_ParkSale_BindJSONError covers malformed JSON on the park
+// endpoint.
+func TestSaleHandler_ParkSale_BindJSONError(t *testing.T) {
+	svc := &mockSaleService{}
+	r := setupSaleHandler(svc, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(`{"items":`))
+	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)

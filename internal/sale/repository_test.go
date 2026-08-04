@@ -1,7 +1,9 @@
 package sale
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"os"
 	"testing"
 
@@ -290,6 +292,123 @@ func TestSaleRepository_Export(t *testing.T) {
 		}
 	}
 	assert.True(t, found)
+}
+
+func TestSaleRepository_StreamSalesExportCSV(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "REPO-STREAM-PROD", "Stream Export Product", 15000, 50)
+	_ = createAndCommitSale(t, ctx, repo, "INV-REPO-STREAM-001", prodID, 3, 15000, 45000, 45000, 0)
+
+	var buf bytes.Buffer
+	err := repo.StreamSalesExportCSV(ctx, &buf, "", "", "", "", nil, nil, nil)
+	require.NoError(t, err)
+
+	reader := csv.NewReader(&buf)
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	require.NotEmpty(t, records)
+
+	header := records[0]
+	assert.Equal(t, "Invoice Number", header[0])
+	assert.Equal(t, "Total Amount", header[len(header)-1])
+
+	found := false
+	for _, rec := range records[1:] {
+		if rec[0] == "INV-REPO-STREAM-001" {
+			found = true
+			assert.Equal(t, "CASH", rec[4])
+			assert.Equal(t, "45000", rec[5])
+			break
+		}
+	}
+	assert.True(t, found)
+}
+
+// TestSaleRepository_StoreScopedReads covers the store-scoped read branches:
+// the GetSaleByID store filter and the non-null store_id scan branches across
+// the sale read queries.
+func TestSaleRepository_StoreScopedReads(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+	_ = shared.TruncateTestData(dbPool)
+
+	var storeID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Coverage Store') RETURNING id`).Scan(&storeID)
+	require.NoError(t, err)
+
+	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(t, ctx, "REPO-STORE-PROD", "Store Scoped Product", 10000, 50)
+
+	createStoreSale := func(invoice, status string) int {
+		t.Helper()
+		sale := &Sale{
+			InvoiceNumber: invoice,
+			CashierID:     cashierID,
+			StoreID:       &storeID,
+			Subtotal:      10000,
+			TotalAmount:   10000,
+			PaymentMethod: "CASH",
+			Status:        status,
+		}
+		items := []SaleItem{{
+			ProductID: prodID,
+			Quantity:  1,
+			UnitPrice: 10000,
+			Subtotal:  10000,
+			DPPAmount: 10000,
+			TaxAmount: 0,
+		}}
+		tx, err := repo.BeginTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+		err = repo.CreateSale(ctx, tx, sale, items)
+		require.NoError(t, err)
+		err = tx.Commit(ctx)
+		require.NoError(t, err)
+		return sale.ID
+	}
+
+	completedID := createStoreSale("INV-REPO-STORE-CMP", "completed")
+	parkedID := createStoreSale("INV-REPO-STORE-PRK", "parked")
+
+	got, err := repo.GetSaleByID(ctx, completedID, &storeID)
+	require.NoError(t, err)
+	require.NotNil(t, got.StoreID)
+	assert.Equal(t, storeID, *got.StoreID)
+
+	sales, total, err := repo.GetAllSales(ctx, 10, 0, "", "", "", "", "", &storeID, "", nil, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	require.Len(t, sales, 2)
+	for _, s := range sales {
+		require.NotNil(t, s.StoreID)
+		assert.Equal(t, storeID, *s.StoreID)
+	}
+
+	parked, err := repo.GetParkedSales(ctx, cashierID)
+	require.NoError(t, err)
+	var parkedFound bool
+	for _, s := range parked {
+		if s.ID == parkedID {
+			parkedFound = true
+			require.NotNil(t, s.StoreID)
+			assert.Equal(t, storeID, *s.StoreID)
+			break
+		}
+	}
+	assert.True(t, parkedFound)
+
+	byID, err := repo.GetParkedSaleByID(ctx, parkedID, cashierID)
+	require.NoError(t, err)
+	require.NotNil(t, byID.StoreID)
+	assert.Equal(t, storeID, *byID.StoreID)
+
+	recalled, err := repo.RecallSale(ctx, parkedID)
+	require.NoError(t, err)
+	require.NotNil(t, recalled.StoreID)
+	assert.Equal(t, storeID, *recalled.StoreID)
 }
 
 func TestSaleRepository_InvoiceNumber(t *testing.T) {

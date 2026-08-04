@@ -195,6 +195,50 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 	assert.Equal(t, initialStock-quantity, stockAfter, "stock should be reduced by sale quantity")
 }
 
+func TestSaleService_CreateSaleWithShift(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	cashierID := insertTestCashier(t, ctx)
+	var shiftID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO shifts (user_id, status, opening_balance, opened_at) VALUES ($1, 'open', 0, NOW()) RETURNING id`, cashierID).Scan(&shiftID)
+	require.NoError(t, err)
+
+	prodID := insertTestProduct(t, ctx, "SVC-SHIFT-PROD", "Shift Create Product", 5000, 100)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-SHIFT-001",
+		CashierID:     cashierID,
+		ShiftID:       &shiftID,
+		Subtotal:      5000,
+		TotalAmount:   5000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: 5000,
+		Subtotal:  5000,
+		DPPAmount: 5000,
+		TaxAmount: 0,
+	}}
+
+	err = svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
+	require.NoError(t, err)
+	require.NotNil(t, sale.ShiftID)
+
+	var shiftCash int
+	err = dbPool.QueryRow(ctx, `SELECT COALESCE(cash_sales, 0) FROM shifts WHERE id = $1`, shiftID).Scan(&shiftCash)
+	require.NoError(t, err)
+	assert.Equal(t, 5000, shiftCash, "shift cash sales should include the sale amount")
+}
+
 func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
@@ -1039,4 +1083,35 @@ func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
 
 	_, err := svc.GetParkedSaleByID(ctx, -999, 0)
 	assert.ErrorIs(t, err, ErrSaleNotFound)
+}
+
+func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-NEG-PRICE", "Negative Price Product", 10000, 100)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-NEG-001",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      -10000,
+		TotalAmount:   -10000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: -10000,
+		Subtotal:  -10000,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: -10000}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid unit price")
 }

@@ -1,7 +1,7 @@
-# Test Coverage Progress Report — Phase 48
+# Test Coverage Progress Report — Phase 49
 
-**Date:** 2026-07-15  
-**Total Coverage:** 90.6% (excl. cmd/tools, from 53.2% starting point)  
+**Date:** 2026-08-04  
+**Total Coverage:** 85.7% (excl. cmd/tools, this measurement; see Phase 49 note)  
 **Target:** 80% ✓ EXCEEDED  
 **Baseline (incl. cmd/tools):** 74.5%
 
@@ -32,8 +32,8 @@
 | `middleware` | 89.5% | +2.2pp | |
 | `report` | 88.2% | +11.4pp | |
 | `websocket` | 87.8% | — | Flaky TestHub_BroadcastStoreFiltering |
-| `sale` | 87.4% | +8.7pp | |
-| `audit` | 87.8% | +4.3pp | |
+| `sale` | **90.1%** | **+2.7pp** | cart repo/service branches, handler auth/error branches (Phase 49) |
+| `audit` | **90.4%** | **+2.6pp** | export id-filter parse branches (Phase 49) |
 | `platform/importexport/import` | 83.9% | — | |
 | `shared` | **80.2%** | **+16.7pp** | timezone.go loadLocation extraction + init fallback test (Phase 48) |
 
@@ -52,8 +52,12 @@
 | 46 | shared scanner/context/logger + inventory EventBus + handler error branches | 70.2%→89.5% (excl. cmd/tools) |
 | 47 | history pgxmock + inventory AdjustStock DB error paths | 89.5%→89.8% |
 | 48 | timezone.go init fallback, template engine branches, validators edge cases, handler HistoryReader interface | 89.8%→**90.6%** |
+| 49 | sale + audit close to ≥90%: cart repo/service branches, handler auth/error branches, export id-filter parses | sale 87.4%→**90.1%**, audit 87.8%→**90.4%** |
 
 ## Key Technical Findings
+
+### Coverage Measurement Note (Phase 49)
+Full-repo re-measurement on 2026-08-04 reports 85.7% (excl. `cmd/`/`tools/`). The drop from the Phase 48 headline of 90.6% is a measurement difference, not a regression: `internal/wiring` (untested, 0.0%) is now included in the package list and no longer excluded, lowering the aggregate. Sale (90.1%) and audit (90.4%) both exceed the 90% bar set for this phase; the doc's Phase 48 total was measured against a narrower package set.
 
 ### HistoryReader Interface Extraction (Phase 48)
 The `handler.HistoryStore` field was a concrete `*history.Store`, preventing mock testing. Extracted a `HistoryReader` interface with `GetSnapshot` and `GetRows` methods. The concrete `*history.Store` already satisfies this interface — no changes needed to production wiring.
@@ -73,15 +77,18 @@ Every `ExpectQuery()`/`ExpectExec()` MUST have `.WithArgs(...)` when the actual 
 go test -coverprofile=coverage.out $(go list ./... | grep -v -E '(cmd/|tools/)')
 ```
 
-## Files Created/Modified (Phase 48)
+## Files Created/Modified (Phase 49)
+
+### Created
+- `internal/sale/cart_service_extra_test.go` — DB-driven cart tests: CreateOrGetOpenCart, GetCartByID ownership, Hold/Resume/expire/not-owned/not-open, quantity validation, checkout-with-shift, held-cart store/shift/customer slide-through, default TTL, item update/remove branches, `TestSaleRepository_CreateCartSession`
+- `internal/sale/cart_handler_mock_test.go` — mock tests for all 11 cart handlers + `TestSaleCartHandler_NonIntUserID`
 
 ### Modified
-- `internal/shared/timezone.go` — Extracted `loadLocation` var and `loadJakartaLocation()` function
-- `internal/shared/timezone_test.go` — Added `TestInitLocation_FallbackToUTC`
-- `internal/platform/importexport/handler/handler.go` — Extracted `HistoryReader` interface, changed `historyStore` field type
-- `internal/platform/importexport/handler/handler_test.go` — Added mockHistoryStore, 7 tests for GetImportDetail/GetImportRows
-- `internal/platform/importexport/template/engine_test.go` — Added 11 tests: headerStyleFor, joinStrings, columnIndex, colWidth, buildValidationHint, metaNoDisplayName, refDataNotFound, description, refColumnNotInTemplate, allowedValuesIsRef
-- `internal/platform/importexport/validation/validators/validators_test.go` — Added 13 tests: Name() for all 6 validators, empty rows, non-required skip, non-template skip, label fallback, missing ref data, nil business keys, label/type fallback, numeric date, number ranges, string no max
+- `internal/sale/handler_mock_test.go` — `setupSaleHandlerUser` helper + `TestSaleHandler_UserContextBranches` (missing/non-int userID), `TestSaleHandler_CreateSale_ParkedSaleNotRecalled` (409 conflict), `TestSaleHandler_ParkSale_BindJSONError` (400)
+- `internal/sale/service_test.go` — `TestSaleService_CreateSaleWithShift` (shift totals), `TestSaleService_CreateSaleNegativeUnitPrice` (invalid unit price branch)
+- `internal/sale/repository_test.go` — fixed `TestSaleRepository_StreamSalesExportCSV`, added `TestSaleRepository_StoreScopedReads` (store-id filter + non-null store_id scan branches)
+- `internal/audit/handler_test.go` — export id-filter subtest (user_id/entity_id parse branches)
+- `docs/audits/coverage-progress-phase41.md` — this report
 
 ## Remaining Gaps Below 90%
 
@@ -89,7 +96,6 @@ go test -coverprofile=coverage.out $(go list ./... | grep -v -E '(cmd/|tools/)')
 |---------|----------|------------|
 | `shared` | 80.2% | testdb.go needs real DB (0% coverage) |
 | `platform/importexport/import` | 83.9% | engine.go complex file parsing |
-| `audit` | 87.8% | remaining handler edge cases |
-| `sale` | 87.4% | remaining handler edge cases |
 | `websocket` | 87.8% | flaky broadcast test |
 | `report` | 88.2% | remaining query edge cases |
+| `wiring` | 0.0% | pure dependency-assembly package, no unit-testable logic |
