@@ -6,7 +6,9 @@ import { Roles } from '$shared/constants/roles';
 
 /**
  * Role × permission matrix — source of truth: docs/audits/permission-matrix-final.md
- * (72 × 5, target state setelah migration 023: staff = 5).
+ * (72 × 5, target state setelah migration 023: staff = 5) +
+ * docs/audits/permission-additions-sprint1.md (74: product.history.view SA/Admin,
+ * product.cost.view SA/Admin/Manager).
  */
 const MATRIX: Record<string, readonly string[]> = {
   [Roles.superadmin]: ALL_PERMISSIONS,
@@ -15,7 +17,7 @@ const MATRIX: Record<string, readonly string[]> = {
   ),
   [Roles.manager]: [
     'dashboard.view', 'report.view',
-    'product.view', 'product.update', 'category.view', 'category.create',
+    'product.view', 'product.update', 'product.cost.view', 'category.view', 'category.create',
     'sale.view', 'shift.view', 'shift.create', 'shift.review', 'shift.audit',
     'customer.view', 'customer.create', 'customer.update',
     'pricing.view', 'pricing.create', 'pricing.update',
@@ -66,7 +68,7 @@ describe('useRBAC', () => {
     expect('isCashier' in rbac).toBe(true);
   });
 
-  it('matches the 72×5 permission matrix for every role', () => {
+  it('matches the 74×5 permission matrix for every role', () => {
     for (const [role, granted] of Object.entries(MATRIX)) {
       setRole(role, granted);
       const rbac = useRBAC();

@@ -1,9 +1,10 @@
 // Package permissions is the single source of truth for permission codes on
 // the backend.
 //
-// Sync source: database (permissions table, 72 live codes) — see
-// docs/audits/permission-matrix-final.md (approved 2026-08-04) and
-// web/src/shared/constants/permissions.ts (frontend mirror).
+// Sync source: database (permissions table, 74 live codes) — see
+// docs/audits/permission-matrix-final.md (72, approved 2026-08-04) and
+// docs/audits/permission-additions-sprint1.md (+product.history.view,
+// +product.cost.view); web/src/shared/constants/permissions.ts (frontend mirror).
 //
 // Sprint 1 rules:
 //   - Do NOT add/remove/rename permission codes here without a migration.
@@ -39,12 +40,14 @@ const (
 
 	ReportView Code = "report.view"
 
-	ProductView   Code = "product.view"
-	ProductCreate Code = "product.create"
-	ProductUpdate Code = "product.update"
-	ProductDelete Code = "product.delete"
-	ProductExport Code = "product.export"
-	ProductImport Code = "product.import"
+	ProductView        Code = "product.view"
+	ProductCreate      Code = "product.create"
+	ProductUpdate      Code = "product.update"
+	ProductDelete      Code = "product.delete"
+	ProductExport      Code = "product.export"
+	ProductImport      Code = "product.import"
+	ProductHistoryView Code = "product.history.view"
+	ProductCostView    Code = "product.cost.view"
 
 	CategoryView   Code = "category.view"
 	CategoryCreate Code = "category.create"
@@ -121,7 +124,7 @@ func All() []Code {
 		RoleView, RoleCreate, RoleUpdate, RoleDelete,
 		AuditView,
 		ReportView,
-		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport,
+		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport, ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
 		SaleView, SaleCreate, SalePark,
 		ShiftView, ShiftCreate, ShiftReview, ShiftAudit,

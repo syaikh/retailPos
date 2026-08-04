@@ -496,7 +496,7 @@ Annotation yang ditambahkan saat Fase 5:
 | 4 | Supplier endpoints pakai `pricing.*` namespace (§2B) | MEDIUM |
 | 5 | Cleanup middleware `RoleMiddleware`, `AdminOnly`, `RequireAnyPermission` | LOW |
 | 6 | Cleanup `seeds/002_permissions.sql` (legacy, berisi `pos.access`/`inventory.export`) | LOW |
-| 7 | Permission baru `product.history.view`, `product.cost.view` → hapus compatibility layer | MEDIUM |
+| 7 | Permission baru `product.history.view`, `product.cost.view` → hapus compatibility layer — **SELESAI** (item 3 Sprint 1, lihat `docs/audits/permission-additions-sprint1.md`) | MEDIUM |
 
 ---
 

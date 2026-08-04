@@ -103,6 +103,7 @@ Key migrations with deployment ordering constraints:
 - `019_remove_remaining_orphaned_role_grants.sql` — completes the Manager cleanup by revoking `store.create/update/delete` and `customer_group.create/update/delete` (Manager has no Stores route and only views customer groups); same ordering constraint as `014`
 - `020_per_rack_stock.sql` — adds `product_stock.location_id` (FK to `storage_locations`), re-creates `uq_product_stock` as `UNIQUE NULLS NOT DISTINCT (product_id, warehouse_id, store_id, location_id)`, and adds `stock_opnames.location_id` with `'location'` scope; must be applied before the binary that added the rack-stock endpoints and the `location` stock-opname scope, otherwise `POST /api/inventory/locations` fails with a missing `location_id` column and scope validation rejects `'location'`
 - `021_grant_storage_location_view.sql` — grants `storage_location.view` to Manager/Staff/Cashier (the roles that render the product-detail rack panel and stock-opname location scopes); must be applied before the binary that exposes `GET /api/storage-locations` to those roles, otherwise the rack panel and location scope picker 403 for non-admin roles
+- `024_add_product_history_cost_permissions.sql` — adds `product.history.view` (Superadmin/Admin) and `product.cost.view` (Superadmin/Admin/Manager); must be applied before the binary that omits `cost` from `GET /products` / `GET /products/:id` for non-holders, otherwise nobody holds `product.cost.view` and cost is hidden for everyone (degraded, non-breaking)
 
 ## Filesystem Convention
 

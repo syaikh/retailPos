@@ -7,14 +7,11 @@
   import type { PricingRule } from '$modules/pricing/types';
   import RackStockPanel from '$modules/inventory/components/RackStockPanel.svelte';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
-  import { Roles } from '$shared/constants/roles';
+  import { Permissions } from '$shared/constants/permissions';
 
   const rbac = useRBAC();
 
-  // @compatibility-layer — belum ada permission `product.history.view`; panel Audit Trail
-  // (created_at/updated_at) dipertahankan untuk superadmin+admin (perilaku sebelum Sprint 0).
-  // TODO: Remove after product.history.view exists.
-  let shouldShowProductHistory = $derived(rbac.userRole === Roles.superadmin || rbac.userRole === Roles.admin);
+  let shouldShowProductHistory = $derived(rbac.can(Permissions.product.historyView));
 
   let {
     selectedProduct,

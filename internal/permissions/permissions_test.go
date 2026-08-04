@@ -7,8 +7,8 @@ import (
 
 func TestRegistryCount(t *testing.T) {
 	got := len(All())
-	if got != 72 {
-		t.Fatalf("registry has %d codes, want 72 (sync with database/permission-matrix-final.md)", got)
+	if got != 74 {
+		t.Fatalf("registry has %d codes, want 74 (72 from database/permission-matrix-final.md + product.history.view/product.cost.view from docs/audits/permission-additions-sprint1.md)", got)
 	}
 }
 
@@ -30,8 +30,8 @@ func TestRegistryUnique(t *testing.T) {
 func TestRegistryFormat(t *testing.T) {
 	for _, c := range All() {
 		parts := strings.Split(c.String(), ".")
-		if len(parts) != 2 {
-			t.Errorf("code %q is not in <module>.<action> format", c)
+		if len(parts) < 2 || len(parts) > 3 {
+			t.Errorf("code %q is not in <module>.<action> or <module>.<submodule>.<action> format", c)
 		}
 		for _, p := range parts {
 			if p == "" {
@@ -62,6 +62,7 @@ func TestSpotCheckCodes(t *testing.T) {
 		RoleView, RoleCreate, RoleUpdate, RoleDelete,
 		AuditView, ReportView,
 		ProductView, ProductCreate, ProductUpdate, ProductDelete, ProductExport, ProductImport,
+		ProductHistoryView, ProductCostView,
 		CategoryView, CategoryCreate, CategoryUpdate, CategoryDelete, CategoryExport, CategoryImport,
 		SaleView, SaleCreate, SalePark,
 		ShiftView, ShiftCreate, ShiftReview, ShiftAudit,
@@ -74,8 +75,8 @@ func TestSpotCheckCodes(t *testing.T) {
 		StockOpnameView, StockOpnameCreate, StockOpnameAssign, StockOpnameCount, StockOpnameSubmit, StockOpnameRecount, StockOpnameCancel, StockOpnameExport, StockOpnameVerify, StockOpnamePost, StockOpnameClose, StockOpnameReport,
 		StorageLocationView, StorageLocationCreate, StorageLocationUpdate, StorageLocationDelete,
 	}
-	if len(spot) != 72 {
-		t.Fatalf("spot-check list has %d entries, want 72", len(spot))
+	if len(spot) != 74 {
+		t.Fatalf("spot-check list has %d entries, want 74", len(spot))
 	}
 	for _, c := range spot {
 		if !Exists(c) {

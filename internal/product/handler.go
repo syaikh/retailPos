@@ -113,6 +113,7 @@ func validateProduct(p *Product) error {
 // @Success 200 {object} map[string]interface{}
 // @Router /products [get]
 func (h *Handler) GetProducts(c *gin.Context) {
+	canViewCost := canViewCost(c)
 	if idsParam := c.Query("ids"); idsParam != "" {
 		ids := parseIDs(idsParam)
 		if len(ids) == 0 {
@@ -124,10 +125,11 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			shared.InternalError(c, err)
 			return
 		}
-		if products == nil {
-			products = []Product{}
+		presented := make([]any, len(products))
+		for i, p := range products {
+			presented[i] = presentProduct(p, canViewCost)
 		}
-		c.JSON(http.StatusOK, gin.H{"data": products, "total": len(products)})
+		c.JSON(http.StatusOK, gin.H{"data": presented, "total": len(presented)})
 		return
 	}
 
@@ -176,7 +178,11 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	if products == nil {
 		products = []Product{}
 	}
-	shared.JSONPaginated(c, products, total, limit, offset)
+	presented := make([]any, len(products))
+	for i, p := range products {
+		presented[i] = presentProduct(p, canViewCost)
+	}
+	shared.JSONPaginated(c, presented, total, limit, offset)
 }
 
 func (h *Handler) GetProductByID(c *gin.Context) {
@@ -193,7 +199,7 @@ func (h *Handler) GetProductByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": product})
+	c.JSON(http.StatusOK, gin.H{"data": presentProduct(*product, canViewCost(c))})
 }
 
 // CreateProduct godoc

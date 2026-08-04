@@ -393,3 +393,155 @@ func TestHandler_PublicRoutes(t *testing.T) {
 		assert.Equal(t, 5, resp.Critical)
 	})
 }
+
+func setupProductRouterWithPerms(perms []string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+
+	svc := NewService(repo, nil, nil, nil, bus)
+	h := NewHandler(svc, nil)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", 1)
+		c.Set("username", "testuser")
+		c.Set("roleID", 1)
+		c.Set("role", "manager")
+		c.Set("permissions", perms)
+		c.Set("storeID", nil)
+		c.Next()
+	})
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, testPermMiddleware)
+	return r
+}
+
+// productCostPresent reports whether the response payload contains a `cost`
+// key in the first element of `data` (array or object).
+func productCostPresent(body []byte) (bool, error) {
+	var resp map[string]any
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return false, err
+	}
+	data, ok := resp["data"]
+	if !ok {
+		return false, nil
+	}
+	switch v := data.(type) {
+	case []any:
+		if len(v) == 0 {
+			return false, nil
+		}
+		_, hasCost := v[0].(map[string]any)["cost"]
+		return hasCost, nil
+	case map[string]any:
+		_, hasCost := v["cost"]
+		return hasCost, nil
+	}
+	return false, nil
+}
+
+func TestHandler_ProductCostVisibility(t *testing.T) {
+	skipIfNoDB(t)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	p := &Product{
+		SKU: "HDL-COST-VIS", Name: "Cost Visibility Product",
+		Price: 12000, Cost: 7000, Stock: 4, Status: "active",
+	}
+	require.NoError(t, repo.CreateProduct(ctx, p))
+
+	t.Run("list omits cost for caller without product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view", "product.create"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products?search=Cost%20Visibility%20Product", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.False(t, present, "cost must be omitted for non-holder")
+	})
+
+	t.Run("list includes cost for caller with product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view", permissions.ProductCostView.String()})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products?search=Cost%20Visibility%20Product", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.True(t, present, "cost must be present for holder")
+	})
+
+	t.Run("POS-like search (status=active) returns products without cost", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view", "sale.create"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products?status=active&search=Cost%20Visibility%20Product", nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data  []Product `json:"data"`
+			Total int       `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Greater(t, resp.Total, 0, "products must still be searchable")
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.False(t, present, "cost must be omitted for non-holder")
+	})
+
+	t.Run("detail omits cost for caller without product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/"+strconv.Itoa(p.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.False(t, present, "cost must be omitted for non-holder")
+	})
+
+	t.Run("detail includes cost for caller with product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view", permissions.ProductCostView.String()})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products/"+strconv.Itoa(p.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.True(t, present, "cost must be present for holder")
+	})
+
+	t.Run("ids batch omits cost for caller without product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products?ids="+strconv.Itoa(p.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.False(t, present, "cost must be omitted for non-holder")
+	})
+
+	t.Run("ids batch includes cost for caller with product.cost.view", func(t *testing.T) {
+		r := setupProductRouterWithPerms([]string{"product.view", permissions.ProductCostView.String()})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/products?ids="+strconv.Itoa(p.ID), nil)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		present, err := productCostPresent(w.Body.Bytes())
+		require.NoError(t, err)
+		assert.True(t, present, "cost must be present for holder")
+	})
+}

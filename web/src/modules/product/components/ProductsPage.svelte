@@ -389,7 +389,7 @@
   let canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust));
   let canExport = $derived(rbac.can(Permissions.product.export));
   let canImport = $derived(rbac.can(Permissions.product.import));
-  let isSensitive = $derived(rbac.can(Permissions.pricing.view));
+  let isSensitive = $derived(rbac.can(Permissions.product.costView));
 
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
