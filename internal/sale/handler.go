@@ -439,7 +439,7 @@ func (h *Handler) GetSaleByID(c *gin.Context) {
 		return
 	}
 
-	shared.JSONSuccess(c, sale)
+	shared.JSONSuccess(c, presentSale(sale, canViewCost(c)))
 }
 
 // ExportSales godoc

@@ -119,7 +119,7 @@ func (h *Handler) CreateOrGetOpenCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // GetOpenCart godoc
@@ -140,7 +140,7 @@ func (h *Handler) GetOpenCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // ListHeldCarts godoc
@@ -161,7 +161,7 @@ func (h *Handler) ListHeldCarts(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": carts})
+	c.JSON(http.StatusOK, gin.H{"data": presentCarts(carts, canViewCost(c))})
 }
 
 // GetCart godoc
@@ -188,7 +188,7 @@ func (h *Handler) GetCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // AddCartItem godoc
@@ -230,7 +230,7 @@ func (h *Handler) AddCartItem(c *gin.Context) {
 	}
 
 	h.auditCart(c, "add", "cart_item", "Added product #%d x%d to cart", req.ProductID, req.Quantity)
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // UpdateCartItemQuantity godoc
@@ -271,7 +271,7 @@ func (h *Handler) UpdateCartItemQuantity(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // RemoveCartItem godoc
@@ -304,7 +304,7 @@ func (h *Handler) RemoveCartItem(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // UpdateCartCustomer godoc
@@ -338,7 +338,7 @@ func (h *Handler) UpdateCartCustomer(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // HoldCart godoc
@@ -365,7 +365,7 @@ func (h *Handler) HoldCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // ResumeCart godoc
@@ -392,7 +392,7 @@ func (h *Handler) ResumeCart(c *gin.Context) {
 		h.cartError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": cart})
+	c.JSON(http.StatusOK, gin.H{"data": presentCart(cart, canViewCost(c))})
 }
 
 // CheckoutCart godoc
@@ -447,11 +447,12 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 		})
 	}
 
+	canViewCost := canViewCost(c)
 	if detail, err := h.svc.GetSaleByID(ctx, sale.ID, shared.GetStoreID(c)); err == nil {
-		c.JSON(http.StatusCreated, gin.H{"data": detail})
+		c.JSON(http.StatusCreated, gin.H{"data": presentSale(detail, canViewCost)})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": sale})
+	c.JSON(http.StatusCreated, gin.H{"data": presentSale(sale, canViewCost)})
 }
 
 func (h *Handler) auditCart(c *gin.Context, action, entityType, format string, args ...interface{}) {
