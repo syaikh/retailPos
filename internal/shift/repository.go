@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/shared"
 )
 
@@ -266,14 +267,14 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	return &shift, nil
 }
 
-func (r *Repository) ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 	where := "1=1"
 	args := []interface{}{}
 	argIdx := 1
 
-	if userID != nil {
+	if ownerID, restricted := scope.OwnID(); restricted {
 		where += fmt.Sprintf(" AND s.user_id = $%d", argIdx)
-		args = append(args, *userID)
+		args = append(args, ownerID)
 		argIdx++
 	}
 	if status != "" {
@@ -454,7 +455,7 @@ func (r *Repository) CloseAll(ctx context.Context, userID int) ([]int, error) {
 	return shiftIDs, tx.Commit(ctx)
 }
 
-func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {
+func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
 	var s Shift
 	var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
 	var storeName sql.NullString
@@ -462,7 +463,7 @@ func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, err
 	var openedAt, createdAt, updatedAt time.Time
 	var closedAt, reviewedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, `
+	query := `
 		SELECT s.id, s.user_id, u.username, s.store_id, st.name, s.status,
 		       s.opening_balance, s.closing_balance, s.cash_sales, s.non_cash_sales,
 		       s.total_sales, s.transaction_count, s.discrepancy, s.notes,
@@ -471,8 +472,14 @@ func (r *Repository) GetShiftByID(ctx context.Context, shiftID int) (*Shift, err
 		FROM shifts s
 		LEFT JOIN users u ON u.id = s.user_id
 		LEFT JOIN stores st ON st.id = s.store_id
-		WHERE s.id = $1
-	`, shiftID).Scan(
+		WHERE s.id = $1`
+	args := []interface{}{shiftID}
+	if ownerID, restricted := scope.OwnID(); restricted {
+		query += " AND s.user_id = $2"
+		args = append(args, ownerID)
+	}
+
+	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&s.ID, &s.UserID, &s.Username, &storeID, &storeName, &s.Status,
 		&s.OpeningBalance, &closingBalance, &s.CashSales, &s.NonCashSales,
 		&s.TotalSales, &s.TransactionCount, &discrepancy, &notes,
@@ -531,11 +538,11 @@ func (r *Repository) ReviewShift(ctx context.Context, shiftID, reviewerID int) (
 		return nil, fmt.Errorf("failed to review shift: %w", err)
 	}
 
-	return r.GetShiftByID(ctx, shiftID)
+	return r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
 }
 
 func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error) {
-	shift, err := r.GetShiftByID(ctx, shiftID)
+	shift, err := r.GetShiftByID(ctx, ownership.Scope{}, shiftID)
 	if err != nil {
 		return nil, 0, err
 	}

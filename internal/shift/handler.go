@@ -15,6 +15,7 @@ import (
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/middleware"
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
@@ -24,11 +25,11 @@ type ShiftService interface {
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseAll(ctx context.Context, userID int) ([]int, error)
 	GetActiveShift(ctx context.Context, userID int) (*Shift, error)
-	ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
-	GetShiftByID(ctx context.Context, shiftID int) (*Shift, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	AuditShift(ctx context.Context, shiftID int) (*Shift, int, error)
-	ExportShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 type Handler struct {
@@ -38,6 +39,20 @@ type Handler struct {
 
 func NewHandler(svc ShiftService, auditSvc audit.AuditCreator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
+}
+
+// shiftScope resolves the row-level visibility for shift reads.
+//
+// Callers holding shift.review (superadmin/admin/manager) may see all shifts;
+// everyone else is clamped to their own shifts. requestedUserID is the
+// optional user_id filter from the request — honored only for all-access
+// callers, never used to widen a restricted caller's view.
+func (h *Handler) shiftScope(c *gin.Context, requestedUserID *int) ownership.Scope {
+	return ownership.Resolve(
+		middleware.GetUserID(c),
+		ownership.CanAccessAll(middleware.GetPermissions(c), permissions.ShiftReview),
+		requestedUserID,
+	)
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm func(permissions.Code) gin.HandlerFunc) {
@@ -217,7 +232,7 @@ func (h *Handler) ListShifts(c *gin.Context) {
 		needsReview = &val
 	}
 
-	shifts, total, err := h.svc.ListShifts(c.Request.Context(), userID, status, needsReview, discFilter, limit, offset, sortBy, sortDir)
+	shifts, total, err := h.svc.ListShifts(c.Request.Context(), h.shiftScope(c, userID), status, needsReview, discFilter, limit, offset, sortBy, sortDir)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -231,28 +246,10 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 	status := c.Query("status")
 	discFilter := c.Query("discrepancy")
 
-	rawID, _ := c.Get("userID")
-	callerUserID, ok := rawID.(int)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-	callerRole, _ := c.Get("role")
-	callerRoleStr, _ := callerRole.(string)
-
 	var userID *int
 	if uidStr := c.Query("user_id"); uidStr != "" {
 		if uid, err := strconv.Atoi(uidStr); err == nil {
 			userID = &uid
-		}
-	}
-
-	if callerRoleStr != "superadmin" {
-		if userID == nil {
-			userID = &callerUserID
-		} else if *userID != callerUserID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "cannot export shifts for another user"})
-			return
 		}
 	}
 
@@ -262,7 +259,8 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 		needsReview = &val
 	}
 
-	shifts, err := h.svc.ExportShifts(c.Request.Context(), userID, status, needsReview, discFilter)
+	scope := h.shiftScope(c, userID)
+	shifts, err := h.svc.ExportShifts(c.Request.Context(), scope, status, needsReview, discFilter)
 	if err != nil {
 		shared.InternalError(c, err)
 		return
@@ -409,7 +407,7 @@ func (h *Handler) GetShiftByID(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.svc.GetShiftByID(c.Request.Context(), shiftID)
+	shift, err := h.svc.GetShiftByID(c.Request.Context(), h.shiftScope(c, nil), shiftID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "shift not found"})
 		return

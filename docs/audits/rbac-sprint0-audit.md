@@ -491,7 +491,7 @@ Annotation yang ditambahkan saat Fase 5:
 | # | Debt | Prioritas |
 |---|------|-----------|
 | 1 | Backend Permission Registry `internal/permissions/permissions.go` (~162 string literal) — **SELESAI** (item 1 Sprint 1) | HIGH |
-| 2 | Ownership enforcement backend: `GET /shifts` (`ListShifts`) tidak menscope ownership | HIGH |
+| 2 | Ownership enforcement backend: `GET /shifts`, `GET /shifts/:id`, `GET /shifts/export` — **SELESAI** (item 2 Sprint 1) | HIGH |
 | 3 | 10 backend endpoints tanpa permission check (§2A) | MEDIUM |
 | 4 | Supplier endpoints pakai `pricing.*` namespace (§2B) | MEDIUM |
 | 5 | Cleanup middleware `RoleMiddleware`, `AdminOnly`, `RequireAnyPermission` | LOW |

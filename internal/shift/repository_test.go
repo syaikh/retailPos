@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/shared"
 )
 
@@ -162,7 +163,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(t, ctx, 1)
 		createOpenShift(t, ctx, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, nil, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		assert.GreaterOrEqual(t, len(shifts), 1)
@@ -172,7 +173,7 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 		userID := insertTestUser(t, ctx, 1)
 		createOpenShift(t, ctx, repo, userID)
 
-		shifts, total, err := repo.ListShifts(ctx, &userID, "", nil, "", 10, 0, "opened_at", "DESC")
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 		for _, s := range shifts {
@@ -190,7 +191,7 @@ func TestShiftRepository_GetShiftByID(t *testing.T) {
 		userID := insertTestUser(t, ctx, 1)
 		shift := createOpenShift(t, ctx, repo, userID)
 
-		got, err := repo.GetShiftByID(ctx, shift.ID)
+		got, err := repo.GetShiftByID(ctx, ownership.Scope{}, shift.ID)
 		require.NoError(t, err)
 		assert.Equal(t, shift.ID, got.ID)
 		assert.Equal(t, shift.UserID, got.UserID)
@@ -198,8 +199,72 @@ func TestShiftRepository_GetShiftByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := repo.GetShiftByID(ctx, 999999)
+		_, err := repo.GetShiftByID(ctx, ownership.Scope{}, 999999)
 		assert.Error(t, err)
+	})
+}
+
+func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	userA := insertTestUser(t, ctx, 1)
+	userB := insertTestUser(t, ctx, 1)
+	shiftA := createOpenShift(t, ctx, repo, userA)
+	shiftB := createOpenShift(t, ctx, repo, userB)
+
+	t.Run("all-access scope returns shifts for every user", func(t *testing.T) {
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, total, 2)
+		foundA, foundB := false, false
+		for _, s := range shifts {
+			if s.ID == shiftA.ID {
+				foundA = true
+			}
+			if s.ID == shiftB.ID {
+				foundB = true
+			}
+		}
+		assert.True(t, foundA, "all-access scope must include shift A")
+		assert.True(t, foundB, "all-access scope must include shift B")
+	})
+
+	t.Run("restricted scope only returns own shifts", func(t *testing.T) {
+		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userA}, "", nil, "", 10, 0, "opened_at", "DESC")
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, shifts, 1)
+		assert.Equal(t, shiftA.ID, shifts[0].ID)
+		assert.Equal(t, userA, shifts[0].UserID)
+	})
+}
+
+func TestShiftRepository_GetShiftByID_OwnershipScope(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	userA := insertTestUser(t, ctx, 1)
+	userB := insertTestUser(t, ctx, 1)
+	shiftA := createOpenShift(t, ctx, repo, userA)
+
+	t.Run("restricted owner can read own shift", func(t *testing.T) {
+		got, err := repo.GetShiftByID(ctx, ownership.Scope{UserID: &userA}, shiftA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, shiftA.ID, got.ID)
+	})
+
+	t.Run("restricted non-owner cannot read shift", func(t *testing.T) {
+		_, err := repo.GetShiftByID(ctx, ownership.Scope{UserID: &userB}, shiftA.ID)
+		assert.Error(t, err, "non-owner must not be able to read another user's shift")
+	})
+
+	t.Run("all-access scope reads any shift", func(t *testing.T) {
+		got, err := repo.GetShiftByID(ctx, ownership.Scope{}, shiftA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, shiftA.ID, got.ID)
 	})
 }
 
@@ -265,7 +330,7 @@ func TestShiftRepository_CloseAll(t *testing.T) {
 		assert.Len(t, closedIDs, 1)
 		assert.Contains(t, closedIDs, shift1.ID)
 
-		closed1, _ := repo.GetShiftByID(ctx, shift1.ID)
+		closed1, _ := repo.GetShiftByID(ctx, ownership.Scope{}, shift1.ID)
 		assert.Equal(t, "closed", closed1.Status)
 		require.NotNil(t, closed1.ClosingBalance)
 		assert.Equal(t, 0, *closed1.ClosingBalance)
@@ -278,7 +343,7 @@ func TestShiftRepository_CloseAll(t *testing.T) {
 		assert.Equal(t, "Closed by admin via CloseAll", *closed1.Notes)
 		require.NotNil(t, closed1.ClosedAt)
 
-		stillOpen, _ := repo.GetShiftByID(ctx, shift2.ID)
+		stillOpen, _ := repo.GetShiftByID(ctx, ownership.Scope{}, shift2.ID)
 		assert.Equal(t, "open", stillOpen.Status)
 	})
 

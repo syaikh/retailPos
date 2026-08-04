@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/audit"
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/permissions"
 )
 
@@ -26,11 +27,11 @@ type mockShiftService struct {
 	closeShiftFn     func(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	closeAllFn       func(ctx context.Context, userID int) ([]int, error)
 	getActiveShiftFn func(ctx context.Context, userID int) (*Shift, error)
-	listShiftsFn     func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
-	getShiftByIDFn   func(ctx context.Context, shiftID int) (*Shift, error)
+	listShiftsFn     func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
+	getShiftByIDFn   func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
 	reviewShiftFn    func(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
 	auditShiftFn     func(ctx context.Context, shiftID int) (*Shift, int, error)
-	exportShiftsFn   func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
+	exportShiftsFn   func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error)
 }
 
 func (m *mockShiftService) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -45,11 +46,11 @@ func (m *mockShiftService) CloseAll(ctx context.Context, userID int) ([]int, err
 func (m *mockShiftService) GetActiveShift(ctx context.Context, userID int) (*Shift, error) {
 	return m.getActiveShiftFn(ctx, userID)
 }
-func (m *mockShiftService) ListShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
-	return m.listShiftsFn(ctx, userID, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
+func (m *mockShiftService) ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+	return m.listShiftsFn(ctx, scope, status, needsReview, discrepancyFilter, limit, offset, sortBy, sortDir)
 }
-func (m *mockShiftService) GetShiftByID(ctx context.Context, shiftID int) (*Shift, error) {
-	return m.getShiftByIDFn(ctx, shiftID)
+func (m *mockShiftService) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
+	return m.getShiftByIDFn(ctx, scope, shiftID)
 }
 func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error) {
 	return m.reviewShiftFn(ctx, shiftID, reviewerID)
@@ -57,9 +58,9 @@ func (m *mockShiftService) ReviewShift(ctx context.Context, shiftID, reviewerID 
 func (m *mockShiftService) AuditShift(ctx context.Context, shiftID int) (*Shift, int, error) {
 	return m.auditShiftFn(ctx, shiftID)
 }
-func (m *mockShiftService) ExportShifts(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
 	if m.exportShiftsFn != nil {
-		return m.exportShiftsFn(ctx, userID, status, needsReview, discrepancyFilter)
+		return m.exportShiftsFn(ctx, scope, status, needsReview, discrepancyFilter)
 	}
 	return nil, nil
 }
@@ -76,14 +77,19 @@ func (m *mockAudit) CreateAuditLog(ctx context.Context, log *audit.AuditLog) err
 }
 
 func setupShiftHandler(svc ShiftService, auditSvc audit.AuditCreator) *gin.Engine {
+	return setupShiftHandlerWithCtx(svc, auditSvc, 1, "superadmin", nil)
+}
+
+func setupShiftHandlerWithCtx(svc ShiftService, auditSvc audit.AuditCreator, userID int, role string, perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set("userID", 1)
+		c.Set("userID", userID)
 		c.Set("username", "testuser")
 		c.Set("roleID", 1)
-		c.Set("role", "superadmin")
+		c.Set("role", role)
 		c.Set("storeID", nil)
+		c.Set("permissions", perms)
 		c.Next()
 	})
 	h := NewHandler(svc, auditSvc)
@@ -299,7 +305,7 @@ func TestShiftHandler_GetActiveShift_Success(t *testing.T) {
 
 func TestShiftHandler_ListShifts_Success(t *testing.T) {
 	svc := &mockShiftService{
-		listShiftsFn: func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+		listShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 			return []Shift{{ID: 1, Status: "open"}}, 1, nil
 		},
 	}
@@ -321,7 +327,7 @@ func TestShiftHandler_ListShifts_Success(t *testing.T) {
 
 func TestShiftHandler_GetShiftByID_Success(t *testing.T) {
 	svc := &mockShiftService{
-		getShiftByIDFn: func(ctx context.Context, shiftID int) (*Shift, error) {
+		getShiftByIDFn: func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
 			return &Shift{ID: shiftID, Status: "closed"}, nil
 		},
 	}
@@ -352,7 +358,7 @@ func TestShiftHandler_GetShiftByID_InvalidID(t *testing.T) {
 
 func TestShiftHandler_GetShiftByID_ServiceError(t *testing.T) {
 	svc := &mockShiftService{
-		getShiftByIDFn: func(ctx context.Context, shiftID int) (*Shift, error) {
+		getShiftByIDFn: func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -378,7 +384,7 @@ func TestShiftHandler_GetActiveShift_ServiceError(t *testing.T) {
 
 func TestShiftHandler_ListShifts_ServiceError(t *testing.T) {
 	svc := &mockShiftService{
-		listShiftsFn: func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+		listShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
 			return nil, 0, assert.AnError
 		},
 	}
@@ -467,7 +473,7 @@ func TestShiftHandler_CloseShift_CreatesAuditLog(t *testing.T) {
 
 func TestShiftHandler_ExportShifts_Success(t *testing.T) {
 	svc := &mockShiftService{
-		exportShiftsFn: func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+		exportShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
 			return []Shift{{ID: 1, Status: "closed"}}, nil
 		},
 	}
@@ -480,7 +486,7 @@ func TestShiftHandler_ExportShifts_Success(t *testing.T) {
 
 func TestShiftHandler_ExportShifts_ServiceError(t *testing.T) {
 	svc := &mockShiftService{
-		exportShiftsFn: func(ctx context.Context, userID *int, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+		exportShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -499,4 +505,121 @@ func TestShiftHandler_CloseShift_InvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestShiftHandler_ListShifts_OwnershipScope(t *testing.T) {
+	var gotScope ownership.Scope
+	svc := &mockShiftService{
+		listShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error) {
+			gotScope = scope
+			return []Shift{}, 0, nil
+		},
+	}
+
+	t.Run("cashier is scoped to own shifts", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "cashier", []string{"shift.view", "shift.create"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted, "cashier must be ownership-restricted")
+		assert.Equal(t, 7, ownerID)
+	})
+
+	t.Run("cashier user_id filter cannot widen scope", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "cashier", []string{"shift.view", "shift.create"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts?user_id=99", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted, "cashier must stay ownership-restricted")
+		assert.Equal(t, 7, ownerID)
+	})
+
+	t.Run("manager with shift.review sees all when no filter", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "manager", []string{"shift.view", "shift.review"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, gotScope.CanAccess(12345), "manager without filter must have all-access")
+	})
+
+	t.Run("manager user_id filter is honored", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "manager", []string{"shift.view", "shift.review"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts?user_id=42", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted)
+		assert.Equal(t, 42, ownerID)
+	})
+}
+
+func TestShiftHandler_GetShiftByID_OwnershipScope(t *testing.T) {
+	var gotScope ownership.Scope
+	svc := &mockShiftService{
+		getShiftByIDFn: func(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
+			gotScope = scope
+			if !scope.CanAccess(2) {
+				return nil, assert.AnError
+			}
+			return &Shift{ID: shiftID, UserID: 2, Status: "closed"}, nil
+		},
+	}
+
+	t.Run("cashier accessing another user's shift gets 404", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 1, "cashier", []string{"shift.view", "shift.create"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts/5", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code, "ownership-miss must look like not found, not forbidden")
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted)
+		assert.Equal(t, 1, ownerID)
+	})
+
+	t.Run("manager accessing another user's shift succeeds", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 1, "manager", []string{"shift.view", "shift.review"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts/5", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, gotScope.CanAccess(2), "manager must have all-access")
+	})
+}
+
+func TestShiftHandler_ExportShifts_OwnershipScope(t *testing.T) {
+	var gotScope ownership.Scope
+	svc := &mockShiftService{
+		exportShiftsFn: func(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string) ([]Shift, error) {
+			gotScope = scope
+			return []Shift{}, nil
+		},
+	}
+
+	t.Run("cashier export user_id filter cannot widen scope", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "cashier", []string{"shift.view", "shift.create"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts/export?user_id=99", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted)
+		assert.Equal(t, 7, ownerID)
+	})
+
+	t.Run("manager export honors user_id filter", func(t *testing.T) {
+		r := setupShiftHandlerWithCtx(svc, nil, 7, "manager", []string{"shift.view", "shift.review"})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/shifts/export?user_id=42", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		ownerID, restricted := gotScope.OwnID()
+		assert.True(t, restricted)
+		assert.Equal(t, 42, ownerID)
+	})
 }

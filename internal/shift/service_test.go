@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/shared"
 )
 
@@ -124,7 +125,7 @@ func TestShiftService_GetShiftByID(t *testing.T) {
 	userID := insertTestUser(t, ctx, 1)
 	shift := createOpenShift(t, ctx, repo, userID)
 
-	got, err := svc.GetShiftByID(ctx, shift.ID)
+	got, err := svc.GetShiftByID(ctx, ownership.Scope{}, shift.ID)
 	require.NoError(t, err)
 	assert.Equal(t, shift.ID, got.ID)
 }
@@ -141,7 +142,7 @@ func TestShiftService_ListShifts(t *testing.T) {
 	userID := insertTestUser(t, ctx, 1)
 	createOpenShift(t, ctx, repo, userID)
 
-	shifts, total, err := svc.ListShifts(ctx, &userID, "", nil, "", 10, 0, "opened_at", "DESC")
+	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 1)
 	assert.NotEmpty(t, shifts)
@@ -175,7 +176,7 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	userID := insertTestUser(t, ctx, 1)
 	createOpenShift(t, ctx, repo, userID)
 
-	shifts, err := svc.ExportShifts(ctx, &userID, "", nil, "")
+	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, shifts)
 }
