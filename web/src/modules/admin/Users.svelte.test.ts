@@ -30,14 +30,14 @@ describe('UsersPage.svelte source-structure guards', () => {
     expect(src).toContain("const rbac = useRBAC()");
   });
 
-  it('defines canCreate, canEdit for superadmin/admin, canDelete for superadmin only', () => {
-    expect(src).toContain("let canCreate = $derived(rbac.canCreate)");
-    expect(src).toContain("let canEdit = $derived(rbac.canEdit)");
-    expect(src).toContain("let canDelete = $derived(rbac.canDelete)");
+  it('defines canCreate/canEdit/canDelete via permission registry', () => {
+    expect(src).toContain("let canCreate = $derived(rbac.can(Permissions.user.create))");
+    expect(src).toContain("let canEdit = $derived(rbac.can(Permissions.user.update))");
+    expect(src).toContain("let canDelete = $derived(rbac.can(Permissions.user.delete))");
   });
 
-  it('defines canView excluding cashier', () => {
-    expect(src).toContain("let canView = $derived(rbac.canView)");
+  it('defines canView via permission registry', () => {
+    expect(src).toContain("let canView = $derived(rbac.can(Permissions.user.view))");
   });
 
   it('shows Access Denied when user lacks view permission', () => {

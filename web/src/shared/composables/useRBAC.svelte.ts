@@ -1,8 +1,6 @@
 import { useAuthStore } from '$modules/auth';
 import type { User } from '$modules/auth';
-
-const ADMIN_ROLES = ['superadmin', 'admin'] as const;
-const MANAGER_ROLES = ['superadmin', 'admin', 'manager'] as const;
+import { Roles } from '$shared/constants/roles';
 
 function resolveRoleName(user: User | null): string {
   if (!user) return '';
@@ -12,28 +10,34 @@ function resolveRoleName(user: User | null): string {
   return '';
 }
 
-type Role = typeof ADMIN_ROLES[number];
-
 export function useRBAC() {
   const store = useAuthStore();
 
+  const userPerms = $derived(store.user?.permissions ?? []);
   const userRole = $derived(resolveRoleName(store.user));
-  const isAdmin = $derived(ADMIN_ROLES.includes(userRole as Role));
-  const isSuperAdmin = $derived(userRole === 'superadmin');
-  const isManager = $derived(MANAGER_ROLES.includes(userRole as Role));
-  const isCashier = $derived(userRole === 'cashier');
+
+  function can(permission: string): boolean {
+    return userPerms.includes(permission);
+  }
+  function canAny(permissions: string[]): boolean {
+    return permissions.some((p) => userPerms.includes(p));
+  }
+  function canAll(permissions: string[]): boolean {
+    return permissions.every((p) => userPerms.includes(p));
+  }
+
+  // @display-only — untuk UI (label/badge), bukan authorization.
+  const roleDisplayName = $derived(userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : '');
+
+  // @ownership-only — hanya untuk data-scope (filter own data), bukan authorization.
+  const isCashier = $derived(userRole === Roles.cashier);
 
   return {
+    can,
+    canAny,
+    canAll,
     get userRole() { return userRole; },
-    get isAdmin() { return isAdmin; },
-    get isSuperAdmin() { return isSuperAdmin; },
-    get isManager() { return isManager; },
+    get roleDisplayName() { return roleDisplayName; },
     get isCashier() { return isCashier; },
-    get canCreate() { return isAdmin; },
-    get canEdit() { return isAdmin; },
-    get canDelete() { return isSuperAdmin; },
-    get canView() { return userRole !== '' && !isCashier; },
-    get canEditSuperadmin() { return isSuperAdmin; },
-    get canAssignManager() { return isAdmin; },
   };
 }

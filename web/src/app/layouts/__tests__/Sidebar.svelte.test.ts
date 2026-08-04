@@ -66,8 +66,9 @@ describe('Sidebar.svelte source-structure guards', () => {
     expect(src).toContain('Expand sidebar');
   });
 
-  it('renders user info from auth store', () => {
+  it('renders user info from auth store and RBAC', () => {
     expect(src).toContain('authStore.user?.username');
-    expect(src).toContain('authStore.user?.role');
+    expect(src).toContain('rbac.userRole !== Roles.cashier');
+    expect(src).toContain('rbac.roleDisplayName');
   });
 });

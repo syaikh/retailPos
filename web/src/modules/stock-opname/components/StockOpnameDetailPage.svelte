@@ -136,6 +136,7 @@
     pageOffset = newOffset;
   }
 
+  // @ownership-only — data-scope: hanya counter assignee dari session ini yang bisa masuk counting.
   const isCounter = $derived(
     (() => {
       const uid = authStore.user?.id;
@@ -458,6 +459,7 @@
       <Card class="p-4">
         <h3 class="text-sm font-semibold text-text-primary mb-2">Assignments</h3>
         <div class="flex flex-wrap gap-2">
+          <!-- @display-only — badge tugas assignment (counter/verifier), bukan authz. -->
           {#each session.assignments as a}
             <Badge variant={a.role === 'counter' ? 'primary' : 'muted'}>
               {a.username} ({a.role})

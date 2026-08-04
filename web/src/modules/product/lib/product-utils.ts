@@ -57,22 +57,6 @@ export function validateProductForm(form: {
   return null;
 }
 
-export function getUserRoleName(user: { role?: { name?: string } | string; role_id?: number } | null): string {
-  if (!user) return '';
-  if (typeof user.role === 'string') return user.role.toLowerCase();
-  if (user.role && typeof user.role === 'object' && user.role.name) return user.role.name.toLowerCase();
-  if (user.role_id === 1) return 'superadmin';
-  if (user.role_id === 2) return 'admin';
-  if (user.role_id === 3) return 'cashier';
-  if (user.role_id === 4) return 'manager';
-  if (user.role_id === 5) return 'staff';
-  return '';
-}
-
-export function hasPermission(user: { role?: { name?: string } | string; role_id?: number } | null, roles: string[]): boolean {
-  return roles.includes(getUserRoleName(user));
-}
-
 export function buildProductPayload(form: {
   name: string;
   sku: string;

@@ -6,7 +6,8 @@
   import { useShiftStore } from '$modules/shifts';
   import { Tooltip } from '$shared/ui';
   import { routePermissions } from '$app/config/permissions';
-  import { hasPermission } from '$shared/utils/permissions';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Roles } from '$shared/constants/roles';
 
   let {
     currentPath = $bindable('/'),
@@ -53,21 +54,16 @@
 
   const authStore = useAuthStore();
   const shiftStore = useShiftStore();
+  const rbac = useRBAC();
   let username = $derived(authStore.user?.username || 'User');
-  let role = $derived(
-    typeof authStore.user?.role === 'object' && authStore.user?.role ? authStore.user.role.name :
-    typeof authStore.user?.role === 'string' ? authStore.user.role :
-    (authStore.user?.role_id === 1 ? 'superadmin' : authStore.user?.role_id === 2 ? 'admin' : authStore.user?.role_id === 3 ? 'cashier' : authStore.user?.role_id === 4 ? 'manager' : authStore.user?.role_id === 5 ? 'staff' : 'cashier')
-  );
 
-  let canLogout = $derived(role !== 'cashier' || !shiftStore.activeShift);
-
-  let userPerms = $derived(authStore.user?.permissions || []);
+  // @display-only — business rule UX: cashier harus menutup shift aktif sebelum logout.
+  let canLogout = $derived(rbac.userRole !== Roles.cashier || !shiftStore.activeShift);
 
   function canAccess(href: string): boolean {
     const required = routePermissions[href];
     if (!required || required.length === 0) return true;
-    return required.some(p => hasPermission(userPerms, p));
+    return rbac.canAny(required);
   }
 
   const navItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
@@ -131,28 +127,31 @@
     { label: 'Stores',      href: '/stores',       icon: Store },
     { label: 'Users',       href: '/admin/users',       icon: Users },
     { label: 'Roles',       href: '/admin/roles',       icon: Shield },
-    { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText, requiresSuperadmin: true },
+    { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText },
   ];
 
+  // @display-only — grouping kandidat menu per role (presentasi, bukan authz);
+  // setiap item tetap digate permission via canAccess().
   let visibleNavItems = $derived(
-    (role === 'staff' ? staffNavItems :
-    role === 'cashier' ? cashierNavItems :
-    (role === 'manager' ? managerNavItems : navItems)
+    (rbac.userRole === Roles.staff ? staffNavItems :
+    rbac.userRole === Roles.cashier ? cashierNavItems :
+    (rbac.userRole === Roles.manager ? managerNavItems : navItems)
     ).filter(item => canAccess(item.href))
   );
 
+  // @display-only — grouping kandidat sub-menu Master Data per role (presentasi).
   let visibleMasterDataSubItems = $derived(
-    (role === 'staff' ? staffMasterDataSubItems :
-    role === 'cashier' ? [] :
-    (role === 'manager' ? managerMasterDataSubItems : masterDataSubItems)
+    (rbac.userRole === Roles.staff ? staffMasterDataSubItems :
+    rbac.userRole === Roles.cashier ? [] :
+    (rbac.userRole === Roles.manager ? managerMasterDataSubItems : masterDataSubItems)
     ).filter(item => canAccess(item.href))
   );
 
   let visibleAdminItems = $derived(
-    adminItems.filter(item => canAccess(item.href) && (!item.requiresSuperadmin || role === 'superadmin'))
+    adminItems.filter(item => canAccess(item.href))
   );
 
-  let showAdminSection = $derived((role === 'admin' || role === 'superadmin') && visibleAdminItems.length > 0);
+  let showAdminSection = $derived(visibleAdminItems.length > 0);
 
   function isActive(href: string) {
     if (href === '/') return currentPath === '/';
@@ -319,7 +318,7 @@
       {#if !collapsed}
         <div class="flex-1 min-w-0">
           <p class="text-xs font-semibold text-text-primary truncate">{username}</p>
-          <p class="text-[10px] text-text-muted capitalize truncate">{role}</p>
+          <p class="text-[10px] text-text-muted capitalize truncate">{rbac.roleDisplayName}</p>
         </div>
         {#if canLogout}
           <button type="button" 

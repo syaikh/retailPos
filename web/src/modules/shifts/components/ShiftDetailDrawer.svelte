@@ -7,13 +7,15 @@
   let {
     selectedShift,
     showDetailDrawer = $bindable(),
-    isManager = false,
+    canReview = false,
+    canAudit = false,
     onreview = () => {},
     onaudit = () => {},
   }: {
     selectedShift: Shift | null;
     showDetailDrawer: boolean;
-    isManager?: boolean;
+    canReview?: boolean;
+    canAudit?: boolean;
     onreview?: () => void;
     onaudit?: () => void;
   } = $props();
@@ -126,13 +128,13 @@
   {#snippet footer()}
     {#if selectedShift}
       <div class="flex flex-col gap-3">
-        {#if selectedShift.needs_review && isManager}
+        {#if selectedShift.needs_review && canReview}
           <Button variant="primary" class="w-full rounded-xl h-11" onclick={onreview}>
             <CheckCircle size={16} class="mr-2" />
             Review & Approve
           </Button>
         {/if}
-        {#if selectedShift.status === 'closed' && isManager}
+        {#if selectedShift.status === 'closed' && canAudit}
           <Button variant="secondary" class="w-full rounded-xl h-11" onclick={onaudit}>
             <Clock size={16} class="mr-2" />
             Surprise Audit

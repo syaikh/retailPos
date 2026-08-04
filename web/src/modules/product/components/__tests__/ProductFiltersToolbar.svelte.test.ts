@@ -36,9 +36,9 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
     expect(src).toContain('Clear all');
   });
 
-  it('shows Add Product button with canManageInventory guard', () => {
+  it('shows Add Product button with canCreate guard', () => {
     expect(src).toContain('Add Product');
-    expect(src).toContain('disabled={!canManageInventory}');
+    expect(src).toContain('disabled={!canCreate}');
   });
 
   it('has Low Stock toggle switch', () => {

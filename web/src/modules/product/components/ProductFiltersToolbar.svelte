@@ -8,8 +8,9 @@
     categories = ['All'],
     filterStatus = $bindable('all'),
     lowStockOnly = $bindable(false),
-    canManageInventory = false,
     canCreate = false,
+    canExport = false,
+    canImport = false,
     supplierFilterId = $bindable(null),
     supplierFilterName = $bindable(''),
     onsearch = () => {},
@@ -24,8 +25,9 @@
     categories?: string[];
     filterStatus?: string;
     lowStockOnly?: boolean;
-    canManageInventory?: boolean;
     canCreate?: boolean;
+    canExport?: boolean;
+    canImport?: boolean;
     supplierFilterId?: number | null;
     supplierFilterName?: string;
     onsearch?: () => void;
@@ -119,13 +121,13 @@
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
       <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
     </button>
-    <BulkActionDropdown module="products" canExport={canCreate} canImport={canCreate} {onImport} />
+    <BulkActionDropdown module="products" canExport={canExport} canImport={canImport} {onImport} />
     <Button
       onclick={onadd}
-      disabled={!canManageInventory}
+      disabled={!canCreate}
       variant="primary"
       class="shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
-      title={canManageInventory ? 'Add product' : 'Requires inventory role'}
+      title={canCreate ? 'Add product' : 'Requires product create permission'}
     >
       <Plus size={18} />
       Add Product

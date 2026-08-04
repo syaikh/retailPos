@@ -13,6 +13,7 @@
   const authStore = useAuthStore();
   const rbac = useRBAC();
 
+  // @ownership-only — data-scope: cashier hanya melihat transaksi milik sendiri.
   if (rbac.isCashier && authStore.user?.id) {
     store.cashierId = authStore.user.id;
   } else {

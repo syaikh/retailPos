@@ -624,6 +624,7 @@ let selectedProductIndex = $state(-1);
     (async () => {
       const shiftStore = useShiftStore();
       await shiftStore.loadActiveShift();
+      // @display-only — flow guard navigasi UX: cashier tanpa shift aktif diarahkan ke /shifts.
       const userRole = typeof authStore.user?.role === 'string' ? authStore.user.role : authStore.user?.role?.name ?? '';
       if (userRole === 'cashier' && !shiftStore.activeShift) {
         toast.error('Anda harus membuka shift terlebih dahulu');

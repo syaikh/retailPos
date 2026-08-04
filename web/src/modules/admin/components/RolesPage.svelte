@@ -5,6 +5,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
 
   import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
@@ -193,9 +194,9 @@
     return hasUnsavedChanges;
   });
 
-  let canView = $derived(rbac.canView);
-  let canEdit = $derived(rbac.isSuperAdmin);
-  let canDelete = $derived(rbac.canDelete);
+  let canView = $derived(rbac.can(Permissions.role.view));
+  let canEdit = $derived(rbac.can(Permissions.role.update));
+  let canDelete = $derived(rbac.can(Permissions.role.delete));
 
   function allExpanded() { return groupedPermissions.every(g => !collapsedGroups.has(g.key)); }
   function toggleGroup(key) { const s = new Set(collapsedGroups); if (s.has(key)) s.delete(key); else s.add(key); collapsedGroups = s; }

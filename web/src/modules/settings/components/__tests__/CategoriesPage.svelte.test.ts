@@ -36,9 +36,9 @@ describe('CategoriesPage.svelte source-structure guards', () => {
 
   it('has RBAC derived from the shared composable', () => {
     expect(src).toContain('const rbac = useRBAC()');
-    expect(src).toContain('let canCreate = $derived(rbac.canCreate)');
-    expect(src).toContain('let canEdit = $derived(rbac.canEdit)');
-    expect(src).toContain('let canDelete = $derived(rbac.isAdmin)');
+    expect(src).toContain('let canCreate = $derived(rbac.can(Permissions.category.create))');
+    expect(src).toContain('let canEdit = $derived(rbac.can(Permissions.category.update))');
+    expect(src).toContain('let canDelete = $derived(rbac.can(Permissions.category.delete))');
     expect(src).toContain('let canView = $derived(authStore.user != null)');
   });
 

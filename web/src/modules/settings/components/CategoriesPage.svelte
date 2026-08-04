@@ -5,6 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
 
   const authStore = useAuthStore();
@@ -34,9 +35,9 @@
   });
 
 // RBAC derived from auth store
-let canCreate = $derived(rbac.canCreate);
-let canEdit = $derived(rbac.canEdit);
-let canDelete = $derived(rbac.isAdmin);
+let canCreate = $derived(rbac.can(Permissions.category.create));
+let canEdit = $derived(rbac.can(Permissions.category.update));
+let canDelete = $derived(rbac.can(Permissions.category.delete));
 // Show content if user loaded (API will enforce 403 for cashier)
 let canView = $derived(authStore.user != null);
 

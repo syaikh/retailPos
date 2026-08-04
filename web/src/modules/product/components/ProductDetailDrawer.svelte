@@ -6,6 +6,15 @@
   import { getPricingRules } from '$modules/pricing/services/pricing-service';
   import type { PricingRule } from '$modules/pricing/types';
   import RackStockPanel from '$modules/inventory/components/RackStockPanel.svelte';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Roles } from '$shared/constants/roles';
+
+  const rbac = useRBAC();
+
+  // @compatibility-layer — belum ada permission `product.history.view`; panel Audit Trail
+  // (created_at/updated_at) dipertahankan untuk superadmin+admin (perilaku sebelum Sprint 0).
+  // TODO: Remove after product.history.view exists.
+  let shouldShowProductHistory = $derived(rbac.userRole === Roles.superadmin || rbac.userRole === Roles.admin);
 
   let {
     selectedProduct,
@@ -17,9 +26,6 @@
     canDelete = false,
     canAdjustStock = false,
     isSensitive = false,
-    isFullAudit = false,
-    isSuperAdmin = false,
-    isAdmin = false,
     oncopy = (_value: string, _field: string) => {},
     onedit = () => {},
     ondelete = () => {},
@@ -34,9 +40,6 @@
     canDelete?: boolean;
     canAdjustStock?: boolean;
     isSensitive?: boolean;
-    isFullAudit?: boolean;
-    isSuperAdmin?: boolean;
-    isAdmin?: boolean;
     oncopy?: (value: string, field: string) => void;
     onedit?: () => void;
     ondelete?: () => void;
@@ -130,12 +133,13 @@
 
 <Drawer bind:open={showDetailDrawer} width={480} ariaLabel="Product detail">
   {#if selectedProduct}
-    <div class="flex items-center gap-3 mb-4">
+    <div class="space-y-4">
+    <div class="flex items-center gap-3">
       <h2 class="text-lg font-bold text-text-primary">Detail Produk</h2>
       <Badge variant={status_.variant} size="sm">{status_.label}</Badge>
     </div>
 
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-0.5">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
       <span class="flex items-center gap-1 min-w-0">
         <span class="text-[11px] font-semibold tracking-widest text-text-muted/60">SKU</span>
         <span class="text-text-secondary font-mono text-sm max-w-[130px] truncate">{selectedProduct.sku || '-'}</span>
@@ -320,7 +324,7 @@
       </div>
     </div>
 
-    {#if isFullAudit}
+    {#if shouldShowProductHistory}
       <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
         <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
           <span class="text-base leading-none">📅</span>
@@ -338,6 +342,7 @@
         </div>
       </div>
     {/if}
+    </div>
   {/if}
 
   {#snippet footer()}

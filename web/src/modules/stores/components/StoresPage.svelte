@@ -3,6 +3,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { debounce } from '$shared/utils/debounce';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { getStores, createStore, updateStore, deleteStore } from '../services/stores-service';
 
@@ -34,9 +35,9 @@
     is_active: true
   });
 
-  let canCreate = $derived(rbac.canCreate);
-  let canEdit = $derived(rbac.canEdit);
-  let canDelete = $derived(rbac.isAdmin);
+  let canCreate = $derived(rbac.can(Permissions.store.create));
+  let canEdit = $derived(rbac.can(Permissions.store.update));
+  let canDelete = $derived(rbac.can(Permissions.store.delete));
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';

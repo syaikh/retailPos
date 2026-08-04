@@ -6,6 +6,7 @@ import { useShiftStore } from '../stores/shift-store.svelte';
 import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
 import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
+import { Permissions } from '$shared/constants/permissions';
 import { useAuthStore } from '$modules/auth';
   import {
   Clock,
@@ -21,9 +22,14 @@ import { useAuthStore } from '$modules/auth';
   const rbac = useRBAC();
   const authStore = useAuthStore();
 
-  if (rbac.isCashier && authStore.user?.id) {
-    store.userIdFilter = authStore.user.id;
-  }
+  // @ownership-only — data-scope: cashier hanya melihat shift milik sendiri.
+  const isCashier = $derived(rbac.isCashier);
+
+  $effect(() => {
+    if (isCashier && authStore.user?.id) {
+      store.userIdFilter = authStore.user.id;
+    }
+  });
 
   let showOpenModal = $state(false);
   let showCloseModal = $state(false);
@@ -191,7 +197,7 @@ import { useAuthStore } from '$modules/auth';
   <!-- Toolbar -->
   <div class="card p-4">
     <div class="flex items-center gap-4">
-      {#if !rbac.isCashier}
+      {#if !isCashier}
       <Dropdown placement="bottom-start" items={[
         { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
         { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
@@ -313,10 +319,10 @@ import { useAuthStore } from '$modules/auth';
       <table class="w-full text-sm table-fixed">
         <thead>
           <tr class="border-b border-border bg-surface-secondary">
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {rbac.isCashier ? 'w-[170px]' : 'w-[150px]'}">
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {isCashier ? 'w-[170px]' : 'w-[150px]'}">
               <SortableHeader label="OPENED AT" column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
-            {#if !rbac.isCashier && authStore.user}
+                {#if !isCashier && authStore.user}
             <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[120px]">CASHIER</th>
             {/if}
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
@@ -341,14 +347,14 @@ import { useAuthStore } from '$modules/auth';
         <tbody>
           {#if store.loading}
             <tr>
-              <td colspan={rbac.isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
+              <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
                 <Loader2 size={20} class="animate-spin mx-auto mb-2" />
                 Loading shifts...
               </td>
             </tr>
           {:else if store.shifts.length === 0}
             <tr>
-              <td colspan={rbac.isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
+              <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
                 No shifts found
               </td>
             </tr>
@@ -359,7 +365,7 @@ import { useAuthStore } from '$modules/auth';
                 onclick={() => openDetail(shift)}
               >
                 <td class="px-3 py-3 text-text-primary text-xs whitespace-nowrap">{formatDateTime(shift.opened_at)}</td>
-                {#if !rbac.isCashier && authStore.user}
+            {#if !isCashier && authStore.user}
                 <td class="px-3 py-3 text-text-primary text-xs truncate" title={shift.username || '-'}>{shift.username || '-'}</td>
                 {/if}
                 <td class="px-3 py-3 text-right text-text-primary text-xs tabular-nums">{formatNumber(shift.opening_balance)}</td>
@@ -497,7 +503,8 @@ import { useAuthStore } from '$modules/auth';
 <ShiftDetailDrawer
   bind:showDetailDrawer
   {selectedShift}
-  isManager={rbac.isManager}
+  canReview={rbac.can(Permissions.shift.review)}
+  canAudit={rbac.can(Permissions.shift.audit)}
   onreview={handleReview}
   onaudit={() => selectedShift && openAuditModal(selectedShift)}
 />

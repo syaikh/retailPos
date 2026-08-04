@@ -5,6 +5,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
   import { ScrollText } from 'lucide-svelte';
   import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte';
@@ -34,7 +35,7 @@
   let abortController: AbortController | null = $state(null);
   let hasInitialized = $state(false);
 
-  let canView = $derived(rbac.isSuperAdmin);
+  let canView = $derived(rbac.can(Permissions.audit.view));
 
   // Drawer state
   let drawerOpen = $state(false);

@@ -3,6 +3,8 @@
   import { Search, X, ChevronDown, Percent } from 'lucide-svelte';
   import { getPricingRules } from '$modules/pricing/services/pricing-service';
   import type { PricingRule } from '$modules/pricing/types';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
 
   let {
     open = $bindable(false),
@@ -28,13 +30,14 @@
     categories = [] as string[],
     modalCategorySearch = $bindable(''),
     saving = false,
-    isSuperAdmin = false,
-    isAdmin = false,
     onSubmit,
     onCancel,
   } = $props();
 
   let fieldErrors = $state<Record<string, string>>({});
+
+  const rbac = useRBAC();
+  let canArchive = $derived(rbac.can(Permissions.product.delete));
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
@@ -254,7 +257,7 @@
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
         <option value="discontinued">Discontinued</option>
-        {#if isSuperAdmin || isAdmin}
+        {#if canArchive}
         <option value="archived">Archived</option>
         {/if}
       </Input>

@@ -5,6 +5,8 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
+  import { Roles } from '$shared/constants/roles';
 
 
   import { Button, Pagination } from '$shared/ui';
@@ -38,11 +40,12 @@
   let filterRole = $state('all');
   let filterStatus = $state('all');
 
-  let canCreate = $derived(rbac.canCreate);
-  let canEdit = $derived(rbac.canEdit);
-  let canDelete = $derived(rbac.canDelete);
-  let canView = $derived(rbac.canView);
-  let canEditSuperadmin = $derived(rbac.canEditSuperadmin);
+  let canCreate = $derived(rbac.can(Permissions.user.create));
+  let canEdit = $derived(rbac.can(Permissions.user.update));
+  let canDelete = $derived(rbac.can(Permissions.user.delete));
+  let canView = $derived(rbac.can(Permissions.user.view));
+  // @compatibility-layer — superadmin protection (role_id === 1); TODO: Sprint 1 — user.superadmin.manage
+  let canEditSuperadmin = $derived(rbac.userRole === Roles.superadmin && rbac.can(Permissions.user.update));
   let usernameHasInvalidChars = $derived(form.username.length > 0 && !/^[a-zA-Z0-9]+$/.test(form.username));
 
   let currentUserID = $derived(authStore.user?.id || 0);
@@ -86,6 +89,7 @@
   async function fetchRoles() {
     try {
       roles = await getRolesList();
+      // @display-only — default role pada form (data UX), bukan authz.
       if (roles.length > 0 && form.role_id === 0) {
         form.role_id = roles[0].id;
       }
@@ -316,7 +320,8 @@
   {roles}
   bind:saving
   usernameHasInvalidChars={usernameHasInvalidChars}
-  canAssignManager={rbac.canAssignManager}
+  // @compatibility-layer — reports-to (manager) assignment; TODO: Sprint 1 — user.assign_manager
+  canAssignManager={rbac.canAny([Permissions.user.create, Permissions.user.update])}
   onsave={saveUser}
 />
 

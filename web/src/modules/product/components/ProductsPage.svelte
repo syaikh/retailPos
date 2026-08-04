@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/router';
   import apiClient from '$shared/api/http-client';
-  import { useAuthStore } from '$modules/auth';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
+  import { Roles } from '$shared/constants/roles';
   import { debounce } from '$shared/utils/debounce';
   import { useWebSocket } from '$shared/api/websocket';
 
@@ -19,7 +21,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
 
-  const authStore = useAuthStore();
+  const rbac = useRBAC();
 
   let loading = $state(true);
   let products = $state<Product[]>([]);
@@ -41,11 +43,8 @@
   let brands = $state<Brand[]>([]);
   let unitsOfMeasure = $state<UnitOfMeasure[]>([]);
   let taxClasses = $state<TaxClass[]>([]);
-  let canManageInventory = $state(false);
   let warningThreshold = $state(10);
   let criticalThreshold = $state(5);
-  const allowedInventoryRoles = ['superadmin', 'admin', 'manager', 'staff'];
-  const allowedStockRoles = ['superadmin', 'admin', 'manager', 'staff'];
 
   let stockAdjustProduct = $state<Product | null>(null);
   let showAdjustStockModal = $state(false);
@@ -292,7 +291,7 @@
   }
 
   async function handleAdd() {
-    if (!canManageInventory) {
+    if (!canCreate) {
       toast.error('Insufficient permission to add products');
       return;
     }
@@ -321,7 +320,7 @@
   }
 
   async function handleUpdate() {
-    if (!canManageInventory) {
+    if (!canEdit) {
       toast.error('Insufficient permission to update products');
       return;
     }
@@ -384,26 +383,13 @@
     modalCategorySearch = '';
   }
 
-  function getUserRoleName() {
-    const user = authStore.user;
-    if (!user) return '';
-    if (typeof user.role === 'string') return user.role.toLowerCase();
-    if (user.role && typeof user.role === 'object' && user.role.name) return user.role.name.toLowerCase();
-    if (user.role_id === 1) return 'superadmin';
-    if (user.role_id === 2) return 'admin';
-    if (user.role_id === 3) return 'cashier';
-    if (user.role_id === 4) return 'manager';
-    if (user.role_id === 5) return 'staff';
-    return '';
-  }
-
-  let userRoleName = $derived(getUserRoleName());
-  let isSuperAdmin = $derived.by(() => getUserRoleName() === 'superadmin');
-  let isAdmin = $derived.by(() => getUserRoleName() === 'admin');
-  let canCreate = $derived(['superadmin', 'admin'].includes(userRoleName));
-  let isSensitive = $derived.by(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
-  let isFullAudit = $derived.by(() => ['superadmin', 'admin'].includes(getUserRoleName()));
-  let canEdit = $derived.by(() => ['superadmin', 'admin', 'manager'].includes(getUserRoleName()));
+  let canCreate = $derived(rbac.can(Permissions.product.create));
+  let canEdit = $derived(rbac.can(Permissions.product.update));
+  let canDelete = $derived(rbac.can(Permissions.product.delete));
+  let canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust));
+  let canExport = $derived(rbac.can(Permissions.product.export));
+  let canImport = $derived(rbac.can(Permissions.product.import));
+  let isSensitive = $derived(rbac.can(Permissions.pricing.view));
 
   function copyToClipboard(value: string, field: string, ms = 2000): void {
     navigator.clipboard.writeText(value).then(() => {
@@ -419,10 +405,6 @@
       }, ms);
     });
   }
-
-  $effect(() => {
-    canManageInventory = allowedInventoryRoles.includes(getUserRoleName());
-  });
 
   function handleSort(column: string) {
     if (sortBy === column) {
@@ -541,8 +523,9 @@
     {categories}
     bind:filterStatus
     bind:lowStockOnly
-    {canManageInventory}
     {canCreate}
+    {canExport}
+    {canImport}
     bind:supplierFilterId
     bind:supplierFilterName
     onsearch={handleSearchInput}
@@ -550,7 +533,7 @@
     onrefresh={() => { offset = 0; fetchProducts(0, limit); }}
     onclearall={clearAllFilters}
     onadd={() => {
-      if (!canManageInventory) return;
+      if (!canCreate) return;
       modalMode = 'add';
       resetForm();
       showModal = true;
@@ -569,8 +552,8 @@
       bind:showCopySuccess
       onsort={handleSort}
       canEdit={canEdit}
-      canDelete={isSuperAdmin || isAdmin}
-      canAdjustStock={allowedStockRoles.includes(getUserRoleName())}
+      canDelete={canDelete}
+      canAdjustStock={canAdjustStock}
       {warningThreshold}
       {criticalThreshold}
       onproductclick={openProductDetails}
@@ -618,8 +601,6 @@
   {taxClasses}
   {categories}
   {saving}
-  isSuperAdmin={isSuperAdmin}
-  isAdmin={isAdmin}
   onSubmit={() => { modalMode === 'add' ? handleAdd() : handleUpdate(); }}
   onCancel={() => { showModal = false; }}
 />
@@ -666,12 +647,9 @@
   {warningThreshold}
   {criticalThreshold}
   canEdit={canEdit}
-  canDelete={isSuperAdmin || isAdmin}
-  canAdjustStock={allowedStockRoles.includes(getUserRoleName())}
+  canDelete={canDelete}
+  canAdjustStock={canAdjustStock}
   isSensitive={isSensitive}
-  isFullAudit={isFullAudit}
-  isSuperAdmin={isSuperAdmin}
-  isAdmin={isAdmin}
   onstockchanged={() => fetchProducts(offset, limit)}
   onedit={() => {
     showDetailDrawer = false;

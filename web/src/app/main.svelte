@@ -8,7 +8,7 @@
   import { fade } from 'svelte/transition';
   import { routePermissions } from '$app/config/permissions';
   import { getDefaultRoute } from '$shared/utils/default-route';
-  import { hasPermission } from '$shared/utils/permissions';
+  import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { toast } from '$shared/stores/toast.svelte';
 
   import Layout from '$app/layouts/Layout.svelte';
@@ -119,9 +119,7 @@
   function hasRoutePermission(path) {
     const requiredPerms = routePermissions[path];
     if (!requiredPerms) return true;
-    const authStore = useAuthStore();
-    const userPerms = authStore.user?.permissions || [];
-    return requiredPerms.some(p => hasPermission(userPerms, p));
+    return useRBAC().canAny(requiredPerms);
   }
 
   async function handleRoute(fullPath) {

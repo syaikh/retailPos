@@ -4,6 +4,7 @@
   import { debounce } from '$shared/utils/debounce';
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
+  import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
   import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
 
@@ -27,9 +28,9 @@
     is_active: true
   });
 
-  let canCreate = $derived(rbac.canCreate);
-  let canEdit = $derived(rbac.canEdit);
-  let canDelete = $derived(rbac.isAdmin);
+  let canCreate = $derived(rbac.can(Permissions.product.create));
+  let canEdit = $derived(rbac.can(Permissions.product.update));
+  let canDelete = $derived(rbac.can(Permissions.product.delete));
 
   function formatDate(dateStr) {
     if (!dateStr) return '—';

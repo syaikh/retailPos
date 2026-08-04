@@ -11,9 +11,9 @@ function getSource(): string {
 describe('ProductsPage.svelte source-structure guards', () => {
   const src = getSource();
 
-  it('imports apiClient and auth store', () => {
+  it('imports apiClient and RBAC composable', () => {
     expect(src).toContain("import apiClient from '$shared/api/http-client'");
-    expect(src).toContain("import { useAuthStore } from '$modules/auth'");
+    expect(src).toContain("import { useRBAC } from '$shared/composables/useRBAC.svelte'");
   });
 
   it('imports WebSocket utility', () => {
@@ -56,9 +56,11 @@ describe('ProductsPage.svelte source-structure guards', () => {
     expect(src).toContain('let taxClasses = $state');
   });
 
-  it('has RBAC role-based guards for inventory and stock', () => {
-    expect(src).toContain('allowedInventoryRoles');
-    expect(src).toContain('allowedStockRoles');
+  it('has RBAC permission-based guards for inventory and stock', () => {
+    expect(src).toContain('let canCreate = $derived(rbac.can(Permissions.product.create))');
+    expect(src).toContain('let canEdit = $derived(rbac.can(Permissions.product.update))');
+    expect(src).toContain('let canDelete = $derived(rbac.can(Permissions.product.delete))');
+    expect(src).toContain('let canAdjustStock = $derived(rbac.can(Permissions.inventory.adjust))');
   });
 
   it('has sortProducts function', () => {

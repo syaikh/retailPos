@@ -77,44 +77,6 @@ describe('product-utils', () => {
     });
   });
 
-  describe('getUserRoleName', () => {
-    it('returns empty string for null user', async () => {
-      const { getUserRoleName } = await import('../product-utils');
-      expect(getUserRoleName(null)).toBe('');
-    });
-
-    it('extracts role from string', async () => {
-      const { getUserRoleName } = await import('../product-utils');
-      expect(getUserRoleName({ role: 'admin' })).toBe('admin');
-    });
-
-    it('extracts role from object', async () => {
-      const { getUserRoleName } = await import('../product-utils');
-      expect(getUserRoleName({ role: { name: 'SuperAdmin' } })).toBe('superadmin');
-    });
-
-    it('uses role_id fallback', async () => {
-      const { getUserRoleName } = await import('../product-utils');
-      expect(getUserRoleName({ role_id: 1 })).toBe('superadmin');
-      expect(getUserRoleName({ role_id: 2 })).toBe('admin');
-      expect(getUserRoleName({ role_id: 3 })).toBe('cashier');
-      expect(getUserRoleName({ role_id: 4 })).toBe('manager');
-      expect(getUserRoleName({ role_id: 5 })).toBe('staff');
-    });
-  });
-
-  describe('hasPermission', () => {
-    it('returns true if user role is in allowed list', async () => {
-      const { hasPermission } = await import('../product-utils');
-      expect(hasPermission({ role: 'admin' }, ['superadmin', 'admin', 'manager'])).toBe(true);
-    });
-
-    it('returns false if user role is not in allowed list', async () => {
-      const { hasPermission } = await import('../product-utils');
-      expect(hasPermission({ role: 'cashier' }, ['superadmin', 'admin', 'manager'])).toBe(false);
-    });
-  });
-
   describe('buildProductPayload', () => {
     it('includes category_name derived from category', async () => {
       const { buildProductPayload } = await import('../product-utils');

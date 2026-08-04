@@ -33,9 +33,9 @@ describe('StoresPage.svelte source-structure guards', () => {
 
   it('has RBAC derived from the shared composable', () => {
     expect(src).toContain('const rbac = useRBAC()');
-    expect(src).toContain('let canCreate = $derived(rbac.canCreate)');
-    expect(src).toContain('let canEdit = $derived(rbac.canEdit)');
-    expect(src).toContain('let canDelete = $derived(rbac.isAdmin)');
+    expect(src).toContain('let canCreate = $derived(rbac.can(Permissions.store.create))');
+    expect(src).toContain('let canEdit = $derived(rbac.can(Permissions.store.update))');
+    expect(src).toContain('let canDelete = $derived(rbac.can(Permissions.store.delete))');
   });
 
   it('has sort state and handleSort function', () => {
