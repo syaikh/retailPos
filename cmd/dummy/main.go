@@ -731,7 +731,7 @@ var (
 	}{
 		{"PT Sumber Makmur", "SUP-001"},
 		{"CV Berkah Jaya", "SUP-002"},
-	 {"PT Maju Bersama", "SUP-003"},
+		{"PT Maju Bersama", "SUP-003"},
 		{"CV Sentosa Trading", "SUP-004"},
 		{"PT Dewa Elektronik", "SUP-005"},
 		{"CV Lestari Supplies", "SUP-006"},
@@ -837,8 +837,8 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 			supID := shuffled[j]
 			sku := fmt.Sprintf("SKU-P%d-S%d", p.ID, supID)
 			unitCost := int(float64(p.Price) * (0.5 + rand.Float64()*0.3)) // 50-80% of product price
-			leadTime := 1 + rand.Intn(14)                                   // 1-14 days
-			isPreferred := j == 0                                            // first supplier is preferred
+			leadTime := 1 + rand.Intn(14)                                  // 1-14 days
+			isPreferred := j == 0                                          // first supplier is preferred
 			createdAt := ref.AddDate(0, 0, -rand.Intn(60))
 
 			if _, err := linkStmt.ExecContext(ctx, p.ID, supID, sku, unitCost, leadTime, isPreferred, createdAt); err != nil {
@@ -1587,8 +1587,8 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 					continue
 				}
 
-			// Queue stock update to single updater goroutine to prevent deadlock
-			job.stockUpdateCh <- stockUpdateMsg{productID: item.ProductID, quantity: item.Quantity}
+				// Queue stock update to single updater goroutine to prevent deadlock
+				job.stockUpdateCh <- stockUpdateMsg{productID: item.ProductID, quantity: item.Quantity}
 
 				// Record inventory movement
 				if _, err := movementStmt.ExecContext(ctx, item.ProductID, -item.Quantity, saleID, cashierID, fmt.Sprintf("Sale %s", invoice), createdAt); err != nil {
@@ -1599,26 +1599,26 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			salesCreated++
 			batchSize++
 
-		if batchSize >= 500 {
-			saleStmt.Close()
-			itemStmt.Close()
-			movementStmt.Close()
-			if err := tx.Commit(); err != nil {
-				log.Printf("failed to commit batch: %v", err)
-			}
+			if batchSize >= 500 {
+				saleStmt.Close()
+				itemStmt.Close()
+				movementStmt.Close()
+				if err := tx.Commit(); err != nil {
+					log.Printf("failed to commit batch: %v", err)
+				}
 
-			tx, _ = db.BeginTx(ctx, nil)
-			saleStmt, _ = tx.PrepareContext(ctx,
-				`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
+				tx, _ = db.BeginTx(ctx, nil)
+				saleStmt, _ = tx.PrepareContext(ctx,
+					`INSERT INTO sales (invoice_number, cashier_id, customer_id, store_id, payment_method, status, subtotal, discount, tax, total_amount, created_at)
 				 VALUES ($1, $2, $3, NULL, $4, 'completed', $5, 0, $6, $7, $8) RETURNING id`)
-			itemStmt, _ = tx.PrepareContext(ctx,
-				`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
-			movementStmt, _ = tx.PrepareContext(ctx, `
+				itemStmt, _ = tx.PrepareContext(ctx,
+					`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+				movementStmt, _ = tx.PrepareContext(ctx, `
 				INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
 				VALUES ($1, $2, 'sale', $3, 'sales', $4, $5, $6)`)
 
-			batchSize = 0
-		}
+				batchSize = 0
+			}
 
 			if salesCreated%25 == 0 {
 				select {
@@ -2356,7 +2356,12 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		poID      int
 		status    string
 		createdAt time.Time
-		items     []struct{ poItemID int; qtyOrdered int; unitCost int; productID int }
+		items     []struct {
+			poItemID   int
+			qtyOrdered int
+			unitCost   int
+			productID  int
+		}
 	}
 
 	// Workers channel
@@ -2541,10 +2546,10 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 							return poResult{}, fmt.Errorf("insert PO item: %w", err)
 						}
 						poRes.items = append(poRes.items, struct {
-							poItemID  int
+							poItemID   int
 							qtyOrdered int
-							unitCost  int
-							productID int
+							unitCost   int
+							productID  int
 						}{poItemID, item.Qty, item.UnitCost, item.ProductID})
 					}
 
@@ -2554,10 +2559,10 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					return poRes, nil
 				}()
 				if err != nil {
-				select {
-			case errCh <- err:
-			default:
-			}
+					select {
+					case errCh <- err:
+					default:
+					}
 					return
 				}
 				results <- poRes
@@ -2579,15 +2584,15 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 
 	// Collect results
 	type poItemInfo struct {
-		poItemID  int
+		poItemID   int
 		qtyOrdered int
-		unitCost  int
-		productID int
+		unitCost   int
+		productID  int
 	}
 	type poInfo struct {
-		poID   int
-		status string
-		items  []poItemInfo
+		poID      int
+		status    string
+		items     []poItemInfo
 		createdAt time.Time
 	}
 	var confirmedPOs []poInfo
@@ -2602,10 +2607,10 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		}
 		for j, item := range poRes.items {
 			info.items[j] = poItemInfo{
-				poItemID:  item.poItemID,
+				poItemID:   item.poItemID,
 				qtyOrdered: item.qtyOrdered,
-				unitCost:  item.unitCost,
-				productID: item.productID,
+				unitCost:   item.unitCost,
+				productID:  item.productID,
 			}
 		}
 		if info.status == "confirmed" {

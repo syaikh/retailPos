@@ -483,11 +483,11 @@ func TestExtractPOEventFields(t *testing.T) {
 }
 
 type poListenerTestCase struct {
-	name           string
-	eventType      eventbus.EventType
-	broadcastType  EventType
-	wsEventName    string
-	newListener    func(hub *Hub) eventbus.Listener
+	name          string
+	eventType     eventbus.EventType
+	broadcastType EventType
+	wsEventName   string
+	newListener   func(hub *Hub) eventbus.Listener
 }
 
 func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
@@ -925,61 +925,61 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 		broadcastType EventType
 		wsEventName   string
 	}{
-	{
-		name:          "created",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameCreated),
-		broadcastType: EventSOCreated,
-		wsEventName:   "so_created",
-	},
-	{
-		name:          "opened",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameOpened),
-		broadcastType: EventSOOpened,
-		wsEventName:   "so_opened",
-	},
-	{
-		name:          "submitted",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameSubmitted),
-		broadcastType: EventSOSubmitted,
-		wsEventName:   "so_submitted",
-	},
-	{
-		name:          "approved",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameApproved),
-		broadcastType: EventSOApproved,
-		wsEventName:   "so_approved",
-	},
-	{
-		name:          "posted",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnamePosted),
-		broadcastType: EventSOPosted,
-		wsEventName:   "so_posted",
-	},
-	{
-		name:          "closed",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameClosed),
-		broadcastType: EventSOClosed,
-		wsEventName:   "so_closed",
-	},
-	{
-		name:          "rejected",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameRejected),
-		broadcastType: EventSORejected,
-		wsEventName:   "so_rejected",
-	},
-	{
-		name:          "needs_recount",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameRecount),
-		broadcastType: EventSORecount,
-		wsEventName:   "so_needs_recount",
-	},
-	{
-		name:          "cancelled",
-		eventType:     eventbus.EventType(stockopname.EventStockOpnameCancelled),
-		broadcastType: EventSOCancelled,
-		wsEventName:   "so_cancelled",
-	},
-}
+		{
+			name:          "created",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameCreated),
+			broadcastType: EventSOCreated,
+			wsEventName:   "so_created",
+		},
+		{
+			name:          "opened",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameOpened),
+			broadcastType: EventSOOpened,
+			wsEventName:   "so_opened",
+		},
+		{
+			name:          "submitted",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameSubmitted),
+			broadcastType: EventSOSubmitted,
+			wsEventName:   "so_submitted",
+		},
+		{
+			name:          "approved",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameApproved),
+			broadcastType: EventSOApproved,
+			wsEventName:   "so_approved",
+		},
+		{
+			name:          "posted",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnamePosted),
+			broadcastType: EventSOPosted,
+			wsEventName:   "so_posted",
+		},
+		{
+			name:          "closed",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameClosed),
+			broadcastType: EventSOClosed,
+			wsEventName:   "so_closed",
+		},
+		{
+			name:          "rejected",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameRejected),
+			broadcastType: EventSORejected,
+			wsEventName:   "so_rejected",
+		},
+		{
+			name:          "needs_recount",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameRecount),
+			broadcastType: EventSORecount,
+			wsEventName:   "so_needs_recount",
+		},
+		{
+			name:          "cancelled",
+			eventType:     eventbus.EventType(stockopname.EventStockOpnameCancelled),
+			broadcastType: EventSOCancelled,
+			wsEventName:   "so_cancelled",
+		},
+	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

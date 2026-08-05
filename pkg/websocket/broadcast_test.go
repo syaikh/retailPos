@@ -356,10 +356,10 @@ func TestBroadcastPOReceived_AdminReceivesWithStoreID(t *testing.T) {
 
 func TestBroadcastPOEvents(t *testing.T) {
 	type eventCase struct {
-		name             string
-		broadcastType    EventType
-		wsEventName      string
-		assertPayload    func(*testing.T, []byte)
+		name          string
+		broadcastType EventType
+		wsEventName   string
+		assertPayload func(*testing.T, []byte)
 	}
 
 	newEventCases := func() []eventCase {
@@ -408,7 +408,7 @@ func TestBroadcastPOEvents(t *testing.T) {
 					evt = POCancelledEvent{POID: 42, PONumber: "PO-042"}
 				}
 
-			switch evt := evt.(type) {
+				switch evt := evt.(type) {
 				case POCreatedEvent:
 					BroadcastPOCreated(hub, evt)
 				case POConfirmedEvent:
@@ -451,7 +451,7 @@ func TestBroadcastPOEvents(t *testing.T) {
 					evt = POCancelledEvent{POID: 1, PONumber: "PO-001", StoreID: store1}
 				}
 
-			switch evt := evt.(type) {
+				switch evt := evt.(type) {
 				case POCreatedEvent:
 					BroadcastPOCreated(hub, evt)
 				case POConfirmedEvent:

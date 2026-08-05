@@ -36,8 +36,8 @@ func checkOrigin(r *http.Request) bool {
 	}
 
 	allowedOrigins := map[string]bool{
-		"http://localhost:5173":  true,
-		"http://localhost:9095":  true,
+		"http://localhost:5173": true,
+		"http://localhost:9095": true,
 		"http://127.0.0.1:5173": true,
 		"http://127.0.0.1:9095": true,
 	}
