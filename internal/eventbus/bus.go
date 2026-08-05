@@ -62,7 +62,7 @@ type Bus struct {
 	eventCh         chan Event
 	dispatchWg      sync.WaitGroup
 	loopWg          sync.WaitGroup
-	dropCount       int64
+	dropCount       atomic.Int64
 	metrics         busMetrics
 	deadLetterStore DeadLetterStore
 }
@@ -107,8 +107,8 @@ func (b *Bus) Publish(ctx context.Context, topic string, payload interface{}) er
 		b.metrics.published.Add(1)
 		return nil
 	default:
-		b.dropCount++
-		slog.Warn("eventbus channel full, dropping event", "event", topic, "total_drops", b.dropCount)
+		b.dropCount.Add(1)
+		slog.Warn("eventbus channel full, dropping event", "event", topic, "total_drops", b.dropCount.Load())
 		return nil
 	}
 }
@@ -243,7 +243,5 @@ func (b *Bus) Shutdown() {
 }
 
 func (b *Bus) DroppedCount() int64 {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.dropCount
+	return b.dropCount.Load()
 }
