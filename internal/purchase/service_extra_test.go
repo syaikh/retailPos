@@ -124,7 +124,7 @@ func TestPurchaseService_UpdateDraft_NotFound(t *testing.T) {
 	item := []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 1, UnitCost: 100}}
 
 	err := svc.UpdateDraft(ctx, 999999, &PurchaseOrder{SupplierID: 1, UpdatedBy: 1}, item)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrPurchaseOrderNotFound)
 }
 
 func TestPurchaseService_UpdateDraft_NotDraft(t *testing.T) {

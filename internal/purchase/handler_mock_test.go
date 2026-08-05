@@ -335,6 +335,34 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("update draft not found maps to 404", func(t *testing.T) {
+		svc := &mockPurchaseService{
+			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+				return ErrPurchaseOrderNotFound
+			},
+		}
+		r := setupHandlerMock(t, svc)
+		w := postJSON(t, r, "PUT", "/api/purchase-orders/999999", map[string]interface{}{
+			"supplier_id": 1,
+			"items":       []map[string]interface{}{{"product_id": 1, "qty_ordered": 1, "unit_cost": 100}},
+		})
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("update draft not draft maps to 409", func(t *testing.T) {
+		svc := &mockPurchaseService{
+			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+				return ErrPurchaseOrderNotDraft
+			},
+		}
+		r := setupHandlerMock(t, svc)
+		w := postJSON(t, r, "PUT", "/api/purchase-orders/1", map[string]interface{}{
+			"supplier_id": 1,
+			"items":       []map[string]interface{}{{"product_id": 1, "qty_ordered": 1, "unit_cost": 100}},
+		})
+		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+
 	t.Run("update draft generic error stays 500", func(t *testing.T) {
 		svc := &mockPurchaseService{
 			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {

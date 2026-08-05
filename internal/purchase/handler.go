@@ -197,6 +197,10 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 		switch {
 		case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrDuplicatePOItem):
 			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		case errors.Is(err, ErrPurchaseOrderNotFound):
+			shared.JSONError(c, http.StatusNotFound, shared.ErrNotFound, err.Error())
+		case errors.Is(err, ErrPurchaseOrderNotDraft):
+			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 		default:
 			shared.InternalError(c, err)
 		}

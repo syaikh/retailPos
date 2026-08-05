@@ -177,7 +177,7 @@ func TestHandler_UpdateDraft_NotFound(t *testing.T) {
 		"items":       []map[string]interface{}{{"product_id": 1, "qty_ordered": 1, "unit_cost": 1000}},
 	}
 	w := postJSON(t, r, "PUT", "/api/purchase-orders/999999", req)
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandler_ConfirmPO_NotFound(t *testing.T) {
