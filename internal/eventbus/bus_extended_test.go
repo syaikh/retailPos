@@ -120,27 +120,19 @@ func TestBus_MetricsWithFailure(t *testing.T) {
 
 func TestBus_DroppedCount(t *testing.T) {
 	bus := New()
-	waitForBus(bus)
 
-	blocker := make(chan struct{})
-	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
-		func(ctx context.Context, event Event) error {
-			<-blocker
-			return nil
-		},
-	))
-
+	// Do not start Run(): with no consumer the capacity-1000 event channel
+	// backs up, so the 1100th Publish overflows deterministically instead of
+	// relying on dispatcher scheduling to fall behind.
 	for i := 0; i < 1100; i++ {
 		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
 
 	dropped := bus.DroppedCount()
-	if dropped <= 0 {
-		t.Errorf("DroppedCount = %d, want > 0", dropped)
+	if dropped != 100 {
+		t.Errorf("DroppedCount = %d, want 100 (channel capacity 1000)", dropped)
 	}
 
-	close(blocker)
 	bus.Shutdown()
 }
 
