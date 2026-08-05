@@ -20,7 +20,11 @@ func NewQueryBuilder() *QueryBuilder {
 
 func (qb *QueryBuilder) AddClause(clause string, args ...interface{}) {
 	if len(args) > 0 {
-		qb.WhereClauses = append(qb.WhereClauses, fmt.Sprintf(clause, qb.ArgIdx))
+		sprintfArgs := make([]interface{}, len(args))
+		for i := range args {
+			sprintfArgs[i] = qb.ArgIdx + i
+		}
+		qb.WhereClauses = append(qb.WhereClauses, fmt.Sprintf(clause, sprintfArgs...))
 		qb.Args = append(qb.Args, args...)
 		qb.ArgIdx += len(args)
 	}

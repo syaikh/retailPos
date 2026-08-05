@@ -5,16 +5,54 @@ import (
 	"fmt"
 	"time"
 
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
 type Service struct {
-	repo     *Repository
-	eventBus shared.EventBus
+	repo          *Repository
+	eventBus      shared.EventBus
+	productLookup ProductLookup
+	supplierLookup SupplierLookup
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
+}
+
+func (s *Service) SetProductLookup(l ProductLookup) {
+	s.productLookup = l
+}
+
+func (s *Service) SetSupplierLookup(l SupplierLookup) {
+	s.supplierLookup = l
+}
+
+func (s *Service) lookupProductNames(ctx context.Context, ids []int) (map[int]ProductInfo, error) {
+	if s.productLookup == nil {
+		return nil, fmt.Errorf("product lookup port is not wired")
+	}
+	return s.productLookup.GetProductNamesByIDs(ctx, ids)
+}
+
+func (s *Service) lookupSupplierNames(ctx context.Context, ids []int) (map[int]SupplierInfo, error) {
+	if s.supplierLookup == nil {
+		return nil, fmt.Errorf("supplier lookup port is not wired")
+	}
+	return s.supplierLookup.GetSupplierNamesByIDs(ctx, ids)
+}
+
+func (s *Service) lookupSupplierIDs(ctx context.Context, name string) ([]int, error) {
+	if s.supplierLookup == nil {
+		return nil, fmt.Errorf("supplier lookup port is not wired")
+	}
+	return s.supplierLookup.GetSupplierIDsByName(ctx, name)
+}
+
+func (s *Service) applySupplierNames(po *PurchaseOrder, names map[int]SupplierInfo) {
+	if info, ok := names[po.SupplierID]; ok {
+		po.SupplierName = info.Name
+	}
 }
 
 func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
@@ -58,7 +96,7 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 		po.Subtotal += items[i].Subtotal
 	}
 
-	productMap, err := s.repo.GetProductNamesByIDs(ctx, productIDs)
+	productMap, err := s.lookupProductNames(ctx, productIDs)
 	if err != nil {
 		return fmt.Errorf("lookup products: %w", err)
 	}
@@ -154,7 +192,7 @@ func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, it
 	for i, item := range items {
 		productIDs[i] = item.ProductID
 	}
-	productMap, err := s.repo.GetProductNamesByIDs(ctx, productIDs)
+	productMap, err := s.lookupProductNames(ctx, productIDs)
 	if err != nil {
 		return fmt.Errorf("lookup products: %w", err)
 	}
@@ -293,11 +331,48 @@ func (s *Service) Cancel(ctx context.Context, id, userID int) error {
 }
 
 func (s *Service) GetDetail(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error) {
-	return s.repo.GetPurchaseOrderByID(ctx, id, storeID)
+	po, err := s.repo.GetPurchaseOrderByID(ctx, id, storeID)
+	if err != nil {
+		return nil, err
+	}
+	names, err := s.lookupSupplierNames(ctx, []int{po.SupplierID})
+	if err != nil {
+		return nil, err
+	}
+	s.applySupplierNames(po, names)
+	return po, nil
 }
 
 func (s *Service) List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error) {
-	return s.repo.GetAllPurchaseOrders(ctx, limit, offset, search, sortBy, sortDir, status, supplierID, startDate, endDate, storeID)
+	var supplierIDs []int
+	if search != "" {
+		ids, err := s.lookupSupplierIDs(ctx, search)
+		if err != nil {
+			return nil, 0, err
+		}
+		supplierIDs = ids
+	}
+
+	pos, total, err := s.repo.GetAllPurchaseOrders(ctx, limit, offset, search, sortBy, sortDir, status, supplierID, startDate, endDate, storeID, supplierIDs)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(pos) > 0 {
+		ids := make([]int, len(pos))
+		for i, po := range pos {
+			ids[i] = po.SupplierID
+		}
+		names, err := s.lookupSupplierNames(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range pos {
+			s.applySupplierNames(&pos[i], names)
+		}
+	}
+
+	return pos, total, nil
 }
 
 func (s *Service) GetReceipts(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error) {
@@ -358,7 +433,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 
 	var grItems []GoodsReceiptItem
-	var receiptItems []PurchaseReceiptItem
+	var receiptItems []events.PurchaseReceiptItem
 
 	for _, reqItem := range reqItems {
 		poItem, ok := itemMap[reqItem.PurchaseOrderItemID]
@@ -389,7 +464,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		grItems = append(grItems, grItem)
 
 		if reqItem.QtyGood > 0 {
-			receiptItems = append(receiptItems, PurchaseReceiptItem{
+			receiptItems = append(receiptItems, events.PurchaseReceiptItem{
 				ProductID: poItem.ProductID,
 				QtyGood:   reqItem.QtyGood,
 				UnitCost:  poItem.UnitCost,
@@ -431,7 +506,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	})
 
 	if len(receiptItems) > 0 {
-		_ = s.eventBus.Publish(bgCtx, "PurchaseReceiptCompleted", PurchaseReceiptPayload{
+		_ = s.eventBus.Publish(bgCtx, events.TopicPurchaseReceiptCompleted, events.PurchaseReceiptCompleted{
 			POID:    poID,
 			GRID:    gr.ID,
 			StoreID: storeID,

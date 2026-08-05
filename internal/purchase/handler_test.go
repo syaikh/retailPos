@@ -24,7 +24,7 @@ func setupHandlerTest(t *testing.T) (*gin.Engine, *Handler, int) {
 	go bus.Run()
 	defer bus.Shutdown()
 
-	svc := NewService(repo, bus)
+	svc := newWiredService(repo, bus)
 	auditRepo := audit.NewRepository(dbPool)
 	auditSvc := audit.NewService(auditRepo)
 	handler := NewHandler(svc, auditSvc)
@@ -132,7 +132,7 @@ func TestHandler_CancelPOWithReceiptsFails(t *testing.T) {
 	tx.Commit(ctx)
 
 	grItems := []CreateGRItemInput{{PurchaseOrderItemID: po.Items[0].ID, QtyGood: 5, QtyDamaged: 1}}
-	svc := NewService(repo, eventbus.New())
+	svc := newWiredService(repo, eventbus.New())
 	svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
 
 	w := httptest.NewRecorder()

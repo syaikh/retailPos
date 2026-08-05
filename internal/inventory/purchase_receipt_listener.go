@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/purchase"
+	"retail-pos-system/internal/events"
 )
 
 type PurchaseReceiptListener struct {
@@ -26,7 +26,7 @@ func NewPurchaseReceiptListener(repo *Repository, svc *Service) *PurchaseReceipt
 }
 
 func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbus.Event) error {
-	payload, ok := event.Payload.(purchase.PurchaseReceiptPayload)
+	payload, ok := event.Payload.(events.PurchaseReceiptCompleted)
 	if !ok {
 		slog.Warn("invalid payload type for PurchaseReceiptCompleted", "type", fmt.Sprintf("%T", event.Payload))
 		return nil
@@ -63,5 +63,5 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 }
 
 func (l *PurchaseReceiptListener) EventTypes() []eventbus.EventType {
-	return []eventbus.EventType{"PurchaseReceiptCompleted"}
+	return []eventbus.EventType{events.TopicPurchaseReceiptCompleted}
 }

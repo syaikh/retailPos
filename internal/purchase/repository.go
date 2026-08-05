@@ -138,39 +138,6 @@ func (r *Repository) UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Pur
 	return nil
 }
 
-type productInfo struct {
-	Name string
-	SKU  string
-}
-
-func (r *Repository) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]productInfo, error) {
-	if len(ids) == 0 {
-		return map[int]productInfo{}, nil
-	}
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
-	}
-	query := fmt.Sprintf(`SELECT id, COALESCE(name, ''), COALESCE(sku, '') FROM products WHERE id IN (%s)`, strings.Join(placeholders, ","))
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("get product names: %w", err)
-	}
-	defer rows.Close()
-	result := make(map[int]productInfo, len(ids))
-	for rows.Next() {
-		var id int
-		var info productInfo
-		if err := rows.Scan(&id, &info.Name, &info.SKU); err != nil {
-			return nil, fmt.Errorf("scan product: %w", err)
-		}
-		result[id] = info
-	}
-	return result, rows.Err()
-}
-
 func (r *Repository) DeletePurchaseOrder(ctx context.Context, tx pgx.Tx, id int) error {
 	_, err := tx.Exec(ctx, `DELETE FROM purchase_orders WHERE id = $1 AND status = 'draft'`, id)
 	if err != nil {
@@ -309,7 +276,6 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 	var paymentTerm, deliveryAddress, supplierRef, notes, approvalStatus, paymentStatus, invoiceStatus, currencyCode sql.NullString
 	var exchangeRate sql.NullInt64
 	var createdAt, updatedAt time.Time
-	var supplierName string
 
 	query := `
 		SELECT po.id, po.po_number, po.supplier_id, po.store_id, po.warehouse_id, po.status, po.expected_date,
@@ -318,10 +284,8 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 		       po.approved_by, po.approved_at,
 		       po.subtotal, po.discount_amount, po.tax_amount, po.grand_total, po.notes,
 		       po.confirmed_at, po.confirmed_by, po.cancelled_at, po.cancelled_by,
-		       po.created_by, po.updated_by, po.created_at, po.updated_at,
-		       COALESCE(s.name, '') as supplier_name
+		       po.created_by, po.updated_by, po.created_at, po.updated_at
 		FROM purchase_orders po
-		LEFT JOIN suppliers s ON po.supplier_id = s.id
 		WHERE po.id = $1
 	`
 	args := []interface{}{id}
@@ -338,7 +302,6 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 		&po.Subtotal, &po.DiscountAmount, &po.TaxAmount, &po.GrandTotal, &notes,
 		&confirmedAt, &confirmedBy, &cancelledAt, &cancelledBy,
 		&po.CreatedBy, &po.UpdatedBy, &createdAt, &updatedAt,
-		&supplierName,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -403,7 +366,6 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 		po.ExchangeRate = int(exchangeRate.Int64)
 	}
 
-	po.SupplierName = supplierName
 	po.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	po.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 
@@ -465,10 +427,10 @@ func (r *Repository) getPOItems(ctx context.Context, poID int) ([]PurchaseOrderI
 	return items, nil
 }
 
-func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error) {
+func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int, supplierIDs []int) ([]PurchaseOrder, int, error) {
 	qb := shared.NewQueryBuilder()
 	if search != "" {
-		qb.AddClause(" AND (po.po_number ILIKE $%[1]d OR s.name ILIKE $%[1]d)", "%"+search+"%")
+		qb.AddClause(" AND (po.po_number ILIKE $%[1]d OR po.supplier_id = ANY($%[2]d))", "%"+search+"%", supplierIDs)
 	}
 	if status != "" {
 		qb.AddClause(" AND po.status = $%d", status)
@@ -503,7 +465,7 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 	}
 
 	var total int
-	countQuery := "SELECT COUNT(*) FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id WHERE " + qb.Where()
+	countQuery := "SELECT COUNT(*) FROM purchase_orders po WHERE " + qb.Where()
 	if err := r.db.QueryRow(ctx, countQuery, qb.Args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -513,10 +475,8 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		       po.payment_term,
 		       po.subtotal, po.discount_amount, po.tax_amount, po.grand_total, po.notes,
 		       po.confirmed_at, po.confirmed_by, po.cancelled_at, po.cancelled_by,
-		       po.created_by, po.updated_by, po.created_at, po.updated_at,
-		       COALESCE(s.name, '') as supplier_name
+		       po.created_by, po.updated_by, po.created_at, po.updated_at
 		FROM purchase_orders po
-		LEFT JOIN suppliers s ON po.supplier_id = s.id
 		WHERE %s
 		ORDER BY po.%s %s
 		LIMIT $%d OFFSET $%d
@@ -532,7 +492,6 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 	var pos []PurchaseOrder
 	for rows.Next() {
 		var po PurchaseOrder
-		var supplierName string
 		var confirmedBy, cancelledBy sql.NullInt64
 		var confirmedAt, cancelledAt, expectedDate sql.NullTime
 		var paymentTerm sql.NullString
@@ -545,7 +504,6 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 			&po.Subtotal, &po.DiscountAmount, &po.TaxAmount, &po.GrandTotal, &notes,
 			&confirmedAt, &confirmedBy, &cancelledAt, &cancelledBy,
 			&po.CreatedBy, &po.UpdatedBy, &createdAt, &updatedAt,
-			&supplierName,
 		)
 		if err != nil {
 			return nil, 0, err
@@ -553,7 +511,6 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 		if paymentTerm.Valid {
 			po.PaymentTerm = paymentTerm.String
 		}
-		po.SupplierName = supplierName
 		if expectedDate.Valid {
 			po.ExpectedDate = expectedDate.Time.Format("2006-01-02")
 		}

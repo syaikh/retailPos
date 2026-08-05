@@ -3,6 +3,7 @@ package supplier
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -40,6 +41,52 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Supplier, error) {
 	s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &s, nil
+}
+
+func (r *Repository) GetByIDs(ctx context.Context, ids []int) ([]Supplier, error) {
+	if len(ids) == 0 {
+		return []Supplier{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, name, code, contact_name, email, phone, address, notes, is_active, created_at, updated_at
+		FROM suppliers WHERE id IN (%s) AND deleted_at IS NULL`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch get suppliers by ids: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSuppliers(rows)
+}
+
+func (r *Repository) GetIDsByName(ctx context.Context, name string) ([]int, error) {
+	rows, err := r.db.Query(ctx, `SELECT id FROM suppliers WHERE name ILIKE $1 AND deleted_at IS NULL`, "%"+name+"%")
+	if err != nil {
+		return nil, fmt.Errorf("get supplier ids by name: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *Repository) GetByCode(ctx context.Context, code string) (*Supplier, error) {

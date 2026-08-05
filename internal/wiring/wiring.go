@@ -75,6 +75,42 @@ func (a *productPriceAdapter) GetProductPrice(ctx context.Context, productID int
 	return a.repo.GetProductPrice(ctx, productID)
 }
 
+type productNameLookupAdapter struct {
+	repo *product.Repository
+}
+
+func (a *productNameLookupAdapter) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.ProductInfo, error) {
+	products, err := a.repo.GetProductsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]purchase.ProductInfo, len(products))
+	for _, p := range products {
+		result[p.ID] = purchase.ProductInfo{Name: p.Name, SKU: p.SKU}
+	}
+	return result, nil
+}
+
+type supplierNameLookupAdapter struct {
+	repo *supplier.Repository
+}
+
+func (a *supplierNameLookupAdapter) GetSupplierNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.SupplierInfo, error) {
+	suppliers, err := a.repo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]purchase.SupplierInfo, len(suppliers))
+	for _, s := range suppliers {
+		result[s.ID] = purchase.SupplierInfo{Name: s.Name}
+	}
+	return result, nil
+}
+
+func (a *supplierNameLookupAdapter) GetSupplierIDsByName(ctx context.Context, name string) ([]int, error) {
+	return a.repo.GetIDsByName(ctx, name)
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -187,6 +223,8 @@ func Initialize(p Providers) *Dependencies {
 	d.AuthSvc = user.NewAuthService(d.UserRepo, d.AuditSvc, p.Config)
 	d.ProductSvc = product.NewService(d.ProductRepo, d.CategoryRepo, d.BrandRepo, d.UOMRepo, d.Bus)
 	d.PurchaseSvc = purchase.NewService(d.PurchaseRepo, d.Bus)
+	d.PurchaseSvc.SetProductLookup(&productNameLookupAdapter{repo: d.ProductRepo})
+	d.PurchaseSvc.SetSupplierLookup(&supplierNameLookupAdapter{repo: d.SupplierRepo})
 	d.SaleSvc = sale.NewService(d.SaleRepo, d.Bus)
 	d.SaleSvc.SetCartConfig(sale.CartConfig{HoldTTLHours: p.Config.CartHoldTTLHours})
 

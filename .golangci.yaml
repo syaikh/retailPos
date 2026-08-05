@@ -1,0 +1,71 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - revive
+    - depguard
+
+  settings:
+    depguard:
+      rules:
+        purchase-boundary:
+          list-mode: strict
+          files:
+            - "internal/purchase/**"
+            - "!internal/purchase/**/*_test.go"
+          allow:
+            - $gostd
+            - github.com/gin-gonic/gin
+            - github.com/jackc/pgx/v5
+            - retail-pos-system/internal/audit
+            - retail-pos-system/internal/events
+            - retail-pos-system/internal/middleware
+            - retail-pos-system/internal/permissions
+            - retail-pos-system/internal/shared
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: var-naming
+
+  exclusions:
+    rules:
+      - linters:
+          - revive
+        text: "exported (const|var|type|function|method) .* should have comment"
+      - linters:
+          - revive
+        text: "comment on exported (const|var|type|function|method) .* should be of the form"
+      - linters:
+          - revive
+        text: "package comment"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

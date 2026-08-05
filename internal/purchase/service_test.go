@@ -8,7 +8,53 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/product"
+	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/supplier"
 )
+
+type testProductLookup struct {
+	repo *product.Repository
+}
+
+func (l *testProductLookup) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]ProductInfo, error) {
+	products, err := l.repo.GetProductsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]ProductInfo, len(products))
+	for _, p := range products {
+		result[p.ID] = ProductInfo{Name: p.Name, SKU: p.SKU}
+	}
+	return result, nil
+}
+
+type testSupplierLookup struct {
+	repo *supplier.Repository
+}
+
+func (l *testSupplierLookup) GetSupplierNamesByIDs(ctx context.Context, ids []int) (map[int]SupplierInfo, error) {
+	suppliers, err := l.repo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]SupplierInfo, len(suppliers))
+	for _, s := range suppliers {
+		result[s.ID] = SupplierInfo{Name: s.Name}
+	}
+	return result, nil
+}
+
+func (l *testSupplierLookup) GetSupplierIDsByName(ctx context.Context, name string) ([]int, error) {
+	return l.repo.GetIDsByName(ctx, name)
+}
+
+func newWiredService(repo *Repository, bus shared.EventBus) *Service {
+	svc := NewService(repo, bus)
+	svc.SetProductLookup(&testProductLookup{repo: product.NewRepository(dbPool)})
+	svc.SetSupplierLookup(&testSupplierLookup{repo: supplier.NewRepository(dbPool)})
+	return svc
+}
 
 func newSvc(t *testing.T) (*Service, *eventbus.Bus, context.Context) {
 	t.Helper()
@@ -16,7 +62,7 @@ func newSvc(t *testing.T) (*Service, *eventbus.Bus, context.Context) {
 	bus := eventbus.New()
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)
-	return NewService(repo, bus), bus, context.Background()
+	return newWiredService(repo, bus), bus, context.Background()
 }
 
 func TestPurchaseService_CreateDraft(t *testing.T) {

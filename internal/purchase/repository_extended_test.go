@@ -133,22 +133,22 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 	}
 
 	t.Run("returns all with pagination", func(t *testing.T) {
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 5)
 		assert.GreaterOrEqual(t, len(pos), 5)
 	})
 
 	t.Run("respects limit", func(t *testing.T) {
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 2, 0, "", "", "", "", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 2, 0, "", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 5)
 		assert.Len(t, pos, 2)
 	})
 
 	t.Run("respects offset", func(t *testing.T) {
-		pos1, _, _ := repo.GetAllPurchaseOrders(ctx, 1, 0, "", "", "", "", "", "", "", nil)
-		pos2, _, _ := repo.GetAllPurchaseOrders(ctx, 1, 1, "", "", "", "", "", "", "", nil)
+		pos1, _, _ := repo.GetAllPurchaseOrders(ctx, 1, 0, "", "", "", "", "", "", "", nil, nil)
+		pos2, _, _ := repo.GetAllPurchaseOrders(ctx, 1, 1, "", "", "", "", "", "", "", nil, nil)
 		if len(pos1) > 0 && len(pos2) > 0 {
 			assert.NotEqual(t, pos1[0].ID, pos2[0].ID)
 		}
@@ -156,7 +156,7 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 
 	t.Run("filters by supplier", func(t *testing.T) {
 		supplierIDStr := strconv.Itoa(supplierID)
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", supplierIDStr, "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", supplierIDStr, "", "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 5)
 		for _, po := range pos {
@@ -165,7 +165,7 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 	})
 
 	t.Run("filters by status", func(t *testing.T) {
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "draft", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "draft", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 5)
 		for _, po := range pos {
@@ -174,21 +174,21 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 	})
 
 	t.Run("returns empty for non-matching search", func(t *testing.T) {
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "ZZZZNONEXISTENT", "", "", "", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "ZZZZNONEXISTENT", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, pos)
 	})
 
 	t.Run("returns nil slice as empty when no results", func(t *testing.T) {
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "ZZZZNONEXISTENT", "", "", "", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "ZZZZNONEXISTENT", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, pos)
 	})
 
 	t.Run("sorts by po_number ascending", func(t *testing.T) {
-		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "po_number", "asc", "", "", "", "", nil)
+		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "po_number", "asc", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		if len(pos) >= 2 {
 			assert.LessOrEqual(t, pos[0].PONumber, pos[1].PONumber)
@@ -196,7 +196,7 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 	})
 
 	t.Run("sorts by po_number descending", func(t *testing.T) {
-		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "po_number", "desc", "", "", "", "", nil)
+		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "po_number", "desc", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		if len(pos) >= 2 {
 			assert.GreaterOrEqual(t, pos[0].PONumber, pos[1].PONumber)
@@ -214,32 +214,6 @@ func TestRepository_LockPurchaseOrderForUpdate_NotFound(t *testing.T) {
 
 	err = repo.LockPurchaseOrderForUpdate(ctx, tx, 999999)
 	assert.Error(t, err)
-}
-
-func TestRepository_GetProductNamesByIDs(t *testing.T) {
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-
-	prodID := insertTestProduct(t, ctx, "REPO-PRODNAME", "Repo Product Name", 10000, 100)
-
-	t.Run("returns product info", func(t *testing.T) {
-		names, err := repo.GetProductNamesByIDs(ctx, []int{prodID})
-		require.NoError(t, err)
-		assert.Equal(t, "Repo Product Name", names[prodID].Name)
-		assert.Equal(t, "REPO-PRODNAME", names[prodID].SKU)
-	})
-
-	t.Run("returns empty map for empty ids", func(t *testing.T) {
-		names, err := repo.GetProductNamesByIDs(ctx, []int{})
-		require.NoError(t, err)
-		assert.Empty(t, names)
-	})
-
-	t.Run("returns empty for non-existent ids", func(t *testing.T) {
-		names, err := repo.GetProductNamesByIDs(ctx, []int{999999})
-		require.NoError(t, err)
-		assert.Empty(t, names)
-	})
 }
 
 func TestRepository_UpdatePOItemQtyReceived(t *testing.T) {

@@ -222,32 +222,6 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 	}
 }
 
-func TestRepositoryMock_GetProductNames(t *testing.T) {
-	boom := errors.New("boom")
-
-	t.Run("empty ids", func(t *testing.T) {
-		_, repo, ctx := newPurchaseMockRepo(t)
-		res, err := repo.GetProductNamesByIDs(ctx, nil)
-		require.NoError(t, err)
-		assert.Empty(t, res)
-	})
-
-	t.Run("query error", func(t *testing.T) {
-		mock, repo, ctx := newPurchaseMockRepo(t)
-		mock.ExpectQuery("FROM products WHERE id IN").WithArgs(1, 2).WillReturnError(boom)
-		_, err := repo.GetProductNamesByIDs(ctx, []int{1, 2})
-		assert.ErrorContains(t, err, "get product names")
-	})
-
-	t.Run("scan error", func(t *testing.T) {
-		mock, repo, ctx := newPurchaseMockRepo(t)
-		mock.ExpectQuery("FROM products WHERE id IN").WithArgs(1).WillReturnRows(
-			pgxmock.NewRows([]string{"id"}).AddRow(1))
-		_, err := repo.GetProductNamesByIDs(ctx, []int{1})
-		assert.ErrorContains(t, err, "scan product")
-	})
-}
-
 func TestRepositoryMock_GetPurchaseOrderByID(t *testing.T) {
 	boom := errors.New("boom")
 	now := time.Now()
@@ -261,15 +235,13 @@ func TestRepositoryMock_GetPurchaseOrderByID(t *testing.T) {
 			"subtotal", "discount_amount", "tax_amount", "grand_total", "notes",
 			"confirmed_at", "confirmed_by", "cancelled_at", "cancelled_by",
 			"created_by", "updated_by", "created_at", "updated_at",
-			"supplier_name",
 		}).AddRow(1, "PO-2026-000001", 2, 3, 4, "draft", now,
 			"30 days", "Jl. Sudirman", "REF-1",
 			"approved", "paid", "unpaid", "IDR", 15000,
 			5, now,
 			100000, 0, 0, 100000, "note",
 			now, 6, now, 7,
-			8, 9, now, now,
-			"PT Supplier")
+			8, 9, now, now)
 	}
 
 	poItemRow := func() *pgxmock.Rows {
@@ -304,7 +276,6 @@ func TestRepositoryMock_GetPurchaseOrderByID(t *testing.T) {
 		assert.Equal(t, 6, *po.ConfirmedBy)
 		require.NotNil(t, po.CancelledBy)
 		assert.Equal(t, 7, *po.CancelledBy)
-		assert.Equal(t, "PT Supplier", po.SupplierName)
 		require.Len(t, po.Items, 1)
 		require.NotNil(t, po.Items[0].UOMID)
 		assert.Equal(t, 3, *po.Items[0].UOMID)
@@ -358,13 +329,11 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 			"subtotal", "discount_amount", "tax_amount", "grand_total", "notes",
 			"confirmed_at", "confirmed_by", "cancelled_at", "cancelled_by",
 			"created_by", "updated_by", "created_at", "updated_at",
-			"supplier_name",
 		}).AddRow(1, "PO-2026-000001", 2, 3, "confirmed", now,
 			"30 days",
 			100000, 0, 0, 100000, "note",
 			now, 6, nil, nil,
-			8, 9, now, now,
-			"PT Supplier")
+			8, 9, now, now)
 	}
 
 	itemRow := func() *pgxmock.Rows {
@@ -378,13 +347,13 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 
 	t.Run("full with filters", func(t *testing.T) {
 		mock, repo, ctx := newPurchaseMockRepo(t)
-		mock.ExpectQuery("SELECT COUNT").WithArgs(anyArgs(6)...).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
-		mock.ExpectQuery("SELECT po.id, po.po_number").WithArgs(anyArgs(8)...).WillReturnRows(listRow())
+		mock.ExpectQuery("SELECT COUNT").WithArgs(anyArgs(7)...).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery("SELECT po.id, po.po_number").WithArgs(anyArgs(9)...).WillReturnRows(listRow())
 		mock.ExpectQuery("FROM purchase_order_items").WithArgs(1).WillReturnRows(itemRow())
 
 		storeID := 3
 		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "PO", "po_number", "ASC", "confirmed", "2",
-			"2026-01-01", "2026-01-31", &storeID)
+			"2026-01-01", "2026-01-31", &storeID, []int{2})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, pos, 1)
@@ -399,7 +368,7 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 	t.Run("count error", func(t *testing.T) {
 		mock, repo, ctx := newPurchaseMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnError(boom)
-		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -407,7 +376,7 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 		mock, repo, ctx := newPurchaseMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery("SELECT po.id, po.po_number").WithArgs(anyArgs(2)...).WillReturnError(boom)
-		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -419,9 +388,9 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 				"payment_term",
 				"subtotal", "discount_amount", "tax_amount", "grand_total", "notes",
 				"confirmed_at", "confirmed_by", "cancelled_at", "cancelled_by",
-				"created_by", "updated_by", "created_at", "updated_at"}).AddRow(1, "PO", 2, 3, "confirmed", now,
-				"30 days", 100000, 0, 0, 100000, "note", now, 6, nil, nil, 8, 9, now, now))
-		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+				"created_by", "updated_by", "created_at"}).AddRow(1, "PO", 2, 3, "confirmed", now,
+				"30 days", 100000, 0, 0, 100000, "note", now, 6, nil, nil, 8, 9, now))
+		_, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -430,7 +399,7 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery("SELECT po.id, po.po_number").WithArgs(anyArgs(2)...).WillReturnRows(listRow())
 		mock.ExpectQuery("FROM purchase_order_items").WithArgs(1).WillReturnError(boom)
-		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+		pos, _, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		require.Len(t, pos, 1)
 		assert.Empty(t, pos[0].Items)
@@ -440,7 +409,7 @@ func TestRepositoryMock_GetAllPurchaseOrders(t *testing.T) {
 		mock, repo, ctx := newPurchaseMockRepo(t)
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery("SELECT po.id, po.po_number").WithArgs(anyArgs(2)...).WillReturnRows(pgxmock.NewRows([]string{"id"}))
-		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil)
+		pos, total, err := repo.GetAllPurchaseOrders(ctx, 10, 0, "", "", "", "", "", "", "", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, pos)

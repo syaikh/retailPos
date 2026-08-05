@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/purchase"
+	"retail-pos-system/internal/events"
 )
 
 func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
@@ -32,18 +32,18 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stockBefore)
 
-	payload := purchase.PurchaseReceiptPayload{
+	payload := events.PurchaseReceiptCompleted{
 		POID:    1,
 		GRID:    1,
 		StoreID: 1,
 		UserID:  userID,
-		Items: []purchase.PurchaseReceiptItem{
+		Items: []events.PurchaseReceiptItem{
 			{ProductID: prodID, QtyGood: 5},
 		},
 	}
 
 	event := eventbus.Event{
-		Type:      "PurchaseReceiptCompleted",
+		Type:      events.TopicPurchaseReceiptCompleted,
 		Payload:   payload,
 		Ctx:       ctx,
 		Timestamp: time.Now(),

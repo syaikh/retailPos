@@ -31,7 +31,7 @@ func setupHandlerOpt(t *testing.T, opts handlerOpts) *gin.Engine {
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)
 
-	svc := NewService(repo, bus)
+	svc := newWiredService(repo, bus)
 	auditRepo := audit.NewRepository(dbPool)
 	auditSvc := audit.NewService(auditRepo)
 	handler := NewHandler(svc, auditSvc)
