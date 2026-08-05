@@ -251,3 +251,76 @@ func TestInventoryRepository_AdjustStock_WithUserID_Mock(t *testing.T) {
 	err = repo.AdjustStock(context.Background(), 1, -10, &uid, "user adj")
 	assert.NoError(t, err)
 }
+
+func TestInventoryRepository_ListLocationStock_QueryError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT").WithArgs(1, 2).WillReturnError(fmt.Errorf("query failed"))
+
+	repo := NewRepository(mock)
+	_, err = repo.ListLocationStock(context.Background(), 1, 2)
+	assert.ErrorContains(t, err, "failed to list location stock")
+}
+
+func TestInventoryRepository_ListLocationStock_ScanError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"product_id"}).AddRow(1)
+	mock.ExpectQuery("SELECT").WithArgs(1, 2).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	_, err = repo.ListLocationStock(context.Background(), 1, 2)
+	assert.ErrorContains(t, err, "failed to scan location stock")
+}
+
+func TestInventoryRepository_LoadLocationForStock_NotFound(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rows := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"})
+	mock.ExpectQuery("SELECT id, code, name").WithArgs(99).WillReturnRows(rows)
+
+	repo := NewRepository(mock)
+	_, err = repo.LoadLocationForStock(context.Background(), 99)
+	assert.ErrorIs(t, err, ErrLocationNotFound)
+}
+
+func TestInventoryRepository_SetLocationStock_ReadError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rackRows := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"}).
+		AddRow(7, "A1", "Rack A1", nil, nil, true)
+	mock.ExpectQuery("SELECT id, code, name").WithArgs(7).WillReturnRows(rackRows)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT quantity FROM product_stock").WithArgs(1, 7).WillReturnError(fmt.Errorf("read failed"))
+
+	repo := NewRepository(mock)
+	err = repo.SetLocationStock(context.Background(), 1, 7, 10, 1)
+	assert.ErrorContains(t, err, "failed to read current location stock")
+}
+
+func TestInventoryRepository_TransferLocationStock_LockError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	rackRows := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"}).
+		AddRow(5, "A1", "Rack A1", nil, nil, true)
+	rackRows2 := pgxmock.NewRows([]string{"id", "code", "name", "warehouse_id", "store_id", "is_active"}).
+		AddRow(6, "B1", "Rack B1", nil, nil, true)
+	mock.ExpectQuery("SELECT id, code, name").WithArgs(5).WillReturnRows(rackRows)
+	mock.ExpectQuery("SELECT id, code, name").WithArgs(6).WillReturnRows(rackRows2)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT location_id").WithArgs(1, 5, 6).WillReturnError(fmt.Errorf("lock failed"))
+
+	repo := NewRepository(mock)
+	err = repo.TransferLocationStock(context.Background(), 1, 5, 6, 3, 1)
+	assert.ErrorContains(t, err, "failed to lock location stock")
+}

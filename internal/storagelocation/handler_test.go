@@ -1,6 +1,7 @@
 package storagelocation
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
 )
@@ -174,4 +176,190 @@ func TestHandler_BulkUpdate(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, 2, resp.Updated)
+}
+
+func TestHandler_ErrorBranches(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupRouter()
+
+	t.Run("list with is_active filter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/storage-locations?is_active=true", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("get by id not found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/storage-locations/999999999", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("create bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("create validation error", func(t *testing.T) {
+		body := `{"code":"   ","name":"No Code","warehouse_id":1}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("get by id invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/storage-locations/abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("update invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/storage-locations/abc", strings.NewReader(`{"name":"x"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("delete invalid id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/storage-locations/abc", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("update bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/storage-locations/999999999", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("update not found", func(t *testing.T) {
+		body := `{"name":"Updated"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/storage-locations/999999999", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("delete not found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/storage-locations/999999999", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("bulk update bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/storage-locations/bulk", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("bulk delete bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/storage-locations/bulk", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+type mockAuditCreator struct {
+	createFn func(ctx context.Context, log *audit.AuditLog) error
+	calls    int
+}
+
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+	m.calls++
+	if m.createFn != nil {
+		return m.createFn(ctx, log)
+	}
+	return nil
+}
+
+func TestHandler_BulkDelete(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	whID := createTestWarehouse(t, "HANDLER-BD")
+	r := setupRouter()
+
+	id1 := createLocationViaHandler(t, r, "HANDLER-BD1", "Bulk Del 1", whID)
+	id2 := createLocationViaHandler(t, r, "HANDLER-BD2", "Bulk Del 2", whID)
+
+	w := httptest.NewRecorder()
+	body := fmt.Sprintf(`{"ids":[%d,%d]}`, id1, id2)
+	req, _ := http.NewRequest("DELETE", "/storage-locations/bulk", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp struct {
+		Deleted int `json:"deleted"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, 2, resp.Deleted)
+}
+
+func TestHandler_AuditBranches(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	whID := createTestWarehouse(t, "HANDLER-AUD")
+
+	gin.SetMode(gin.TestMode)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	auditMock := &mockAuditCreator{}
+	h := NewHandler(svc, auditMock)
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+
+	body := fmt.Sprintf(`{"code":"AUD-1","name":"Audit Loc","warehouse_id":%d}`, whID)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/storage-locations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var resp struct {
+		Data StorageLocation `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	id := resp.Data.ID
+	assert.Greater(t, auditMock.calls, 0)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("PUT", fmt.Sprintf("/storage-locations/%d", id), strings.NewReader(`{"name":"Renamed"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("DELETE", fmt.Sprintf("/storage-locations/%d", id), nil)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	id2 := createLocationViaHandler(t, r, "AUD-2", "Audit Two", whID)
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("PUT", "/storage-locations/bulk", strings.NewReader(fmt.Sprintf(`{"ids":[%d],"is_active":true}`, id2)))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("DELETE", "/storage-locations/bulk", strings.NewReader(fmt.Sprintf(`{"ids":[%d]}`, id2)))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 }

@@ -298,6 +298,14 @@ func TestRepository_Assignments(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, assigned)
 
+	assigned, err = repo.IsAssigned(ctx, s.ID, 9005)
+	require.NoError(t, err)
+	assert.True(t, assigned)
+
+	assigned, err = repo.IsAssigned(ctx, s.ID, 9004)
+	require.NoError(t, err)
+	assert.False(t, assigned)
+
 	assignments, err := repo.ListAssignments(ctx, s.ID)
 	require.NoError(t, err)
 	assert.Len(t, assignments, 1)

@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/shared"
 )
 
 type failingEventBus struct{}
@@ -98,4 +100,53 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 25, stock.Quantity)
 	})
+}
+
+func TestInventoryService_AdjustStock_RepoError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("begin failed"))
+
+	repo := NewRepository(mock)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+	svc := NewService(repo, bus)
+
+	err = svc.AdjustStock(context.Background(), 1, 5, 1, "test")
+	assert.ErrorContains(t, err, "adjust stock")
+}
+
+func TestInventoryService_LocationDelegation(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	productID := insertTestProduct(t, ctx, "SVC-LOC-001")
+	var userID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO users (id, username, email, password_hash, role_id) VALUES (1, 'svc_loc', 'svc_loc@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING RETURNING id`).Scan(&userID))
+	if userID == 0 {
+		userID = 1
+	}
+	whID := createTestWarehouse(t, ctx, "SVC-WH")
+	locA := createTestLocation(t, ctx, "SVC-A", "Svc Rack A", &whID, nil, true)
+	locB := createTestLocation(t, ctx, "SVC-B", "Svc Rack B", &whID, nil, true)
+
+	require.NoError(t, svc.SetLocationStock(ctx, productID, locA, 20, userID))
+	items, err := svc.ListLocationStock(ctx, productID, 0)
+	require.NoError(t, err)
+	require.NotEmpty(t, items)
+
+	require.NoError(t, svc.TransferLocationStock(ctx, productID, locA, locB, 5, userID))
+	items, err = svc.ListLocationStock(ctx, productID, 0)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
 }

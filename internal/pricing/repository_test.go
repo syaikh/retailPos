@@ -616,3 +616,50 @@ func TestPricingRepository_GetAllForExport(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(rules), 1)
 }
+
+func TestPricingRepository_GetProductCostAndTax(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	productID := insertTestProduct(t, ctx, "PRC-COST-"+time.Now().Format("0102150405"), "Cost Tax Product", 15000)
+
+	t.Run("success", func(t *testing.T) {
+		ct, err := repo.GetProductCostAndTax(ctx, productID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, ct.Cost)
+		assert.Equal(t, "Cost Tax Product", ct.ProductName)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := repo.GetProductCostAndTax(ctx, -1)
+		assert.ErrorIs(t, err, ErrProductNotFound)
+	})
+}
+
+func TestPricingRepository_GetProductCostAndTaxBatch(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	id1 := insertTestProduct(t, ctx, "PRC-CB1-"+time.Now().Format("0102150405"), "CB One", 10000)
+	id2 := insertTestProduct(t, ctx, "PRC-CB2-"+time.Now().Format("0102150405"), "CB Two", 20000)
+
+	t.Run("multiple", func(t *testing.T) {
+		res, err := repo.GetProductCostAndTaxBatch(ctx, []int{id1, id2})
+		require.NoError(t, err)
+		assert.Len(t, res, 2)
+		assert.Equal(t, "CB One", res[id1].ProductName)
+		assert.Equal(t, "CB Two", res[id2].ProductName)
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		res, err := repo.GetProductCostAndTaxBatch(ctx, []int{})
+		require.NoError(t, err)
+		assert.Empty(t, res)
+	})
+}

@@ -396,3 +396,65 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
+
+func TestMockHandler_AdjustStock_NoUserContext(t *testing.T) {
+	svc := &mockInventoryService{
+		adjustStockFn: func(ctx context.Context, productID, quantityChange, userID int, notes string) error {
+			t.Fatal("service must not be called when user is missing from context")
+			return nil
+		},
+	}
+	h := NewHandler(svc, nil)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Next() })
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	body := `{"product_id":42,"quantity_change":10,"notes":"restock"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid user")
+}
+
+func TestMockHandler_TransferLocationStock_NoUserContext(t *testing.T) {
+	svc := &mockInventoryService{
+		transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
+			t.Fatal("service must not be called when user is missing from context")
+			return nil
+		},
+	}
+	h := NewHandler(svc, nil)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Next() })
+	h.RegisterRoutes(r.Group("/"), func(c *gin.Context) { c.Next() }, func(perm permissions.Code) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	body := `{"product_id":42,"from_location_id":5,"to_location_id":6,"quantity":3}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/locations/transfer", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid user")
+}
+
+func TestMockHandler_SetLocationStock_Audits(t *testing.T) {
+	svc := &mockInventoryService{
+		setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
+			return nil
+		},
+	}
+	r := setupMockInventoryRouterWithAudit(svc)
+	body := `{"product_id":42,"location_id":5,"quantity":12}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "ok")
+}

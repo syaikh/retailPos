@@ -14,6 +14,7 @@ var (
 	ErrDuplicatePOItem               = errors.New("duplicate product in purchase order items")
 	ErrInvalidPOStatusForReceiving   = errors.New("purchase order is not in a receivable status")
 	ErrNoItemsToReceive              = errors.New("no items to receive")
+	ErrInvalidInput                  = errors.New("invalid purchase order input")
 )
 
 const (

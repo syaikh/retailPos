@@ -19,15 +19,15 @@ func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 
 func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
 	if len(items) == 0 {
-		return fmt.Errorf("items cannot be empty")
+		return fmt.Errorf("%w: items cannot be empty", ErrInvalidInput)
 	}
 	if po.SupplierID == 0 {
-		return fmt.Errorf("supplier_id is required")
+		return fmt.Errorf("%w: supplier_id is required", ErrInvalidInput)
 	}
 
 	storeID := po.StoreID
 	if storeID == 0 {
-		return fmt.Errorf("store_id is required")
+		return fmt.Errorf("%w: store_id is required", ErrInvalidInput)
 	}
 
 	po.Status = StatusDraft
@@ -38,13 +38,13 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 	seen := make(map[int]bool)
 	for i, item := range items {
 		if item.ProductID == 0 {
-			return fmt.Errorf("product_id is required for item %d", i)
+			return fmt.Errorf("%w: product_id is required for item %d", ErrInvalidInput, i)
 		}
 		if item.QtyOrdered <= 0 {
-			return fmt.Errorf("qty_ordered must be greater than 0 for product %d", item.ProductID)
+			return fmt.Errorf("%w: qty_ordered must be greater than 0 for product %d", ErrInvalidInput, item.ProductID)
 		}
 		if item.UnitCost < 0 {
-			return fmt.Errorf("unit_cost cannot be negative for product %d", item.ProductID)
+			return fmt.Errorf("%w: unit_cost cannot be negative for product %d", ErrInvalidInput, item.ProductID)
 		}
 		if seen[item.ProductID] {
 			return ErrDuplicatePOItem
@@ -105,13 +105,13 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 
 func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
 	if len(items) == 0 {
-		return fmt.Errorf("items cannot be empty")
+		return fmt.Errorf("%w: items cannot be empty", ErrInvalidInput)
 	}
 	if po.SupplierID == 0 {
-		return fmt.Errorf("supplier_id is required")
+		return fmt.Errorf("%w: supplier_id is required", ErrInvalidInput)
 	}
 	if po.UpdatedBy == 0 {
-		return fmt.Errorf("updated_by is required")
+		return fmt.Errorf("%w: updated_by is required", ErrInvalidInput)
 	}
 
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
@@ -127,13 +127,13 @@ func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, it
 	seen := make(map[int]bool)
 	for i, item := range items {
 		if item.ProductID == 0 {
-			return fmt.Errorf("product_id is required for item %d", i)
+			return fmt.Errorf("%w: product_id is required for item %d", ErrInvalidInput, i)
 		}
 		if item.QtyOrdered <= 0 {
-			return fmt.Errorf("qty_ordered must be greater than 0 for product %d", item.ProductID)
+			return fmt.Errorf("%w: qty_ordered must be greater than 0 for product %d", ErrInvalidInput, item.ProductID)
 		}
 		if item.UnitCost < 0 {
-			return fmt.Errorf("unit_cost cannot be negative for product %d", item.ProductID)
+			return fmt.Errorf("%w: unit_cost cannot be negative for product %d", ErrInvalidInput, item.ProductID)
 		}
 		if seen[item.ProductID] {
 			return ErrDuplicatePOItem

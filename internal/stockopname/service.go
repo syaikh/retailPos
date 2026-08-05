@@ -96,6 +96,26 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		return nil, err
 	}
 
+	// Validate location scopes up front so an unknown or inactive location
+	// yields a clear 4xx instead of being masked by an empty candidate
+	// universe (ErrNoItems) when the rack carries no products. Warehouse/store
+	// resolution below reuses these lookups instead of re-querying the scope.
+	type locationScope struct {
+		warehouseID *int
+		storeID     *int
+	}
+	locationScopes := make(map[int64]locationScope)
+	for _, sc := range scopes {
+		if sc.ScopeType != "location" {
+			continue
+		}
+		wid, sid, err := s.repo.GetLocationScope(ctx, tx, int(sc.ScopeID))
+		if err != nil {
+			return nil, err
+		}
+		locationScopes[sc.ScopeID] = locationScope{warehouseID: wid, storeID: sid}
+	}
+
 	// Resolve scope display names and build the candidate product universe.
 	sessionScopes := make([]SessionScope, 0, len(scopes))
 	candidate := make(map[int]bool)
@@ -180,12 +200,17 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 		case "location":
 			lid := int(sc.ScopeID)
 			locationID = &lid
-			wid, sid, err := s.repo.GetLocationScope(ctx, tx, lid)
-			if err != nil {
-				return nil, err
+			if loc, ok := locationScopes[sc.ScopeID]; ok {
+				warehouseID = loc.warehouseID
+				storeID = loc.storeID
+			} else {
+				wid, sid, err := s.repo.GetLocationScope(ctx, tx, lid)
+				if err != nil {
+					return nil, err
+				}
+				warehouseID = wid
+				storeID = sid
 			}
-			warehouseID = wid
-			storeID = sid
 		}
 	}
 

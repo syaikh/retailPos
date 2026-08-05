@@ -87,6 +87,23 @@ func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 	require.ErrorIs(t, err, ErrLocationInactive)
 }
 
+func TestService_LocationScope_UnknownLocation(t *testing.T) {
+	// Regression for review finding #4: an unknown location used to be masked
+	// by ErrNoItems (500) when the rack carried no products, because location
+	// validation ran after the candidate-universe resolution. It must surface
+	// as ErrLocationNotFound (404) regardless of rack contents.
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+	resetStockOpname(t, ctx)
+	insertTestUserWithRole(t, ctx, 9819, "so_loc_missing_9819", 3)
+
+	_, err := svc.CreateSession(ctx, &CreateSessionRequest{
+		ScopeType: "location", ScopeID: 999999,
+	}, 9819)
+	require.ErrorIs(t, err, ErrLocationNotFound)
+}
+
 func TestRepository_UpdateLocationStock_CreatesRowsLazily(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

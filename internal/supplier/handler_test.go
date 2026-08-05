@@ -1,6 +1,7 @@
 package supplier
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -557,6 +558,197 @@ func TestHandler_BulkDelete(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		r.ServeHTTP(w, req)
 
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_ListSuppliers_IsActiveFilter(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSupplierRouter()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/suppliers?is_active=true", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_UpdateSupplier_ErrorBranches(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSupplierRouter()
+
+	repo := NewRepository(dbPool)
+	s := &Supplier{
+		Name:     "Branch Fill",
+		Code:     "HDL-FILL-" + strconv.FormatInt(time.Now().UnixNano(), 10),
+		IsActive: true,
+	}
+	require.NoError(t, repo.Create(t.Context(), s))
+
+	t.Run("bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/"+strconv.Itoa(s.ID), strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("fill name from existing", func(t *testing.T) {
+		body := `{"code":"` + s.Code + `","contact_name":"Only Code"}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/"+strconv.Itoa(s.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Data Supplier `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "Branch Fill", resp.Data.Name)
+	})
+
+	t.Run("validation fails on missing supplier", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/999999999", strings.NewReader(`{"contact_name":"x"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_LinkProduct_ErrorBranches(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSupplierRouter()
+
+	t.Run("bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/suppliers/1/products", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("validation fails", func(t *testing.T) {
+		body := `{"product_id":0,"supplier_id":0,"unit_cost":-5}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/suppliers/1/products", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_UpdateProductSupplier_ErrorBranches(t *testing.T) {
+	skipIfNoDB(t)
+	r := setupSupplierRouter()
+
+	t.Run("bad json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/1/products/1", strings.NewReader("{invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("validation fails", func(t *testing.T) {
+		body := `{"product_id":0,"supplier_id":0,"unit_cost":-5}`
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/1/products/1", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func setupSupplierMockRouter(svc SupplierService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(svc, nil)
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
+	return r
+}
+
+func TestHandler_MockErrorBranches(t *testing.T) {
+	t.Run("list error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+			return nil, 0, assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("list nil suppliers", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{getAllFn: func(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error) {
+			return nil, 0, nil
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("get error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{getByIDFn: func(ctx context.Context, id int) (*Supplier, error) {
+			return nil, assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/suppliers/1", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("delete error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{deleteFn: func(ctx context.Context, id int) error {
+			return assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/suppliers/1", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("unlink error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{unlinkProductFn: func(ctx context.Context, productID, supplierID int) error {
+			return assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/suppliers/1/products/2", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("set preferred error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{setPreferredSupplierFn: func(ctx context.Context, productID, supplierID int) error {
+			return assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/suppliers/1/products/2/preferred", nil)
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("bulk update error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{bulkUpdateFn: func(ctx context.Context, ids []int, isActive bool) (int, error) {
+			return 0, assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", "/suppliers/bulk", strings.NewReader(`{"ids":[1],"is_active":true}`))
+		req.Header.Set("Content-Type", "application/json")
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("bulk delete error", func(t *testing.T) {
+		svc := &mockSupplierServiceForAudit{bulkDeleteFn: func(ctx context.Context, ids []int) (int, error) {
+			return 0, assert.AnError
+		}}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/suppliers/bulk", strings.NewReader(`{"ids":[1]}`))
+		req.Header.Set("Content-Type", "application/json")
+		setupSupplierMockRouter(svc).ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

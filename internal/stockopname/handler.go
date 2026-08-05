@@ -546,6 +546,12 @@ func writeError(c *gin.Context, err error) {
 		status, code = http.StatusNotFound, "SO-408"
 	case errors.Is(err, ErrAdjustmentFailed):
 		status, code = http.StatusInternalServerError, "SO-205"
+	case errors.Is(err, ErrLocationNotFound):
+		status, code = http.StatusNotFound, "SO-410"
+	case errors.Is(err, ErrLocationInactive):
+		status, code = http.StatusBadRequest, "SO-411"
+	case errors.Is(err, ErrLocationScopeSingle):
+		status, code = http.StatusBadRequest, "SO-401"
 	default:
 		shared.LogError(context.Background(), "stock opname error", err)
 	}

@@ -132,7 +132,12 @@ func (h *Handler) CreateDraft(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateDraft(ctx, po, toDomainItems(req.Items)); err != nil {
-		shared.InternalError(c, err)
+		switch {
+		case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrDuplicatePOItem):
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		default:
+			shared.InternalError(c, err)
+		}
 		return
 	}
 
@@ -189,7 +194,12 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateDraft(ctx, id, po, toDomainUpdateItems(req.Items)); err != nil {
-		shared.InternalError(c, err)
+		switch {
+		case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrDuplicatePOItem):
+			shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, err.Error())
+		default:
+			shared.InternalError(c, err)
+		}
 		return
 	}
 
