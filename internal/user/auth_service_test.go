@@ -21,8 +21,8 @@ import (
 
 func newTestAuthService(t *testing.T) *AuthService {
 	t.Helper()
-	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-32bytes!!")
-	t.Cleanup(func() { os.Unsetenv("JWT_SECRET") })
+	_ = os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-32bytes!!")
+	t.Cleanup(func() { _ = os.Unsetenv("JWT_SECRET") })
 	return &AuthService{
 		jwtSecret:     "test-secret-key-for-unit-tests-32bytes!!",
 		refreshSecret: "test-refresh-secret-key-for-unit-tests-32b",
@@ -312,8 +312,8 @@ func TestAuthService_ValidateToken_Invalid(t *testing.T) {
 
 func newAuthServiceWithDB(t *testing.T) *AuthService {
 	t.Helper()
-	os.Setenv("JWT_SECRET", "test-secret-for-testing-only")
-	t.Cleanup(func() { os.Unsetenv("JWT_SECRET") })
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-testing-only")
+	t.Cleanup(func() { _ = os.Unsetenv("JWT_SECRET") })
 	repo := NewRepository(dbPool)
 	return NewAuthService(repo, nil, config.Load())
 }

@@ -210,7 +210,7 @@ func TestRepository_LockPurchaseOrderForUpdate_NotFound(t *testing.T) {
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	err = repo.LockPurchaseOrderForUpdate(ctx, tx, 999999)
 	assert.Error(t, err)
@@ -287,7 +287,7 @@ func TestRepository_ConfirmPurchaseOrder_WrongStatus(t *testing.T) {
 	require.NoError(t, err)
 	err = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, time.Now().Format(time.RFC3339))
 	assert.ErrorIs(t, err, ErrPurchaseOrderAlreadyConfirmed)
-	tx.Rollback(ctx)
+	_ = tx.Rollback(ctx)
 }
 
 func TestRepository_GetReceiptsByPOID_WithStoreID(t *testing.T) {

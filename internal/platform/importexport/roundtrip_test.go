@@ -121,7 +121,7 @@ func fillXLSX(t *testing.T, templateData []byte, s schema.ModuleSchema, rows []m
 	t.Helper()
 	wb, err := excelize.OpenReader(bytes.NewReader(templateData))
 	require.NoError(t, err)
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	cols := templateColumns(s)
 	sheet := s.ModuleName

@@ -182,7 +182,7 @@ func (h *Handler) Preview(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required or too large (max 32MB)"})
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	filename := strings.ToLower(header.Filename)
 	if !strings.HasSuffix(filename, ".csv") && !strings.HasSuffix(filename, ".xlsx") {

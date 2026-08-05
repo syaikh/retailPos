@@ -92,7 +92,7 @@ func TestServeWebSocket_AuthSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	sendWSAuth(t, conn, "valid-token")
 
@@ -131,7 +131,7 @@ func TestServeWebSocket_AuthFailure(t *testing.T) {
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("expected connection to be closed after auth failure")
 	}
 }
@@ -155,7 +155,7 @@ func TestServeWebSocket_InvalidAuthFormat(t *testing.T) {
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("expected connection to close on invalid auth format")
 	}
 }
@@ -179,7 +179,7 @@ func TestServeWebSocket_MissingAuthType(t *testing.T) {
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("expected connection to close on missing auth type")
 	}
 }
@@ -203,7 +203,7 @@ func TestServeWebSocket_EmptyToken(t *testing.T) {
 
 	_, _, err = conn.ReadMessage()
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("expected connection to close on empty token")
 	}
 }
@@ -218,7 +218,7 @@ func TestServeWebSocket_WritePumpDeliversMessages(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload, _ := json.Marshal(map[string]string{"msg": "hello"})
 	hub.Broadcast(Event{Type: EventStockUpdate, Payload: payload})
@@ -255,7 +255,7 @@ func TestServeWebSocket_StoreFiltering(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload, _ := json.Marshal(map[string]string{"msg": "other store"})
 	hub.Broadcast(Event{
@@ -283,7 +283,7 @@ func TestServeWebSocket_AdminReceivesAllStoreEvents(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload, _ := json.Marshal(map[string]string{"msg": "all stores"})
 	hub.Broadcast(Event{
@@ -322,7 +322,7 @@ func TestServeWebSocket_WritePumpCancelledContext(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	hub.mutex.RLock()
 	var target *Client
@@ -359,7 +359,7 @@ func TestServeWebSocket_ReadPumpDisconnect(t *testing.T) {
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
 
-	conn.Close()
+	_ = conn.Close()
 
 	require.Eventually(t, func() bool {
 		hub.mutex.RLock()
@@ -379,7 +379,7 @@ func TestServeWebSocket_OriginRejected(t *testing.T) {
 
 	conn, err := wsDialWithOrigin(t, srv.URL, "http://evil.com")
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("expected dial to fail with bad origin")
 	}
 }
@@ -394,7 +394,7 @@ func TestServeWebSocket_AllowlistedOrigin(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	hub.mutex.RLock()
 	count := len(hub.clients)
@@ -453,10 +453,10 @@ func TestServeWebSocket_MaxConnectionsPerUser(t *testing.T) {
 	if count > maxConnectionsPerUser {
 		t.Fatalf("expected at most %d clients, got %d", maxConnectionsPerUser, count)
 	}
-	extra.Close()
+	_ = extra.Close()
 
 	for _, c := range conns {
-		c.Close()
+		_ = c.Close()
 	}
 }
 
@@ -472,7 +472,7 @@ func TestServeWebSocket_NonAdminFilteredByStore(t *testing.T) {
 	defer srv.Close()
 
 	conn := connectAndAuth(t, hub, srv, "valid-tok")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload, _ := json.Marshal(map[string]string{"data": "store5"})
 	hub.Broadcast(Event{

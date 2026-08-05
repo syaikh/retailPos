@@ -170,7 +170,7 @@ func TestHandler_Preview(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test.csv")
 	_, _ = part.Write([]byte(csv))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
@@ -194,7 +194,7 @@ func TestHandler_Preview_UnknownModule(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test.csv")
 	_, _ = part.Write([]byte("Code,Name\nA1,Widget\n"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/bogus", body)
@@ -222,7 +222,7 @@ func TestHandler_Confirm(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test.csv")
 	_, _ = part.Write([]byte(csv))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
@@ -536,7 +536,7 @@ func TestHandler_PermissionDenied(t *testing.T) {
 		writer := multipart.NewWriter(body)
 		part, _ := writer.CreateFormFile("file", "test.csv")
 		_, _ = part.Write([]byte("X\nval\n"))
-		writer.Close()
+		_ = writer.Close()
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
@@ -636,7 +636,7 @@ func TestHandler_Preview_EmptyFile(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "empty.csv")
 	_, _ = part.Write([]byte("Code,Name\n"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)
@@ -683,7 +683,7 @@ func TestHandler_Preview_MissingModuleInPerm(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test.csv")
 	_, _ = part.Write([]byte("X\nval\n"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/custom", body)
@@ -854,7 +854,7 @@ func TestHandler_Preview_InvalidFormat(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test.pdf")
 	_, _ = part.Write([]byte("%PDF-1.4 fake"))
-	writer.Close()
+	_ = writer.Close()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/import-export/preview/categories", body)

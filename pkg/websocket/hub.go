@@ -211,7 +211,7 @@ func (h *Hub) Run() {
 				}
 				close(client.send)
 				if client.conn != nil {
-					client.conn.Close()
+					_ = client.conn.Close()
 				}
 				delete(h.clients, client)
 			}
@@ -231,7 +231,7 @@ func (h *Hub) Run() {
 				case client.send <- []byte(`{"type":"error","payload":"Too many connections"}`):
 				default:
 				}
-				client.conn.Close()
+				_ = client.conn.Close()
 				continue
 			}
 			h.userConnections[client.userID] = count + 1
@@ -380,28 +380,28 @@ func ServeWebSocket(hub *Hub, c *gin.Context) {
 
 	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		slog.Warn("WebSocket set auth deadline error", "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		slog.Warn("WebSocket auth message read error", "ip", clientIP, "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	var authMsg authMessage
 	if err := json.Unmarshal(msg, &authMsg); err != nil || authMsg.Type != "auth" || authMsg.Token == "" {
 		slog.Warn("WebSocket invalid auth message format", "ip", clientIP)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	claims, err := hub.authService.ValidateToken(authMsg.Token)
 	if err != nil {
 		slog.Warn("WebSocket auth failed", "ip", clientIP, "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -451,7 +451,7 @@ func (c *Client) readPump() {
 		select {
 		case c.hub.unregister <- c:
 		default:
-			c.conn.Close()
+			_ = c.conn.Close()
 		}
 	}()
 
@@ -476,7 +476,7 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 
 	for {

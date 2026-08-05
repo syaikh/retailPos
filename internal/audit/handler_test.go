@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-audit-tests")
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-audit-tests")
 }
 
 func skipIfNoDB(t *testing.T) {

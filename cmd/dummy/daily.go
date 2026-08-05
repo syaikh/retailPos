@@ -209,7 +209,7 @@ func loadProducts(ctx context.Context, db *sql.DB) ([]dailySaleProduct, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]dailySaleProduct, 0)
 	for rows.Next() {
@@ -229,7 +229,7 @@ func loadCashierUserIDs(ctx context.Context, db *sql.DB) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]int, 0)
 	for rows.Next() {
@@ -260,7 +260,7 @@ func loadStoreIDs(ctx context.Context, db *sql.DB) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]int, 0)
 	for rows.Next() {
@@ -279,7 +279,7 @@ func loadCustomerIDs(ctx context.Context, db *sql.DB) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]int, 0)
 	for rows.Next() {

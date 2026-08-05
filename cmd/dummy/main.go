@@ -194,7 +194,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Daily seeder — db open failed: %v", err)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		if err := db.Ping(); err != nil {
 			log.Fatalf("Daily seeder — db ping failed: %v", err)
 		}
@@ -255,7 +255,7 @@ func run(truncateData bool, numProducts, numDays, numCategories, numStockOpnames
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
@@ -475,7 +475,7 @@ func truncateAllData(ctx context.Context, db *sql.DB) error {
 				systemUsers = append(systemUsers, u)
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
 	} else {
 		log.Printf("Warning: could not save system users: %v", err)
 	}
@@ -549,7 +549,7 @@ func getExistingProducts(ctx context.Context, db *sql.DB) []ProductInfo {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var products []ProductInfo
 	for rows.Next() {
@@ -788,7 +788,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 	if err != nil {
 		return fmt.Errorf("prepare supplier stmt: %w", err)
 	}
-	defer supplierStmt.Close()
+	defer func() { _ = supplierStmt.Close() }()
 
 	ref := time.Now().In(jakartaTZ)
 	supplierIDs := make([]int, 0, numSuppliers)
@@ -819,7 +819,7 @@ func ensureSuppliers(ctx context.Context, db *sql.DB, products []ProductInfo) er
 	if err != nil {
 		return fmt.Errorf("prepare link stmt: %w", err)
 	}
-	defer linkStmt.Close()
+	defer func() { _ = linkStmt.Close() }()
 
 	linkCount := 0
 	for _, p := range products {
@@ -884,7 +884,7 @@ func ensurePricingRules(ctx context.Context, db *sql.DB, products []ProductInfo)
 	if err != nil {
 		return fmt.Errorf("prepare pricing rule stmt: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	ref := time.Now().In(jakartaTZ)
 	ruleCount := 0
@@ -1124,7 +1124,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	// Prepare product_stock INSERT (view v_products_full reads stock from product_stock)
 	stockStmt, err := tx.PrepareContext(ctx,
@@ -1132,7 +1132,7 @@ func processProductWorkerJob(ctx context.Context, db *sql.DB, job productWorkerJ
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare stock statement: %w", err)
 	}
-	defer stockStmt.Close()
+	defer func() { _ = stockStmt.Close() }()
 
 	batch := make([]ProductInfo, 0, batchSize)
 
@@ -1238,7 +1238,7 @@ func runStockUpdater(ctx context.Context, db *sql.DB) chan<- stockUpdateMsg {
 			log.Printf("stock updater: prepare stmt failed: %v", err)
 			return
 		}
-		defer stmt.Close()
+		defer func() { _ = stmt.Close() }()
 
 		var batch []stockUpdateMsg
 		flush := func() {
@@ -1475,7 +1475,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		}
 		return 0, fmt.Errorf("worker %d: prepare sale stmt: %w", job.workerID, err)
 	}
-	defer saleStmt.Close()
+	defer func() { _ = saleStmt.Close() }()
 
 	itemStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, dpp_amount, tax_amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
@@ -1486,7 +1486,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		}
 		return 0, fmt.Errorf("worker %d: prepare item stmt: %w", job.workerID, err)
 	}
-	defer itemStmt.Close()
+	defer func() { _ = itemStmt.Close() }()
 
 	movementStmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO inventory_movements (product_id, quantity_change, type, reference_id, reference_table, user_id, notes, created_at)
@@ -1498,7 +1498,7 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		}
 		return 0, fmt.Errorf("worker %d: prepare movement stmt: %w", job.workerID, err)
 	}
-	defer movementStmt.Close()
+	defer func() { _ = movementStmt.Close() }()
 
 	salesCreated := 0
 	batchSize := 0
@@ -1600,9 +1600,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 			batchSize++
 
 			if batchSize >= 500 {
-				saleStmt.Close()
-				itemStmt.Close()
-				movementStmt.Close()
+				_ = saleStmt.Close()
+				_ = itemStmt.Close()
+				_ = movementStmt.Close()
 				if err := tx.Commit(); err != nil {
 					log.Printf("failed to commit batch: %v", err)
 				}
@@ -1629,9 +1629,9 @@ func processWorkerJob(ctx context.Context, db *sql.DB, job workerJob, userIDs []
 		}
 	}
 
-	saleStmt.Close()
-	itemStmt.Close()
-	movementStmt.Close()
+	_ = saleStmt.Close()
+	_ = itemStmt.Close()
+	_ = movementStmt.Close()
 	if err := tx.Commit(); err != nil {
 		log.Printf("failed to commit final batch: %v", err)
 	}
@@ -1683,7 +1683,7 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 	if err != nil {
 		return fmt.Errorf("open shifts: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	shiftCount := 0
 	for rows.Next() {
@@ -1696,7 +1696,7 @@ func injectShifts(ctx context.Context, db *sql.DB, startDate, endDate time.Time)
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate shift ids: %w", err)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	if shiftCount == 0 {
 		fmt.Printf("   🎲 Created 0 shifts across %d days\n", int(endDate.Sub(startDate).Hours()/24)+1)
@@ -1971,9 +1971,8 @@ func generateItemCount() int {
 		return 4
 	} else if r < 95 {
 		return 5
-	} else {
-		return rand.Intn(4) + 5 // 5-8 items for large transactions
 	}
+	return rand.Intn(4) + 5 // 5-8 items for large transactions
 }
 
 func selectProductsForSale(products []ProductInfo, count int) []int {
@@ -1995,9 +1994,8 @@ func generateQuantity(category string) int {
 		// Consumables often bought in multiples
 		if rand.Intn(100) < 70 {
 			return rand.Intn(3) + 1 // 1-3
-		} else {
-			return rand.Intn(5) + 4 // 4-8 for bulk
 		}
+		return rand.Intn(5) + 4 // 4-8 for bulk
 	case "Books", "Magazines":
 		return rand.Intn(3) + 1 // 1-3
 	case "Smartphones", "Laptops", "Cameras", "Furniture":
@@ -2014,7 +2012,7 @@ func getIDs(ctx context.Context, db *sql.DB, table string) []int {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	ids := []int{}
 	for rows.Next() {
 		var id int
@@ -2182,7 +2180,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 				productIDs = append(productIDs, pid)
 			}
 		}
-		prodRows.Close()
+		_ = prodRows.Close()
 	}
 	for i := 0; i < len(productIDs); i += 100 {
 		pid := productIDs[i]
@@ -2207,7 +2205,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 				customerIDs = append(customerIDs, cid)
 			}
 		}
-		custRows.Close()
+		_ = custRows.Close()
 	}
 	for i := 0; i < len(customerIDs); i += 10 {
 		cid := customerIDs[i]
@@ -2221,7 +2219,7 @@ func generateAuditLogs(ctx context.Context, db *sql.DB, userIDs, categoryIDs []i
 		`SELECT id, cashier_id, customer_id, invoice_number, total_amount, payment_method, created_at
 		 FROM sales ORDER BY id`)
 	if err == nil {
-		defer saleRows.Close()
+		defer func() { _ = saleRows.Close() }()
 		for saleRows.Next() {
 			var sid, cid, custID, total int
 			var inv, pm string
@@ -2323,7 +2321,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 			costMap[pc.ProductID] = pc.UnitCost
 		}
 	}
-	costRows.Close()
+	_ = costRows.Close()
 
 	// Fallback cost: 65% of product price if no supplier link
 	for _, p := range products {
@@ -2531,7 +2529,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 					if err != nil {
 						return poResult{}, fmt.Errorf("prepare item stmt: %w", err)
 					}
-					defer itemStmt.Close()
+					defer func() { _ = itemStmt.Close() }()
 
 					var poRes poResult
 					poRes.poID = poID
@@ -2688,7 +2686,7 @@ func injectPurchaseOrdersAndGRs(ctx context.Context, db *sql.DB, startDate, endD
 		if err != nil {
 			return fmt.Errorf("prepare gr item stmt: %w", err)
 		}
-		defer itemStmt.Close()
+		defer func() { _ = itemStmt.Close() }()
 
 		for _, item := range po.items {
 			fullReceipt := rand.Intn(100) < 70
@@ -2798,7 +2796,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 				groupIDs[gname] = id
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -2817,7 +2815,7 @@ func injectCustomers(ctx context.Context, db *sql.DB, startDate, endDate time.Ti
 	if err != nil {
 		return fmt.Errorf("prepare: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	ref := time.Now().In(jakartaTZ)
 

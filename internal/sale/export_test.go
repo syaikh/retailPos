@@ -156,7 +156,7 @@ func TestWriteXLSX(t *testing.T) {
 
 			f, err := excelize.OpenReader(&buf)
 			assert.NoError(t, err)
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 
 			sheet := f.GetSheetName(0)
 			assert.NotEmpty(t, sheet)
@@ -215,7 +215,7 @@ func TestWriteXLSX_CellValues(t *testing.T) {
 
 	f, err := excelize.OpenReader(&buf)
 	assert.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sheet := f.GetSheetName(0)
 

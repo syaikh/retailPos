@@ -19,8 +19,8 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-report-mock-tests")
-	os.Setenv("ENV", "development")
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-report-mock-tests")
+	_ = os.Setenv("ENV", "development")
 }
 
 type mockReportService struct {

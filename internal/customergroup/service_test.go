@@ -16,7 +16,7 @@ func TestService_GetAll(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "SvcGetAll-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	groups, total, err := svc.GetAll(ctx, 10, 0, "", nil, nil)
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestService_GetByID_Success(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "SvcGetByID-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	got, err := svc.GetByID(ctx, cg.ID)
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestService_GetAllActive(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "SvcActive-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	groups, err := svc.GetAllActive(ctx)
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestService_Create_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, name, result.Name)
 	assert.Greater(t, result.ID, 0)
-	defer repo.Delete(ctx, result.ID)
+	defer func() { _ = repo.Delete(ctx, result.ID) }()
 }
 
 func TestService_Create_EmptyName(t *testing.T) {
@@ -98,7 +98,7 @@ func TestService_Create_DuplicateName(t *testing.T) {
 	name := "SvcDup-" + t.Name()
 	result, err := svc.Create(ctx, CustomerGroupCreateRequest{Name: name})
 	require.NoError(t, err)
-	defer repo.Delete(ctx, result.ID)
+	defer func() { _ = repo.Delete(ctx, result.ID) }()
 
 	_, err = svc.Create(ctx, CustomerGroupCreateRequest{Name: name})
 	assert.Error(t, err)
@@ -113,7 +113,7 @@ func TestService_Update_Success(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "SvcUpd-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	newName := "SvcUpd-Updated-" + t.Name()
 	updated, err := svc.Update(ctx, cg.ID, CustomerGroupUpdateRequest{Name: &newName})
@@ -141,7 +141,7 @@ func TestService_Update_EmptyName(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "SvcUpdEmpty-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	empty := "  "
 	_, err := svc.Update(ctx, cg.ID, CustomerGroupUpdateRequest{Name: &empty})
@@ -157,11 +157,11 @@ func TestService_Update_DuplicateName(t *testing.T) {
 
 	cg1 := &CustomerGroup{Name: "SvcUpdDup1-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg1))
-	defer repo.Delete(ctx, cg1.ID)
+	defer func() { _ = repo.Delete(ctx, cg1.ID) }()
 
 	cg2 := &CustomerGroup{Name: "SvcUpdDup2-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg2))
-	defer repo.Delete(ctx, cg2.ID)
+	defer func() { _ = repo.Delete(ctx, cg2.ID) }()
 
 	_, err := svc.Update(ctx, cg1.ID, CustomerGroupUpdateRequest{Name: &cg2.Name})
 	assert.Error(t, err)
@@ -205,8 +205,8 @@ func TestService_BulkUpdate_Success(t *testing.T) {
 	cg2 := &CustomerGroup{Name: "SvcBulkUpd2-" + t.Name(), IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg1))
 	require.NoError(t, repo.Create(ctx, cg2))
-	defer repo.Delete(ctx, cg1.ID)
-	defer repo.Delete(ctx, cg2.ID)
+	defer func() { _ = repo.Delete(ctx, cg1.ID) }()
+	defer func() { _ = repo.Delete(ctx, cg2.ID) }()
 
 	updated, err := svc.BulkUpdate(ctx, []int{cg1.ID, cg2.ID}, false)
 	require.NoError(t, err)

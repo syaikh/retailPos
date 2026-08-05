@@ -2,7 +2,7 @@
 
 | Field         | Nilai |
 |---------------|-------|
-| Status        | **Proposed** |
+| Status        | **Accepted** |
 | Tanggal       | 2026-08-05 |
 | Deciders      | Tim Produk, Tim Engineering |
 | Referensi     | `docs/ADR_Modular_Monolith_Module_Boundaries.md` (batas modul dan kontrak komunikasi) |

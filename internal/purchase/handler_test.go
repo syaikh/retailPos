@@ -72,7 +72,7 @@ func TestHandler_CreateDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "draft", data["status"])
 	assert.Equal(t, float64(40000), data["grand_total"])
@@ -90,8 +90,8 @@ func TestHandler_ConfirmPO(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Confirm", SKU: "HANDLER-CONF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	fetched, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
 	require.Len(t, fetched.Items, 1)
@@ -103,7 +103,7 @@ func TestHandler_ConfirmPO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "confirmed", data["status"])
 }
@@ -120,20 +120,20 @@ func TestHandler_CancelPOWithReceiptsFails(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Cancel", SKU: "HANDLER-CANCEL"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	fetched, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
 	po.Items = fetched.Items
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	grItems := []CreateGRItemInput{{PurchaseOrderItemID: po.Items[0].ID, QtyGood: 5, QtyDamaged: 1}}
 	svc := newWiredService(repo, eventbus.New())
-	svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
+	_, _ = svc.CreateGoodsReceipt(ctx, po.ID, userID, 1, grItems)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("POST", "/api/purchase-orders/"+strconv.Itoa(po.ID)+"/cancel", nil)
@@ -154,8 +154,8 @@ func TestHandler_GetPO(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 12000, ProductName: "Handler GetPO", SKU: "HANDLER-GETPO"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("GET", "/api/purchase-orders/"+strconv.Itoa(po.ID), nil)
@@ -163,7 +163,7 @@ func TestHandler_GetPO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, float64(po.ID), data["id"])
 	assert.Equal(t, "draft", data["status"])
@@ -202,8 +202,8 @@ func TestHandler_ListPOs(t *testing.T) {
 		items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler List", SKU: "HANDLER-LIST"}}
 		tx, _ := repo.BeginTx(ctx)
 		po.PONumber, _ = repo.GetNextPONumber(ctx)
-		repo.CreatePurchaseOrder(ctx, tx, po, items)
-		tx.Commit(ctx)
+		_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+		_ = tx.Commit(ctx)
 	}
 
 	w := httptest.NewRecorder()
@@ -212,7 +212,7 @@ func TestHandler_ListPOs(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].([]interface{})
 	assert.GreaterOrEqual(t, len(data), 3)
 	total := resp["total"].(float64)
@@ -228,7 +228,7 @@ func TestHandler_ListPOs_EmptyResult(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].([]interface{})
 	assert.Empty(t, data)
 }
@@ -245,8 +245,8 @@ func TestHandler_UpdateDraft(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Update", SKU: "HANDLER-UPD"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -262,7 +262,7 @@ func TestHandler_UpdateDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "draft", data["status"])
 }
@@ -300,8 +300,8 @@ func TestHandler_DeleteDraft(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete", SKU: "HANDLER-DEL"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("DELETE", "/api/purchase-orders/"+strconv.Itoa(po.ID), nil)
@@ -309,7 +309,7 @@ func TestHandler_DeleteDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.True(t, resp["data"].(map[string]interface{})["deleted"].(bool))
 }
 
@@ -325,13 +325,13 @@ func TestHandler_DeleteDraft_NotDraftReturnsConflict(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete Conflict", SKU: "HANDLER-DELCF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("DELETE", "/api/purchase-orders/"+strconv.Itoa(po.ID), nil)
@@ -362,15 +362,15 @@ func TestHandler_GetReceipts(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Receipts", SKU: "HANDLER-RCPT"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	fetchedPO, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	grNumber, _ := repo.GetNextGRNumber(ctx)
 	gr := &GoodsReceipt{
@@ -388,11 +388,11 @@ func TestHandler_GetReceipts(t *testing.T) {
 		ProductName:         "Handler Receipts",
 	}}
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.CreateGoodsReceipt(ctx, tx, gr, grItems)
-	repo.UpdatePOItemQtyReceived(ctx, tx, fetchedPO.Items[0].ID, 6)
-	repo.RecalculatePOStatus(ctx, tx, po.ID)
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.CreateGoodsReceipt(ctx, tx, gr, grItems)
+	_ = repo.UpdatePOItemQtyReceived(ctx, tx, fetchedPO.Items[0].ID, 6)
+	_ = repo.RecalculatePOStatus(ctx, tx, po.ID)
+	_ = tx.Commit(ctx)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("GET", "/api/purchase-orders/"+strconv.Itoa(po.ID)+"/receipts", nil)
@@ -400,7 +400,7 @@ func TestHandler_GetReceipts(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].([]interface{})
 	require.Len(t, data, 1)
 	rcpt := data[0].(map[string]interface{})
@@ -429,15 +429,15 @@ func TestHandler_CreateGoodsReceipt(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler GR", SKU: "HANDLER-GR"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	fetchedPO, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	req := map[string]interface{}{
 		"purchase_order_id": po.ID,
@@ -453,7 +453,7 @@ func TestHandler_CreateGoodsReceipt(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
 	assert.NotEmpty(t, data["gr_number"])
 }
@@ -482,15 +482,15 @@ func TestHandler_CreateGoodsReceipt_OverReceiveFails(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR Over", SKU: "HANDLER-GROV"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	fetchedPO, _ := repo.GetPurchaseOrderByID(ctx, po.ID, nil)
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	req := map[string]interface{}{
 		"purchase_order_id": po.ID,
@@ -519,13 +519,13 @@ func TestHandler_CreateGoodsReceipt_POItemNotFound(t *testing.T) {
 	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR NotFound", SKU: "HANDLER-GRNF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
-	repo.CreatePurchaseOrder(ctx, tx, po, items)
-	tx.Commit(ctx)
+	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
+	_ = tx.Commit(ctx)
 
 	tx, _ = repo.BeginTx(ctx)
-	repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
-	repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
-	tx.Commit(ctx)
+	_ = repo.LockPurchaseOrderForUpdate(ctx, tx, po.ID)
+	_ = repo.ConfirmPurchaseOrder(ctx, tx, po.ID, userID, "2026-07-27T10:00:00+07:00")
+	_ = tx.Commit(ctx)
 
 	req := map[string]interface{}{
 		"purchase_order_id": po.ID,

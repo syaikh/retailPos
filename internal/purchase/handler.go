@@ -282,10 +282,10 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 	}
 
 	if err := h.svc.Confirm(ctx, id, uid); err != nil {
-		switch {
-		case err == ErrPurchaseOrderNotDraft:
+		switch err {
+		case ErrPurchaseOrderNotDraft:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
-		case err == ErrPurchaseOrderAlreadyConfirmed:
+		case ErrPurchaseOrderAlreadyConfirmed:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 		default:
 			shared.InternalError(c, err)
@@ -331,10 +331,10 @@ func (h *Handler) CancelPO(c *gin.Context) {
 	}
 
 	if err := h.svc.Cancel(ctx, id, uid); err != nil {
-		switch {
-		case err == ErrPurchaseOrderCancelled:
+		switch err {
+		case ErrPurchaseOrderCancelled:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
-		case err == ErrPurchaseOrderHasReceipts:
+		case ErrPurchaseOrderHasReceipts:
 			shared.JSONError(c, http.StatusConflict, shared.ErrConflict, err.Error())
 		default:
 			shared.InternalError(c, err)
@@ -436,12 +436,7 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 
 	grItems := make([]CreateGRItemInput, len(req.Items))
 	for i, item := range req.Items {
-		grItems[i] = CreateGRItemInput{
-			PurchaseOrderItemID: item.PurchaseOrderItemID,
-			QtyGood:             item.QtyGood,
-			QtyDamaged:          item.QtyDamaged,
-			Notes:               item.Notes,
-		}
+		grItems[i] = CreateGRItemInput(item)
 	}
 
 	gr, err := h.svc.CreateGoodsReceipt(ctx, req.PurchaseOrderID, uid, *storeID, grItems)

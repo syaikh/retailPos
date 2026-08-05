@@ -171,7 +171,7 @@ func generateExample(eng *template.Engine, outDir, filename string, s schema.Mod
 	if err != nil {
 		return fmt.Errorf("open generated template: %w", err)
 	}
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	sheetName := s.ModuleName
 
@@ -204,7 +204,7 @@ func generateExample(eng *template.Engine, outDir, filename string, s schema.Mod
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := wb.Write(f); err != nil {
 		return fmt.Errorf("write xlsx: %w", err)

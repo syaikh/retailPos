@@ -30,7 +30,7 @@ func WriteCSV(rows []SaleExportRow, w io.Writer) error {
 
 func WriteXLSX(rows []SaleExportRow, w io.Writer) error {
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sheet := f.GetSheetName(0)
 	_ = f.SetCellValue(sheet, "A1", "Invoice Number")

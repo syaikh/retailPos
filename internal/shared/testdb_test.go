@@ -7,8 +7,8 @@ import (
 )
 
 func TestGetEnv_ReturnsValue(t *testing.T) {
-	os.Setenv("TEST_GETENV_KEY", "hello")
-	defer os.Unsetenv("TEST_GETENV_KEY")
+	_ = os.Setenv("TEST_GETENV_KEY", "hello")
+	defer func() { _ = os.Unsetenv("TEST_GETENV_KEY") }()
 
 	got := getEnv("TEST_GETENV_KEY", "fallback")
 	if got != "hello" {
@@ -17,8 +17,8 @@ func TestGetEnv_ReturnsValue(t *testing.T) {
 }
 
 func TestGetEnv_ReturnsFallbackWhenEmpty(t *testing.T) {
-	os.Setenv("TEST_GETENV_EMPTY", "")
-	defer os.Unsetenv("TEST_GETENV_EMPTY")
+	_ = os.Setenv("TEST_GETENV_EMPTY", "")
+	defer func() { _ = os.Unsetenv("TEST_GETENV_EMPTY") }()
 
 	got := getEnv("TEST_GETENV_EMPTY", "fallback")
 	if got != "fallback" {
@@ -27,7 +27,7 @@ func TestGetEnv_ReturnsFallbackWhenEmpty(t *testing.T) {
 }
 
 func TestGetEnv_ReturnsFallbackWhenUnset(t *testing.T) {
-	os.Unsetenv("TEST_GETENV_UNSET_KEY")
+	_ = os.Unsetenv("TEST_GETENV_UNSET_KEY")
 
 	got := getEnv("TEST_GETENV_UNSET_KEY", "fallback")
 	if got != "fallback" {
@@ -50,17 +50,17 @@ func TestGetTestDSN_ContainsAllParts(t *testing.T) {
 }
 
 func TestGetTestDSN_UsesEnvOverrides(t *testing.T) {
-	os.Setenv("TEST_DB_HOST", "myhost")
-	os.Setenv("TEST_DB_PORT", "9999")
-	os.Setenv("TEST_DB_USER", "myuser")
-	os.Setenv("TEST_DB_PASSWORD", "mypass")
-	os.Setenv("TEST_DB_NAME", "mydb")
+	_ = os.Setenv("TEST_DB_HOST", "myhost")
+	_ = os.Setenv("TEST_DB_PORT", "9999")
+	_ = os.Setenv("TEST_DB_USER", "myuser")
+	_ = os.Setenv("TEST_DB_PASSWORD", "mypass")
+	_ = os.Setenv("TEST_DB_NAME", "mydb")
 	defer func() {
-		os.Unsetenv("TEST_DB_HOST")
-		os.Unsetenv("TEST_DB_PORT")
-		os.Unsetenv("TEST_DB_USER")
-		os.Unsetenv("TEST_DB_PASSWORD")
-		os.Unsetenv("TEST_DB_NAME")
+		_ = os.Unsetenv("TEST_DB_HOST")
+		_ = os.Unsetenv("TEST_DB_PORT")
+		_ = os.Unsetenv("TEST_DB_USER")
+		_ = os.Unsetenv("TEST_DB_PASSWORD")
+		_ = os.Unsetenv("TEST_DB_NAME")
 	}()
 
 	dsn := GetTestDSN()
@@ -71,11 +71,11 @@ func TestGetTestDSN_UsesEnvOverrides(t *testing.T) {
 }
 
 func TestGetTestDSN_Defaults(t *testing.T) {
-	os.Unsetenv("TEST_DB_HOST")
-	os.Unsetenv("TEST_DB_PORT")
-	os.Unsetenv("TEST_DB_USER")
-	os.Unsetenv("TEST_DB_PASSWORD")
-	os.Unsetenv("TEST_DB_NAME")
+	_ = os.Unsetenv("TEST_DB_HOST")
+	_ = os.Unsetenv("TEST_DB_PORT")
+	_ = os.Unsetenv("TEST_DB_USER")
+	_ = os.Unsetenv("TEST_DB_PASSWORD")
+	_ = os.Unsetenv("TEST_DB_NAME")
 
 	dsn := GetTestDSN()
 

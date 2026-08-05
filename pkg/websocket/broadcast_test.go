@@ -359,7 +359,6 @@ func TestBroadcastPOEvents(t *testing.T) {
 		name          string
 		broadcastType EventType
 		wsEventName   string
-		assertPayload func(*testing.T, []byte)
 	}
 
 	newEventCases := func() []eventCase {

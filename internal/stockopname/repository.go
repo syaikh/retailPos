@@ -688,7 +688,7 @@ func (r *Repository) GetCountHistory(ctx context.Context, itemID int) ([]CountRe
 
 // --- approval transaction support ---
 
-type approvalItem struct {
+type ApprovalItem struct {
 	ID         int
 	ProductID  int
 	PhysicalQy float64
@@ -724,7 +724,7 @@ func (r *Repository) LockSessionForApproval(ctx context.Context, tx pgx.Tx, id i
 	return &s, nil
 }
 
-func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]approvalItem, error) {
+func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]ApprovalItem, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT i.id, i.product_id, i.physical_qty, COALESCE(p.cost, 0)
 		FROM stock_opname_items i
@@ -736,9 +736,9 @@ func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID
 	}
 	defer rows.Close()
 
-	var items []approvalItem
+	var items []ApprovalItem
 	for rows.Next() {
-		var it approvalItem
+		var it ApprovalItem
 		if err := rows.Scan(&it.ID, &it.ProductID, &it.PhysicalQy, &it.UnitCost); err != nil {
 			return nil, fmt.Errorf("failed to scan approval item: %w", err)
 		}

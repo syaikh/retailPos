@@ -88,7 +88,7 @@ func createRegressionSale(t *testing.T, ctx context.Context, repo *Repository, i
 	t.Helper()
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	cashierID := insertTestCashier(t, ctx)
 	sale := &Sale{

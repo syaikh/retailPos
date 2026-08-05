@@ -123,7 +123,7 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 	t.Run("Update", func(t *testing.T) {
 		sl := &StorageLocation{Code: "CRUD-UPD", Name: "To Update", WarehouseID: &whID, IsActive: true}
 		require.NoError(t, repo.Create(ctx, sl))
-		defer repo.Delete(ctx, sl.ID)
+		defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 		fetched, err := repo.GetByID(ctx, sl.ID)
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 		storeID := createTestStore(t, "CRUD")
 		sl := &StorageLocation{Code: "CRUD-STORE", Name: "Store Rack", StoreID: &storeID, IsActive: true}
 		require.NoError(t, repo.Create(ctx, sl))
-		defer repo.Delete(ctx, sl.ID)
+		defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 		fetched, err := repo.GetByID(ctx, sl.ID)
 		require.NoError(t, err)
@@ -163,8 +163,8 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 		sl2 := &StorageLocation{Code: "BULK-UPD-2", Name: "Bulk Upd 2", WarehouseID: &whID, IsActive: true}
 		require.NoError(t, repo.Create(ctx, sl1))
 		require.NoError(t, repo.Create(ctx, sl2))
-		defer repo.Delete(ctx, sl1.ID)
-		defer repo.Delete(ctx, sl2.ID)
+		defer func() { _ = repo.Delete(ctx, sl1.ID) }()
+		defer func() { _ = repo.Delete(ctx, sl2.ID) }()
 
 		updated, err := repo.BulkUpdate(ctx, []int{sl1.ID, sl2.ID}, false)
 		require.NoError(t, err)

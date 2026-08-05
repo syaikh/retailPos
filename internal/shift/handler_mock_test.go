@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-shift-mock-tests")
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-shift-mock-tests")
 }
 
 type mockShiftService struct {

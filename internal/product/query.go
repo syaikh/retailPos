@@ -51,7 +51,6 @@ func (r *Repository) GetAllProducts(ctx context.Context, limit, offset int, sear
 	if supplierID != nil {
 		query += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM product_suppliers ps WHERE ps.product_id = v.id AND ps.supplier_id = $%d)", argIdx)
 		args = append(args, *supplierID)
-		argIdx++
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(&total)

@@ -121,7 +121,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 
 		scopeType := "store"
 		scopeID := 1
-		var warehouseID any = nil
+		var warehouseID any
 		switch r := rand.Intn(100); {
 		case r < 60:
 			if len(storeIDs) > 0 {
@@ -219,7 +219,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			_ = tx.Rollback()
 			return fmt.Errorf("prepare stock opname item stmt: %w", err)
 		}
-		defer itemStmt.Close()
+		defer func() { _ = itemStmt.Close() }()
 
 		countStmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO stock_opname_counts
@@ -230,7 +230,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			_ = tx.Rollback()
 			return fmt.Errorf("prepare stock opname count stmt: %w", err)
 		}
-		defer countStmt.Close()
+		defer func() { _ = countStmt.Close() }()
 
 		stockStmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO product_stock (product_id, quantity, updated_at)
@@ -241,7 +241,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			_ = tx.Rollback()
 			return fmt.Errorf("prepare stock update stmt: %w", err)
 		}
-		defer stockStmt.Close()
+		defer func() { _ = stockStmt.Close() }()
 
 		productStockSyncStmt, err := tx.PrepareContext(ctx, `
 			UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2
@@ -250,7 +250,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			_ = tx.Rollback()
 			return fmt.Errorf("prepare product stock sync stmt: %w", err)
 		}
-		defer productStockSyncStmt.Close()
+		defer func() { _ = productStockSyncStmt.Close() }()
 
 		movementStmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO inventory_movements
@@ -261,7 +261,7 @@ func injectStockOpnames(ctx context.Context, db *sql.DB, startDate, endDate time
 			_ = tx.Rollback()
 			return fmt.Errorf("prepare inventory movement stmt: %w", err)
 		}
-		defer movementStmt.Close()
+		defer func() { _ = movementStmt.Close() }()
 
 		var counterIdx int
 		var approverID = managerUserIDs[rand.Intn(len(managerUserIDs))]
@@ -518,7 +518,7 @@ func loadStockOpnameSnapshot(ctx context.Context, db *sql.DB) ([]stockOpnameSnap
 	if err != nil {
 		return nil, fmt.Errorf("query stock opname snapshot: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []stockOpnameSnapshot
 	for rows.Next() {
@@ -555,7 +555,7 @@ func getUserIDsByRoles(ctx context.Context, db *sql.DB, roles ...string) []int {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []int
 	for rows.Next() {

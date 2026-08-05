@@ -231,7 +231,7 @@ func TestHandler_GetByID_Success(t *testing.T) {
 	r := setupCGRouter()
 
 	id := createGroupViaHandler(t, r, "GetByID Success")
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/customer-groups/%d", id), nil)
@@ -297,7 +297,7 @@ func TestHandler_Update_Success(t *testing.T) {
 	r := setupCGRouter()
 
 	id := createGroupViaHandler(t, r, "Update Success")
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("/customer-groups/%d", id), strings.NewReader(`{"name":"Updated"}`))
@@ -336,7 +336,7 @@ func TestHandler_Update_InvalidJSON(t *testing.T) {
 	r := setupCGRouter()
 
 	id := createGroupViaHandler(t, r, "Update InvalidJSON")
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("/customer-groups/%d", id), strings.NewReader("not json"))
@@ -425,7 +425,7 @@ func TestHandler_Create_DuplicateName(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	id := resp.Data.ID
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest("POST", "/customer-groups", strings.NewReader(body))
@@ -439,7 +439,7 @@ func TestHandler_Create_WithAudit(t *testing.T) {
 	r, mockAudit := setupCGRouterWithAudit()
 
 	id := createGroupViaHandler(t, r, "Audit Create Group")
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	assert.True(t, mockAudit.called)
 }
@@ -449,7 +449,7 @@ func TestHandler_Update_WithAudit(t *testing.T) {
 	r, mockAudit := setupCGRouterWithAudit()
 
 	id := createGroupViaHandler(t, r, "Audit Update Group")
-	defer deleteGroupByID(r, id)
+	defer func() { _ = deleteGroupByID(r, id) }()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("/customer-groups/%d", id), strings.NewReader(`{"name":"Audit Updated"}`))

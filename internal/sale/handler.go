@@ -144,11 +144,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		}
 		payments := make([]CreatePaymentRequest, len(req.Payments))
 		for i, p := range req.Payments {
-			payments[i] = CreatePaymentRequest{
-				PaymentMethodCode: p.PaymentMethodCode,
-				Amount:            p.Amount,
-				ReferenceNumber:   p.ReferenceNumber,
-			}
+			payments[i] = CreatePaymentRequest(p)
 		}
 		h.createSaleFromCart(c, ctx, *req.CartSessionID, payments, cashierID, storeIDPtr)
 		return
@@ -201,11 +197,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	if len(req.Payments) > 0 {
 		payments = make([]CreatePaymentRequest, len(req.Payments))
 		for i, p := range req.Payments {
-			payments[i] = CreatePaymentRequest{
-				PaymentMethodCode: p.PaymentMethodCode,
-				Amount:            p.Amount,
-				ReferenceNumber:   p.ReferenceNumber,
-			}
+			payments[i] = CreatePaymentRequest(p)
 		}
 	} else if req.PaymentMethod != "" {
 		totalAmount := subtotal - req.Discount

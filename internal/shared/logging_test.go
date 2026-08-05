@@ -46,7 +46,7 @@ func TestSetGetRequestID(t *testing.T) {
 	ctx := SetRequestID(context.Background(), "req-1")
 	assert.Equal(t, "req-1", GetRequestID(ctx))
 	assert.Equal(t, "", GetRequestID(context.Background()))
-	assert.Equal(t, "", GetRequestID(nil))
+	assert.Equal(t, "", GetRequestID(nil)) //nolint:staticcheck // deliberately tests nil-context handling
 }
 
 func TestSetGetRequestPath(t *testing.T) {
@@ -73,7 +73,7 @@ func TestLogError_IncludesRequestContext(t *testing.T) {
 func TestLogWarn_NoContextNoPanic(t *testing.T) {
 	h := captureLogs(t)
 
-	LogWarn(nil, "warning without context", "k", "v")
+	LogWarn(nil, "warning without context", "k", "v") //nolint:staticcheck // deliberately tests nil-context handling
 
 	require.Len(t, h.records, 1)
 	attrs := recordAttrs(h.records[0])

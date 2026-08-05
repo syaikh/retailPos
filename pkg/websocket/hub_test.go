@@ -85,10 +85,10 @@ func TestCheckOrigin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envValue != "" {
-				os.Setenv("CORS_ORIGIN", tt.envValue)
-				defer os.Unsetenv("CORS_ORIGIN")
+				_ = os.Setenv("CORS_ORIGIN", tt.envValue)
+				defer func() { _ = os.Unsetenv("CORS_ORIGIN") }()
 			} else {
-				os.Unsetenv("CORS_ORIGIN")
+				_ = os.Unsetenv("CORS_ORIGIN")
 			}
 
 			r, _ := http.NewRequest("GET", "http://localhost:5173/ws", nil)
@@ -268,7 +268,7 @@ func TestHub_MaxConnectionsPerUser(t *testing.T) {
 	wsURL := "ws" + ts.URL[4:]
 	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
-	defer wsConn.Close()
+	defer func() { _ = wsConn.Close() }()
 
 	ctx, cancel := context.WithCancel(baseCtx)
 	rejectedClient := &Client{

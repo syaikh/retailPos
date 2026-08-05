@@ -20,7 +20,7 @@ func TestService_GetAll(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	sl := &StorageLocation{Code: "SVC-GETALL", Name: "Svc GetAll", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl))
-	defer repo.Delete(ctx, sl.ID)
+	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 	locations, total, err := svc.GetAll(ctx, 10, 0, "", nil)
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestService_GetByID_Success(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	sl := &StorageLocation{Code: "SVC-GETID", Name: "Svc GetByID", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl))
-	defer repo.Delete(ctx, sl.ID)
+	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 	got, err := svc.GetByID(ctx, sl.ID)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestService_GetAllActive(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	sl := &StorageLocation{Code: "SVC-ACTIVE", Name: "Svc Active", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl))
-	defer repo.Delete(ctx, sl.ID)
+	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 	locations, err := svc.GetAllActive(ctx)
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestService_Create_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, code, result.Code)
 	assert.Greater(t, result.ID, 0)
-	defer repo.Delete(ctx, result.ID)
+	defer func() { _ = repo.Delete(ctx, result.ID) }()
 }
 
 func TestService_Create_EmptyCode(t *testing.T) {
@@ -164,7 +164,7 @@ func TestService_Create_DuplicateCode(t *testing.T) {
 	warehouseID := whID
 	result, err := svc.Create(ctx, StorageLocationCreateRequest{Code: code, Name: "Dup", WarehouseID: &warehouseID})
 	require.NoError(t, err)
-	defer repo.Delete(ctx, result.ID)
+	defer func() { _ = repo.Delete(ctx, result.ID) }()
 
 	_, err = svc.Create(ctx, StorageLocationCreateRequest{Code: code, Name: "Dup2", WarehouseID: &warehouseID})
 	assert.Error(t, err)
@@ -181,7 +181,7 @@ func TestService_Update_Success(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	sl := &StorageLocation{Code: "SVC-UPD", Name: "Svc Upd", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl))
-	defer repo.Delete(ctx, sl.ID)
+	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 	newName := "Svc Upd Updated"
 	updated, err := svc.Update(ctx, sl.ID, StorageLocationUpdateRequest{Name: &newName})
@@ -211,11 +211,11 @@ func TestService_Update_DuplicateCode(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	sl1 := &StorageLocation{Code: "SVC-UDP1", Name: "Svc Upd Dup 1", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl1))
-	defer repo.Delete(ctx, sl1.ID)
+	defer func() { _ = repo.Delete(ctx, sl1.ID) }()
 
 	sl2 := &StorageLocation{Code: "SVC-UDP2", Name: "Svc Upd Dup 2", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl2))
-	defer repo.Delete(ctx, sl2.ID)
+	defer func() { _ = repo.Delete(ctx, sl2.ID) }()
 
 	_, err := svc.Update(ctx, sl1.ID, StorageLocationUpdateRequest{Code: &sl2.Code})
 	assert.Error(t, err)
@@ -263,8 +263,8 @@ func TestService_BulkUpdate_Success(t *testing.T) {
 	sl2 := &StorageLocation{Code: "SVC-BU2", Name: "Svc Bulk Upd 2", WarehouseID: &whID, IsActive: true}
 	require.NoError(t, repo.Create(ctx, sl1))
 	require.NoError(t, repo.Create(ctx, sl2))
-	defer repo.Delete(ctx, sl1.ID)
-	defer repo.Delete(ctx, sl2.ID)
+	defer func() { _ = repo.Delete(ctx, sl1.ID) }()
+	defer func() { _ = repo.Delete(ctx, sl2.ID) }()
 
 	updated, err := svc.BulkUpdate(ctx, []int{sl1.ID, sl2.ID}, false)
 	require.NoError(t, err)

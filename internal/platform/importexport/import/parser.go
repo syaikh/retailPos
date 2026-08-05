@@ -66,7 +66,7 @@ func parseXLSX(r io.Reader, s schema.ModuleSchema) ([]map[string]interface{}, er
 	if err != nil {
 		return nil, fmt.Errorf("open xlsx: %w", err)
 	}
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	return ParseXLSXWorkbook(wb, s)
 }

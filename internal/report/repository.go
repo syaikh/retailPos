@@ -40,7 +40,7 @@ func (r *Repository) InvalidateDashboardCache(storeID *int) {
 	r.cache.FlushByPrefix("report:")
 }
 
-func (r *Repository) NewSaleCreatedListener() *saleCreatedListener {
+func (r *Repository) NewSaleCreatedListener() eventbus.Listener {
 	return &saleCreatedListener{repo: r}
 }
 

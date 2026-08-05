@@ -97,7 +97,7 @@ func TestEngine_GenerateStatusDropdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open xlsx: %v", err)
 	}
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	hasRefStatus := false
 	for _, sheet := range wb.GetSheetList() {

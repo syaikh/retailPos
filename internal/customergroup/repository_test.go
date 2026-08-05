@@ -127,7 +127,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		fetched, err := repo.GetByID(ctx, cg.ID)
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		fetched, err := repo.GetByID(ctx, cg.ID)
 		require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg := &CustomerGroup{Name: "Color Update", IsActive: true, Color: "#6C5CE7"}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		fetched, err := repo.GetByID(ctx, cg.ID)
 		require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg := &CustomerGroup{Name: "No Customers CG", IsActive: true}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		fetched, err := repo.GetByID(ctx, cg.ID)
 		require.NoError(t, err)
@@ -180,7 +180,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg := &CustomerGroup{Name: "FindByName Group", IsActive: true}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		found, err := repo.GetByName(ctx, "FindByName Group")
 		require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg := &CustomerGroup{Name: "CaseInsensitive Group", IsActive: true}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		found, err := repo.GetByName(ctx, "caseinsensitive group")
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg := &CustomerGroup{Name: "UniqueSearchable", Description: "FindThisDesc", IsActive: true}
 		err := repo.Create(ctx, cg)
 		require.NoError(t, err)
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		groups, total, err := repo.GetAll(ctx, 10, 0, "FindThisDesc", nil, nil)
 		require.NoError(t, err)
@@ -239,8 +239,8 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		cg2 := &CustomerGroup{Name: "BulkUpd2", IsActive: true}
 		require.NoError(t, repo.Create(ctx, cg1))
 		require.NoError(t, repo.Create(ctx, cg2))
-		defer repo.Delete(ctx, cg1.ID)
-		defer repo.Delete(ctx, cg2.ID)
+		defer func() { _ = repo.Delete(ctx, cg1.ID) }()
+		defer func() { _ = repo.Delete(ctx, cg2.ID) }()
 
 		updated, err := repo.BulkUpdate(ctx, []int{cg1.ID, cg2.ID}, false)
 		require.NoError(t, err)
@@ -285,7 +285,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 	t.Run("BulkUpsertCustomerGroups inserts new and updates existing", func(t *testing.T) {
 		cg := &CustomerGroup{Name: "Upsert Existing", IsActive: true}
 		require.NoError(t, repo.Create(ctx, cg))
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		records := []CustomerGroupImportRow{
 			{Row: 1, Name: "Upsert Existing", Description: "Updated via upsert", IsActive: false},
@@ -298,7 +298,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 
 		created, err := repo.GetByName(ctx, "Upsert Brand New")
 		require.NoError(t, err)
-		defer repo.Delete(ctx, created.ID)
+		defer func() { _ = repo.Delete(ctx, created.ID) }()
 	})
 
 	t.Run("GetAllForExport returns all groups", func(t *testing.T) {
@@ -310,7 +310,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 	t.Run("GetAllForExport includes color field", func(t *testing.T) {
 		cg := &CustomerGroup{Name: "ExportColor", IsActive: true, Color: "#E17055"}
 		require.NoError(t, repo.Create(ctx, cg))
-		defer repo.Delete(ctx, cg.ID)
+		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 		groups, err := repo.GetAllForExport(ctx)
 		require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestCustomerGroupRepository_GetAll_AllFiltersCombined(t *testing.T) {
 
 	cg := &CustomerGroup{Name: "AllFiltersCG", Description: "combo test", IsActive: true}
 	require.NoError(t, repo.Create(ctx, cg))
-	defer repo.Delete(ctx, cg.ID)
+	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	active := true
 	hasCust := false

@@ -13,12 +13,6 @@ import (
 
 const modulePrefix = "retail-pos-system/internal/"
 
-var domainModules = []string{
-	"brand", "category", "customer", "customergroup", "inventory", "pricing",
-	"product", "purchase", "report", "sale", "shift", "stockopname",
-	"storagelocation", "store", "supplier", "uom",
-}
-
 var forbiddenImports = map[string][]string{
 	"purchase": {
 		modulePrefix + "brand",

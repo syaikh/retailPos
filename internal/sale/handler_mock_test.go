@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-sale-mock-tests")
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-sale-mock-tests")
 }
 
 type mockSaleService struct {

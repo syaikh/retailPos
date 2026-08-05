@@ -84,7 +84,7 @@ func (e *Engine) Preview(ctx context.Context, module string, filename string, fi
 		if err != nil {
 			return nil, fmt.Errorf("open xlsx: %w", err)
 		}
-		defer wb.Close()
+		defer func() { _ = wb.Close() }()
 
 		if err := validateMetaSheet(wb, s); err != nil {
 			return nil, err

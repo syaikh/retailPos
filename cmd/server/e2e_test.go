@@ -38,7 +38,7 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-e2e-tests")
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-e2e-tests")
 }
 
 type authAdapter struct {
@@ -1306,7 +1306,7 @@ func TestE2E_SplitPayment(t *testing.T) {
 	t.Run("exactly 10 payments with duplicate methods returns 400", func(t *testing.T) {
 		var payments []string
 		for i := 0; i < 10; i++ {
-			payments = append(payments, fmt.Sprintf(`{"payment_method_code":"QRIS","amount":10000}`))
+			payments = append(payments, `{"payment_method_code":"QRIS","amount":10000}`)
 		}
 		body := fmt.Sprintf(`{
 			"cashier_id": 1,
