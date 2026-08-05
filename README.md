@@ -568,9 +568,9 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **18 migrations (000–018)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
+Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **25 migrations (000–024)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`) — lihat AGENTS.md.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`, `023_sprint0_finalize_permissions.sql`, `024_add_product_history_cost_permissions.sql`) — lihat AGENTS.md.
 
 Migrations terkini:
 - `000_squash.sql` — Baseline schema + seed data awal (roles, permissions, users, payment methods, customer groups)
@@ -595,6 +595,9 @@ Migrations terkini:
 - `019_remove_remaining_orphaned_role_grants.sql` — Revoke `store.create/update/delete` dan `customer_group.create/update/delete` dari Manager (least-privilege)
 - `020_per_rack_stock.sql` — Kolom `product_stock.location_id` (FK → storage_locations, unique `NULLS NOT DISTINCT` 4 kolom), kolom `stock_opnames.location_id` + scope `location`
 - `021_grant_storage_location_view.sql` — Grant `storage_location.view` ke Manager/Staff/Cashier (panel stok rak di detail produk + scope picker stock opname)
+- `022_admin_least_privilege.sql` — Revoke `audit.view`, `role.update/delete`, `user.delete` dari Admin (enforce least-privilege split)
+- `023_sprint0_finalize_permissions.sql` — Revoke `staff.product.update` dan `staff.inventory.adjust` (RBAC final, frontend permission-based)
+- `024_add_product_history_cost_permissions.sql` — Permissions baru `product.history.view` (Superadmin/Admin) dan `product.cost.view` (Superadmin/Admin/Manager)
 
 ---
 
@@ -605,8 +608,8 @@ Migrations terkini:
 | Superadmin | `superadmin` | `admin123` | Semua permission |
 | Admin | `admin` | `admin123` | User management, reports, PO, pricing (tanpa audit.view / role.update / user.delete) |
 | Manager | `manager` | `admin123` | Inventory, sales, PO, pricing, shifts |
-| Cashier | `cashier` | `admin123` | POS only (create/view sales, print, park, shift) |
-| Staff | `staff` | `admin123` | Inventory + Dashboard |
+| Cashier | `cashier` | `admin123` | POS only (create/view sales, park, shift) |
+| Staff | `staff` | `admin123` | Produk (view) + stock opname counting |
 
 Ganti password di production via `database/seeds/004_users.sql` atau UI change-password.
 
@@ -614,42 +617,43 @@ Ganti password di production via `database/seeds/004_users.sql` atau UI change-p
 
 ## Permission Matrix
 
-Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `sale.void`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI.
+Permission memakai **dot-notation** (`entity.action`), contoh: `user.view`, `product.create`, `stock_opname.post`. Tabel ini adalah konfigurasi default dari seeds; dapat diubah via Role Management UI.
 
 | Permission | Superadmin | Admin | Manager | Cashier | Staff |
 |------------|:---:|:---:|:---:|:---:|:---:|
-| `dashboard.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `dashboard.view` | ✅ | ✅ | ✅ | – | – |
 | `product.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `product.update` | ✅ | ✅ | ✅ | – | ✅ |
+| `product.update` | ✅ | ✅ | ✅ | – | – |
 | `product.create`, `product.delete` | ✅ | ✅ | – | – | – |
 | `product.import`, `product.export` | ✅ | ✅ | – | – | – |
-| `category.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `product.history.view` | ✅ | ✅ | – | – | – |
+| `product.cost.view` | ✅ | ✅ | ✅ | – | – |
+| `category.view` | ✅ | ✅ | ✅ | – | – |
 | `category.create` | ✅ | ✅ | ✅ | – | – |
 | `category.update`, `category.delete` | ✅ | ✅ | – | – | – |
 | `category.import`, `category.export` | ✅ | ✅ | – | – | – |
-| `sale.view`, `sale.create`, `sale.print`, `sale.park` | ✅ | ✅ | ✅ | ✅ | – |
-| `sale.void` | ✅ | ✅ | ✅ | – | – |
-| `shift.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `shift.create` | ✅ | ✅ | ✅ | ✅ | – |
+| `sale.view` | ✅ | ✅ | ✅ | ✅ | – |
+| `sale.create`, `sale.park` | ✅ | ✅ | – | ✅ | – |
+| `shift.view`, `shift.create` | ✅ | ✅ | ✅ | ✅ | – |
 | `shift.review`, `shift.audit` | ✅ | ✅ | ✅ | – | – |
-| `inventory.adjust` | ✅ | – | ✅ | – | ✅ |
+| `inventory.adjust` | ✅ | ✅ | ✅ | – | – |
 | `report.view` | ✅ | ✅ | ✅ | – | – |
 | `customer.view` | ✅ | ✅ | ✅ | ✅ | – |
 | `customer.create`, `customer.update` | ✅ | ✅ | ✅ | – | – |
 | `customer.delete` | ✅ | ✅ | – | – | – |
 | `customer.import`, `customer.export` | ✅ | ✅ | – | – | – |
-| `customer_group.view` | ✅ | ✅ | ✅ | ✅ | – |
+| `customer_group.view` | ✅ | ✅ | ✅ | – | – |
 | `customer_group.create/update/delete` | ✅ | ✅ | – | – | – |
-| `store.view` | ✅ | ✅ | ✅ | ✅ | – |
+| `store.view` | ✅ | ✅ | – | – | – |
 | `store.create/update/delete` | ✅ | ✅ | – | – | – |
-| `storage_location.view` | ✅ | ✅ | – | – | – |
+| `storage_location.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `storage_location.create/update/delete` | ✅ | ✅ | – | – | – |
 | `stock_opname.view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `stock_opname.count`, `stock_opname.submit` | ✅ | ✅ | – | ✅ | ✅ |
 | `stock_opname.create`, `stock_opname.assign` | ✅ | ✅ | ✅ | – | – |
 | `stock_opname.verify`, `stock_opname.post`, `stock_opname.close`, `stock_opname.report` | ✅ | ✅ | ✅ | – | – |
 | `stock_opname.cancel`, `stock_opname.export`, `stock_opname.recount` | ✅ | ✅ | ✅ | – | – |
-| `pricing.view` | ✅ | ✅ | ✅ | ✅ | – |
+| `pricing.view` | ✅ | ✅ | ✅ | – | – |
 | `pricing.create`, `pricing.update` | ✅ | ✅ | ✅ | – | – |
 | `pricing.delete` | ✅ | ✅ | – | – | – |
 | `purchase_order.view/create/update/confirm/receive` | ✅ | ✅ | ✅ | – | – |

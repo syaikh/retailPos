@@ -78,7 +78,7 @@ The system has five built-in roles. Your role determines which menus you see and
 | **Admin** | Store administrator | Everything except deleting users/roles and audit logs (can create and edit users and roles) |
 | **Manager** | Store/ops manager | Dashboard, transactions, reports, shifts, purchase orders, stock opname; manages products, categories, customers, pricing rules, suppliers; adjusts inventory; no POS register |
 | **Cashier** | Front-line seller | POS, own transactions, own shifts, customer lookup, stock counting |
-| **Staff** | Warehouse/counter staff | Products (view/edit), stock opname counting, inventory adjustment |
+| **Staff** | Warehouse/counter staff | Products (view), stock opname counting |
 
 A complete permission-to-role matrix is in [Appendix A](#appendix-a-role--permission-matrix).
 
@@ -718,9 +718,9 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Shifts — open/close own | ✓ | ✓ | ✓ | ✓ | — |
 | Shifts — view/review all | ✓ | ✓ | ✓ | — | — |
 | Products — view | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Products — create/edit | ✓ | ✓ | ✓ (edit) | — | ◐ (edit) |
+| Products — create/edit | ✓ | ✓ | ✓ (edit) | — | — |
 | Products — delete | ✓ | ✓ | — | — | — |
-| Inventory adjustment | ✓ | ✓ | ✓ | — | ✓ |
+| Inventory adjustment | ✓ | ✓ | ✓ | — | — |
 | Categories — view/create | ✓ | ✓ | ✓ | — | — |
 | Categories — edit/delete | ✓ | ✓ | — | — | — |
 | Customers — view | ✓ | ✓ | ✓ | ✓ | — |
@@ -743,7 +743,7 @@ Legend: ✓ full access · ◐ partial/limited · — no access
 | Audit logs | ✓ | — | — | — | — |
 | Import/Export | ✓ | ✓ | — | — | — |
 
-> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
+> Permission codes are checked in real time. Even within a role, custom roles can be granted any subset of permissions (see [Roles & Permissions](#roles--permissions)). Exact permission codes per action: `dashboard.view`, `sale.create/view`, `product.view/create/update/delete`, `category.view/create/update/delete`, `customer.view/create/update/delete`, `customer_group.view/create/update/delete`, `pricing.view/create/update/delete`, `purchase_order.view/create/update/confirm/receive/cancel`, `shift.view/create`, `report.view`, `inventory.adjust`, `stock_opname.view/create/assign/count/submit/verify/post/close/recount/cancel/export/report`, `storage_location.view/create/update/delete`, `store.view/create/update/delete`, `user.view/create/update/delete`, `role.view/create/update/delete`, `audit.view`, `product.export/import`, `product.history.view`, `product.cost.view`, `category.export/import`, `customer.export/import`. The Suppliers module has no dedicated permission code — its page is gated by `pricing.view`, so superadmin, admin, and manager can use it.
 
 ---
 
