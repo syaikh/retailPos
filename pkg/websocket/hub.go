@@ -171,8 +171,9 @@ type Hub struct {
 
 	authService TokenValidator
 
-	done chan struct{}
-	wg   sync.WaitGroup
+	done    chan struct{}
+	started chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewHub(authService TokenValidator) *Hub {
@@ -185,12 +186,14 @@ func NewHub(authService TokenValidator) *Hub {
 		rateLimiter:     newRateLimiter(),
 		authService:     authService,
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 }
 
 func (h *Hub) Run() {
 	h.wg.Add(1)
 	defer h.wg.Done()
+	close(h.started)
 
 	cleanupTicker := time.NewTicker(rateLimiterCleanupInt)
 	defer cleanupTicker.Stop()
@@ -686,6 +689,7 @@ func BroadcastStockOpnameStatus(hub *Hub, eventType EventType, event StockOpname
 }
 
 func (h *Hub) Shutdown() {
+	<-h.started
 	close(h.done)
 	h.wg.Wait()
 }

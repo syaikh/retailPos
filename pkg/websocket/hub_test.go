@@ -48,8 +48,8 @@ func registerClient(t *testing.T, hub *Hub, userID int, storeID *int, isAdmin bo
 	}
 	hub.register <- client
 	require.Eventually(t, func() bool {
-		hub.mutex.RLock()
-		defer hub.mutex.RUnlock()
+		hub.userConnMu.RLock()
+		defer hub.userConnMu.RUnlock()
 		return hub.userConnections[userID] >= 1
 	}, time.Second, 10*time.Millisecond)
 	return client
@@ -192,6 +192,7 @@ func TestHub_Shutdown(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 
 	go hub.Run()
@@ -208,9 +209,12 @@ func TestHub_Shutdown(t *testing.T) {
 
 	hub.mutex.RLock()
 	assert.Len(t, hub.clients, 0)
+	hub.mutex.RUnlock()
+
+	hub.userConnMu.RLock()
 	assert.Equal(t, 0, hub.userConnections[1])
 	assert.Equal(t, 0, hub.userConnections[2])
-	hub.mutex.RUnlock()
+	hub.userConnMu.RUnlock()
 }
 
 func TestHub_MaxConnectionsPerUser(t *testing.T) {
@@ -221,6 +225,7 @@ func TestHub_MaxConnectionsPerUser(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()
@@ -240,8 +245,8 @@ func TestHub_MaxConnectionsPerUser(t *testing.T) {
 	}
 
 	assert.Eventually(t, func() bool {
-		hub.mutex.RLock()
-		defer hub.mutex.RUnlock()
+		hub.userConnMu.RLock()
+		defer hub.userConnMu.RUnlock()
 		return hub.userConnections[1] == maxConnectionsPerUser
 	}, time.Second, 10*time.Millisecond)
 
@@ -285,9 +290,9 @@ func TestHub_MaxConnectionsPerUser(t *testing.T) {
 		t.Fatal("timeout waiting for rejection message")
 	}
 
-	hub.mutex.RLock()
+	hub.userConnMu.RLock()
 	assert.Equal(t, maxConnectionsPerUser, hub.userConnections[1])
-	hub.mutex.RUnlock()
+	hub.userConnMu.RUnlock()
 }
 
 func TestHub_Broadcast(t *testing.T) {
@@ -298,6 +303,7 @@ func TestHub_Broadcast(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()
@@ -442,6 +448,7 @@ func TestHub_Unregister(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()
@@ -450,8 +457,8 @@ func TestHub_Unregister(t *testing.T) {
 	hub.unregister <- client
 
 	assert.Eventually(t, func() bool {
-		hub.mutex.RLock()
-		defer hub.mutex.RUnlock()
+		hub.userConnMu.RLock()
+		defer hub.userConnMu.RUnlock()
 		return hub.userConnections[1] == 0
 	}, time.Second, 10*time.Millisecond)
 }
@@ -464,6 +471,7 @@ func TestHub_BroadcastStoreFiltering(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()
@@ -483,19 +491,19 @@ func TestHub_BroadcastStoreFiltering(t *testing.T) {
 	})
 
 	// Admin (store 1) should receive it
-	select {
-	case msg := <-adminClient.send:
-		assert.Contains(t, string(msg), "stock_update")
-	case <-time.After(time.Second):
+	_, ok := waitForMessage(t, adminClient.send, func(s string) bool {
+		return strings.Contains(s, "stock_update")
+	}, time.Second)
+	if !ok {
 		t.Fatal("timeout: admin should receive broadcast for own store")
 	}
 
 	// Regular client (store 2) should NOT receive it
-	select {
-	case msg := <-regularClient.send:
-		t.Fatalf("regular client in different store should not receive broadcast, got: %s", msg)
-	case <-time.After(200 * time.Millisecond):
-		// expected: no message
+	_, received := waitForMessage(t, regularClient.send, func(s string) bool {
+		return strings.Contains(s, "stock_update")
+	}, 200*time.Millisecond)
+	if received {
+		t.Fatal("regular client in different store should not receive broadcast")
 	}
 }
 
@@ -507,6 +515,7 @@ func TestHub_BroadcastFullChannel(t *testing.T) {
 		broadcast:       make(chan Event, 1), // tiny buffer
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()
@@ -537,6 +546,7 @@ func TestHub_BroadcastWithPayload(t *testing.T) {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	go hub.Run()
 	defer hub.Shutdown()

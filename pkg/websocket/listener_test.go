@@ -25,6 +25,7 @@ func newListenerHub() *Hub {
 		broadcast:       make(chan Event, 1000),
 		userConnections: make(map[int]int),
 		done:            make(chan struct{}),
+		started:         make(chan struct{}),
 	}
 	return hub
 }

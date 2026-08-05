@@ -427,8 +427,10 @@ func TestServeWebSocket_MaxConnectionsPerUser(t *testing.T) {
 
 	hub.mutex.RLock()
 	count := len(hub.clients)
-	userCount := hub.userConnections[9]
 	hub.mutex.RUnlock()
+	hub.userConnMu.RLock()
+	userCount := hub.userConnections[9]
+	hub.userConnMu.RUnlock()
 	if count != maxConnectionsPerUser {
 		t.Fatalf("expected %d clients, got %d", maxConnectionsPerUser, count)
 	}
