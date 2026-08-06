@@ -27,12 +27,11 @@ Key points:
 
 ## Analytical Data Consideration
 
-For analytical/reporting purposes, consider using materialized views or summary tables for:
-- Daily/hourly revenue aggregation (currently computed on-the-fly)
-- Period comparisons (can be expensive for large datasets)
-- Year-over-year and month-over-month comparisons
+For analytical/reporting purposes, materialized views or summary tables are used for:
+- Period comparisons (reads `mv_hourly_sales`, refreshed via `refresh_sales_mv()`)
+- Daily/hourly revenue aggregation (still computed on-the-fly from the raw `sales` table via `GetSalesChartData`)
 
-Currently, the system uses real-time aggregation via the `GetSalesChartData` and `GetPeriodComparison` endpoints, which query the raw `sales` table. For production with large datasets (>1M records), materialized views refreshed nightly would improve query performance.
+`GetPeriodComparison` was migrated to the `mv_hourly_sales` materialized view; `GetSalesChartData` (daily/hourly revenue chart) still uses real-time aggregation. For production with large datasets (>1M records), a nightly-refreshed daily/hourly summary table would improve chart query performance.
 
 ## Git Commit Policy
 Never auto-commit on each change. User will request commits explicitly when ready.
