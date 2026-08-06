@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/ownership"
+	"retail-pos-system/internal/sale"
 )
 
 func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Context) {
@@ -18,7 +19,9 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	t.Cleanup(func() { mock.Close() })
-	return mock, NewRepository(mock), context.Background()
+	repo := NewRepository(mock)
+	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	return mock, repo, context.Background()
 }
 
 func TestRepositoryMock_ErrorBranches(t *testing.T) {

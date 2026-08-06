@@ -331,6 +331,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)
+	d.ShiftRepo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
 	d.StockOpnameRepo = stockopname.NewRepository(p.DB)
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 

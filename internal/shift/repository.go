@@ -3,6 +3,7 @@ package shift
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -14,11 +15,20 @@ import (
 )
 
 type Repository struct {
-	db shared.DBPool
+	db              shared.DBPool
+	summaryProvider SalesSummaryProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetSalesSummaryProvider wires the sale-owned implementation of the
+// SalesSummaryProvider port. It MUST be called before any summary read runs
+// (close, close-all, live sales); an unwired repository fails fast at the read
+// point.
+func (r *Repository) SetSalesSummaryProvider(p SalesSummaryProvider) {
+	r.summaryProvider = p
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -72,34 +82,18 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 	return &shift, nil
 }
 
-const saleSummarySQL = `
-	SELECT
-		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) = 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
-		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) != 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
-		COALESCE(SUM(s.total_amount), 0),
-		COUNT(DISTINCT s.id)
-	FROM sales s
-	LEFT JOIN sale_payments sp ON sp.sale_id = s.id
-	WHERE s.shift_id = $1
-	  AND s.status = 'completed'
-`
-
-func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (Summary, error) {
-	var summary Summary
-	err := r.db.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
-		&summary.TotalCashSales, &summary.TotalNonCashSales,
-		&summary.TotalSales, &summary.TotalTransactions,
-	)
-	return summary, err
+func (r *Repository) shiftSalesSummary(ctx context.Context, shiftID int) (shared.ShiftSaleSummary, error) {
+	if r.summaryProvider == nil {
+		return shared.ShiftSaleSummary{}, errors.New("shift repository: sales summary provider not wired; call SetShiftSalesSummaryProvider")
+	}
+	return r.summaryProvider.ShiftSummary(ctx, r.db, shiftID)
 }
 
-func (r *Repository) getShiftSalesSummaryTx(ctx context.Context, tx pgx.Tx, shiftID int) (Summary, error) {
-	var summary Summary
-	err := tx.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
-		&summary.TotalCashSales, &summary.TotalNonCashSales,
-		&summary.TotalSales, &summary.TotalTransactions,
-	)
-	return summary, err
+func (r *Repository) shiftSalesSummaryInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftSaleSummary, error) {
+	if r.summaryProvider == nil {
+		return shared.ShiftSaleSummary{}, errors.New("shift repository: sales summary provider not wired; call SetShiftSalesSummaryProvider")
+	}
+	return r.summaryProvider.ShiftSummaryInTx(ctx, tx, shiftID)
 }
 
 func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
@@ -139,7 +133,7 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 		shift.StoreName = storeName.String
 	}
 
-	summary, err := r.getShiftSalesSummaryTx(ctx, tx, shiftID)
+	summary, err := r.shiftSalesSummaryInTx(ctx, tx, shiftID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate shift summary: %w", err)
 	}
@@ -221,7 +215,7 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	}
 
 	if shift.CashSales == 0 && shift.TransactionCount == 0 {
-		summary, err := r.getShiftSalesSummary(ctx, shift.ID)
+		summary, err := r.shiftSalesSummary(ctx, shift.ID)
 		if err != nil {
 			slog.Error("failed to scan live sales for active shift", "shift_id", shift.ID, "error", err)
 		} else {
@@ -426,7 +420,7 @@ func (r *Repository) CloseAll(ctx context.Context, userID int) ([]int, error) {
 	}
 
 	for _, shiftID := range shiftIDs {
-		summary, err := r.getShiftSalesSummaryTx(ctx, tx, shiftID)
+		summary, err := r.shiftSalesSummaryInTx(ctx, tx, shiftID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate shift summary for shift %d: %w", shiftID, err)
 		}
@@ -547,7 +541,7 @@ func (r *Repository) GetShiftWithLiveSales(ctx context.Context, shiftID int) (*S
 		return nil, 0, err
 	}
 
-	summary, err := r.getShiftSalesSummary(ctx, shiftID)
+	summary, err := r.shiftSalesSummary(ctx, shiftID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query live cash sales: %w", err)
 	}
