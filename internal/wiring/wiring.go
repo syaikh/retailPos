@@ -154,6 +154,78 @@ func (a *priceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items 
 	return result, nil
 }
 
+type categoryRefRepoAdapter struct {
+	repo *category.Repository
+}
+
+func (a *categoryRefRepoAdapter) GetCategoryIDByName(ctx context.Context, name string) (int, error) {
+	return a.repo.GetCategoryIDByName(ctx, name)
+}
+
+func (a *categoryRefRepoAdapter) GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return a.repo.GetCategoryIDsByNames(ctx, names)
+}
+
+func (a *categoryRefRepoAdapter) GetAllCategoriesForExport(ctx context.Context) ([]product.CategoryRef, error) {
+	categories, err := a.repo.GetAllCategoriesForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.CategoryRef, len(categories))
+	for i, c := range categories {
+		result[i] = product.CategoryRef{ID: c.ID, Name: c.Name}
+	}
+	return result, nil
+}
+
+type brandRefRepoAdapter struct {
+	repo *brand.Repository
+}
+
+func (a *brandRefRepoAdapter) GetIDByName(ctx context.Context, name string) (int, error) {
+	return a.repo.GetIDByName(ctx, name)
+}
+
+func (a *brandRefRepoAdapter) GetIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return a.repo.GetIDsByNames(ctx, names)
+}
+
+func (a *brandRefRepoAdapter) GetAllForExport(ctx context.Context) ([]product.BrandRef, error) {
+	brands, err := a.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.BrandRef, len(brands))
+	for i, b := range brands {
+		result[i] = product.BrandRef{ID: b.ID, Name: b.Name}
+	}
+	return result, nil
+}
+
+type uomRefRepoAdapter struct {
+	repo *uom.Repository
+}
+
+func (a *uomRefRepoAdapter) GetIDByCode(ctx context.Context, code string) (int, error) {
+	return a.repo.GetIDByCode(ctx, code)
+}
+
+func (a *uomRefRepoAdapter) GetIDsByCodes(ctx context.Context, codes []string) (map[string]int, error) {
+	return a.repo.GetIDsByCodes(ctx, codes)
+}
+
+func (a *uomRefRepoAdapter) GetAllForExport(ctx context.Context) ([]product.UOMRef, error) {
+	units, err := a.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.UOMRef, len(units))
+	for i, u := range units {
+		result[i] = product.UOMRef{ID: u.ID, Code: u.Code}
+	}
+	return result, nil
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -327,7 +399,7 @@ func Initialize(p Providers) *Dependencies {
 	_ = adapterReg.Register(brand.NewAdapter(d.BrandRepo))
 	_ = adapterReg.Register(uom.NewAdapter(d.UOMRepo))
 	_ = adapterReg.Register(customer.NewAdapter(d.CustomerRepo))
-	_ = adapterReg.Register(product.NewAdapter(d.ProductRepo, d.CategoryRepo, d.BrandRepo, d.UOMRepo))
+	_ = adapterReg.Register(product.NewAdapter(d.ProductRepo, &categoryRefRepoAdapter{repo: d.CategoryRepo}, &brandRefRepoAdapter{repo: d.BrandRepo}, &uomRefRepoAdapter{repo: d.UOMRepo}))
 	_ = adapterReg.Register(store.NewAdapter(d.StoreRepo))
 	_ = adapterReg.Register(customergroup.NewAdapter(d.CustomerGroupRepo))
 	_ = adapterReg.Register(pricing.NewAdapter(d.PricingRepo))

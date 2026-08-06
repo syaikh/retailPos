@@ -8,28 +8,42 @@ import (
 	"strings"
 
 	importexportshared "retail-pos-system/internal/shared/importexport"
-
-	"retail-pos-system/internal/brand"
-	"retail-pos-system/internal/category"
-	"retail-pos-system/internal/uom"
 )
+
+// CategoryRef is the consumer-side view of a category needed for import/export
+// reference resolution. Ports return these instead of the category module's
+// entity so product never imports brand/category/uom directly.
+type CategoryRef struct {
+	ID   int
+	Name string
+}
+
+type BrandRef struct {
+	ID   int
+	Name string
+}
+
+type UOMRef struct {
+	ID   int
+	Code string
+}
 
 type CategoryRefRepo interface {
 	GetCategoryIDByName(ctx context.Context, name string) (int, error)
 	GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error)
-	GetAllCategoriesForExport(ctx context.Context) ([]category.Category, error)
+	GetAllCategoriesForExport(ctx context.Context) ([]CategoryRef, error)
 }
 
 type BrandRefRepo interface {
 	GetIDByName(ctx context.Context, name string) (int, error)
 	GetIDsByNames(ctx context.Context, names []string) (map[string]int, error)
-	GetAllForExport(ctx context.Context) ([]brand.Brand, error)
+	GetAllForExport(ctx context.Context) ([]BrandRef, error)
 }
 
 type UOMRefRepo interface {
 	GetIDByCode(ctx context.Context, code string) (int, error)
 	GetIDsByCodes(ctx context.Context, codes []string) (map[string]int, error)
-	GetAllForExport(ctx context.Context) ([]uom.UnitOfMeasure, error)
+	GetAllForExport(ctx context.Context) ([]UOMRef, error)
 }
 
 type adapter struct {

@@ -29,6 +29,19 @@ linters:
             - retail-pos-system/internal/middleware
             - retail-pos-system/internal/permissions
             - retail-pos-system/internal/shared
+        platform-boundary:
+          list-mode: strict
+          files:
+            - "**/internal/platform/**"
+            - "!**/*_test.go"
+          allow:
+            - $gostd
+            - github.com/gin-gonic/gin
+            - github.com/jackc/pgx/v5
+            - github.com/xuri/excelize/v2
+            - retail-pos-system/internal/permissions
+            - retail-pos-system/internal/platform
+            - retail-pos-system/internal/shared
         clean-module-boundary:
           list-mode: strict
           files:
@@ -38,6 +51,7 @@ linters:
             - "**/internal/customergroup/**"
             - "**/internal/inventory/**"
             - "**/internal/pricing/**"
+            - "**/internal/product/**"
             - "**/internal/report/**"
             - "**/internal/sale/**"
             - "**/internal/shift/**"

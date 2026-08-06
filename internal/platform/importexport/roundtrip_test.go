@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 	_ = adapterReg.Register(uom.NewAdapter(uom.NewRepository(dbPool)))
 	_ = adapterReg.Register(customer.NewAdapter(customer.NewRepository(dbPool)))
 	productRepo := product.NewRepository(dbPool)
-	_ = adapterReg.Register(product.NewAdapter(productRepo, category.NewRepository(dbPool), brand.NewRepository(dbPool), uom.NewRepository(dbPool)))
+	_ = adapterReg.Register(product.NewAdapter(productRepo, &testCategoryRefRepo{category.NewRepository(dbPool)}, &testBrandRefRepo{brand.NewRepository(dbPool)}, &testUOMRefRepo{uom.NewRepository(dbPool)}))
 
 	val := validation.NewDefaultPipeline()
 	progEng = progress.NewEngine(progress.NewInMemoryStore())
@@ -337,4 +337,78 @@ func TestRoundtrip_Products_100Rows(t *testing.T) {
 	err = dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM products WHERE sku LIKE $1", pPrefix+"%").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 100, count)
+}
+
+// testCategoryRefRepo wraps *category.Repository to satisfy product's
+// consumer-side ref ports, mirroring the adapters in internal/wiring.
+type testCategoryRefRepo struct {
+	repo *category.Repository
+}
+
+func (r *testCategoryRefRepo) GetCategoryIDByName(ctx context.Context, name string) (int, error) {
+	return r.repo.GetCategoryIDByName(ctx, name)
+}
+
+func (r *testCategoryRefRepo) GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return r.repo.GetCategoryIDsByNames(ctx, names)
+}
+
+func (r *testCategoryRefRepo) GetAllCategoriesForExport(ctx context.Context) ([]product.CategoryRef, error) {
+	categories, err := r.repo.GetAllCategoriesForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.CategoryRef, len(categories))
+	for i, c := range categories {
+		result[i] = product.CategoryRef{ID: c.ID, Name: c.Name}
+	}
+	return result, nil
+}
+
+type testBrandRefRepo struct {
+	repo *brand.Repository
+}
+
+func (r *testBrandRefRepo) GetIDByName(ctx context.Context, name string) (int, error) {
+	return r.repo.GetIDByName(ctx, name)
+}
+
+func (r *testBrandRefRepo) GetIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return r.repo.GetIDsByNames(ctx, names)
+}
+
+func (r *testBrandRefRepo) GetAllForExport(ctx context.Context) ([]product.BrandRef, error) {
+	brands, err := r.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.BrandRef, len(brands))
+	for i, b := range brands {
+		result[i] = product.BrandRef{ID: b.ID, Name: b.Name}
+	}
+	return result, nil
+}
+
+type testUOMRefRepo struct {
+	repo *uom.Repository
+}
+
+func (r *testUOMRefRepo) GetIDByCode(ctx context.Context, code string) (int, error) {
+	return r.repo.GetIDByCode(ctx, code)
+}
+
+func (r *testUOMRefRepo) GetIDsByCodes(ctx context.Context, codes []string) (map[string]int, error) {
+	return r.repo.GetIDsByCodes(ctx, codes)
+}
+
+func (r *testUOMRefRepo) GetAllForExport(ctx context.Context) ([]product.UOMRef, error) {
+	units, err := r.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]product.UOMRef, len(units))
+	for i, u := range units {
+		result[i] = product.UOMRef{ID: u.ID, Code: u.Code}
+	}
+	return result, nil
 }

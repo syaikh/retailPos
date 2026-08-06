@@ -25,14 +25,10 @@ var domainModules = []string{
 // isolatedModules must not import any other domain module. Cross-module reads
 // must go through ports wired in internal/wiring; cross-module effects must go
 // through events in internal/events.
-//
-// Known remaining coupling (not yet isolated; tracked for port extraction):
-//   - platform -> brand, category, customer, product, uom
-//   - product  -> brand, category, platform, ownership, uom
 var isolatedModules = []string{
 	"brand", "category", "customer", "customergroup", "inventory",
-	"pricing", "purchase", "report", "sale", "shift", "stockopname",
-	"storagelocation", "store", "supplier", "uom", "user",
+	"platform", "pricing", "product", "purchase", "report", "sale", "shift",
+	"stockopname", "storagelocation", "store", "supplier", "uom", "user",
 }
 
 var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)

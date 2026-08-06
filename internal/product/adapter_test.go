@@ -289,7 +289,8 @@ func TestProductAdapter_Insert_Success(t *testing.T) {
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
-	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
 	ra := adapter.Repository()
 
 	rows := []interface{}{
@@ -318,7 +319,8 @@ func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
-	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
 	ra := adapter.Repository()
 
 	rows := []interface{}{
@@ -342,7 +344,8 @@ func TestProductAdapter_Update_Success(t *testing.T) {
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
-	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
 	ra := adapter.Repository()
 
 	product := &Product{
@@ -377,7 +380,8 @@ func TestProductAdapter_ExportData_Success(t *testing.T) {
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
-	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
 	ra := adapter.Repository()
 
 	product := &Product{
@@ -401,6 +405,82 @@ func TestProductAdapter_ExportData_Success(t *testing.T) {
 	assert.True(t, found, "exported product not found")
 }
 
+type testCategoryRefAdapter struct {
+	repo *category.Repository
+}
+
+func (a *testCategoryRefAdapter) GetCategoryIDByName(ctx context.Context, name string) (int, error) {
+	return a.repo.GetCategoryIDByName(ctx, name)
+}
+
+func (a *testCategoryRefAdapter) GetCategoryIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return a.repo.GetCategoryIDsByNames(ctx, names)
+}
+
+func (a *testCategoryRefAdapter) GetAllCategoriesForExport(ctx context.Context) ([]CategoryRef, error) {
+	cats, err := a.repo.GetAllCategoriesForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CategoryRef, len(cats))
+	for i, c := range cats {
+		out[i] = CategoryRef{ID: c.ID, Name: c.Name}
+	}
+	return out, nil
+}
+
+type testBrandRefAdapter struct {
+	repo *brand.Repository
+}
+
+func (a *testBrandRefAdapter) GetIDByName(ctx context.Context, name string) (int, error) {
+	return a.repo.GetIDByName(ctx, name)
+}
+
+func (a *testBrandRefAdapter) GetIDsByNames(ctx context.Context, names []string) (map[string]int, error) {
+	return a.repo.GetIDsByNames(ctx, names)
+}
+
+func (a *testBrandRefAdapter) GetAllForExport(ctx context.Context) ([]BrandRef, error) {
+	brands, err := a.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BrandRef, len(brands))
+	for i, b := range brands {
+		out[i] = BrandRef{ID: b.ID, Name: b.Name}
+	}
+	return out, nil
+}
+
+type testUOMRefAdapter struct {
+	repo *uom.Repository
+}
+
+func (a *testUOMRefAdapter) GetIDByCode(ctx context.Context, code string) (int, error) {
+	return a.repo.GetIDByCode(ctx, code)
+}
+
+func (a *testUOMRefAdapter) GetIDsByCodes(ctx context.Context, codes []string) (map[string]int, error) {
+	return a.repo.GetIDsByCodes(ctx, codes)
+}
+
+func (a *testUOMRefAdapter) GetAllForExport(ctx context.Context) ([]UOMRef, error) {
+	uoms, err := a.repo.GetAllForExport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UOMRef, len(uoms))
+	for i, u := range uoms {
+		out[i] = UOMRef{ID: u.ID, Code: u.Code}
+	}
+	return out, nil
+}
+
+func newTestRefAdapters(catRepo *category.Repository, brandRepo *brand.Repository, uomRepo *uom.Repository) (CategoryRefRepo, BrandRefRepo, UOMRefRepo) {
+	return &testCategoryRefAdapter{repo: catRepo}, &testBrandRefAdapter{repo: brandRepo}, &testUOMRefAdapter{repo: uomRepo}
+}
+
 func TestProductAdapter_LoadReferences_Success(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(t, ctx)
@@ -409,7 +489,8 @@ func TestProductAdapter_LoadReferences_Success(t *testing.T) {
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
-	adapter := NewAdapter(repo, catRepo, brandRepo, uomRepo)
+	catRef, brandRef, uomRef := newTestRefAdapters(catRepo, brandRepo, uomRepo)
+	adapter := NewAdapter(repo, catRef, brandRef, uomRef)
 
 	schema := schema.ModuleSchema{
 		ModuleName:    "products",
