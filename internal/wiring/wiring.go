@@ -315,6 +315,7 @@ func Initialize(p Providers) *Dependencies {
 	d.PurchaseRepo = purchase.NewRepository(p.DB)
 	d.SaleRepo = sale.NewRepository(p.DB)
 	d.InventoryRepo = inventory.NewRepository(p.DB)
+	d.InventoryRepo.SetStockSyncer(product.StockSyncer{})
 	d.CustomerRepo = customer.NewRepository(p.DB)
 	d.CategoryRepo = category.NewRepository(p.DB)
 	d.CategoryRepo.SetCache(d.Cache)
@@ -362,6 +363,7 @@ func Initialize(p Providers) *Dependencies {
 	d.StoreSvc = store.NewService(d.StoreRepo)
 	d.ShiftSvc = shift.NewService(d.ShiftRepo)
 	d.StockOpnameSvc = stockopname.NewService(d.StockOpnameRepo, d.Bus)
+	d.StockOpnameSvc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	d.StorageLocationSvc = storagelocation.NewService(d.StorageLocationRepo)
 
 	d.UserH = user.NewHandler(d.UserSvc, d.AuditSvc)

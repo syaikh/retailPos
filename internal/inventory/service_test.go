@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -40,6 +41,7 @@ func TestInventoryService_GetStockByProductID(t *testing.T) {
 
 func TestInventoryService_AdjustStock(t *testing.T) {
 	repo := NewRepository(dbPool)
+	repo.SetStockSyncer(product.StockSyncer{})
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -122,6 +124,7 @@ func TestInventoryService_AdjustStock_RepoError(t *testing.T) {
 func TestInventoryService_AdjustStockBatch(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
+	repo.SetStockSyncer(product.StockSyncer{})
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()

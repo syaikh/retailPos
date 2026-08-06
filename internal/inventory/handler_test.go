@@ -15,6 +15,7 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -47,6 +48,7 @@ func setupInventoryRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
+	repo.SetStockSyncer(product.StockSyncer{})
 	bus := eventbus.New()
 	go bus.Run()
 

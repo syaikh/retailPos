@@ -10,12 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/inventory"
+	"retail-pos-system/internal/product"
 )
 
 func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 	svc, bus, ctx := newSvc(t)
 
 	invRepo := inventory.NewRepository(dbPool)
+	invRepo.SetStockSyncer(product.StockSyncer{})
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 
@@ -68,6 +70,7 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	svc, bus, ctx := newSvc(t)
 
 	invRepo := inventory.NewRepository(dbPool)
+	invRepo.SetStockSyncer(product.StockSyncer{})
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 

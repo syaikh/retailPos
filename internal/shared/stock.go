@@ -16,3 +16,26 @@ type StockDeductItem struct {
 	ProductID int
 	Quantity  int
 }
+
+// StockSetItem is the minimal input for setting a product's global stock to an
+// absolute value (upserting the global product_stock row and syncing the
+// products.stock column). It is the cross-module contract between
+// internal/stockopname (consumer) and internal/inventory (single-writer of
+// product_stock).
+type StockSetItem struct {
+	ProductID int
+	Quantity  int
+}
+
+// LocationStockReconcile is the input for a location-scoped stock reconcile:
+// apply a signed delta to a product's rack row and recompute the global row
+// from the reconciled rack share (max(global-rack, 0) + newRack). It is the
+// cross-module contract between internal/stockopname (consumer) and
+// internal/inventory (single-writer of product_stock).
+type LocationStockReconcile struct {
+	ProductID   int
+	LocationID  int
+	WarehouseID *int
+	StoreID     *int
+	Delta       int
+}

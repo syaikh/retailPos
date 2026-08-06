@@ -783,29 +783,6 @@ func (r *Repository) UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID
 	return nil
 }
 
-func (r *Repository) UpdateProductStock(ctx context.Context, tx pgx.Tx, productID, newQty int) error {
-	tag, err := tx.Exec(ctx, `
-		UPDATE product_stock SET quantity = $1, updated_at = NOW()
-		WHERE product_id = $2 AND warehouse_id IS NULL AND store_id IS NULL
-	`, newQty, productID)
-	if err != nil {
-		return fmt.Errorf("failed to update product stock: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, quantity, updated_at) VALUES ($1, $2, NOW())
-		`, productID, newQty)
-		if err != nil {
-			return fmt.Errorf("failed to insert product stock: %w", err)
-		}
-	}
-	_, err = tx.Exec(ctx, `UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2`, newQty, productID)
-	if err != nil {
-		return fmt.Errorf("failed to sync product stock column: %w", err)
-	}
-	return nil
-}
-
 type movementRow struct {
 	ProductID      int
 	QuantityChange int

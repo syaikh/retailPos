@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,11 +13,20 @@ import (
 )
 
 type Repository struct {
-	db shared.DBPool
+	db          shared.DBPool
+	stockSyncer StockSyncer
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetStockSyncer wires the products.stock mirror port, implemented by
+// internal/product (see StockSyncer). It MUST be called before
+// AdjustStock/AdjustStockBatch run; an unwired repository fails fast at the
+// sync point.
+func (r *Repository) SetStockSyncer(s StockSyncer) {
+	r.stockSyncer = s
 }
 
 func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error) {
@@ -145,12 +155,12 @@ func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID i
 		if err != nil {
 			return fmt.Errorf("failed to insert stock: %w", err)
 		}
-		_, err = tx.Exec(ctx, `UPDATE products SET stock = stock + $1 WHERE id = $2`, quantityChange, productID)
-	} else {
-		_, err = tx.Exec(ctx, `UPDATE products SET stock = $1 WHERE id = $2`, newStock, productID)
 	}
-	if err != nil {
-		return fmt.Errorf("failed to sync product stock: %w", err)
+	if r.stockSyncer == nil {
+		return errors.New("inventory repository: product stock syncer not wired; call SetStockSyncer")
+	}
+	if err := r.stockSyncer.SyncStock(ctx, tx, productID, newStock); err != nil {
+		return err
 	}
 
 	_, err = tx.Exec(ctx, `

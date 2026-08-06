@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -105,6 +106,7 @@ func TestInventoryRepository_GetStockByProductID(t *testing.T) {
 
 func TestInventoryRepository_AdjustStock(t *testing.T) {
 	repo := NewRepository(dbPool)
+	repo.SetStockSyncer(product.StockSyncer{})
 	ctx := context.Background()
 
 	t.Run("increase stock", func(t *testing.T) {

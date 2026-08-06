@@ -2,6 +2,7 @@ package stockopname
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -11,12 +12,20 @@ import (
 )
 
 type Service struct {
-	repo     *Repository
-	eventBus shared.EventBus
+	repo         *Repository
+	eventBus     shared.EventBus
+	stockApplier StockApplier
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
+}
+
+// SetStockApplier wires the inventory-owned implementation of the StockApplier
+// port. The composition root MUST call this before any posting path runs; an
+// unwired service fails fast at runtime (see ports.go).
+func (s *Service) SetStockApplier(applier StockApplier) {
+	s.stockApplier = applier
 }
 
 // publishStatusEvent broadcasts a stock opname status transition to the
@@ -678,6 +687,9 @@ func (s *Service) ResumeCounting(ctx context.Context, id, userID int) error {
 // posting time so the ledger always reflects reality (BR: expected = live at
 // posting).
 func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostAdjustmentRequest) (*Adjustment, error) {
+	if s.stockApplier == nil {
+		return nil, errors.New("stock opname service: stock applier not wired; call SetStockApplier")
+	}
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -745,9 +757,18 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 		}
 		delta := int(math.Round(diff))
 		if session.LocationID != nil {
-			err = s.repo.UpdateLocationStock(ctx, tx, it.ProductID, *session.LocationID, session.WarehouseID, session.StoreID, delta)
+			err = s.stockApplier.ReconcileLocationStock(ctx, tx, shared.LocationStockReconcile{
+				ProductID:   it.ProductID,
+				LocationID:  *session.LocationID,
+				WarehouseID: session.WarehouseID,
+				StoreID:     session.StoreID,
+				Delta:       delta,
+			})
 		} else {
-			err = s.repo.UpdateProductStock(ctx, tx, it.ProductID, int(math.Round(expected+diff)))
+			err = s.stockApplier.SetProductStock(ctx, tx, shared.StockSetItem{
+				ProductID: it.ProductID,
+				Quantity:  int(math.Round(expected + diff)),
+			})
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)

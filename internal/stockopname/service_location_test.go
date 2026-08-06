@@ -6,6 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/inventory"
+	"retail-pos-system/internal/product"
 )
 
 // insertTestStockLocation inserts (or updates) a rack-scoped product_stock row.
@@ -61,6 +64,7 @@ func TestRepository_GetLocationScope_Errors(t *testing.T) {
 func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9813, "so_loc_bad_9813", 3)
@@ -94,6 +98,7 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 	// as ErrLocationNotFound (404) regardless of rack contents.
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9819, "so_loc_missing_9819", 3)
@@ -104,133 +109,12 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 	require.ErrorIs(t, err, ErrLocationNotFound)
 }
 
-func TestRepository_UpdateLocationStock_CreatesRowsLazily(t *testing.T) {
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	resetStockOpname(ctx, t)
-
-	_, err := dbPool.Exec(ctx,
-		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9812, 'Test WH 9812', 'SO-WH-9812', NULL, true) ON CONFLICT (id) DO NOTHING`,
-	)
-	require.NoError(t, err)
-	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9812", 9812)
-	p := insertTestProduct(ctx, t, "SO-LOC-LAZY-001")
-	insertTestStock(ctx, t, p, 10)
-	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
-	require.NoError(t, err)
-	wh := 9812
-
-	tx, err := repo.BeginTx(ctx)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// product has a global row but no rack row; the delta must create the rack
-	// row and advance the global row and products.stock together.
-	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, 3))
-	require.NoError(t, tx.Commit(ctx))
-
-	assertStockQty(ctx, t, p, locID, 3)
-	assertGlobalQty(ctx, t, p, 13)
-	assertProductsStock(ctx, t, p, 13)
-}
-
-func TestRepository_UpdateLocationStock_ReconcilesGlobalFromCount(t *testing.T) {
-	// Option A: after a sale the global row moved but the rack row did not
-	// (global 7 / rack 10). A physical count of 7 gives delta -3; the global
-	// must be recomputed as max(global-rack, 0) + newRack = 7, not 4.
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	resetStockOpname(ctx, t)
-
-	_, err := dbPool.Exec(ctx,
-		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9815, 'Test WH 9815', 'SO-WH-9815', NULL, true) ON CONFLICT (id) DO NOTHING`,
-	)
-	require.NoError(t, err)
-	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9815", 9815)
-	p := insertTestProduct(ctx, t, "SO-LOC-DESYNC-001")
-	insertTestStock(ctx, t, p, 7)
-	insertTestStockLocation(ctx, t, p, 9815, locID, 10)
-	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 7 WHERE id = $1`, p)
-	require.NoError(t, err)
-	wh := 9815
-
-	tx, err := repo.BeginTx(ctx)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -3))
-	require.NoError(t, tx.Commit(ctx))
-
-	assertStockQty(ctx, t, p, locID, 7)
-	assertGlobalQty(ctx, t, p, 7)
-	assertProductsStock(ctx, t, p, 7)
-}
-
-func TestRepository_UpdateLocationStock_ClampsGlobalAtZero(t *testing.T) {
-	// Regression for review finding #1: an over-set rack (50) with a count of 0
-	// used to drive the global to -40 and trip the CHECK constraint (wedging
-	// the session with a 500). Option A clamps at zero.
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	resetStockOpname(ctx, t)
-
-	_, err := dbPool.Exec(ctx,
-		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9816, 'Test WH 9816', 'SO-WH-9816', NULL, true) ON CONFLICT (id) DO NOTHING`,
-	)
-	require.NoError(t, err)
-	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9816", 9816)
-	p := insertTestProduct(ctx, t, "SO-LOC-CLAMP-001")
-	insertTestStock(ctx, t, p, 10)
-	insertTestStockLocation(ctx, t, p, 9816, locID, 50)
-	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
-	require.NoError(t, err)
-	wh := 9816
-
-	tx, err := repo.BeginTx(ctx)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -50))
-	require.NoError(t, tx.Commit(ctx))
-
-	assertStockQty(ctx, t, p, locID, 0)
-	assertGlobalQty(ctx, t, p, 0)
-	assertProductsStock(ctx, t, p, 0)
-}
-
-func TestRepository_UpdateLocationStock_InsertsGlobalWhenMissing(t *testing.T) {
-	// A rack-only product (no global row) gets its global row created from the
-	// reconciled rack share: max(0-10, 0) + 7 = 7.
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-	resetStockOpname(ctx, t)
-
-	_, err := dbPool.Exec(ctx,
-		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9817, 'Test WH 9817', 'SO-WH-9817', NULL, true) ON CONFLICT (id) DO NOTHING`,
-	)
-	require.NoError(t, err)
-	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9817", 9817)
-	p := insertTestProduct(ctx, t, "SO-LOC-NOGLOBAL-001")
-	insertTestStockLocation(ctx, t, p, 9817, locID, 10)
-	wh := 9817
-
-	tx, err := repo.BeginTx(ctx)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -3))
-	require.NoError(t, tx.Commit(ctx))
-
-	assertStockQty(ctx, t, p, locID, 7)
-	assertGlobalQty(ctx, t, p, 7)
-	assertProductsStock(ctx, t, p, 7)
-}
-
 func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) {
 	// Regression for review finding #3: a failed CreateSession (inactive
 	// location) must not advance so_seq, so session numbers stay contiguous.
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9818, "so_loc_seq_9818", 3)
@@ -265,6 +149,7 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9801, "so_loc_manager_9801", 3)
@@ -369,6 +254,7 @@ func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
 func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 
