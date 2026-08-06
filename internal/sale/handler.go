@@ -52,6 +52,7 @@ type Service interface {
 	SetPriceStore(ps ProductPriceGetter)
 	SetPriceResolver(r PriceResolver)
 	SetStockDeducer(sd StockDeducer)
+	SetShiftTotalUpdater(st ShiftTotalUpdater)
 }
 
 type Handler struct {

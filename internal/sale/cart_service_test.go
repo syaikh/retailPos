@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 )
 
 // newCartTestService builds a service wired with a real pricing resolver so
@@ -24,6 +26,8 @@ func newCartTestService(ctx context.Context, t *testing.T) (Service, *eventbus.B
 	t.Cleanup(bus.Shutdown)
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
 	svc.SetPriceResolver(newPricingTestResolver())
 	return svc, bus

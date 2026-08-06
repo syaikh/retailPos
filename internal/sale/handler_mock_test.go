@@ -201,6 +201,9 @@ func (m *mockService) SetPriceResolver(r PriceResolver) {
 func (m *mockService) SetStockDeducer(sd StockDeducer) {
 }
 
+func (m *mockService) SetShiftTotalUpdater(st ShiftTotalUpdater) {
+}
+
 type mockAuditCreator struct {
 	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }

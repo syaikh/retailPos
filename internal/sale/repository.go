@@ -101,28 +101,6 @@ func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID i
 	return nil
 }
 
-func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID int, totalAmount int, payments []Payment) error {
-	cashSales := 0
-	nonCashSales := 0
-	for _, p := range payments {
-		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
-			cashSales += p.Amount
-		} else {
-			nonCashSales += p.Amount
-		}
-	}
-	_, err := tx.Exec(ctx, `
-		UPDATE shifts
-		SET cash_sales = cash_sales + $1,
-		    non_cash_sales = non_cash_sales + $2,
-		    total_sales = total_sales + $3,
-		    transaction_count = transaction_count + 1,
-		    updated_at = NOW()
-		WHERE id = $4 AND status = 'open'
-	`, cashSales, nonCashSales, totalAmount, shiftID)
-	return err
-}
-
 func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	var sale Sale
 	var itemsJSON []byte

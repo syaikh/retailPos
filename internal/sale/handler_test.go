@@ -14,8 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -53,6 +55,8 @@ func setupSaleRouter() *gin.Engine {
 	go bus.Run()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	h := NewHandler(svc, nil)
 
 	ctx := context.Background()

@@ -27,19 +27,19 @@ type ProductBatchPriceGetter interface {
 }
 
 type service struct {
-	repo       *Repository
-	eventBus   shared.EventBus
-	priceStore ProductPriceGetter
-	resolver   PriceResolver
-	stockStore StockDeducer
-	cartConfig CartConfig
+	repo        *Repository
+	eventBus    shared.EventBus
+	priceStore  ProductPriceGetter
+	resolver    PriceResolver
+	stockStore  StockDeducer
+	shiftStore  ShiftTotalUpdater
+	cartConfig  CartConfig
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) Service {
 	return &service{
-		repo:       repo,
-		eventBus:   eventBus,
-		stockStore: &stockDeducer{},
+		repo:     repo,
+		eventBus: eventBus,
 	}
 }
 
@@ -53,6 +53,10 @@ func (s *service) SetPriceResolver(r PriceResolver) {
 
 func (s *service) SetStockDeducer(sd StockDeducer) {
 	s.stockStore = sd
+}
+
+func (s *service) SetShiftTotalUpdater(st ShiftTotalUpdater) {
+	s.shiftStore = st
 }
 
 // publishSaleCreated publishes the cross-module sale.created event as a DTO so
@@ -103,61 +107,6 @@ func toStockDeductItems(items []Item) []shared.StockDeductItem {
 		result[i] = shared.StockDeductItem{ProductID: item.ProductID, Quantity: item.Quantity}
 	}
 	return result
-}
-
-// stockDeducer is the sale-local default implementation of StockDeducer. It is
-// used when the service is constructed standalone (e.g. unit tests). The
-// composition root overrides it with internal/inventory.StockDeducer, the
-// canonical single-writer for product_stock.
-type stockDeducer struct{}
-
-// DeductStock checks and deducts stock for the given items within the caller's
-// transaction.
-func (stockDeducer) DeductStock(ctx context.Context, tx pgx.Tx, items []shared.StockDeductItem) error {
-	productIDs := make([]int, len(items))
-	for i, item := range items {
-		productIDs[i] = item.ProductID
-	}
-
-	rows, err := tx.Query(ctx, `SELECT product_id, COALESCE(quantity, 0) FROM product_stock WHERE product_id = ANY($1) AND warehouse_id IS NULL AND store_id IS NULL FOR UPDATE`, productIDs)
-	if err != nil {
-		return fmt.Errorf("batch check stock: %w", err)
-	}
-	stockMap := make(map[int]int, len(items))
-	for rows.Next() {
-		var pid, qty int
-		if err := rows.Scan(&pid, &qty); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan stock: %w", err)
-		}
-		stockMap[pid] = qty
-	}
-	rows.Close()
-
-	for _, item := range items {
-		stock, ok := stockMap[item.ProductID]
-		if !ok {
-			return fmt.Errorf("stock record not found for product %d", item.ProductID)
-		}
-		if stock < item.Quantity {
-			return shared.ErrInsufficientStock
-		}
-	}
-
-	stockPIDs := make([]int, len(items))
-	stockQtys := make([]int, len(items))
-	for i, item := range items {
-		stockPIDs[i] = item.ProductID
-		stockQtys[i] = item.Quantity
-	}
-	_, err = tx.Exec(ctx, `UPDATE product_stock SET quantity = quantity - v.qty
-		FROM (SELECT unnest($1::int[]) AS product_id, unnest($2::int[]) AS qty) v
-		WHERE product_stock.product_id = v.product_id AND warehouse_id IS NULL AND store_id IS NULL`, stockPIDs, stockQtys)
-	if err != nil {
-		return fmt.Errorf("batch deduct stock: %w", err)
-	}
-
-	return nil
 }
 
 func (s *service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]Payment, error) {
@@ -393,7 +342,10 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 		return err
 	}
 	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, payments); err != nil {
+		if s.shiftStore == nil {
+			return errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
+		}
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.TotalAmount, payments)); err != nil {
 			return err
 		}
 	}
@@ -403,4 +355,19 @@ func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 	sale.Items = items
 	s.publishSaleCreated(ctx, sale)
 	return nil
+}
+
+// shiftContribution computes the share of a completed sale accumulated onto its
+// shift's running totals. The cash/non-cash split is derived from the sale's own
+// payments; the shift module only accumulates what it is handed.
+func shiftContribution(shiftID, totalAmount int, payments []Payment) shared.ShiftSaleContribution {
+	c := shared.ShiftSaleContribution{ShiftID: shiftID, TotalAmount: totalAmount}
+	for _, p := range payments {
+		if strings.EqualFold(p.PaymentMethodCode, "CASH") {
+			c.CashSales += p.Amount
+		} else {
+			c.NonCashSales += p.Amount
+		}
+	}
+	return c
 }

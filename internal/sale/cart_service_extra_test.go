@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 )
 
 // insertTestCashierNamed creates a distinct cashier so ownership-mismatch paths
@@ -312,6 +314,8 @@ func TestCartService_HoldCart_DefaultTTL(t *testing.T) {
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)
 	svc := NewService(NewRepository(dbPool), bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 
 	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)

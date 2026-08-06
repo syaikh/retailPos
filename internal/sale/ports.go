@@ -22,9 +22,23 @@ type PriceResolver interface {
 // implementation MUST run against the caller's tx to preserve atomicity — a
 // sale must never commit while its stock deduction fails. internal/inventory is
 // the canonical single-writer of product_stock and provides the production
-// implementation; the sale-local default is only a standalone fallback.
+// implementation; the composition root MUST wire it via SetStockDeducer before
+// any checkout path runs — an unwired service fails fast at runtime.
 type StockDeducer interface {
 	DeductStock(ctx context.Context, tx pgx.Tx, items []shared.StockDeductItem) error
+}
+
+// ShiftTotalUpdater is the consumer-side port for the shift subsystem's shift
+// totals. A completed sale contributes to its shift's running totals inside the
+// same Unit of Work as the sale itself (ADR_Cross_Module_Transaction_Strategy
+// §2.2), so the implementation MUST run against the caller's tx to preserve
+// atomicity — a sale must never commit while its shift contribution fails.
+// internal/shift is the canonical single-writer of the shifts running totals and
+// provides the production implementation; the composition root MUST wire it via
+// SetShiftTotalUpdater before any sale with a shift_id completes — an unwired
+// service fails fast at runtime.
+type ShiftTotalUpdater interface {
+	UpdateShiftTotals(ctx context.Context, tx pgx.Tx, contribution shared.ShiftSaleContribution) error
 }
 
 // Type is a classification label for the applied pricing.

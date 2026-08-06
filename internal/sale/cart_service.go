@@ -494,7 +494,10 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 	}
 
 	if sale.ShiftID != nil {
-		if err := s.repo.UpdateShiftTotals(ctx, tx, *sale.ShiftID, sale.TotalAmount, validatedPayments); err != nil {
+		if s.shiftStore == nil {
+			return nil, errors.New("sale service: shift store not wired; call SetShiftTotalUpdater")
+		}
+		if err := s.shiftStore.UpdateShiftTotals(ctx, tx, shiftContribution(*sale.ShiftID, sale.TotalAmount, validatedPayments)); err != nil {
 			return nil, fmt.Errorf("update shift totals: %w", err)
 		}
 	}
@@ -520,6 +523,9 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 func (s *service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	if err := validateCheckoutItems(items); err != nil {
 		return err
+	}
+	if s.stockStore == nil {
+		return errors.New("sale service: stock store not wired; call SetStockDeducer")
 	}
 	if err := s.stockStore.DeductStock(ctx, tx, toStockDeductItems(items)); err != nil {
 		return err

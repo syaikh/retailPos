@@ -31,6 +31,7 @@ import (
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
@@ -154,6 +155,8 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	brandSvc := brand.NewService(brandRepo)
 	uomSvc := uom.NewService(uomRepo)
 	saleSvc := sale.NewService(saleRepo, bus)
+	saleSvc.SetStockDeducer(inventory.StockDeducer{})
+	saleSvc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	inventorySvc := inventory.NewService(inventoryRepo, bus)
 	customerSvc := customer.NewService(customerRepo)
 	categorySvc := category.NewService(categoryRepo)

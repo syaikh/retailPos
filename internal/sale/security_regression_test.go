@@ -15,9 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/permissions"
 	"retail-pos-system/internal/secregtest"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 )
 
 // regressionAuthMiddleware authenticates the caller and grants exactly the
@@ -47,6 +49,8 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 	t.Cleanup(bus.Shutdown)
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
 	svc.SetPriceResolver(newPricingTestResolver())
 	h := NewHandler(svc, nil)

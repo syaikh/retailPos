@@ -13,7 +13,9 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/shared"
+	"retail-pos-system/internal/shift"
 )
 
 func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
@@ -23,6 +25,8 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	published := make(chan struct{}, 1)
@@ -90,6 +94,8 @@ func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 	))
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-EVT-ONCE", "Event Once Product", 5000, 100)
@@ -132,6 +138,8 @@ func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-LOW-STOCK", "Low Stock Product", 10000, 2)
@@ -166,6 +174,8 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-DUP-PROD", "Duplicate Svc Prod", 10000, 20)
@@ -219,6 +229,8 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	initialStock := 100
@@ -263,6 +275,8 @@ func TestSaleService_CreateSaleWithShift(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	cashierID := insertTestCashier(ctx, t)
@@ -307,6 +321,8 @@ func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-DISC-PROD", "Discount Product", 10000, 50)
@@ -349,6 +365,8 @@ func TestSaleService_ReadOperations(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-READ-PROD", "Service Read Product", 15000, 50)
@@ -429,6 +447,8 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
@@ -517,6 +537,8 @@ func TestSaleService_ParkSale(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -614,6 +636,8 @@ func TestSaleService_RecallSale(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -648,6 +672,8 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -673,6 +699,8 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -817,6 +845,8 @@ func TestSaleService_ListParkedSales(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -842,6 +872,8 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -949,6 +981,8 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	svc.SetPriceResolver(&mockPriceResolver{})
 	ctx := context.Background()
 
@@ -985,6 +1019,8 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-NOBATCH-PROD", "No Batch Product", 7500, 100)
@@ -1021,6 +1057,8 @@ func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	var prodID int
@@ -1058,6 +1096,8 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-CLAMP-PROD", "Clamp Product", 10000, 100)
@@ -1087,6 +1127,8 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 func TestSaleService_GetAllPaymentMethods(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	methods, err := svc.GetAllPaymentMethods(ctx)
@@ -1097,6 +1139,8 @@ func TestSaleService_GetAllPaymentMethods(t *testing.T) {
 func TestSaleService_GetParkedSaleByID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -1115,6 +1159,8 @@ func TestSaleService_GetParkedSaleByID(t *testing.T) {
 func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	_, err := svc.GetParkedSaleByID(ctx, -999, 0)
@@ -1128,6 +1174,8 @@ func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
 	defer bus.Shutdown()
 
 	svc := NewService(repo, bus)
+	svc.SetStockDeducer(inventory.StockDeducer{})
+	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "SVC-NEG-PRICE", "Negative Price Product", 10000, 100)
