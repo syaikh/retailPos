@@ -1,5 +1,17 @@
 # Development Commands
 
+## Codebase Index Priority
+
+This project has a semantic codebase index (`.opencode/index`). Prioritize the index-based tools for understanding code before falling back to plain grep/read scans:
+
+- `codebase_search` / `codebase_peek` — semantic search by meaning (not just keyword), the default first step when asked about behavior or features
+- `call_graph` / `call_graph_path` — trace caller/callee relationships between functions
+- `implementation_lookup` — jump to symbol definitions
+- `find_similar` — detect duplicate or similar patterns
+- `pr_impact` — assess blast radius of a branch/PR
+
+If the index is out of date or missing results, re-index with `index_codebase` before falling back to raw search.
+
 ## Environment Configuration
 
 ### Database Connection Parameters
