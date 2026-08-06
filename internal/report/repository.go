@@ -82,55 +82,59 @@ func (r *Repository) GetPeriodComparison(
 		}
 	}
 
+	// Aggregations read from mv_hourly_sales (refreshed on sale.created) instead
+	// of scanning the raw sales table, keeping period comparisons cheap on large
+	// datasets. Hour-granularity rows still preserve the exact instant boundaries
+	// used by realtime mode and collapse to identical results for whole-day
+	// periods (peak month groups hours by Jakarta calendar month).
 	query := `
-		WITH tagged AS MATERIALIZED (
-			SELECT total_amount,
-				CASE WHEN created_at >= $1 AND created_at < $2 THEN 'current' ELSE 'previous' END as period,
-				EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as h,
-				EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as yr,
-				EXTRACT(MONTH FROM (created_at AT TIME ZONE 'Asia/Jakarta')) as mo
-			FROM sales
-			WHERE ((created_at >= $1 AND created_at < $2) OR (created_at >= $3 AND created_at < $4))
-				AND status = 'completed'
+		WITH base AS (
+			SELECT sale_hour, total_revenue, transaction_count
+			FROM mv_hourly_sales
+			WHERE ((sale_hour >= $1 AND sale_hour < $2) OR (sale_hour >= $3 AND sale_hour < $4))
 				AND ($5::int IS NULL OR store_id = $5)
 		),
 		base_metrics AS (
 			SELECT
-				COALESCE(SUM(CASE WHEN period = 'current' THEN total_amount ELSE 0 END), 0) as current_revenue,
-				COUNT(CASE WHEN period = 'current' THEN 1 END) as current_orders,
-				COALESCE(SUM(CASE WHEN period = 'previous' THEN total_amount ELSE 0 END), 0) as previous_revenue,
-				COUNT(CASE WHEN period = 'previous' THEN 1 END) as previous_orders
-			FROM tagged
+				COALESCE(SUM(CASE WHEN sale_hour >= $1 AND sale_hour < $2 THEN total_revenue ELSE 0 END), 0) as current_revenue,
+				COALESCE(SUM(CASE WHEN sale_hour >= $1 AND sale_hour < $2 THEN transaction_count ELSE 0 END), 0) as current_orders,
+				COALESCE(SUM(CASE WHEN sale_hour >= $3 AND sale_hour < $4 THEN total_revenue ELSE 0 END), 0) as previous_revenue,
+				COALESCE(SUM(CASE WHEN sale_hour >= $3 AND sale_hour < $4 THEN transaction_count ELSE 0 END), 0) as previous_orders
+			FROM base
 		),
-		peak_combined AS (
+		peak_hours AS (
 			SELECT
-				COALESCE(MAX(CASE WHEN period = 'current' THEN hourly_total ELSE 0 END), 0) as current_peak_hour,
-				COALESCE(MAX(CASE WHEN period = 'previous' THEN hourly_total ELSE 0 END), 0) as previous_peak_hour,
+				COALESCE(MAX(CASE WHEN sale_hour >= $1 AND sale_hour < $2 THEN total_revenue ELSE 0 END), 0) as current_peak_hour,
+				COALESCE(MAX(CASE WHEN sale_hour >= $3 AND sale_hour < $4 THEN total_revenue ELSE 0 END), 0) as previous_peak_hour
+			FROM base
+		),
+		monthly AS (
+			SELECT
+				CASE WHEN sale_hour >= $1 AND sale_hour < $2 THEN 'current' ELSE 'previous' END as period,
+				SUM(total_revenue) as monthly_total
+			FROM base
+			GROUP BY to_char(sale_hour AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM'), period
+		),
+		peak_months AS (
+			SELECT
 				COALESCE(MAX(CASE WHEN period = 'current' THEN monthly_total ELSE 0 END), 0) as current_peak_month,
 				COALESCE(MAX(CASE WHEN period = 'previous' THEN monthly_total ELSE 0 END), 0) as previous_peak_month
-			FROM (
-				SELECT SUM(total_amount) as hourly_total, 0::bigint as monthly_total, period
-				FROM tagged GROUP BY h, period
-				UNION ALL
-				SELECT 0::bigint, SUM(total_amount), period
-				FROM tagged GROUP BY yr, mo, period
-			) combined
+			FROM monthly
 		),
 		previous_any AS (
 			SELECT EXISTS(
-				SELECT 1 FROM sales
-				WHERE created_at >= $3 AND created_at < $3 + interval '24 hours'
-					AND status = 'completed'
+				SELECT 1 FROM mv_hourly_sales
+				WHERE sale_hour >= $3 AND sale_hour < $3 + interval '24 hours'
 					AND ($5::int IS NULL OR store_id = $5)
 			) as has_any
 		)
 		SELECT
 			bm.current_revenue, bm.current_orders,
 			bm.previous_revenue, bm.previous_orders,
-			pc.current_peak_hour, pc.previous_peak_hour,
-			pc.current_peak_month, pc.previous_peak_month,
+			ph.current_peak_hour, ph.previous_peak_hour,
+			pm.current_peak_month, pm.previous_peak_month,
 			pa.has_any
-		FROM base_metrics bm, peak_combined pc, previous_any pa`
+		FROM base_metrics bm, peak_hours ph, peak_months pm, previous_any pa`
 
 	args := []interface{}{currentStart, currentEnd, previousStart, previousEnd, storeID}
 

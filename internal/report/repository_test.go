@@ -117,6 +117,7 @@ func TestReportRepository_PeriodComparison_SeededData(t *testing.T) {
 
 	// Seed a sale in the current period first
 	_, _, amount, _ := seedSale(t, ctx)
+	refreshMaterializedViews(t, ctx)
 
 	now := time.Now()
 	start := now.AddDate(0, -1, 0)
@@ -184,6 +185,8 @@ func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
 		saleID, productID,
 	)
 	require.NoError(t, err)
+
+	refreshMaterializedViews(t, ctx)
 
 	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
 	require.NoError(t, err)
