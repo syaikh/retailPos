@@ -34,18 +34,18 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 		},
 	))
 
-	prodID := insertTestProduct(t, ctx, "SVC-EVT-PROD", "Service Event Product", 5000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-EVT-PROD", "Service Event Product", 5000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-EVT-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      5000,
 		Tax:           0,
 		TotalAmount:   5000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 5000,
@@ -92,18 +92,18 @@ func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-EVT-ONCE", "Event Once Product", 5000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-EVT-ONCE", "Event Once Product", 5000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-EVT-ONCE",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      5000,
 		Tax:           0,
 		TotalAmount:   5000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 5000,
@@ -134,17 +134,17 @@ func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-LOW-STOCK", "Low Stock Product", 10000, 2)
+	prodID := insertTestProduct(ctx, t, "SVC-LOW-STOCK", "Low Stock Product", 10000, 2)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-LOW-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      100000,
 		TotalAmount:   100000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  10,
 		UnitPrice: 10000,
@@ -168,17 +168,17 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-DUP-PROD", "Duplicate Svc Prod", 10000, 20)
+	prodID := insertTestProduct(ctx, t, "SVC-DUP-PROD", "Duplicate Svc Prod", 10000, 20)
 
 	sale1 := &Sale{
 		InvoiceNumber: "INV-SVC-DUP-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      10000,
 		TotalAmount:   10000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items1 := []SaleItem{{
+	items1 := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 10000,
@@ -189,17 +189,17 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 	err := svc.CreateSale(ctx, sale1, items1, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 10000}})
 	require.NoError(t, err)
 
-	prodID2 := insertTestProduct(t, ctx, "SVC-DUP-PROD2", "Duplicate Svc Prod 2", 10000, 20)
+	prodID2 := insertTestProduct(ctx, t, "SVC-DUP-PROD2", "Duplicate Svc Prod 2", 10000, 20)
 
 	sale2 := &Sale{
 		InvoiceNumber: "INV-SVC-DUP-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      20000,
 		TotalAmount:   20000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items2 := []SaleItem{{
+	items2 := []Item{{
 		ProductID: prodID2,
 		Quantity:  2,
 		UnitPrice: 10000,
@@ -223,7 +223,7 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 
 	initialStock := 100
 	quantity := 7
-	prodID := insertTestProduct(t, ctx, "SVC-STOCK-DED", "Stock Deduction Product", 5000, initialStock)
+	prodID := insertTestProduct(ctx, t, "SVC-STOCK-DED", "Stock Deduction Product", 5000, initialStock)
 
 	var stockBefore int
 	err := dbPool.QueryRow(ctx, `SELECT quantity FROM product_stock WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL`, prodID).Scan(&stockBefore)
@@ -232,13 +232,13 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-STOCK-DED-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      5000 * quantity,
 		TotalAmount:   5000 * quantity,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  quantity,
 		UnitPrice: 5000,
@@ -265,12 +265,12 @@ func TestSaleService_CreateSaleWithShift(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	var shiftID int
 	err := dbPool.QueryRow(ctx, `INSERT INTO shifts (user_id, status, opening_balance, opened_at) VALUES ($1, 'open', 0, NOW()) RETURNING id`, cashierID).Scan(&shiftID)
 	require.NoError(t, err)
 
-	prodID := insertTestProduct(t, ctx, "SVC-SHIFT-PROD", "Shift Create Product", 5000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-SHIFT-PROD", "Shift Create Product", 5000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-SHIFT-001",
@@ -281,7 +281,7 @@ func TestSaleService_CreateSaleWithShift(t *testing.T) {
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 5000,
@@ -309,18 +309,18 @@ func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-DISC-PROD", "Discount Product", 10000, 50)
+	prodID := insertTestProduct(ctx, t, "SVC-DISC-PROD", "Discount Product", 10000, 50)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-DISC-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      30000,
 		Discount:      5000,
 		TotalAmount:   25000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  3,
 		UnitPrice: 10000,
@@ -351,17 +351,17 @@ func TestSaleService_ReadOperations(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-READ-PROD", "Service Read Product", 15000, 50)
+	prodID := insertTestProduct(ctx, t, "SVC-READ-PROD", "Service Read Product", 15000, 50)
 	inv := "INV-SVC-READ-001"
 	sale := &Sale{
 		InvoiceNumber: inv,
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      15000,
 		TotalAmount:   15000,
 		PaymentMethod: "QRIS",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 15000,
@@ -431,20 +431,20 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-PRICE-VAL", "Price Validation Product", 10000, 100)
 
 	t.Run("price mismatch stored verbatim without re-resolve", func(t *testing.T) {
 		svc.SetPriceStore(&mockPriceStore{prices: map[int]int{prodID: 15000}})
 
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-PRICE-001",
-			CashierID:     insertTestCashier(t, ctx),
+			CashierID:     insertTestCashier(ctx, t),
 			Subtotal:      10000,
 			TotalAmount:   10000,
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  1,
 			UnitPrice: 10000,
@@ -464,13 +464,13 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-PRICE-002",
-			CashierID:     insertTestCashier(t, ctx),
+			CashierID:     insertTestCashier(ctx, t),
 			Subtotal:      10000,
 			TotalAmount:   10000,
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  1,
 			UnitPrice: 10000,
@@ -488,13 +488,13 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 		// RT-16: payload where subtotal != unit_price * quantity must be rejected.
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-PRICE-003",
-			CashierID:     insertTestCashier(t, ctx),
+			CashierID:     insertTestCashier(ctx, t),
 			Subtotal:      9999,
 			TotalAmount:   9999,
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  1,
 			UnitPrice: 10000,
@@ -520,8 +520,8 @@ func TestSaleService_ParkSale(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-PARK-001", "Park Service Product", 10000, 50)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-PARK-001", "Park Service Product", 10000, 50)
+	cashierID := insertTestCashier(ctx, t)
 
 	t.Run("success", func(t *testing.T) {
 		sale := &Sale{
@@ -532,7 +532,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			PaymentMethod: "CASH",
 			Status:        "parked",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  2,
 			UnitPrice: 10000,
@@ -563,7 +563,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			InvoiceNumber: "INV-SVC-PARK-INV",
 			CashierID:     cashierID,
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  0,
 			UnitPrice: 10000,
@@ -575,7 +575,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 	})
 
 	t.Run("with recalled sale ID", func(t *testing.T) {
-		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-PARK-RECALL", "parked", prodID, 1, 10000)
+		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-PARK-RECALL", "parked", prodID, 1, 10000)
 		recalled, err := repo.RecallSale(ctx, parked.ID)
 		require.NoError(t, err)
 
@@ -587,7 +587,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 			PaymentMethod: "CASH",
 			Status:        "parked",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  1,
 			UnitPrice: 10000,
@@ -617,11 +617,11 @@ func TestSaleService_RecallSale(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-RECALL-001", "Recall Service Product", 10000, 50)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-RECALL-001", "Recall Service Product", 10000, 50)
+	cashierID := insertTestCashier(ctx, t)
 
 	t.Run("recall parked sale", func(t *testing.T) {
-		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-RECALL-001", "parked", prodID, 2, 10000)
+		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-RECALL-001", "parked", prodID, 2, 10000)
 
 		sale, err := svc.RecallSale(ctx, parked.ID)
 		require.NoError(t, err)
@@ -635,7 +635,7 @@ func TestSaleService_RecallSale(t *testing.T) {
 	})
 
 	t.Run("recall completed returns error", func(t *testing.T) {
-		completed := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-RECALL-CMP", "completed", prodID, 1, 10000)
+		completed := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-RECALL-CMP", "completed", prodID, 1, 10000)
 		_, err := svc.RecallSale(ctx, completed.ID)
 		assert.ErrorIs(t, err, ErrSaleNotFound)
 	})
@@ -651,11 +651,11 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-CANCEL-001", "Cancel Service Product", 10000, 50)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-CANCEL-001", "Cancel Service Product", 10000, 50)
+	cashierID := insertTestCashier(ctx, t)
 
 	t.Run("cancel parked", func(t *testing.T) {
-		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-CANCEL-001", "parked", prodID, 1, 10000)
+		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-CANCEL-001", "parked", prodID, 1, 10000)
 		err := svc.CancelParkedSale(ctx, parked.ID)
 		assert.NoError(t, err)
 	})
@@ -676,10 +676,10 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-SPLIT-PROD", "Split Payment Product", 50000, 100)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-SPLIT-PROD", "Split Payment Product", 50000, 100)
+	cashierID := insertTestCashier(ctx, t)
 
-	makeSale := func(inv string, total int) (*Sale, []SaleItem) {
+	makeSale := func(inv string, total int) (*Sale, []Item) {
 		return &Sale{
 				InvoiceNumber: inv,
 				CashierID:     cashierID,
@@ -687,7 +687,7 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 				TotalAmount:   total,
 				PaymentMethod: "",
 				Status:        "completed",
-			}, []SaleItem{{
+			}, []Item{{
 				ProductID: prodID,
 				Quantity:  1,
 				UnitPrice: total,
@@ -820,12 +820,12 @@ func TestSaleService_ListParkedSales(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-LIST-PARK-001", "List Park Product", 10000, 50)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-LIST-PARK-001", "List Park Product", 10000, 50)
+	cashierID := insertTestCashier(ctx, t)
 
-	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-001", "parked", prodID, 1, 10000)
-	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-002", "recalled", prodID, 2, 10000)
-	_ = createParkedSale(t, ctx, repo, cashierID, "INV-SVC-LP-003", "completed", prodID, 3, 10000)
+	_ = createParkedSale(ctx, t, repo, cashierID, "INV-SVC-LP-001", "parked", prodID, 1, 10000)
+	_ = createParkedSale(ctx, t, repo, cashierID, "INV-SVC-LP-002", "recalled", prodID, 2, 10000)
+	_ = createParkedSale(ctx, t, repo, cashierID, "INV-SVC-LP-003", "completed", prodID, 3, 10000)
 
 	sales, err := svc.ListParkedSales(ctx, cashierID)
 	require.NoError(t, err)
@@ -845,11 +845,11 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	prodID := insertTestProduct(t, ctx, "SVC-CHECKOUT-PARK", "Checkout Park Product", 10000, 100)
-	cashierID := insertTestCashier(t, ctx)
+	prodID := insertTestProduct(ctx, t, "SVC-CHECKOUT-PARK", "Checkout Park Product", 10000, 100)
+	cashierID := insertTestCashier(ctx, t)
 
 	t.Run("checkout from recalled sale", func(t *testing.T) {
-		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-COP-001", "parked", prodID, 2, 10000)
+		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-COP-001", "parked", prodID, 2, 10000)
 		_, err := repo.RecallSale(ctx, parked.ID)
 		require.NoError(t, err)
 
@@ -861,7 +861,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  2,
 			UnitPrice: 10000,
@@ -881,7 +881,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 	})
 
 	t.Run("checkout with non-recalled parked sale fails", func(t *testing.T) {
-		parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-COP-002", "parked", prodID, 1, 10000)
+		parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-COP-002", "parked", prodID, 1, 10000)
 
 		sale := &Sale{
 			InvoiceNumber: "INV-SVC-COP-002-NEW",
@@ -891,7 +891,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 			PaymentMethod: "CASH",
 			Status:        "completed",
 		}
-		items := []SaleItem{{
+		items := []Item{{
 			ProductID: prodID,
 			Quantity:  1,
 			UnitPrice: 10000,
@@ -907,7 +907,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 
 func TestSaleService_SetPriceResolver(t *testing.T) {
 	repo := NewRepository(dbPool)
-	svc := NewService(repo, nil)
+	svc := &service{repo: repo}
 	priceRes := &mockPriceResolver{}
 	svc.SetPriceResolver(priceRes)
 	assert.NotNil(t, svc.resolver)
@@ -924,7 +924,7 @@ func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []R
 			UnitPrice:     10000,
 			OriginalPrice: 10000,
 			Discount:      0,
-			PricingType:   PricingType("default"),
+			Type:   Type("default"),
 			Cost:          5000,
 		}
 	}
@@ -952,18 +952,18 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 	svc.SetPriceResolver(&mockPriceResolver{})
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-RESOLV-PROD", "Resolver Product", 5000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-RESOLV-PROD", "Resolver Product", 5000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-RESOLV-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      19998,
 		Tax:           0,
 		TotalAmount:   19998,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  2,
 		UnitPrice: 9999,
@@ -987,18 +987,18 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-NOBATCH-PROD", "No Batch Product", 7500, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-NOBATCH-PROD", "No Batch Product", 7500, 100)
 	svc.SetPriceStore(&mockSimplePriceStore{prices: map[int]int{prodID: 7500}})
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-NOBATCH-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      7000,
 		TotalAmount:   7000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 7000,
@@ -1032,13 +1032,13 @@ func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-NOSTOCK-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      5000,
 		TotalAmount:   5000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 5000,
@@ -1060,18 +1060,18 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-CLAMP-PROD", "Clamp Product", 10000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-CLAMP-PROD", "Clamp Product", 10000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-CLAMP-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      10000,
 		Discount:      15000,
 		TotalAmount:   10000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: 10000,
@@ -1100,9 +1100,9 @@ func TestSaleService_GetParkedSaleByID(t *testing.T) {
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProduct(t, ctx, "SVC-GETPID-001", "Get Parked ByID", 10000, 50)
-	parked := createParkedSale(t, ctx, repo, cashierID, "INV-SVC-GETPID-001", "parked", prodID, 2, 10000)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProduct(ctx, t, "SVC-GETPID-001", "Get Parked ByID", 10000, 50)
+	parked := createParkedSale(ctx, t, repo, cashierID, "INV-SVC-GETPID-001", "parked", prodID, 2, 10000)
 
 	sale, err := svc.GetParkedSaleByID(ctx, parked.ID, cashierID)
 	require.NoError(t, err)
@@ -1130,17 +1130,17 @@ func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "SVC-NEG-PRICE", "Negative Price Product", 10000, 100)
+	prodID := insertTestProduct(ctx, t, "SVC-NEG-PRICE", "Negative Price Product", 10000, 100)
 
 	sale := &Sale{
 		InvoiceNumber: "INV-SVC-NEG-001",
-		CashierID:     insertTestCashier(t, ctx),
+		CashierID:     insertTestCashier(ctx, t),
 		Subtotal:      -10000,
 		TotalAmount:   -10000,
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Quantity:  1,
 		UnitPrice: -10000,

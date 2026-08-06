@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertTestSupplier(t *testing.T, ctx context.Context, name string) int {
+func insertTestSupplier(ctx context.Context, t *testing.T, name string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `
@@ -45,7 +45,7 @@ func insertTestSupplier(t *testing.T, ctx context.Context, name string) int {
 	return id
 }
 
-func insertTestProduct(t *testing.T, ctx context.Context, sku, name string, price, stock int) int {
+func insertTestProduct(ctx context.Context, t *testing.T, sku, name string, price, stock int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `
@@ -62,7 +62,7 @@ func insertTestProduct(t *testing.T, ctx context.Context, sku, name string, pric
 	return id
 }
 
-func insertTestUser(t *testing.T, ctx context.Context, username string) int {
+func insertTestUser(ctx context.Context, t *testing.T, username string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `
@@ -79,18 +79,18 @@ func TestPurchaseRepository_CreateAndGetPO(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Test Supplier PO")
-	prodID := insertTestProduct(t, ctx, "PO-REPO-001", "PO Repo Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_repo_user")
+	supplierID := insertTestSupplier(ctx, t, "Test Supplier PO")
+	prodID := insertTestProduct(ctx, t, "PO-REPO-001", "PO Repo Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_repo_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		Status:     StatusDraft,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  10,
@@ -129,18 +129,18 @@ func TestPurchaseRepository_ConfirmAndCancel(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Test Supplier Confirm")
-	prodID := insertTestProduct(t, ctx, "PO-CONF-001", "PO Confirm Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_confirm_user")
+	supplierID := insertTestSupplier(ctx, t, "Test Supplier Confirm")
+	prodID := insertTestProduct(ctx, t, "PO-CONF-001", "PO Confirm Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_confirm_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		Status:     StatusDraft,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  5,
@@ -193,18 +193,18 @@ func TestPurchaseRepository_GoodsReceipt(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Test Supplier GR")
-	prodID := insertTestProduct(t, ctx, "PO-GR-001", "PO GR Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_gr_user")
+	supplierID := insertTestSupplier(ctx, t, "Test Supplier GR")
+	prodID := insertTestProduct(ctx, t, "PO-GR-001", "PO GR Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_gr_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		Status:     StatusDraft,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  20,

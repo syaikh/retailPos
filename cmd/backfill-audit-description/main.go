@@ -53,7 +53,7 @@ func main() {
 			continue
 		}
 
-		alog := &audit.AuditLog{
+		alog := &audit.Log{
 			Action:     action,
 			EntityType: entityType,
 			EntityID:   entityID,

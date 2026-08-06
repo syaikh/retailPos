@@ -35,7 +35,7 @@ var (
 type AuthService struct {
 	dbPool        shared.DBPool
 	repo          *Repository
-	auditSvc      audit.AuditCreator
+	auditSvc      audit.Creator
 	jwtSecret     string
 	refreshSecret string
 	accessTTL     time.Duration
@@ -53,7 +53,7 @@ type AuthClaims struct {
 	jwt.RegisteredClaims
 }
 
-func NewAuthService(repo *Repository, auditSvc audit.AuditCreator, cfg *config.Config) *AuthService {
+func NewAuthService(repo *Repository, auditSvc audit.Creator, cfg *config.Config) *AuthService {
 	if cfg.JWTSecret == "" {
 		panic("FATAL: JWT_SECRET environment variable is required.")
 	}
@@ -245,7 +245,7 @@ func (s *AuthService) logFailure(ctx context.Context, username, ip, ua, reason s
 	if s.auditSvc == nil {
 		return
 	}
-	_ = s.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = s.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		Action:      "login_failed",
 		EntityType:  "auth",
 		Username:    username,

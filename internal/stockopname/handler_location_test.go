@@ -14,7 +14,7 @@ import (
 // insertLocationRackFixture sets up a warehouse, an active storage location,
 // and a product that has both a global stock row and a rack row (10 units
 // each), mirroring the state a real rack-scoped cycle count starts from.
-func insertLocationRackFixture(t *testing.T, ctx context.Context, warehouseID int, prefix string) (locID, productID int) {
+func insertLocationRackFixture(ctx context.Context, t *testing.T, warehouseID int, prefix string) (locID, productID int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES ($1, $2, $3, NULL, true)
@@ -22,10 +22,10 @@ func insertLocationRackFixture(t *testing.T, ctx context.Context, warehouseID in
 		warehouseID, "Test WH "+prefix, "SO-HDL-WH-"+prefix,
 	)
 	require.NoError(t, err)
-	locID = insertTestStorageLocation(t, ctx, prefix+"-LOC", warehouseID)
-	productID = insertTestProduct(t, ctx, prefix+"-001")
-	insertTestStock(t, ctx, productID, 10)
-	insertTestStockLocation(t, ctx, productID, warehouseID, locID, 10)
+	locID = insertTestStorageLocation(ctx, t, prefix+"-LOC", warehouseID)
+	productID = insertTestProduct(ctx, t, prefix+"-001")
+	insertTestStock(ctx, t, productID, 10)
+	insertTestStockLocation(ctx, t, productID, warehouseID, locID, 10)
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, productID)
 	require.NoError(t, err)
 	return locID, productID
@@ -34,9 +34,9 @@ func insertLocationRackFixture(t *testing.T, ctx context.Context, warehouseID in
 func TestHandler_CreateLocationSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9751, "so_hdl_loc_9751", 3)
-	locID, _ := insertLocationRackFixture(t, ctx, 9751, "LOC01")
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9751, "so_hdl_loc_9751", 3)
+	locID, _ := insertLocationRackFixture(ctx, t, 9751, "LOC01")
 
 	r := setupStockOpnameRouter()
 	w := postJSON(t, r, "/stock-opnames", fmt.Sprintf(`{"scope_type":"location","scope_id":%d}`, locID))
@@ -58,12 +58,12 @@ func TestHandler_CreateLocationSession(t *testing.T) {
 func TestHandler_ListAndGetLocationSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9752, "so_hdl_loc_9752", 3)
-	locID, _ := insertLocationRackFixture(t, ctx, 9752, "LOC02")
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9752, "so_hdl_loc_9752", 3)
+	locID, _ := insertLocationRackFixture(ctx, t, 9752, "LOC02")
 
 	r := setupStockOpnameRouter()
-	sessionID := createHandlerSession(t, ctx, r, "location", int64(locID))
+	sessionID := createHandlerSession(ctx, t, r, "location", int64(locID))
 
 	t.Run("list includes the rack-scoped session", func(t *testing.T) {
 		w := getPath(t, r, "/stock-opnames")
@@ -90,9 +90,9 @@ func TestHandler_ListAndGetLocationSession(t *testing.T) {
 func TestHandler_CreateLocationSession_Errors(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9753, "so_hdl_loc_9753", 3)
-	locID, _ := insertLocationRackFixture(t, ctx, 9753, "LOC03")
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9753, "so_hdl_loc_9753", 3)
+	locID, _ := insertLocationRackFixture(ctx, t, 9753, "LOC03")
 
 	t.Run("location scope must be used alone", func(t *testing.T) {
 		r := setupStockOpnameRouter()
@@ -113,8 +113,8 @@ func TestHandler_CreateLocationSession_Errors(t *testing.T) {
 			 VALUES ('SO-HDL-LOC-INA', 'Rack Inactive 9754', 9754, false) RETURNING id`,
 		).Scan(&inaLocID)
 		require.NoError(t, err)
-		p := insertTestProduct(t, ctx, "SO-HDL-LOC-INA-001")
-		insertTestStockLocation(t, ctx, p, 9754, inaLocID, 4)
+		p := insertTestProduct(ctx, t, "SO-HDL-LOC-INA-001")
+		insertTestStockLocation(ctx, t, p, 9754, inaLocID, 4)
 
 		r := setupStockOpnameRouter()
 		w := postJSON(t, r, "/stock-opnames", fmt.Sprintf(`{"scope_type":"location","scope_id":%d}`, inaLocID))
@@ -136,18 +136,18 @@ func TestHandler_CreateLocationSession_Errors(t *testing.T) {
 func TestHandler_LocationFullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	managerID := 9755
 	counterID := 9756
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_loc_mgr_9755", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_loc_cnt_9756", 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_loc_mgr_9755", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_loc_cnt_9756", 5)
 
-	locID, p := insertLocationRackFixture(t, ctx, 9755, "LOC05")
+	locID, p := insertLocationRackFixture(ctx, t, 9755, "LOC05")
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := createHandlerSession(t, ctx, managerRouter, "location", int64(locID))
+	sessionID := createHandlerSession(ctx, t, managerRouter, "location", int64(locID))
 
 	w := getPath(t, managerRouter, fmt.Sprintf("/stock-opnames/%d", sessionID))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -180,9 +180,9 @@ func TestHandler_LocationFullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	})
 
 	t.Run("verified but not posted leaves stock untouched", func(t *testing.T) {
-		assertStockQty(t, ctx, p, locID, 10)
-		assertGlobalQty(t, ctx, p, 10)
-		assertProductsStock(t, ctx, p, 10)
+		assertStockQty(ctx, t, p, locID, 10)
+		assertGlobalQty(ctx, t, p, 10)
+		assertProductsStock(ctx, t, p, 10)
 	})
 
 	var adjustmentID int
@@ -198,9 +198,9 @@ func TestHandler_LocationFullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 		adjustmentID = resp.Data.ID
 		require.NotZero(t, adjustmentID)
 
-		assertStockQty(t, ctx, p, locID, 13)
-		assertGlobalQty(t, ctx, p, 13)
-		assertProductsStock(t, ctx, p, 13)
+		assertStockQty(ctx, t, p, locID, 13)
+		assertGlobalQty(ctx, t, p, 13)
+		assertProductsStock(ctx, t, p, 13)
 
 		var adjCount int
 		require.NoError(t, dbPool.QueryRow(ctx,

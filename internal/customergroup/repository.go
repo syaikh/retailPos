@@ -231,7 +231,7 @@ type BulkUpsertResult struct {
 	Errors   []string
 }
 
-func (r *Repository) BulkUpsertCustomerGroups(ctx context.Context, records []CustomerGroupImportRow) BulkUpsertResult {
+func (r *Repository) BulkUpsertCustomerGroups(ctx context.Context, records []ImportRow) BulkUpsertResult {
 	result := BulkUpsertResult{}
 	for _, row := range records {
 		existing, err := r.GetByName(ctx, row.Name)

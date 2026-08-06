@@ -63,7 +63,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	}
 
 	if logs == nil {
-		logs = []AuditLogListItem{}
+		logs = []LogListItem{}
 	}
 
 	shared.JSONPaginated(c, logs, total, limit, offset)
@@ -128,7 +128,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	}
 
 	if logs == nil {
-		logs = []AuditLogListItem{}
+		logs = []LogListItem{}
 	}
 
 	cfg := config.Load()
@@ -207,7 +207,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 	}
 }
 
-func GenerateAuditDescription(log *AuditLog) string {
+func GenerateAuditDescription(log *Log) string {
 	action := strings.ToLower(log.Action)
 	entity := strings.ToLower(log.EntityType)
 

@@ -14,21 +14,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UOMService interface {
+type Service interface {
 	GetByID(ctx context.Context, id int) (*UnitOfMeasure, error)
 	GetAll(ctx context.Context) ([]UnitOfMeasure, error)
 	GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error)
-	Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error)
-	Update(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error)
+	GetIDByCode(ctx context.Context, code string) (int, error)
+	Create(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error)
+	Update(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error)
 	Delete(ctx context.Context, id int) error
 }
 
 type Handler struct {
-	svc      UOMService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc UOMService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -66,7 +67,7 @@ func (h *Handler) ListUnitsOfMeasure(c *gin.Context) {
 }
 
 func (h *Handler) CreateUnitOfMeasure(c *gin.Context) {
-	var req UOMCreateRequest
+	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,7 +81,7 @@ func (h *Handler) CreateUnitOfMeasure(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -108,7 +109,7 @@ func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
 		oldUOM, _ = h.svc.GetByID(c.Request.Context(), id)
 	}
 
-	var req UOMUpdateRequest
+	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -122,7 +123,7 @@ func (h *Handler) UpdateUnitOfMeasure(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -166,7 +167,7 @@ func (h *Handler) DeleteUnitOfMeasure(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted unit of measure #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

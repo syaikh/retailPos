@@ -17,17 +17,17 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupMockUserRouterWithAudit(svc UserService) *gin.Engine {
+func setupMockUserRouterWithAudit(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

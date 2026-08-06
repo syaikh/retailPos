@@ -209,7 +209,7 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Brand, error) {
 	return brands, nil
 }
 
-func (r *Repository) BulkUpsert(ctx context.Context, records []BrandImportRow) ImportResult {
+func (r *Repository) BulkUpsert(ctx context.Context, records []ImportRow) ImportResult {
 	result := ImportResult{Errors: []string{}}
 	if len(records) == 0 {
 		return result

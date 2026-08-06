@@ -56,7 +56,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    CustomerGroupImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -68,7 +68,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"IsActive":    "true",
 				"Color":       "#FF0000",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:         1,
 				Name:        "VIP",
 				Description: "VIP customers",
@@ -83,7 +83,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Inactive",
 				"IsActive": "false",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      2,
 				Name:     "Inactive",
 				IsActive: false,
@@ -110,7 +110,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"_row": 5,
 				"Name": "AutoActive",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      5,
 				Name:     "AutoActive",
 				IsActive: true,
@@ -123,7 +123,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"Name":     "YesGroup",
 				"IsActive": "YES",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      6,
 				Name:     "YesGroup",
 				IsActive: true,
@@ -136,7 +136,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"Name":     "NumericGroup",
 				"IsActive": "1",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      7,
 				Name:     "NumericGroup",
 				IsActive: true,
@@ -149,7 +149,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"Name":     "RandomGroup",
 				"IsActive": "maybe",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      8,
 				Name:     "RandomGroup",
 				IsActive: false,
@@ -160,7 +160,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 			row: map[string]interface{}{
 				"Name": "NoRow",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      0,
 				Name:     "NoRow",
 				IsActive: true,
@@ -173,7 +173,7 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				"Name":  "ColoredGroup",
 				"Color": "#ABCDEF",
 			},
-			want: CustomerGroupImportRow{
+			want: ImportRow{
 				Row:      9,
 				Name:     "ColoredGroup",
 				IsActive: true,
@@ -193,8 +193,8 @@ func TestCGAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(CustomerGroupImportRow)
-			require.True(t, ok, "expected CustomerGroupImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -221,7 +221,7 @@ func TestCGAdapter_ReposAdapter_Insert(t *testing.T) {
 	ra := a.Repository()
 
 	inserted, err := ra.Insert(context.Background(), []interface{}{
-		CustomerGroupImportRow{Row: 1, Name: "New CG", Description: "new", IsActive: true},
+		ImportRow{Row: 1, Name: "New CG", Description: "new", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, inserted)
@@ -245,8 +245,8 @@ func TestCGAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Insert(context.Background(), []interface{}{
-		CustomerGroupImportRow{Row: 1, Name: "Valid", IsActive: true},
-		CustomerGroupImportRow{Row: 2, Name: "", IsActive: true},
+		ImportRow{Row: 1, Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Name: "", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "customer group import errors")
@@ -269,7 +269,7 @@ func TestCGAdapter_ReposAdapter_Update(t *testing.T) {
 	ra := a.Repository()
 
 	updated, err := ra.Update(context.Background(), []interface{}{
-		CustomerGroupImportRow{Row: 1, Name: "Existing CG", Description: "updated", IsActive: false},
+		ImportRow{Row: 1, Name: "Existing CG", Description: "updated", IsActive: false},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, updated)
@@ -297,8 +297,8 @@ func TestCGAdapter_ReposAdapter_Update_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Update(context.Background(), []interface{}{
-		CustomerGroupImportRow{Row: 1, Name: "Valid", Description: "upd", IsActive: true},
-		CustomerGroupImportRow{Row: 2, Name: "Valid2", Description: "upd2", IsActive: false},
+		ImportRow{Row: 1, Name: "Valid", Description: "upd", IsActive: true},
+		ImportRow{Row: 2, Name: "Valid2", Description: "upd2", IsActive: false},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "customer group import errors")

@@ -95,7 +95,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	description, _ := row["Description"].(string)
 	storeID, _ := row["_store_id"].(int)
 
-	return ProductImportRow{
+	return ImportRow{
 		Row:           rowNum,
 		SKU:           sku,
 		Name:          name,
@@ -134,9 +134,9 @@ func (r *productRepoAdapter) Insert(ctx context.Context, entities []interface{})
 	if err != nil {
 		return 0, err
 	}
-	payloads := make([]ProductImportPayload, 0, len(entities))
+	payloads := make([]ImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(ProductImportRow)
+		row := e.(ImportRow)
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		if err != nil {
 			return len(payloads), err
@@ -151,9 +151,9 @@ func (r *productRepoAdapter) Update(ctx context.Context, entities []interface{})
 	if err != nil {
 		return 0, err
 	}
-	payloads := make([]ProductImportPayload, 0, len(entities))
+	payloads := make([]ImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(ProductImportRow)
+		row := e.(ImportRow)
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		if err != nil {
 			return len(payloads), err
@@ -168,7 +168,7 @@ func (r *productRepoAdapter) batchResolveAll(ctx context.Context, entities []int
 	brandNames := make(map[string]bool)
 	uomCodes := make(map[string]bool)
 	for _, e := range entities {
-		row := e.(ProductImportRow)
+		row := e.(ImportRow)
 		if row.Category != "" {
 			catNames[row.Category] = true
 		}
@@ -205,7 +205,7 @@ func keysOf(m map[string]bool) []string {
 	return result
 }
 
-func (r *productRepoAdapter) resolveReferences(row ProductImportRow, catMap, brandMap, uomMap map[string]int) (*ProductImportPayload, error) {
+func (r *productRepoAdapter) resolveReferences(row ImportRow, catMap, brandMap, uomMap map[string]int) (*ImportPayload, error) {
 	status := strings.ToLower(row.Status)
 	if status == "" {
 		status = "active"
@@ -256,7 +256,7 @@ func (r *productRepoAdapter) resolveReferences(row ProductImportRow, catMap, bra
 		return nil, fmt.Errorf("stock must not be negative at row %d", row.Row)
 	}
 
-	return &ProductImportPayload{
+	return &ImportPayload{
 		SKU:             row.SKU,
 		Name:            row.Name,
 		Barcode:         strPtr(row.Barcode),

@@ -4,31 +4,31 @@ import (
 	"context"
 )
 
-type Service struct {
+type service struct {
 	repo *Repository
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository) Service {
+	return &service{repo: repo}
 }
 
-func (s *Service) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error) {
+func (s *service) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) GetAll(ctx context.Context) ([]UnitOfMeasure, error) {
+func (s *service) GetAll(ctx context.Context) ([]UnitOfMeasure, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *Service) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
+func (s *service) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error) {
 	return s.repo.GetAllPaginated(ctx, limit, offset, search)
 }
 
-func (s *Service) GetIDByCode(ctx context.Context, code string) (int, error) {
+func (s *service) GetIDByCode(ctx context.Context, code string) (int, error) {
 	return s.repo.GetIDByCode(ctx, code)
 }
 
-func (s *Service) Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
+func (s *service) Create(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error) {
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
@@ -45,7 +45,7 @@ func (s *Service) Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMea
 	return s.repo.GetByID(ctx, uom.ID)
 }
 
-func (s *Service) Update(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+func (s *service) Update(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 	uom, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -62,6 +62,6 @@ func (s *Service) Update(ctx context.Context, id int, req *UOMUpdateRequest) (*U
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) Delete(ctx context.Context, id int) error {
+func (s *service) Delete(ctx context.Context, id int) error {
 	return s.repo.Delete(ctx, id)
 }

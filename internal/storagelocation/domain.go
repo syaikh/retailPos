@@ -12,7 +12,7 @@ type StorageLocation struct {
 	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
-type StorageLocationCreateRequest struct {
+type CreateRequest struct {
 	Code        string `json:"code" binding:"required,max=50"`
 	Name        string `json:"name" binding:"required,max=100"`
 	WarehouseID *int   `json:"warehouse_id"`
@@ -20,7 +20,7 @@ type StorageLocationCreateRequest struct {
 	Notes       string `json:"notes"`
 }
 
-type StorageLocationUpdateRequest struct {
+type UpdateRequest struct {
 	Code        *string `json:"code" binding:"omitempty,max=50"`
 	Name        *string `json:"name" binding:"omitempty,max=100"`
 	WarehouseID *int    `json:"warehouse_id"`

@@ -44,7 +44,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		isActive = fmt.Sprintf("%v", v) == "true"
 	}
 
-	return SupplierImportRow{
+	return ImportRow{
 		Row:         rowNum,
 		Code:        code,
 		Name:        name,
@@ -66,10 +66,10 @@ type supplierRepoAdapter struct {
 }
 
 func (r *supplierRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	payloads := make([]SupplierImportPayload, 0, len(entities))
+	payloads := make([]ImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(SupplierImportRow)
-		payloads = append(payloads, SupplierImportPayload{
+		row := e.(ImportRow)
+		payloads = append(payloads, ImportPayload{
 			Code:        row.Code,
 			Name:        row.Name,
 			ContactName: strPtr(row.ContactName),
@@ -84,10 +84,10 @@ func (r *supplierRepoAdapter) Insert(ctx context.Context, entities []interface{}
 }
 
 func (r *supplierRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	payloads := make([]SupplierImportPayload, 0, len(entities))
+	payloads := make([]ImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(SupplierImportRow)
-		payloads = append(payloads, SupplierImportPayload{
+		row := e.(ImportRow)
+		payloads = append(payloads, ImportPayload{
 			Code:        row.Code,
 			Name:        row.Name,
 			ContactName: strPtr(row.ContactName),

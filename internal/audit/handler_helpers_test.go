@@ -10,12 +10,12 @@ func TestGenerateAuditDescription(t *testing.T) {
 	eid := 5
 	tests := []struct {
 		name string
-		log  *AuditLog
+		log  *Log
 		want string
 	}{
 		{
 			name: "create product",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "CREATE",
 				EntityType: "product",
 				NewValues:  map[string]interface{}{"name": "Widget"},
@@ -24,7 +24,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "update user",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "UPDATE",
 				EntityType: "user",
 				NewValues:  map[string]interface{}{"username": "john"},
@@ -33,7 +33,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "delete category",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "DELETE",
 				EntityType: "category",
 				NewValues:  map[string]interface{}{"name": "Electronics"},
@@ -42,7 +42,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "login with username",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "LOGIN",
 				EntityType: "auth",
 				Username:   "admin",
@@ -51,7 +51,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "logout with username",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "LOGOUT",
 				EntityType: "auth",
 				Username:   "admin",
@@ -60,7 +60,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "create with entity id no identifier",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "CREATE",
 				EntityType: "entity",
 				EntityID:   &eid,
@@ -69,7 +69,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "custom action",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "CUSTOM",
 				EntityType: "entity",
 				NewValues:  map[string]interface{}{"name": "something"},
@@ -78,7 +78,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "empty action",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "",
 				EntityType: "product",
 			},
@@ -86,7 +86,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "invoice number identifier",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "CREATE",
 				EntityType: "sale",
 				NewValues:  map[string]interface{}{"invoice_number": "INV-001"},
@@ -95,7 +95,7 @@ func TestGenerateAuditDescription(t *testing.T) {
 		},
 		{
 			name: "login without username",
-			log: &AuditLog{
+			log: &Log{
 				Action:     "LOGIN",
 				EntityType: "auth",
 			},

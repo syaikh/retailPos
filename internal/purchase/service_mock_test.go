@@ -34,7 +34,7 @@ func (l fakeProductLookup) GetProductNamesByIDs(ctx context.Context, ids []int) 
 	return result, nil
 }
 
-func newMockSvc(t *testing.T) (pgxmock.PgxPoolIface, *Service, context.Context) {
+func newMockSvc(t *testing.T) (pgxmock.PgxPoolIface, Service, context.Context) {
 	t.Helper()
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
@@ -92,14 +92,14 @@ func TestServiceMock_CreateDraft_Errors(t *testing.T) {
 	t.Run("product lookup error", func(t *testing.T) {
 		_, svc, ctx := newMockSvc(t)
 		svc.SetProductLookup(fakeProductLookup{err: boom})
-		err := svc.CreateDraft(ctx, &PurchaseOrder{SupplierID: 2, StoreID: 3}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.CreateDraft(ctx, &Order{SupplierID: 2, StoreID: 3}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "lookup products")
 	})
 
 	t.Run("begin error", func(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
 		mock.ExpectBegin().WillReturnError(boom)
-		err := svc.CreateDraft(ctx, &PurchaseOrder{SupplierID: 2, StoreID: 3}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.CreateDraft(ctx, &Order{SupplierID: 2, StoreID: 3}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "begin transaction")
 	})
 
@@ -107,7 +107,7 @@ func TestServiceMock_CreateDraft_Errors(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT nextval\\('po_seq'\\)").WillReturnError(boom)
-		err := svc.CreateDraft(ctx, &PurchaseOrder{SupplierID: 2, StoreID: 3}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.CreateDraft(ctx, &Order{SupplierID: 2, StoreID: 3}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "failed to get next PO number")
 	})
 
@@ -116,7 +116,7 @@ func TestServiceMock_CreateDraft_Errors(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT nextval\\('po_seq'\\)").WillReturnRows(pgxmock.NewRows([]string{"nextval"}).AddRow(1))
 		mock.ExpectQuery("INSERT INTO purchase_orders").WithArgs(anyArgs(14)...).WillReturnError(boom)
-		err := svc.CreateDraft(ctx, &PurchaseOrder{SupplierID: 2, StoreID: 3}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.CreateDraft(ctx, &Order{SupplierID: 2, StoreID: 3}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "failed to insert purchase order")
 	})
 
@@ -130,7 +130,7 @@ func TestServiceMock_CreateDraft_Errors(t *testing.T) {
 			"purchase_order_id", "product_id", "qty_ordered", "unit_cost", "discount_amount",
 			"subtotal", "product_name", "sku", "barcode", "uom_id", "uom_name", "notes"})
 		mock.ExpectCommit().WillReturnError(boom)
-		err := svc.CreateDraft(ctx, &PurchaseOrder{SupplierID: 2, StoreID: 3}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.CreateDraft(ctx, &Order{SupplierID: 2, StoreID: 3}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "commit transaction")
 	})
 }
@@ -143,7 +143,7 @@ func TestServiceMock_UpdateDraft_Errors(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
 		expectPOFetch(mock, now, StatusDraft, true)
 		svc.SetProductLookup(fakeProductLookup{err: boom})
-		err := svc.UpdateDraft(ctx, 1, &PurchaseOrder{SupplierID: 2, UpdatedBy: 9}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.UpdateDraft(ctx, 1, &Order{SupplierID: 2, UpdatedBy: 9}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "lookup products")
 	})
 
@@ -151,7 +151,7 @@ func TestServiceMock_UpdateDraft_Errors(t *testing.T) {
 		mock, svc, ctx := newMockSvc(t)
 		expectPOFetch(mock, now, StatusDraft, true)
 		mock.ExpectBegin().WillReturnError(boom)
-		err := svc.UpdateDraft(ctx, 1, &PurchaseOrder{SupplierID: 2, UpdatedBy: 9}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.UpdateDraft(ctx, 1, &Order{SupplierID: 2, UpdatedBy: 9}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "begin transaction")
 	})
 
@@ -160,7 +160,7 @@ func TestServiceMock_UpdateDraft_Errors(t *testing.T) {
 		expectPOFetch(mock, now, StatusDraft, true)
 		mock.ExpectBegin()
 		mock.ExpectExec("UPDATE purchase_orders").WithArgs(anyArgs(10)...).WillReturnError(boom)
-		err := svc.UpdateDraft(ctx, 1, &PurchaseOrder{SupplierID: 2, UpdatedBy: 9}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.UpdateDraft(ctx, 1, &Order{SupplierID: 2, UpdatedBy: 9}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "failed to update purchase order")
 	})
 
@@ -174,7 +174,7 @@ func TestServiceMock_UpdateDraft_Errors(t *testing.T) {
 			"purchase_order_id", "product_id", "qty_ordered", "unit_cost", "discount_amount",
 			"subtotal", "product_name", "sku", "barcode", "uom_id", "uom_name", "notes"})
 		mock.ExpectCommit().WillReturnError(boom)
-		err := svc.UpdateDraft(ctx, 1, &PurchaseOrder{SupplierID: 2, UpdatedBy: 9}, []PurchaseOrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
+		err := svc.UpdateDraft(ctx, 1, &Order{SupplierID: 2, UpdatedBy: 9}, []OrderItem{{ProductID: 1, QtyOrdered: 5, UnitCost: 100}})
 		assert.ErrorContains(t, err, "commit transaction")
 	})
 }

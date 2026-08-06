@@ -287,7 +287,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, cg))
 		defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
-		records := []CustomerGroupImportRow{
+		records := []ImportRow{
 			{Row: 1, Name: "Upsert Existing", Description: "Updated via upsert", IsActive: false},
 			{Row: 2, Name: "Upsert Brand New", Description: "Created via upsert", IsActive: true},
 		}

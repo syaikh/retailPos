@@ -16,17 +16,17 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupMockRouterWithAudit(svc CategoryService) *gin.Engine {
+func setupMockRouterWithAudit(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -45,7 +45,7 @@ func setupMockRouterWithAudit(svc CategoryService) *gin.Engine {
 
 func TestAuditHandler_CreateCategory(t *testing.T) {
 	svc := &mockCategoryService{
-		createFn: func(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
+		createFn: func(ctx context.Context, req *CreateRequest) (*Category, error) {
 			return &Category{ID: 42, Name: req.Name}, nil
 		},
 	}
@@ -63,7 +63,7 @@ func TestAuditHandler_UpdateCategory(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return &Category{ID: 1, Name: "Old"}, nil
 		},
-		updateFn: func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 			return &Category{ID: id, Name: req.Name}, nil
 		},
 	}
@@ -111,7 +111,7 @@ func TestAuditHandler_UpdateCategory_GetByIDError(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 			return nil, errors.New("not found")
 		},
-		updateFn: func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 			return &Category{ID: id, Name: req.Name}, nil
 		},
 	}

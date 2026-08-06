@@ -13,10 +13,10 @@ import (
 type ResolverRepo interface {
 	GetBasePrice(ctx context.Context, productID int) (int, error)
 	GetProductScope(ctx context.Context, productID int) (*int, *int, error)
-	GetActiveRules(ctx context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]PricingRule, error)
+	GetActiveRules(ctx context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]Rule, error)
 	GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error)
 	GetProductScopesBatch(ctx context.Context, productIDs []int) (map[int]ProductScope, error)
-	GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]PricingRule, error)
+	GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]Rule, error)
 	GetProductCostAndTax(ctx context.Context, productID int) (ProductCostTax, error)
 	GetProductCostAndTaxBatch(ctx context.Context, productIDs []int) (map[int]ProductCostTax, error)
 }
@@ -118,8 +118,8 @@ func (r *Resolver) ResolveSnapshot(ctx context.Context, rc ResolveContext) (*Pri
 		UnitPrice:     resolved.UnitPrice,
 		OriginalPrice: resolved.OriginalPrice,
 		Discount:      resolved.Discount,
-		PricingType:   resolved.PricingType,
-		PricingMethod: resolved.PricingMethod,
+		Type:   resolved.Type,
+		Method: resolved.Method,
 		Rule:          resolved.Rule,
 		Cost:          costTax.Cost,
 		TaxClassID:    costTax.TaxClassID,
@@ -166,8 +166,8 @@ func (r *Resolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveIte
 			UnitPrice:     resolved[i].UnitPrice,
 			OriginalPrice: resolved[i].OriginalPrice,
 			Discount:      resolved[i].Discount,
-			PricingType:   resolved[i].PricingType,
-			PricingMethod: resolved[i].PricingMethod,
+			Type:   resolved[i].Type,
+			Method: resolved[i].Method,
 			Rule:          resolved[i].Rule,
 			Cost:          ct.Cost,
 			TaxClassID:    ct.TaxClassID,
@@ -181,14 +181,14 @@ func (r *Resolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveIte
 
 // resolvePricing applies the deterministic resolution algorithm to a single product's
 // eligible rules and base price. This is the shared core used by both Resolve and ResolveBatch.
-func resolvePricing(basePrice int, eligible []PricingRule, productID int, categoryID, brandID *int) ResolvedPrice {
+func resolvePricing(basePrice int, eligible []Rule, productID int, categoryID, brandID *int) ResolvedPrice {
 	if len(eligible) == 0 {
 		return ResolvedPrice{
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			PricingType:   PricingTypeDefault,
-			PricingMethod: PricingMethodFixedPrice,
+			Type:   PricingTypeDefault,
+			Method: PricingMethodFixedPrice,
 			Rule:          nil,
 		}
 	}
@@ -206,8 +206,8 @@ func resolvePricing(basePrice int, eligible []PricingRule, productID int, catego
 			UnitPrice:     int(running + 0.5),
 			OriginalPrice: basePrice,
 			Discount:      discount,
-			PricingType:   bestNon.PricingType,
-			PricingMethod: bestNon.PricingMethod,
+			Type:   bestNon.Type,
+			Method: bestNon.Method,
 			Rule:          bestNon,
 		}
 	}
@@ -223,8 +223,8 @@ func resolvePricing(basePrice int, eligible []PricingRule, productID int, catego
 			UnitPrice:     int(running + 0.5),
 			OriginalPrice: basePrice,
 			Discount:      discount,
-			PricingType:   combinable[0].PricingType,
-			PricingMethod: combinable[0].PricingMethod,
+			Type:   combinable[0].Type,
+			Method: combinable[0].Method,
 			Rule:          &combinable[0],
 		}
 	}
@@ -235,8 +235,8 @@ func resolvePricing(basePrice int, eligible []PricingRule, productID int, catego
 			UnitPrice:     basePrice,
 			OriginalPrice: basePrice,
 			Discount:      0,
-			PricingType:   PricingTypeDefault,
-			PricingMethod: PricingMethodFixedPrice,
+			Type:   PricingTypeDefault,
+			Method: PricingMethodFixedPrice,
 			Rule:          nil,
 		}
 	}
@@ -251,15 +251,15 @@ func resolvePricing(basePrice int, eligible []PricingRule, productID int, catego
 		UnitPrice:     unitPrice,
 		OriginalPrice: basePrice,
 		Discount:      discount,
-		PricingType:   best.PricingType,
-		PricingMethod: best.PricingMethod,
+		Type:   best.Type,
+		Method: best.Method,
 		Rule:          best,
 	}
 }
 
 // filterEligible filters rules by schedule, quantity range, scope, and active status.
-func filterEligible(rules []PricingRule, quantity int, now time.Time, customerGroupID, storeID *int) []PricingRule {
-	var eligible []PricingRule
+func filterEligible(rules []Rule, quantity int, now time.Time, customerGroupID, storeID *int) []Rule {
+	var eligible []Rule
 	for _, rule := range rules {
 		if !rule.IsActive {
 			continue
@@ -315,7 +315,7 @@ func filterEligible(rules []PricingRule, quantity int, now time.Time, customerGr
 }
 
 // splitByCombine separates eligible rules into combinable and non-combinable.
-func splitByCombine(rules []PricingRule) (combinable, nonCombinable []PricingRule) {
+func splitByCombine(rules []Rule) (combinable, nonCombinable []Rule) {
 	for _, r := range rules {
 		if r.AllowCombine {
 			combinable = append(combinable, r)
@@ -328,7 +328,7 @@ func splitByCombine(rules []PricingRule) (combinable, nonCombinable []PricingRul
 
 // chainCombinable sorts combinable rules by specificity, priority, value, then id
 // and applies each sequentially, mutating running.
-func chainCombinable(rules []PricingRule, productID int, categoryID, brandID *int, running *float64) {
+func chainCombinable(rules []Rule, productID int, categoryID, brandID *int, running *float64) {
 	sort.Slice(rules, func(i, j int) bool {
 		si := specificityScore(rules[i], productID, categoryID, brandID)
 		sj := specificityScore(rules[j], productID, categoryID, brandID)
@@ -353,7 +353,7 @@ func chainCombinable(rules []PricingRule, productID int, categoryID, brandID *in
 // 2. Then by priority DESC
 // 3. Then by pricing_value ASC (best price wins)
 // 4. Then by id ASC (tie-break)
-func selectBestRule(rules []PricingRule, productID int, categoryID, brandID *int) *PricingRule {
+func selectBestRule(rules []Rule, productID int, categoryID, brandID *int) *Rule {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -378,7 +378,7 @@ func selectBestRule(rules []PricingRule, productID int, categoryID, brandID *int
 
 // specificityScore returns a score for scope specificity:
 // product match = 3, category match = 2, brand match = 1, none = 0
-func specificityScore(rule PricingRule, productID int, categoryID, brandID *int) int {
+func specificityScore(rule Rule, productID int, categoryID, brandID *int) int {
 	if rule.ProductID != nil && *rule.ProductID == productID {
 		return 3
 	}
@@ -392,9 +392,9 @@ func specificityScore(rule PricingRule, productID int, categoryID, brandID *int)
 }
 
 // computePrice calculates the final unit price based on the pricing method.
-func computePrice(basePrice int, rule *PricingRule) int {
+func computePrice(basePrice int, rule *Rule) int {
 	var unitPrice float64
-	switch rule.PricingMethod {
+	switch rule.Method {
 	case PricingMethodFixedPrice:
 		unitPrice = rule.PricingValue
 	case PricingMethodDiscountPct:

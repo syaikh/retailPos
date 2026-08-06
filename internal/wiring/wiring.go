@@ -137,17 +137,17 @@ func (a *priceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items 
 			UnitPrice:     snap.UnitPrice,
 			OriginalPrice: snap.OriginalPrice,
 			Discount:      snap.Discount,
-			PricingType:   sale.PricingType(snap.PricingType),
+			Type:   sale.Type(snap.Type),
 			Cost:          snap.Cost,
 			TaxClassID:    snap.TaxClassID,
 			TaxRate:       snap.TaxRate,
 			SnapshotAt:    snap.SnapshotAt,
 		}
 		if snap.Rule != nil {
-			result[i].Rule = &sale.PricingRule{
+			result[i].Rule = &sale.Rule{
 				ID:          snap.Rule.ID,
 				Name:        snap.Rule.Name,
-				PricingType: sale.PricingType(snap.Rule.PricingType),
+				Type: sale.Type(snap.Rule.Type),
 			}
 		}
 	}
@@ -246,23 +246,23 @@ type Dependencies struct {
 	StockOpnameRepo     *stockopname.Repository
 	StorageLocationRepo *storagelocation.Repository
 
-	UserSvc            *user.Service
+	UserSvc            user.Service
 	AuthSvc            *user.AuthService
-	ProductSvc         *product.Service
-	PurchaseSvc        *purchase.Service
-	SaleSvc            *sale.Service
-	InventorySvc       *inventory.Service
-	CustomerSvc        *customer.Service
-	CategorySvc        *category.Service
-	BrandSvc           *brand.Service
-	UOMSvc             *uom.Service
+	ProductSvc         product.Service
+	PurchaseSvc        purchase.Service
+	SaleSvc            sale.Service
+	InventorySvc       inventory.Service
+	CustomerSvc        customer.Service
+	CategorySvc        category.Service
+	BrandSvc           brand.Service
+	UOMSvc             uom.Service
 	AuditSvc           *audit.Service
-	ReportSvc          *report.Service
-	PricingSvc         *pricing.Service
-	SupplierSvc        *supplier.Service
+	ReportSvc          report.Service
+	PricingSvc         pricing.Service
+	SupplierSvc        supplier.Service
 	CustomerGroupSvc   *customergroup.Service
 	StoreSvc           *store.Service
-	ShiftSvc           *shift.Service
+	ShiftSvc           shift.Service
 	StockOpnameSvc     *stockopname.Service
 	StorageLocationSvc *storagelocation.Service
 

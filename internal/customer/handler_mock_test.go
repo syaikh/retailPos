@@ -47,10 +47,13 @@ func (m *mockCustomerService) BulkUpdateCustomersStatus(ctx context.Context, ids
 func (m *mockCustomerService) BulkDeleteCustomers(ctx context.Context, ids []int, storeID *int) error {
 	return m.bulkDeleteFn(ctx, ids, storeID)
 }
+func (m *mockCustomerService) GetByPhone(ctx context.Context, phone string, storeID *int) (*Customer, error) {
+	return nil, nil
+}
 
-var _ CustomerService = (*mockCustomerService)(nil)
+var _ Service = (*mockCustomerService)(nil)
 
-func setupMockRouter(svc CustomerService) *gin.Engine {
+func setupMockRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

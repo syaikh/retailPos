@@ -14,17 +14,17 @@ import (
 func TestWriteCSV(t *testing.T) {
 	tests := []struct {
 		name     string
-		rows     []SaleExportRow
+		rows     []ExportRow
 		wantRows int
 	}{
 		{
 			name:     "empty rows",
-			rows:     []SaleExportRow{},
+			rows:     []ExportRow{},
 			wantRows: 1,
 		},
 		{
 			name: "single row",
-			rows: []SaleExportRow{
+			rows: []ExportRow{
 				{
 					InvoiceNumber: "INV-001",
 					CreatedAt:     "2026-01-15 10:30:00",
@@ -38,7 +38,7 @@ func TestWriteCSV(t *testing.T) {
 		},
 		{
 			name: "multiple rows",
-			rows: []SaleExportRow{
+			rows: []ExportRow{
 				{
 					InvoiceNumber: "INV-001",
 					CreatedAt:     "2026-01-15 10:30:00",
@@ -60,7 +60,7 @@ func TestWriteCSV(t *testing.T) {
 		},
 		{
 			name: "special characters preserved",
-			rows: []SaleExportRow{
+			rows: []ExportRow{
 				{
 					InvoiceNumber: "INV-003",
 					CreatedAt:     "2026-01-15",
@@ -106,15 +106,15 @@ func TestWriteCSV(t *testing.T) {
 func TestWriteXLSX(t *testing.T) {
 	tests := []struct {
 		name string
-		rows []SaleExportRow
+		rows []ExportRow
 	}{
 		{
 			name: "empty rows",
-			rows: []SaleExportRow{},
+			rows: []ExportRow{},
 		},
 		{
 			name: "single row",
-			rows: []SaleExportRow{
+			rows: []ExportRow{
 				{
 					InvoiceNumber: "INV-001",
 					CreatedAt:     "2026-01-15 10:30:00",
@@ -127,7 +127,7 @@ func TestWriteXLSX(t *testing.T) {
 		},
 		{
 			name: "multiple rows",
-			rows: []SaleExportRow{
+			rows: []ExportRow{
 				{
 					InvoiceNumber: "INV-001",
 					CreatedAt:     "2026-01-15 10:30:00",
@@ -175,7 +175,7 @@ func TestWriteXLSX(t *testing.T) {
 }
 
 func TestWriteCSV_SpecialCharactersPreserved(t *testing.T) {
-	rows := []SaleExportRow{
+	rows := []ExportRow{
 		{
 			InvoiceNumber: "=SUM(A1:A2)",
 			CreatedAt:     "2026-01-15",
@@ -199,7 +199,7 @@ func TestWriteCSV_SpecialCharactersPreserved(t *testing.T) {
 }
 
 func TestWriteXLSX_CellValues(t *testing.T) {
-	rows := []SaleExportRow{
+	rows := []ExportRow{
 		{
 			InvoiceNumber: "INV-010",
 			CreatedAt:     "2026-07-13 14:00:00",

@@ -14,7 +14,7 @@ func TestBrandService_ReadOperations(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	brand, err := svc.Create(ctx, &BrandCreateRequest{
+	brand, err := svc.Create(ctx, &CreateRequest{
 		Name: "SvcReadBrand",
 	})
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestBrandService_CreateWithIsActiveFalse(t *testing.T) {
 	ctx := context.Background()
 
 	isActive := false
-	brand, err := svc.Create(ctx, &BrandCreateRequest{
+	brand, err := svc.Create(ctx, &CreateRequest{
 		Name:     "SvcInactiveBrand",
 		IsActive: &isActive,
 	})
@@ -59,7 +59,7 @@ func TestBrandService_UpdateNotFound(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Update(ctx, -1, &BrandUpdateRequest{
+	_, err := svc.Update(ctx, -1, &UpdateRequest{
 		Name: "NonExistent",
 	})
 	assert.Error(t, err)

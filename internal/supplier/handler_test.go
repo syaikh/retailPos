@@ -258,7 +258,7 @@ func TestHandler_GetSuppliersByProduct(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupSupplierRouter()
 	ctx := t.Context()
-	productID := insertTestProduct(t, ctx, "HDL-SP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Handler SP Product", 5000)
+	productID := insertTestProduct(ctx, t, "HDL-SP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Handler SP Product", 5000)
 
 	t.Run("success", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -296,7 +296,7 @@ func TestHandler_LinkProduct(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "HDL-LP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Link Product", 7000)
+	productID := insertTestProduct(ctx, t, "HDL-LP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Link Product", 7000)
 
 	t.Run("success", func(t *testing.T) {
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"unit_cost":6000,"lead_time_days":5,"is_preferred":true}`
@@ -338,7 +338,7 @@ func TestHandler_UnlinkProduct(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "HDL-UP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Unlink Product", 8000)
+	productID := insertTestProduct(ctx, t, "HDL-UP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Unlink Product", 8000)
 
 	ps := &ProductSupplier{
 		ProductID:  productID,
@@ -391,7 +391,7 @@ func TestHandler_UpdateProductSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "HDL-UPS-P-"+strconv.FormatInt(time.Now().UnixNano(), 10), "UPS Product", 9000)
+	productID := insertTestProduct(ctx, t, "HDL-UPS-P-"+strconv.FormatInt(time.Now().UnixNano(), 10), "UPS Product", 9000)
 
 	ps := &ProductSupplier{
 		ProductID:  productID,
@@ -448,7 +448,7 @@ func TestHandler_SetPreferredSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "HDL-PREF-P-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Pref Product", 10000)
+	productID := insertTestProduct(ctx, t, "HDL-PREF-P-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Pref Product", 10000)
 
 	ps := &ProductSupplier{
 		ProductID:  productID,
@@ -661,7 +661,7 @@ func TestHandler_UpdateProductSupplier_ErrorBranches(t *testing.T) {
 	})
 }
 
-func setupSupplierMockRouter(svc SupplierService) *gin.Engine {
+func setupSupplierMockRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(svc, nil)
 	r := gin.New()

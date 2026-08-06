@@ -21,7 +21,7 @@ func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("zero balance returns error", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
+		userID := insertTestUser(ctx, t, 1)
 		shift, err := svc.OpenShift(ctx, userID, nil, 0)
 		assert.Error(t, err)
 		assert.Nil(t, shift)
@@ -29,7 +29,7 @@ func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
 	})
 
 	t.Run("negative balance returns error", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
+		userID := insertTestUser(ctx, t, 1)
 		shift, err := svc.OpenShift(ctx, userID, nil, -50000)
 		assert.Error(t, err)
 		assert.Nil(t, shift)
@@ -37,7 +37,7 @@ func TestShiftService_OpenShift_ValidatesOpeningBalance(t *testing.T) {
 	})
 
 	t.Run("positive balance succeeds", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
+		userID := insertTestUser(ctx, t, 1)
 		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
 		require.NoError(t, err)
 		require.NotNil(t, shift)
@@ -73,7 +73,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("review shift marks as reviewed", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
+		userID := insertTestUser(ctx, t, 1)
 		shift, err := svc.OpenShift(ctx, userID, nil, 100000)
 		require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestShiftService_ReviewShift(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, closed.NeedsReview)
 
-		reviewerID := insertTestUser(t, ctx, 2)
+		reviewerID := insertTestUser(ctx, t, 2)
 		reviewed, err := svc.ReviewShift(ctx, closed.ID, reviewerID)
 		require.NoError(t, err)
 		assert.False(t, reviewed.NeedsReview)
@@ -104,8 +104,8 @@ func TestShiftService_GetActiveShift(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	createOpenShift(ctx, t, repo, userID)
 
 	shift, err := svc.GetActiveShift(ctx, userID)
 	require.NoError(t, err)
@@ -122,8 +122,8 @@ func TestShiftService_GetShiftByID(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	got, err := svc.GetShiftByID(ctx, ownership.Scope{}, shift.ID)
 	require.NoError(t, err)
@@ -139,8 +139,8 @@ func TestShiftService_ListShifts(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	createOpenShift(ctx, t, repo, userID)
 
 	shifts, total, err := svc.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 	require.NoError(t, err)
@@ -157,8 +157,8 @@ func TestShiftService_AuditShift(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	_, _, err := svc.AuditShift(ctx, shift.ID)
 	require.NoError(t, err)
@@ -173,8 +173,8 @@ func TestShiftService_ExportShifts(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	createOpenShift(ctx, t, repo, userID)
 
 	shifts, err := svc.ExportShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "")
 	require.NoError(t, err)
@@ -191,8 +191,8 @@ func TestShiftService_CloseAll(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns closed shift ids", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		createOpenShift(ctx, t, repo, userID)
 
 		ids, err := svc.CloseAll(ctx, userID)
 		require.NoError(t, err)

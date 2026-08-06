@@ -11,18 +11,18 @@ type Category struct {
 	UpdatedAt    string `json:"updated_at,omitempty"`
 }
 
-type CategoryCreateRequest struct {
+type CreateRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
 }
 
-type CategoryUpdateRequest struct {
+type UpdateRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
 
-type CategoryImportRow struct {
+type ImportRow struct {
 	Row         int
 	Name        string
 	Slug        string

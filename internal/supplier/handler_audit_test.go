@@ -18,11 +18,11 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
-	lastLog          *audit.AuditLog
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
+	lastLog          *audit.Log
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	m.lastLog = log
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
@@ -149,7 +149,7 @@ func (m *mockSupplierServiceForAudit) BulkDelete(ctx context.Context, ids []int)
 	return 0, nil
 }
 
-func requireAuditLog(t *testing.T, auditSvc *mockAuditCreator) *audit.AuditLog {
+func requireAuditLog(t *testing.T, auditSvc *mockAuditCreator) *audit.Log {
 	t.Helper()
 	assert.NotNil(t, auditSvc.lastLog, "expected audit log to be created")
 	return auditSvc.lastLog

@@ -15,10 +15,10 @@ import (
 
 type Handler struct {
 	svc      *Service
-	auditSvc audit.AuditCreator
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -102,11 +102,11 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        body  body      CustomerGroupCreateRequest  true  "Customer Group data"
+// @Param        body  body      CreateRequest  true  "Customer Group data"
 // @Success      201   {object}  map[string]interface{}
 // @Router       /customer-groups [post]
 func (h *Handler) Create(c *gin.Context) {
-	var req CustomerGroupCreateRequest
+	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -119,7 +119,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -144,7 +144,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id    path      int                          true  "Customer Group ID"
-// @Param        body  body      CustomerGroupUpdateRequest   true  "Update data"
+// @Param        body  body      UpdateRequest   true  "Update data"
 // @Success      200   {object}  map[string]interface{}
 // @Router       /customer-groups/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
@@ -154,7 +154,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	var req CustomerGroupUpdateRequest
+	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -167,7 +167,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -207,7 +207,7 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -250,7 +250,7 @@ func (h *Handler) BulkUpdate(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -292,7 +292,7 @@ func (h *Handler) BulkDelete(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

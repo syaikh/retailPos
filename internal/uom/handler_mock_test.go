@@ -18,8 +18,8 @@ type mockUOMService struct {
 	getAllFn          func(ctx context.Context) ([]UnitOfMeasure, error)
 	getAllPaginatedFn func(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error)
 	getByIDFn         func(ctx context.Context, id int) (*UnitOfMeasure, error)
-	createFn          func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error)
-	updateFn          func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error)
+	createFn          func(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error)
+	updateFn          func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error)
 	deleteFn          func(ctx context.Context, id int) error
 }
 
@@ -32,19 +32,22 @@ func (m *mockUOMService) GetAllPaginated(ctx context.Context, limit, offset int,
 func (m *mockUOMService) GetByID(ctx context.Context, id int) (*UnitOfMeasure, error) {
 	return m.getByIDFn(ctx, id)
 }
-func (m *mockUOMService) Create(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
+func (m *mockUOMService) GetIDByCode(ctx context.Context, code string) (int, error) {
+	return 0, errors.New("not implemented")
+}
+func (m *mockUOMService) Create(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error) {
 	return m.createFn(ctx, req)
 }
-func (m *mockUOMService) Update(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+func (m *mockUOMService) Update(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 	return m.updateFn(ctx, id, req)
 }
 func (m *mockUOMService) Delete(ctx context.Context, id int) error {
 	return m.deleteFn(ctx, id)
 }
 
-var _ UOMService = (*mockUOMService)(nil)
+var _ Service = (*mockUOMService)(nil)
 
-func setupMockUOMRouter(svc UOMService) *gin.Engine {
+func setupMockUOMRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -103,7 +106,7 @@ func TestMockUOMHandler_ListUnitsOfMeasure(t *testing.T) {
 func TestMockUOMHandler_CreateUnitOfMeasure(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUOMService{
-			createFn: func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error) {
 				return &UnitOfMeasure{ID: 1, Code: req.Code, Name: req.Name}, nil
 			},
 		}
@@ -127,7 +130,7 @@ func TestMockUOMHandler_CreateUnitOfMeasure(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUOMService{
-			createFn: func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error) {
 				return nil, errors.New("duplicate")
 			},
 		}
@@ -144,7 +147,7 @@ func TestMockUOMHandler_CreateUnitOfMeasure(t *testing.T) {
 func TestMockUOMHandler_UpdateUnitOfMeasure(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockUOMService{
-			updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 				return &UnitOfMeasure{ID: id, Code: req.Code, Name: req.Name}, nil
 			},
 		}
@@ -168,7 +171,7 @@ func TestMockUOMHandler_UpdateUnitOfMeasure(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockUOMService{
-			updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 				return nil, errors.New("not found")
 			},
 		}
@@ -237,7 +240,7 @@ func TestMockUOMHandler_DeleteUnitOfMeasure_ServiceError(t *testing.T) {
 
 func TestMockUOMHandler_UpdateUnitOfMeasure_SuccessIsActive(t *testing.T) {
 	svc := &mockUOMService{
-		updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 			assert.Equal(t, 5, id)
 			assert.Equal(t, "L", req.Code)
 			assert.Equal(t, "Liter", req.Name)

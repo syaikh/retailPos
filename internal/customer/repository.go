@@ -266,13 +266,13 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 	return customers, nil
 }
 
-func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []CustomerImportRow, storeID *int) ImportResult {
+func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []ImportRow, storeID *int) ImportResult {
 	result := ImportResult{Errors: []string{}}
 	if len(records) == 0 {
 		return result
 	}
 
-	validRecords := make([]CustomerImportRow, 0, len(records))
+	validRecords := make([]ImportRow, 0, len(records))
 	for _, rec := range records {
 		if rec.Name == "" {
 			result.AddError(rec.Row, "Name is required")
@@ -312,8 +312,8 @@ func (r *Repository) BulkUpsertCustomers(ctx context.Context, records []Customer
 	}
 
 	var updateIDs []int
-	var updateRecords []CustomerImportRow
-	var insertRecords []CustomerImportRow
+	var updateRecords []ImportRow
+	var insertRecords []ImportRow
 
 	for _, rec := range validRecords {
 		if id, ok := existingMap[rec.Phone]; ok {

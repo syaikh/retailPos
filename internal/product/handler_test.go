@@ -63,7 +63,7 @@ type mockProductAudit struct {
 	called bool
 }
 
-func (m *mockProductAudit) CreateAuditLog(_ context.Context, _ *audit.AuditLog) error {
+func (m *mockProductAudit) CreateAuditLog(_ context.Context, _ *audit.Log) error {
 	m.called = true
 	return nil
 }

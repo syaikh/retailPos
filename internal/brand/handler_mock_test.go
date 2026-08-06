@@ -18,8 +18,8 @@ type mockBrandService struct {
 	getAllFn          func(ctx context.Context) ([]Brand, error)
 	getAllPaginatedFn func(ctx context.Context, limit, offset int, search string) ([]Brand, int, error)
 	getByIDFn         func(ctx context.Context, id int) (*Brand, error)
-	createFn          func(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
-	updateFn          func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	createFn          func(ctx context.Context, req *CreateRequest) (*Brand, error)
+	updateFn          func(ctx context.Context, id int, req *UpdateRequest) (*Brand, error)
 	deleteFn          func(ctx context.Context, id int) error
 }
 
@@ -32,19 +32,22 @@ func (m *mockBrandService) GetAllPaginated(ctx context.Context, limit, offset in
 func (m *mockBrandService) GetByID(ctx context.Context, id int) (*Brand, error) {
 	return m.getByIDFn(ctx, id)
 }
-func (m *mockBrandService) Create(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+func (m *mockBrandService) GetIDByName(ctx context.Context, name string) (int, error) {
+	return 0, errors.New("not implemented")
+}
+func (m *mockBrandService) Create(ctx context.Context, req *CreateRequest) (*Brand, error) {
 	return m.createFn(ctx, req)
 }
-func (m *mockBrandService) Update(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+func (m *mockBrandService) Update(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 	return m.updateFn(ctx, id, req)
 }
 func (m *mockBrandService) Delete(ctx context.Context, id int) error {
 	return m.deleteFn(ctx, id)
 }
 
-var _ BrandService = (*mockBrandService)(nil)
+var _ Service = (*mockBrandService)(nil)
 
-func setupMockBrandRouter(svc BrandService) *gin.Engine {
+func setupMockBrandRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -103,7 +106,7 @@ func TestMockBrandHandler_ListBrands(t *testing.T) {
 func TestMockBrandHandler_CreateBrand(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockBrandService{
-			createFn: func(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*Brand, error) {
 				return &Brand{ID: 1, Name: req.Name}, nil
 			},
 		}
@@ -127,7 +130,7 @@ func TestMockBrandHandler_CreateBrand(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockBrandService{
-			createFn: func(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*Brand, error) {
 				return nil, errors.New("duplicate")
 			},
 		}
@@ -144,7 +147,7 @@ func TestMockBrandHandler_CreateBrand(t *testing.T) {
 func TestMockBrandHandler_UpdateBrand(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockBrandService{
-			updateFn: func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 				return &Brand{ID: id, Name: req.Name}, nil
 			},
 		}
@@ -168,7 +171,7 @@ func TestMockBrandHandler_UpdateBrand(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockBrandService{
-			updateFn: func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 				return nil, errors.New("not found")
 			},
 		}

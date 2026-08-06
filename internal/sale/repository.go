@@ -29,7 +29,7 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.db.Begin(ctx)
 }
 
-func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
+func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
 		INSERT INTO sales (invoice_number, cashier_id, store_id, customer_id, shift_id, subtotal, discount, tax, total_amount, payment_method, status)
@@ -57,7 +57,7 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 			rows[i] = []interface{}{
 				sale.ID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal,
 				item.DPPAmount, item.TaxAmount,
-				item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.PricingType,
+				item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.Type,
 				origPrice,
 				item.Cost, item.TaxClassID, item.TaxRate,
 				time.Now(), productName,
@@ -77,7 +77,7 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 	return nil
 }
 
-func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []SalePayment) error {
+func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []Payment) error {
 	if len(payments) == 0 {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (r *Repository) CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID i
 	return nil
 }
 
-func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID int, totalAmount int, payments []SalePayment) error {
+func (r *Repository) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, shiftID int, totalAmount int, payments []Payment) error {
 	cashSales := 0
 	nonCashSales := 0
 	for _, p := range payments {
@@ -323,7 +323,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 			itemRows, err := r.db.Query(ctx, itemQuery, args3...)
 			if err == nil {
 				for itemRows.Next() {
-					var item SaleItem
+					var item Item
 					err = itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal)
 					if err == nil {
 						if s, ok := saleMap[item.SaleID]; ok {
@@ -339,7 +339,7 @@ func (r *Repository) GetAllSales(ctx context.Context, limit, offset int, search 
 	return sales, total, nil
 }
 
-func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
+func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
 	qb := r.buildSaleFilter(search, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, nil)
 	query := `SELECT s.invoice_number, s.created_at, COALESCE(c.name, '') as customer_name,
 		COALESCE(si_counts.cnt, 0) as items_count,
@@ -360,9 +360,9 @@ func (r *Repository) GetSalesForExport(ctx context.Context, search, startDate, e
 	}
 	defer rows.Close()
 
-	var result []SaleExportRow
+	var result []ExportRow
 	for rows.Next() {
-		var row SaleExportRow
+		var row ExportRow
 		var createdAt time.Time
 		if err := rows.Scan(&row.InvoiceNumber, &createdAt, &row.CustomerName, &row.ItemCount, &row.PaymentMethod, &row.TotalAmount); err != nil {
 			return nil, fmt.Errorf("scan sale export row: %w", err)
@@ -543,7 +543,7 @@ func (r *Repository) GetParkedSales(ctx context.Context, cashierID int) ([]Sale,
 			slog.Warn("failed to load items for parked sales", "error", err)
 		} else {
 			for itemRows.Next() {
-				var item SaleItem
+				var item Item
 				if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
 					slog.Warn("failed to scan item row for parked sale", "sale_id", item.SaleID, "error", scanErr)
 					continue
@@ -593,7 +593,7 @@ func (r *Repository) GetParkedSaleByID(ctx context.Context, id int, cashierID in
 		slog.Warn("failed to load items for parked sale by id", "sale_id", sale.ID, "error", err)
 	} else {
 		for itemRows.Next() {
-			var item SaleItem
+			var item Item
 			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
 				slog.Warn("failed to scan item row for parked sale", "sale_id", sale.ID, "error", scanErr)
 				continue
@@ -640,7 +640,7 @@ func (r *Repository) RecallSale(ctx context.Context, saleID int) (*Sale, error) 
 		slog.Warn("failed to load items for recalled sale", "sale_id", sale.ID, "error", err)
 	} else {
 		for itemRows.Next() {
-			var item SaleItem
+			var item Item
 			if scanErr := itemRows.Scan(&item.ID, &item.SaleID, &item.ProductID, &item.Name, &item.Quantity, &item.UnitPrice, &item.Subtotal); scanErr != nil {
 				slog.Warn("failed to scan item row for recalled sale", "sale_id", sale.ID, "error", scanErr)
 				continue

@@ -61,7 +61,7 @@ type StockAdjustment struct {
 	QuantityChange int
 }
 
-type InventoryMovement struct {
+type Movement struct {
 	ID          int    `json:"id"`
 	ProductID   int    `json:"product_id"`
 	Quantity    int    `json:"quantity_change"`

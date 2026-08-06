@@ -40,7 +40,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	if v, ok := row["IsActive"]; ok {
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
-	return UOMImportRow{
+	return ImportRow{
 		Row:         rowNum,
 		Code:        code,
 		Name:        name,
@@ -58,9 +58,9 @@ type uomRepoAdapter struct {
 }
 
 func (r *uomRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]UOMImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(UOMImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsert(ctx, rows)
 	if len(result.Errors) > 0 {
@@ -70,9 +70,9 @@ func (r *uomRepoAdapter) Insert(ctx context.Context, entities []interface{}) (in
 }
 
 func (r *uomRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]UOMImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(UOMImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsert(ctx, rows)
 	if len(result.Errors) > 0 {

@@ -26,7 +26,7 @@ func (s *Service) GetAllActive(ctx context.Context) ([]CustomerGroup, error) {
 	return s.repo.GetAllActive(ctx)
 }
 
-func (s *Service) Create(ctx context.Context, req CustomerGroupCreateRequest) (*CustomerGroup, error) {
+func (s *Service) Create(ctx context.Context, req CreateRequest) (*CustomerGroup, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -52,7 +52,7 @@ func (s *Service) Create(ctx context.Context, req CustomerGroupCreateRequest) (*
 	return s.repo.GetByID(ctx, cg.ID)
 }
 
-func (s *Service) Update(ctx context.Context, id int, req CustomerGroupUpdateRequest) (*CustomerGroup, error) {
+func (s *Service) Update(ctx context.Context, id int, req UpdateRequest) (*CustomerGroup, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("customer group not found")

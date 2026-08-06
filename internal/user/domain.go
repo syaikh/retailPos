@@ -55,7 +55,7 @@ type LoginResponse struct {
 	User         User   `json:"user"`
 }
 
-type UserWithPermissions struct {
+type WithPermissions struct {
 	ID                int      `json:"id"`
 	Username          string   `json:"username"`
 	Role              string   `json:"role"`

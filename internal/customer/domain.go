@@ -20,7 +20,7 @@ type Customer struct {
 	UpdatedAt         string  `json:"updated_at,omitempty"`
 }
 
-type CustomerCreateRequest struct {
+type CreateRequest struct {
 	Name            string  `json:"name"`
 	Phone           string  `json:"phone,omitempty"`
 	Email           string  `json:"email,omitempty"`
@@ -30,7 +30,7 @@ type CustomerCreateRequest struct {
 	Note            *string `json:"note,omitempty"`
 }
 
-type CustomerUpdateRequest struct {
+type UpdateRequest struct {
 	Name            *string `json:"name,omitempty"`
 	Phone           *string `json:"phone,omitempty"`
 	Email           *string `json:"email,omitempty"`
@@ -41,7 +41,7 @@ type CustomerUpdateRequest struct {
 	IsActive        *bool   `json:"is_active,omitempty"`
 }
 
-type CustomerImportRow struct {
+type ImportRow struct {
 	Row             int
 	Name            string
 	Phone           string

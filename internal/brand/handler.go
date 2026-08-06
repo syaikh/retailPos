@@ -14,21 +14,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type BrandService interface {
+type Service interface {
 	GetByID(ctx context.Context, id int) (*Brand, error)
 	GetAll(ctx context.Context) ([]Brand, error)
 	GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error)
-	Create(ctx context.Context, req *BrandCreateRequest) (*Brand, error)
-	Update(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error)
+	GetIDByName(ctx context.Context, name string) (int, error)
+	Create(ctx context.Context, req *CreateRequest) (*Brand, error)
+	Update(ctx context.Context, id int, req *UpdateRequest) (*Brand, error)
 	Delete(ctx context.Context, id int) error
 }
 
 type Handler struct {
-	svc      BrandService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc BrandService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -66,7 +67,7 @@ func (h *Handler) ListBrands(c *gin.Context) {
 }
 
 func (h *Handler) CreateBrand(c *gin.Context) {
-	var req BrandCreateRequest
+	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,7 +81,7 @@ func (h *Handler) CreateBrand(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -108,7 +109,7 @@ func (h *Handler) UpdateBrand(c *gin.Context) {
 		oldBrand, _ = h.svc.GetByID(c.Request.Context(), id)
 	}
 
-	var req BrandUpdateRequest
+	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -122,7 +123,7 @@ func (h *Handler) UpdateBrand(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -166,7 +167,7 @@ func (h *Handler) DeleteBrand(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted brand #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

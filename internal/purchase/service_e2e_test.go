@@ -19,18 +19,18 @@ func TestE2E_MultiItemGoodsReceiptAdjustsStockViaEvent(t *testing.T) {
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 
-	supplierID := insertTestSupplier(t, ctx, "E2E Multi Supplier")
-	prodA := insertTestProduct(t, ctx, "E2E-MULTI-A", "E2E Product A", 10000, 100)
-	prodB := insertTestProduct(t, ctx, "E2E-MULTI-B", "E2E Product B", 12000, 200)
-	userID := insertTestUser(t, ctx, "e2e_multi_user")
+	supplierID := insertTestSupplier(ctx, t, "E2E Multi Supplier")
+	prodA := insertTestProduct(ctx, t, "E2E-MULTI-A", "E2E Product A", 10000, 100)
+	prodB := insertTestProduct(ctx, t, "E2E-MULTI-B", "E2E Product B", 12000, 200)
+	userID := insertTestUser(ctx, t, "e2e_multi_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{ProductID: prodA, QtyOrdered: 10, UnitCost: 8000, ProductName: "E2E Product A", SKU: "E2E-MULTI-A"},
 		{ProductID: prodB, QtyOrdered: 5, UnitCost: 9000, ProductName: "E2E Product B", SKU: "E2E-MULTI-B"},
 	}
@@ -71,18 +71,18 @@ func TestE2E_PartialReceiptAcrossItemsAdjustsStockViaEvent(t *testing.T) {
 	invSvc := inventory.NewService(invRepo, bus)
 	bus.Subscribe(inventory.NewPurchaseReceiptListener(invRepo, invSvc))
 
-	supplierID := insertTestSupplier(t, ctx, "E2E Partial Supplier")
-	prodA := insertTestProduct(t, ctx, "E2E-PART-A", "E2E Partial A", 10000, 50)
-	prodB := insertTestProduct(t, ctx, "E2E-PART-B", "E2E Partial B", 12000, 60)
-	userID := insertTestUser(t, ctx, "e2e_partial_user")
+	supplierID := insertTestSupplier(ctx, t, "E2E Partial Supplier")
+	prodA := insertTestProduct(ctx, t, "E2E-PART-A", "E2E Partial A", 10000, 50)
+	prodB := insertTestProduct(ctx, t, "E2E-PART-B", "E2E Partial B", 12000, 60)
+	userID := insertTestUser(ctx, t, "e2e_partial_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{ProductID: prodA, QtyOrdered: 10, UnitCost: 8000, ProductName: "E2E Partial A", SKU: "E2E-PART-A"},
 		{ProductID: prodB, QtyOrdered: 10, UnitCost: 9000, ProductName: "E2E Partial B", SKU: "E2E-PART-B"},
 	}

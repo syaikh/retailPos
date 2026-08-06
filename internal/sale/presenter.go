@@ -27,7 +27,7 @@ func presentSale(s *Sale, canViewCost bool) any {
 	if s.Items != nil {
 		ps.Items = make([]saleItemWithoutCost, 0, len(s.Items))
 		for _, it := range s.Items {
-			ps.Items = append(ps.Items, saleItemWithoutCost{SaleItem: it})
+			ps.Items = append(ps.Items, saleItemWithoutCost{Item: it})
 		}
 	}
 	return ps
@@ -68,10 +68,10 @@ type saleWithoutCost struct {
 	Items []saleItemWithoutCost `json:"items,omitempty"`
 }
 
-// saleItemWithoutCost embeds SaleItem and shadows the promoted Cost field with
+// saleItemWithoutCost embeds Item and shadows the promoted Cost field with
 // a nil + omitempty field so encoding/json omits `cost` from the payload.
 type saleItemWithoutCost struct {
-	SaleItem
+	Item
 	Cost *int `json:"cost,omitempty"`
 }
 

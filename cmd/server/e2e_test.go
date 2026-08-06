@@ -735,13 +735,13 @@ func TestE2E_PricingRulesCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var resp struct {
-			Data pricing.PricingRule `json:"data"`
+			Data pricing.Rule `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "E2E Discount Rule", resp.Data.Name)
-		assert.Equal(t, pricing.PricingTypePromotion, resp.Data.PricingType)
-		assert.Equal(t, pricing.PricingMethodDiscountPct, resp.Data.PricingMethod)
+		assert.Equal(t, pricing.PricingTypePromotion, resp.Data.Type)
+		assert.Equal(t, pricing.PricingMethodDiscountPct, resp.Data.Method)
 		assert.Equal(t, 10.0, resp.Data.PricingValue)
 		ruleID = resp.Data.ID
 	})
@@ -763,7 +763,7 @@ func TestE2E_PricingRulesCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data pricing.PricingRule `json:"data"`
+			Data pricing.Rule `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)

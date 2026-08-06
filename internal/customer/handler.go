@@ -18,7 +18,8 @@ import (
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
-type CustomerService interface {
+type Service interface {
+	GetByPhone(ctx context.Context, phone string, storeID *int) (*Customer, error)
 	GetAllCustomers(ctx context.Context, limit, offset int, search string, isActive *bool, storeID *int, customerGroupID *int) ([]Customer, int, error)
 	GetCustomerByID(ctx context.Context, id int, storeID *int) (*Customer, error)
 	CreateCustomer(ctx context.Context, customer *Customer, storeID *int) error
@@ -29,11 +30,11 @@ type CustomerService interface {
 }
 
 type Handler struct {
-	svc      CustomerService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc CustomerService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -184,7 +185,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -279,7 +280,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -333,7 +334,7 @@ func (h *Handler) DeleteCustomer(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted customer #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

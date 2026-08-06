@@ -36,7 +36,7 @@ type TaxClass struct {
 	CreatedAt   string  `json:"created_at,omitempty"`
 }
 
-type ProductImportRow struct {
+type ImportRow struct {
 	Row           int
 	SKU           string
 	Name          string
@@ -53,7 +53,7 @@ type ProductImportRow struct {
 	StoreID       int
 }
 
-type ProductImportPayload struct {
+type ImportPayload struct {
 	SKU             string
 	Name            string
 	Barcode         *string
@@ -79,7 +79,7 @@ type Warehouse struct {
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
-type ProductOption struct {
+type Option struct {
 	ID   int    `json:"id"`
 	SKU  string `json:"sku"`
 	Name string `json:"name"`

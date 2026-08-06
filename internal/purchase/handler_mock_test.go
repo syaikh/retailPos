@@ -15,25 +15,25 @@ import (
 )
 
 type mockPurchaseService struct {
-	createDraft        func(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error
-	updateDraft        func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error
+	createDraft        func(ctx context.Context, po *Order, items []OrderItem) error
+	updateDraft        func(ctx context.Context, id int, po *Order, items []OrderItem) error
 	deleteDraft        func(ctx context.Context, id int) error
 	confirm            func(ctx context.Context, id, userID int) error
 	cancel             func(ctx context.Context, id, userID int) error
-	getDetail          func(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error)
-	list               func(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error)
+	getDetail          func(ctx context.Context, id int, storeID *int) (*Order, error)
+	list               func(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error)
 	getReceipts        func(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error)
 	createGoodsReceipt func(ctx context.Context, poID, userID, storeID int, items []CreateGRItemInput) (*GoodsReceipt, error)
 }
 
-func (m *mockPurchaseService) CreateDraft(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (m *mockPurchaseService) CreateDraft(ctx context.Context, po *Order, items []OrderItem) error {
 	if m.createDraft == nil {
 		return nil
 	}
 	return m.createDraft(ctx, po, items)
 }
 
-func (m *mockPurchaseService) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (m *mockPurchaseService) UpdateDraft(ctx context.Context, id int, po *Order, items []OrderItem) error {
 	if m.updateDraft == nil {
 		return nil
 	}
@@ -61,16 +61,16 @@ func (m *mockPurchaseService) Cancel(ctx context.Context, id, userID int) error 
 	return m.cancel(ctx, id, userID)
 }
 
-func (m *mockPurchaseService) GetDetail(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error) {
+func (m *mockPurchaseService) GetDetail(ctx context.Context, id int, storeID *int) (*Order, error) {
 	if m.getDetail == nil {
-		return &PurchaseOrder{PONumber: "PO-MOCK-001"}, nil
+		return &Order{PONumber: "PO-MOCK-001"}, nil
 	}
 	return m.getDetail(ctx, id, storeID)
 }
 
-func (m *mockPurchaseService) List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error) {
+func (m *mockPurchaseService) List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error) {
 	if m.list == nil {
-		return []PurchaseOrder{}, 0, nil
+		return []Order{}, 0, nil
 	}
 	return m.list(ctx, limit, offset, search, sortBy, sortDir, status, supplierID, startDate, endDate, storeID)
 }
@@ -89,7 +89,11 @@ func (m *mockPurchaseService) CreateGoodsReceipt(ctx context.Context, poID, user
 	return m.createGoodsReceipt(ctx, poID, userID, storeID, items)
 }
 
-func setupHandlerMock(t *testing.T, svc PurchaseService) *gin.Engine {
+func (m *mockPurchaseService) SetProductLookup(l ProductLookup) {}
+
+func (m *mockPurchaseService) SetSupplierLookup(l SupplierLookup) {}
+
+func setupHandlerMock(t *testing.T, svc Service) *gin.Engine {
 	t.Helper()
 	auditRepo := audit.NewRepository(dbPool)
 	auditSvc := audit.NewService(auditRepo)
@@ -114,7 +118,7 @@ func setupHandlerMock(t *testing.T, svc PurchaseService) *gin.Engine {
 }
 
 func TestHandlerMock_ErrorBranches(t *testing.T) {
-	boom := func(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error) {
+	boom := func(ctx context.Context, id int, storeID *int) (*Order, error) {
 		return nil, assert.AnError
 	}
 
@@ -192,7 +196,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("list internal error", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			list: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error) {
+			list: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error) {
 				return nil, 0, assert.AnError
 			},
 		}
@@ -267,7 +271,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("create draft validation error maps to 400", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			createDraft: func(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			createDraft: func(ctx context.Context, po *Order, items []OrderItem) error {
 				return fmt.Errorf("%w: items cannot be empty", ErrInvalidInput)
 			},
 		}
@@ -281,7 +285,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("create draft duplicate item maps to 400", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			createDraft: func(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			createDraft: func(ctx context.Context, po *Order, items []OrderItem) error {
 				return ErrDuplicatePOItem
 			},
 		}
@@ -295,7 +299,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("create draft generic error stays 500", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			createDraft: func(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			createDraft: func(ctx context.Context, po *Order, items []OrderItem) error {
 				return assert.AnError
 			},
 		}
@@ -309,7 +313,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("update draft validation error maps to 400", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			updateDraft: func(ctx context.Context, id int, po *Order, items []OrderItem) error {
 				return fmt.Errorf("%w: qty_ordered must be greater than 0 for product 1", ErrInvalidInput)
 			},
 		}
@@ -323,7 +327,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("update draft duplicate item maps to 400", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			updateDraft: func(ctx context.Context, id int, po *Order, items []OrderItem) error {
 				return ErrDuplicatePOItem
 			},
 		}
@@ -337,7 +341,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("update draft not found maps to 404", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			updateDraft: func(ctx context.Context, id int, po *Order, items []OrderItem) error {
 				return ErrPurchaseOrderNotFound
 			},
 		}
@@ -351,7 +355,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("update draft not draft maps to 409", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			updateDraft: func(ctx context.Context, id int, po *Order, items []OrderItem) error {
 				return ErrPurchaseOrderNotDraft
 			},
 		}
@@ -365,7 +369,7 @@ func TestHandlerMock_ErrorBranches(t *testing.T) {
 
 	t.Run("update draft generic error stays 500", func(t *testing.T) {
 		svc := &mockPurchaseService{
-			updateDraft: func(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+			updateDraft: func(ctx context.Context, id int, po *Order, items []OrderItem) error {
 				return assert.AnError
 			},
 		}

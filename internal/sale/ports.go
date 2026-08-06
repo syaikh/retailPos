@@ -12,8 +12,8 @@ type PriceResolver interface {
 	ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error)
 }
 
-// PricingType is a classification label for the applied pricing.
-type PricingType string
+// Type is a classification label for the applied pricing.
+type Type string
 
 // ResolveItem is the minimal input for resolving a price snapshot.
 type ResolveItem struct {
@@ -23,11 +23,11 @@ type ResolveItem struct {
 	StoreID         *int
 }
 
-// PricingRule is the subset of a pricing rule carried by a cart snapshot.
-type PricingRule struct {
+// Rule is the subset of a pricing rule carried by a cart snapshot.
+type Rule struct {
 	ID          int
 	Name        string
-	PricingType PricingType
+	Type Type
 }
 
 // PriceSnapshot is the immutable result of a price resolution for a single item.
@@ -38,8 +38,8 @@ type PriceSnapshot struct {
 	UnitPrice     int
 	OriginalPrice int
 	Discount      int
-	PricingType   PricingType
-	Rule          *PricingRule
+	Type   Type
+	Rule          *Rule
 	Cost          int
 	TaxClassID    *int
 	TaxRate       *float64

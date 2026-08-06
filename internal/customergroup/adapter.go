@@ -36,7 +36,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
 	color, _ := row["Color"].(string)
-	return CustomerGroupImportRow{
+	return ImportRow{
 		Row:         rowNum,
 		Name:        name,
 		Description: desc,
@@ -54,9 +54,9 @@ type cgRepoAdapter struct {
 }
 
 func (r *cgRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CustomerGroupImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CustomerGroupImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsertCustomerGroups(ctx, rows)
 	if len(result.Errors) > 0 {
@@ -66,9 +66,9 @@ func (r *cgRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int
 }
 
 func (r *cgRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CustomerGroupImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CustomerGroupImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsertCustomerGroups(ctx, rows)
 	if len(result.Errors) > 0 {

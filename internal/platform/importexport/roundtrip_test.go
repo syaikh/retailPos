@@ -82,7 +82,7 @@ func truncate(tables ...string) {
 	_ = shared.TruncateAll(dbPool, tables...)
 }
 
-func pollUntilDone(t *testing.T, ctx context.Context, jobID int64) *progress.Progress {
+func pollUntilDone(ctx context.Context, t *testing.T, jobID int64) *progress.Progress {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
@@ -162,7 +162,7 @@ func doRoundtrip(t *testing.T, module string, s schema.ModuleSchema, rows []map[
 	require.NoError(t, err)
 	require.Greater(t, jobID, int64(0))
 
-	p := pollUntilDone(t, ctx, jobID)
+	p := pollUntilDone(ctx, t, jobID)
 	assert.Equal(t, progress.StatusCompleted, p.Status)
 }
 
@@ -330,7 +330,7 @@ func TestRoundtrip_Products_100Rows(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, jobID, int64(0))
 
-	p := pollUntilDone(t, ctx, jobID)
+	p := pollUntilDone(ctx, t, jobID)
 	assert.Equal(t, progress.StatusCompleted, p.Status)
 
 	var count int

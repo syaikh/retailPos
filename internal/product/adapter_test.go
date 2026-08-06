@@ -36,7 +36,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    ProductImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -56,7 +56,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"WeightGrams":   "250",
 				"Description":   "A premium widget",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:           1,
 				SKU:           "SKU-001",
 				Name:          "Widget Pro",
@@ -118,7 +118,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Name":  "DefaultStatus",
 				"Price": "2000",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    6,
 				SKU:    "SKU-006",
 				Name:   "DefaultStatus",
@@ -135,7 +135,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Price":  "3000",
 				"Status": "inactive",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    7,
 				SKU:    "SKU-007",
 				Name:   "InactiveItem",
@@ -151,7 +151,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Name":  "Minimal",
 				"Price": "0",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    8,
 				SKU:    "SKU-008",
 				Name:   "Minimal",
@@ -165,7 +165,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Name":  "NoRowProduct",
 				"Price": "5000",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    0,
 				SKU:    "SKU-009",
 				Name:   "NoRowProduct",
@@ -181,7 +181,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Name":  "FloatPrice",
 				"Price": "99.99",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    10,
 				SKU:    "SKU-010",
 				Name:   "FloatPrice",
@@ -196,7 +196,7 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				"Name":  "BadPrice",
 				"Price": "not-a-number",
 			},
-			want: ProductImportRow{
+			want: ImportRow{
 				Row:    11,
 				SKU:    "SKU-011",
 				Name:   "BadPrice",
@@ -216,8 +216,8 @@ func TestProductAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(ProductImportRow)
-			require.True(t, ok, "expected ProductImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -271,7 +271,7 @@ func ptrInt(i int) *int {
 	return &i
 }
 
-func seedProductReferences(t *testing.T, ctx context.Context) {
+func seedProductReferences(ctx context.Context, t *testing.T) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx, `INSERT INTO categories (name, slug, description, is_active) VALUES ('TestCat', 'testcat', 'Test category', true) ON CONFLICT (name) DO NOTHING`)
 	require.NoError(t, err)
@@ -283,7 +283,7 @@ func seedProductReferences(t *testing.T, ctx context.Context) {
 
 func TestProductAdapter_Insert_Success(t *testing.T) {
 	ctx := context.Background()
-	seedProductReferences(t, ctx)
+	seedProductReferences(ctx, t)
 
 	repo := NewRepository(dbPool)
 	catRepo := category.NewRepository(dbPool)
@@ -294,7 +294,7 @@ func TestProductAdapter_Insert_Success(t *testing.T) {
 	ra := adapter.Repository()
 
 	rows := []interface{}{
-		ProductImportRow{
+		ImportRow{
 			Row: 1, SKU: "TEST-SKU-001", Name: "Test Product 1",
 			Category: "TestCat", Brand: "TestBrand", Price: 10000, Cost: 7000, Stock: 50,
 			Status: "active", UnitOfMeasure: "PCSP",
@@ -313,7 +313,7 @@ func TestProductAdapter_Insert_Success(t *testing.T) {
 
 func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
 	ctx := context.Background()
-	seedProductReferences(t, ctx)
+	seedProductReferences(ctx, t)
 
 	repo := NewRepository(dbPool)
 	catRepo := category.NewRepository(dbPool)
@@ -324,7 +324,7 @@ func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
 	ra := adapter.Repository()
 
 	rows := []interface{}{
-		ProductImportRow{
+		ImportRow{
 			Row: 1, SKU: "TEST-SKU-002", Name: "Test Product 2",
 			Category: "NonExistentCat", Brand: "TestBrand", Price: 10000, Cost: 7000, Stock: 50,
 			Status: "active", UnitOfMeasure: "PCSP",
@@ -338,7 +338,7 @@ func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
 
 func TestProductAdapter_Update_Success(t *testing.T) {
 	ctx := context.Background()
-	seedProductReferences(t, ctx)
+	seedProductReferences(ctx, t)
 
 	repo := NewRepository(dbPool)
 	catRepo := category.NewRepository(dbPool)
@@ -355,7 +355,7 @@ func TestProductAdapter_Update_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := []interface{}{
-		ProductImportRow{
+		ImportRow{
 			Row: 1, SKU: "TEST-SKU-UPDATE", Name: "After Update",
 			Category: "TestCat", Brand: "TestBrand", Price: 15000, Cost: 8000, Stock: 30,
 			Status: "active", UnitOfMeasure: "PCSP",
@@ -374,7 +374,7 @@ func TestProductAdapter_Update_Success(t *testing.T) {
 
 func TestProductAdapter_ExportData_Success(t *testing.T) {
 	ctx := context.Background()
-	seedProductReferences(t, ctx)
+	seedProductReferences(ctx, t)
 
 	repo := NewRepository(dbPool)
 	catRepo := category.NewRepository(dbPool)
@@ -483,7 +483,7 @@ func newTestRefAdapters(catRepo *category.Repository, brandRepo *brand.Repositor
 
 func TestProductAdapter_LoadReferences_Success(t *testing.T) {
 	ctx := context.Background()
-	seedProductReferences(t, ctx)
+	seedProductReferences(ctx, t)
 
 	repo := NewRepository(dbPool)
 	catRepo := category.NewRepository(dbPool)

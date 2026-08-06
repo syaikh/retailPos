@@ -84,8 +84,8 @@ const saleSummarySQL = `
 	  AND s.status = 'completed'
 `
 
-func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (ShiftSummary, error) {
-	var summary ShiftSummary
+func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (Summary, error) {
+	var summary Summary
 	err := r.db.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
 		&summary.TotalCashSales, &summary.TotalNonCashSales,
 		&summary.TotalSales, &summary.TotalTransactions,
@@ -93,8 +93,8 @@ func (r *Repository) getShiftSalesSummary(ctx context.Context, shiftID int) (Shi
 	return summary, err
 }
 
-func (r *Repository) getShiftSalesSummaryTx(ctx context.Context, tx pgx.Tx, shiftID int) (ShiftSummary, error) {
-	var summary ShiftSummary
+func (r *Repository) getShiftSalesSummaryTx(ctx context.Context, tx pgx.Tx, shiftID int) (Summary, error) {
+	var summary Summary
 	err := tx.QueryRow(ctx, saleSummarySQL, shiftID).Scan(
 		&summary.TotalCashSales, &summary.TotalNonCashSales,
 		&summary.TotalSales, &summary.TotalTransactions,

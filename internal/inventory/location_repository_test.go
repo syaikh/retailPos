@@ -10,7 +10,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-func createTestWarehouse(t *testing.T, ctx context.Context, code string) int {
+func createTestWarehouse(ctx context.Context, t *testing.T, code string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -20,7 +20,7 @@ func createTestWarehouse(t *testing.T, ctx context.Context, code string) int {
 	return id
 }
 
-func createTestStore(t *testing.T, ctx context.Context, name string) int {
+func createTestStore(ctx context.Context, t *testing.T, name string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -30,7 +30,7 @@ func createTestStore(t *testing.T, ctx context.Context, name string) int {
 	return id
 }
 
-func createTestLocation(t *testing.T, ctx context.Context, code, name string, warehouseID, storeID *int, active bool) int {
+func createTestLocation(ctx context.Context, t *testing.T, code, name string, warehouseID, storeID *int, active bool) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -41,7 +41,7 @@ func createTestLocation(t *testing.T, ctx context.Context, code, name string, wa
 	return id
 }
 
-func globalStock(t *testing.T, ctx context.Context, productID int) (int, bool) {
+func globalStock(ctx context.Context, t *testing.T, productID int) (int, bool) {
 	t.Helper()
 	var qty int
 	err := dbPool.QueryRow(ctx, `
@@ -54,7 +54,7 @@ func globalStock(t *testing.T, ctx context.Context, productID int) (int, bool) {
 	return qty, true
 }
 
-func rackStock(t *testing.T, ctx context.Context, productID, locationID int) (int, bool) {
+func rackStock(ctx context.Context, t *testing.T, productID, locationID int) (int, bool) {
 	t.Helper()
 	var qty int
 	err := dbPool.QueryRow(ctx, `
@@ -72,19 +72,19 @@ func TestLocationStock_SetRecordsRackRow_GlobalUnchanged(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-SET-001")
-	insertTestStock(t, ctx, productID, 50)
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-SET-WH")
-	locID := createTestLocation(t, ctx, "LOC-SET-RACK", "Rack Set", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-SET-001")
+	insertTestStock(ctx, t, productID, 50)
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-SET-WH")
+	locID := createTestLocation(ctx, t, "LOC-SET-RACK", "Rack Set", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 12, 1))
 
-	qty, ok := rackStock(t, ctx, productID, locID)
+	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)
 	assert.Equal(t, 12, qty)
 
-	global, ok := globalStock(t, ctx, productID)
+	global, ok := globalStock(ctx, t, productID)
 	require.True(t, ok)
 	assert.Equal(t, 50, global)
 
@@ -107,15 +107,15 @@ func TestLocationStock_SetUpdatesExistingRow(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-SET-002")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-SET-WH2")
-	locID := createTestLocation(t, ctx, "LOC-SET-RACK2", "Rack Set 2", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-SET-002")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-SET-WH2")
+	locID := createTestLocation(ctx, t, "LOC-SET-RACK2", "Rack Set 2", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 5, 1))
 	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 8, 1))
 
-	qty, ok := rackStock(t, ctx, productID, locID)
+	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)
 	assert.Equal(t, 8, qty)
 
@@ -134,7 +134,7 @@ func TestLocationStock_SetUpdatesExistingRow(t *testing.T) {
 	require.NoError(t, rows.Err())
 	assert.Equal(t, []int{5, 3}, changes)
 
-	global, ok := globalStock(t, ctx, productID)
+	global, ok := globalStock(ctx, t, productID)
 	require.False(t, ok)
 	assert.Equal(t, 0, global)
 }
@@ -144,11 +144,11 @@ func TestLocationStock_SetErrors(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-SET-003")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-SET-WH3")
-	activeLoc := createTestLocation(t, ctx, "LOC-SET-ACT", "Rack Active", &whID, nil, true)
-	inactiveLoc := createTestLocation(t, ctx, "LOC-SET-INA", "Rack Inactive", &whID, nil, false)
+	productID := insertTestProduct(ctx, t, "LOC-SET-003")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-SET-WH3")
+	activeLoc := createTestLocation(ctx, t, "LOC-SET-ACT", "Rack Active", &whID, nil, true)
+	inactiveLoc := createTestLocation(ctx, t, "LOC-SET-INA", "Rack Inactive", &whID, nil, false)
 
 	t.Run("negative quantity", func(t *testing.T) {
 		assert.Error(t, repo.SetLocationStock(ctx, productID, activeLoc, -1, 1))
@@ -166,23 +166,23 @@ func TestLocationStock_TransferMovesBetweenRacks_GlobalUnchanged(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-TFR-001")
-	insertTestStock(t, ctx, productID, 100)
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-TFR-WH")
-	from := createTestLocation(t, ctx, "LOC-TFR-A", "Rack A", &whID, nil, true)
-	to := createTestLocation(t, ctx, "LOC-TFR-B", "Rack B", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-TFR-001")
+	insertTestStock(ctx, t, productID, 100)
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-TFR-WH")
+	from := createTestLocation(ctx, t, "LOC-TFR-A", "Rack A", &whID, nil, true)
+	to := createTestLocation(ctx, t, "LOC-TFR-B", "Rack B", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 30, 1))
 	require.NoError(t, repo.SetLocationStock(ctx, productID, to, 10, 1))
 	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 7, 1))
 
-	fromQty, _ := rackStock(t, ctx, productID, from)
-	toQty, _ := rackStock(t, ctx, productID, to)
+	fromQty, _ := rackStock(ctx, t, productID, from)
+	toQty, _ := rackStock(ctx, t, productID, to)
 	assert.Equal(t, 23, fromQty)
 	assert.Equal(t, 17, toQty)
 
-	global, ok := globalStock(t, ctx, productID)
+	global, ok := globalStock(ctx, t, productID)
 	require.True(t, ok)
 	assert.Equal(t, 100, global)
 
@@ -198,11 +198,11 @@ func TestLocationStock_TransferErrors(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-TFR-002")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-TFR-WH2")
-	from := createTestLocation(t, ctx, "LOC-TFR-A2", "Rack A2", &whID, nil, true)
-	to := createTestLocation(t, ctx, "LOC-TFR-B2", "Rack B2", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-TFR-002")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-TFR-WH2")
+	from := createTestLocation(ctx, t, "LOC-TFR-A2", "Rack A2", &whID, nil, true)
+	to := createTestLocation(ctx, t, "LOC-TFR-B2", "Rack B2", &whID, nil, true)
 
 	t.Run("insufficient source", func(t *testing.T) {
 		require.NoError(t, repo.SetLocationStock(ctx, productID, from, 3, 1))
@@ -224,12 +224,12 @@ func TestLocationStock_ListFilters(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productA := insertTestProduct(t, ctx, "LOC-LST-001")
-	productB := insertTestProduct(t, ctx, "LOC-LST-002")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-LST-WH")
-	locA := createTestLocation(t, ctx, "LOC-LST-A", "Rack List A", &whID, nil, true)
-	locB := createTestLocation(t, ctx, "LOC-LST-B", "Rack List B", &whID, nil, true)
+	productA := insertTestProduct(ctx, t, "LOC-LST-001")
+	productB := insertTestProduct(ctx, t, "LOC-LST-002")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-LST-WH")
+	locA := createTestLocation(ctx, t, "LOC-LST-A", "Rack List A", &whID, nil, true)
+	locB := createTestLocation(ctx, t, "LOC-LST-B", "Rack List B", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productA, locA, 4, 1))
 	require.NoError(t, repo.SetLocationStock(ctx, productA, locB, 6, 1))
@@ -271,17 +271,17 @@ func TestLocationStock_TransferToEmptyRackCreatesRow(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-TFR-003")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-TFR-WH3")
-	from := createTestLocation(t, ctx, "LOC-TFR-A3", "Rack A3", &whID, nil, true)
-	to := createTestLocation(t, ctx, "LOC-TFR-B3", "Rack B3", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-TFR-003")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-TFR-WH3")
+	from := createTestLocation(ctx, t, "LOC-TFR-A3", "Rack A3", &whID, nil, true)
+	to := createTestLocation(ctx, t, "LOC-TFR-B3", "Rack B3", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 10, 1))
 	require.NoError(t, repo.TransferLocationStock(ctx, productID, from, to, 4, 1))
 
-	fromQty, _ := rackStock(t, ctx, productID, from)
-	toQty, ok := rackStock(t, ctx, productID, to)
+	fromQty, _ := rackStock(ctx, t, productID, from)
+	toQty, ok := rackStock(ctx, t, productID, to)
 	require.True(t, ok, "destination rack row must be created on transfer")
 	assert.Equal(t, 6, fromQty)
 	assert.Equal(t, 4, toQty)
@@ -292,11 +292,11 @@ func TestLocationStock_TransferInvalidQuantity(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-TFR-004")
-	insertTestUser(t, ctx, 1)
-	whID := createTestWarehouse(t, ctx, "LOC-TFR-WH4")
-	from := createTestLocation(t, ctx, "LOC-TFR-A4", "Rack A4", &whID, nil, true)
-	to := createTestLocation(t, ctx, "LOC-TFR-B4", "Rack B4", &whID, nil, true)
+	productID := insertTestProduct(ctx, t, "LOC-TFR-004")
+	insertTestUser(ctx, t, 1)
+	whID := createTestWarehouse(ctx, t, "LOC-TFR-WH4")
+	from := createTestLocation(ctx, t, "LOC-TFR-A4", "Rack A4", &whID, nil, true)
+	to := createTestLocation(ctx, t, "LOC-TFR-B4", "Rack B4", &whID, nil, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, from, 5, 1))
 
@@ -323,14 +323,14 @@ func TestLocationStock_StoreOnlyRack(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, ctx, "LOC-STO-001")
-	insertTestUser(t, ctx, 1)
-	storeID := createTestStore(t, ctx, "LOC-STO")
-	locID := createTestLocation(t, ctx, "LOC-STO-RACK", "Store Rack", nil, &storeID, true)
+	productID := insertTestProduct(ctx, t, "LOC-STO-001")
+	insertTestUser(ctx, t, 1)
+	storeID := createTestStore(ctx, t, "LOC-STO")
+	locID := createTestLocation(ctx, t, "LOC-STO-RACK", "Store Rack", nil, &storeID, true)
 
 	require.NoError(t, repo.SetLocationStock(ctx, productID, locID, 7, 1))
 
-	qty, ok := rackStock(t, ctx, productID, locID)
+	qty, ok := rackStock(ctx, t, productID, locID)
 	require.True(t, ok)
 	assert.Equal(t, 7, qty)
 

@@ -102,7 +102,7 @@ func TestResolveReferences(t *testing.T) {
 	uomMap := map[string]int{"PCS": 3}
 
 	t.Run("valid row", func(t *testing.T) {
-		row := ProductImportRow{
+		row := ImportRow{
 			Row: 1, SKU: "SKU001", Name: "Phone", Category: "Electronics",
 			Brand: "Samsung", Price: 1000, Cost: 500, Stock: 10,
 			Status: "active", UnitOfMeasure: "PCS", WeightGrams: 200,
@@ -125,56 +125,56 @@ func TestResolveReferences(t *testing.T) {
 	})
 
 	t.Run("missing category", func(t *testing.T) {
-		row := ProductImportRow{Row: 2, SKU: "SKU002", Name: "Item", Category: "Nonexistent", Price: 100}
+		row := ImportRow{Row: 2, SKU: "SKU002", Name: "Item", Category: "Nonexistent", Price: 100}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "category")
 	})
 
 	t.Run("missing brand", func(t *testing.T) {
-		row := ProductImportRow{Row: 3, SKU: "SKU003", Name: "Item", Brand: "Nonexistent", Price: 100}
+		row := ImportRow{Row: 3, SKU: "SKU003", Name: "Item", Brand: "Nonexistent", Price: 100}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "brand")
 	})
 
 	t.Run("missing UoM", func(t *testing.T) {
-		row := ProductImportRow{Row: 4, SKU: "SKU004", Name: "Item", UnitOfMeasure: "NONEXISTENT", Price: 100}
+		row := ImportRow{Row: 4, SKU: "SKU004", Name: "Item", UnitOfMeasure: "NONEXISTENT", Price: 100}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unit of measure")
 	})
 
 	t.Run("empty name", func(t *testing.T) {
-		row := ProductImportRow{Row: 5, SKU: "SKU005", Name: "", Price: 100}
+		row := ImportRow{Row: 5, SKU: "SKU005", Name: "", Price: 100}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "name is required")
 	})
 
 	t.Run("negative price", func(t *testing.T) {
-		row := ProductImportRow{Row: 6, SKU: "SKU006", Name: "Item", Price: -1}
+		row := ImportRow{Row: 6, SKU: "SKU006", Name: "Item", Price: -1}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "price must not be negative")
 	})
 
 	t.Run("negative cost", func(t *testing.T) {
-		row := ProductImportRow{Row: 7, SKU: "SKU007", Name: "Item", Cost: -5}
+		row := ImportRow{Row: 7, SKU: "SKU007", Name: "Item", Cost: -5}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cost must not be negative")
 	})
 
 	t.Run("negative stock", func(t *testing.T) {
-		row := ProductImportRow{Row: 8, SKU: "SKU008", Name: "Item", Stock: -10}
+		row := ImportRow{Row: 8, SKU: "SKU008", Name: "Item", Stock: -10}
 		_, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "stock must not be negative")
 	})
 
 	t.Run("empty refs become nil pointers", func(t *testing.T) {
-		row := ProductImportRow{Row: 9, SKU: "SKU009", Name: "Item", Price: 100}
+		row := ImportRow{Row: 9, SKU: "SKU009", Name: "Item", Price: 100}
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.NoError(t, err)
 		assert.Nil(t, payload.CategoryID)
@@ -184,21 +184,21 @@ func TestResolveReferences(t *testing.T) {
 	})
 
 	t.Run("status normalization", func(t *testing.T) {
-		row := ProductImportRow{Row: 10, SKU: "SKU010", Name: "Item", Price: 100, Status: "ACTIVE"}
+		row := ImportRow{Row: 10, SKU: "SKU010", Name: "Item", Price: 100, Status: "ACTIVE"}
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.NoError(t, err)
 		assert.Equal(t, "active", payload.Status)
 	})
 
 	t.Run("default status", func(t *testing.T) {
-		row := ProductImportRow{Row: 11, SKU: "SKU011", Name: "Item", Price: 100, Status: ""}
+		row := ImportRow{Row: 11, SKU: "SKU011", Name: "Item", Price: 100, Status: ""}
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.NoError(t, err)
 		assert.Equal(t, "active", payload.Status)
 	})
 
 	t.Run("storeID > 0 becomes pointer", func(t *testing.T) {
-		row := ProductImportRow{Row: 12, SKU: "SKU012", Name: "Item", Price: 100, StoreID: 5}
+		row := ImportRow{Row: 12, SKU: "SKU012", Name: "Item", Price: 100, StoreID: 5}
 		payload, err := r.resolveReferences(row, catMap, brandMap, uomMap)
 		require.NoError(t, err)
 		assert.NotNil(t, payload.StoreID)

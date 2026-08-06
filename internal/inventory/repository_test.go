@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertTestProduct(t *testing.T, ctx context.Context, sku string) int {
+func insertTestProduct(ctx context.Context, t *testing.T, sku string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -45,7 +45,7 @@ func insertTestProduct(t *testing.T, ctx context.Context, sku string) int {
 	return id
 }
 
-func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int) {
+func insertTestStock(ctx context.Context, t *testing.T, productID, quantity int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)`,
@@ -54,7 +54,7 @@ func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int)
 	require.NoError(t, err)
 }
 
-func insertTestUser(t *testing.T, ctx context.Context, id int) {
+func insertTestUser(ctx context.Context, t *testing.T, id int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO users (id, username, email, password_hash, role_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
@@ -68,8 +68,8 @@ func TestInventoryRepository_GetStockByProductID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("found", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-GET-001")
-		insertTestStock(t, ctx, productID, 25)
+		productID := insertTestProduct(ctx, t, "REPO-GET-001")
+		insertTestStock(ctx, t, productID, 25)
 
 		stock, err := repo.GetStockByProductID(ctx, productID)
 		require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestInventoryRepository_GetStockByProductID(t *testing.T) {
 	})
 
 	t.Run("with nullable columns populated", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-GET-NP-001")
+		productID := insertTestProduct(ctx, t, "REPO-GET-NP-001")
 		_, err := dbPool.Exec(ctx,
 			`INSERT INTO product_stock (product_id, reorder_point, reorder_quantity, last_restocked_at, quantity)
 			 VALUES ($1, 5, 10, NOW(), 100)`,
@@ -108,8 +108,8 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("increase stock", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-ADJ-INC-001")
-		insertTestStock(t, ctx, productID, 10)
+		productID := insertTestProduct(ctx, t, "REPO-ADJ-INC-001")
+		insertTestStock(ctx, t, productID, 10)
 
 		err := repo.AdjustStock(ctx, productID, 5, nil, "test increase")
 		require.NoError(t, err)
@@ -120,8 +120,8 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("decrease stock", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-ADJ-DEC-001")
-		insertTestStock(t, ctx, productID, 20)
+		productID := insertTestProduct(ctx, t, "REPO-ADJ-DEC-001")
+		insertTestStock(ctx, t, productID, 20)
 
 		err := repo.AdjustStock(ctx, productID, -8, nil, "test decrease")
 		require.NoError(t, err)
@@ -132,8 +132,8 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("insufficient stock", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-ADJ-INSF-001")
-		insertTestStock(t, ctx, productID, 5)
+		productID := insertTestProduct(ctx, t, "REPO-ADJ-INSF-001")
+		insertTestStock(ctx, t, productID, 5)
 
 		err := repo.AdjustStock(ctx, productID, -10, nil, "overdraft")
 		assert.ErrorContains(t, err, "insufficient stock")
@@ -149,7 +149,7 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("creates row if none exists", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-ADJ-CREATE-001")
+		productID := insertTestProduct(ctx, t, "REPO-ADJ-CREATE-001")
 
 		err := repo.AdjustStock(ctx, productID, 30, nil, "initial stock")
 		require.NoError(t, err)
@@ -160,9 +160,9 @@ func TestInventoryRepository_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("with user ID", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "REPO-ADJ-USER-001")
-		insertTestStock(t, ctx, productID, 100)
-		insertTestUser(t, ctx, 1)
+		productID := insertTestProduct(ctx, t, "REPO-ADJ-USER-001")
+		insertTestStock(ctx, t, productID, 100)
+		insertTestUser(ctx, t, 1)
 		userID := 1
 
 		err := repo.AdjustStock(ctx, productID, -10, &userID, "user adjustment")

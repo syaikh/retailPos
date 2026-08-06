@@ -19,17 +19,17 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type SaleService interface {
-	CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error
-	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error
+type Service interface {
+	CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
+	CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error
 	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
 	ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal *int, cashierID *int) ([]Sale, int, error)
-	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
+	GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
 	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	GetNextInvoiceNumber(ctx context.Context) (string, error)
 	GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error)
 	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
-	ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error
+	ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error
 	RecallSale(ctx context.Context, saleID int) (*Sale, error)
 	CancelParkedSale(ctx context.Context, saleID int) error
 	ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
@@ -47,14 +47,18 @@ type SaleService interface {
 	ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
+
+	SetCartConfig(cfg CartConfig)
+	SetPriceStore(ps ProductPriceGetter)
+	SetPriceResolver(r PriceResolver)
 }
 
 type Handler struct {
-	svc      SaleService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc SaleService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -139,14 +143,14 @@ func (h *Handler) CreateSale(c *gin.Context) {
 		// CheckoutCartWithPaymentMethod derives the amount from the recomputed
 		// sale total inside the checkout transaction (no lock-free pre-read).
 		if len(req.Payments) == 0 && req.PaymentMethod != "" {
-			h.createSaleFromCartWithPaymentMethod(c, ctx, *req.CartSessionID, req.PaymentMethod, cashierID, storeIDPtr)
+			h.createSaleFromCartWithPaymentMethod(ctx, c, *req.CartSessionID, req.PaymentMethod, cashierID, storeIDPtr)
 			return
 		}
 		payments := make([]CreatePaymentRequest, len(req.Payments))
 		for i, p := range req.Payments {
 			payments[i] = CreatePaymentRequest(p)
 		}
-		h.createSaleFromCart(c, ctx, *req.CartSessionID, payments, cashierID, storeIDPtr)
+		h.createSaleFromCart(ctx, c, *req.CartSessionID, payments, cashierID, storeIDPtr)
 		return
 	}
 
@@ -166,13 +170,13 @@ func (h *Handler) CreateSale(c *gin.Context) {
 	}
 
 	var subtotal int
-	items := make([]SaleItem, 0, len(req.Items))
+	items := make([]Item, 0, len(req.Items))
 	for _, item := range req.Items {
 		unitPrice := 0
 		if item.Quantity > 0 {
 			unitPrice = item.Subtotal / item.Quantity
 		}
-		items = append(items, SaleItem{
+		items = append(items, Item{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
 			UnitPrice: unitPrice,
@@ -244,7 +248,7 @@ func (h *Handler) CreateSale(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -268,17 +272,17 @@ func (h *Handler) CreateSale(c *gin.Context) {
 // createSaleFromCart handles POST /sales with cart_session_id (RT-16 case 3).
 // It delegates to CheckoutCart so the sale is built from immutable snapshots,
 // deducts stock, validates payments, and marks the cart as checked out.
-func (h *Handler) createSaleFromCart(c *gin.Context, ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int, storeIDPtr *int) {
+func (h *Handler) createSaleFromCart(ctx context.Context, c *gin.Context, cartID int, payments []CreatePaymentRequest, cashierID int, storeIDPtr *int) {
 	sale, err := h.svc.CheckoutCart(ctx, cartID, payments, cashierID)
-	h.respondSaleFromCart(c, ctx, sale, err, cartID, storeIDPtr)
+	h.respondSaleFromCart(ctx, c, sale, err, cartID, storeIDPtr)
 }
 
-func (h *Handler) createSaleFromCartWithPaymentMethod(c *gin.Context, ctx context.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
+func (h *Handler) createSaleFromCartWithPaymentMethod(ctx context.Context, c *gin.Context, cartID int, paymentMethod string, cashierID int, storeIDPtr *int) {
 	sale, err := h.svc.CheckoutCartWithPaymentMethod(ctx, cartID, paymentMethod, cashierID)
-	h.respondSaleFromCart(c, ctx, sale, err, cartID, storeIDPtr)
+	h.respondSaleFromCart(ctx, c, sale, err, cartID, storeIDPtr)
 }
 
-func (h *Handler) respondSaleFromCart(c *gin.Context, ctx context.Context, sale *Sale, err error, cartID int, storeIDPtr *int) {
+func (h *Handler) respondSaleFromCart(ctx context.Context, c *gin.Context, sale *Sale, err error, cartID int, storeIDPtr *int) {
 	if err != nil {
 		h.cartError(c, err)
 		return
@@ -286,7 +290,7 @@ func (h *Handler) respondSaleFromCart(c *gin.Context, ctx context.Context, sale 
 
 	if h.auditSvc != nil {
 		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(ctx),
 			Role:        middleware.RoleFromContext(ctx),
@@ -571,13 +575,13 @@ func (h *Handler) ParkSale(c *gin.Context) {
 	}
 
 	var subtotal int
-	items := make([]SaleItem, 0, len(req.Items))
+	items := make([]Item, 0, len(req.Items))
 	for _, item := range req.Items {
 		unitPrice := 0
 		if item.Quantity > 0 {
 			unitPrice = item.Subtotal / item.Quantity
 		}
-		items = append(items, SaleItem{
+		items = append(items, Item{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
 			UnitPrice: unitPrice,

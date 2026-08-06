@@ -17,7 +17,7 @@ func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) CreateAuditLog(ctx context.Context, log *AuditLog) error {
+func (r *Repository) CreateAuditLog(ctx context.Context, log *Log) error {
 	var ipAddr interface{}
 	if log.IPAddress != "" {
 		ipAddr = log.IPAddress
@@ -57,8 +57,8 @@ func (r *Repository) GetDistinctEntityTypes(ctx context.Context) ([]string, erro
 	return types, nil
 }
 
-func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]AuditLogListItem, int, error) {
-	var logs []AuditLogListItem
+func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]LogListItem, int, error) {
+	var logs []LogListItem
 	var total int
 
 	query := `SELECT COUNT(*) FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
@@ -137,7 +137,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 	defer rows.Close()
 
 	for rows.Next() {
-		var al AuditLogListItem
+		var al LogListItem
 		err = rows.Scan(&al.ID, &al.UserID, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description)
 		if err != nil {
 			slog.Error("error scanning audit log row", "error", err)
@@ -151,8 +151,8 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 	return logs, total, nil
 }
 
-func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*AuditLog, error) {
-	var al AuditLog
+func (r *Repository) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {
+	var al Log
 	err := r.db.QueryRow(ctx, `
 		SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '')
 		FROM audit_logs al

@@ -36,7 +36,7 @@ const (
 	EventGoodsReceiptCreated DomainEvent = "goods_receipt.created"
 )
 
-type PurchaseOrder struct {
+type Order struct {
 	ID                      int                 `json:"id"`
 	PONumber                string              `json:"po_number"`
 	SupplierID              int                 `json:"supplier_id"`
@@ -68,10 +68,10 @@ type PurchaseOrder struct {
 	UpdatedBy               int                 `json:"updated_by"`
 	CreatedAt               string              `json:"created_at"`
 	UpdatedAt               string              `json:"updated_at"`
-	Items                   []PurchaseOrderItem `json:"items,omitempty"`
+	Items                   []OrderItem `json:"items,omitempty"`
 }
 
-type PurchaseOrderItem struct {
+type OrderItem struct {
 	ID              int    `json:"id"`
 	PurchaseOrderID int    `json:"purchase_order_id"`
 	ProductID       int    `json:"product_id"`

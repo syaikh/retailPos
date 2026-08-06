@@ -45,7 +45,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr, ok := entity.(StoreImportRow)
+		sr, ok := entity.(ImportRow)
 		require.True(t, ok)
 		assert.Equal(t, "Test Store", sr.Name)
 		assert.Equal(t, "123 St", sr.Address)
@@ -80,7 +80,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.True(t, sr.IsActive)
 	})
 
@@ -92,7 +92,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.False(t, sr.IsActive)
 	})
 
@@ -104,7 +104,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.True(t, sr.IsActive)
 	})
 
@@ -116,7 +116,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.False(t, sr.IsActive)
 	})
 
@@ -128,7 +128,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.True(t, sr.IsActive)
 	})
 
@@ -139,7 +139,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
-		sr := entity.(StoreImportRow)
+		sr := entity.(ImportRow)
 		assert.True(t, sr.IsActive)
 	})
 }
@@ -159,8 +159,8 @@ func TestAdapter_Insert(t *testing.T) {
 	r := a.Repository()
 
 	entities := []interface{}{
-		StoreImportRow{Row: 1, Name: "Adapter Store 1", Address: "Addr1", Phone: "111", IsActive: true},
-		StoreImportRow{Row: 2, Name: "Adapter Store 2", Address: "Addr2", Phone: "222", IsActive: false},
+		ImportRow{Row: 1, Name: "Adapter Store 1", Address: "Addr1", Phone: "111", IsActive: true},
+		ImportRow{Row: 2, Name: "Adapter Store 2", Address: "Addr2", Phone: "222", IsActive: false},
 	}
 	count, err := r.Insert(context.Background(), entities)
 	require.NoError(t, err)
@@ -187,7 +187,7 @@ func TestAdapter_Update_Existing(t *testing.T) {
 	require.NoError(t, err)
 
 	entities := []interface{}{
-		StoreImportRow{Row: 1, Name: "Adapter Update Target", Address: "New Addr", Phone: "999", IsActive: false},
+		ImportRow{Row: 1, Name: "Adapter Update Target", Address: "New Addr", Phone: "999", IsActive: false},
 	}
 	count, err := r.Update(context.Background(), entities)
 	require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestAdapter_Update_InsertWhenNotFound(t *testing.T) {
 	r := a.Repository()
 
 	entities := []interface{}{
-		StoreImportRow{Row: 1, Name: "Adapter Upsert Brand New", Address: "Brand New Addr", Phone: "555", IsActive: true},
+		ImportRow{Row: 1, Name: "Adapter Upsert Brand New", Address: "Brand New Addr", Phone: "555", IsActive: true},
 	}
 	count, err := r.Update(context.Background(), entities)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func Test_parseBool(t *testing.T) {
 
 func TestStoreImportRow_Structure(t *testing.T) {
 	skipIfNoDB(t)
-	row := StoreImportRow{
+	row := ImportRow{
 		Row:      1,
 		Name:     "Struct",
 		Address:  "Addr",

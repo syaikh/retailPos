@@ -275,7 +275,7 @@ func (r *Repository) InsertCartItem(ctx context.Context, tx pgx.Tx, item *CartIt
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, snapshot_created_at, created_at, updated_at
 	`, item.CartSessionID, item.ProductID, item.ProductName, item.Quantity, item.UnitPrice, item.OriginalPrice,
-		item.Discount, item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.PricingType,
+		item.Discount, item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.Type,
 		item.Cost, item.TaxClassID, item.TaxRate, item.SnapshotCreatedAt, item.Subtotal, item.DPPAmount, item.TaxAmount).
 		Scan(&item.ID, &snapshotCreatedAt, &createdAt, &updatedAt)
 	if err != nil {
@@ -344,7 +344,7 @@ func scanCartItem(row pgx.Row) (*CartItem, error) {
 	}
 	if pricingType.Valid {
 		s := pricingType.String
-		item.PricingType = &s
+		item.Type = &s
 	}
 	if taxClassID.Valid {
 		v := int(taxClassID.Int64)

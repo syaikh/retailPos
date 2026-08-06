@@ -26,7 +26,7 @@ func (s *Service) GetAllActive(ctx context.Context) ([]StorageLocation, error) {
 	return s.repo.GetAllActive(ctx)
 }
 
-func (s *Service) Create(ctx context.Context, req StorageLocationCreateRequest) (*StorageLocation, error) {
+func (s *Service) Create(ctx context.Context, req CreateRequest) (*StorageLocation, error) {
 	code := strings.TrimSpace(req.Code)
 	name := strings.TrimSpace(req.Name)
 	if code == "" {
@@ -65,7 +65,7 @@ func (s *Service) Create(ctx context.Context, req StorageLocationCreateRequest) 
 	return s.repo.GetByID(ctx, sl.ID)
 }
 
-func (s *Service) Update(ctx context.Context, id int, req StorageLocationUpdateRequest) (*StorageLocation, error) {
+func (s *Service) Update(ctx context.Context, id int, req UpdateRequest) (*StorageLocation, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("storage location not found")

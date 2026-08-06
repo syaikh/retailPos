@@ -281,8 +281,8 @@ func TestProductRepository_GetProductsByIDs(t *testing.T) {
 	t.Run("returns products matching ids", func(t *testing.T) {
 		p1 := &Product{SKU: uniqueSKU("BYIDS-1"), Name: "Batch A", Price: 1000, Cost: 500, Stock: 5, Status: "active"}
 		p2 := &Product{SKU: uniqueSKU("BYIDS-2"), Name: "Batch B", Price: 2000, Cost: 1000, Stock: 10, Status: "active"}
-		seedTestProduct(t, repo, ctx, p1)
-		seedTestProduct(t, repo, ctx, p2)
+		seedTestProduct(ctx, repo, t, p1)
+		seedTestProduct(ctx, repo, t, p2)
 
 		products, err := repo.GetProductsByIDs(ctx, []int{p1.ID, p2.ID})
 		require.NoError(t, err)

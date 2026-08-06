@@ -82,7 +82,7 @@ func TestService_Create_Success(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	code := "SVC-CREATE-" + t.Name()
 	warehouseID := whID
-	result, err := svc.Create(ctx, StorageLocationCreateRequest{Code: code, Name: "Svc Create", WarehouseID: &warehouseID})
+	result, err := svc.Create(ctx, CreateRequest{Code: code, Name: "Svc Create", WarehouseID: &warehouseID})
 	require.NoError(t, err)
 	assert.Equal(t, code, result.Code)
 	assert.Greater(t, result.ID, 0)
@@ -98,7 +98,7 @@ func TestService_Create_EmptyCode(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	whID := createTestWarehouse(t, "SVC")
 	warehouseID := whID
-	_, err := svc.Create(ctx, StorageLocationCreateRequest{Code: "  ", Name: "No Code", WarehouseID: &warehouseID})
+	_, err := svc.Create(ctx, CreateRequest{Code: "  ", Name: "No Code", WarehouseID: &warehouseID})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "code is required")
 }
@@ -112,7 +112,7 @@ func TestService_Create_EmptyName(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	whID := createTestWarehouse(t, "SVC")
 	warehouseID := whID
-	_, err := svc.Create(ctx, StorageLocationCreateRequest{Code: "SVC-NONAME", Name: "  ", WarehouseID: &warehouseID})
+	_, err := svc.Create(ctx, CreateRequest{Code: "SVC-NONAME", Name: "  ", WarehouseID: &warehouseID})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 }
@@ -123,7 +123,7 @@ func TestService_Create_NoScope(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, StorageLocationCreateRequest{Code: "SVC-NOSCOPE", Name: "No Scope"})
+	_, err := svc.Create(ctx, CreateRequest{Code: "SVC-NOSCOPE", Name: "No Scope"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "warehouse_id or store_id is required")
 }
@@ -135,7 +135,7 @@ func TestService_Create_InvalidWarehouse(t *testing.T) {
 	ctx := context.Background()
 
 	invalid := 999999
-	_, err := svc.Create(ctx, StorageLocationCreateRequest{Code: "SVC-BADWH", Name: "Bad WH", WarehouseID: &invalid})
+	_, err := svc.Create(ctx, CreateRequest{Code: "SVC-BADWH", Name: "Bad WH", WarehouseID: &invalid})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "warehouse not found")
 }
@@ -147,7 +147,7 @@ func TestService_Create_InvalidStore(t *testing.T) {
 	ctx := context.Background()
 
 	invalid := 999999
-	_, err := svc.Create(ctx, StorageLocationCreateRequest{Code: "SVC-BADSTORE", Name: "Bad Store", StoreID: &invalid})
+	_, err := svc.Create(ctx, CreateRequest{Code: "SVC-BADSTORE", Name: "Bad Store", StoreID: &invalid})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "store not found")
 }
@@ -162,11 +162,11 @@ func TestService_Create_DuplicateCode(t *testing.T) {
 	whID := createTestWarehouse(t, "SVC")
 	code := "SVC-DUP-" + t.Name()
 	warehouseID := whID
-	result, err := svc.Create(ctx, StorageLocationCreateRequest{Code: code, Name: "Dup", WarehouseID: &warehouseID})
+	result, err := svc.Create(ctx, CreateRequest{Code: code, Name: "Dup", WarehouseID: &warehouseID})
 	require.NoError(t, err)
 	defer func() { _ = repo.Delete(ctx, result.ID) }()
 
-	_, err = svc.Create(ctx, StorageLocationCreateRequest{Code: code, Name: "Dup2", WarehouseID: &warehouseID})
+	_, err = svc.Create(ctx, CreateRequest{Code: code, Name: "Dup2", WarehouseID: &warehouseID})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -184,7 +184,7 @@ func TestService_Update_Success(t *testing.T) {
 	defer func() { _ = repo.Delete(ctx, sl.ID) }()
 
 	newName := "Svc Upd Updated"
-	updated, err := svc.Update(ctx, sl.ID, StorageLocationUpdateRequest{Name: &newName})
+	updated, err := svc.Update(ctx, sl.ID, UpdateRequest{Name: &newName})
 	require.NoError(t, err)
 	assert.Equal(t, newName, updated.Name)
 }
@@ -196,7 +196,7 @@ func TestService_Update_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	code := "X"
-	_, err := svc.Update(ctx, 999999, StorageLocationUpdateRequest{Code: &code})
+	_, err := svc.Update(ctx, 999999, UpdateRequest{Code: &code})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
@@ -217,7 +217,7 @@ func TestService_Update_DuplicateCode(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, sl2))
 	defer func() { _ = repo.Delete(ctx, sl2.ID) }()
 
-	_, err := svc.Update(ctx, sl1.ID, StorageLocationUpdateRequest{Code: &sl2.Code})
+	_, err := svc.Update(ctx, sl1.ID, UpdateRequest{Code: &sl2.Code})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }

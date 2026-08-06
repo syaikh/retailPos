@@ -33,7 +33,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    UOMImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -45,7 +45,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Description": "Individual pieces count",
 				"IsActive":    "true",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:         1,
 				Code:        "PCS",
 				Name:        "Pieces",
@@ -61,7 +61,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Ounces",
 				"IsActive": "false",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      2,
 				Code:     "OZ",
 				Name:     "Ounces",
@@ -109,7 +109,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Code": "KG",
 				"Name": "Kilograms",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      7,
 				Code:     "KG",
 				Name:     "Kilograms",
@@ -124,7 +124,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Litre",
 				"IsActive": "YES",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      8,
 				Code:     "LT",
 				Name:     "Litre",
@@ -139,7 +139,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Box",
 				"IsActive": "1",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      9,
 				Code:     "BOX",
 				Name:     "Box",
@@ -154,7 +154,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Bag",
 				"IsActive": "nope",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      10,
 				Code:     "BAG",
 				Name:     "Bag",
@@ -167,7 +167,7 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				"Code": "SET",
 				"Name": "Set",
 			},
-			want: UOMImportRow{
+			want: ImportRow{
 				Row:      0,
 				Code:     "SET",
 				Name:     "Set",
@@ -187,8 +187,8 @@ func TestUOMAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(UOMImportRow)
-			require.True(t, ok, "expected UOMImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -213,7 +213,7 @@ func TestUOMAdapter_ReposAdapter_Insert(t *testing.T) {
 	ra := a.Repository()
 
 	inserted, err := ra.Insert(context.Background(), []interface{}{
-		UOMImportRow{Row: 1, Code: "L", Name: "Liter", IsActive: true},
+		ImportRow{Row: 1, Code: "L", Name: "Liter", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, inserted)
@@ -233,8 +233,8 @@ func TestUOMAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Insert(context.Background(), []interface{}{
-		UOMImportRow{Row: 1, Code: "L", Name: "Valid", IsActive: true},
-		UOMImportRow{Row: 2, Code: "", Name: "NoCode", IsActive: true},
+		ImportRow{Row: 1, Code: "L", Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Code: "", Name: "NoCode", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "uom import errors")
@@ -253,7 +253,7 @@ func TestUOMAdapter_ReposAdapter_Update(t *testing.T) {
 	ra := a.Repository()
 
 	updated, err := ra.Update(context.Background(), []interface{}{
-		UOMImportRow{Row: 1, Code: "KG", Name: "Kilogram", IsActive: true},
+		ImportRow{Row: 1, Code: "KG", Name: "Kilogram", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, updated)
@@ -273,8 +273,8 @@ func TestUOMAdapter_ReposAdapter_Update_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Update(context.Background(), []interface{}{
-		UOMImportRow{Row: 1, Code: "KG", Name: "Valid", IsActive: true},
-		UOMImportRow{Row: 2, Code: "", Name: "NoCode", IsActive: true},
+		ImportRow{Row: 1, Code: "KG", Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Code: "", Name: "NoCode", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "uom import errors")

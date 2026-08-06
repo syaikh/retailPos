@@ -15,24 +15,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type PurchaseService interface {
-	CreateDraft(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error
-	UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error
+type Service interface {
+	CreateDraft(ctx context.Context, po *Order, items []OrderItem) error
+	UpdateDraft(ctx context.Context, id int, po *Order, items []OrderItem) error
 	DeleteDraft(ctx context.Context, id int) error
 	Confirm(ctx context.Context, id, userID int) error
 	Cancel(ctx context.Context, id, userID int) error
-	GetDetail(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error)
-	List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error)
+	GetDetail(ctx context.Context, id int, storeID *int) (*Order, error)
+	List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error)
 	GetReceipts(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error)
 	CreateGoodsReceipt(ctx context.Context, poID, userID, storeID int, items []CreateGRItemInput) (*GoodsReceipt, error)
+	SetProductLookup(l ProductLookup)
+	SetSupplierLookup(l SupplierLookup)
 }
 
 type Handler struct {
-	svc      PurchaseService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc PurchaseService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -48,10 +50,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	r.POST("/goods-receipts", auth, perm(permissions.PurchaseOrderReceive), h.CreateGoodsReceipt)
 }
 
-func toDomainItems(reqItems []CreatePOItemRequest) []PurchaseOrderItem {
-	items := make([]PurchaseOrderItem, len(reqItems))
+func toDomainItems(reqItems []CreatePOItemRequest) []OrderItem {
+	items := make([]OrderItem, len(reqItems))
 	for i, it := range reqItems {
-		items[i] = PurchaseOrderItem{
+		items[i] = OrderItem{
 			ProductID:      it.ProductID,
 			QtyOrdered:     it.QtyOrdered,
 			UnitCost:       it.UnitCost,
@@ -62,10 +64,10 @@ func toDomainItems(reqItems []CreatePOItemRequest) []PurchaseOrderItem {
 	return items
 }
 
-func toDomainUpdateItems(reqItems []UpdatePOItemRequest) []PurchaseOrderItem {
-	items := make([]PurchaseOrderItem, len(reqItems))
+func toDomainUpdateItems(reqItems []UpdatePOItemRequest) []OrderItem {
+	items := make([]OrderItem, len(reqItems))
 	for i, it := range reqItems {
-		items[i] = PurchaseOrderItem{
+		items[i] = OrderItem{
 			ID:             it.ID,
 			ProductID:      it.ProductID,
 			QtyOrdered:     it.QtyOrdered,
@@ -116,7 +118,7 @@ func (h *Handler) CreateDraft(c *gin.Context) {
 		return
 	}
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID:              req.SupplierID,
 		StoreID:                 *storeID,
 		ExpectedDate:            req.ExpectedDate,
@@ -141,7 +143,7 @@ func (h *Handler) CreateDraft(c *gin.Context) {
 		return
 	}
 
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),
@@ -182,7 +184,7 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 		return
 	}
 
-	po := &PurchaseOrder{
+	po := &Order{
 		ID:                      id,
 		SupplierID:              req.SupplierID,
 		ExpectedDate:            req.ExpectedDate,
@@ -208,7 +210,7 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 	}
 
 	po, _ = h.svc.GetDetail(ctx, id, shared.GetStoreID(c))
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),
@@ -244,7 +246,7 @@ func (h *Handler) DeleteDraft(c *gin.Context) {
 		return
 	}
 
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),
@@ -293,7 +295,7 @@ func (h *Handler) ConfirmPO(c *gin.Context) {
 		return
 	}
 
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),
@@ -342,7 +344,7 @@ func (h *Handler) CancelPO(c *gin.Context) {
 		return
 	}
 
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),
@@ -392,7 +394,7 @@ func (h *Handler) ListPOs(c *gin.Context) {
 		return
 	}
 	if pos == nil {
-		pos = []PurchaseOrder{}
+		pos = []Order{}
 	}
 	shared.JSONPaginated(c, pos, total, limit, offset)
 }
@@ -456,7 +458,7 @@ func (h *Handler) CreateGoodsReceipt(c *gin.Context) {
 		return
 	}
 
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      &uid,
 		Username:    middleware.UsernameFromContext(c),
 		Role:        middleware.RoleFromContext(c),

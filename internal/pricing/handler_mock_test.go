@@ -17,10 +17,10 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
@@ -28,37 +28,37 @@ func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditL
 }
 
 type mockPricingService struct {
-	getByIDFn              func(ctx context.Context, id int) (*PricingRule, error)
-	getByProductIDFn       func(ctx context.Context, productID int) ([]PricingRule, error)
-	getAllFn               func(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error)
-	createFn               func(ctx context.Context, rule *PricingRule) error
-	updateFn               func(ctx context.Context, rule *PricingRule) error
+	getByIDFn              func(ctx context.Context, id int) (*Rule, error)
+	getByProductIDFn       func(ctx context.Context, productID int) ([]Rule, error)
+	getAllFn               func(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error)
+	createFn               func(ctx context.Context, rule *Rule) error
+	updateFn               func(ctx context.Context, rule *Rule) error
 	deleteFn               func(ctx context.Context, id int) error
-	findConflictsForRuleFn func(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error)
+	findConflictsForRuleFn func(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error)
 	submitForApprovalFn    func(ctx context.Context, id int) error
 	approveFn              func(ctx context.Context, id int) error
 	rejectFn               func(ctx context.Context, id int) error
 }
 
-func (m *mockPricingService) GetByID(ctx context.Context, id int) (*PricingRule, error) {
+func (m *mockPricingService) GetByID(ctx context.Context, id int) (*Rule, error) {
 	return m.getByIDFn(ctx, id)
 }
-func (m *mockPricingService) GetByProductID(ctx context.Context, productID int) ([]PricingRule, error) {
+func (m *mockPricingService) GetByProductID(ctx context.Context, productID int) ([]Rule, error) {
 	return m.getByProductIDFn(ctx, productID)
 }
-func (m *mockPricingService) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error) {
+func (m *mockPricingService) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error) {
 	return m.getAllFn(ctx, limit, offset, search, productID, pricingType, pricingMethod, categoryID, brandID, customerGroupID, storeID, isActive, status)
 }
-func (m *mockPricingService) Create(ctx context.Context, rule *PricingRule) error {
+func (m *mockPricingService) Create(ctx context.Context, rule *Rule) error {
 	return m.createFn(ctx, rule)
 }
-func (m *mockPricingService) Update(ctx context.Context, rule *PricingRule) error {
+func (m *mockPricingService) Update(ctx context.Context, rule *Rule) error {
 	return m.updateFn(ctx, rule)
 }
 func (m *mockPricingService) Delete(ctx context.Context, id int) error {
 	return m.deleteFn(ctx, id)
 }
-func (m *mockPricingService) FindConflictsForRule(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+func (m *mockPricingService) FindConflictsForRule(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 	return m.findConflictsForRuleFn(ctx, rule, excludeID)
 }
 func (m *mockPricingService) SubmitForApproval(ctx context.Context, id int) error {
@@ -95,8 +95,8 @@ func (m *mockPriceResolver) ResolveSnapshot(ctx context.Context, rc ResolveConte
 			UnitPrice:     resolved.UnitPrice,
 			OriginalPrice: resolved.OriginalPrice,
 			Discount:      resolved.Discount,
-			PricingType:   resolved.PricingType,
-			PricingMethod: resolved.PricingMethod,
+			Type:   resolved.Type,
+			Method: resolved.Method,
 			Rule:          resolved.Rule,
 		}, nil
 	}
@@ -116,8 +116,8 @@ func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []R
 				UnitPrice:     r.UnitPrice,
 				OriginalPrice: r.OriginalPrice,
 				Discount:      r.Discount,
-				PricingType:   r.PricingType,
-				PricingMethod: r.PricingMethod,
+				Type:   r.Type,
+				Method: r.Method,
 				Rule:          r.Rule,
 			}
 		}
@@ -134,7 +134,7 @@ func (m *mockProductSearcher) SearchProducts(ctx context.Context, query string, 
 	return m.searchProductsFn(ctx, query, limit)
 }
 
-func setupPricingMockRouter(svc PricingService, resolver PriceResolver, searcher ProductSearcher, auditSvc audit.AuditCreator) *gin.Engine {
+func setupPricingMockRouter(svc Service, resolver PriceResolver, searcher ProductSearcher, auditSvc audit.Creator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -169,7 +169,7 @@ func TestPricingHandler_DeleteRule_ServiceError(t *testing.T) {
 
 func TestPricingHandler_ListRules_ServiceError(t *testing.T) {
 	svc := &mockPricingService{
-		getAllFn: func(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error) {
+		getAllFn: func(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error) {
 			return nil, 0, assert.AnError
 		},
 	}
@@ -182,7 +182,7 @@ func TestPricingHandler_ListRules_ServiceError(t *testing.T) {
 
 func TestPricingHandler_CheckConflicts_ServiceError(t *testing.T) {
 	svc := &mockPricingService{
-		findConflictsForRuleFn: func(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+		findConflictsForRuleFn: func(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -227,7 +227,7 @@ func TestPricingHandler_SearchProducts_SearcherError(t *testing.T) {
 
 func TestPricingHandler_UpdateRule_ServiceError(t *testing.T) {
 	svc := &mockPricingService{
-		updateFn: func(ctx context.Context, rule *PricingRule) error {
+		updateFn: func(ctx context.Context, rule *Rule) error {
 			return assert.AnError
 		},
 	}
@@ -243,15 +243,15 @@ func TestPricingHandler_UpdateRule_ServiceError(t *testing.T) {
 func TestPricingHandler_DeleteRule_WithAudit(t *testing.T) {
 	auditCalled := false
 	svc := &mockPricingService{
-		getByIDFn: func(ctx context.Context, id int) (*PricingRule, error) {
-			return &PricingRule{ID: id, Name: "Rule To Delete"}, nil
+		getByIDFn: func(ctx context.Context, id int) (*Rule, error) {
+			return &Rule{ID: id, Name: "Rule To Delete"}, nil
 		},
 		deleteFn: func(ctx context.Context, id int) error {
 			return nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "delete", log.Action)
 			assert.Equal(t, "pricing_rule", log.EntityType)
@@ -269,7 +269,7 @@ func TestPricingHandler_DeleteRule_WithAudit(t *testing.T) {
 func TestPricingHandler_DeleteRule_WithAuditGetByIDError(t *testing.T) {
 	auditCalled := false
 	svc := &mockPricingService{
-		getByIDFn: func(ctx context.Context, id int) (*PricingRule, error) {
+		getByIDFn: func(ctx context.Context, id int) (*Rule, error) {
 			return nil, assert.AnError
 		},
 		deleteFn: func(ctx context.Context, id int) error {
@@ -277,7 +277,7 @@ func TestPricingHandler_DeleteRule_WithAuditGetByIDError(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "delete", log.Action)
 			assert.Contains(t, log.Description, "Deleted pricing rule #1")
@@ -295,13 +295,13 @@ func TestPricingHandler_DeleteRule_WithAuditGetByIDError(t *testing.T) {
 func TestPricingHandler_CreateRule_WithAudit(t *testing.T) {
 	auditCalled := false
 	svc := &mockPricingService{
-		createFn: func(ctx context.Context, rule *PricingRule) error {
+		createFn: func(ctx context.Context, rule *Rule) error {
 			rule.ID = 42
 			return nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "create", log.Action)
 			assert.Equal(t, "pricing_rule", log.EntityType)
@@ -321,15 +321,15 @@ func TestPricingHandler_CreateRule_WithAudit(t *testing.T) {
 func TestPricingHandler_UpdateRule_WithAudit(t *testing.T) {
 	auditCalled := false
 	svc := &mockPricingService{
-		getByIDFn: func(ctx context.Context, id int) (*PricingRule, error) {
-			return &PricingRule{ID: id, Name: "Old Name"}, nil
+		getByIDFn: func(ctx context.Context, id int) (*Rule, error) {
+			return &Rule{ID: id, Name: "Old Name"}, nil
 		},
-		updateFn: func(ctx context.Context, rule *PricingRule) error {
+		updateFn: func(ctx context.Context, rule *Rule) error {
 			return nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "update", log.Action)
 			assert.Equal(t, "pricing_rule", log.EntityType)
@@ -348,7 +348,7 @@ func TestPricingHandler_UpdateRule_WithAudit(t *testing.T) {
 
 func TestPricingHandler_CheckConflicts_Success(t *testing.T) {
 	svc := &mockPricingService{
-		findConflictsForRuleFn: func(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+		findConflictsForRuleFn: func(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 			return nil, nil
 		},
 	}
@@ -361,7 +361,7 @@ func TestPricingHandler_CheckConflicts_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Data         []PricingRule `json:"data"`
+		Data         []Rule `json:"data"`
 		HasConflicts bool          `json:"has_conflicts"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)

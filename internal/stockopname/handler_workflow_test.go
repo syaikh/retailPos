@@ -15,9 +15,9 @@ import (
 // runHandlerToVerification drives a store-scoped session through
 // create -> assign -> start -> count all items -> submit, ending in
 // 'verification'. The counter counts the opening quantity for every item.
-func runHandlerToVerification(t *testing.T, ctx context.Context, managerRouter, counterRouter *gin.Engine, counterID, storeID int) int {
+func runHandlerToVerification(ctx context.Context, t *testing.T, managerRouter, counterRouter *gin.Engine, counterID, storeID int) int {
 	t.Helper()
-	sessionID := createHandlerSession(t, ctx, managerRouter, "store", int64(storeID))
+	sessionID := createHandlerSession(ctx, t, managerRouter, "store", int64(storeID))
 
 	w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/assignments", sessionID),
 		fmt.Sprintf(`{"user_id":%d,"role":"counter"}`, counterID))
@@ -47,18 +47,18 @@ func runHandlerToVerification(t *testing.T, ctx context.Context, managerRouter, 
 func TestHandler_OpenSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9771
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_open_9771", 3)
-	insertTestStore(t, ctx, 9771)
-	p := insertTestProductStore(t, ctx, "SO-HDL-OPEN-001", 9771)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_open_9771", 3)
+	insertTestStore(ctx, t, 9771)
+	p := insertTestProductStore(ctx, t, "SO-HDL-OPEN-001", 9771)
+	insertTestStock(ctx, t, p, 10)
 
 	counterID := 9772
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_open_9772", 5)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_open_9772", 5)
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := createHandlerSession(t, ctx, managerRouter, "store", 9771)
+	sessionID := createHandlerSession(ctx, t, managerRouter, "store", 9771)
 	w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/assignments", sessionID),
 		fmt.Sprintf(`{"user_id":%d,"role":"counter"}`, counterID))
 	require.Equal(t, http.StatusCreated, w.Code)
@@ -93,15 +93,15 @@ func TestHandler_OpenSession(t *testing.T) {
 func TestHandler_CancelSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9773
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_cancel_9773", 3)
-	insertTestStore(t, ctx, 9773)
-	p := insertTestProductStore(t, ctx, "SO-HDL-CANCEL-001", 9773)
-	insertTestStock(t, ctx, p, 4)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_cancel_9773", 3)
+	insertTestStore(ctx, t, 9773)
+	p := insertTestProductStore(ctx, t, "SO-HDL-CANCEL-001", 9773)
+	insertTestStock(ctx, t, p, 4)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
-	sessionID := createHandlerSession(t, ctx, managerRouter, "store", 9773)
+	sessionID := createHandlerSession(ctx, t, managerRouter, "store", 9773)
 
 	t.Run("cancel draft session", func(t *testing.T) {
 		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/cancel", sessionID), "")
@@ -137,18 +137,18 @@ func TestHandler_CancelSession(t *testing.T) {
 func TestHandler_CancelInVerification(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9776
 	counterID := 9777
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_cancelflow_9776", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_cancelflow_9777", 5)
-	insertTestStore(t, ctx, 9776)
-	p := insertTestProductStore(t, ctx, "SO-HDL-CANCELFLOW-001", 9776)
-	insertTestStock(t, ctx, p, 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_cancelflow_9776", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_cancelflow_9777", 5)
+	insertTestStore(ctx, t, 9776)
+	p := insertTestProductStore(ctx, t, "SO-HDL-CANCELFLOW-001", 9776)
+	insertTestStock(ctx, t, p, 5)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := runHandlerToVerification(t, ctx, managerRouter, counterRouter, counterID, 9776)
+	sessionID := runHandlerToVerification(ctx, t, managerRouter, counterRouter, counterID, 9776)
 
 	t.Run("session in verification is not cancellable", func(t *testing.T) {
 		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/cancel", sessionID), "")
@@ -160,17 +160,17 @@ func TestHandler_CancelInVerification(t *testing.T) {
 func TestHandler_ReassignCounter(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9774
 	counterID := 9775
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_reassign_9774", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_reassign_9775", 5)
-	insertTestStore(t, ctx, 9774)
-	p := insertTestProductStore(t, ctx, "SO-HDL-REASSIGN-001", 9774)
-	insertTestStock(t, ctx, p, 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_reassign_9774", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_reassign_9775", 5)
+	insertTestStore(ctx, t, 9774)
+	p := insertTestProductStore(ctx, t, "SO-HDL-REASSIGN-001", 9774)
+	insertTestStock(ctx, t, p, 5)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
-	sessionID := createHandlerSession(t, ctx, managerRouter, "store", 9774)
+	sessionID := createHandlerSession(ctx, t, managerRouter, "store", 9774)
 
 	var supervisorAssignmentID int
 	t.Run("assign counter and supervisor", func(t *testing.T) {
@@ -241,18 +241,18 @@ func TestHandler_ReassignCounter(t *testing.T) {
 func TestHandler_RejectAndResume(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9778
 	counterID := 9779
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_reject_9778", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_reject_9779", 5)
-	insertTestStore(t, ctx, 9778)
-	p := insertTestProductStore(t, ctx, "SO-HDL-REJECT-001", 9778)
-	insertTestStock(t, ctx, p, 6)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_reject_9778", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_reject_9779", 5)
+	insertTestStore(ctx, t, 9778)
+	p := insertTestProductStore(ctx, t, "SO-HDL-REJECT-001", 9778)
+	insertTestStock(ctx, t, p, 6)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := runHandlerToVerification(t, ctx, managerRouter, counterRouter, counterID, 9778)
+	sessionID := runHandlerToVerification(ctx, t, managerRouter, counterRouter, counterID, 9778)
 
 	t.Run("reject without comment returns 422", func(t *testing.T) {
 		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/reject", sessionID), `{"comment":""}`)
@@ -296,18 +296,18 @@ func TestHandler_RejectAndResume(t *testing.T) {
 func TestHandler_RequestRecount(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9780
 	counterID := 9781
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_recount_9780", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_recount_9781", 5)
-	insertTestStore(t, ctx, 9780)
-	p := insertTestProductStore(t, ctx, "SO-HDL-RECNT-001", 9780)
-	insertTestStock(t, ctx, p, 7)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_recount_9780", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_recount_9781", 5)
+	insertTestStore(ctx, t, 9780)
+	p := insertTestProductStore(ctx, t, "SO-HDL-RECNT-001", 9780)
+	insertTestStock(ctx, t, p, 7)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := runHandlerToVerification(t, ctx, managerRouter, counterRouter, counterID, 9780)
+	sessionID := runHandlerToVerification(ctx, t, managerRouter, counterRouter, counterID, 9780)
 
 	t.Run("recount without comment returns 422", func(t *testing.T) {
 		w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/recount", sessionID), `{"comment":""}`)
@@ -342,18 +342,18 @@ func TestHandler_RequestRecount(t *testing.T) {
 func TestHandler_ListAndGetAdjustments(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9782
 	counterID := 9783
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_adj_9782", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_adj_9783", 5)
-	insertTestStore(t, ctx, 9782)
-	p := insertTestProductStore(t, ctx, "SO-HDL-ADJ-001", 9782)
-	insertTestStock(t, ctx, p, 8)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_adj_9782", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_adj_9783", 5)
+	insertTestStore(ctx, t, 9782)
+	p := insertTestProductStore(ctx, t, "SO-HDL-ADJ-001", 9782)
+	insertTestStock(ctx, t, p, 8)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := runHandlerToVerification(t, ctx, managerRouter, counterRouter, counterID, 9782)
+	sessionID := runHandlerToVerification(ctx, t, managerRouter, counterRouter, counterID, 9782)
 
 	w := postJSON(t, managerRouter, fmt.Sprintf("/stock-opnames/%d/verify", sessionID), `{"comment":"ok"}`)
 	require.Equal(t, http.StatusOK, w.Code)

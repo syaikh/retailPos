@@ -134,7 +134,7 @@ func (h *Handler) auditLocation(c *gin.Context, description string, productID in
 	if h.auditSvc == nil {
 		return
 	}
-	_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 		UserID:      middleware.UserIDFromContext(c.Request.Context()),
 		Username:    middleware.UsernameFromContext(c.Request.Context()),
 		Role:        middleware.RoleFromContext(c.Request.Context()),

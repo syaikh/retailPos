@@ -15,7 +15,7 @@ import (
 type mockRepo struct {
 	basePrices map[int]int
 	scopes     map[int]ProductScope
-	rules      map[int][]PricingRule
+	rules      map[int][]Rule
 	costTax    map[int]ProductCostTax
 }
 
@@ -38,7 +38,7 @@ func (m *mockRepo) GetProductScope(_ context.Context, productID int) (*int, *int
 	return s.CategoryID, s.BrandID, nil
 }
 
-func (m *mockRepo) GetActiveRules(_ context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]PricingRule, error) {
+func (m *mockRepo) GetActiveRules(_ context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]Rule, error) {
 	return m.rules[productID], nil
 }
 
@@ -62,8 +62,8 @@ func (m *mockRepo) GetProductScopesBatch(_ context.Context, productIDs []int) (m
 	return result, nil
 }
 
-func (m *mockRepo) GetActiveRulesBatch(_ context.Context, productIDs []int, now time.Time) (map[int][]PricingRule, error) {
-	result := make(map[int][]PricingRule, len(productIDs))
+func (m *mockRepo) GetActiveRulesBatch(_ context.Context, productIDs []int, now time.Time) (map[int][]Rule, error) {
+	result := make(map[int][]Rule, len(productIDs))
 	for _, pid := range productIDs {
 		if rules, ok := m.rules[pid]; ok {
 			result[pid] = rules
@@ -92,13 +92,13 @@ func (m *mockRepo) GetProductCostAndTaxBatch(_ context.Context, productIDs []int
 
 // --- Helper to build PricingRules for tests ---
 
-func rule(id int, pType PricingType, method PricingMethod, value float64, minQty, priority int, active bool) PricingRule {
+func rule(id int, pType Type, method Method, value float64, minQty, priority int, active bool) Rule {
 	pid := 1
-	return PricingRule{
+	return Rule{
 		ID:              id,
 		ProductID:       &pid,
-		PricingType:     pType,
-		PricingMethod:   method,
+		Type:     pType,
+		Method:   method,
 		PricingValue:    value,
 		Name:            string(pType),
 		MinimumQuantity: minQty,
@@ -107,14 +107,14 @@ func rule(id int, pType PricingType, method PricingMethod, value float64, minQty
 	}
 }
 
-func ruleWithDates(id int, pType PricingType, method PricingMethod, value float64, minQty, priority int, active bool, from, until *time.Time) PricingRule {
+func ruleWithDates(id int, pType Type, method Method, value float64, minQty, priority int, active bool, from, until *time.Time) Rule {
 	r := rule(id, pType, method, value, minQty, priority, active)
 	r.EffectiveFrom = from
 	r.EffectiveUntil = until
 	return r
 }
 
-func ruleWithMaxQty(id int, pType PricingType, method PricingMethod, value float64, minQty, maxQty, priority int, active bool) PricingRule {
+func ruleWithMaxQty(id int, pType Type, method Method, value float64, minQty, maxQty, priority int, active bool) Rule {
 	r := rule(id, pType, method, value, minQty, priority, active)
 	r.MaximumQuantity = &maxQty
 	return r
@@ -127,7 +127,7 @@ func ruleWithMaxQty(id int, pType PricingType, method PricingMethod, value float
 func TestResolver_Resolve_BasePriceOnly(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules:      map[int][]PricingRule{1: {}},
+		rules:      map[int][]Rule{1: {}},
 	}
 	resolver := NewResolver(repo)
 
@@ -136,14 +136,14 @@ func TestResolver_Resolve_BasePriceOnly(t *testing.T) {
 	assert.Equal(t, 15000, result.UnitPrice)
 	assert.Equal(t, 15000, result.OriginalPrice)
 	assert.Equal(t, 0, result.Discount)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
 func TestResolver_Resolve_ProductNotFound(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{},
-		rules:      map[int][]PricingRule{},
+		rules:      map[int][]Rule{},
 	}
 	resolver := NewResolver(repo)
 
@@ -155,7 +155,7 @@ func TestResolver_Resolve_ProductNotFound(t *testing.T) {
 func TestResolver_Resolve_FixedPriceRule(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true)},
 		},
 	}
@@ -166,8 +166,8 @@ func TestResolver_Resolve_FixedPriceRule(t *testing.T) {
 	assert.Equal(t, 12000, result.UnitPrice)
 	assert.Equal(t, 15000, result.OriginalPrice)
 	assert.Equal(t, 3000, result.Discount)
-	assert.Equal(t, PricingTypePromotion, result.PricingType)
-	assert.Equal(t, PricingMethodFixedPrice, result.PricingMethod)
+	assert.Equal(t, PricingTypePromotion, result.Type)
+	assert.Equal(t, PricingMethodFixedPrice, result.Method)
 	require.NotNil(t, result.Rule)
 	assert.Equal(t, 10, result.Rule.ID)
 }
@@ -175,7 +175,7 @@ func TestResolver_Resolve_FixedPriceRule(t *testing.T) {
 func TestResolver_Resolve_DiscountPercent(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 0, true)},
 		},
 	}
@@ -191,7 +191,7 @@ func TestResolver_Resolve_DiscountPercent(t *testing.T) {
 func TestResolver_Resolve_DiscountAmount(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 50000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, 0, true)},
 		},
 	}
@@ -207,7 +207,7 @@ func TestResolver_Resolve_DiscountAmount(t *testing.T) {
 func TestResolver_Resolve_MarkupPercent(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypeSpecialPrice, PricingMethodMarkupPct, 15, 1, 0, true)},
 		},
 	}
@@ -223,7 +223,7 @@ func TestResolver_Resolve_MarkupPercent(t *testing.T) {
 func TestResolver_Resolve_QuantityBelowMinimum(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 3, 0, true)},
 		},
 	}
@@ -232,14 +232,14 @@ func TestResolver_Resolve_QuantityBelowMinimum(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 2})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
 func TestResolver_Resolve_QuantityMeetsMinimum(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 3, 0, true)},
 		},
 	}
@@ -250,7 +250,7 @@ func TestResolver_Resolve_QuantityMeetsMinimum(t *testing.T) {
 	assert.Equal(t, 10000, result.UnitPrice)
 	assert.Equal(t, 15000, result.OriginalPrice)
 	assert.Equal(t, 5000, result.Discount)
-	assert.Equal(t, PricingTypeSpecialPrice, result.PricingType)
+	assert.Equal(t, PricingTypeSpecialPrice, result.Type)
 	require.NotNil(t, result.Rule)
 	assert.Equal(t, 10, result.Rule.ID)
 }
@@ -258,7 +258,7 @@ func TestResolver_Resolve_QuantityMeetsMinimum(t *testing.T) {
 func TestResolver_Resolve_QuantityExceedsMaximum(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleWithMaxQty(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 3, 10, 0, true)},
 		},
 	}
@@ -280,7 +280,7 @@ func TestResolver_Resolve_QuantityExceedsMaximum(t *testing.T) {
 func TestResolver_Resolve_PriorityWins(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true),
 				rule(11, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 1, 1, true),
@@ -292,7 +292,7 @@ func TestResolver_Resolve_PriorityWins(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 5})
 	require.NoError(t, err)
 	assert.Equal(t, 10000, result.UnitPrice)
-	assert.Equal(t, PricingTypeSpecialPrice, result.PricingType)
+	assert.Equal(t, PricingTypeSpecialPrice, result.Type)
 	require.NotNil(t, result.Rule)
 	assert.Equal(t, 11, result.Rule.ID)
 }
@@ -300,7 +300,7 @@ func TestResolver_Resolve_PriorityWins(t *testing.T) {
 func TestResolver_Resolve_PriceTiebreak(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true),
 				rule(11, PricingTypeSpecialPrice, PricingMethodFixedPrice, 11000, 1, 0, true),
@@ -312,7 +312,7 @@ func TestResolver_Resolve_PriceTiebreak(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 11000, result.UnitPrice)
-	assert.Equal(t, PricingTypeSpecialPrice, result.PricingType)
+	assert.Equal(t, PricingTypeSpecialPrice, result.Type)
 	require.NotNil(t, result.Rule)
 	assert.Equal(t, 11, result.Rule.ID)
 }
@@ -321,7 +321,7 @@ func TestResolver_Resolve_ExpiredRuleFallsBack(t *testing.T) {
 	past := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleWithDates(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true, nil, &past)},
 		},
 	}
@@ -330,14 +330,14 @@ func TestResolver_Resolve_ExpiredRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
 func TestResolver_Resolve_InactiveRuleFallsBack(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, false)},
 		},
 	}
@@ -346,7 +346,7 @@ func TestResolver_Resolve_InactiveRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
@@ -354,7 +354,7 @@ func TestResolver_Resolve_FutureRuleFallsBack(t *testing.T) {
 	future := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleWithDates(10, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true, &future, nil)},
 		},
 	}
@@ -363,28 +363,28 @@ func TestResolver_Resolve_FutureRuleFallsBack(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
 func TestResolver_Resolve_NoRulesForProduct(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules:      map[int][]PricingRule{1: nil},
+		rules:      map[int][]Rule{1: nil},
 	}
 	resolver := NewResolver(repo)
 
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 15000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 	assert.Nil(t, result.Rule)
 }
 
 func TestResolver_Resolve_MultipleTiers(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 12000, 3, 0, true),
 				rule(11, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 5, 0, true),
@@ -408,7 +408,7 @@ func TestResolver_Resolve_MultipleTiers(t *testing.T) {
 func TestResolver_Resolve_RuleWithZeroValue(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodFixedPrice, 0, 1, 0, true)},
 		},
 	}
@@ -419,7 +419,7 @@ func TestResolver_Resolve_RuleWithZeroValue(t *testing.T) {
 	assert.Equal(t, 0, result.UnitPrice)
 	assert.Equal(t, 15000, result.OriginalPrice)
 	assert.Equal(t, 15000, result.Discount)
-	assert.Equal(t, PricingTypePromotion, result.PricingType)
+	assert.Equal(t, PricingTypePromotion, result.Type)
 }
 
 // ============================================================
@@ -431,7 +431,7 @@ func TestResolver_Resolve_ProductScopeWins(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
 		scopes:     map[int]ProductScope{1: {CategoryID: &catID}},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 14000, 1, 0, true), // category match (score 2)
 				rule(11, PricingTypePromotion, PricingMethodFixedPrice, 12000, 1, 0, true),    // product match (score 3)
@@ -450,7 +450,7 @@ func TestResolver_Resolve_CustomerGroupFilter(t *testing.T) {
 	groupID := 2
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 1, 0, true), // group-only rule
 			},
@@ -479,7 +479,7 @@ func TestResolver_Resolve_CustomerGroupFilter(t *testing.T) {
 func TestResolver_ResolveBatch_MixedProducts(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000, 2: 20000, 3: 5000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 3, 0, true)},
 			2: {},
 			3: {rule(20, PricingTypePromotion, PricingMethodFixedPrice, 4000, 1, 0, true)},
@@ -498,19 +498,19 @@ func TestResolver_ResolveBatch_MixedProducts(t *testing.T) {
 	require.Len(t, results, 3)
 
 	assert.Equal(t, 10000, results[0].UnitPrice)
-	assert.Equal(t, PricingTypeSpecialPrice, results[0].PricingType)
+	assert.Equal(t, PricingTypeSpecialPrice, results[0].Type)
 
 	assert.Equal(t, 20000, results[1].UnitPrice)
-	assert.Equal(t, PricingTypeDefault, results[1].PricingType)
+	assert.Equal(t, PricingTypeDefault, results[1].Type)
 
 	assert.Equal(t, 4000, results[2].UnitPrice)
-	assert.Equal(t, PricingTypePromotion, results[2].PricingType)
+	assert.Equal(t, PricingTypePromotion, results[2].Type)
 }
 
 func TestResolver_ResolveBatch_EmptyItems(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{},
-		rules:      map[int][]PricingRule{},
+		rules:      map[int][]Rule{},
 	}
 	resolver := NewResolver(repo)
 
@@ -522,7 +522,7 @@ func TestResolver_ResolveBatch_EmptyItems(t *testing.T) {
 func TestResolver_ResolveBatch_DuplicateProducts(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 15000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 10000, 3, 0, true)},
 		},
 	}
@@ -538,17 +538,17 @@ func TestResolver_ResolveBatch_DuplicateProducts(t *testing.T) {
 	require.Len(t, results, 2)
 
 	assert.Equal(t, 15000, results[0].UnitPrice)
-	assert.Equal(t, PricingTypeDefault, results[0].PricingType)
+	assert.Equal(t, PricingTypeDefault, results[0].Type)
 
 	assert.Equal(t, 10000, results[1].UnitPrice)
-	assert.Equal(t, PricingTypeSpecialPrice, results[1].PricingType)
+	assert.Equal(t, PricingTypeSpecialPrice, results[1].Type)
 }
 
 func TestResolver_ResolveBatch_CombinableRules(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000, 2: 50000},
 		scopes:     map[int]ProductScope{1: {}, 2: {}},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),   // combinable 10%
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // combinable 5000 off
@@ -586,7 +586,7 @@ func TestResolver_ResolveBatch_CombinableRules(t *testing.T) {
 func TestResolver_Resolve_NoStacking_BestSingleRule(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 0, true),      // 10% off
 				rule(11, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, 1, true), // 80000 fixed, higher priority
@@ -604,7 +604,7 @@ func TestResolver_Resolve_NoStacking_BestSingleRule(t *testing.T) {
 func TestResolver_Resolve_DiscountDoesNotGoBelowZero(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 10000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {rule(10, PricingTypePromotion, PricingMethodDiscountAmt, 50000, 1, 0, true)},
 		},
 	}
@@ -621,13 +621,13 @@ func TestResolver_Resolve_DiscountDoesNotGoBelowZero(t *testing.T) {
 // store filter, category/brand priority, customer group, max qty
 // ============================================================
 
-func ruleAdvanced(id int, pType PricingType, method PricingMethod, value float64, minQty int, maxQty *int, priority int, active, combine bool, catID, brandID, custGroup, storeID *int, days []string, tFrom, tTo *string) PricingRule {
+func ruleAdvanced(id int, pType Type, method Method, value float64, minQty int, maxQty *int, priority int, active, combine bool, catID, brandID, custGroup, storeID *int, days []string, tFrom, tTo *string) Rule {
 	pid := 1
-	r := PricingRule{
+	r := Rule{
 		ID:              id,
 		ProductID:       &pid,
-		PricingType:     pType,
-		PricingMethod:   method,
+		Type:     pType,
+		Method:   method,
 		PricingValue:    value,
 		Name:            string(pType),
 		MinimumQuantity: minQty,
@@ -652,7 +652,7 @@ func TestResolver_Resolve_StackingTwoPromotions(t *testing.T) {
 	base := 100000
 	repo := &mockRepo{
 		basePrices: map[int]int{1: base},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil),
@@ -666,14 +666,14 @@ func TestResolver_Resolve_StackingTwoPromotions(t *testing.T) {
 	// Stacking: highest priority first: 100000 → 5000 off (pri 2) = 95000 → 10% off (pri 1) = 85500
 	assert.Equal(t, 85500, result.UnitPrice)
 	assert.Equal(t, 14500, result.Discount)
-	assert.Equal(t, PricingTypePromotion, result.PricingType)
+	assert.Equal(t, PricingTypePromotion, result.Type)
 }
 
 func TestResolver_Resolve_RecurrenceDayAllowed(t *testing.T) {
 	today := strings.ToLower(time.Now().In(shared.JakartaLocation()).Weekday().String())
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, []string{today}, nil, nil)},
 		},
 	}
@@ -695,7 +695,7 @@ func TestResolver_Resolve_RecurrenceDayBlocked(t *testing.T) {
 	}
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 0, true, false, nil, nil, nil, nil, withoutToday, nil, nil)},
 		},
 	}
@@ -704,14 +704,14 @@ func TestResolver_Resolve_RecurrenceDayBlocked(t *testing.T) {
 	result, err := resolver.Resolve(context.Background(), ResolveContext{ProductID: 1, Quantity: 1})
 	require.NoError(t, err)
 	assert.Equal(t, 100000, result.UnitPrice)
-	assert.Equal(t, PricingTypeDefault, result.PricingType)
+	assert.Equal(t, PricingTypeDefault, result.Type)
 }
 
 func TestResolver_Resolve_StoreFilterMatch(t *testing.T) {
 	storeID := intPtr(1)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, nil, 0, true, false, nil, nil, nil, storeID, nil, nil, nil)},
 		},
 	}
@@ -727,7 +727,7 @@ func TestResolver_Resolve_StoreFilterMismatch(t *testing.T) {
 	storeIDCtx := intPtr(99)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, nil, 0, true, false, nil, nil, nil, storeIDRule, nil, nil, nil)},
 		},
 	}
@@ -745,10 +745,10 @@ func TestResolver_Resolve_CategoryScoped_WinsOverBrandScoped(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
 		scopes:     map[int]ProductScope{1: {CategoryID: catID, BrandID: brandID}},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
-				{ID: catRuleID, ProductID: nil, CategoryID: catID, PricingType: PricingTypePromotion, PricingMethod: PricingMethodDiscountPct, PricingValue: 15, Name: "cat-discount", MinimumQuantity: 1, Priority: 0, IsActive: true},
-				{ID: brandRuleID, ProductID: nil, BrandID: brandID, PricingType: PricingTypePromotion, PricingMethod: PricingMethodDiscountPct, PricingValue: 5, Name: "brand-discount", MinimumQuantity: 1, Priority: 0, IsActive: true},
+				{ID: catRuleID, ProductID: nil, CategoryID: catID, Type: PricingTypePromotion, Method: PricingMethodDiscountPct, PricingValue: 15, Name: "cat-discount", MinimumQuantity: 1, Priority: 0, IsActive: true},
+				{ID: brandRuleID, ProductID: nil, BrandID: brandID, Type: PricingTypePromotion, Method: PricingMethodDiscountPct, PricingValue: 5, Name: "brand-discount", MinimumQuantity: 1, Priority: 0, IsActive: true},
 			},
 		},
 	}
@@ -766,7 +766,7 @@ func TestResolver_Resolve_CustomerGroupFilterMatch(t *testing.T) {
 	vipGroup := intPtr(3)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodDiscountPct, 20, 1, nil, 0, true, false, nil, nil, vipGroup, nil, nil, nil, nil)},
 		},
 	}
@@ -781,7 +781,7 @@ func TestResolver_Resolve_MaxQuantityFilter(t *testing.T) {
 	maxQty := intPtr(5)
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodDiscountPct, 15, 1, maxQty, 0, true, false, nil, nil, nil, nil, nil, nil, nil)},
 		},
 	}
@@ -805,7 +805,7 @@ func TestResolver_Resolve_MaxQuantityFilter(t *testing.T) {
 func TestResolver_Resolve_StackingThreePromotions(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),   // priority 1
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // priority 2
@@ -825,7 +825,7 @@ func TestResolver_Resolve_StackingThreePromotions(t *testing.T) {
 func TestResolver_Resolve_StackingBestNonCombinablePlusCombinable(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypeSpecialPrice, PricingMethodFixedPrice, 80000, 1, nil, 5, true, false, nil, nil, nil, nil, nil, nil, nil), // best non-combinable: 80000
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),       // combinable: 10% → 72000
@@ -844,7 +844,7 @@ func TestResolver_Resolve_StackingBestNonCombinablePlusCombinable(t *testing.T) 
 func TestResolver_Resolve_StackingFixedPriceThenPercent(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 200000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodFixedPrice, 150000, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // fixed → 150000
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil),    // 10% → 135000
@@ -863,7 +863,7 @@ func TestResolver_Resolve_StackingFixedPriceThenPercent(t *testing.T) {
 func TestResolver_Resolve_StackingFloorAtZero(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 10000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountAmt, 6000, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil), // 6000 → 4000
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 8000, 1, nil, 2, true, true, nil, nil, nil, nil, nil, nil, nil), // 8000 → floor 0
@@ -881,7 +881,7 @@ func TestResolver_Resolve_StackingFloorAtZero(t *testing.T) {
 func TestResolver_Resolve_StackingPriorityOrder(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 5, 1, nil, 10, true, true, nil, nil, nil, nil, nil, nil, nil),    // priority 10
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountPct, 15, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),    // priority 1
@@ -900,7 +900,7 @@ func TestResolver_Resolve_StackingPriorityOrder(t *testing.T) {
 func TestResolver_Resolve_NoStackingWhenAllowCombineFalse(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, nil, 1, true, false, nil, nil, nil, nil, nil, nil, nil),
 				ruleAdvanced(11, PricingTypePromotion, PricingMethodDiscountAmt, 5000, 1, nil, 2, true, false, nil, nil, nil, nil, nil, nil, nil),
@@ -918,7 +918,7 @@ func TestResolver_Resolve_NoStackingWhenAllowCombineFalse(t *testing.T) {
 func TestResolver_Resolve_SingleCombinableRule(t *testing.T) {
 	repo := &mockRepo{
 		basePrices: map[int]int{1: 100000},
-		rules: map[int][]PricingRule{
+		rules: map[int][]Rule{
 			1: {
 				ruleAdvanced(10, PricingTypePromotion, PricingMethodDiscountPct, 20, 1, nil, 1, true, true, nil, nil, nil, nil, nil, nil, nil),
 			},
@@ -964,7 +964,7 @@ func TestResolver_ResolveSnapshot_NoRule(t *testing.T) {
 	assert.Equal(t, 3500, snap.UnitPrice)
 	assert.Equal(t, 3500, snap.OriginalPrice)
 	assert.Equal(t, 0, snap.Discount)
-	assert.Equal(t, PricingTypeDefault, snap.PricingType)
+	assert.Equal(t, PricingTypeDefault, snap.Type)
 	assert.Nil(t, snap.Rule)
 	assert.Equal(t, 2500, snap.Cost)
 	require.NotNil(t, snap.TaxRate)
@@ -976,7 +976,7 @@ func TestResolver_ResolveSnapshot_NoRule(t *testing.T) {
 
 func TestResolver_ResolveSnapshot_PromoRule(t *testing.T) {
 	repo := snapshotRepo()
-	repo.rules = map[int][]PricingRule{
+	repo.rules = map[int][]Rule{
 		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
 	}
 	resolver := NewResolver(repo)
@@ -986,8 +986,8 @@ func TestResolver_ResolveSnapshot_PromoRule(t *testing.T) {
 	assert.Equal(t, 3150, snap.UnitPrice)
 	assert.Equal(t, 3500, snap.OriginalPrice)
 	assert.Equal(t, 350, snap.Discount)
-	assert.Equal(t, PricingTypePromotion, snap.PricingType)
-	assert.Equal(t, PricingMethodDiscountPct, snap.PricingMethod)
+	assert.Equal(t, PricingTypePromotion, snap.Type)
+	assert.Equal(t, PricingMethodDiscountPct, snap.Method)
 	require.NotNil(t, snap.Rule)
 	assert.Equal(t, 10, snap.Rule.ID)
 	assert.Equal(t, 2500, snap.Cost)
@@ -995,7 +995,7 @@ func TestResolver_ResolveSnapshot_PromoRule(t *testing.T) {
 
 func TestResolver_ResolveSnapshot_QtyBelowMinimumUsesBase(t *testing.T) {
 	repo := snapshotRepo()
-	repo.rules = map[int][]PricingRule{
+	repo.rules = map[int][]Rule{
 		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 5, 1, true)},
 	}
 	resolver := NewResolver(repo)
@@ -1004,17 +1004,17 @@ func TestResolver_ResolveSnapshot_QtyBelowMinimumUsesBase(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3500, snap.UnitPrice)
 	assert.Equal(t, 0, snap.Discount)
-	assert.Equal(t, PricingTypeDefault, snap.PricingType)
+	assert.Equal(t, PricingTypeDefault, snap.Type)
 
 	snap, err = resolver.ResolveSnapshot(context.Background(), ResolveContext{ProductID: 1, Quantity: 5})
 	require.NoError(t, err)
 	assert.Equal(t, 3150, snap.UnitPrice)
-	assert.Equal(t, PricingTypePromotion, snap.PricingType)
+	assert.Equal(t, PricingTypePromotion, snap.Type)
 }
 
 func TestResolver_ResolveSnapshot_Deterministic(t *testing.T) {
 	repo := snapshotRepo()
-	repo.rules = map[int][]PricingRule{
+	repo.rules = map[int][]Rule{
 		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
 	}
 	resolver := NewResolver(repo)
@@ -1027,14 +1027,14 @@ func TestResolver_ResolveSnapshot_Deterministic(t *testing.T) {
 	assert.Equal(t, a.UnitPrice, b.UnitPrice)
 	assert.Equal(t, a.OriginalPrice, b.OriginalPrice)
 	assert.Equal(t, a.Discount, b.Discount)
-	assert.Equal(t, a.PricingType, b.PricingType)
+	assert.Equal(t, a.Type, b.Type)
 	assert.Equal(t, a.Cost, b.Cost)
 	assert.Equal(t, a.TaxRate, b.TaxRate)
 }
 
 func TestResolver_ResolveSnapshotsBatch_OrderMatchesInput(t *testing.T) {
 	repo := snapshotRepo()
-	repo.rules = map[int][]PricingRule{
+	repo.rules = map[int][]Rule{
 		1: {rule(10, PricingTypePromotion, PricingMethodDiscountPct, 10, 1, 1, true)},
 	}
 	resolver := NewResolver(repo)
@@ -1054,7 +1054,7 @@ func TestResolver_ResolveSnapshotsBatch_OrderMatchesInput(t *testing.T) {
 
 	assert.Equal(t, 1, snaps[1].ProductID)
 	assert.Equal(t, 3150, snaps[1].UnitPrice)
-	assert.Equal(t, PricingTypePromotion, snaps[1].PricingType)
+	assert.Equal(t, PricingTypePromotion, snaps[1].Type)
 
 	assert.Equal(t, 2, snaps[2].ProductID)
 	assert.Equal(t, 5000, snaps[2].UnitPrice)

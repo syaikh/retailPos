@@ -46,7 +46,7 @@ type MonthlyReportItem struct {
 }
 
 type PricingBreakdownItem struct {
-	PricingType string `json:"pricing_type"`
+	Type string `json:"pricing_type"`
 	Revenue     int    `json:"revenue"`
 	OrderCount  int    `json:"order_count"`
 	ItemCount   int    `json:"item_count"`

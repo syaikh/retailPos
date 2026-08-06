@@ -24,7 +24,7 @@ type Shift struct {
 	UpdatedAt        string  `json:"updated_at"`
 }
 
-type ShiftSummary struct {
+type Summary struct {
 	TotalCashSales    int `json:"total_cash_sales"`
 	TotalNonCashSales int `json:"total_non_cash_sales"`
 	TotalSales        int `json:"total_sales"`

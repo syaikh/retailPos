@@ -55,8 +55,8 @@ func intPtr(i int) *int {
 func TestHandler_CreateDraft(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-PROD", "Handler Product", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-PROD", "Handler Product", 10000, 100)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -81,13 +81,13 @@ func TestHandler_CreateDraft(t *testing.T) {
 func TestHandler_ConfirmPO(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Confirm Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-CONF", "Handler Confirm", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Confirm Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-CONF", "Handler Confirm", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Confirm", SKU: "HANDLER-CONF"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Confirm", SKU: "HANDLER-CONF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -111,13 +111,13 @@ func TestHandler_ConfirmPO(t *testing.T) {
 func TestHandler_CancelPOWithReceiptsFails(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Cancel Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-CANCEL", "Handler Cancel", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Cancel Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-CANCEL", "Handler Cancel", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Cancel", SKU: "HANDLER-CANCEL"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Cancel", SKU: "HANDLER-CANCEL"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -145,13 +145,13 @@ func TestHandler_CancelPOWithReceiptsFails(t *testing.T) {
 func TestHandler_GetPO(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler GetPO Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-GETPO", "Handler GetPO", 15000, 50)
+	supplierID := insertTestSupplier(ctx, t, "Handler GetPO Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-GETPO", "Handler GetPO", 15000, 50)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 12000, ProductName: "Handler GetPO", SKU: "HANDLER-GETPO"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 12000, ProductName: "Handler GetPO", SKU: "HANDLER-GETPO"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -192,14 +192,14 @@ func TestHandler_GetPO_InvalidID(t *testing.T) {
 func TestHandler_ListPOs(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler List Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-LIST", "Handler List", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler List Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-LIST", "Handler List", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
 	for i := 0; i < 3; i++ {
-		po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-		items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler List", SKU: "HANDLER-LIST"}}
+		po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+		items := []OrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler List", SKU: "HANDLER-LIST"}}
 		tx, _ := repo.BeginTx(ctx)
 		po.PONumber, _ = repo.GetNextPONumber(ctx)
 		_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -236,13 +236,13 @@ func TestHandler_ListPOs_EmptyResult(t *testing.T) {
 func TestHandler_UpdateDraft(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Update Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-UPD", "Handler Update", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Update Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-UPD", "Handler Update", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Update", SKU: "HANDLER-UPD"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler Update", SKU: "HANDLER-UPD"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -270,8 +270,8 @@ func TestHandler_UpdateDraft(t *testing.T) {
 func TestHandler_UpdateDraft_InvalidID(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Upd Invalid Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-UPDINV", "Handler Upd Invalid", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Upd Invalid Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-UPDINV", "Handler Upd Invalid", 10000, 100)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -291,13 +291,13 @@ func TestHandler_UpdateDraft_InvalidID(t *testing.T) {
 func TestHandler_DeleteDraft(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Delete Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-DEL", "Handler Delete", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Delete Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-DEL", "Handler Delete", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete", SKU: "HANDLER-DEL"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete", SKU: "HANDLER-DEL"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -316,13 +316,13 @@ func TestHandler_DeleteDraft(t *testing.T) {
 func TestHandler_DeleteDraft_NotDraftReturnsConflict(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Delete Conflict Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-DELCF", "Handler Delete Conflict", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Delete Conflict Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-DELCF", "Handler Delete Conflict", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete Conflict", SKU: "HANDLER-DELCF"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 2, UnitCost: 5000, ProductName: "Handler Delete Conflict", SKU: "HANDLER-DELCF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -353,13 +353,13 @@ func TestHandler_DeleteDraft_InvalidID(t *testing.T) {
 func TestHandler_GetReceipts(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler Receipts Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-RCPT", "Handler Receipts", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "Handler Receipts Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-RCPT", "Handler Receipts", 10000, 100)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Receipts", SKU: "HANDLER-RCPT"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler Receipts", SKU: "HANDLER-RCPT"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -420,13 +420,13 @@ func TestHandler_GetReceipts_InvalidID(t *testing.T) {
 func TestHandler_CreateGoodsReceipt(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler GR Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-GR", "Handler GR", 10000, 200)
+	supplierID := insertTestSupplier(ctx, t, "Handler GR Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-GR", "Handler GR", 10000, 200)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler GR", SKU: "HANDLER-GR"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Handler GR", SKU: "HANDLER-GR"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -473,13 +473,13 @@ func TestHandler_CreateGoodsReceipt_InvalidJSON(t *testing.T) {
 func TestHandler_CreateGoodsReceipt_OverReceiveFails(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler GR Over Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-GROV", "Handler GR Over", 10000, 200)
+	supplierID := insertTestSupplier(ctx, t, "Handler GR Over Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-GROV", "Handler GR Over", 10000, 200)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR Over", SKU: "HANDLER-GROV"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR Over", SKU: "HANDLER-GROV"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)
@@ -510,13 +510,13 @@ func TestHandler_CreateGoodsReceipt_OverReceiveFails(t *testing.T) {
 func TestHandler_CreateGoodsReceipt_POItemNotFound(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "Handler GR NotFound Supplier")
-	prodID := insertTestProduct(t, ctx, "HANDLER-GRNF", "Handler GR NotFound", 10000, 200)
+	supplierID := insertTestSupplier(ctx, t, "Handler GR NotFound Supplier")
+	prodID := insertTestProduct(ctx, t, "HANDLER-GRNF", "Handler GR NotFound", 10000, 200)
 
 	repo := NewRepository(dbPool)
 	userID := 1
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR NotFound", SKU: "HANDLER-GRNF"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Handler GR NotFound", SKU: "HANDLER-GRNF"}}
 	tx, _ := repo.BeginTx(ctx)
 	po.PONumber, _ = repo.GetNextPONumber(ctx)
 	_ = repo.CreatePurchaseOrder(ctx, tx, po, items)

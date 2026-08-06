@@ -433,7 +433,7 @@ func (h *Handler) CheckoutCart(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID := middleware.UserIDFromContext(ctx)
-		_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(ctx),
 			Role:        middleware.RoleFromContext(ctx),
@@ -461,7 +461,7 @@ func (h *Handler) auditCart(c *gin.Context, action, entityType, format string, a
 	}
 	ctx := c.Request.Context()
 	actorID := middleware.UserIDFromContext(ctx)
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      actorID,
 		Username:    middleware.UsernameFromContext(ctx),
 		Role:        middleware.RoleFromContext(ctx),

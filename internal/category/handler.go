@@ -14,21 +14,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type CategoryService interface {
+type Service interface {
 	ListCategories(ctx context.Context) ([]Category, error)
 	GetCategoryByID(ctx context.Context, id int) (*Category, error)
 	GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
-	CreateCategory(ctx context.Context, req *CategoryCreateRequest) (*Category, error)
-	UpdateCategory(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error)
+	CreateCategory(ctx context.Context, req *CreateRequest) (*Category, error)
+	UpdateCategory(ctx context.Context, id int, req *UpdateRequest) (*Category, error)
 	DeleteCategory(ctx context.Context, id int) error
+	SlugExists(ctx context.Context, slug string, excludeID int) (bool, error)
+	HasActiveProducts(ctx context.Context, categoryID int) (bool, error)
 }
 
 type Handler struct {
-	svc      CategoryService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc CategoryService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -65,7 +67,7 @@ func (h *Handler) ListCategoriesManagement(c *gin.Context) {
 }
 
 func (h *Handler) CreateCategoryHandler(c *gin.Context) {
-	var req CategoryCreateRequest
+	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -79,7 +81,7 @@ func (h *Handler) CreateCategoryHandler(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -107,7 +109,7 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 		oldCategory, _ = h.svc.GetCategoryByID(c.Request.Context(), id)
 	}
 
-	var req CategoryUpdateRequest
+	var req UpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -121,7 +123,7 @@ func (h *Handler) UpdateCategoryHandler(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -165,7 +167,7 @@ func (h *Handler) DeleteCategoryHandler(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted category #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

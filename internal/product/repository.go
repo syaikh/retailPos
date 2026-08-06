@@ -616,7 +616,7 @@ func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Ware
 	return warehouses, nil
 }
 
-func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	query := "SELECT id, sku, name FROM products WHERE deleted_at IS NULL AND status = 'active' ORDER BY name"
 
 	rows, err := r.db.Query(ctx, query)
@@ -625,9 +625,9 @@ func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]ProductOpti
 	}
 	defer rows.Close()
 
-	var options []ProductOption
+	var options []Option
 	for rows.Next() {
-		var opt ProductOption
+		var opt Option
 		if err := rows.Scan(&opt.ID, &opt.SKU, &opt.Name); err != nil {
 			return nil, err
 		}

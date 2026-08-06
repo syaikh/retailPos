@@ -21,7 +21,7 @@ type UOMRepo interface {
 	GetIDByCode(ctx context.Context, code string) (int, error)
 }
 
-type Service struct {
+type service struct {
 	repo         *Repository
 	categoryRepo CategoryRepo
 	brandRepo    BrandRepo
@@ -29,23 +29,23 @@ type Service struct {
 	eventBus     shared.EventBus
 }
 
-func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) *Service {
-	return &Service{repo: repo, categoryRepo: categoryRepo, brandRepo: brandRepo, uomRepo: uomRepo, eventBus: eventBus}
+func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) Service {
+	return &service{repo: repo, categoryRepo: categoryRepo, brandRepo: brandRepo, uomRepo: uomRepo, eventBus: eventBus}
 }
 
-func (s *Service) GetProductByID(ctx context.Context, id, storeID int) (*Product, error) {
+func (s *service) GetProductByID(ctx context.Context, id, storeID int) (*Product, error) {
 	return s.repo.GetProductByID(ctx, id, ptr(storeID))
 }
 
-func (s *Service) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
+func (s *service) GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error) {
 	return s.repo.GetProductsByIDs(ctx, ids)
 }
 
-func (s *Service) GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error) {
+func (s *service) GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error) {
 	return s.repo.GetProductBySKU(ctx, sku, ptr(storeID))
 }
 
-func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
+func (s *service) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
 	if status == "" && isActive != nil {
 		if *isActive {
 			status = "active"
@@ -85,11 +85,11 @@ func (s *Service) GetAllProducts(ctx context.Context, limit, offset int, search,
 	return s.repo.GetAllProducts(ctx, limit, offset, search, categoryIDs, sortBy, sortDir, maxStock, storeID, status, supplierID)
 }
 
-func (s *Service) CreateProduct(ctx context.Context, product *Product) error {
+func (s *service) CreateProduct(ctx context.Context, product *Product) error {
 	return s.repo.CreateProduct(ctx, product)
 }
 
-func (s *Service) UpdateProduct(ctx context.Context, product *Product) error {
+func (s *service) UpdateProduct(ctx context.Context, product *Product) error {
 	old, err := s.repo.GetProductByID(ctx, product.ID, product.StoreID)
 	if err != nil {
 		return err
@@ -100,11 +100,11 @@ func (s *Service) UpdateProduct(ctx context.Context, product *Product) error {
 	return s.eventBus.Publish(ctx, "product.updated", eventbus.UpdatePayload{Old: old, New: product})
 }
 
-func (s *Service) DeleteProduct(ctx context.Context, id int, storeID *int) error {
+func (s *service) DeleteProduct(ctx context.Context, id int, storeID *int) error {
 	return s.repo.DeleteProduct(ctx, id, storeID)
 }
 
-func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
+func (s *service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error {
 	status := "active"
 	if !isActive {
 		status = "inactive"
@@ -112,20 +112,20 @@ func (s *Service) BulkUpdateProductStatus(ctx context.Context, ids []int, isActi
 	return s.repo.BulkUpdateProductStatus(ctx, ids, status, storeID)
 }
 
-func (s *Service) GetNextSKU(ctx context.Context) (string, error) { return s.repo.GetNextSKU(ctx) }
-func (s *Service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) {
+func (s *service) GetNextSKU(ctx context.Context) (string, error) { return s.repo.GetNextSKU(ctx) }
+func (s *service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) {
 	return s.repo.GetTaxClassByID(ctx, id)
 }
-func (s *Service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
+func (s *service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 	return s.repo.GetAllTaxClasses(ctx)
 }
-func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
+func (s *service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
 	return s.repo.GetWarehouseByID(ctx, id)
 }
-func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
+func (s *service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
 	return s.repo.GetAllWarehouses(ctx, nil)
 }
-func (s *Service) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+func (s *service) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	return s.repo.GetActiveProductOptions(ctx)
 }
 

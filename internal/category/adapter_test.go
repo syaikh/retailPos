@@ -33,7 +33,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    CategoryImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -45,7 +45,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Description": "All electronic items",
 				"IsActive":    "true",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:         1,
 				Name:        "Electronics",
 				Slug:        "electronics",
@@ -60,7 +60,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Beverages",
 				"IsActive": "false",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      2,
 				Name:     "Beverages",
 				IsActive: false,
@@ -89,7 +89,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"_row": 5,
 				"Name": "Actives",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      5,
 				Name:     "Actives",
 				IsActive: true,
@@ -102,7 +102,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Truthy",
 				"IsActive": "1",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      6,
 				Name:     "Truthy",
 				IsActive: true,
@@ -115,7 +115,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Name":     "YesActive",
 				"IsActive": "yes",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      7,
 				Name:     "YesActive",
 				IsActive: true,
@@ -128,7 +128,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Name":     "UpperActive",
 				"IsActive": "TRUE",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      8,
 				Name:     "UpperActive",
 				IsActive: true,
@@ -141,7 +141,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Random",
 				"IsActive": "bogus",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      9,
 				Name:     "Random",
 				IsActive: false,
@@ -152,7 +152,7 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 			row: map[string]interface{}{
 				"Name": "NoRow",
 			},
-			want: CategoryImportRow{
+			want: ImportRow{
 				Row:      0,
 				Name:     "NoRow",
 				IsActive: true,
@@ -171,8 +171,8 @@ func TestCategoryAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(CategoryImportRow)
-			require.True(t, ok, "expected CategoryImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -197,7 +197,7 @@ func TestCategoryAdapter_ReposAdapter_Insert(t *testing.T) {
 	ra := a.Repository()
 
 	inserted, err := ra.Insert(context.Background(), []interface{}{
-		CategoryImportRow{Row: 1, Name: "New Cat", Description: "new", IsActive: true},
+		ImportRow{Row: 1, Name: "New Cat", Description: "new", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, inserted)
@@ -217,8 +217,8 @@ func TestCategoryAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Insert(context.Background(), []interface{}{
-		CategoryImportRow{Row: 1, Name: "Valid", IsActive: true},
-		CategoryImportRow{Row: 2, Name: "", IsActive: true},
+		ImportRow{Row: 1, Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Name: "", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "category import errors")
@@ -237,7 +237,7 @@ func TestCategoryAdapter_ReposAdapter_Update(t *testing.T) {
 	ra := a.Repository()
 
 	updated, err := ra.Update(context.Background(), []interface{}{
-		CategoryImportRow{Row: 1, Name: "Existing Cat", Description: "upd", IsActive: true},
+		ImportRow{Row: 1, Name: "Existing Cat", Description: "upd", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, updated)
@@ -257,8 +257,8 @@ func TestCategoryAdapter_ReposAdapter_Update_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	_, err = ra.Update(context.Background(), []interface{}{
-		CategoryImportRow{Row: 1, Name: "Valid", IsActive: true},
-		CategoryImportRow{Row: 2, Name: "", IsActive: true},
+		ImportRow{Row: 1, Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Name: "", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "category import errors")

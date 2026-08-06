@@ -7,13 +7,13 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type Service struct {
+type service struct {
 	repo     *Repository
 	eventBus shared.EventBus
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) *Service {
-	return &Service{
+func NewService(repo *Repository, eventBus shared.EventBus) Service {
+	return &service{
 		repo:     repo,
 		eventBus: eventBus,
 	}
@@ -26,43 +26,43 @@ func storeIDPtr(storeID int) *int {
 	return &storeID
 }
 
-func (s *Service) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
+func (s *service) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
 	return s.repo.GetDashboardStats(ctx, storeIDPtr(storeID), shared.JakartaLocation())
 }
 
-func (s *Service) GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
+func (s *service) GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
 	return s.repo.GetLiveDashboardStats(ctx, storeIDPtr(storeID))
 }
 
-func (s *Service) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error) {
+func (s *service) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error) {
 	return s.repo.GetPeriodComparison(ctx, currentStart, currentEnd, previousStart, previousEnd, storeID)
 }
 
-func (s *Service) GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error) {
+func (s *service) GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error) {
 	return s.repo.GetDualChartData(ctx, currentStart, currentEnd, previousStart, previousEnd, storeID)
 }
 
-func (s *Service) GetAvailableYears(ctx context.Context, storeID int) ([]int, error) {
+func (s *service) GetAvailableYears(ctx context.Context, storeID int) ([]int, error) {
 	return s.repo.GetAvailableYears(ctx, storeIDPtr(storeID))
 }
 
-func (s *Service) GetHourlySales(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error) {
+func (s *service) GetHourlySales(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error) {
 	return s.repo.GetHourlySales(ctx, date, storeIDPtr(storeID))
 }
 
-func (s *Service) GetDailySales(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error) {
+func (s *service) GetDailySales(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error) {
 	return s.repo.GetDailySales(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *Service) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
+func (s *service) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
 	return s.repo.GetSalesWeeklyReport(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *Service) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
+func (s *service) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
 	return s.repo.GetSalesMonthlyReport(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *Service) GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error) {
+func (s *service) GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error) {
 	current, err = s.repo.GetSalesMonthlyReport(ctx, currentStart, currentEnd, storeIDPtr(storeID))
 	if err != nil {
 		return nil, nil, err
@@ -74,6 +74,6 @@ func (s *Service) GetDualMonthlyReport(ctx context.Context, storeID int, current
 	return current, previous, nil
 }
 
-func (s *Service) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+func (s *service) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
 	return s.repo.GetPricingBreakdown(ctx, start, end, storeID)
 }

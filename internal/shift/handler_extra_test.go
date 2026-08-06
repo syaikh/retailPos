@@ -15,7 +15,7 @@ import (
 	"retail-pos-system/internal/permissions"
 )
 
-func setupShiftHandlerNoUser(svc ShiftService) *gin.Engine {
+func setupShiftHandlerNoUser(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -85,7 +85,7 @@ func TestShiftHandler_ExportShifts_XLSX(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "export", log.Action)
 			assert.Equal(t, "shift", log.EntityType)

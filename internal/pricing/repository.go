@@ -155,8 +155,8 @@ type ProductScope struct {
 	BrandID    *int
 }
 
-func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) {
-	var rule PricingRule
+func (r *Repository) GetByID(ctx context.Context, id int) (*Rule, error) {
+	var rule Rule
 	var createdAt, updatedAt time.Time
 	var effectiveFrom, effectiveUntil sql.NullTime
 	var timeFrom, timeTo sql.NullString
@@ -170,7 +170,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 		FROM pricing_rules WHERE id = $1
 	`, id).Scan(
 		&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
-		&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+		&rule.Type, &rule.Method, &rule.PricingValue,
 		&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 		&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 		&recurrenceDays, &timeFrom, &timeTo,
@@ -204,7 +204,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*PricingRule, error) 
 	return &rule, nil
 }
 
-func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]PricingRule, error) {
+func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]Rule, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
@@ -220,7 +220,7 @@ func (r *Repository) GetByProductID(ctx context.Context, productID int) ([]Prici
 	return scanRules(rows)
 }
 
-func (r *Repository) GetActiveRules(ctx context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]PricingRule, error) {
+func (r *Repository) GetActiveRules(ctx context.Context, productID int, categoryID, brandID *int, now time.Time, customerGroupID, storeID *int) ([]Rule, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
@@ -244,9 +244,9 @@ func (r *Repository) GetActiveRules(ctx context.Context, productID int, category
 	return scanRules(rows)
 }
 
-func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]PricingRule, error) {
+func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]Rule, error) {
 	if len(productIDs) == 0 {
-		return map[int][]PricingRule{}, nil
+		return map[int][]Rule{}, nil
 	}
 
 	rows, err := r.db.Query(ctx, `
@@ -273,10 +273,10 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 	}
 	defer rows.Close()
 
-	result := make(map[int][]PricingRule)
+	result := make(map[int][]Rule)
 	for rows.Next() {
 		var matchedProductID int
-		var rule PricingRule
+		var rule Rule
 		var createdAt, updatedAt time.Time
 		var effectiveFrom, effectiveUntil sql.NullTime
 		var timeFrom, timeTo sql.NullString
@@ -284,7 +284,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 
 		err := rows.Scan(
 			&matchedProductID, &rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
-			&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+			&rule.Type, &rule.Method, &rule.PricingValue,
 			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 			&recurrenceDays, &timeFrom, &timeTo,
@@ -321,7 +321,7 @@ func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, 
 	return result, nil
 }
 
-func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
+func (r *Repository) Create(ctx context.Context, rule *Rule) error {
 	if rule.Status == "" {
 		rule.Status = StatusApproved
 	}
@@ -333,7 +333,7 @@ func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
 		       allow_combine, is_active, status, effective_from, effective_until)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id, created_at, updated_at
-	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
+	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.Type, rule.Method,
 		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
 		rule.Priority, rule.CustomerGroupID, rule.StoreID,
 		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
@@ -347,7 +347,7 @@ func (r *Repository) Create(ctx context.Context, rule *PricingRule) error {
 	return nil
 }
 
-func (r *Repository) Update(ctx context.Context, rule *PricingRule) error {
+func (r *Repository) Update(ctx context.Context, rule *Rule) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE pricing_rules
 		SET product_id = $1, category_id = $2, brand_id = $3, pricing_type = $4, pricing_method = $5,
@@ -357,7 +357,7 @@ func (r *Repository) Update(ctx context.Context, rule *PricingRule) error {
 		    allow_combine = $16, is_active = $17, status = $18, effective_from = $19, effective_until = $20,
 		    updated_at = NOW()
 		WHERE id = $21
-	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.PricingType, rule.PricingMethod,
+	`, rule.ProductID, rule.CategoryID, rule.BrandID, rule.Type, rule.Method,
 		rule.PricingValue, rule.Name, rule.MinimumQuantity, rule.MaximumQuantity,
 		rule.Priority, rule.CustomerGroupID, rule.StoreID,
 		rule.RecurrenceDays, rule.TimeFrom, rule.TimeTo,
@@ -390,7 +390,7 @@ func (r *Repository) NameExists(ctx context.Context, name string, excludeID int)
 
 // FindConflicts returns active rules that overlap with the given rule's scope
 // (product/category/brand), pricing type, priority, and quantity range.
-func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error) {
+func (r *Repository) FindConflicts(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error) {
 	query := `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
@@ -432,7 +432,7 @@ func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, exclu
 		maxQty = *rule.MaximumQuantity
 	}
 
-	rows, err := r.db.Query(ctx, query, excludeID, rule.PricingType, rule.Priority,
+	rows, err := r.db.Query(ctx, query, excludeID, rule.Type, rule.Priority,
 		productID, categoryID, brandID, rule.MinimumQuantity, maxQty)
 	if err != nil {
 		return nil, fmt.Errorf("find conflicts: %w", err)
@@ -442,7 +442,7 @@ func (r *Repository) FindConflicts(ctx context.Context, rule *PricingRule, exclu
 	return scanRules(rows)
 }
 
-func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error) {
+func (r *Repository) GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error) {
 	countQuery := `SELECT COUNT(*) FROM pricing_rules WHERE 1=1`
 	dataQuery := `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
@@ -553,10 +553,10 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 	return rules, total, nil
 }
 
-func scanRules(rows pgx.Rows) ([]PricingRule, error) {
-	var rules []PricingRule
+func scanRules(rows pgx.Rows) ([]Rule, error) {
+	var rules []Rule
 	for rows.Next() {
-		var rule PricingRule
+		var rule Rule
 		var createdAt, updatedAt time.Time
 		var effectiveFrom, effectiveUntil sql.NullTime
 		var timeFrom, timeTo sql.NullString
@@ -564,7 +564,7 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 
 		err := rows.Scan(
 			&rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
-			&rule.PricingType, &rule.PricingMethod, &rule.PricingValue,
+			&rule.Type, &rule.Method, &rule.PricingValue,
 			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
 			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
 			&recurrenceDays, &timeFrom, &timeTo,
@@ -600,13 +600,13 @@ func scanRules(rows pgx.Rows) ([]PricingRule, error) {
 	return rules, nil
 }
 
-type PricingRuleImportRow struct {
+type RuleImportRow struct {
 	Row             int
 	ProductID       *int
 	CategoryID      *int
 	BrandID         *int
-	PricingType     string
-	PricingMethod   string
+	Type     string
+	Method   string
 	PricingValue    float64
 	Name            string
 	MinimumQuantity int
@@ -623,12 +623,12 @@ type PricingRuleImportRow struct {
 	AllowCombine    bool
 }
 
-type PricingRuleImportPayload struct {
+type RuleImportPayload struct {
 	ProductID       *int
 	CategoryID      *int
 	BrandID         *int
-	PricingType     string
-	PricingMethod   string
+	Type     string
+	Method   string
 	PricingValue    float64
 	Name            string
 	MinimumQuantity int
@@ -645,7 +645,7 @@ type PricingRuleImportPayload struct {
 	AllowCombine    bool
 }
 
-func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []PricingRuleImportPayload) (int, error) {
+func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []RuleImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}
@@ -664,7 +664,7 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Pric
 			       customer_group_id, store_id, recurrence_days, time_from, time_to,
 			       allow_combine, is_active, status, effective_from, effective_until)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-		`, p.ProductID, p.CategoryID, p.BrandID, p.PricingType, p.PricingMethod,
+		`, p.ProductID, p.CategoryID, p.BrandID, p.Type, p.Method,
 			p.PricingValue, p.Name, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.CustomerGroupID, p.StoreID,
 			p.RecurrenceDays, p.TimeFrom, p.TimeTo,
@@ -681,7 +681,7 @@ func (r *Repository) BulkInsertPricingRules(ctx context.Context, payloads []Pric
 	return count, nil
 }
 
-func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []PricingRuleImportPayload) (int, error) {
+func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []RuleImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}
@@ -701,11 +701,11 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Pric
 			    customer_group_id = $11, store_id = $12, recurrence_days = $13, time_from = $14, time_to = $15,
 			    allow_combine = $16, status = $17, updated_at = NOW()
 			WHERE product_id = $18 AND pricing_type = $19 AND name = $20
-		`, p.CategoryID, p.BrandID, p.PricingMethod, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
+		`, p.CategoryID, p.BrandID, p.Method, p.PricingValue, p.MinimumQuantity, p.MaximumQuantity,
 			p.Priority, p.IsActive, p.EffectiveFrom, p.EffectiveUntil,
 			p.CustomerGroupID, p.StoreID, p.RecurrenceDays, p.TimeFrom, p.TimeTo,
 			p.AllowCombine, StatusApproved,
-			p.ProductID, p.PricingType, p.Name)
+			p.ProductID, p.Type, p.Name)
 		if err != nil {
 			return count, fmt.Errorf("update pricing rule: %w", err)
 		}
@@ -720,7 +720,7 @@ func (r *Repository) BulkUpdatePricingRules(ctx context.Context, payloads []Pric
 	return count, nil
 }
 
-func (r *Repository) GetAllForExport(ctx context.Context) ([]PricingRule, error) {
+func (r *Repository) GetAllForExport(ctx context.Context) ([]Rule, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
 		       pricing_value, name, minimum_quantity, maximum_quantity, priority,

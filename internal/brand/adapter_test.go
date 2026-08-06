@@ -33,7 +33,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    BrandImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -44,7 +44,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Description": "Korean electronics brand",
 				"IsActive":    "true",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:         1,
 				Name:        "Samsung",
 				Description: "Korean electronics brand",
@@ -58,7 +58,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Name":     "DefunctBrand",
 				"IsActive": "false",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:      2,
 				Name:     "DefunctBrand",
 				IsActive: false,
@@ -86,7 +86,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Name":        "AutoActive",
 				"Description": "Should be active",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:         5,
 				Name:        "AutoActive",
 				Description: "Should be active",
@@ -100,7 +100,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Name":     "YesBrand",
 				"IsActive": "YES",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:      6,
 				Name:     "YesBrand",
 				IsActive: true,
@@ -113,7 +113,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Name":     "NumericBrand",
 				"IsActive": "1",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:      7,
 				Name:     "NumericBrand",
 				IsActive: true,
@@ -126,7 +126,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				"Name":     "WeirdBrand",
 				"IsActive": "maybe",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:      8,
 				Name:     "WeirdBrand",
 				IsActive: false,
@@ -137,7 +137,7 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 			row: map[string]interface{}{
 				"Name": "NoRowBrand",
 			},
-			want: BrandImportRow{
+			want: ImportRow{
 				Row:      0,
 				Name:     "NoRowBrand",
 				IsActive: true,
@@ -156,8 +156,8 @@ func TestBrandAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(BrandImportRow)
-			require.True(t, ok, "expected BrandImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -182,7 +182,7 @@ func TestBrandAdapter_ReposAdapter_Insert(t *testing.T) {
 	ra := a.Repository()
 
 	inserted, err := ra.Insert(context.Background(), []interface{}{
-		BrandImportRow{Row: 1, Name: "New Brand", Description: "desc", IsActive: true},
+		ImportRow{Row: 1, Name: "New Brand", Description: "desc", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, inserted)
@@ -202,8 +202,8 @@ func TestBrandAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	ra := a.Repository()
 
 	inserted, err := ra.Insert(context.Background(), []interface{}{
-		BrandImportRow{Row: 1, Name: "Valid", IsActive: true},
-		BrandImportRow{Row: 2, Name: "", IsActive: true},
+		ImportRow{Row: 1, Name: "Valid", IsActive: true},
+		ImportRow{Row: 2, Name: "", IsActive: true},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "brand import errors")
@@ -223,7 +223,7 @@ func TestBrandAdapter_ReposAdapter_Update(t *testing.T) {
 	ra := a.Repository()
 
 	updated, err := ra.Update(context.Background(), []interface{}{
-		BrandImportRow{Row: 1, Name: "Existing", Description: "upd", IsActive: true},
+		ImportRow{Row: 1, Name: "Existing", Description: "upd", IsActive: true},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, updated)

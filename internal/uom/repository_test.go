@@ -114,7 +114,7 @@ func TestUOMRepository_Import(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("BulkUpsert inserts new UOMs", func(t *testing.T) {
-		records := []UOMImportRow{
+		records := []ImportRow{
 			{Row: 2, Code: "IMP1", Name: "Import UOM 1", IsActive: true},
 			{Row: 3, Code: "IMP2", Name: "Import UOM 2", IsActive: false},
 		}
@@ -125,7 +125,7 @@ func TestUOMRepository_Import(t *testing.T) {
 	})
 
 	t.Run("BulkUpsert updates existing UOMs", func(t *testing.T) {
-		records := []UOMImportRow{
+		records := []ImportRow{
 			{Row: 2, Code: "IMP1", Name: "Updated UOM 1", IsActive: false},
 		}
 		result := repo.BulkUpsert(ctx, records)
@@ -135,7 +135,7 @@ func TestUOMRepository_Import(t *testing.T) {
 	})
 
 	t.Run("BulkUpsert rejects empty code", func(t *testing.T) {
-		records := []UOMImportRow{
+		records := []ImportRow{
 			{Row: 2, Code: "", Name: "No Code", IsActive: true},
 		}
 		result := repo.BulkUpsert(ctx, records)
@@ -146,7 +146,7 @@ func TestUOMRepository_Import(t *testing.T) {
 	})
 
 	t.Run("BulkUpsert rejects empty name", func(t *testing.T) {
-		records := []UOMImportRow{
+		records := []ImportRow{
 			{Row: 2, Code: "NONAM", Name: "", IsActive: true},
 		}
 		result := repo.BulkUpsert(ctx, records)

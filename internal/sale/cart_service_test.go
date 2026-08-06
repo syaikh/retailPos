@@ -16,7 +16,7 @@ import (
 
 // newCartTestService builds a service wired with a real pricing resolver so
 // snapshots carry actual unit prices, cost, and tax rates from the test DB.
-func newCartTestService(t *testing.T, ctx context.Context) (*Service, *eventbus.Bus) {
+func newCartTestService(ctx context.Context, t *testing.T) (Service, *eventbus.Bus) {
 	t.Helper()
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
@@ -61,24 +61,24 @@ func (a *pricingTestResolver) ResolveSnapshotsBatch(ctx context.Context, items [
 			UnitPrice:     snap.UnitPrice,
 			OriginalPrice: snap.OriginalPrice,
 			Discount:      snap.Discount,
-			PricingType:   PricingType(snap.PricingType),
+			Type:   Type(snap.Type),
 			Cost:          snap.Cost,
 			TaxClassID:    snap.TaxClassID,
 			TaxRate:       snap.TaxRate,
 			SnapshotAt:    snap.SnapshotAt,
 		}
 		if snap.Rule != nil {
-			result[i].Rule = &PricingRule{
+			result[i].Rule = &Rule{
 				ID:          snap.Rule.ID,
 				Name:        snap.Rule.Name,
-				PricingType: PricingType(snap.Rule.PricingType),
+				Type: Type(snap.Rule.Type),
 			}
 		}
 	}
 	return result, nil
 }
 
-func insertTestProductWithTax(t *testing.T, ctx context.Context, sku, name string, price, stock int, taxRate float64) int {
+func insertTestProductWithTax(ctx context.Context, t *testing.T, sku, name string, price, stock int, taxRate float64) int {
 	t.Helper()
 	var taxClassID int
 	err := dbPool.QueryRow(ctx, `
@@ -105,10 +105,10 @@ func insertTestProductWithTax(t *testing.T, ctx context.Context, sku, name strin
 func TestCartService_IT01_PriceChangeDuringHold(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT01-PROD", "IT01 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT01-PROD", "IT01 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -137,10 +137,10 @@ func TestCartService_IT01_PriceChangeDuringHold(t *testing.T) {
 func TestCartService_IT02_NewItemAfterResumeUsesLatestPrice(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT02-PROD", "IT02 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT02-PROD", "IT02 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -167,10 +167,10 @@ func TestCartService_IT02_NewItemAfterResumeUsesLatestPrice(t *testing.T) {
 func TestCartService_IT03_QuantityUpdateKeepsPrice(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT03-PROD", "IT03 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT03-PROD", "IT03 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -189,10 +189,10 @@ func TestCartService_IT03_QuantityUpdateKeepsPrice(t *testing.T) {
 func TestCartService_IT04_VoidThenRescanCreatesNewSnapshot(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT04-PROD", "IT04 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT04-PROD", "IT04 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -216,10 +216,10 @@ func TestCartService_IT04_VoidThenRescanCreatesNewSnapshot(t *testing.T) {
 func TestCartService_IT05_PromoAfterItemKeepsOldSnapshot(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT05-PROD", "IT05 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT05-PROD", "IT05 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -243,10 +243,10 @@ func TestCartService_IT05_PromoAfterItemKeepsOldSnapshot(t *testing.T) {
 func TestCartService_IT06_PromoBeforeScanIsUsed(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT06-PROD", "IT06 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT06-PROD", "IT06 Product", 3500, 100, 11)
 
 	_, err := dbPool.Exec(ctx, `
 		INSERT INTO pricing_rules (product_id, pricing_type, pricing_method, pricing_value, name, priority, is_active, status)
@@ -273,10 +273,10 @@ func TestCartService_IT06_PromoBeforeScanIsUsed(t *testing.T) {
 func TestCartService_IT07_MultiplePriceChanges(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT07-PROD", "IT07 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT07-PROD", "IT07 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestCartService_IT07_MultiplePriceChanges(t *testing.T) {
 func TestCartService_IT08_CheckoutDeductsStockAndPublishes(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, bus := newCartTestService(t, ctx)
+	svc, bus := newCartTestService(ctx, t)
 
 	published := make(chan struct{}, 1)
 	bus.Subscribe(eventbus.NewListenerFunc(
@@ -309,8 +309,8 @@ func TestCartService_IT08_CheckoutDeductsStockAndPublishes(t *testing.T) {
 		},
 	))
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT08-PROD", "IT08 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT08-PROD", "IT08 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -345,10 +345,10 @@ func TestCartService_IT08_CheckoutDeductsStockAndPublishes(t *testing.T) {
 func TestCartService_CheckoutCartWithPaymentMethod_DerivesAmountFromTotal(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-PM-PROD", "Legacy PM Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-PM-PROD", "Legacy PM Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -367,9 +367,9 @@ func TestCartService_CheckoutCartWithPaymentMethod_DerivesAmountFromTotal(t *tes
 func TestCartService_CheckoutCartWithPaymentMethod_EmptyCartRejected(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -381,10 +381,10 @@ func TestCartService_CheckoutCartWithPaymentMethod_EmptyCartRejected(t *testing.
 func TestCartService_IT09_CheckoutTwiceRejected(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT09-PROD", "IT09 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT09-PROD", "IT09 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -404,10 +404,10 @@ func TestCartService_IT09_CheckoutTwiceRejected(t *testing.T) {
 func TestCartService_IT10_ExpiredCartRejected(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-IT10-PROD", "IT10 Product", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-IT10-PROD", "IT10 Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -430,9 +430,9 @@ func TestCartService_IT10_ExpiredCartRejected(t *testing.T) {
 func TestCartService_OpenCartUniquePerCashier(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart1, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "open", cart1.Status)
@@ -449,10 +449,10 @@ func TestCartService_OpenCartUniquePerCashier(t *testing.T) {
 func TestCartService_CheckoutPaymentMismatch(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-PAY-PROD", "Payment Mismatch", 3500, 100, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-PAY-PROD", "Payment Mismatch", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -466,9 +466,9 @@ func TestCartService_CheckoutPaymentMismatch(t *testing.T) {
 func TestCartService_ResumeHeldCartIdempotentForOpen(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -479,9 +479,9 @@ func TestCartService_ResumeHeldCartIdempotentForOpen(t *testing.T) {
 func TestCartService_UpdateCartCustomer(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	var customerID int
 	err := dbPool.QueryRow(ctx, `INSERT INTO customers (name, email, phone) VALUES ('Cart Customer', 'cart@test.com', '08123') RETURNING id`).Scan(&customerID)
 	require.NoError(t, err)

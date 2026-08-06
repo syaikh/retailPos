@@ -13,7 +13,7 @@ import (
 
 // insertTestCashierNamed creates a distinct cashier so ownership-mismatch paths
 // can be exercised (insertTestCashier always reuses the same user).
-func insertTestCashierNamed(t *testing.T, ctx context.Context, username string) int {
+func insertTestCashierNamed(ctx context.Context, t *testing.T, username string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ($1, $2, 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`, username, username+"@test.com").Scan(&id)
@@ -27,9 +27,9 @@ func TestCartService_GetCartByID(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func TestCartService_GetCartByID(t *testing.T) {
 	})
 
 	t.Run("rejects other cashier", func(t *testing.T) {
-		other := insertTestCashierNamed(t, ctx, "sale_test_other_cashier")
+		other := insertTestCashierNamed(ctx, t, "sale_test_other_cashier")
 		_, err := svc.GetCartByID(ctx, cart.ID, other)
 		assert.ErrorIs(t, err, ErrCartNotOwned)
 	})
@@ -56,9 +56,9 @@ func TestCartService_HoldCart_NotOpen(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -74,9 +74,9 @@ func TestCartService_ResumeCart_NotHeld(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -90,9 +90,9 @@ func TestCartService_ResumeCart_Expired(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	_, err = svc.HoldCart(ctx, cart.ID, cashierID)
@@ -111,9 +111,9 @@ func TestCartService_UpdateCartCustomer_Branches(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	var customerID int
@@ -128,7 +128,7 @@ func TestCartService_UpdateCartCustomer_Branches(t *testing.T) {
 	})
 
 	t.Run("rejects other cashier", func(t *testing.T) {
-		other := insertTestCashierNamed(t, ctx, "sale_test_customer_other")
+		other := insertTestCashierNamed(ctx, t, "sale_test_customer_other")
 		_, err := svc.UpdateCartCustomer(ctx, cart.ID, &customerID, other)
 		assert.ErrorIs(t, err, ErrCartNotOwned)
 	})
@@ -147,10 +147,10 @@ func TestCartService_RemoveCartItem_Branches(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-REMOVE-PROD", "Remove Item Product", 12000, 50, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-REMOVE-PROD", "Remove Item Product", 12000, 50, 11)
 
 	t.Run("success removes item", func(t *testing.T) {
 		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
@@ -168,7 +168,7 @@ func TestCartService_RemoveCartItem_Branches(t *testing.T) {
 	t.Run("rejects other cashier", func(t *testing.T) {
 		cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 		require.NoError(t, err)
-		other := insertTestCashierNamed(t, ctx, "sale_test_remove_other")
+		other := insertTestCashierNamed(ctx, t, "sale_test_remove_other")
 		_, err = svc.RemoveCartItem(ctx, cart.ID, 1, other)
 		assert.ErrorIs(t, err, ErrCartNotOwned)
 	})
@@ -189,9 +189,9 @@ func TestCartService_QuantityValidation(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -208,14 +208,14 @@ func TestCartService_CheckoutCart_WithShift(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	var shiftID int
 	err := dbPool.QueryRow(ctx, `INSERT INTO shifts (user_id, status, opening_balance, opened_at) VALUES ($1, 'open', 0, NOW()) RETURNING id`, cashierID).Scan(&shiftID)
 	require.NoError(t, err)
 
-	prodID := insertTestProductWithTax(t, ctx, "CART-SHIFT-PROD", "Shift Checkout Product", 3500, 100, 11)
+	prodID := insertTestProductWithTax(ctx, t, "CART-SHIFT-PROD", "Shift Checkout Product", 3500, 100, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, &shiftID, nil)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestSaleRepository_CreateCartSession(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := repo.CreateCartSession(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, cashierID, cart.CashierID)
@@ -255,9 +255,9 @@ func TestCartService_HeldCart_WithShiftAndCustomer(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	var shiftID int
 	err := dbPool.QueryRow(ctx, `INSERT INTO shifts (user_id, status, opening_balance, opened_at) VALUES ($1, 'open', 0, NOW()) RETURNING id`, cashierID).Scan(&shiftID)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func TestCartService_HeldCart_WithShiftAndCustomer(t *testing.T) {
 	var storeID int
 	err = dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Held Cart Store') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
-	prodID := insertTestProductWithTax(t, ctx, "CART-HELD-PROD", "Held Cart Product", 12000, 50, 11)
+	prodID := insertTestProductWithTax(ctx, t, "CART-HELD-PROD", "Held Cart Product", 12000, 50, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, &storeID, &shiftID, &customerID)
 	require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestCartService_HoldCart_DefaultTTL(t *testing.T) {
 	t.Cleanup(bus.Shutdown)
 	svc := NewService(NewRepository(dbPool), bus)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -329,13 +329,13 @@ func TestCartService_HoldCart_NotOwned(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
-	other := insertTestCashierNamed(t, ctx, "sale_test_hold_other")
+	other := insertTestCashierNamed(ctx, t, "sale_test_hold_other")
 	_, err = svc.HoldCart(ctx, cart.ID, other)
 	assert.ErrorIs(t, err, ErrCartNotOwned)
 }
@@ -346,15 +346,15 @@ func TestCartService_ResumeCart_NotOwned(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 	_, err = svc.HoldCart(ctx, cart.ID, cashierID)
 	require.NoError(t, err)
 
-	other := insertTestCashierNamed(t, ctx, "sale_test_resume_other")
+	other := insertTestCashierNamed(ctx, t, "sale_test_resume_other")
 	_, err = svc.ResumeCart(ctx, cart.ID, other)
 	assert.ErrorIs(t, err, ErrCartNotOwned)
 }
@@ -365,10 +365,10 @@ func TestCartService_UpdateCartItemQuantity_Branches(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
-	prodID := insertTestProductWithTax(t, ctx, "CART-UQ-PROD", "Update Qty Product", 12000, 50, 11)
+	cashierID := insertTestCashier(ctx, t)
+	prodID := insertTestProductWithTax(ctx, t, "CART-UQ-PROD", "Update Qty Product", 12000, 50, 11)
 
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestCartService_UpdateCartItemQuantity_Branches(t *testing.T) {
 	itemID := cart.Items[0].ID
 
 	t.Run("rejects other cashier", func(t *testing.T) {
-		other := insertTestCashierNamed(t, ctx, "sale_test_uq_other")
+		other := insertTestCashierNamed(ctx, t, "sale_test_uq_other")
 		_, err := svc.UpdateCartItemQuantity(ctx, cart.ID, itemID, 2, other)
 		assert.ErrorIs(t, err, ErrCartNotOwned)
 	})
@@ -401,9 +401,9 @@ func TestCartService_RemoveCartItem_ItemNotFound(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	svc, _ := newCartTestService(t, ctx)
+	svc, _ := newCartTestService(ctx, t)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := svc.CreateOrGetOpenCart(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -419,7 +419,7 @@ func TestSaleRepository_UpdateCartItemQuantity_MissingItem(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	cart, err := repo.CreateCartSession(ctx, cashierID, nil, nil, nil)
 	require.NoError(t, err)
 

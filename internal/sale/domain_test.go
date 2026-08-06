@@ -96,7 +96,7 @@ func TestCartItem_ToSaleItem_VerbatimSnapshot(t *testing.T) {
 		PricingRuleID:     &ruleID,
 		PricingRuleName:   &ruleName,
 		PricingRuleType:   &ruleType,
-		PricingType:       &pricingType,
+		Type:       &pricingType,
 		Cost:              2500,
 		TaxClassID:        &taxClassID,
 		TaxRate:           &taxRate,
@@ -121,8 +121,8 @@ func TestCartItem_ToSaleItem_VerbatimSnapshot(t *testing.T) {
 	assert.Equal(t, "Promo 10%", *si.PricingRuleName)
 	require.NotNil(t, si.PricingRuleType)
 	assert.Equal(t, "promotion", *si.PricingRuleType)
-	require.NotNil(t, si.PricingType)
-	assert.Equal(t, "promotion", *si.PricingType)
+	require.NotNil(t, si.Type)
+	assert.Equal(t, "promotion", *si.Type)
 	require.NotNil(t, si.OriginalPrice)
 	assert.Equal(t, 3500, *si.OriginalPrice)
 	assert.Equal(t, 2500, si.Cost)

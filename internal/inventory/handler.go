@@ -14,19 +14,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type InventoryService interface {
+type Service interface {
 	AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
+	AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error
+	GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error)
 	ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error)
 	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error
 	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error
 }
 
 type Handler struct {
-	svc      InventoryService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc InventoryService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -68,7 +70,7 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

@@ -16,17 +16,17 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupMockBrandRouterWithAudit(svc BrandService) *gin.Engine {
+func setupMockBrandRouterWithAudit(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -46,7 +46,7 @@ func setupMockBrandRouterWithAudit(svc BrandService) *gin.Engine {
 
 func TestAuditHandler_CreateBrand(t *testing.T) {
 	svc := &mockBrandService{
-		createFn: func(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+		createFn: func(ctx context.Context, req *CreateRequest) (*Brand, error) {
 			return &Brand{ID: 10, Name: req.Name}, nil
 		},
 	}
@@ -64,7 +64,7 @@ func TestAuditHandler_UpdateBrand(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*Brand, error) {
 			return &Brand{ID: 1, Name: "Old Brand"}, nil
 		},
-		updateFn: func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 			return &Brand{ID: id, Name: req.Name}, nil
 		},
 	}
@@ -108,7 +108,7 @@ func TestAuditHandler_UpdateBrand_GetByIDError(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*Brand, error) {
 			return nil, errors.New("not found")
 		},
-		updateFn: func(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 			return &Brand{ID: id, Name: req.Name}, nil
 		},
 	}
@@ -123,7 +123,7 @@ func TestAuditHandler_UpdateBrand_GetByIDError(t *testing.T) {
 
 func TestAuditHandler_NilAuditSvc(t *testing.T) {
 	svc := &mockBrandService{
-		createFn: func(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+		createFn: func(ctx context.Context, req *CreateRequest) (*Brand, error) {
 			return &Brand{ID: 20, Name: req.Name}, nil
 		},
 	}

@@ -33,13 +33,13 @@ type Sale struct {
 	TotalAmount   int           `json:"total_amount"`
 	PaymentMethod string        `json:"payment_method"`
 	Status        string        `json:"status"`
-	Items         []SaleItem    `json:"items,omitempty"`
-	Payments      []SalePayment `json:"payments,omitempty"`
+	Items         []Item    `json:"items,omitempty"`
+	Payments      []Payment `json:"payments,omitempty"`
 	CreatedAt     string        `json:"created_at,omitempty"`
 	UpdatedAt     string        `json:"updated_at,omitempty"`
 }
 
-type SaleItem struct {
+type Item struct {
 	ID                int      `json:"id"`
 	SaleID            int      `json:"sale_id"`
 	ProductID         int      `json:"product_id"`
@@ -52,7 +52,7 @@ type SaleItem struct {
 	PricingRuleID     *int     `json:"pricing_rule_id,omitempty"`
 	PricingRuleName   *string  `json:"pricing_rule_name,omitempty"`
 	PricingRuleType   *string  `json:"pricing_rule_type,omitempty"`
-	PricingType       *string  `json:"pricing_type,omitempty"`
+	Type       *string  `json:"pricing_type,omitempty"`
 	OriginalPrice     *int     `json:"original_price,omitempty"`
 	Cost              int      `json:"cost,omitempty"`
 	TaxClassID        *int     `json:"tax_class_id,omitempty"`
@@ -61,7 +61,7 @@ type SaleItem struct {
 	ProductName       string   `json:"product_name,omitempty"`
 }
 
-type SalePayment struct {
+type Payment struct {
 	ID                int    `json:"id"`
 	SaleID            int    `json:"sale_id"`
 	PaymentMethodID   int    `json:"payment_method_id"`
@@ -77,7 +77,7 @@ type CreatePaymentRequest struct {
 	ReferenceNumber   string `json:"reference_number"`
 }
 
-type SaleExportRow struct {
+type ExportRow struct {
 	InvoiceNumber string `json:"invoice_number"`
 	CreatedAt     string `json:"created_at"`
 	CustomerName  string `json:"customer_name"`
@@ -86,7 +86,7 @@ type SaleExportRow struct {
 	TotalAmount   int    `json:"total_amount"`
 }
 
-type SaleCreateRequest struct {
+type CreateRequest struct {
 	InvoiceNumber string                 `json:"invoice_number"`
 	CashierID     int                    `json:"cashier_id"`
 	ShiftID       *int                   `json:"shift_id,omitempty"`
@@ -97,7 +97,7 @@ type SaleCreateRequest struct {
 	TotalAmount   int                    `json:"total_amount"`
 	PaymentMethod string                 `json:"payment_method"`
 	CustomerID    *int                   `json:"customer_id,omitempty"`
-	Items         []SaleItem             `json:"items"`
+	Items         []Item             `json:"items"`
 	Payments      []CreatePaymentRequest `json:"payments"`
 }
 

@@ -62,12 +62,12 @@ func TestHandler_AdjustStock(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	insertTestUser(t, ctx, 1)
+	insertTestUser(ctx, t, 1)
 	r := setupInventoryRouter()
 
 	t.Run("success increase", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "HDL-ADJ-INC-001")
-		insertTestStock(t, ctx, productID, 10)
+		productID := insertTestProduct(ctx, t, "HDL-ADJ-INC-001")
+		insertTestStock(ctx, t, productID, 10)
 
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"quantity_change":5,"notes":"restock"}`
 		w := httptest.NewRecorder()
@@ -83,8 +83,8 @@ func TestHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("success decrease", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "HDL-ADJ-DEC-001")
-		insertTestStock(t, ctx, productID, 20)
+		productID := insertTestProduct(ctx, t, "HDL-ADJ-DEC-001")
+		insertTestStock(ctx, t, productID, 20)
 
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"quantity_change":-5,"notes":"sale"}`
 		w := httptest.NewRecorder()
@@ -109,8 +109,8 @@ func TestHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("zero quantity change", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "HDL-ADJ-ZERO-001")
-		insertTestStock(t, ctx, productID, 10)
+		productID := insertTestProduct(ctx, t, "HDL-ADJ-ZERO-001")
+		insertTestStock(ctx, t, productID, 10)
 
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"quantity_change":0,"notes":"no change"}`
 		w := httptest.NewRecorder()
@@ -122,8 +122,8 @@ func TestHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("missing notes", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "HDL-ADJ-NOTES-001")
-		insertTestStock(t, ctx, productID, 10)
+		productID := insertTestProduct(ctx, t, "HDL-ADJ-NOTES-001")
+		insertTestStock(ctx, t, productID, 10)
 
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"quantity_change":5,"notes":""}`
 		w := httptest.NewRecorder()
@@ -135,8 +135,8 @@ func TestHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("insufficient stock", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "HDL-ADJ-INSF-001")
-		insertTestStock(t, ctx, productID, 3)
+		productID := insertTestProduct(ctx, t, "HDL-ADJ-INSF-001")
+		insertTestStock(ctx, t, productID, 3)
 
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"quantity_change":-10,"notes":"overdraft"}`
 		w := httptest.NewRecorder()

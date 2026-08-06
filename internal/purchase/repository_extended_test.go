@@ -42,12 +42,12 @@ func TestRepository_DeletePurchaseOrder(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo Delete Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-DEL", "Repo Delete", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_del_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo Delete Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-DEL", "Repo Delete", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_del_user")
 
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 5000, ProductName: "Repo Delete", SKU: "REPO-DEL"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 5000, ProductName: "Repo Delete", SKU: "REPO-DEL"}}
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -73,12 +73,12 @@ func TestRepository_DeletePurchaseOrder_ConfirmedSilentlyNoops(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo Del Confirm Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-DELCF", "Repo Del Confirm", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_del_cf_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo Del Confirm Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-DELCF", "Repo Del Confirm", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_del_cf_user")
 
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 5000, ProductName: "Repo Del Confirm", SKU: "REPO-DELCF"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 3, UnitCost: 5000, ProductName: "Repo Del Confirm", SKU: "REPO-DELCF"}}
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -115,13 +115,13 @@ func TestRepository_GetAllPurchaseOrders(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo List All Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-LIST", "Repo List", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_list_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo List All Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-LIST", "Repo List", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_list_user")
 
 	for i := 0; i < 5; i++ {
-		po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-		items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 1, UnitCost: 5000, ProductName: "Repo List", SKU: "REPO-LIST"}}
+		po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+		items := []OrderItem{{ProductID: prodID, QtyOrdered: 1, UnitCost: 5000, ProductName: "Repo List", SKU: "REPO-LIST"}}
 		tx, err := repo.BeginTx(ctx)
 		require.NoError(t, err)
 		po.PONumber, err = repo.GetNextPONumber(ctx)
@@ -220,12 +220,12 @@ func TestRepository_UpdatePOItemQtyReceived(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo Qty Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-QTY", "Repo Qty", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_qty_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo Qty Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-QTY", "Repo Qty", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_qty_user")
 
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 5000, ProductName: "Repo Qty", SKU: "REPO-QTY"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 5000, ProductName: "Repo Qty", SKU: "REPO-QTY"}}
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	po.PONumber, err = repo.GetNextPONumber(ctx)
@@ -257,12 +257,12 @@ func TestRepository_ConfirmPurchaseOrder_WrongStatus(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo Confirm Wrong Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-CONFWR", "Repo Confirm Wrong", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_conf_wr_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo Confirm Wrong Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-CONFWR", "Repo Confirm Wrong", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_conf_wr_user")
 
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Repo Confirm Wrong", SKU: "REPO-CONFWR"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 5, UnitCost: 8000, ProductName: "Repo Confirm Wrong", SKU: "REPO-CONFWR"}}
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	po.PONumber, err = repo.GetNextPONumber(ctx)
@@ -294,12 +294,12 @@ func TestRepository_GetReceiptsByPOID_WithStoreID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	supplierID := insertTestSupplier(t, ctx, "Repo Receipts Store Supplier")
-	prodID := insertTestProduct(t, ctx, "REPO-RCPTST", "Repo Receipts Store", 10000, 100)
-	userID := insertTestUser(t, ctx, "repo_rcpt_st_user")
+	supplierID := insertTestSupplier(ctx, t, "Repo Receipts Store Supplier")
+	prodID := insertTestProduct(ctx, t, "REPO-RCPTST", "Repo Receipts Store", 10000, 100)
+	userID := insertTestUser(ctx, t, "repo_rcpt_st_user")
 
-	po := &PurchaseOrder{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
-	items := []PurchaseOrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Repo Receipts Store", SKU: "REPO-RCPTST"}}
+	po := &Order{SupplierID: supplierID, StoreID: 1, Status: StatusDraft, CreatedBy: userID, UpdatedBy: userID}
+	items := []OrderItem{{ProductID: prodID, QtyOrdered: 10, UnitCost: 8000, ProductName: "Repo Receipts Store", SKU: "REPO-RCPTST"}}
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	po.PONumber, err = repo.GetNextPONumber(ctx)

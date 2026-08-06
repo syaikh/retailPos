@@ -139,8 +139,8 @@ func TestHandler_CreateDraft_InvalidJSON(t *testing.T) {
 func TestHandler_CreateDraft_MissingStoreID(t *testing.T) {
 	r := setupHandlerOpt(t, handlerOpts{withUser: true, withStore: false})
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "H NoStore Supplier")
-	prodID := insertTestProduct(t, ctx, "H-NOSTORE-001", "NoStore Product", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "H NoStore Supplier")
+	prodID := insertTestProduct(ctx, t, "H-NOSTORE-001", "NoStore Product", 10000, 100)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -153,8 +153,8 @@ func TestHandler_CreateDraft_MissingStoreID(t *testing.T) {
 func TestHandler_CreateDraft_ValidationError(t *testing.T) {
 	r := setupHandlerOpt(t, handlerOpts{withUser: true, withStore: true})
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "H SvcErr Supplier")
-	prodID := insertTestProduct(t, ctx, "H-SVCERR-001", "SvcErr Product", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "H SvcErr Supplier")
+	prodID := insertTestProduct(ctx, t, "H-SVCERR-001", "SvcErr Product", 10000, 100)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -189,9 +189,9 @@ func TestHandler_ConfirmPO_NotFound(t *testing.T) {
 func TestHandler_ConfirmPO_AlreadyConfirmed(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "H ConfirmX2 Supplier")
-	prodID := insertTestProduct(t, ctx, "H-CONF2-001", "ConfirmX2 Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_conf2_user")
+	supplierID := insertTestSupplier(ctx, t, "H ConfirmX2 Supplier")
+	prodID := insertTestProduct(ctx, t, "H-CONF2-001", "ConfirmX2 Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_conf2_user")
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,
@@ -219,8 +219,8 @@ func TestHandler_CancelPO_NotFound(t *testing.T) {
 func TestHandler_CancelPO_AlreadyCancelled(t *testing.T) {
 	r, _, _ := setupHandlerTest(t)
 	ctx := context.Background()
-	supplierID := insertTestSupplier(t, ctx, "H CancelX2 Supplier")
-	prodID := insertTestProduct(t, ctx, "H-CANC2-001", "CancelX2 Product", 10000, 100)
+	supplierID := insertTestSupplier(ctx, t, "H CancelX2 Supplier")
+	prodID := insertTestProduct(ctx, t, "H-CANC2-001", "CancelX2 Product", 10000, 100)
 
 	req := map[string]interface{}{
 		"supplier_id": supplierID,

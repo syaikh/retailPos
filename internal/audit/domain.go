@@ -2,11 +2,11 @@ package audit
 
 import "context"
 
-type AuditCreator interface {
-	CreateAuditLog(ctx context.Context, log *AuditLog) error
+type Creator interface {
+	CreateAuditLog(ctx context.Context, log *Log) error
 }
 
-type AuditLog struct {
+type Log struct {
 	ID          int         `json:"id"`
 	UserID      *int        `json:"user_id,omitempty"`
 	Username    string      `json:"username"`
@@ -22,7 +22,7 @@ type AuditLog struct {
 	CreatedAt   string      `json:"created_at"`
 }
 
-type AuditLogListItem struct {
+type LogListItem struct {
 	ID          int    `json:"id"`
 	UserID      *int   `json:"user_id,omitempty"`
 	Username    string `json:"username"`

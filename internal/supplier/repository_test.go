@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertTestProduct(t *testing.T, ctx context.Context, sku string, name string, price int) int {
+func insertTestProduct(ctx context.Context, t *testing.T, sku string, name string, price int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -165,7 +165,7 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	var s2 *Supplier
-	productID := insertTestProduct(t, ctx, "SUP-PROD-"+time.Now().Format("0102150405"), "Supplier Link Product", 10000)
+	productID := insertTestProduct(ctx, t, "SUP-PROD-"+time.Now().Format("0102150405"), "Supplier Link Product", 10000)
 
 	t.Run("Link product", func(t *testing.T) {
 		ps := &ProductSupplier{
@@ -364,7 +364,7 @@ func TestSupplierRepository_BulkInsertSuppliers(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("insert multiple", func(t *testing.T) {
-		payloads := []SupplierImportPayload{
+		payloads := []ImportPayload{
 			{
 				Code:        "SUP-BI1-" + time.Now().Format("0102150405"),
 				Name:        "Bulk Insert 1",
@@ -387,7 +387,7 @@ func TestSupplierRepository_BulkInsertSuppliers(t *testing.T) {
 	})
 
 	t.Run("empty payloads", func(t *testing.T) {
-		count, err := repo.BulkInsertSuppliers(ctx, []SupplierImportPayload{})
+		count, err := repo.BulkInsertSuppliers(ctx, []ImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -405,7 +405,7 @@ func TestSupplierRepository_BulkUpdateSuppliers(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	t.Run("update existing", func(t *testing.T) {
-		payloads := []SupplierImportPayload{
+		payloads := []ImportPayload{
 			{
 				Code:     code,
 				Name:     "Bulk Updated Supplier",
@@ -423,7 +423,7 @@ func TestSupplierRepository_BulkUpdateSuppliers(t *testing.T) {
 	})
 
 	t.Run("empty payloads", func(t *testing.T) {
-		count, err := repo.BulkUpdateSuppliers(ctx, []SupplierImportPayload{})
+		count, err := repo.BulkUpdateSuppliers(ctx, []ImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})

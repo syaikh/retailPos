@@ -658,7 +658,7 @@ func (r *Repository) GetPricingBreakdown(ctx context.Context, start, end time.Ti
 	var items []PricingBreakdownItem
 	for rows.Next() {
 		var item PricingBreakdownItem
-		if err := rows.Scan(&item.PricingType, &item.Revenue, &item.OrderCount, &item.ItemCount); err != nil {
+		if err := rows.Scan(&item.Type, &item.Revenue, &item.OrderCount, &item.ItemCount); err != nil {
 			return nil, fmt.Errorf("scan pricing breakdown: %w", err)
 		}
 		items = append(items, item)

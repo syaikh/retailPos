@@ -15,7 +15,7 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateAuditLog(ctx context.Context, log *AuditLog) error {
+func (s *Service) CreateAuditLog(ctx context.Context, log *Log) error {
 	return s.repo.CreateAuditLog(ctx, log)
 }
 
@@ -23,11 +23,11 @@ func (s *Service) GetEntityTypes(ctx context.Context) ([]string, error) {
 	return s.repo.GetDistinctEntityTypes(ctx)
 }
 
-func (s *Service) GetAuditLogByID(ctx context.Context, id int) (*AuditLog, error) {
+func (s *Service) GetAuditLogByID(ctx context.Context, id int) (*Log, error) {
 	return s.repo.GetAuditLogByID(ctx, id)
 }
 
-func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType string, entityID *int, startDate, endDate string) ([]AuditLogListItem, int, error) {
+func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search, action, entityType string, entityID *int, startDate, endDate string) ([]LogListItem, int, error) {
 	start, end, err := parseDateRange(startDate, endDate)
 	if err != nil {
 		return nil, 0, err

@@ -14,41 +14,57 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockInventoryService struct {
+type mockService struct {
 	adjustStockFn           func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error
+	adjustStockBatchFn      func(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error
+	getStockByProductIDFn   func(ctx context.Context, productID int) (*ProductStock, error)
 	listLocationStockFn     func(ctx context.Context, productID, locationID int) ([]LocationStockItem, error)
 	setLocationStockFn      func(ctx context.Context, productID, locationID, quantity, userID int) error
 	transferLocationStockFn func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error
 }
 
-func (m *mockInventoryService) AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
+func (m *mockService) AdjustStock(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 	return m.adjustStockFn(ctx, productID, quantityChange, userID, notes)
 }
 
-func (m *mockInventoryService) ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
+func (m *mockService) AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error {
+	if m.adjustStockBatchFn == nil {
+		return nil
+	}
+	return m.adjustStockBatchFn(ctx, adjustments, userID, notes)
+}
+
+func (m *mockService) GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error) {
+	if m.getStockByProductIDFn == nil {
+		return nil, nil
+	}
+	return m.getStockByProductIDFn(ctx, productID)
+}
+
+func (m *mockService) ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
 	if m.listLocationStockFn == nil {
 		return nil, nil
 	}
 	return m.listLocationStockFn(ctx, productID, locationID)
 }
 
-func (m *mockInventoryService) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error {
+func (m *mockService) SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error {
 	if m.setLocationStockFn == nil {
 		return nil
 	}
 	return m.setLocationStockFn(ctx, productID, locationID, quantity, userID)
 }
 
-func (m *mockInventoryService) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
+func (m *mockService) TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 	if m.transferLocationStockFn == nil {
 		return nil
 	}
 	return m.transferLocationStockFn(ctx, productID, fromLocationID, toLocationID, quantity, userID)
 }
 
-var _ InventoryService = (*mockInventoryService)(nil)
+var _ Service = (*mockService)(nil)
 
-func setupMockInventoryRouter(svc InventoryService) *gin.Engine {
+func setupMockInventoryRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -66,7 +82,7 @@ func setupMockInventoryRouter(svc InventoryService) *gin.Engine {
 
 func TestMockHandler_AdjustStock(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 				assert.Equal(t, 42, productID)
 				assert.Equal(t, 10, quantityChange)
@@ -86,7 +102,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader("{bad"))
 		req.Header.Set("Content-Type", "application/json")
@@ -95,7 +111,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("zero quantity change", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		body := `{"product_id":1,"quantity_change":0,"notes":"no-op"}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
@@ -106,7 +122,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("empty notes", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		body := `{"product_id":1,"quantity_change":5,"notes":"  "}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
@@ -117,7 +133,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("service error", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 				return errors.New("product not found")
 			},
@@ -132,7 +148,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("negative quantity change (decrease)", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 				assert.Equal(t, -5, quantityChange)
 				return nil
@@ -150,7 +166,7 @@ func TestMockHandler_AdjustStock(t *testing.T) {
 
 func TestMockHandler_ListLocationStock(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			listLocationStockFn: func(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
 				assert.Equal(t, 7, productID)
 				assert.Equal(t, 3, locationID)
@@ -170,7 +186,7 @@ func TestMockHandler_ListLocationStock(t *testing.T) {
 	})
 
 	t.Run("no filters passes zero", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			listLocationStockFn: func(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
 				assert.Equal(t, 0, productID)
 				assert.Equal(t, 0, locationID)
@@ -185,7 +201,7 @@ func TestMockHandler_ListLocationStock(t *testing.T) {
 	})
 
 	t.Run("service error", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			listLocationStockFn: func(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
 				return nil, errors.New("boom")
 			},
@@ -200,7 +216,7 @@ func TestMockHandler_ListLocationStock(t *testing.T) {
 
 func TestMockHandler_SetLocationStock(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 				assert.Equal(t, 42, productID)
 				assert.Equal(t, 5, locationID)
@@ -220,7 +236,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader("{bad"))
 		req.Header.Set("Content-Type", "application/json")
@@ -229,7 +245,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("missing ids", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		body := `{"product_id":0,"location_id":5,"quantity":1}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/locations", strings.NewReader(body))
@@ -240,7 +256,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("invalid user context", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 				t.Fatal("service must not be called when user is missing from context")
 				return nil
@@ -262,7 +278,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("known domain error maps to 400", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 				return ErrLocationInactive
 			},
@@ -277,7 +293,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("negative quantity maps to 400", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 				return ErrNegativeQuantity
 			},
@@ -293,7 +309,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 	})
 
 	t.Run("unknown error maps to 500", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 				return errors.New("db down")
 			},
@@ -310,7 +326,7 @@ func TestMockHandler_SetLocationStock(t *testing.T) {
 
 func TestMockHandler_TransferLocationStock(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 				assert.Equal(t, 42, productID)
 				assert.Equal(t, 5, fromLocationID)
@@ -331,7 +347,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 	})
 
 	t.Run("missing ids", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		body := `{"product_id":42,"from_location_id":5,"to_location_id":0,"quantity":3}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/locations/transfer", strings.NewReader(body))
@@ -342,7 +358,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
-		r := setupMockInventoryRouter(&mockInventoryService{})
+		r := setupMockInventoryRouter(&mockService{})
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/inventory/locations/transfer", strings.NewReader("{bad"))
 		req.Header.Set("Content-Type", "application/json")
@@ -351,7 +367,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 	})
 
 	t.Run("same location maps to 400", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 				return ErrSameLocation
 			},
@@ -366,7 +382,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 	})
 
 	t.Run("non-positive quantity maps to 400", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 				return ErrNonPositiveQuantity
 			},
@@ -382,7 +398,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 	})
 
 	t.Run("unknown error maps to 500", func(t *testing.T) {
-		svc := &mockInventoryService{
+		svc := &mockService{
 			transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 				return errors.New("db down")
 			},
@@ -398,7 +414,7 @@ func TestMockHandler_TransferLocationStock(t *testing.T) {
 }
 
 func TestMockHandler_AdjustStock_NoUserContext(t *testing.T) {
-	svc := &mockInventoryService{
+	svc := &mockService{
 		adjustStockFn: func(ctx context.Context, productID, quantityChange, userID int, notes string) error {
 			t.Fatal("service must not be called when user is missing from context")
 			return nil
@@ -421,7 +437,7 @@ func TestMockHandler_AdjustStock_NoUserContext(t *testing.T) {
 }
 
 func TestMockHandler_TransferLocationStock_NoUserContext(t *testing.T) {
-	svc := &mockInventoryService{
+	svc := &mockService{
 		transferLocationStockFn: func(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error {
 			t.Fatal("service must not be called when user is missing from context")
 			return nil
@@ -444,7 +460,7 @@ func TestMockHandler_TransferLocationStock_NoUserContext(t *testing.T) {
 }
 
 func TestMockHandler_SetLocationStock_Audits(t *testing.T) {
-	svc := &mockInventoryService{
+	svc := &mockService{
 		setLocationStockFn: func(ctx context.Context, productID, locationID, quantity, userID int) error {
 			return nil
 		},

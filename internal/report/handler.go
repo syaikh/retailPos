@@ -15,7 +15,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-type ReportService interface {
+type Service interface {
 	GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error)
 	GetLiveDashboardStats(ctx context.Context, storeID int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 	GetHourlySales(ctx context.Context, storeID int, date time.Time) ([]ChartDataPoint, error)
@@ -30,10 +30,10 @@ type ReportService interface {
 }
 
 type Handler struct {
-	svc ReportService
+	svc Service
 }
 
-func NewHandler(svc ReportService) *Handler {
+func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 

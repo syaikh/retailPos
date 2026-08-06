@@ -17,7 +17,7 @@ import (
 
 // mockCartFixture builds a mock service wired for successful cart flows so
 // individual tests can override the fn they want to exercise.
-func mockCartFixture() *mockSaleService {
+func mockCartFixture() *mockService {
 	cart := &CartSession{
 		ID:        7,
 		CashierID: 1,
@@ -36,9 +36,9 @@ func mockCartFixture() *mockSaleService {
 		ID:            99,
 		InvoiceNumber: "INV-MOCK-001",
 		TotalAmount:   20000,
-		Items:         []SaleItem{{ProductID: 2, Quantity: 2, UnitPrice: 10000, Cost: 5000}},
+		Items:         []Item{{ProductID: 2, Quantity: 2, UnitPrice: 10000, Cost: 5000}},
 	}
-	return &mockSaleService{
+	return &mockService{
 		createOrGetOpenCartFn: func(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
 			return cart, nil
 		},
@@ -77,7 +77,7 @@ func mockCartFixture() *mockSaleService {
 
 // setupSaleCartHandler builds a router with cart routes only. When withUser is
 // false the userID context value is omitted so 401 paths can be exercised.
-func setupSaleCartHandler(svc SaleService, auditSvc audit.AuditCreator, withUser bool, perms []string) *gin.Engine {
+func setupSaleCartHandler(svc Service, auditSvc audit.Creator, withUser bool, perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -244,7 +244,7 @@ func TestSaleCartHandler_AddCartItem(t *testing.T) {
 
 	t.Run("success with audit log", func(t *testing.T) {
 		auditCalls := 0
-		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalls++
 			assert.Equal(t, "add", log.Action)
 			return nil
@@ -532,7 +532,7 @@ func TestSaleCartHandler_CheckoutCart(t *testing.T) {
 
 	t.Run("success with audit log", func(t *testing.T) {
 		auditCalls := 0
-		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		auditSvc := &mockAuditCreator{createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalls++
 			assert.Equal(t, "checkout", log.Action)
 			return nil

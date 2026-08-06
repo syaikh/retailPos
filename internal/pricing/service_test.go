@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func validRule() *PricingRule {
+func validRule() *Rule {
 	pid := 1
-	return &PricingRule{
+	return &Rule{
 		Name:            "Test Rule",
 		ProductID:       &pid,
-		PricingType:     PricingTypeSpecialPrice,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypeSpecialPrice,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    50000,
 		MinimumQuantity: 1,
 		IsActive:        true,
@@ -49,7 +49,7 @@ func TestValidateRule_NoTarget(t *testing.T) {
 
 func TestValidateRule_InvalidPricingType(t *testing.T) {
 	r := validRule()
-	r.PricingType = "bogus"
+	r.Type = "bogus"
 	err := validateRule(r)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidRule))
@@ -58,7 +58,7 @@ func TestValidateRule_InvalidPricingType(t *testing.T) {
 
 func TestValidateRule_DefaultTypeRejected(t *testing.T) {
 	r := validRule()
-	r.PricingType = PricingTypeDefault
+	r.Type = PricingTypeDefault
 	err := validateRule(r)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidRule))
@@ -67,7 +67,7 @@ func TestValidateRule_DefaultTypeRejected(t *testing.T) {
 
 func TestValidateRule_InvalidPricingMethod(t *testing.T) {
 	r := validRule()
-	r.PricingMethod = "bogus"
+	r.Method = "bogus"
 	err := validateRule(r)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidRule))
@@ -76,7 +76,7 @@ func TestValidateRule_InvalidPricingMethod(t *testing.T) {
 
 func TestValidateRule_DiscountPercentOutOfRange(t *testing.T) {
 	r := validRule()
-	r.PricingMethod = PricingMethodDiscountPct
+	r.Method = PricingMethodDiscountPct
 	r.PricingValue = 150
 	err := validateRule(r)
 	assert.Error(t, err)
@@ -123,7 +123,7 @@ func TestValidateRule_NegativeValue(t *testing.T) {
 
 func TestValidateRule_MarkupPercentOutOfRange(t *testing.T) {
 	r := validRule()
-	r.PricingMethod = PricingMethodMarkupPct
+	r.Method = PricingMethodMarkupPct
 	r.PricingValue = 600
 	err := validateRule(r)
 	assert.Error(t, err)
@@ -133,7 +133,7 @@ func TestValidateRule_MarkupPercentOutOfRange(t *testing.T) {
 
 func TestValidateRule_MarkupPercentValid(t *testing.T) {
 	r := validRule()
-	r.PricingMethod = PricingMethodMarkupPct
+	r.Method = PricingMethodMarkupPct
 	r.PricingValue = 500
 	err := validateRule(r)
 	assert.NoError(t, err)
@@ -154,11 +154,11 @@ func TestService_GetByID(t *testing.T) {
 	svc := NewService(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "SVC-GID-"+time.Now().Format("0102150405"), "Service GetByID Product", 15000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "SVC-GID-"+time.Now().Format("0102150405"), "Service GetByID Product", 15000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    12000,
 		Name:            "SVC GetByID Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -184,11 +184,11 @@ func TestService_GetByProductID(t *testing.T) {
 	svc := NewService(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "SVC-GBPID-"+time.Now().Format("0102150405"), "Service GetByProductID Product", 15000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "SVC-GBPID-"+time.Now().Format("0102150405"), "Service GetByProductID Product", 15000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypeSpecialPrice,
-		PricingMethod:   PricingMethodDiscountAmt,
+		Type:     PricingTypeSpecialPrice,
+		Method:   PricingMethodDiscountAmt,
 		PricingValue:    3000,
 		Name:            "SVC GetByProductID Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -215,13 +215,13 @@ func TestService_Delete(t *testing.T) {
 	svc := NewService(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "SVC-DEL-"+time.Now().Format("0102150405"), "Service Delete Product", 15000)
+	productID := insertTestProduct(ctx, t, "SVC-DEL-"+time.Now().Format("0102150405"), "Service Delete Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "SVC Delete Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -244,13 +244,13 @@ func TestService_Update(t *testing.T) {
 	svc := NewService(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "SVC-UPD-"+time.Now().Format("0102150405"), "Service Update Product", 15000)
+	productID := insertTestProduct(ctx, t, "SVC-UPD-"+time.Now().Format("0102150405"), "Service Update Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    15000,
 			Name:            "SVC Update Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -264,11 +264,11 @@ func TestService_Update(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ID:              999999,
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "Non-existent Update",
 			MinimumQuantity: 1,
@@ -279,10 +279,10 @@ func TestService_Update(t *testing.T) {
 	})
 
 	t.Run("validation fails", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ID:              999999,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "",
 			MinimumQuantity: 1,
@@ -299,13 +299,13 @@ func TestService_Create(t *testing.T) {
 	svc := NewService(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "SVC-CRT-"+time.Now().Format("0102150405"), "Service Create Product", 15000)
+	productID := insertTestProduct(ctx, t, "SVC-CRT-"+time.Now().Format("0102150405"), "Service Create Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "SVC Create Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -317,9 +317,9 @@ func TestService_Create(t *testing.T) {
 	})
 
 	t.Run("validation fails", func(t *testing.T) {
-		rule := &PricingRule{
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+		rule := &Rule{
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "",
 			MinimumQuantity: 1,

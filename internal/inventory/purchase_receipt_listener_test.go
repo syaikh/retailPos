@@ -18,8 +18,8 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "LISTENER-PROD")
-	insertTestStock(t, ctx, prodID, 100)
+	prodID := insertTestProduct(ctx, t, "LISTENER-PROD")
+	insertTestStock(ctx, t, prodID, 100)
 	userID := 9999
 	_, err := dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)
@@ -64,10 +64,10 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
 
-	prodA := insertTestProduct(t, ctx, "LISTENER-MULTI-A")
-	insertTestStock(t, ctx, prodA, 100)
-	prodB := insertTestProduct(t, ctx, "LISTENER-MULTI-B")
-	insertTestStock(t, ctx, prodB, 50)
+	prodA := insertTestProduct(ctx, t, "LISTENER-MULTI-A")
+	insertTestStock(ctx, t, prodA, 100)
+	prodB := insertTestProduct(ctx, t, "LISTENER-MULTI-B")
+	insertTestStock(ctx, t, prodB, 50)
 	userID := 9998
 	_, err := dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)
@@ -113,8 +113,8 @@ func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "LISTENER-IDEMP")
-	insertTestStock(t, ctx, prodID, 100)
+	prodID := insertTestProduct(ctx, t, "LISTENER-IDEMP")
+	insertTestStock(ctx, t, prodID, 100)
 	userID := 9997
 	_, err := dbPool.Exec(ctx, `
 		INSERT INTO users (id, username, email, password_hash, role_id)

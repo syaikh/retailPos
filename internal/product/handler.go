@@ -38,26 +38,29 @@ func parseIDs(raw string) []int {
 	return ids
 }
 
-type ProductService interface {
+type Service interface {
 	GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error)
 	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
 	GetProductByID(ctx context.Context, id, storeID int) (*Product, error)
+	GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error)
 	CreateProduct(ctx context.Context, product *Product) error
 	UpdateProduct(ctx context.Context, product *Product) error
 	DeleteProduct(ctx context.Context, id int, storeID *int) error
 	BulkUpdateProductStatus(ctx context.Context, ids []int, isActive bool, storeID *int) error
 	GetNextSKU(ctx context.Context) (string, error)
 	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
+	GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error)
 	GetAllWarehouses(ctx context.Context) ([]Warehouse, error)
-	GetActiveProductOptions(ctx context.Context) ([]ProductOption, error)
+	GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error)
+	GetActiveProductOptions(ctx context.Context) ([]Option, error)
 }
 
 type Handler struct {
-	svc      ProductService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc ProductService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -231,7 +234,7 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	}
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -295,7 +298,7 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -350,7 +353,7 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted product #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -451,7 +454,7 @@ func (h *Handler) ListProductOptions(c *gin.Context) {
 		return
 	}
 	if options == nil {
-		options = []ProductOption{}
+		options = []Option{}
 	}
 	c.JSON(http.StatusOK, gin.H{"data": options})
 }

@@ -110,7 +110,7 @@ func TestCustomerStrPtr(t *testing.T) {
 
 func TestExtractStoreID(t *testing.T) {
 	t.Run("nil storeID", func(t *testing.T) {
-		rows := []CustomerImportRow{
+		rows := []ImportRow{
 			{Name: "A", StoreID: nil},
 			{Name: "B", StoreID: nil},
 		}
@@ -120,7 +120,7 @@ func TestExtractStoreID(t *testing.T) {
 	t.Run("first non-nil", func(t *testing.T) {
 		sid1 := 1
 		sid2 := 2
-		rows := []CustomerImportRow{
+		rows := []ImportRow{
 			{Name: "A", StoreID: nil},
 			{Name: "B", StoreID: &sid1},
 			{Name: "C", StoreID: &sid2},
@@ -199,7 +199,7 @@ func TestCustomerMapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
-		cRow, ok := entity.(CustomerImportRow)
+		cRow, ok := entity.(ImportRow)
 		require.True(t, ok)
 		assert.Equal(t, "John", cRow.Name)
 		assert.Equal(t, "081234", cRow.Phone)
@@ -219,7 +219,7 @@ func TestCustomerMapToEntity(t *testing.T) {
 		row := map[string]interface{}{"Name": "Jane", "_store_id": 42}
 		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
-		cRow := entity.(CustomerImportRow)
+		cRow := entity.(ImportRow)
 		require.NotNil(t, cRow.StoreID)
 		assert.Equal(t, 42, *cRow.StoreID)
 	})

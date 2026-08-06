@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertImportJob(t *testing.T, ctx context.Context) int64 {
+func insertImportJob(ctx context.Context, t *testing.T) int64 {
 	t.Helper()
 	hash, _ := bcrypt.GenerateFromPassword([]byte("history_user"), bcrypt.MinCost)
 	var userID int
@@ -61,7 +61,7 @@ func insertImportJob(t *testing.T, ctx context.Context) int64 {
 func TestHistoryStore_SaveSnapshot(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	rows := []map[string]interface{}{
 		{"name": "John", "age": float64(30)},
@@ -92,7 +92,7 @@ func TestHistoryStore_SaveSnapshot(t *testing.T) {
 func TestHistoryStore_SaveRow(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	oldVals := map[string]interface{}{"name": "John"}
 	newVals := map[string]interface{}{"name": "Jane"}
@@ -121,7 +121,7 @@ func TestHistoryStore_SaveRow(t *testing.T) {
 func TestHistoryStore_SaveError(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	err := store.SaveError(ctx, jobID, 1, "name", "John", "required", "provide a name", "validation")
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestHistoryStore_GetSnapshot_NotFound(t *testing.T) {
 func TestHistoryStore_GetRows_Empty(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	rows, err := store.GetRows(ctx, jobID)
 	require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestStrPtr(t *testing.T) {
 func TestSnapshotData_JSONRoundTrip(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	original := SnapshotData{
 		RowsData: []map[string]interface{}{
@@ -200,7 +200,7 @@ func TestSnapshotData_JSONRoundTrip(t *testing.T) {
 func TestHistoryStore_SaveAndGetErrorsWithRowErrors(t *testing.T) {
 	store := NewStore(dbPool)
 	ctx := context.Background()
-	jobID := insertImportJob(t, ctx)
+	jobID := insertImportJob(ctx, t)
 
 	err := store.SaveRow(ctx, jobID, 1, "error", nil, nil, nil)
 	require.NoError(t, err)

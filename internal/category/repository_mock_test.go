@@ -124,7 +124,7 @@ func TestRepository_BulkUpsertCategories_Empty(t *testing.T) {
 
 func TestRepository_BulkUpsertCategories_NameRequired(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsertCategories(context.Background(), []CategoryImportRow{
+	result := repo.BulkUpsertCategories(context.Background(), []ImportRow{
 		{Row: 1, Name: ""},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -224,7 +224,7 @@ func TestRepository_BulkUpsertCategories_Success(t *testing.T) {
 	).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsertCategories(context.Background(), []CategoryImportRow{
+	result := repo.BulkUpsertCategories(context.Background(), []ImportRow{
 		{Row: 1, Name: "New Cat", Description: "new", IsActive: true},
 		{Row: 2, Name: "Existing Cat", Description: "upd", IsActive: false},
 	})
@@ -241,7 +241,7 @@ func TestRepository_BulkUpsertCategories_DBError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("db down"))
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsertCategories(context.Background(), []CategoryImportRow{
+	result := repo.BulkUpsertCategories(context.Background(), []ImportRow{
 		{Row: 1, Name: "Cat", IsActive: true},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -258,7 +258,7 @@ func TestRepository_BulkUpsertCategories_ScanError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsertCategories(context.Background(), []CategoryImportRow{
+	result := repo.BulkUpsertCategories(context.Background(), []ImportRow{
 		{Row: 1, Name: "Cat", IsActive: true},
 	})
 	assert.Equal(t, 0, result.Inserted)
@@ -280,7 +280,7 @@ func TestRepository_BulkUpsertCategories_WithCache(t *testing.T) {
 	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(true)
 	mock.ExpectQuery("INSERT INTO categories").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
 
-	result := repo.BulkUpsertCategories(context.Background(), []CategoryImportRow{
+	result := repo.BulkUpsertCategories(context.Background(), []ImportRow{
 		{Row: 1, Name: "New Cat", IsActive: true},
 	})
 	assert.Equal(t, 1, result.Inserted)

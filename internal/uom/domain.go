@@ -9,21 +9,21 @@ type UnitOfMeasure struct {
 	CreatedAt   string `json:"created_at,omitempty"`
 }
 
-type UOMCreateRequest struct {
+type CreateRequest struct {
 	Code        string `json:"code" binding:"required"`
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description,omitempty"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
 
-type UOMUpdateRequest struct {
+type UpdateRequest struct {
 	Code        string `json:"code" binding:"required"`
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description,omitempty"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
 
-type UOMImportRow struct {
+type ImportRow struct {
 	Row         int
 	Code        string
 	Name        string

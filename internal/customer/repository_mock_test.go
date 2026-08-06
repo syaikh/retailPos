@@ -193,7 +193,7 @@ func TestRepository_BulkUpsertCustomers_Empty(t *testing.T) {
 
 func TestRepository_BulkUpsertCustomers_NameRequired(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsertCustomers(context.Background(), []CustomerImportRow{
+	result := repo.BulkUpsertCustomers(context.Background(), []ImportRow{
 		{Row: 1, Name: ""},
 	}, nil)
 	assert.Len(t, result.Errors, 1)
@@ -202,7 +202,7 @@ func TestRepository_BulkUpsertCustomers_NameRequired(t *testing.T) {
 
 func TestRepository_BulkUpsertCustomers_AllInvalid(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsertCustomers(context.Background(), []CustomerImportRow{
+	result := repo.BulkUpsertCustomers(context.Background(), []ImportRow{
 		{Row: 1, Name: ""},
 		{Row: 2, Name: ""},
 	}, nil)

@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertTestProduct(t *testing.T, ctx context.Context, sku string, name string, price int) int {
+func insertTestProduct(ctx context.Context, t *testing.T, sku string, name string, price int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -54,13 +54,13 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-CRUD-"+time.Now().Format("0102150405"), "Pricing Test Product", 15000)
+	productID := insertTestProduct(ctx, t, "PRC-CRUD-"+time.Now().Format("0102150405"), "Pricing Test Product", 15000)
 
 	t.Run("Create and get by ID", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Test Discount",
 			MinimumQuantity: 1,
@@ -75,8 +75,8 @@ func TestPricingRepository_CRUD(t *testing.T) {
 		got, err := repo.GetByID(ctx, rule.ID)
 		require.NoError(t, err)
 		assert.Equal(t, rule.Name, got.Name)
-		assert.Equal(t, PricingTypePromotion, got.PricingType)
-		assert.Equal(t, PricingMethodFixedPrice, got.PricingMethod)
+		assert.Equal(t, PricingTypePromotion, got.Type)
+		assert.Equal(t, PricingMethodFixedPrice, got.Method)
 		assert.Equal(t, 12000.0, got.PricingValue)
 		assert.Equal(t, productID, *got.ProductID)
 	})
@@ -102,10 +102,10 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Update rule", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypeSpecialPrice,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypeSpecialPrice,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "Updated Rule",
 			MinimumQuantity: 5,
@@ -126,10 +126,10 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("Delete rule", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    5000,
 			Name:            "Delete Me",
 			MinimumQuantity: 1,
@@ -184,7 +184,7 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-BATCH-"+time.Now().Format("0102150405"), "Batch Test Product", 20000)
+	productID := insertTestProduct(ctx, t, "PRC-BATCH-"+time.Now().Format("0102150405"), "Batch Test Product", 20000)
 
 	t.Run("GetBasePrice", func(t *testing.T) {
 		price, err := repo.GetBasePrice(ctx, productID)
@@ -210,10 +210,10 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	})
 
 	t.Run("GetActiveRulesBatch", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    18000,
 			Name:            "Batch Discount",
 			MinimumQuantity: 1,
@@ -240,11 +240,11 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-GAF-"+time.Now().Format("0102150405"), "GetAll Filter Product", 15000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "PRC-GAF-"+time.Now().Format("0102150405"), "GetAll Filter Product", 15000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "GetAll Filter Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -258,7 +258,7 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		for _, r := range rules {
-			assert.Equal(t, PricingMethodFixedPrice, r.PricingMethod)
+			assert.Equal(t, PricingMethodFixedPrice, r.Method)
 		}
 	})
 
@@ -319,17 +319,17 @@ func TestPricingRepository_GetByID_Fields(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-FID-"+time.Now().Format("0102150405"), "GetByID Fields Product", 15000)
+	productID := insertTestProduct(ctx, t, "PRC-FID-"+time.Now().Format("0102150405"), "GetByID Fields Product", 15000)
 	now := time.Now().In(shared.JakartaLocation())
 	from := now.Add(24 * time.Hour)
 	until := now.Add(7 * 24 * time.Hour)
 	fromStr := from.Format("15:04:05")
 	untilStr := until.Format("15:04:05")
 
-	rule := &PricingRule{
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypeSpecialPrice,
-		PricingMethod:   PricingMethodDiscountPct,
+		Type:     PricingTypeSpecialPrice,
+		Method:   PricingMethodDiscountPct,
 		PricingValue:    15.0,
 		Name:            "Full Fields Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 2,
@@ -348,8 +348,8 @@ func TestPricingRepository_GetByID_Fields(t *testing.T) {
 	got, err := repo.GetByID(ctx, rule.ID)
 	require.NoError(t, err)
 	assert.Equal(t, rule.ID, got.ID)
-	assert.Equal(t, PricingTypeSpecialPrice, got.PricingType)
-	assert.Equal(t, PricingMethodDiscountPct, got.PricingMethod)
+	assert.Equal(t, PricingTypeSpecialPrice, got.Type)
+	assert.Equal(t, PricingMethodDiscountPct, got.Method)
 	assert.Equal(t, 15.0, got.PricingValue)
 	assert.Equal(t, 2, got.MinimumQuantity)
 	assert.Equal(t, 5, got.Priority)
@@ -380,8 +380,8 @@ func TestPricingRepository_GetBasePricesBatch_Multiple(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	id1 := insertTestProduct(t, ctx, "BATCH1-"+time.Now().Format("0102150405"), "Batch Product 1", 10000)
-	id2 := insertTestProduct(t, ctx, "BATCH2-"+time.Now().Format("0102150405"), "Batch Product 2", 20000)
+	id1 := insertTestProduct(ctx, t, "BATCH1-"+time.Now().Format("0102150405"), "Batch Product 1", 10000)
+	id2 := insertTestProduct(ctx, t, "BATCH2-"+time.Now().Format("0102150405"), "Batch Product 2", 20000)
 
 	prices, err := repo.GetBasePricesBatch(ctx, []int{id1, id2})
 	require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestPricingRepository_ProductScope(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-SCOPE-"+time.Now().Format("0102150405"), "Scope Test Product", 25000)
+	productID := insertTestProduct(ctx, t, "PRC-SCOPE-"+time.Now().Format("0102150405"), "Scope Test Product", 25000)
 
 	t.Run("GetProductScope", func(t *testing.T) {
 		catID, brandID, err := repo.GetProductScope(ctx, productID)
@@ -420,7 +420,7 @@ func TestPricingRepository_SearchProducts(t *testing.T) {
 	ctx := context.Background()
 
 	sku := "SRC-" + time.Now().Format("0102150405")
-	productID := insertTestProduct(t, ctx, sku, "Searchable Product", 10000)
+	productID := insertTestProduct(ctx, t, sku, "Searchable Product", 10000)
 	_ = productID
 
 	t.Run("Search by name", func(t *testing.T) {
@@ -449,11 +449,11 @@ func TestPricingRepository_NameExists(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "NEX-/"+time.Now().Format("0102150405"), "NameExists Product", 10000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "NEX-/"+time.Now().Format("0102150405"), "NameExists Product", 10000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypeSpecialPrice,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypeSpecialPrice,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    5000,
 		Name:            "UniqueName-" + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -493,14 +493,14 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "BIPR-"+time.Now().Format("0102150405"), "BulkInsert Product", 15000)
+	productID := insertTestProduct(ctx, t, "BIPR-"+time.Now().Format("0102150405"), "BulkInsert Product", 15000)
 
 	t.Run("bulk insert", func(t *testing.T) {
-		payloads := []PricingRuleImportPayload{
+		payloads := []RuleImportPayload{
 			{
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    10000,
 				Name:            "Bulk Insert 1 " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 1,
@@ -508,8 +508,8 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 			},
 			{
 				ProductID:       &productID,
-				PricingType:     string(PricingTypeSpecialPrice),
-				PricingMethod:   string(PricingMethodDiscountAmt),
+				Type:     string(PricingTypeSpecialPrice),
+				Method:   string(PricingMethodDiscountAmt),
 				PricingValue:    2000,
 				Name:            "Bulk Insert 2 " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 5,
@@ -522,7 +522,7 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 	})
 
 	t.Run("empty payloads", func(t *testing.T) {
-		count, err := repo.BulkInsertPricingRules(ctx, []PricingRuleImportPayload{})
+		count, err := repo.BulkInsertPricingRules(ctx, []RuleImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -535,11 +535,11 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "BUPR-"+time.Now().Format("0102150405"), "BulkUpdate Product", 20000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "BUPR-"+time.Now().Format("0102150405"), "BulkUpdate Product", 20000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    15000,
 		Name:            "BulkUpdate Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -548,11 +548,11 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, rule))
 
 	t.Run("bulk update", func(t *testing.T) {
-		payloads := []PricingRuleImportPayload{
+		payloads := []RuleImportPayload{
 			{
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    12000,
 				Name:            rule.Name,
 				MinimumQuantity: 1,
@@ -569,18 +569,18 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 	})
 
 	t.Run("empty payloads", func(t *testing.T) {
-		count, err := repo.BulkUpdatePricingRules(ctx, []PricingRuleImportPayload{})
+		count, err := repo.BulkUpdatePricingRules(ctx, []RuleImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
 
 	t.Run("no matching rule", func(t *testing.T) {
 		nonExistent := -99999
-		payloads := []PricingRuleImportPayload{
+		payloads := []RuleImportPayload{
 			{
 				ProductID:       &nonExistent,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    5000,
 				Name:            "Non-existent",
 				MinimumQuantity: 1,
@@ -600,11 +600,11 @@ func TestPricingRepository_GetAllForExport(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "EXP-"+time.Now().Format("0102150405"), "Export Product", 15000)
-	rule := &PricingRule{
+	productID := insertTestProduct(ctx, t, "EXP-"+time.Now().Format("0102150405"), "Export Product", 15000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "Export Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -624,7 +624,7 @@ func TestPricingRepository_GetProductCostAndTax(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "PRC-COST-"+time.Now().Format("0102150405"), "Cost Tax Product", 15000)
+	productID := insertTestProduct(ctx, t, "PRC-COST-"+time.Now().Format("0102150405"), "Cost Tax Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
 		ct, err := repo.GetProductCostAndTax(ctx, productID)
@@ -646,8 +646,8 @@ func TestPricingRepository_GetProductCostAndTaxBatch(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	id1 := insertTestProduct(t, ctx, "PRC-CB1-"+time.Now().Format("0102150405"), "CB One", 10000)
-	id2 := insertTestProduct(t, ctx, "PRC-CB2-"+time.Now().Format("0102150405"), "CB Two", 20000)
+	id1 := insertTestProduct(ctx, t, "PRC-CB1-"+time.Now().Format("0102150405"), "CB One", 10000)
+	id2 := insertTestProduct(ctx, t, "PRC-CB2-"+time.Now().Format("0102150405"), "CB Two", 20000)
 
 	t.Run("multiple", func(t *testing.T) {
 		res, err := repo.GetProductCostAndTaxBatch(ctx, []int{id1, id2})

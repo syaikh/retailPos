@@ -56,12 +56,12 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		return nil, fmt.Errorf("at least one of ProductID, CategoryID, or BrandID is required")
 	}
 
-	pricingType, _ := row["PricingType"].(string)
+	pricingType, _ := row["Type"].(string)
 	if pricingType == "" {
-		return nil, fmt.Errorf("PricingType is required")
+		return nil, fmt.Errorf("Type is required")
 	}
 
-	pricingMethod, _ := row["PricingMethod"].(string)
+	pricingMethod, _ := row["Method"].(string)
 	if pricingMethod == "" {
 		pricingMethod = "fixed_price"
 	}
@@ -102,13 +102,13 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 		}
 	}
 
-	return PricingRuleImportRow{
+	return RuleImportRow{
 		Row:             rowNum,
 		ProductID:       productID,
 		CategoryID:      categoryID,
 		BrandID:         brandID,
-		PricingType:     pricingType,
-		PricingMethod:   pricingMethod,
+		Type:     pricingType,
+		Method:   pricingMethod,
 		PricingValue:    pricingValue,
 		Name:            name,
 		MinimumQuantity: minQty,
@@ -128,18 +128,18 @@ type pricingRepoAdapter struct {
 }
 
 func (r *pricingRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	payloads := make([]PricingRuleImportPayload, 0, len(entities))
+	payloads := make([]RuleImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(PricingRuleImportRow)
+		row := e.(RuleImportRow)
 		if row.MinimumQuantity < 1 {
 			return len(payloads), fmt.Errorf("minimum_quantity must be >= 1 at row %d", row.Row)
 		}
-		payloads = append(payloads, PricingRuleImportPayload{
+		payloads = append(payloads, RuleImportPayload{
 			ProductID:       row.ProductID,
 			CategoryID:      row.CategoryID,
 			BrandID:         row.BrandID,
-			PricingType:     row.PricingType,
-			PricingMethod:   row.PricingMethod,
+			Type:     row.Type,
+			Method:   row.Method,
 			PricingValue:    row.PricingValue,
 			Name:            row.Name,
 			MinimumQuantity: row.MinimumQuantity,
@@ -153,15 +153,15 @@ func (r *pricingRepoAdapter) Insert(ctx context.Context, entities []interface{})
 }
 
 func (r *pricingRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	payloads := make([]PricingRuleImportPayload, 0, len(entities))
+	payloads := make([]RuleImportPayload, 0, len(entities))
 	for _, e := range entities {
-		row := e.(PricingRuleImportRow)
-		payloads = append(payloads, PricingRuleImportPayload{
+		row := e.(RuleImportRow)
+		payloads = append(payloads, RuleImportPayload{
 			ProductID:       row.ProductID,
 			CategoryID:      row.CategoryID,
 			BrandID:         row.BrandID,
-			PricingType:     row.PricingType,
-			PricingMethod:   row.PricingMethod,
+			Type:     row.Type,
+			Method:   row.Method,
 			PricingValue:    row.PricingValue,
 			Name:            row.Name,
 			MinimumQuantity: row.MinimumQuantity,
@@ -182,8 +182,8 @@ func (r *pricingRepoAdapter) ExportData(ctx context.Context, _ importexportshare
 	result := make([]map[string]interface{}, len(rules))
 	for i, rule := range rules {
 		item := map[string]interface{}{
-			"PricingType":     string(rule.PricingType),
-			"PricingMethod":   string(rule.PricingMethod),
+			"Type":     string(rule.Type),
+			"Method":   string(rule.Method),
 			"PricingValue":    rule.PricingValue,
 			"Name":            rule.Name,
 			"MinimumQuantity": rule.MinimumQuantity,

@@ -9,7 +9,7 @@ import (
 )
 
 // insertTestStockLocation inserts (or updates) a rack-scoped product_stock row.
-func insertTestStockLocation(t *testing.T, ctx context.Context, productID, warehouseID, locationID, quantity int) {
+func insertTestStockLocation(ctx context.Context, t *testing.T, productID, warehouseID, locationID, quantity int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, warehouse_id, store_id, location_id, quantity)
@@ -20,7 +20,7 @@ func insertTestStockLocation(t *testing.T, ctx context.Context, productID, wareh
 	require.NoError(t, err)
 }
 
-func insertTestStorageLocation(t *testing.T, ctx context.Context, code string, warehouseID int) int {
+func insertTestStorageLocation(ctx context.Context, t *testing.T, code string, warehouseID int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -34,7 +34,7 @@ func insertTestStorageLocation(t *testing.T, ctx context.Context, code string, w
 func TestRepository_GetLocationScope_Errors(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	t.Run("missing location", func(t *testing.T) {
 		_, _, err := repo.GetLocationScope(ctx, dbPool, 999999)
@@ -62,8 +62,8 @@ func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9813, "so_loc_bad_9813", 3)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9813, "so_loc_bad_9813", 3)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9813, 'Test WH 9813', 'SO-WH-9813', NULL, true) ON CONFLICT (id) DO NOTHING`,
@@ -78,8 +78,8 @@ func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 
 	// The rack must carry a product so the candidate universe is non-empty and
 	// the flow reaches the location validation (GetLocationScope).
-	p := insertTestProduct(t, ctx, "SO-LOC-INACTIVE-001")
-	insertTestStockLocation(t, ctx, p, 9813, locID, 4)
+	p := insertTestProduct(ctx, t, "SO-LOC-INACTIVE-001")
+	insertTestStockLocation(ctx, t, p, 9813, locID, 4)
 
 	_, err = svc.CreateSession(ctx, &CreateSessionRequest{
 		ScopeType: "location", ScopeID: int64(locID),
@@ -95,8 +95,8 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9819, "so_loc_missing_9819", 3)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9819, "so_loc_missing_9819", 3)
 
 	_, err := svc.CreateSession(ctx, &CreateSessionRequest{
 		ScopeType: "location", ScopeID: 999999,
@@ -107,15 +107,15 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 func TestRepository_UpdateLocationStock_CreatesRowsLazily(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9812, 'Test WH 9812', 'SO-WH-9812', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9812", 9812)
-	p := insertTestProduct(t, ctx, "SO-LOC-LAZY-001")
-	insertTestStock(t, ctx, p, 10)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9812", 9812)
+	p := insertTestProduct(ctx, t, "SO-LOC-LAZY-001")
+	insertTestStock(ctx, t, p, 10)
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
 	require.NoError(t, err)
 	wh := 9812
@@ -129,9 +129,9 @@ func TestRepository_UpdateLocationStock_CreatesRowsLazily(t *testing.T) {
 	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, 3))
 	require.NoError(t, tx.Commit(ctx))
 
-	assertStockQty(t, ctx, p, locID, 3)
-	assertGlobalQty(t, ctx, p, 13)
-	assertProductsStock(t, ctx, p, 13)
+	assertStockQty(ctx, t, p, locID, 3)
+	assertGlobalQty(ctx, t, p, 13)
+	assertProductsStock(ctx, t, p, 13)
 }
 
 func TestRepository_UpdateLocationStock_ReconcilesGlobalFromCount(t *testing.T) {
@@ -140,16 +140,16 @@ func TestRepository_UpdateLocationStock_ReconcilesGlobalFromCount(t *testing.T) 
 	// must be recomputed as max(global-rack, 0) + newRack = 7, not 4.
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9815, 'Test WH 9815', 'SO-WH-9815', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9815", 9815)
-	p := insertTestProduct(t, ctx, "SO-LOC-DESYNC-001")
-	insertTestStock(t, ctx, p, 7)
-	insertTestStockLocation(t, ctx, p, 9815, locID, 10)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9815", 9815)
+	p := insertTestProduct(ctx, t, "SO-LOC-DESYNC-001")
+	insertTestStock(ctx, t, p, 7)
+	insertTestStockLocation(ctx, t, p, 9815, locID, 10)
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 7 WHERE id = $1`, p)
 	require.NoError(t, err)
 	wh := 9815
@@ -161,9 +161,9 @@ func TestRepository_UpdateLocationStock_ReconcilesGlobalFromCount(t *testing.T) 
 	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -3))
 	require.NoError(t, tx.Commit(ctx))
 
-	assertStockQty(t, ctx, p, locID, 7)
-	assertGlobalQty(t, ctx, p, 7)
-	assertProductsStock(t, ctx, p, 7)
+	assertStockQty(ctx, t, p, locID, 7)
+	assertGlobalQty(ctx, t, p, 7)
+	assertProductsStock(ctx, t, p, 7)
 }
 
 func TestRepository_UpdateLocationStock_ClampsGlobalAtZero(t *testing.T) {
@@ -172,16 +172,16 @@ func TestRepository_UpdateLocationStock_ClampsGlobalAtZero(t *testing.T) {
 	// the session with a 500). Option A clamps at zero.
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9816, 'Test WH 9816', 'SO-WH-9816', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9816", 9816)
-	p := insertTestProduct(t, ctx, "SO-LOC-CLAMP-001")
-	insertTestStock(t, ctx, p, 10)
-	insertTestStockLocation(t, ctx, p, 9816, locID, 50)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9816", 9816)
+	p := insertTestProduct(ctx, t, "SO-LOC-CLAMP-001")
+	insertTestStock(ctx, t, p, 10)
+	insertTestStockLocation(ctx, t, p, 9816, locID, 50)
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
 	require.NoError(t, err)
 	wh := 9816
@@ -193,9 +193,9 @@ func TestRepository_UpdateLocationStock_ClampsGlobalAtZero(t *testing.T) {
 	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -50))
 	require.NoError(t, tx.Commit(ctx))
 
-	assertStockQty(t, ctx, p, locID, 0)
-	assertGlobalQty(t, ctx, p, 0)
-	assertProductsStock(t, ctx, p, 0)
+	assertStockQty(ctx, t, p, locID, 0)
+	assertGlobalQty(ctx, t, p, 0)
+	assertProductsStock(ctx, t, p, 0)
 }
 
 func TestRepository_UpdateLocationStock_InsertsGlobalWhenMissing(t *testing.T) {
@@ -203,15 +203,15 @@ func TestRepository_UpdateLocationStock_InsertsGlobalWhenMissing(t *testing.T) {
 	// reconciled rack share: max(0-10, 0) + 7 = 7.
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9817, 'Test WH 9817', 'SO-WH-9817', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9817", 9817)
-	p := insertTestProduct(t, ctx, "SO-LOC-NOGLOBAL-001")
-	insertTestStockLocation(t, ctx, p, 9817, locID, 10)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9817", 9817)
+	p := insertTestProduct(ctx, t, "SO-LOC-NOGLOBAL-001")
+	insertTestStockLocation(ctx, t, p, 9817, locID, 10)
 	wh := 9817
 
 	tx, err := repo.BeginTx(ctx)
@@ -221,9 +221,9 @@ func TestRepository_UpdateLocationStock_InsertsGlobalWhenMissing(t *testing.T) {
 	require.NoError(t, repo.UpdateLocationStock(ctx, tx, p, locID, &wh, nil, -3))
 	require.NoError(t, tx.Commit(ctx))
 
-	assertStockQty(t, ctx, p, locID, 7)
-	assertGlobalQty(t, ctx, p, 7)
-	assertProductsStock(t, ctx, p, 7)
+	assertStockQty(ctx, t, p, locID, 7)
+	assertGlobalQty(ctx, t, p, 7)
+	assertProductsStock(ctx, t, p, 7)
 }
 
 func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) {
@@ -232,8 +232,8 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9818, "so_loc_seq_9818", 3)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9818, "so_loc_seq_9818", 3)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9818, 'Test WH 9818', 'SO-WH-9818', NULL, true) ON CONFLICT (id) DO NOTHING`,
@@ -246,8 +246,8 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 	).Scan(&locID)
 	require.NoError(t, err)
 
-	p := insertTestProduct(t, ctx, "SO-LOC-SEQ-001")
-	insertTestStockLocation(t, ctx, p, 9818, locID, 4)
+	p := insertTestProduct(ctx, t, "SO-LOC-SEQ-001")
+	insertTestStockLocation(ctx, t, p, 9818, locID, 4)
 
 	var before int
 	require.NoError(t, dbPool.QueryRow(ctx, `SELECT last_value FROM so_seq`).Scan(&before))
@@ -266,14 +266,14 @@ func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9801, "so_loc_manager_9801", 3)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9801, "so_loc_manager_9801", 3)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9801, 'Test WH 9801', 'SO-WH-9801', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9801", 9801)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9801", 9801)
 
 	// location must be the only scope
 	_, err = svc.CreateSession(ctx, &CreateSessionRequest{
@@ -288,18 +288,18 @@ func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 func TestRepository_LocationScope_ProductUniverse(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9802, 'Test WH 9802', 'SO-WH-9802', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9802", 9802)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9802", 9802)
 
-	onRack := insertTestProduct(t, ctx, "SO-LOC-SCOPE-001")
-	globalOnly := insertTestProduct(t, ctx, "SO-LOC-SCOPE-002")
-	insertTestStockLocation(t, ctx, onRack, 9802, locID, 4)
-	insertTestStock(t, ctx, globalOnly, 7)
+	onRack := insertTestProduct(ctx, t, "SO-LOC-SCOPE-001")
+	globalOnly := insertTestProduct(ctx, t, "SO-LOC-SCOPE-002")
+	insertTestStockLocation(ctx, t, onRack, 9802, locID, 4)
+	insertTestStock(ctx, t, globalOnly, 7)
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -318,16 +318,16 @@ func TestRepository_LocationScope_ProductUniverse(t *testing.T) {
 func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9803, "so_loc_rt_9803")
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9803, "so_loc_rt_9803")
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9803, 'Test WH 9803', 'SO-WH-9803', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9803", 9803)
-	p := insertTestProduct(t, ctx, "SO-LOC-RT-001")
-	insertTestStockLocation(t, ctx, p, 9803, locID, 3)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9803", 9803)
+	p := insertTestProduct(ctx, t, "SO-LOC-RT-001")
+	insertTestStockLocation(ctx, t, p, 9803, locID, 3)
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -370,22 +370,22 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 
 	managerID := 9804
 	counterID := 9805
-	insertTestUserWithRole(t, ctx, managerID, "so_loc_manager_9804", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_loc_counter_9805", 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_loc_manager_9804", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_loc_counter_9805", 5)
 
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9804, 'Test WH 9804', 'SO-WH-9804', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
 	require.NoError(t, err)
-	locID := insertTestStorageLocation(t, ctx, "SO-LOC-9804", 9804)
+	locID := insertTestStorageLocation(ctx, t, "SO-LOC-9804", 9804)
 
-	p := insertTestProduct(t, ctx, "SO-LOC-FLOW-001")
-	insertTestStock(t, ctx, p, 10)
-	insertTestStockLocation(t, ctx, p, 9804, locID, 10)
+	p := insertTestProduct(ctx, t, "SO-LOC-FLOW-001")
+	insertTestStock(ctx, t, p, 10)
+	insertTestStockLocation(ctx, t, p, 9804, locID, 10)
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
 	require.NoError(t, err)
 
@@ -401,14 +401,14 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
 
 	// physical count 13 vs expected 10 -> +3
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 13)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 13)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
 	// verified but not yet posted: rack and global unchanged
-	assertStockQty(t, ctx, p, locID, 10)
-	assertGlobalQty(t, ctx, p, 10)
-	assertProductsStock(t, ctx, p, 10)
+	assertStockQty(ctx, t, p, locID, 10)
+	assertGlobalQty(ctx, t, p, 10)
+	assertProductsStock(ctx, t, p, 10)
 
 	adj, err := svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok", Notes: "location reconcile"})
 	require.NoError(t, err)
@@ -421,9 +421,9 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 
 	// both rack row and global row advanced by +3; products.stock synced
 	// (Option A: global recomputed as max(global-rack, 0) + newRack)
-	assertStockQty(t, ctx, p, locID, 13)
-	assertGlobalQty(t, ctx, p, 13)
-	assertProductsStock(t, ctx, p, 13)
+	assertStockQty(ctx, t, p, locID, 13)
+	assertGlobalQty(ctx, t, p, 13)
+	assertProductsStock(ctx, t, p, 13)
 
 	// ledger document written (one line item per product; the rack delta is
 	// applied to the rack row and the global row is reconciled to it)
@@ -447,7 +447,7 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	require.NoError(t, svc.CloseSession(ctx, session.ID, managerID))
 }
 
-func assertStockQty(t *testing.T, ctx context.Context, productID, locationID, want int) {
+func assertStockQty(ctx context.Context, t *testing.T, productID, locationID, want int) {
 	t.Helper()
 	var qty int
 	err := dbPool.QueryRow(ctx,
@@ -457,7 +457,7 @@ func assertStockQty(t *testing.T, ctx context.Context, productID, locationID, wa
 	assert.Equal(t, want, qty)
 }
 
-func assertGlobalQty(t *testing.T, ctx context.Context, productID, want int) {
+func assertGlobalQty(ctx context.Context, t *testing.T, productID, want int) {
 	t.Helper()
 	var qty int
 	err := dbPool.QueryRow(ctx,
@@ -467,7 +467,7 @@ func assertGlobalQty(t *testing.T, ctx context.Context, productID, want int) {
 	assert.Equal(t, want, qty)
 }
 
-func assertProductsStock(t *testing.T, ctx context.Context, productID, want int) {
+func assertProductsStock(ctx context.Context, t *testing.T, productID, want int) {
 	t.Helper()
 	var qty int
 	err := dbPool.QueryRow(ctx, `SELECT stock FROM products WHERE id = $1`, productID).Scan(&qty)

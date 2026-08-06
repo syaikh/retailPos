@@ -11,7 +11,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-func WriteCSV(rows []SaleExportRow, w io.Writer) error {
+func WriteCSV(rows []ExportRow, w io.Writer) error {
 	cw := csv.NewWriter(w)
 	_ = shared.WriteCSVRow(cw, []string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
 	for _, row := range rows {
@@ -28,7 +28,7 @@ func WriteCSV(rows []SaleExportRow, w io.Writer) error {
 	return cw.Error()
 }
 
-func WriteXLSX(rows []SaleExportRow, w io.Writer) error {
+func WriteXLSX(rows []ExportRow, w io.Writer) error {
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 

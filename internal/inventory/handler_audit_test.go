@@ -16,17 +16,17 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupMockInventoryRouterWithAudit(svc InventoryService) *gin.Engine {
+func setupMockInventoryRouterWithAudit(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -44,7 +44,7 @@ func setupMockInventoryRouterWithAudit(svc InventoryService) *gin.Engine {
 }
 
 func TestAuditHandler_AdjustStock(t *testing.T) {
-	svc := &mockInventoryService{
+	svc := &mockService{
 		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 			return nil
 		},
@@ -59,7 +59,7 @@ func TestAuditHandler_AdjustStock(t *testing.T) {
 }
 
 func TestAuditHandler_AdjustStock_ServiceError(t *testing.T) {
-	svc := &mockInventoryService{
+	svc := &mockService{
 		adjustStockFn: func(ctx context.Context, productID int, quantityChange int, userID int, notes string) error {
 			return errors.New("product not found")
 		},
@@ -74,7 +74,7 @@ func TestAuditHandler_AdjustStock_ServiceError(t *testing.T) {
 }
 
 func TestAuditHandler_AdjustStock_BindError(t *testing.T) {
-	r := setupMockInventoryRouterWithAudit(&mockInventoryService{})
+	r := setupMockInventoryRouterWithAudit(&mockService{})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader("{bad"))
 	req.Header.Set("Content-Type", "application/json")
@@ -83,7 +83,7 @@ func TestAuditHandler_AdjustStock_BindError(t *testing.T) {
 }
 
 func TestAuditHandler_AdjustStock_MissingNotes(t *testing.T) {
-	r := setupMockInventoryRouterWithAudit(&mockInventoryService{})
+	r := setupMockInventoryRouterWithAudit(&mockService{})
 	body := `{"product_id":1,"quantity_change":5,"notes":""}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))
@@ -93,7 +93,7 @@ func TestAuditHandler_AdjustStock_MissingNotes(t *testing.T) {
 }
 
 func TestAuditHandler_AdjustStock_ZeroQuantity(t *testing.T) {
-	r := setupMockInventoryRouterWithAudit(&mockInventoryService{})
+	r := setupMockInventoryRouterWithAudit(&mockService{})
 	body := `{"product_id":1,"quantity_change":0,"notes":"test"}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/inventory/adjust", strings.NewReader(body))

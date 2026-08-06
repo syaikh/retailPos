@@ -26,10 +26,10 @@ type AuthLoginService interface {
 
 type AuthHandler struct {
 	svc      AuthLoginService
-	auditSvc audit.AuditCreator
+	auditSvc audit.Creator
 }
 
-func NewAuthHandler(svc AuthLoginService, auditSvc audit.AuditCreator) *AuthHandler {
+func NewAuthHandler(svc AuthLoginService, auditSvc audit.Creator) *AuthHandler {
 	return &AuthHandler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -95,7 +95,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      &resp.User.ID,
 			Username:    resp.User.Username,
 			Role:        resp.User.Role.Name,
@@ -149,7 +149,7 @@ func (h *AuthHandler) ValidateSession(c *gin.Context) {
 	permissions, _ := c.Get("permissions")
 	storeID, _ := c.Get("storeID")
 
-	resp := UserWithPermissions{
+	resp := WithPermissions{
 		Permissions: []string{},
 	}
 	if v, ok := userID.(int); ok {
@@ -222,7 +222,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		role, _ := c.Get("role")
 		usernameStr, _ := username.(string)
 		roleStr, _ := role.(string)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      &id,
 			Username:    usernameStr,
 			Role:        roleStr,
@@ -267,7 +267,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		role, _ := c.Get("role")
 		usernameStr, _ := username.(string)
 		roleStr, _ := role.(string)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      &uid,
 			Username:    usernameStr,
 			Role:        roleStr,

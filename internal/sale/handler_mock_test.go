@@ -24,17 +24,17 @@ func init() {
 	_ = os.Setenv("JWT_SECRET", "test-secret-for-sale-mock-tests")
 }
 
-type mockSaleService struct {
-	createSaleFn               func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error
-	createSaleWithParkedSaleFn func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error
+type mockService struct {
+	createSaleFn               func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error
+	createSaleWithParkedSaleFn func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error
 	getSaleByIDFn              func(ctx context.Context, id int, storeID *int) (*Sale, error)
 	listSalesFn                func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
-	getSalesForExportFn        func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error)
+	getSalesForExportFn        func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
 	streamSalesExportCSVFn     func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
 	getNextInvoiceNumberFn     func(ctx context.Context) (string, error)
 	getAllPaymentMethodsFn     func(ctx context.Context) ([]PaymentMethod, error)
 	getPaymentMethodByCodeFn   func(ctx context.Context, code string) (*PaymentMethod, error)
-	parkSaleFn                 func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error
+	parkSaleFn                 func(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error
 	recallSaleFn               func(ctx context.Context, saleID int) (*Sale, error)
 	cancelParkedSaleFn         func(ctx context.Context, saleID int) error
 	listParkedSalesFn          func(ctx context.Context, cashierID int) ([]Sale, error)
@@ -52,142 +52,164 @@ type mockSaleService struct {
 	resumeCartFn                    func(ctx context.Context, cartID int, cashierID int) (*CartSession, error)
 	checkoutCartFn                  func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error)
 	checkoutCartWithPaymentMethodFn func(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error)
+
+	setCartConfigFn    func(cfg CartConfig)
+	setPriceStoreFn    func(ps ProductPriceGetter)
+	setPriceResolverFn func(r PriceResolver)
 }
 
-func (m *mockSaleService) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+func (m *mockService) CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 	return m.createSaleFn(ctx, sale, items, payments)
 }
-func (m *mockSaleService) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+func (m *mockService) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 	if m.createSaleWithParkedSaleFn != nil {
 		return m.createSaleWithParkedSaleFn(ctx, sale, items, parkedSaleID, payments)
 	}
 	return m.createSaleFn(ctx, sale, items, payments)
 }
-func (m *mockSaleService) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
+func (m *mockService) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	if m.getSaleByIDFn != nil {
 		return m.getSaleByIDFn(ctx, id, storeID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+func (m *mockService) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 	return m.listSalesFn(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, paymentMethods, storeID, minTotal, maxTotal, cashierID)
 }
-func (m *mockSaleService) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
+func (m *mockService) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
 	return m.getSalesForExportFn(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
-func (m *mockSaleService) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+func (m *mockService) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
 	return m.streamSalesExportCSVFn(ctx, w, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
-func (m *mockSaleService) GetNextInvoiceNumber(ctx context.Context) (string, error) {
+func (m *mockService) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 	return m.getNextInvoiceNumberFn(ctx)
 }
-func (m *mockSaleService) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error) {
+func (m *mockService) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error) {
 	return m.getAllPaymentMethodsFn(ctx)
 }
-func (m *mockSaleService) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
+func (m *mockService) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
 	return m.getPaymentMethodByCodeFn(ctx, code)
 }
-func (m *mockSaleService) ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+func (m *mockService) ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
 	return m.parkSaleFn(ctx, sale, items, recalledSaleID)
 }
-func (m *mockSaleService) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
+func (m *mockService) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
 	return m.recallSaleFn(ctx, saleID)
 }
-func (m *mockSaleService) CancelParkedSale(ctx context.Context, saleID int) error {
+func (m *mockService) CancelParkedSale(ctx context.Context, saleID int) error {
 	return m.cancelParkedSaleFn(ctx, saleID)
 }
-func (m *mockSaleService) ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
+func (m *mockService) ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
 	return m.listParkedSalesFn(ctx, cashierID)
 }
-func (m *mockSaleService) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
+func (m *mockService) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
 	return m.getParkedSaleByIDFn(ctx, saleID, cashierID)
 }
 
-func (m *mockSaleService) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
+func (m *mockService) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
 	if m.createOrGetOpenCartFn != nil {
 		return m.createOrGetOpenCartFn(ctx, cashierID, storeID, shiftID, customerID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error) {
+func (m *mockService) GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error) {
 	if m.getOpenCartFn != nil {
 		return m.getOpenCartFn(ctx, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (m *mockService) GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	if m.getCartByIDFn != nil {
 		return m.getCartByIDFn(ctx, cartID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error) {
+func (m *mockService) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error) {
 	if m.listHeldCartsFn != nil {
 		return m.listHeldCartsFn(ctx, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
+func (m *mockService) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
 	if m.updateCartCustomerFn != nil {
 		return m.updateCartCustomerFn(ctx, cartID, customerID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
+func (m *mockService) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
 	if m.addCartItemFn != nil {
 		return m.addCartItemFn(ctx, cartID, productID, quantity, customerGroupID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
+func (m *mockService) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
 	if m.updateCartItemQuantityFn != nil {
 		return m.updateCartItemQuantityFn(ctx, cartID, itemID, quantity, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error) {
+func (m *mockService) RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error) {
 	if m.removeCartItemFn != nil {
 		return m.removeCartItemFn(ctx, cartID, itemID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (m *mockService) HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	if m.holdCartFn != nil {
 		return m.holdCartFn(ctx, cartID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (m *mockService) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	if m.resumeCartFn != nil {
 		return m.resumeCartFn(ctx, cartID, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+func (m *mockService) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 	if m.checkoutCartFn != nil {
 		return m.checkoutCartFn(ctx, cartID, payments, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
-func (m *mockSaleService) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
+func (m *mockService) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
 	if m.checkoutCartWithPaymentMethodFn != nil {
 		return m.checkoutCartWithPaymentMethodFn(ctx, cartID, paymentMethod, cashierID)
 	}
 	return nil, fmt.Errorf("not mocked")
 }
 
-type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+func (m *mockService) SetCartConfig(cfg CartConfig) {
+	if m.setCartConfigFn != nil {
+		m.setCartConfigFn(cfg)
+	}
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockService) SetPriceStore(ps ProductPriceGetter) {
+	if m.setPriceStoreFn != nil {
+		m.setPriceStoreFn(ps)
+	}
+}
+
+func (m *mockService) SetPriceResolver(r PriceResolver) {
+	if m.setPriceResolverFn != nil {
+		m.setPriceResolverFn(r)
+	}
+}
+
+type mockAuditCreator struct {
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
+}
+
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine {
+func setupSaleHandler(svc Service, auditSvc audit.Creator) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -206,7 +228,7 @@ func setupSaleHandler(svc SaleService, auditSvc audit.AuditCreator) *gin.Engine 
 // setupSaleHandlerUser builds a handler with a configurable userID context
 // value (nil omits the key entirely) so the auth branches of the sale
 // handlers can be exercised.
-func setupSaleHandlerUser(svc SaleService, auditSvc audit.AuditCreator, userID interface{}) *gin.Engine {
+func setupSaleHandlerUser(svc Service, auditSvc audit.Creator, userID interface{}) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -227,7 +249,7 @@ func setupSaleHandlerUser(svc SaleService, auditSvc audit.AuditCreator, userID i
 // TestSaleHandler_UserContextBranches covers the missing/invalid userID
 // branches in CreateSale, ParkSale, ListParkedSales and GetParkedSaleByID.
 func TestSaleHandler_UserContextBranches(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	body := `{"items":[{"product_id":1,"quantity":1,"subtotal":10000}]}`
 
 	cases := []struct {
@@ -283,8 +305,8 @@ func TestSaleHandler_UserContextBranches(t *testing.T) {
 
 func TestSaleHandler_CreateSale_Success(t *testing.T) {
 	var capturedSale *Sale
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			capturedSale = sale
 			return nil
@@ -312,8 +334,8 @@ func TestSaleHandler_CreateSale_Success(t *testing.T) {
 
 func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
 	var capturedSale *Sale
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			capturedSale = sale
 			return nil
@@ -341,8 +363,8 @@ func TestSaleHandler_CreateSale_WithShiftID(t *testing.T) {
 
 func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
 	auditCalled := false
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			sale.ID = 1
 			return nil
 		},
@@ -354,7 +376,7 @@ func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "create", log.Action)
 			assert.Equal(t, "sale", log.EntityType)
@@ -373,7 +395,7 @@ func TestSaleHandler_CreateSale_WithAuditLog(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_BindJSONError(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales", strings.NewReader("not json"))
@@ -385,7 +407,7 @@ func TestSaleHandler_CreateSale_BindJSONError(t *testing.T) {
 func TestSaleHandler_CreateSale_WithCartSessionID_DelegatesToCheckout(t *testing.T) {
 	checkoutCalled := false
 	var capturedPayments []CreatePaymentRequest
-	svc := &mockSaleService{
+	svc := &mockService{
 		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 			checkoutCalled = true
 			assert.Equal(t, 5, cartID)
@@ -409,7 +431,7 @@ func TestSaleHandler_CreateSale_WithCartSessionID_DelegatesToCheckout(t *testing
 }
 
 func TestSaleHandler_CreateSale_WithCartSessionID_ErrorPropagates(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 			return nil, ErrCartNotFound
 		},
@@ -426,13 +448,13 @@ func TestSaleHandler_CreateSale_WithCartSessionID_ErrorPropagates(t *testing.T) 
 
 func TestSaleHandler_CreateSale_WithCartSessionID_AuditLogged(t *testing.T) {
 	auditCalled := false
-	svc := &mockSaleService{
+	svc := &mockService{
 		checkoutCartFn: func(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 			return &Sale{ID: 9, InvoiceNumber: "INV-CART-2", TotalAmount: 10000}, nil
 		},
 	}
 	auditSvc := &mockAuditCreator{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "create", log.Action)
 			assert.Equal(t, "sale", log.EntityType)
@@ -451,7 +473,7 @@ func TestSaleHandler_CreateSale_WithCartSessionID_AuditLogged(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_NegativeDiscount(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "INV-003", nil
 		},
@@ -467,7 +489,7 @@ func TestSaleHandler_CreateSale_NegativeDiscount(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_DiscountExceedsSubtotal(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "INV-004", nil
 		},
@@ -483,8 +505,8 @@ func TestSaleHandler_CreateSale_DiscountExceedsSubtotal(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_InvalidPaymentMethod(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrInvalidPaymentMethod
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -502,7 +524,7 @@ func TestSaleHandler_CreateSale_InvalidPaymentMethod(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_InvoiceNumberError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "", assert.AnError
 		},
@@ -518,8 +540,8 @@ func TestSaleHandler_CreateSale_InvoiceNumberError(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_InsufficientStock(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			return ErrInsufficientStock
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -540,8 +562,8 @@ func TestSaleHandler_CreateSale_InsufficientStock(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			return assert.AnError
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -562,8 +584,8 @@ func TestSaleHandler_CreateSale_ServiceError(t *testing.T) {
 
 func TestSaleHandler_CreateSale_ProvidedInvoiceNumber(t *testing.T) {
 	var capturedSale *Sale
-	svc := &mockSaleService{
-		createSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleFn: func(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 			capturedSale = sale
 			sale.ID = 1
 			return nil
@@ -585,7 +607,7 @@ func TestSaleHandler_CreateSale_ProvidedInvoiceNumber(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			return []Sale{{ID: 1, InvoiceNumber: "INV-001"}}, 1, nil
 		},
@@ -602,7 +624,7 @@ func TestSaleHandler_GetSalesHistory_Success(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_Error(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			return nil, 0, assert.AnError
 		},
@@ -615,7 +637,7 @@ func TestSaleHandler_GetSalesHistory_Error(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidMinTotal(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?min_total=abc", nil)
@@ -625,7 +647,7 @@ func TestSaleHandler_GetSalesHistory_InvalidMinTotal(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidMaxTotal(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?max_total=abc", nil)
@@ -635,7 +657,7 @@ func TestSaleHandler_GetSalesHistory_InvalidMaxTotal(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_MinExceedsMax(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?min_total=100&max_total=50", nil)
@@ -645,7 +667,7 @@ func TestSaleHandler_GetSalesHistory_MinExceedsMax(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidMinTotalOutOfRange(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?min_total=999999999", nil)
@@ -654,7 +676,7 @@ func TestSaleHandler_GetSalesHistory_InvalidMinTotalOutOfRange(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidMaxTotalOutOfRange(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales?max_total=999999999", nil)
@@ -664,7 +686,7 @@ func TestSaleHandler_GetSalesHistory_InvalidMaxTotalOutOfRange(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 	var capturedSearch string
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedSearch = search
 			return []Sale{}, 0, nil
@@ -679,7 +701,7 @@ func TestSaleHandler_GetSalesHistory_WithFilters(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			assert.Equal(t, "created_at", sortBy, "invalid sort_by should default to created_at")
 			return []Sale{}, 0, nil
@@ -693,7 +715,7 @@ func TestSaleHandler_GetSalesHistory_InvalidSortBy(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			assert.Equal(t, "DESC", sortDir, "invalid sort_dir should default to DESC")
 			return []Sale{}, 0, nil
@@ -708,7 +730,7 @@ func TestSaleHandler_GetSalesHistory_InvalidSortDir(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 	var capturedLimit, capturedOffset int
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedLimit = limit
 			capturedOffset = offset
@@ -725,7 +747,7 @@ func TestSaleHandler_GetSalesHistory_DefaultLimitOffset(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 	var capturedLimit int
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedLimit = limit
 			return []Sale{}, 0, nil
@@ -740,7 +762,7 @@ func TestSaleHandler_GetSalesHistory_OutOfRangeLimit(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
 	var capturedOffset int
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedOffset = offset
 			return []Sale{}, 0, nil
@@ -754,7 +776,7 @@ func TestSaleHandler_GetSalesHistory_NegativeOffset(t *testing.T) {
 }
 
 func TestSaleHandler_GetSaleByID_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
 			return &Sale{ID: 1, InvoiceNumber: "INV-001"}, nil
 		},
@@ -767,7 +789,7 @@ func TestSaleHandler_GetSaleByID_Success(t *testing.T) {
 }
 
 func TestSaleHandler_GetSaleByID_InvalidID(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales/abc", nil)
@@ -777,7 +799,7 @@ func TestSaleHandler_GetSaleByID_InvalidID(t *testing.T) {
 }
 
 func TestSaleHandler_GetSaleByID_NotFound(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
 			return nil, ErrSaleNotFound
 		},
@@ -790,7 +812,7 @@ func TestSaleHandler_GetSaleByID_NotFound(t *testing.T) {
 }
 
 func TestSaleHandler_GetSaleByID_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
 			return nil, assert.AnError
 		},
@@ -804,7 +826,7 @@ func TestSaleHandler_GetSaleByID_ServiceError(t *testing.T) {
 
 func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
 	var capturedCashierID *int
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			capturedCashierID = cashierID
 			return []Sale{}, 0, nil
@@ -820,7 +842,7 @@ func TestSaleHandler_GetSalesHistory_WithCashierID(t *testing.T) {
 }
 
 func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listSalesFn: func(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 			return []Sale{}, 0, nil
 		},
@@ -833,7 +855,7 @@ func TestSaleHandler_GetSalesHistory_InvalidCashierID(t *testing.T) {
 }
 
 func TestSaleHandler_ExportSales_CSV(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
 			cw := csv.NewWriter(w)
 			_ = cw.Write([]string{"Invoice Number", "Date", "Customer", "Items", "Payment Method", "Total Amount"})
@@ -851,9 +873,9 @@ func TestSaleHandler_ExportSales_CSV(t *testing.T) {
 }
 
 func TestSaleHandler_ExportSales_XLSX(t *testing.T) {
-	svc := &mockSaleService{
-		getSalesForExportFn: func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
-			return []SaleExportRow{}, nil
+	svc := &mockService{
+		getSalesForExportFn: func(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
+			return []ExportRow{}, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -865,7 +887,7 @@ func TestSaleHandler_ExportSales_XLSX(t *testing.T) {
 }
 
 func TestSaleHandler_ExportSales_CSV_Error(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
 			return assert.AnError
 		},
@@ -878,7 +900,7 @@ func TestSaleHandler_ExportSales_CSV_Error(t *testing.T) {
 }
 
 func TestSaleHandler_ExportSales_WithFilters(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		streamSalesExportCSVFn: func(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
 			return nil
 		},
@@ -891,7 +913,7 @@ func TestSaleHandler_ExportSales_WithFilters(t *testing.T) {
 }
 
 func TestSaleHandler_ListPaymentMethods_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getAllPaymentMethodsFn: func(ctx context.Context) ([]PaymentMethod, error) {
 			return []PaymentMethod{{Code: "cash", Name: "Cash"}, {Code: "card", Name: "Card"}}, nil
 		},
@@ -909,7 +931,7 @@ func TestSaleHandler_ListPaymentMethods_Success(t *testing.T) {
 }
 
 func TestSaleHandler_ListPaymentMethods_Error(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getAllPaymentMethodsFn: func(ctx context.Context) ([]PaymentMethod, error) {
 			return nil, assert.AnError
 		},
@@ -922,7 +944,7 @@ func TestSaleHandler_ListPaymentMethods_Error(t *testing.T) {
 }
 
 func TestSaleHandler_GetPaymentMethodByCode_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
 			return &PaymentMethod{Code: "cash", Name: "Cash"}, nil
 		},
@@ -935,7 +957,7 @@ func TestSaleHandler_GetPaymentMethodByCode_Success(t *testing.T) {
 }
 
 func TestSaleHandler_GetPaymentMethodByCode_NotFound(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getPaymentMethodByCodeFn: func(ctx context.Context, code string) (*PaymentMethod, error) {
 			return nil, assert.AnError
 		},
@@ -950,8 +972,8 @@ func TestSaleHandler_GetPaymentMethodByCode_NotFound(t *testing.T) {
 
 func TestSaleHandler_ParkSale_Success(t *testing.T) {
 	var capturedSale *Sale
-	svc := &mockSaleService{
-		parkSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+	svc := &mockService{
+		parkSaleFn: func(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
 			sale.ID = 10
 			capturedSale = sale
 			return nil
@@ -976,7 +998,7 @@ func TestSaleHandler_ParkSale_Success(t *testing.T) {
 }
 
 func TestSaleHandler_ParkSale_EmptyItems(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	body := `{"items":[],"payment_method":"CASH"}`
 	w := httptest.NewRecorder()
@@ -988,7 +1010,7 @@ func TestSaleHandler_ParkSale_EmptyItems(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSales_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listParkedSalesFn: func(ctx context.Context, cashierID int) ([]Sale, error) {
 			return []Sale{
 				{ID: 1, InvoiceNumber: "INV-001", Status: "parked", TotalAmount: 20000},
@@ -1011,9 +1033,9 @@ func TestSaleHandler_GetParkedSales_Success(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSaleByID_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getParkedSaleByIDFn: func(ctx context.Context, id int, cashierID int) (*Sale, error) {
-			return &Sale{ID: id, InvoiceNumber: "INV-001", Status: "parked", Items: []SaleItem{{ProductID: 1, Quantity: 2}}}, nil
+			return &Sale{ID: id, InvoiceNumber: "INV-001", Status: "parked", Items: []Item{{ProductID: 1, Quantity: 2}}}, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -1025,7 +1047,7 @@ func TestSaleHandler_GetParkedSaleByID_Success(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSaleByID_NotFound(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getParkedSaleByIDFn: func(ctx context.Context, id int, cashierID int) (*Sale, error) {
 			return nil, ErrSaleNotFound
 		},
@@ -1039,7 +1061,7 @@ func TestSaleHandler_GetParkedSaleByID_NotFound(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSaleByID_InvalidID(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/sales/parked/abc", nil)
@@ -1049,9 +1071,9 @@ func TestSaleHandler_GetParkedSaleByID_InvalidID(t *testing.T) {
 }
 
 func TestSaleHandler_RecallSale_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		recallSaleFn: func(ctx context.Context, saleID int) (*Sale, error) {
-			return &Sale{ID: saleID, InvoiceNumber: "INV-001", Status: "recalled", Items: []SaleItem{{ProductID: 1, Quantity: 2}}}, nil
+			return &Sale{ID: saleID, InvoiceNumber: "INV-001", Status: "recalled", Items: []Item{{ProductID: 1, Quantity: 2}}}, nil
 		},
 	}
 	r := setupSaleHandler(svc, nil)
@@ -1071,7 +1093,7 @@ func TestSaleHandler_RecallSale_Success(t *testing.T) {
 }
 
 func TestSaleHandler_RecallSale_AlreadyRecalled(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		recallSaleFn: func(ctx context.Context, saleID int) (*Sale, error) {
 			return nil, ErrSaleNotFound
 		},
@@ -1087,7 +1109,7 @@ func TestSaleHandler_RecallSale_AlreadyRecalled(t *testing.T) {
 }
 
 func TestSaleHandler_RecallSale_InvalidID(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales/parked/abc/recall", nil)
@@ -1097,7 +1119,7 @@ func TestSaleHandler_RecallSale_InvalidID(t *testing.T) {
 }
 
 func TestSaleHandler_CancelParkedSale_Success(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		cancelParkedSaleFn: func(ctx context.Context, saleID int) error {
 			return nil
 		},
@@ -1111,7 +1133,7 @@ func TestSaleHandler_CancelParkedSale_Success(t *testing.T) {
 }
 
 func TestSaleHandler_CancelParkedSale_NotFound(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		cancelParkedSaleFn: func(ctx context.Context, saleID int) error {
 			return ErrSaleNotFound
 		},
@@ -1125,7 +1147,7 @@ func TestSaleHandler_CancelParkedSale_NotFound(t *testing.T) {
 }
 
 func TestSaleHandler_CancelParkedSale_InvalidID(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("DELETE", "/sales/parked/abc", nil)
@@ -1138,8 +1160,8 @@ func TestSaleHandler_CancelParkedSale_InvalidID(t *testing.T) {
 // response when a checkout references a parked sale that is not in the
 // recalled state.
 func TestSaleHandler_CreateSale_ParkedSaleNotRecalled(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrParkedSaleNotRecalled
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1163,7 +1185,7 @@ func TestSaleHandler_CreateSale_ParkedSaleNotRecalled(t *testing.T) {
 // TestSaleHandler_ParkSale_BindJSONError covers malformed JSON on the park
 // endpoint.
 func TestSaleHandler_ParkSale_BindJSONError(t *testing.T) {
-	svc := &mockSaleService{}
+	svc := &mockService{}
 	r := setupSaleHandler(svc, nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/sales/parked", strings.NewReader(`{"items":`))
@@ -1175,8 +1197,8 @@ func TestSaleHandler_ParkSale_BindJSONError(t *testing.T) {
 
 func TestSaleHandler_CreateSale_WithParkedSaleID(t *testing.T) {
 	var capturedParkedSaleID *int
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			capturedParkedSaleID = parkedSaleID
 			sale.ID = 20
 			return nil
@@ -1202,8 +1224,8 @@ func TestSaleHandler_CreateSale_WithParkedSaleID(t *testing.T) {
 
 func TestSaleHandler_CreateSale_SplitPayments_Success(t *testing.T) {
 	var capturedPayments []CreatePaymentRequest
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			capturedPayments = payments
 			sale.ID = 30
 			return nil
@@ -1212,7 +1234,7 @@ func TestSaleHandler_CreateSale_SplitPayments_Success(t *testing.T) {
 			return "INV-SPLIT-001", nil
 		},
 		getSaleByIDFn: func(ctx context.Context, id int, storeID *int) (*Sale, error) {
-			return &Sale{ID: 30, InvoiceNumber: "INV-SPLIT-001", Payments: []SalePayment{
+			return &Sale{ID: 30, InvoiceNumber: "INV-SPLIT-001", Payments: []Payment{
 				{PaymentMethodCode: "CASH", Amount: 30000},
 				{PaymentMethodCode: "QRIS", Amount: 20000},
 			}}, nil
@@ -1235,8 +1257,8 @@ func TestSaleHandler_CreateSale_SplitPayments_Success(t *testing.T) {
 
 func TestSaleHandler_CreateSale_SplitPayments_WithReference(t *testing.T) {
 	var capturedPayments []CreatePaymentRequest
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			capturedPayments = payments
 			sale.ID = 31
 			return nil
@@ -1263,7 +1285,7 @@ func TestSaleHandler_CreateSale_SplitPayments_WithReference(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_MissingPayments(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "INV-NOPAY-001", nil
 		},
@@ -1280,8 +1302,8 @@ func TestSaleHandler_CreateSale_MissingPayments(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_TotalMismatch(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrPaymentTotalMismatch
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1300,8 +1322,8 @@ func TestSaleHandler_CreateSale_SplitPayment_TotalMismatch(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_DuplicateMethod(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrDuplicatePaymentMethod
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1320,8 +1342,8 @@ func TestSaleHandler_CreateSale_SplitPayment_DuplicateMethod(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_MultipleCash(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrMultipleCashPayments
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1340,8 +1362,8 @@ func TestSaleHandler_CreateSale_SplitPayment_MultipleCash(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_MaxExceeded(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrMaxPaymentsExceeded
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1360,8 +1382,8 @@ func TestSaleHandler_CreateSale_SplitPayment_MaxExceeded(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_ReferenceRequired(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrPaymentReferenceRequired
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1380,8 +1402,8 @@ func TestSaleHandler_CreateSale_SplitPayment_ReferenceRequired(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_InvalidMethod(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrInvalidPaymentMethod
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1400,8 +1422,8 @@ func TestSaleHandler_CreateSale_SplitPayment_InvalidMethod(t *testing.T) {
 }
 
 func TestSaleHandler_CreateSale_SplitPayment_InactiveMethod(t *testing.T) {
-	svc := &mockSaleService{
-		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+	svc := &mockService{
+		createSaleWithParkedSaleFn: func(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 			return ErrPaymentMethodInactive
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1420,8 +1442,8 @@ func TestSaleHandler_CreateSale_SplitPayment_InactiveMethod(t *testing.T) {
 }
 
 func TestSaleHandler_ParkSale_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
-		parkSaleFn: func(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+	svc := &mockService{
+		parkSaleFn: func(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
 			return fmt.Errorf("unexpected error")
 		},
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
@@ -1439,7 +1461,7 @@ func TestSaleHandler_ParkSale_ServiceError(t *testing.T) {
 }
 
 func TestSaleHandler_ParkSale_AutoInvoiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getNextInvoiceNumberFn: func(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("invoice generation failed")
 		},
@@ -1455,7 +1477,7 @@ func TestSaleHandler_ParkSale_AutoInvoiceError(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSales_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		listParkedSalesFn: func(ctx context.Context, cashierID int) ([]Sale, error) {
 			return nil, fmt.Errorf("db error")
 		},
@@ -1469,7 +1491,7 @@ func TestSaleHandler_GetParkedSales_ServiceError(t *testing.T) {
 }
 
 func TestSaleHandler_GetParkedSaleByID_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		getParkedSaleByIDFn: func(ctx context.Context, id int, cashierID int) (*Sale, error) {
 			return nil, fmt.Errorf("db error")
 		},
@@ -1483,7 +1505,7 @@ func TestSaleHandler_GetParkedSaleByID_ServiceError(t *testing.T) {
 }
 
 func TestSaleHandler_RecallSale_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		recallSaleFn: func(ctx context.Context, saleID int) (*Sale, error) {
 			return nil, fmt.Errorf("db error")
 		},
@@ -1499,7 +1521,7 @@ func TestSaleHandler_RecallSale_ServiceError(t *testing.T) {
 }
 
 func TestSaleHandler_CancelParkedSale_ServiceError(t *testing.T) {
-	svc := &mockSaleService{
+	svc := &mockService{
 		cancelParkedSaleFn: func(ctx context.Context, saleID int) error {
 			return fmt.Errorf("db error")
 		},

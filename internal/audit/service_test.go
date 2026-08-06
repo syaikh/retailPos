@@ -13,7 +13,7 @@ func TestAuditService_CreateAuditLog(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "test_action_service_create",
 		EntityType: "product",
@@ -28,7 +28,7 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "cashier",
 		Action:     "test_action_service_list",
 		EntityType: "product",

@@ -355,7 +355,7 @@ func TestService_LinkProduct(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-LP-"+time.Now().Format("0102150405"), "SVC Link Product", 5000)
+	productID := insertTestProduct(ctx, t, "SVC-LP-"+time.Now().Format("0102150405"), "SVC Link Product", 5000)
 
 	ps := &ProductSupplier{
 		ProductID:  productID,
@@ -394,7 +394,7 @@ func TestService_GetProductSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-GPS-P-"+time.Now().Format("0102150405"), "SVC GetPS Product", 6000)
+	productID := insertTestProduct(ctx, t, "SVC-GPS-P-"+time.Now().Format("0102150405"), "SVC GetPS Product", 6000)
 
 	ps := &ProductSupplier{
 		ProductID:  productID,
@@ -426,7 +426,7 @@ func TestService_GetPreferredSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-PREF-P-"+time.Now().Format("0102150405"), "SVC Pref Product", 7000)
+	productID := insertTestProduct(ctx, t, "SVC-PREF-P-"+time.Now().Format("0102150405"), "SVC Pref Product", 7000)
 
 	ps := &ProductSupplier{
 		ProductID:   productID,
@@ -462,7 +462,7 @@ func TestService_SetPreferredSupplier(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s1))
 	require.NoError(t, repo.Create(ctx, s2))
 
-	productID := insertTestProduct(t, ctx, "SVC-SP-P-"+time.Now().Format("0102150405"), "SVC SetPref Product", 8000)
+	productID := insertTestProduct(ctx, t, "SVC-SP-P-"+time.Now().Format("0102150405"), "SVC SetPref Product", 8000)
 
 	ps1 := &ProductSupplier{ProductID: productID, SupplierID: s1.ID, UnitCost: 5000, IsPreferred: true}
 	ps2 := &ProductSupplier{ProductID: productID, SupplierID: s2.ID, UnitCost: 6000, IsPreferred: false}
@@ -493,7 +493,7 @@ func TestService_UpdateProductSupplier(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-UPS-P-"+time.Now().Format("0102150405"), "SVC UpdPS Product", 9000)
+	productID := insertTestProduct(ctx, t, "SVC-UPS-P-"+time.Now().Format("0102150405"), "SVC UpdPS Product", 9000)
 
 	ps := &ProductSupplier{ProductID: productID, SupplierID: s.ID, UnitCost: 4000}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
@@ -535,7 +535,7 @@ func TestService_GetSuppliersByProductID(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-BP-P-"+time.Now().Format("0102150405"), "SVC ByProd Product", 10000)
+	productID := insertTestProduct(ctx, t, "SVC-BP-P-"+time.Now().Format("0102150405"), "SVC ByProd Product", 10000)
 
 	ps := &ProductSupplier{ProductID: productID, SupplierID: s.ID, UnitCost: 7000}
 	require.NoError(t, repo.LinkProduct(ctx, ps))
@@ -560,7 +560,7 @@ func TestService_GetProductsBySupplierID(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, s))
 
-	productID := insertTestProduct(t, ctx, "SVC-BS-P-"+time.Now().Format("0102150405"), "SVC BySup Product", 11000)
+	productID := insertTestProduct(ctx, t, "SVC-BS-P-"+time.Now().Format("0102150405"), "SVC BySup Product", 11000)
 
 	ps := &ProductSupplier{ProductID: productID, SupplierID: s.ID, UnitCost: 8000}
 	require.NoError(t, repo.LinkProduct(ctx, ps))

@@ -9,53 +9,53 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type Service struct {
+type service struct {
 	repo          *Repository
 	eventBus      shared.EventBus
 	productLookup ProductLookup
 	supplierLookup SupplierLookup
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository, eventBus shared.EventBus) Service {
+	return &service{repo: repo, eventBus: eventBus}
 }
 
-func (s *Service) SetProductLookup(l ProductLookup) {
+func (s *service) SetProductLookup(l ProductLookup) {
 	s.productLookup = l
 }
 
-func (s *Service) SetSupplierLookup(l SupplierLookup) {
+func (s *service) SetSupplierLookup(l SupplierLookup) {
 	s.supplierLookup = l
 }
 
-func (s *Service) lookupProductNames(ctx context.Context, ids []int) (map[int]ProductInfo, error) {
+func (s *service) lookupProductNames(ctx context.Context, ids []int) (map[int]ProductInfo, error) {
 	if s.productLookup == nil {
 		return nil, fmt.Errorf("product lookup port is not wired")
 	}
 	return s.productLookup.GetProductNamesByIDs(ctx, ids)
 }
 
-func (s *Service) lookupSupplierNames(ctx context.Context, ids []int) (map[int]SupplierInfo, error) {
+func (s *service) lookupSupplierNames(ctx context.Context, ids []int) (map[int]SupplierInfo, error) {
 	if s.supplierLookup == nil {
 		return nil, fmt.Errorf("supplier lookup port is not wired")
 	}
 	return s.supplierLookup.GetSupplierNamesByIDs(ctx, ids)
 }
 
-func (s *Service) lookupSupplierIDs(ctx context.Context, name string) ([]int, error) {
+func (s *service) lookupSupplierIDs(ctx context.Context, name string) ([]int, error) {
 	if s.supplierLookup == nil {
 		return nil, fmt.Errorf("supplier lookup port is not wired")
 	}
 	return s.supplierLookup.GetSupplierIDsByName(ctx, name)
 }
 
-func (s *Service) applySupplierNames(po *PurchaseOrder, names map[int]SupplierInfo) {
+func (s *service) applySupplierNames(po *Order, names map[int]SupplierInfo) {
 	if info, ok := names[po.SupplierID]; ok {
 		po.SupplierName = info.Name
 	}
 }
 
-func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (s *service) CreateDraft(ctx context.Context, po *Order, items []OrderItem) error {
 	if len(items) == 0 {
 		return fmt.Errorf("%w: items cannot be empty", ErrInvalidInput)
 	}
@@ -141,7 +141,7 @@ func (s *Service) CreateDraft(ctx context.Context, po *PurchaseOrder, items []Pu
 	return nil
 }
 
-func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (s *service) UpdateDraft(ctx context.Context, id int, po *Order, items []OrderItem) error {
 	if len(items) == 0 {
 		return fmt.Errorf("%w: items cannot be empty", ErrInvalidInput)
 	}
@@ -221,7 +221,7 @@ func (s *Service) UpdateDraft(ctx context.Context, id int, po *PurchaseOrder, it
 	return nil
 }
 
-func (s *Service) DeleteDraft(ctx context.Context, id int) error {
+func (s *service) DeleteDraft(ctx context.Context, id int) error {
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (s *Service) DeleteDraft(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Service) Confirm(ctx context.Context, id, userID int) error {
+func (s *service) Confirm(ctx context.Context, id, userID int) error {
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
 		return err
@@ -285,7 +285,7 @@ func (s *Service) Confirm(ctx context.Context, id, userID int) error {
 	return nil
 }
 
-func (s *Service) Cancel(ctx context.Context, id, userID int) error {
+func (s *service) Cancel(ctx context.Context, id, userID int) error {
 	existing, err := s.repo.GetPurchaseOrderByID(ctx, id, nil)
 	if err != nil {
 		return err
@@ -330,7 +330,7 @@ func (s *Service) Cancel(ctx context.Context, id, userID int) error {
 	return nil
 }
 
-func (s *Service) GetDetail(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error) {
+func (s *service) GetDetail(ctx context.Context, id int, storeID *int) (*Order, error) {
 	po, err := s.repo.GetPurchaseOrderByID(ctx, id, storeID)
 	if err != nil {
 		return nil, err
@@ -343,7 +343,7 @@ func (s *Service) GetDetail(ctx context.Context, id int, storeID *int) (*Purchas
 	return po, nil
 }
 
-func (s *Service) List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]PurchaseOrder, int, error) {
+func (s *service) List(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int) ([]Order, int, error) {
 	var supplierIDs []int
 	if search != "" {
 		ids, err := s.lookupSupplierIDs(ctx, search)
@@ -375,11 +375,11 @@ func (s *Service) List(ctx context.Context, limit, offset int, search, sortBy, s
 	return pos, total, nil
 }
 
-func (s *Service) GetReceipts(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error) {
+func (s *service) GetReceipts(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error) {
 	return s.repo.GetReceiptsByPOID(ctx, poID, storeID)
 }
 
-func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID int, reqItems []CreateGRItemInput) (*GoodsReceipt, error) {
+func (s *service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID int, reqItems []CreateGRItemInput) (*GoodsReceipt, error) {
 	po, err := s.repo.GetPurchaseOrderByID(ctx, poID, nil)
 	if err != nil {
 		return nil, err
@@ -407,7 +407,7 @@ func (s *Service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 		return nil, ErrInvalidPOStatusForReceiving
 	}
 
-	itemMap := make(map[int]*PurchaseOrderItem)
+	itemMap := make(map[int]*OrderItem)
 	for i := range po.Items {
 		itemMap[po.Items[i].ID] = &po.Items[i]
 	}

@@ -15,8 +15,8 @@ var (
 	ErrCartEmpty             = errors.New("cart is empty")
 )
 
-func (ci CartItem) ToSaleItem() SaleItem {
-	return SaleItem{
+func (ci CartItem) ToSaleItem() Item {
+	return Item{
 		ProductID:         ci.ProductID,
 		Name:              ci.ProductName,
 		ProductName:       ci.ProductName,
@@ -28,7 +28,7 @@ func (ci CartItem) ToSaleItem() SaleItem {
 		PricingRuleID:     ci.PricingRuleID,
 		PricingRuleName:   ci.PricingRuleName,
 		PricingRuleType:   ci.PricingRuleType,
-		PricingType:       ci.PricingType,
+		Type:       ci.Type,
 		OriginalPrice:     intPtr(ci.OriginalPrice),
 		Cost:              ci.Cost,
 		TaxClassID:        ci.TaxClassID,
@@ -68,7 +68,7 @@ type CartItem struct {
 	PricingRuleID     *int     `json:"pricing_rule_id,omitempty"`
 	PricingRuleName   *string  `json:"pricing_rule_name,omitempty"`
 	PricingRuleType   *string  `json:"pricing_rule_type,omitempty"`
-	PricingType       *string  `json:"pricing_type,omitempty"`
+	Type       *string  `json:"pricing_type,omitempty"`
 	Cost              int      `json:"cost"`
 	TaxClassID        *int     `json:"tax_class_id,omitempty"`
 	TaxRate           *float64 `json:"tax_rate,omitempty"`

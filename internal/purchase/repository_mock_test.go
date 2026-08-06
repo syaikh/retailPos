@@ -61,7 +61,7 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 			tx, err := repo.BeginTx(ctx)
 			require.NoError(t, err)
 			mock.ExpectQuery("INSERT INTO purchase_orders").WithArgs(anyArgs(14)...).WillReturnError(boom)
-			err = repo.CreatePurchaseOrder(ctx, tx, &PurchaseOrder{}, nil)
+			err = repo.CreatePurchaseOrder(ctx, tx, &Order{}, nil)
 			assert.ErrorContains(t, err, "failed to insert purchase order")
 		}},
 		{"update po exec error", func(mock pgxmock.PgxPoolIface, repo *Repository, ctx context.Context) {
@@ -69,7 +69,7 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 			tx, err := repo.BeginTx(ctx)
 			require.NoError(t, err)
 			mock.ExpectExec("UPDATE purchase_orders").WithArgs(anyArgs(10)...).WillReturnError(boom)
-			err = repo.UpdatePurchaseOrder(ctx, tx, &PurchaseOrder{}, nil)
+			err = repo.UpdatePurchaseOrder(ctx, tx, &Order{}, nil)
 			assert.ErrorContains(t, err, "failed to update purchase order")
 		}},
 		{"update po delete items error", func(mock pgxmock.PgxPoolIface, repo *Repository, ctx context.Context) {
@@ -78,7 +78,7 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 			require.NoError(t, err)
 			mock.ExpectExec("UPDATE purchase_orders").WithArgs(anyArgs(10)...).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 			mock.ExpectExec("DELETE FROM purchase_order_items").WithArgs(1).WillReturnError(boom)
-			err = repo.UpdatePurchaseOrder(ctx, tx, &PurchaseOrder{ID: 1}, []PurchaseOrderItem{{}})
+			err = repo.UpdatePurchaseOrder(ctx, tx, &Order{ID: 1}, []OrderItem{{}})
 			assert.ErrorContains(t, err, "failed to delete old items")
 		}},
 		{"delete po error", func(mock pgxmock.PgxPoolIface, repo *Repository, ctx context.Context) {
@@ -169,7 +169,7 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 			require.NoError(t, err)
 			mock.ExpectQuery("INSERT INTO purchase_orders").WithArgs(anyArgs(14)...).WillReturnRows(
 				pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(1, time.Now(), time.Now()))
-			err = repo.CreatePurchaseOrder(ctx, tx, &PurchaseOrder{}, []PurchaseOrderItem{{}})
+			err = repo.CreatePurchaseOrder(ctx, tx, &Order{}, []OrderItem{{}})
 			assert.ErrorContains(t, err, "batch insert purchase order items")
 		}},
 		{"update po copyfrom error", func(mock pgxmock.PgxPoolIface, repo *Repository, ctx context.Context) {
@@ -178,7 +178,7 @@ func TestRepositoryMock_SequenceAndTxErrors(t *testing.T) {
 			require.NoError(t, err)
 			mock.ExpectExec("UPDATE purchase_orders").WithArgs(anyArgs(10)...).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 			mock.ExpectExec("DELETE FROM purchase_order_items").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 1))
-			err = repo.UpdatePurchaseOrder(ctx, tx, &PurchaseOrder{ID: 1}, []PurchaseOrderItem{{}})
+			err = repo.UpdatePurchaseOrder(ctx, tx, &Order{ID: 1}, []OrderItem{{}})
 			assert.ErrorContains(t, err, "batch insert purchase order items")
 		}},
 		{"create goods receipt copyfrom error", func(mock pgxmock.PgxPoolIface, repo *Repository, ctx context.Context) {

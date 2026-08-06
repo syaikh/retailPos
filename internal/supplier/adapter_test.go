@@ -77,7 +77,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		result, err := a.MapToEntity(context.Background(), Schema, row)
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		importRow, ok := result.(SupplierImportRow)
+		importRow, ok := result.(ImportRow)
 		require.True(t, ok)
 		assert.Equal(t, "SUP-ADP-001", importRow.Code)
 		assert.Equal(t, "Test Adapter Supplier", importRow.Name)
@@ -127,7 +127,7 @@ func TestAdapter_Repository_Insert(t *testing.T) {
 	repoActions := a.Repository()
 
 	entities := []interface{}{
-		SupplierImportRow{
+		ImportRow{
 			Row:         1,
 			Code:        "SUP-BULK-INS-" + time.Now().Format("0102150405"),
 			Name:        "Bulk Insert Supplier",
@@ -160,7 +160,7 @@ func TestAdapter_Repository_Update(t *testing.T) {
 	repoActions := a.Repository()
 
 	entities := []interface{}{
-		SupplierImportRow{
+		ImportRow{
 			Row:         1,
 			Code:        code,
 			Name:        "After Adapter Update",

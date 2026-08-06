@@ -4,31 +4,31 @@ import (
 	"context"
 )
 
-type Service struct {
+type service struct {
 	repo *Repository
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository) Service {
+	return &service{repo: repo}
 }
 
-func (s *Service) GetByID(ctx context.Context, id int) (*Brand, error) {
+func (s *service) GetByID(ctx context.Context, id int) (*Brand, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) GetAll(ctx context.Context) ([]Brand, error) {
+func (s *service) GetAll(ctx context.Context) ([]Brand, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *Service) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
+func (s *service) GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]Brand, int, error) {
 	return s.repo.GetAllPaginated(ctx, limit, offset, search)
 }
 
-func (s *Service) GetIDByName(ctx context.Context, name string) (int, error) {
+func (s *service) GetIDByName(ctx context.Context, name string) (int, error) {
 	return s.repo.GetIDByName(ctx, name)
 }
 
-func (s *Service) Create(ctx context.Context, req *BrandCreateRequest) (*Brand, error) {
+func (s *service) Create(ctx context.Context, req *CreateRequest) (*Brand, error) {
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
@@ -44,7 +44,7 @@ func (s *Service) Create(ctx context.Context, req *BrandCreateRequest) (*Brand, 
 	return s.repo.GetByID(ctx, brand.ID)
 }
 
-func (s *Service) Update(ctx context.Context, id int, req *BrandUpdateRequest) (*Brand, error) {
+func (s *service) Update(ctx context.Context, id int, req *UpdateRequest) (*Brand, error) {
 	brand, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -60,6 +60,6 @@ func (s *Service) Update(ctx context.Context, id int, req *BrandUpdateRequest) (
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) Delete(ctx context.Context, id int) error {
+func (s *service) Delete(ctx context.Context, id int) error {
 	return s.repo.Delete(ctx, id)
 }

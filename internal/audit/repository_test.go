@@ -44,7 +44,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Create audit log with all fields", func(t *testing.T) {
-		al := &AuditLog{
+		al := &Log{
 			UserID:     &userID,
 			Role:       "admin",
 			Action:     "test_action_create_full",
@@ -61,7 +61,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("Create audit log without user", func(t *testing.T) {
-		al := &AuditLog{
+		al := &Log{
 			Role:       "system",
 			Action:     "test_action_no_user",
 			EntityType: "settings",
@@ -72,7 +72,7 @@ func TestAuditRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Run("Create audit log with minimal fields", func(t *testing.T) {
-		al := &AuditLog{
+		al := &Log{
 			Action: "test_action_minimal",
 		}
 		err := repo.CreateAuditLog(ctx, al)
@@ -176,7 +176,7 @@ func TestAuditRepository_GetAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "timezone_format_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
@@ -204,7 +204,7 @@ func TestAuditRepository_GetAuditLogByID_CreatedAtJakartaTimezone(t *testing.T) 
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "timezone_byid_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",

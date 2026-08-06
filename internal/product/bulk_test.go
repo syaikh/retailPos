@@ -15,8 +15,8 @@ func TestBulkUpdateProductStatus(t *testing.T) {
 	t.Run("update multiple products to inactive", func(t *testing.T) {
 		p1 := &Product{SKU: uniqueSKU("BULK-ST-A"), Name: "BulkStatusA", Price: 1000, Cost: 500, Stock: 10, Status: "active"}
 		p2 := &Product{SKU: uniqueSKU("BULK-ST-B"), Name: "BulkStatusB", Price: 2000, Cost: 1000, Stock: 20, Status: "active"}
-		seedTestProduct(t, repo, ctx, p1)
-		seedTestProduct(t, repo, ctx, p2)
+		seedTestProduct(ctx, repo, t, p1)
+		seedTestProduct(ctx, repo, t, p2)
 
 		err := repo.BulkUpdateProductStatus(ctx, []int{p1.ID, p2.ID}, "inactive", nil)
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestBulkUpdateProductStatus(t *testing.T) {
 
 	t.Run("update to active from inactive", func(t *testing.T) {
 		p := &Product{SKU: uniqueSKU("BULK-ST-C"), Name: "BulkStatusC", Price: 3000, Cost: 1500, Stock: 5, Status: "inactive"}
-		seedTestProduct(t, repo, ctx, p)
+		seedTestProduct(ctx, repo, t, p)
 
 		err := repo.BulkUpdateProductStatus(ctx, []int{p.ID}, "active", nil)
 		require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestBulkUpsertProduct_Insert(t *testing.T) {
 
 	t.Run("inserts a new product", func(t *testing.T) {
 		sku := uniqueSKU("BULK-UPSERT-NEW")
-		p := ProductImportPayload{
+		p := ImportPayload{
 			SKU:    sku,
 			Name:   "Upsert New Product",
 			Price:  15000,
@@ -86,7 +86,7 @@ func TestBulkUpsertProduct_Insert(t *testing.T) {
 		desc := "Full upsert product"
 		weight := 500
 
-		p := ProductImportPayload{
+		p := ImportPayload{
 			SKU:         sku,
 			Name:        "Full Upsert",
 			Barcode:     &barcode,
@@ -128,9 +128,9 @@ func TestBulkUpsertProduct_Update(t *testing.T) {
 			Stock:  30,
 			Status: "active",
 		}
-		seedTestProduct(t, repo, ctx, existing)
+		seedTestProduct(ctx, repo, t, existing)
 
-		updated := ProductImportPayload{
+		updated := ImportPayload{
 			SKU:    sku,
 			Name:   "Updated Name",
 			Price:  25000,
@@ -159,7 +159,7 @@ func TestBulkInsertProducts(t *testing.T) {
 		sku1 := uniqueSKU("BULK-INS-1")
 		sku2 := uniqueSKU("BULK-INS-2")
 		sku3 := uniqueSKU("BULK-INS-3")
-		payloads := []ProductImportPayload{
+		payloads := []ImportPayload{
 			{SKU: sku1, Name: "BulkInsert1", Price: 1000, Cost: 500, Stock: 10, Status: "active"},
 			{SKU: sku2, Name: "BulkInsert2", Price: 2000, Cost: 1000, Stock: 20, Status: "active"},
 			{SKU: sku3, Name: "BulkInsert3", Price: 3000, Cost: 1500, Stock: 30, Status: "active"},
@@ -182,10 +182,10 @@ func TestBulkInsertProducts(t *testing.T) {
 		existing := &Product{
 			SKU: sku, Name: "AlreadyExists", Price: 5000, Cost: 2500, Stock: 5, Status: "active",
 		}
-		seedTestProduct(t, repo, ctx, existing)
+		seedTestProduct(ctx, repo, t, existing)
 
 		newSKU := uniqueSKU("BULK-INS-NEW1")
-		payloads := []ProductImportPayload{
+		payloads := []ImportPayload{
 			{SKU: sku, Name: "ShouldSkip", Price: 999, Cost: 99, Stock: 1, Status: "active"},
 			{SKU: newSKU, Name: "ShouldInsert", Price: 1000, Cost: 500, Stock: 10, Status: "active"},
 		}
@@ -200,7 +200,7 @@ func TestBulkInsertProducts(t *testing.T) {
 	})
 
 	t.Run("empty payloads returns 0", func(t *testing.T) {
-		count, err := repo.BulkInsertProducts(ctx, []ProductImportPayload{})
+		count, err := repo.BulkInsertProducts(ctx, []ImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -211,7 +211,7 @@ func TestBulkUpdateProducts(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("empty payloads returns 0", func(t *testing.T) {
-		count, err := repo.BulkUpdateProducts(ctx, []ProductImportPayload{})
+		count, err := repo.BulkUpdateProducts(ctx, []ImportPayload{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})

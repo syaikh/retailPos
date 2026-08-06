@@ -26,7 +26,7 @@ func (s *Service) GetAllActive(ctx context.Context) ([]Store, error) {
 	return s.repo.GetAllActive(ctx)
 }
 
-func (s *Service) Create(ctx context.Context, req StoreCreateRequest) (*Store, error) {
+func (s *Service) Create(ctx context.Context, req CreateRequest) (*Store, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -44,7 +44,7 @@ func (s *Service) Create(ctx context.Context, req StoreCreateRequest) (*Store, e
 	return s.repo.GetByID(ctx, st.ID)
 }
 
-func (s *Service) Update(ctx context.Context, id int, req StoreUpdateRequest) (*Store, error) {
+func (s *Service) Update(ctx context.Context, id int, req UpdateRequest) (*Store, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("store not found")

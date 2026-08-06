@@ -85,7 +85,7 @@ func getPath(t *testing.T, r *gin.Engine, path string) *httptest.ResponseRecorde
 	return w
 }
 
-func createHandlerSession(t *testing.T, ctx context.Context, r *gin.Engine, scopeType string, scopeID int64) int {
+func createHandlerSession(ctx context.Context, t *testing.T, r *gin.Engine, scopeType string, scopeID int64) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"scope_type":%q,"scope_id":%d}`, scopeType, scopeID)
 	w := postJSON(t, r, "/stock-opnames", body)
@@ -102,11 +102,11 @@ func createHandlerSession(t *testing.T, ctx context.Context, r *gin.Engine, scop
 func TestHandler_CreateSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9601, "so_hdl_u9601", 3)
-	insertTestStore(t, ctx, 9601)
-	p := insertTestProductStore(t, ctx, "SO-HDL-CREATE-001", 9601)
-	insertTestStock(t, ctx, p, 10)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9601, "so_hdl_u9601", 3)
+	insertTestStore(ctx, t, 9601)
+	p := insertTestProductStore(ctx, t, "SO-HDL-CREATE-001", 9601)
+	insertTestStock(ctx, t, p, 10)
 
 	t.Run("store scope creates session", func(t *testing.T) {
 		r := setupStockOpnameRouter()
@@ -122,7 +122,7 @@ func TestHandler_CreateSession(t *testing.T) {
 	})
 
 	t.Run("unsupported scope returns 400", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		r := setupStockOpnameRouter()
 		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"bogus","scope_id":9601}`)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -130,30 +130,30 @@ func TestHandler_CreateSession(t *testing.T) {
 	})
 
 	t.Run("invalid json returns 400", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		r := setupStockOpnameRouter()
 		w := postJSON(t, r, "/stock-opnames", "{invalid")
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("missing scope_id returns 400", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		r := setupStockOpnameRouter()
 		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"store"}`)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("overlapping active session returns 409", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		r := setupStockOpnameRouter()
-		createHandlerSession(t, ctx, r, "store", 9601)
+		createHandlerSession(ctx, t, r, "store", 9601)
 		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"store","scope_id":9601}`)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "SO-405")
 	})
 
 	t.Run("store scope for missing store returns error", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		r := setupStockOpnameRouter()
 		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"store","scope_id":989999}`)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -163,13 +163,13 @@ func TestHandler_CreateSession(t *testing.T) {
 func TestHandler_ListAndGetSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9602, "so_hdl_u9602", 3)
-	insertTestStore(t, ctx, 9602)
-	p := insertTestProductStore(t, ctx, "SO-HDL-LIST-001", 9602)
-	insertTestStock(t, ctx, p, 10)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9602, "so_hdl_u9602", 3)
+	insertTestStore(ctx, t, 9602)
+	p := insertTestProductStore(ctx, t, "SO-HDL-LIST-001", 9602)
+	insertTestStock(ctx, t, p, 10)
 	r := setupStockOpnameRouter()
-	sessionID := createHandlerSession(t, ctx, r, "store", 9602)
+	sessionID := createHandlerSession(ctx, t, r, "store", 9602)
 
 	t.Run("list sessions returns the created session", func(t *testing.T) {
 		w := getPath(t, r, "/stock-opnames")
@@ -203,18 +203,18 @@ func TestHandler_ListAndGetSession(t *testing.T) {
 func TestHandler_AssignAndCountFlow(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9603
 	counterID := 9604
-	insertTestUserWithRole(t, ctx, managerID, "so_hdl_u9603", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_hdl_u9604", 5)
-	insertTestStore(t, ctx, 9603)
-	p := insertTestProductStore(t, ctx, "SO-HDL-FLOW-001", 9603)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_hdl_u9603", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_hdl_u9604", 5)
+	insertTestStore(ctx, t, 9603)
+	p := insertTestProductStore(ctx, t, "SO-HDL-FLOW-001", 9603)
+	insertTestStock(ctx, t, p, 10)
 
 	managerRouter := setupStockOpnameRouterAs(managerID, "manager")
 	counterRouter := setupStockOpnameRouterAs(counterID, "cashier")
-	sessionID := createHandlerSession(t, ctx, managerRouter, "store", 9603)
+	sessionID := createHandlerSession(ctx, t, managerRouter, "store", 9603)
 
 	// fetch a real item id so count operations target an existing item
 	w := getPath(t, managerRouter, fmt.Sprintf("/stock-opnames/%d", sessionID))

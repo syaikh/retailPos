@@ -26,7 +26,7 @@ type ProductBatchPriceGetter interface {
 	GetProductPrices(ctx context.Context, productIDs []int) (map[int]int, error)
 }
 
-type Service struct {
+type service struct {
 	repo       *Repository
 	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
@@ -34,21 +34,21 @@ type Service struct {
 	cartConfig CartConfig
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) *Service {
-	return &Service{repo: repo, eventBus: eventBus}
+func NewService(repo *Repository, eventBus shared.EventBus) Service {
+	return &service{repo: repo, eventBus: eventBus}
 }
 
-func (s *Service) SetPriceStore(ps ProductPriceGetter) {
+func (s *service) SetPriceStore(ps ProductPriceGetter) {
 	s.priceStore = ps
 }
 
-func (s *Service) SetPriceResolver(r PriceResolver) {
+func (s *service) SetPriceResolver(r PriceResolver) {
 	s.resolver = r
 }
 
 // publishSaleCreated publishes the cross-module sale.created event as a DTO so
 // downstream modules (report, websocket) never need to import this package.
-func (s *Service) publishSaleCreated(ctx context.Context, sale *Sale) {
+func (s *service) publishSaleCreated(ctx context.Context, sale *Sale) {
 	itemCount := 0
 	if sale.Items != nil {
 		itemCount = len(sale.Items)
@@ -62,7 +62,7 @@ func (s *Service) publishSaleCreated(ctx context.Context, sale *Sale) {
 	})
 }
 
-func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
+func (s *service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	if err := s.finalizeSaleItems(ctx, tx, sale, items); err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, i
 
 // validateCheckoutItems validates the internal consistency of submitted sale items.
 // It does NOT re-resolve prices — prices are treated as immutable snapshots.
-func validateCheckoutItems(items []SaleItem) error {
+func validateCheckoutItems(items []Item) error {
 	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
@@ -88,7 +88,7 @@ func validateCheckoutItems(items []SaleItem) error {
 }
 
 // deductStock checks and deducts stock for the given items.
-func deductStock(ctx context.Context, tx pgx.Tx, items []SaleItem) error {
+func deductStock(ctx context.Context, tx pgx.Tx, items []Item) error {
 	productIDs := make([]int, len(items))
 	for i, item := range items {
 		productIDs[i] = item.ProductID
@@ -135,7 +135,7 @@ func deductStock(ctx context.Context, tx pgx.Tx, items []SaleItem) error {
 	return nil
 }
 
-func (s *Service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]SalePayment, error) {
+func (s *service) validatePayments(ctx context.Context, totalAmount int, payments []CreatePaymentRequest) ([]Payment, error) {
 	if len(payments) == 0 {
 		return nil, ErrZeroPaymentAmount
 	}
@@ -144,7 +144,7 @@ func (s *Service) validatePayments(ctx context.Context, totalAmount int, payment
 	}
 
 	var totalPaid int
-	result := make([]SalePayment, 0, len(payments))
+	result := make([]Payment, 0, len(payments))
 	seenMethods := make(map[string]bool)
 	cashCount := 0
 
@@ -179,7 +179,7 @@ func (s *Service) validatePayments(ctx context.Context, totalAmount int, payment
 		}
 
 		totalPaid += p.Amount
-		result = append(result, SalePayment{
+		result = append(result, Payment{
 			PaymentMethodID:   pm.ID,
 			PaymentMethodCode: pm.Code,
 			Amount:            p.Amount,
@@ -194,7 +194,7 @@ func (s *Service) validatePayments(ctx context.Context, totalAmount int, payment
 	return result, nil
 }
 
-func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, payments []CreatePaymentRequest) error {
+func (s *service) CreateSale(ctx context.Context, sale *Sale, items []Item, payments []CreatePaymentRequest) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -228,35 +228,35 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, 
 	return nil
 }
 
-func (s *Service) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
+func (s *service) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error) {
 	return s.repo.GetSaleByID(ctx, id, storeID)
 }
 
-func (s *Service) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
+func (s *service) ListSales(ctx context.Context, limit, offset int, search, sortBy, sortDir, startDate, endDate, paymentMethods string, storeID *int, minTotal, maxTotal, cashierID *int) ([]Sale, int, error) {
 	return s.repo.GetAllSales(ctx, limit, offset, search, sortBy, sortDir, startDate, endDate, storeID, paymentMethods, minTotal, maxTotal, cashierID)
 }
 
-func (s *Service) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]SaleExportRow, error) {
+func (s *service) GetSalesForExport(ctx context.Context, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error) {
 	return s.repo.GetSalesForExport(ctx, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
 
-func (s *Service) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
+func (s *service) StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error {
 	return s.repo.StreamSalesExportCSV(ctx, w, search, startDate, endDate, paymentMethods, minTotal, maxTotal, storeID)
 }
 
-func (s *Service) GetNextInvoiceNumber(ctx context.Context) (string, error) {
+func (s *service) GetNextInvoiceNumber(ctx context.Context) (string, error) {
 	return s.repo.GetNextInvoiceNumber(ctx)
 }
 
-func (s *Service) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error) {
+func (s *service) GetAllPaymentMethods(ctx context.Context) ([]PaymentMethod, error) {
 	return s.repo.GetAllActive(ctx)
 }
 
-func (s *Service) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
+func (s *service) GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error) {
 	return s.repo.GetPaymentMethodByCode(ctx, code)
 }
 
-func (s *Service) ParkSale(ctx context.Context, sale *Sale, items []SaleItem, recalledSaleID *int) error {
+func (s *service) ParkSale(ctx context.Context, sale *Sale, items []Item, recalledSaleID *int) error {
 	for _, item := range items {
 		if item.Quantity <= 0 {
 			return fmt.Errorf("invalid quantity %d for product %d", item.Quantity, item.ProductID)
@@ -292,23 +292,23 @@ func (s *Service) ParkSale(ctx context.Context, sale *Sale, items []SaleItem, re
 	return nil
 }
 
-func (s *Service) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
+func (s *service) RecallSale(ctx context.Context, saleID int) (*Sale, error) {
 	return s.repo.RecallSale(ctx, saleID)
 }
 
-func (s *Service) CancelParkedSale(ctx context.Context, saleID int) error {
+func (s *service) CancelParkedSale(ctx context.Context, saleID int) error {
 	return s.repo.CancelParkedSale(ctx, saleID)
 }
 
-func (s *Service) ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
+func (s *service) ListParkedSales(ctx context.Context, cashierID int) ([]Sale, error) {
 	return s.repo.GetParkedSales(ctx, cashierID)
 }
 
-func (s *Service) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
+func (s *service) GetParkedSaleByID(ctx context.Context, saleID int, cashierID int) (*Sale, error) {
 	return s.repo.GetParkedSaleByID(ctx, saleID, cashierID)
 }
 
-func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []SaleItem, parkedSaleID *int, payments []CreatePaymentRequest) error {
+func (s *service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, items []Item, parkedSaleID *int, payments []CreatePaymentRequest) error {
 	if parkedSaleID == nil {
 		return s.CreateSale(ctx, sale, items, payments)
 	}
@@ -363,7 +363,7 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 	return nil
 }
 
-func (s *Service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem, payments []SalePayment) error {
+func (s *service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item, payments []Payment) error {
 	if err := s.repo.CreateSalePayments(ctx, tx, sale.ID, payments); err != nil {
 		return err
 	}

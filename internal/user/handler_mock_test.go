@@ -34,6 +34,7 @@ type mockUserService struct {
 	deleteRoleFn      func(ctx context.Context, id int) error
 	countByRoleFn     func(ctx context.Context, roleID int) (int, error)
 	getAllPermsFn     func(ctx context.Context) ([]Permission, error)
+	getRolePermissionsFn func(ctx context.Context, roleID int) ([]Permission, error)
 	updatePermsFn     func(ctx context.Context, roleID int, permissionIDs []int) error
 }
 
@@ -91,13 +92,19 @@ func (m *mockUserService) CountUsersByRole(ctx context.Context, roleID int) (int
 func (m *mockUserService) GetAllPermissions(ctx context.Context) ([]Permission, error) {
 	return m.getAllPermsFn(ctx)
 }
+func (m *mockUserService) GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error) {
+	if m.getRolePermissionsFn != nil {
+		return m.getRolePermissionsFn(ctx, roleID)
+	}
+	return nil, nil
+}
 func (m *mockUserService) UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error {
 	return m.updatePermsFn(ctx, roleID, permissionIDs)
 }
 
-var _ UserService = (*mockUserService)(nil)
+var _ Service = (*mockUserService)(nil)
 
-func setupMockUserRouter(svc UserService) *gin.Engine {
+func setupMockUserRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

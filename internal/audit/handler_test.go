@@ -68,7 +68,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "handler_list_test",
 		EntityType: "order",
@@ -83,7 +83,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data  []AuditLog `json:"data"`
+			Data  []Log `json:"data"`
 			Total int        `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -99,7 +99,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data  []AuditLog `json:"data"`
+			Data  []Log `json:"data"`
 			Total int        `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -115,7 +115,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data  []AuditLog `json:"data"`
+			Data  []Log `json:"data"`
 			Total int        `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -130,7 +130,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 		var err error
 		_, err = dbPool.Exec(ctx, `INSERT INTO users (id, username, email, password_hash, role_id) VALUES (999, 'audit_user', 'audit_user@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING`)
 		require.NoError(t, err)
-		require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+		require.NoError(t, repo.CreateAuditLog(ctx, &Log{
 			UserID:     intPtr(999),
 			Role:       "admin",
 			Action:     "handler_user_filter",
@@ -142,7 +142,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data  []AuditLog `json:"data"`
+			Data  []Log `json:"data"`
 			Total int        `json:"total"`
 		}
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
@@ -156,7 +156,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 	t.Run("filters by entity_id", func(t *testing.T) {
 		eid := 42
-		require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+		require.NoError(t, repo.CreateAuditLog(ctx, &Log{
 			Role:       "admin",
 			Action:     "handler_eid_filter",
 			EntityType: "order",
@@ -168,7 +168,7 @@ func TestHandler_ListAuditLogs(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data  []AuditLog `json:"data"`
+			Data  []Log `json:"data"`
 			Total int        `json:"total"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -197,7 +197,7 @@ func TestHandler_ExportAuditLogs(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+	require.NoError(t, repo.CreateAuditLog(ctx, &Log{
 		Action:     "handler_export_test",
 		EntityType: "report",
 		IPAddress:  "10.0.0.2",
@@ -248,7 +248,7 @@ func TestHandler_GetAuditLog(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "handler_getbyid_test",
 		EntityType: "product",
@@ -263,7 +263,7 @@ func TestHandler_GetAuditLog(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data AuditLog `json:"data"`
+			Data Log `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -295,7 +295,7 @@ func TestHandler_ListEntityTypes(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateAuditLog(ctx, &AuditLog{
+	require.NoError(t, repo.CreateAuditLog(ctx, &Log{
 		Role:       "admin",
 		Action:     "entity_type_test",
 		EntityType: "widget",
@@ -322,7 +322,7 @@ func TestHandler_ListAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "handler_tz_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",
@@ -335,7 +335,7 @@ func TestHandler_ListAuditLogs_CreatedAtJakartaTimezone(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Data  []AuditLogListItem `json:"data"`
+		Data  []LogListItem `json:"data"`
 		Total int                `json:"total"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -354,7 +354,7 @@ func TestHandler_ExportCSV_CreatedAtJakartaTimezone(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	al := &AuditLog{
+	al := &Log{
 		Role:       "admin",
 		Action:     "export_tz_test_" + time.Now().Format("0102150405"),
 		EntityType: "product",

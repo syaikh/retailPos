@@ -37,7 +37,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	if v, ok := row["IsActive"]; ok {
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
-	return CategoryImportRow{
+	return ImportRow{
 		Row:         rowNum,
 		Name:        name,
 		Slug:        slug,
@@ -55,9 +55,9 @@ type categoryRepoAdapter struct {
 }
 
 func (r *categoryRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CategoryImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CategoryImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsertCategories(ctx, rows)
 	if len(result.Errors) > 0 {
@@ -67,9 +67,9 @@ func (r *categoryRepoAdapter) Insert(ctx context.Context, entities []interface{}
 }
 
 func (r *categoryRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CategoryImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CategoryImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	result := r.repo.BulkUpsertCategories(ctx, rows)
 	if len(result.Errors) > 0 {

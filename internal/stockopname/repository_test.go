@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func insertTestProduct(t *testing.T, ctx context.Context, sku string) int {
+func insertTestProduct(ctx context.Context, t *testing.T, sku string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -46,7 +46,7 @@ func insertTestProduct(t *testing.T, ctx context.Context, sku string) int {
 	return id
 }
 
-func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int) {
+func insertTestStock(ctx context.Context, t *testing.T, productID, quantity int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)
@@ -56,7 +56,7 @@ func insertTestStock(t *testing.T, ctx context.Context, productID, quantity int)
 	require.NoError(t, err)
 }
 
-func insertTestStockWarehouse(t *testing.T, ctx context.Context, productID, warehouseID, quantity int) {
+func insertTestStockWarehouse(ctx context.Context, t *testing.T, productID, warehouseID, quantity int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO product_stock (product_id, warehouse_id, quantity) VALUES ($1, $2, $3)
@@ -68,7 +68,7 @@ func insertTestStockWarehouse(t *testing.T, ctx context.Context, productID, ware
 
 // insertTestProductStore inserts a product linked to a store so store-scoped
 // cycle counts pick it up (ScopeProductIDs filters products.store_id).
-func insertTestProductStore(t *testing.T, ctx context.Context, sku string, storeID int) int {
+func insertTestProductStore(ctx context.Context, t *testing.T, sku string, storeID int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -79,7 +79,7 @@ func insertTestProductStore(t *testing.T, ctx context.Context, sku string, store
 	return id
 }
 
-func insertTestCategory(t *testing.T, ctx context.Context, name string) int {
+func insertTestCategory(ctx context.Context, t *testing.T, name string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `INSERT INTO categories (name) VALUES ($1) RETURNING id`, name).Scan(&id)
@@ -89,7 +89,7 @@ func insertTestCategory(t *testing.T, ctx context.Context, name string) int {
 
 // insertTestProductCategory inserts a product in a category so category-scoped
 // cycle counts pick it up.
-func insertTestProductCategory(t *testing.T, ctx context.Context, sku string, categoryID int) int {
+func insertTestProductCategory(ctx context.Context, t *testing.T, sku string, categoryID int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx,
@@ -100,12 +100,12 @@ func insertTestProductCategory(t *testing.T, ctx context.Context, sku string, ca
 	return id
 }
 
-func insertTestUser(t *testing.T, ctx context.Context, id int, username string) {
+func insertTestUser(ctx context.Context, t *testing.T, id int, username string) {
 	t.Helper()
-	insertTestUserWithRole(t, ctx, id, username, 1)
+	insertTestUserWithRole(ctx, t, id, username, 1)
 }
 
-func insertTestUserWithRole(t *testing.T, ctx context.Context, id int, username string, roleID int) {
+func insertTestUserWithRole(ctx context.Context, t *testing.T, id int, username string, roleID int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO users (id, username, email, password_hash, role_id)
@@ -116,7 +116,7 @@ func insertTestUserWithRole(t *testing.T, ctx context.Context, id int, username 
 	require.NoError(t, err)
 }
 
-func insertTestStore(t *testing.T, ctx context.Context, id int) {
+func insertTestStore(ctx context.Context, t *testing.T, id int) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO stores (id, name, is_active) VALUES ($1, $2, true) ON CONFLICT (id) DO NOTHING`,
@@ -125,7 +125,7 @@ func insertTestStore(t *testing.T, ctx context.Context, id int) {
 	require.NoError(t, err)
 }
 
-func insertTestWarehouse(t *testing.T, ctx context.Context, id, storeID int, code string) {
+func insertTestWarehouse(ctx context.Context, t *testing.T, id, storeID int, code string) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES ($1, $2, $3, $4, true) ON CONFLICT (id) DO NOTHING`,
@@ -137,7 +137,7 @@ func insertTestWarehouse(t *testing.T, ctx context.Context, id, storeID int, cod
 // resetStockOpname clears all stock opname tables so each test starts from a
 // clean slate. v1 enforces a single global active session (scope filtering is
 // not implemented), so tests cannot leave sessions behind between cases.
-func resetStockOpname(t *testing.T, ctx context.Context) {
+func resetStockOpname(ctx context.Context, t *testing.T) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx, `
 		TRUNCATE TABLE stock_opname_counts, stock_opname_assignments,
@@ -146,11 +146,11 @@ func resetStockOpname(t *testing.T, ctx context.Context) {
 	require.NoError(t, err)
 }
 
-func createTestSession(t *testing.T, ctx context.Context, repo *Repository, userID int) *Session {
-	return createTestSessionScope(t, ctx, repo, userID, int64(100000+userID))
+func createTestSession(ctx context.Context, t *testing.T, repo *Repository, userID int) *Session {
+	return createTestSessionScope(ctx, t, repo, userID, int64(100000+userID))
 }
 
-func createTestSessionScope(t *testing.T, ctx context.Context, repo *Repository, userID int, scopeID int64) *Session {
+func createTestSessionScope(ctx context.Context, t *testing.T, repo *Repository, userID int, scopeID int64) *Session {
 	t.Helper()
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -186,16 +186,16 @@ func TestRepository_GetNextSessionNumber(t *testing.T) {
 func TestRepository_CreateSessionAndGetSession(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9001, "so_user_9001")
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9001, "so_user_9001")
 
 	// two products with stock
-	p1 := insertTestProduct(t, ctx, "SO-CREATE-001")
-	p2 := insertTestProduct(t, ctx, "SO-CREATE-002")
-	insertTestStock(t, ctx, p1, 10)
-	insertTestStock(t, ctx, p2, 5)
+	p1 := insertTestProduct(ctx, t, "SO-CREATE-001")
+	p2 := insertTestProduct(ctx, t, "SO-CREATE-002")
+	insertTestStock(ctx, t, p1, 10)
+	insertTestStock(ctx, t, p2, 5)
 
-	s := createTestSession(t, ctx, repo, 9001)
+	s := createTestSession(ctx, t, repo, 9001)
 	require.Greater(t, s.ID, 0)
 
 	tx, err := repo.BeginTx(ctx)
@@ -224,8 +224,8 @@ func TestRepository_GetSessionNotFound(t *testing.T) {
 func TestRepository_LoadSnapshotProducts(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	p := insertTestProduct(t, ctx, "SO-SNAP-001")
-	insertTestStock(t, ctx, p, 7)
+	p := insertTestProduct(ctx, t, "SO-SNAP-001")
+	insertTestStock(ctx, t, p, 7)
 
 	items, err := repo.LoadSnapshotProducts(ctx)
 	require.NoError(t, err)
@@ -243,9 +243,9 @@ func TestRepository_LoadSnapshotProducts(t *testing.T) {
 func TestRepository_UpdateStatusGuarded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9002, "so_user_9002")
-	s := createTestSession(t, ctx, repo, 9002)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9002, "so_user_9002")
+	s := createTestSession(ctx, t, repo, 9002)
 
 	err := repo.UpdateStatus(ctx, s.ID, StatusDraft, StatusCounting)
 	require.NoError(t, err)
@@ -262,9 +262,9 @@ func TestRepository_UpdateStatusGuarded(t *testing.T) {
 func TestRepository_CancelSession(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9003, "so_user_9003")
-	s := createTestSession(t, ctx, repo, 9003)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9003, "so_user_9003")
+	s := createTestSession(ctx, t, repo, 9003)
 
 	require.NoError(t, repo.CancelSession(ctx, s.ID, 9003))
 
@@ -280,10 +280,10 @@ func TestRepository_CancelSession(t *testing.T) {
 func TestRepository_Assignments(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9004, "so_user_9004")
-	insertTestUser(t, ctx, 9005, "so_user_9005")
-	s := createTestSession(t, ctx, repo, 9004)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9004, "so_user_9004")
+	insertTestUser(ctx, t, 9005, "so_user_9005")
+	s := createTestSession(ctx, t, repo, 9004)
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -332,12 +332,12 @@ func TestRepository_Assignments(t *testing.T) {
 func TestRepository_SaveCountAndHistory(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9006, "so_user_9006")
-	p := insertTestProduct(t, ctx, "SO-COUNT-001")
-	insertTestStock(t, ctx, p, 10)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9006, "so_user_9006")
+	p := insertTestProduct(ctx, t, "SO-COUNT-001")
+	insertTestStock(ctx, t, p, 10)
 
-	s := createTestSession(t, ctx, repo, 9006)
+	s := createTestSession(ctx, t, repo, 9006)
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	require.NoError(t, repo.InsertSessionItems(ctx, tx, s.ID, []SessionItem{
@@ -385,12 +385,12 @@ func TestRepository_SaveCountAndHistory(t *testing.T) {
 func TestRepository_ApprovalFlow(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9007, "so_user_9007")
-	p := insertTestProduct(t, ctx, "SO-APPR-001")
-	insertTestStock(t, ctx, p, 10)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9007, "so_user_9007")
+	p := insertTestProduct(ctx, t, "SO-APPR-001")
+	insertTestStock(ctx, t, p, 10)
 
-	s := createTestSession(t, ctx, repo, 9007)
+	s := createTestSession(ctx, t, repo, 9007)
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	require.NoError(t, repo.InsertSessionItems(ctx, tx, s.ID, []SessionItem{
@@ -466,12 +466,12 @@ func TestRepository_ApprovalFlow(t *testing.T) {
 func TestRepository_ListAssignableUsers(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9301, "so_cashier_9301", 4)
-	insertTestUserWithRole(t, ctx, 9302, "so_staff_9302", 5)
-	insertTestUserWithRole(t, ctx, 9303, "so_manager_9303", 3)
-	insertTestUserWithRole(t, ctx, 9304, "so_admin_9304", 2)
-	insertTestUserWithRole(t, ctx, 9305, "so_super_9305", 1)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9301, "so_cashier_9301", 4)
+	insertTestUserWithRole(ctx, t, 9302, "so_staff_9302", 5)
+	insertTestUserWithRole(ctx, t, 9303, "so_manager_9303", 3)
+	insertTestUserWithRole(ctx, t, 9304, "so_admin_9304", 2)
+	insertTestUserWithRole(ctx, t, 9305, "so_super_9305", 1)
 
 	users, err := repo.ListAssignableUsers(ctx, "")
 	require.NoError(t, err)
@@ -496,8 +496,8 @@ func TestRepository_ListAssignableUsers(t *testing.T) {
 func TestRepository_GetUserRoleName(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9306, "so_staff_9306", 5)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9306, "so_staff_9306", 5)
 
 	role, err := repo.GetUserRoleName(ctx, 9306)
 	require.NoError(t, err)
@@ -510,9 +510,9 @@ func TestRepository_GetUserRoleName(t *testing.T) {
 func TestRepository_GetSessionBroadcastMeta(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9501, "so_meta_user_9501")
-	insertTestStore(t, ctx, 9502)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9501, "so_meta_user_9501")
+	insertTestStore(ctx, t, 9502)
 
 	t.Run("returns store id for store-scoped session", func(t *testing.T) {
 		sid := 9502
@@ -562,9 +562,9 @@ func TestRepository_GetSessionBroadcastMeta(t *testing.T) {
 func TestRepository_GetWarehouseStoreID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	insertTestStore(t, ctx, 9601)
-	insertTestStore(t, ctx, 9602)
-	insertTestWarehouse(t, ctx, 9601, 9601, "SO-WH-9601")
+	insertTestStore(ctx, t, 9601)
+	insertTestStore(ctx, t, 9602)
+	insertTestWarehouse(ctx, t, 9601, 9601, "SO-WH-9601")
 	_, err := dbPool.Exec(ctx,
 		`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9602, 'Test WH 9602', 'SO-WH-9602', NULL, true) ON CONFLICT (id) DO NOTHING`,
 	)
@@ -593,9 +593,9 @@ func TestRepository_GetWarehouseStoreID(t *testing.T) {
 func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9701, "so_store_roundtrip_9701")
-	insertTestStore(t, ctx, 9702)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9701, "so_store_roundtrip_9701")
+	insertTestStore(ctx, t, 9702)
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -635,14 +635,14 @@ func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
 func TestRepository_ListSessions(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9008, "so_user_9008")
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9008, "so_user_9008")
 
 	// v1 enforces a single global active session, so create sessions sequentially,
 	// ending the previous one before creating the next.
-	s1 := createTestSessionScope(t, ctx, repo, 9008, 9008001)
+	s1 := createTestSessionScope(ctx, t, repo, 9008, 9008001)
 	require.NoError(t, repo.CancelSession(ctx, s1.ID, 9008))
-	_ = createTestSessionScope(t, ctx, repo, 9008, 9008002)
+	_ = createTestSessionScope(ctx, t, repo, 9008, 9008002)
 
 	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "")
 	require.NoError(t, err)
@@ -660,15 +660,15 @@ func TestRepository_ListSessions(t *testing.T) {
 func TestRepository_ScopeName(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9701, "so_scope_user_9701")
-	insertTestStore(t, ctx, 9701)
-	insertTestStore(t, ctx, 9702)
-	insertTestWarehouse(t, ctx, 9701, 9702, "SO-WH-9701")
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9701, "so_scope_user_9701")
+	insertTestStore(ctx, t, 9701)
+	insertTestStore(ctx, t, 9702)
+	insertTestWarehouse(ctx, t, 9701, 9702, "SO-WH-9701")
 
 	var categoryID int
 	require.NoError(t, dbPool.QueryRow(ctx, `INSERT INTO categories (name) VALUES ('Scope Cat 9701') RETURNING id`).Scan(&categoryID))
-	productID := insertTestProduct(t, ctx, "SO-SCOPE-9701")
+	productID := insertTestProduct(ctx, t, "SO-SCOPE-9701")
 
 	create := func(scopeType string, scopeID int64) *Session {
 		t.Helper()

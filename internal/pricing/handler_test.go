@@ -63,7 +63,7 @@ func TestHandler_ListRules(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Data []PricingRule `json:"data"`
+		Data []Rule `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestHandler_CreateRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	productID := insertTestProduct(t, t.Context(), "HDL-CR-"+time.Now().Format("0102150405"), "Handler Create Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-CR-"+time.Now().Format("0102150405"), "Handler Create Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":12000,"name":"Handler Discount","minimum_quantity":1,"priority":0,"is_active":true}`
@@ -85,12 +85,12 @@ func TestHandler_CreateRule(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var resp struct {
-			Data PricingRule `json:"data"`
+			Data Rule `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Handler Discount", resp.Data.Name)
-		assert.Equal(t, PricingMethodFixedPrice, resp.Data.PricingMethod)
+		assert.Equal(t, PricingMethodFixedPrice, resp.Data.Method)
 		assert.Equal(t, 12000.0, resp.Data.PricingValue)
 		assert.Greater(t, resp.Data.ID, 0)
 	})
@@ -123,12 +123,12 @@ func TestHandler_UpdateRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	productID := insertTestProduct(t, t.Context(), "HDL-UPD-"+time.Now().Format("0102150405"), "Handler Update Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-UPD-"+time.Now().Format("0102150405"), "Handler Update Product", 15000)
 	repo := NewRepository(dbPool)
-	rule := &PricingRule{
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    12000,
 		Name:            "Before Update",
 		MinimumQuantity: 1,
@@ -145,12 +145,12 @@ func TestHandler_UpdateRule(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data PricingRule `json:"data"`
+			Data Rule `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "After Update", resp.Data.Name)
-		assert.Equal(t, PricingTypeSpecialPrice, resp.Data.PricingType)
+		assert.Equal(t, PricingTypeSpecialPrice, resp.Data.Type)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
@@ -172,10 +172,10 @@ func TestHandler_UpdateRule(t *testing.T) {
 	})
 
 	t.Run("duplicate name", func(t *testing.T) {
-		secondRule := &PricingRule{
+		secondRule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    8000,
 			Name:            "Unique Name For Update Test",
 			MinimumQuantity: 1,
@@ -201,12 +201,12 @@ func TestHandler_DeleteRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	productID := insertTestProduct(t, t.Context(), "HDL-DEL-"+time.Now().Format("0102150405"), "Handler Delete Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-DEL-"+time.Now().Format("0102150405"), "Handler Delete Product", 15000)
 	repo := NewRepository(dbPool)
-	rule := &PricingRule{
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    5000,
 		Name:            "Delete Me",
 		MinimumQuantity: 1,
@@ -241,7 +241,7 @@ func TestHandler_ResolvePrices(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	productID := insertTestProduct(t, t.Context(), "HDL-RES-"+time.Now().Format("0102150405"), "Handler Resolve Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-RES-"+time.Now().Format("0102150405"), "Handler Resolve Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
 		body := `{"items":[{"product_id":` + strconv.Itoa(productID) + `,"quantity":1}]}`
@@ -285,7 +285,7 @@ func TestHandler_SearchProducts(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	insertTestProduct(t, t.Context(), "HDL-SRC-"+time.Now().Format("0102150405"), "Searchable Handler Product", 10000)
+	insertTestProduct(t.Context(), t, "HDL-SRC-"+time.Now().Format("0102150405"), "Searchable Handler Product", 10000)
 
 	t.Run("search by name", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -329,13 +329,13 @@ func TestHandler_SubmitForApproval(t *testing.T) {
 	r := setupPricingRouter()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, t.Context(), "HDL-SUB-"+time.Now().Format("0102150405"), "Submit Test Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-SUB-"+time.Now().Format("0102150405"), "Submit Test Product", 15000)
 
 	t.Run("submit draft rule", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Submit Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -364,10 +364,10 @@ func TestHandler_SubmitForApproval(t *testing.T) {
 	})
 
 	t.Run("submit non-draft rule fails", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Non-Draft Submit " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -389,13 +389,13 @@ func TestHandler_ApproveRule(t *testing.T) {
 	r := setupPricingRouter()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, t.Context(), "HDL-APR-"+time.Now().Format("0102150405"), "Approve Test Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-APR-"+time.Now().Format("0102150405"), "Approve Test Product", 15000)
 
 	t.Run("approve pending rule", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Approve Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -416,10 +416,10 @@ func TestHandler_ApproveRule(t *testing.T) {
 	})
 
 	t.Run("approve non-pending rule fails", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Draft Approve " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -441,13 +441,13 @@ func TestHandler_RejectRule(t *testing.T) {
 	r := setupPricingRouter()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, t.Context(), "HDL-REJ-"+time.Now().Format("0102150405"), "Reject Test Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-REJ-"+time.Now().Format("0102150405"), "Reject Test Product", 15000)
 
 	t.Run("reject pending rule", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Reject Test Rule " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -468,10 +468,10 @@ func TestHandler_RejectRule(t *testing.T) {
 	})
 
 	t.Run("reject non-pending rule fails", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    11000,
 			Name:            "Draft Reject " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -493,13 +493,13 @@ func TestHandler_GetRule(t *testing.T) {
 	r := setupPricingRouter()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, t.Context(), "HDL-GR-"+time.Now().Format("0102150405"), "GetRule Test Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-GR-"+time.Now().Format("0102150405"), "GetRule Test Product", 15000)
 
 	t.Run("success", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "GetRule Success " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -513,7 +513,7 @@ func TestHandler_GetRule(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data PricingRule `json:"data"`
+			Data Rule `json:"data"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -554,11 +554,11 @@ func TestHandler_ListRules_WithFilters(t *testing.T) {
 	r := setupPricingRouter()
 	repo := NewRepository(dbPool)
 
-	productID := insertTestProduct(t, t.Context(), "HDL-LF-"+time.Now().Format("0102150405"), "Filter Test Product", 15000)
-	rule := &PricingRule{
+	productID := insertTestProduct(t.Context(), t, "HDL-LF-"+time.Now().Format("0102150405"), "Filter Test Product", 15000)
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "Filter Test Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -756,7 +756,7 @@ func TestHandler_CheckConflicts(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
 
-	productID := insertTestProduct(t, t.Context(), "HDL-CHK-"+time.Now().Format("0102150405"), "Conflict Test Product", 15000)
+	productID := insertTestProduct(t.Context(), t, "HDL-CHK-"+time.Now().Format("0102150405"), "Conflict Test Product", 15000)
 
 	t.Run("no conflicts", func(t *testing.T) {
 		body := `{"product_id":` + strconv.Itoa(productID) + `,"pricing_type":"promotion","pricing_method":"fixed_price","pricing_value":9999,"minimum_quantity":1,"priority":99}`
@@ -767,7 +767,7 @@ func TestHandler_CheckConflicts(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var resp struct {
-			Data         []PricingRule `json:"data"`
+			Data         []Rule `json:"data"`
 			HasConflicts bool          `json:"has_conflicts"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)

@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 
 var userSeq int
 
-func insertTestUser(t *testing.T, ctx context.Context, roleID int) int {
+func insertTestUser(ctx context.Context, t *testing.T, roleID int) int {
 	t.Helper()
 	userSeq++
 	var id int
@@ -52,7 +52,7 @@ func insertTestUser(t *testing.T, ctx context.Context, roleID int) int {
 	return id
 }
 
-func createOpenShift(t *testing.T, ctx context.Context, repo *Repository, userID int) *Shift {
+func createOpenShift(ctx context.Context, t *testing.T, repo *Repository, userID int) *Shift {
 	t.Helper()
 	shift, err := repo.OpenShift(ctx, userID, nil, 100000)
 	require.NoError(t, err)
@@ -66,8 +66,8 @@ func TestShiftRepository_OpenShift(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("open shift success", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 		assert.Equal(t, userID, shift.UserID)
 		assert.Equal(t, "open", shift.Status)
 		assert.Equal(t, 100000, shift.OpeningBalance)
@@ -76,8 +76,8 @@ func TestShiftRepository_OpenShift(t *testing.T) {
 	})
 
 	t.Run("cannot open second shift for same user", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		createOpenShift(ctx, t, repo, userID)
 		_, err := repo.OpenShift(ctx, userID, nil, 50000)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already has an open shift")
@@ -90,8 +90,8 @@ func TestShiftRepository_CloseShift(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("close shift success", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 
 		closed, err := repo.CloseShift(ctx, shift.ID, userID, 100000, nil)
 		require.NoError(t, err)
@@ -107,8 +107,8 @@ func TestShiftRepository_CloseShift(t *testing.T) {
 	})
 
 	t.Run("close shift with discrepancy needs review", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 
 		closed, err := repo.CloseShift(ctx, shift.ID, userID, 200000, nil)
 		require.NoError(t, err)
@@ -123,8 +123,8 @@ func TestShiftRepository_CloseShift(t *testing.T) {
 	})
 
 	t.Run("close shift with notes", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 		notes := "test notes"
 		closed, err := repo.CloseShift(ctx, shift.ID, userID, 100000, &notes)
 		require.NoError(t, err)
@@ -139,8 +139,8 @@ func TestShiftRepository_GetActiveShiftByUserID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns active shift", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 
 		active, err := repo.GetActiveShiftByUserID(ctx, userID)
 		require.NoError(t, err)
@@ -160,8 +160,8 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("lists shifts", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		createOpenShift(ctx, t, repo, userID)
 
 		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
@@ -170,8 +170,8 @@ func TestShiftRepository_ListShifts(t *testing.T) {
 	})
 
 	t.Run("filters by user_id", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		createOpenShift(ctx, t, repo, userID)
 
 		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{UserID: &userID}, "", nil, "", 10, 0, "opened_at", "DESC")
 		require.NoError(t, err)
@@ -188,8 +188,8 @@ func TestShiftRepository_GetShiftByID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("gets shift by ID", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 
 		got, err := repo.GetShiftByID(ctx, ownership.Scope{}, shift.ID)
 		require.NoError(t, err)
@@ -209,10 +209,10 @@ func TestShiftRepository_ListShifts_OwnershipScope(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userA := insertTestUser(t, ctx, 1)
-	userB := insertTestUser(t, ctx, 1)
-	shiftA := createOpenShift(t, ctx, repo, userA)
-	shiftB := createOpenShift(t, ctx, repo, userB)
+	userA := insertTestUser(ctx, t, 1)
+	userB := insertTestUser(ctx, t, 1)
+	shiftA := createOpenShift(ctx, t, repo, userA)
+	shiftB := createOpenShift(ctx, t, repo, userB)
 
 	t.Run("all-access scope returns shifts for every user", func(t *testing.T) {
 		shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "opened_at", "DESC")
@@ -246,9 +246,9 @@ func TestShiftRepository_GetShiftByID_OwnershipScope(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userA := insertTestUser(t, ctx, 1)
-	userB := insertTestUser(t, ctx, 1)
-	shiftA := createOpenShift(t, ctx, repo, userA)
+	userA := insertTestUser(ctx, t, 1)
+	userB := insertTestUser(ctx, t, 1)
+	shiftA := createOpenShift(ctx, t, repo, userA)
 
 	t.Run("restricted owner can read own shift", func(t *testing.T) {
 		got, err := repo.GetShiftByID(ctx, ownership.Scope{UserID: &userA}, shiftA.ID)
@@ -274,14 +274,14 @@ func TestShiftRepository_ReviewShift(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("review shift marks as reviewed", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift := createOpenShift(ctx, t, repo, userID)
 
 		closed, err := repo.CloseShift(ctx, shift.ID, userID, 200000, nil)
 		require.NoError(t, err)
 		assert.True(t, closed.NeedsReview)
 
-		reviewerID := insertTestUser(t, ctx, 2)
+		reviewerID := insertTestUser(ctx, t, 2)
 		reviewed, err := repo.ReviewShift(ctx, closed.ID, reviewerID)
 		require.NoError(t, err)
 		assert.False(t, reviewed.NeedsReview)
@@ -302,11 +302,11 @@ func TestShiftRepository_CloseAll(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("closes all open shifts for user", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
-		shift1 := createOpenShift(t, ctx, repo, userID)
+		userID := insertTestUser(ctx, t, 1)
+		shift1 := createOpenShift(ctx, t, repo, userID)
 
-		userID2 := insertTestUser(t, ctx, 1)
-		shift2 := createOpenShift(t, ctx, repo, userID2)
+		userID2 := insertTestUser(ctx, t, 1)
+		shift2 := createOpenShift(ctx, t, repo, userID2)
 
 		var custID int
 		err := dbPool.QueryRow(ctx, `
@@ -348,7 +348,7 @@ func TestShiftRepository_CloseAll(t *testing.T) {
 	})
 
 	t.Run("no open shifts returns empty", func(t *testing.T) {
-		userID := insertTestUser(t, ctx, 1)
+		userID := insertTestUser(ctx, t, 1)
 		closedIDs, err := repo.CloseAll(ctx, userID)
 		require.NoError(t, err)
 		assert.Empty(t, closedIDs)
@@ -364,7 +364,7 @@ func TestShiftRepository_OpenShift_WithStore(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Shift Store') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
 
-	userID := insertTestUser(t, ctx, 1)
+	userID := insertTestUser(ctx, t, 1)
 	shift, err := repo.OpenShift(ctx, userID, &storeID, 100000)
 	require.NoError(t, err)
 	require.NotNil(t, shift.StoreID)
@@ -380,8 +380,8 @@ func TestShiftRepository_CloseShift_WithStore(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Shift Store') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	var custID int
 	err = dbPool.QueryRow(ctx, `
@@ -408,8 +408,8 @@ func TestShiftRepository_GetActiveShiftByUserID_LiveSales(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	var custID int
 	err := dbPool.QueryRow(ctx, `
@@ -445,17 +445,17 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Shift Store') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
 
-	userID := insertTestUser(t, ctx, 1)
+	userID := insertTestUser(ctx, t, 1)
 
-	balanced := createOpenShift(t, ctx, repo, userID)
+	balanced := createOpenShift(ctx, t, repo, userID)
 	_, err = repo.CloseShift(ctx, balanced.ID, userID, 100000, nil)
 	require.NoError(t, err)
 
-	surplus := createOpenShift(t, ctx, repo, userID)
+	surplus := createOpenShift(ctx, t, repo, userID)
 	_, err = repo.CloseShift(ctx, surplus.ID, userID, 200000, nil)
 	require.NoError(t, err)
 
-	shortage := createOpenShift(t, ctx, repo, userID)
+	shortage := createOpenShift(ctx, t, repo, userID)
 	_, err = repo.CloseShift(ctx, shortage.ID, userID, 50000, nil)
 	require.NoError(t, err)
 
@@ -478,7 +478,7 @@ func TestShiftRepository_ListShifts_Filters(t *testing.T) {
 		assert.True(t, shifts[0].NeedsReview)
 	})
 
-	reviewerID := insertTestUser(t, ctx, 2)
+	reviewerID := insertTestUser(ctx, t, 2)
 	_, err = repo.ReviewShift(ctx, surplus.ID, reviewerID)
 	require.NoError(t, err)
 
@@ -536,8 +536,8 @@ func TestShiftRepository_ListShifts_InvalidSort(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	createOpenShift(ctx, t, repo, userID)
 
 	shifts, total, err := repo.ListShifts(ctx, ownership.Scope{}, "", nil, "", 10, 0, "bogus_col", "sideways")
 	require.NoError(t, err)
@@ -554,8 +554,8 @@ func TestShiftRepository_GetShiftByID_WithStore(t *testing.T) {
 	err := dbPool.QueryRow(ctx, `INSERT INTO stores (name) VALUES ('Shift Store') RETURNING id`).Scan(&storeID)
 	require.NoError(t, err)
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	_, err = dbPool.Exec(ctx, `UPDATE shifts SET store_id = $1, status = 'closed', closed_at = NOW() WHERE id = $2`, storeID, shift.ID)
 	require.NoError(t, err)
@@ -581,10 +581,10 @@ func TestShiftRepository_GetActiveShiftByUserID_AllFields(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
-	reviewerID := insertTestUser(t, ctx, 2)
+	reviewerID := insertTestUser(ctx, t, 2)
 	_, err := dbPool.Exec(ctx, `
 		UPDATE shifts
 		SET closing_balance = 150000, discrepancy = 50000, notes = 'review me',
@@ -613,10 +613,10 @@ func TestShiftRepository_GetShiftByID_AllFields(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
-	reviewerID := insertTestUser(t, ctx, 2)
+	reviewerID := insertTestUser(ctx, t, 2)
 	_, err := dbPool.Exec(ctx, `
 		UPDATE shifts
 		SET closing_balance = 150000, discrepancy = 50000, notes = 'review me',
@@ -645,8 +645,8 @@ func TestShiftRepository_CloseShift_SalesSummary(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	shift := createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	shift := createOpenShift(ctx, t, repo, userID)
 
 	var custID int
 	err := dbPool.QueryRow(ctx, `
@@ -681,8 +681,8 @@ func TestShiftRepository_OpenShift_Duplicate(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	userID := insertTestUser(t, ctx, 1)
-	createOpenShift(t, ctx, repo, userID)
+	userID := insertTestUser(ctx, t, 1)
+	createOpenShift(ctx, t, repo, userID)
 	_, err := repo.OpenShift(ctx, userID, nil, 50000)
 	assert.ErrorContains(t, err, "already has an open shift")
 }

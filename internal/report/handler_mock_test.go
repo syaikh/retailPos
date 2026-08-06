@@ -74,7 +74,7 @@ func (m *mockReportService) GetPricingBreakdown(ctx context.Context, start, end 
 	return []PricingBreakdownItem{}, nil
 }
 
-func setupReportHandler(svc ReportService) *gin.Engine {
+func setupReportHandler(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -946,8 +946,8 @@ func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
 	svc := &mockReportService{
 		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
 			return []PricingBreakdownItem{
-				{PricingType: "normal", Revenue: 50000, OrderCount: 10, ItemCount: 25},
-				{PricingType: "special_price", Revenue: 30000, OrderCount: 5, ItemCount: 12},
+				{Type: "normal", Revenue: 50000, OrderCount: 10, ItemCount: 25},
+				{Type: "special_price", Revenue: 30000, OrderCount: 5, ItemCount: 12},
 			}, nil
 		},
 	}
@@ -963,7 +963,7 @@ func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data, 2)
-	assert.Equal(t, "normal", resp.Data[0].PricingType)
+	assert.Equal(t, "normal", resp.Data[0].Type)
 }
 
 func TestReportHandler_GetPricingBreakdown_NoDates(t *testing.T) {

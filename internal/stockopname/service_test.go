@@ -41,11 +41,11 @@ func TestService_CreateSession(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUser(t, ctx, 9101, "so_svc_user_9101")
-	insertTestStore(t, ctx, 100)
-	p := insertTestProductStore(t, ctx, "SO-SVC-CREATE-001", 100)
-	insertTestStock(t, ctx, p, 5)
+	resetStockOpname(ctx, t)
+	insertTestUser(ctx, t, 9101, "so_svc_user_9101")
+	insertTestStore(ctx, t, 100)
+	p := insertTestProductStore(ctx, t, "SO-SVC-CREATE-001", 100)
+	insertTestStock(ctx, t, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 100}, 9101)
 	require.NoError(t, err)
@@ -84,17 +84,17 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9401, "so_scope_manager_9401", 3)
-	insertTestStore(t, ctx, 9401)
-	insertTestStore(t, ctx, 9402)
-	insertTestWarehouse(t, ctx, 9401, 9402, "SO-WH-9401")
-	catID := insertTestCategory(t, ctx, "SO Cat 9401")
-	p := insertTestProductStore(t, ctx, "SO-SVC-STORE-001", 9401)
-	insertTestStock(t, ctx, p, 5)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9401, "so_scope_manager_9401", 3)
+	insertTestStore(ctx, t, 9401)
+	insertTestStore(ctx, t, 9402)
+	insertTestWarehouse(ctx, t, 9401, 9402, "SO-WH-9401")
+	catID := insertTestCategory(ctx, t, "SO Cat 9401")
+	p := insertTestProductStore(ctx, t, "SO-SVC-STORE-001", 9401)
+	insertTestStock(ctx, t, p, 5)
 
 	t.Run("store scope resolves to scope id", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9401}, 9401)
 		require.NoError(t, err)
 		require.NotNil(t, session.StoreID)
@@ -102,11 +102,11 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	})
 
 	t.Run("warehouse scope resolves to warehouse store", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		wid := 9401
-		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-001", 9401)
-		insertTestStockWarehouse(t, ctx, whP, 9401, 5)
-		insertTestStock(t, ctx, whP, 5)
+		whP := insertTestProductStore(ctx, t, "SO-SVC-WH-001", 9401)
+		insertTestStockWarehouse(ctx, t, whP, 9401, 5)
+		insertTestStock(ctx, t, whP, 5)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401, WarehouseID: &wid}, 9401)
 		require.NoError(t, err)
 		require.NotNil(t, session.StoreID)
@@ -114,14 +114,14 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	})
 
 	t.Run("warehouse without linked store leaves store nil", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		_, err := dbPool.Exec(ctx,
 			`INSERT INTO warehouses (id, name, code, store_id, is_active) VALUES (9403, 'Test WH 9403', 'SO-WH-9403', NULL, true) ON CONFLICT (id) DO NOTHING`,
 		)
 		require.NoError(t, err)
-		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-002", 9401)
-		insertTestStockWarehouse(t, ctx, whP, 9403, 5)
-		insertTestStock(t, ctx, whP, 5)
+		whP := insertTestProductStore(ctx, t, "SO-SVC-WH-002", 9401)
+		insertTestStockWarehouse(ctx, t, whP, 9403, 5)
+		insertTestStock(ctx, t, whP, 5)
 		wid := 9403
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9403, WarehouseID: &wid}, 9401)
 		require.NoError(t, err)
@@ -129,10 +129,10 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	})
 
 	t.Run("warehouse scope without warehouse id resolves via scope id", func(t *testing.T) {
-		resetStockOpname(t, ctx)
-		whP := insertTestProductStore(t, ctx, "SO-SVC-WH-003", 9401)
-		insertTestStockWarehouse(t, ctx, whP, 9401, 5)
-		insertTestStock(t, ctx, whP, 5)
+		resetStockOpname(ctx, t)
+		whP := insertTestProductStore(ctx, t, "SO-SVC-WH-003", 9401)
+		insertTestStockWarehouse(ctx, t, whP, 9401, 5)
+		insertTestStock(ctx, t, whP, 5)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "warehouse", ScopeID: 9401}, 9401)
 		require.NoError(t, err)
 		require.NotNil(t, session.StoreID)
@@ -140,22 +140,22 @@ func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
 	})
 
 	t.Run("category scope leaves store nil", func(t *testing.T) {
-		resetStockOpname(t, ctx)
-		catP := insertTestProductCategory(t, ctx, "SO-SVC-CAT-001", catID)
-		insertTestStock(t, ctx, catP, 5)
+		resetStockOpname(ctx, t)
+		catP := insertTestProductCategory(ctx, t, "SO-SVC-CAT-001", catID)
+		insertTestStock(ctx, t, catP, 5)
 		session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: int64(catID)}, 9401)
 		require.NoError(t, err)
 		assert.Nil(t, session.StoreID)
 	})
 
 	t.Run("store scope with missing store fails", func(t *testing.T) {
-		resetStockOpname(t, ctx)
+		resetStockOpname(ctx, t)
 		_, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 989999}, 9401)
 		require.Error(t, err)
 	})
 }
 
-func countAllItems(t *testing.T, svc *Service, ctx context.Context, sessionID, counterID int, overrideProductID int, overrideQty float64) {
+func countAllItems(ctx context.Context, t *testing.T, svc *Service, sessionID, counterID int, overrideProductID int, overrideQty float64) {
 	t.Helper()
 	sess, err := svc.GetSessionForUser(ctx, sessionID, counterID)
 	require.NoError(t, err)
@@ -173,14 +173,14 @@ func TestService_AssignVerifyPostClose(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9102
 	counterID := 9103
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9102", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9103", 5)
-	insertTestStore(t, ctx, 101)
-	p := insertTestProductStore(t, ctx, "SO-SVC-FLOW-001", 101)
-	insertTestStock(t, ctx, p, 20)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9102", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9103", 5)
+	insertTestStore(ctx, t, 101)
+	p := insertTestProductStore(ctx, t, "SO-SVC-FLOW-001", 101)
+	insertTestStock(ctx, t, p, 20)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 101}, managerID)
 	require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestService_AssignVerifyPostClose(t *testing.T) {
 	require.NoError(t, svc.SaveCount(ctx, itemID, counterID, 0, ""))
 
 	// count all items; override target product with 25
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 25)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 25)
 
 	// submit now works -> verification
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
@@ -285,21 +285,21 @@ func TestService_RejectAndRecount(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9104
 	counterID := 9105
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9104", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9105", 5)
-	insertTestStore(t, ctx, 102)
-	p := insertTestProductStore(t, ctx, "SO-SVC-REJ-001", 102)
-	insertTestStock(t, ctx, p, 3)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9104", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9105", 5)
+	insertTestStore(ctx, t, 102)
+	p := insertTestProductStore(ctx, t, "SO-SVC-REJ-001", 102)
+	insertTestStock(ctx, t, p, 3)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
 	require.NoError(t, err)
 	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
 
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 3)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 3)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 
 	// reject requires comment
@@ -323,12 +323,12 @@ func TestService_CancelSession(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9106
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9106", 3)
-	insertTestStore(t, ctx, 103)
-	p := insertTestProductStore(t, ctx, "SO-SVC-CANCEL-001", 103)
-	insertTestStock(t, ctx, p, 4)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9106", 3)
+	insertTestStore(ctx, t, 103)
+	p := insertTestProductStore(ctx, t, "SO-SVC-CANCEL-001", 103)
+	insertTestStock(ctx, t, p, 4)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 103}, managerID)
 	require.NoError(t, err)
@@ -347,14 +347,14 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9107
 	counterID := 9108
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9107", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9108", 5)
-	insertTestStore(t, ctx, 104)
-	p := insertTestProductStore(t, ctx, "SO-SVC-SUM-001", 104)
-	insertTestStock(t, ctx, p, 8)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9107", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9108", 5)
+	insertTestStore(ctx, t, 104)
+	p := insertTestProductStore(ctx, t, "SO-SVC-SUM-001", 104)
+	insertTestStock(ctx, t, p, 8)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 104}, managerID)
 	require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 	assert.Equal(t, sum.TotalItems, sum.PendingItems)
 
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 6)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 6)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
@@ -399,9 +399,9 @@ func TestService_ListAssignableUsers(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
-	insertTestUserWithRole(t, ctx, 9201, "so_staff_9201", 5)
-	insertTestUserWithRole(t, ctx, 9202, "so_manager_9202", 3)
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9201, "so_staff_9201", 5)
+	insertTestUserWithRole(ctx, t, 9202, "so_manager_9202", 3)
 
 	users, err := svc.ListAssignableUsers(ctx, "920")
 	require.NoError(t, err)
@@ -415,16 +415,16 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9203
 	counterID := 9204
 	staffID := 9205
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9203", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9204", 5)
-	insertTestUserWithRole(t, ctx, staffID, "so_staff_9205", 5)
-	insertTestStore(t, ctx, 9203)
-	p := insertTestProductStore(t, ctx, "SO-SVC-ROLE-001", 9203)
-	insertTestStock(t, ctx, p, 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9203", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9204", 5)
+	insertTestUserWithRole(ctx, t, staffID, "so_staff_9205", 5)
+	insertTestStore(ctx, t, 9203)
+	p := insertTestProductStore(ctx, t, "SO-SVC-ROLE-001", 9203)
+	insertTestStock(ctx, t, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9203}, managerID)
 	require.NoError(t, err)
@@ -456,14 +456,14 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9206
 	counterID := 9207
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9206", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9207", 5)
-	insertTestStore(t, ctx, 9206)
-	p := insertTestProductStore(t, ctx, "SO-SVC-REASSIGN-001", 9206)
-	insertTestStock(t, ctx, p, 5)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9206", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9207", 5)
+	insertTestStore(ctx, t, 9206)
+	p := insertTestProductStore(ctx, t, "SO-SVC-REASSIGN-001", 9206)
+	insertTestStock(ctx, t, p, 5)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 9206}, managerID)
 	require.NoError(t, err)
@@ -486,13 +486,13 @@ func TestService_BlindCountMasksQuantities(t *testing.T) {
 	repo := NewRepository(dbPool)
 	svc := NewService(repo, nil)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9109
 	counterID := 9110
-	insertTestUserWithRole(t, ctx, managerID, "so_manager_9109", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_counter_9110", 5)
-	p := insertTestProduct(t, ctx, "SO-SVC-BLIND-001")
-	insertTestStock(t, ctx, p, 30)
+	insertTestUserWithRole(ctx, t, managerID, "so_manager_9109", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_counter_9110", 5)
+	p := insertTestProduct(ctx, t, "SO-SVC-BLIND-001")
+	insertTestStock(ctx, t, p, 30)
 
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
@@ -534,14 +534,14 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9110
 	counterID := 9111
-	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9110", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9111", 5)
-	insertTestStore(t, ctx, 102)
-	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-001", 102)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_evt_manager_9110", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_evt_counter_9111", 5)
+	insertTestStore(ctx, t, 102)
+	p := insertTestProductStore(ctx, t, "SO-SVC-EVT-001", 102)
+	insertTestStock(ctx, t, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 102}, managerID)
 	require.NoError(t, err)
@@ -571,20 +571,20 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9112
 	counterID := 9113
-	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9112", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9113", 5)
-	insertTestStore(t, ctx, 103)
-	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-002", 103)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_evt_manager_9112", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_evt_counter_9113", 5)
+	insertTestStore(ctx, t, 103)
+	p := insertTestProductStore(ctx, t, "SO-SVC-EVT-002", 103)
+	insertTestStock(ctx, t, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 103}, managerID)
 	require.NoError(t, err)
 	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 10)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 10)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 
 	require.Contains(t, bus.topics(), EventStockOpnameSubmitted)
@@ -611,20 +611,20 @@ func TestService_VerifyPublishesApprovedEvent(t *testing.T) {
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9114
 	counterID := 9115
-	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9114", 3)
-	insertTestUserWithRole(t, ctx, counterID, "so_evt_counter_9115", 5)
-	insertTestStore(t, ctx, 104)
-	p := insertTestProductStore(t, ctx, "SO-SVC-EVT-003", 104)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_evt_manager_9114", 3)
+	insertTestUserWithRole(ctx, t, counterID, "so_evt_counter_9115", 5)
+	insertTestStore(ctx, t, 104)
+	p := insertTestProductStore(ctx, t, "SO-SVC-EVT-003", 104)
+	insertTestStock(ctx, t, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "store", ScopeID: 104}, managerID)
 	require.NoError(t, err)
 	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
 	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
-	countAllItems(t, svc, ctx, session.ID, counterID, p, 10)
+	countAllItems(ctx, t, svc, session.ID, counterID, p, 10)
 	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
 	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
 
@@ -649,12 +649,12 @@ func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	ctx := context.Background()
-	resetStockOpname(t, ctx)
+	resetStockOpname(ctx, t)
 	managerID := 9116
-	insertTestUserWithRole(t, ctx, managerID, "so_evt_manager_9116", 3)
-	catID := insertTestCategory(t, ctx, "SO Global Cat 9116")
-	p := insertTestProductCategory(t, ctx, "SO-SVC-EVT-004", catID)
-	insertTestStock(t, ctx, p, 10)
+	insertTestUserWithRole(ctx, t, managerID, "so_evt_manager_9116", 3)
+	catID := insertTestCategory(ctx, t, "SO Global Cat 9116")
+	p := insertTestProductCategory(ctx, t, "SO-SVC-EVT-004", catID)
+	insertTestStock(ctx, t, p, 10)
 
 	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "category", ScopeID: int64(catID)}, managerID)
 	require.NoError(t, err)

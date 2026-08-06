@@ -83,8 +83,8 @@ func TestAdapter_MapToEntity(t *testing.T) {
 	t.Run("product id only", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "special_price",
-			"PricingMethod":   "fixed_price",
+			"Type":     "special_price",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(5000),
 			"Name":            "Test Rule",
 			"MinimumQuantity": float64(2),
@@ -93,7 +93,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult, ok := result.(PricingRuleImportRow)
+		rowResult, ok := result.(RuleImportRow)
 		require.True(t, ok)
 		assert.NotNil(t, rowResult.ProductID)
 		assert.Equal(t, 10, *rowResult.ProductID)
@@ -104,15 +104,15 @@ func TestAdapter_MapToEntity(t *testing.T) {
 	t.Run("category id", func(t *testing.T) {
 		row := map[string]interface{}{
 			"CategoryID":      float64(5),
-			"PricingType":     "promotion",
-			"PricingMethod":   "discount_percent",
+			"Type":     "promotion",
+			"Method":   "discount_percent",
 			"PricingValue":    float64(10),
 			"Name":            "Cat Rule",
 			"MinimumQuantity": float64(1),
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.NotNil(t, rowResult.CategoryID)
 		assert.Equal(t, 5, *rowResult.CategoryID)
 	})
@@ -120,23 +120,23 @@ func TestAdapter_MapToEntity(t *testing.T) {
 	t.Run("brand id", func(t *testing.T) {
 		row := map[string]interface{}{
 			"BrandID":         float64(3),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(8000),
 			"Name":            "Brand Rule",
 			"MinimumQuantity": float64(1),
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.NotNil(t, rowResult.BrandID)
 		assert.Equal(t, 3, *rowResult.BrandID)
 	})
 
 	t.Run("no target returns error", func(t *testing.T) {
 		row := map[string]interface{}{
-			"PricingType":   "promotion",
-			"PricingMethod": "fixed_price",
+			"Type":   "promotion",
+			"Method": "fixed_price",
 			"PricingValue":  float64(8000),
 			"Name":          "No Target Rule",
 		}
@@ -152,13 +152,13 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		_, err := a.MapToEntity(ctx, schema, row)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "PricingType is required")
+		assert.Contains(t, err.Error(), "Type is required")
 	})
 
 	t.Run("missing name returns error", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":   float64(10),
-			"PricingType": "promotion",
+			"Type": "promotion",
 		}
 		_, err := a.MapToEntity(ctx, schema, row)
 		assert.Error(t, err)
@@ -168,33 +168,33 @@ func TestAdapter_MapToEntity(t *testing.T) {
 	t.Run("missing method defaults to fixed_price", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":   float64(10),
-			"PricingType": "promotion",
+			"Type": "promotion",
 			"Name":        "Default Method",
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
-		assert.Equal(t, "fixed_price", rowResult.PricingMethod)
+		rowResult := result.(RuleImportRow)
+		assert.Equal(t, "fixed_price", rowResult.Method)
 	})
 
 	t.Run("missing min qty defaults to 1", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":     float64(10),
-			"PricingType":   "promotion",
-			"PricingMethod": "fixed_price",
+			"Type":   "promotion",
+			"Method": "fixed_price",
 			"Name":          "Default MinQty",
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.Equal(t, 1, rowResult.MinimumQuantity)
 	})
 
 	t.Run("effective dates parsed", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(5000),
 			"Name":            "With Dates",
 			"MinimumQuantity": float64(1),
@@ -203,7 +203,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.NotNil(t, rowResult.EffectiveFrom)
 		assert.NotNil(t, rowResult.EffectiveUntil)
 	})
@@ -211,8 +211,8 @@ func TestAdapter_MapToEntity(t *testing.T) {
 	t.Run("invalid effective date ignored", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(5000),
 			"Name":            "Bad Dates",
 			"MinimumQuantity": float64(1),
@@ -220,15 +220,15 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.Nil(t, rowResult.EffectiveFrom)
 	})
 
 	t.Run("is_active from string", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(5000),
 			"Name":            "Active Rule",
 			"MinimumQuantity": float64(1),
@@ -236,15 +236,15 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.False(t, rowResult.IsActive)
 	})
 
 	t.Run("is_active from bool", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"PricingValue":    float64(5000),
 			"Name":            "Active Rule Bool",
 			"MinimumQuantity": float64(1),
@@ -252,22 +252,22 @@ func TestAdapter_MapToEntity(t *testing.T) {
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.True(t, rowResult.IsActive)
 	})
 
 	t.Run("fallback to Price when PricingValue zero", func(t *testing.T) {
 		row := map[string]interface{}{
 			"ProductID":       float64(10),
-			"PricingType":     "promotion",
-			"PricingMethod":   "fixed_price",
+			"Type":     "promotion",
+			"Method":   "fixed_price",
 			"Price":           float64(7500),
 			"Name":            "Legacy Price Rule",
 			"MinimumQuantity": float64(1),
 		}
 		result, err := a.MapToEntity(ctx, schema, row)
 		require.NoError(t, err)
-		rowResult := result.(PricingRuleImportRow)
+		rowResult := result.(RuleImportRow)
 		assert.Equal(t, 7500.0, rowResult.PricingValue)
 	})
 }
@@ -300,15 +300,15 @@ func TestAdapter_Repository_Insert(t *testing.T) {
 	a := NewAdapter(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "ADP-INS-"+time.Now().Format("0102150405"), "Adapter Insert Product", 15000)
+	productID := insertTestProduct(ctx, t, "ADP-INS-"+time.Now().Format("0102150405"), "Adapter Insert Product", 15000)
 
 	t.Run("insert single", func(t *testing.T) {
 		entities := []interface{}{
-			PricingRuleImportRow{
+			RuleImportRow{
 				Row:             1,
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    10000,
 				Name:            "Adapter Insert 1 " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 1,
@@ -322,11 +322,11 @@ func TestAdapter_Repository_Insert(t *testing.T) {
 
 	t.Run("minimum quantity zero fails", func(t *testing.T) {
 		entities := []interface{}{
-			PricingRuleImportRow{
+			RuleImportRow{
 				Row:             2,
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    5000,
 				Name:            "Bad MinQty",
 				MinimumQuantity: 0,
@@ -353,15 +353,15 @@ func TestAdapter_Repository_Update(t *testing.T) {
 	a := NewAdapter(repo)
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "ADP-UPD-"+time.Now().Format("0102150405"), "Adapter Update Product", 15000)
+	productID := insertTestProduct(ctx, t, "ADP-UPD-"+time.Now().Format("0102150405"), "Adapter Update Product", 15000)
 
 	t.Run("insert via update (not found, returns 0)", func(t *testing.T) {
 		entities := []interface{}{
-			PricingRuleImportRow{
+			RuleImportRow{
 				Row:             1,
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    8000,
 				Name:            "Adapter Update New " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 1,
@@ -374,10 +374,10 @@ func TestAdapter_Repository_Update(t *testing.T) {
 	})
 
 	t.Run("update existing", func(t *testing.T) {
-		rule := &PricingRule{
+		rule := &Rule{
 			ProductID:       &productID,
-			PricingType:     PricingTypePromotion,
-			PricingMethod:   PricingMethodFixedPrice,
+			Type:     PricingTypePromotion,
+			Method:   PricingMethodFixedPrice,
 			PricingValue:    15000,
 			Name:            "Will Be Updated " + time.Now().Format("0102150405.000"),
 			MinimumQuantity: 1,
@@ -386,11 +386,11 @@ func TestAdapter_Repository_Update(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, rule))
 
 		entities := []interface{}{
-			PricingRuleImportRow{
+			RuleImportRow{
 				Row:             2,
 				ProductID:       &productID,
-				PricingType:     string(PricingTypePromotion),
-				PricingMethod:   string(PricingMethodFixedPrice),
+				Type:     string(PricingTypePromotion),
+				Method:   string(PricingMethodFixedPrice),
 				PricingValue:    12000,
 				Name:            rule.Name,
 				MinimumQuantity: 1,
@@ -422,12 +422,12 @@ func TestAdapter_Repository_ExportData(t *testing.T) {
 	schema := testSchema()
 	ctx := t.Context()
 
-	productID := insertTestProduct(t, ctx, "ADP-EXP-"+time.Now().Format("0102150405"), "Adapter Export Product", 15000)
+	productID := insertTestProduct(ctx, t, "ADP-EXP-"+time.Now().Format("0102150405"), "Adapter Export Product", 15000)
 	now := time.Now()
-	rule := &PricingRule{
+	rule := &Rule{
 		ProductID:       &productID,
-		PricingType:     PricingTypePromotion,
-		PricingMethod:   PricingMethodFixedPrice,
+		Type:     PricingTypePromotion,
+		Method:   PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "Export Adapter Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -445,7 +445,7 @@ func TestAdapter_Repository_ExportData(t *testing.T) {
 	for _, item := range result {
 		if item["Name"] == rule.Name {
 			found = true
-			assert.Equal(t, "promotion", item["PricingType"])
+			assert.Equal(t, "promotion", item["Type"])
 			assert.NotNil(t, item["ProductID"])
 			assert.Nil(t, item["CategoryID"])
 			assert.Nil(t, item["BrandID"])

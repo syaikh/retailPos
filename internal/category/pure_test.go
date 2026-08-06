@@ -118,7 +118,7 @@ func TestCategoryMapToEntity(t *testing.T) {
 		}
 		entity, err := a.MapToEntity(context.TODO(), importexportshared.ModuleSchema{}, row)
 		require.NoError(t, err)
-		cRow, ok := entity.(CategoryImportRow)
+		cRow, ok := entity.(ImportRow)
 		require.True(t, ok)
 		assert.Equal(t, "Electronics", cRow.Name)
 		assert.Equal(t, "electronics", cRow.Slug)

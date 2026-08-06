@@ -36,7 +36,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	if v, ok := row["IsActive"]; ok {
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
-	return StoreImportRow{
+	return ImportRow{
 		Row:      rowNum,
 		Name:     name,
 		Address:  address,
@@ -56,7 +56,7 @@ type storeRepoAdapter struct {
 func (r *storeRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
 	count := 0
 	for _, e := range entities {
-		row := e.(StoreImportRow)
+		row := e.(ImportRow)
 		s := &Store{
 			Name:     row.Name,
 			Address:  row.Address,
@@ -74,7 +74,7 @@ func (r *storeRepoAdapter) Insert(ctx context.Context, entities []interface{}) (
 func (r *storeRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
 	count := 0
 	for _, e := range entities {
-		row := e.(StoreImportRow)
+		row := e.(ImportRow)
 		existing, err := r.repo.GetByName(ctx, row.Name)
 		if err != nil {
 			// Not found — insert instead

@@ -8,19 +8,19 @@ type Brand struct {
 	CreatedAt   string `json:"created_at,omitempty"`
 }
 
-type BrandCreateRequest struct {
+type CreateRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description,omitempty"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
 
-type BrandUpdateRequest struct {
+type UpdateRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description,omitempty"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
 
-type BrandImportRow struct {
+type ImportRow struct {
 	Row         int
 	Name        string
 	Description string

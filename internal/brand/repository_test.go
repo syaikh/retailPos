@@ -119,7 +119,7 @@ func TestBrandRepository_Import(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("BulkUpsert inserts new brands", func(t *testing.T) {
-		records := []BrandImportRow{
+		records := []ImportRow{
 			{Row: 2, Name: "ImportBrand1", Description: "Imported", IsActive: true},
 			{Row: 3, Name: "ImportBrand2", Description: "Imported 2", IsActive: false},
 		}
@@ -130,7 +130,7 @@ func TestBrandRepository_Import(t *testing.T) {
 	})
 
 	t.Run("BulkUpsert updates existing brands", func(t *testing.T) {
-		records := []BrandImportRow{
+		records := []ImportRow{
 			{Row: 2, Name: "ImportBrand1", Description: "Updated", IsActive: false},
 		}
 		result := repo.BulkUpsert(ctx, records)
@@ -140,7 +140,7 @@ func TestBrandRepository_Import(t *testing.T) {
 	})
 
 	t.Run("BulkUpsert rejects empty name", func(t *testing.T) {
-		records := []BrandImportRow{
+		records := []ImportRow{
 			{Row: 2, Name: "", Description: "", IsActive: true},
 		}
 		result := repo.BulkUpsert(ctx, records)

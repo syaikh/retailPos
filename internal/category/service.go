@@ -4,27 +4,27 @@ import (
 	"context"
 )
 
-type Service struct {
+type service struct {
 	repo *Repository
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository) Service {
+	return &service{repo: repo}
 }
 
-func (s *Service) ListCategories(ctx context.Context) ([]Category, error) {
+func (s *service) ListCategories(ctx context.Context) ([]Category, error) {
 	return s.repo.ListCategories(ctx)
 }
 
-func (s *Service) GetCategoryByID(ctx context.Context, id int) (*Category, error) {
+func (s *service) GetCategoryByID(ctx context.Context, id int) (*Category, error) {
 	return s.repo.GetCategoryByID(ctx, id)
 }
 
-func (s *Service) GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
+func (s *service) GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
 	return s.repo.GetAllCategories(ctx, limit, offset, search)
 }
 
-func (s *Service) CreateCategory(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
+func (s *service) CreateCategory(ctx context.Context, req *CreateRequest) (*Category, error) {
 	category := &Category{
 		Name:        req.Name,
 		Slug:        generateSlug(req.Name),
@@ -37,7 +37,7 @@ func (s *Service) CreateCategory(ctx context.Context, req *CategoryCreateRequest
 	return s.repo.GetCategoryByID(ctx, category.ID)
 }
 
-func (s *Service) UpdateCategory(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+func (s *service) UpdateCategory(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 	category, err := s.repo.GetCategoryByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -54,14 +54,14 @@ func (s *Service) UpdateCategory(ctx context.Context, id int, req *CategoryUpdat
 	return s.repo.GetCategoryByID(ctx, id)
 }
 
-func (s *Service) DeleteCategory(ctx context.Context, id int) error {
+func (s *service) DeleteCategory(ctx context.Context, id int) error {
 	return s.repo.DeleteCategory(ctx, id)
 }
 
-func (s *Service) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
+func (s *service) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
 	return s.repo.SlugExists(ctx, slug, excludeID)
 }
 
-func (s *Service) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
+func (s *service) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
 	return s.repo.HasActiveProducts(ctx, categoryID)
 }

@@ -22,7 +22,7 @@ type CartConfig struct {
 }
 
 // SetCartConfig configures cart session behavior (e.g. hold TTL).
-func (s *Service) SetCartConfig(cfg CartConfig) {
+func (s *service) SetCartConfig(cfg CartConfig) {
 	s.cartConfig = cfg
 }
 
@@ -37,7 +37,7 @@ func ensureCartOwned(cart *CartSession, cashierID int) error {
 }
 
 // CreateOrGetOpenCart returns the open cart for the cashier, or creates one if none exists.
-func (s *Service) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
+func (s *service) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error) {
 	cart, err := s.repo.AtomicGetOrCreateOpenCart(ctx, cashierID, storeID, shiftID, customerID)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (s *Service) CreateOrGetOpenCart(ctx context.Context, cashierID int, storeI
 }
 
 // GetOpenCart returns the open cart for the cashier (no auto-create).
-func (s *Service) GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error) {
+func (s *service) GetOpenCart(ctx context.Context, cashierID int) (*CartSession, error) {
 	cart, err := s.repo.GetOpenCartByCashier(ctx, cashierID)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (s *Service) GetOpenCart(ctx context.Context, cashierID int) (*CartSession,
 }
 
 // GetCartByID returns a cart session with its items, ensuring it belongs to the cashier.
-func (s *Service) GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (s *service) GetCartByID(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	cart, err := s.repo.GetCartSessionByID(ctx, cartID)
 	if err != nil {
 		return nil, err
@@ -72,12 +72,12 @@ func (s *Service) GetCartByID(ctx context.Context, cartID int, cashierID int) (*
 }
 
 // ListHeldCarts returns all held cart sessions for a cashier (with items).
-func (s *Service) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error) {
+func (s *service) ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error) {
 	return s.repo.ListHeldCarts(ctx, cashierID)
 }
 
 // UpdateCartCustomer sets the customer on an open cart, ensuring ownership.
-func (s *Service) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
+func (s *service) UpdateCartCustomer(ctx context.Context, cartID int, customerID *int, cashierID int) (*CartSession, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -113,7 +113,7 @@ func (s *Service) UpdateCartCustomer(ctx context.Context, cartID int, customerID
 // ==================== UC-02: ADD CART ITEM ====================
 
 // AddCartItem resolves a server-side price snapshot and adds the item to the open cart.
-func (s *Service) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
+func (s *service) AddCartItem(ctx context.Context, cartID int, productID, quantity int, customerGroupID *int, cashierID int) (*CartSession, error) {
 	if quantity <= 0 {
 		return nil, ErrCartItemQuantity
 	}
@@ -164,7 +164,7 @@ func (s *Service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		PricingRuleID:     nil,
 		PricingRuleName:   nil,
 		PricingRuleType:   nil,
-		PricingType:       stringPtr(string(snap.PricingType)),
+		Type:       stringPtr(string(snap.Type)),
 		Cost:              snap.Cost,
 		TaxClassID:        snap.TaxClassID,
 		TaxRate:           snap.TaxRate,
@@ -173,7 +173,7 @@ func (s *Service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 	if snap.Rule != nil {
 		ruleID := snap.Rule.ID
 		ruleName := snap.Rule.Name
-		ruleType := string(snap.Rule.PricingType)
+		ruleType := string(snap.Rule.Type)
 		item.PricingRuleID = &ruleID
 		item.PricingRuleName = &ruleName
 		item.PricingRuleType = &ruleType
@@ -198,7 +198,7 @@ func (s *Service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 
 // UpdateCartItemQuantity changes the quantity of an existing cart item.
 // The unit price snapshot is preserved; only line totals are recomputed.
-func (s *Service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
+func (s *service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, quantity int, cashierID int) (*CartSession, error) {
 	if quantity <= 0 {
 		return nil, ErrCartItemQuantity
 	}
@@ -258,7 +258,7 @@ func (s *Service) UpdateCartItemQuantity(ctx context.Context, cartID, itemID, qu
 // ==================== UC-04: REMOVE CART ITEM ====================
 
 // RemoveCartItem removes an item from the open cart.
-func (s *Service) RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error) {
+func (s *service) RemoveCartItem(ctx context.Context, cartID, itemID int, cashierID int) (*CartSession, error) {
 	cart, err := s.repo.GetCartSessionByID(ctx, cartID)
 	if err != nil {
 		return nil, err
@@ -298,7 +298,7 @@ func (s *Service) RemoveCartItem(ctx context.Context, cartID, itemID int, cashie
 // ==================== UC-05: HOLD CART ====================
 
 // HoldCart parks the open cart, setting an expiry based on the configured TTL.
-func (s *Service) HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (s *service) HoldCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	ttlHours := s.cartConfig.HoldTTLHours
 	if ttlHours <= 0 {
 		ttlHours = defaultCartHoldTTLHours
@@ -340,7 +340,7 @@ func (s *Service) HoldCart(ctx context.Context, cartID int, cashierID int) (*Car
 // ==================== UC-06: RESUME CART ====================
 
 // ResumeCart re-opens a held cart if it has not expired.
-func (s *Service) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
+func (s *service) ResumeCart(ctx context.Context, cartID int, cashierID int) (*CartSession, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -380,7 +380,7 @@ func (s *Service) ResumeCart(ctx context.Context, cartID int, cashierID int) (*C
 
 // CheckoutCart converts the cart into a completed sale using the stored snapshots,
 // deducts stock, records payments, and updates the shift totals atomically.
-func (s *Service) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
+func (s *service) CheckoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, cashierID int) (*Sale, error) {
 	return s.checkoutCart(ctx, cartID, payments, "", cashierID)
 }
 
@@ -388,11 +388,11 @@ func (s *Service) CheckoutCart(ctx context.Context, cartID int, payments []Creat
 // payment method code. The amount is derived from the recomputed sale total
 // inside the same locked transaction, so it cannot go stale the way a
 // handler-side pre-read of cart.TotalAmount could.
-func (s *Service) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
+func (s *service) CheckoutCartWithPaymentMethod(ctx context.Context, cartID int, paymentMethod string, cashierID int) (*Sale, error) {
 	return s.checkoutCart(ctx, cartID, nil, paymentMethod, cashierID)
 }
 
-func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
+func (s *service) checkoutCart(ctx context.Context, cartID int, payments []CreatePaymentRequest, legacyPaymentMethod string, cashierID int) (*Sale, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -425,7 +425,7 @@ func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 	}
 
 	// Build sale items from the immutable snapshots.
-	items := make([]SaleItem, 0, len(cart.Items))
+	items := make([]Item, 0, len(cart.Items))
 	var subtotal, dppTotal, taxTotal int
 	for _, ci := range cart.Items {
 		if ci.UnitPrice != ci.Subtotal/ci.Quantity {
@@ -517,7 +517,7 @@ func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 // finalizeSaleItems validates checkout items and deducts stock, then normalizes the sale total.
 // This helper is shared by CreateSale/CreateSaleWithParkedSale and CheckoutCart so the
 // validation/stock-deduction order cannot diverge between code paths.
-func (s *Service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
+func (s *service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error {
 	if err := validateCheckoutItems(items); err != nil {
 		return err
 	}
@@ -536,7 +536,7 @@ func (s *Service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, 
 // ==================== INTERNAL HELPERS ====================
 
 // recalculateCartTotals recomputes cart subtotal, tax, and total from its items.
-func (s *Service) recalculateCartTotals(ctx context.Context, tx pgx.Tx, cartID int) error {
+func (s *service) recalculateCartTotals(ctx context.Context, tx pgx.Tx, cartID int) error {
 	items, err := s.repo.LoadCartItemsForCheckout(ctx, tx, cartID)
 	if err != nil {
 		return err
@@ -546,7 +546,7 @@ func (s *Service) recalculateCartTotals(ctx context.Context, tx pgx.Tx, cartID i
 
 // recalculateCartTotalsFromItems computes totals from already-loaded items, avoiding
 // a second bulk read when the caller already has the item list in hand.
-func (s *Service) recalculateCartTotalsFromItems(ctx context.Context, tx pgx.Tx, cartID int, items []CartItem) error {
+func (s *service) recalculateCartTotalsFromItems(ctx context.Context, tx pgx.Tx, cartID int, items []CartItem) error {
 	subtotal, discount, tax, total := computeCartTotals(items)
 	return s.repo.UpdateCartTotals(ctx, tx, cartID, subtotal, discount, tax, total)
 }

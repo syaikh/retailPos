@@ -49,14 +49,14 @@ func (l *testSupplierLookup) GetSupplierIDsByName(ctx context.Context, name stri
 	return l.repo.GetIDsByName(ctx, name)
 }
 
-func newWiredService(repo *Repository, bus shared.EventBus) *Service {
+func newWiredService(repo *Repository, bus shared.EventBus) Service {
 	svc := NewService(repo, bus)
 	svc.SetProductLookup(&testProductLookup{repo: product.NewRepository(dbPool)})
 	svc.SetSupplierLookup(&testSupplierLookup{repo: supplier.NewRepository(dbPool)})
 	return svc
 }
 
-func newSvc(t *testing.T) (*Service, *eventbus.Bus, context.Context) {
+func newSvc(t *testing.T) (Service, *eventbus.Bus, context.Context) {
 	t.Helper()
 	repo := NewRepository(dbPool)
 	bus := eventbus.New()
@@ -68,17 +68,17 @@ func newSvc(t *testing.T) (*Service, *eventbus.Bus, context.Context) {
 func TestPurchaseService_CreateDraft(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Draft Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-DRAFT-001", "Draft Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_draft_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Draft Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-DRAFT-001", "Draft Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_draft_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  5,
@@ -99,17 +99,17 @@ func TestPurchaseService_CreateDraft(t *testing.T) {
 func TestPurchaseService_Confirm(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Confirm Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-CONF-001", "Confirm Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_confirm_svc_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Confirm Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-CONF-001", "Confirm Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_confirm_svc_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  5,
@@ -135,17 +135,17 @@ func TestPurchaseService_Confirm(t *testing.T) {
 func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Cancel Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-CANCEL-001", "Cancel Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_cancel_svc_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Cancel Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-CANCEL-001", "Cancel Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_cancel_svc_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  10,
@@ -180,17 +180,17 @@ func TestPurchaseService_CancelWithReceiptsFails(t *testing.T) {
 func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Receive Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-RECV-001", "Receive Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_receive_svc_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Receive Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-RECV-001", "Receive Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_receive_svc_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  10,
@@ -242,17 +242,17 @@ func TestPurchaseService_PartialAndFullReceive(t *testing.T) {
 func TestPurchaseService_OverReceivePrevented(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc OverReceive Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-OVER-001", "OverReceive Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_over_receive_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc OverReceive Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-OVER-001", "OverReceive Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_over_receive_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  10,
@@ -284,17 +284,17 @@ func TestPurchaseService_OverReceivePrevented(t *testing.T) {
 func TestPurchaseService_UpdateDraft(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Update Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-UPD-001", "Update Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_update_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Update Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-UPD-001", "Update Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_update_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:  prodID,
 			QtyOrdered: 5,
@@ -306,12 +306,12 @@ func TestPurchaseService_UpdateDraft(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("updates draft PO with enriched product names", func(t *testing.T) {
-		updated := &PurchaseOrder{
+		updated := &Order{
 			SupplierID: supplierID,
 			StoreID:    1,
 			UpdatedBy:  userID,
 		}
-		updatedItems := []PurchaseOrderItem{
+		updatedItems := []OrderItem{
 			{
 				ProductID:  prodID,
 				QtyOrdered: 10,
@@ -333,13 +333,13 @@ func TestPurchaseService_UpdateDraft(t *testing.T) {
 	})
 
 	t.Run("rejects update when PO is confirmed", func(t *testing.T) {
-		confirmPO := &PurchaseOrder{
+		confirmPO := &Order{
 			SupplierID: supplierID,
 			StoreID:    1,
 			CreatedBy:  userID,
 			UpdatedBy:  userID,
 		}
-		confirmItems := []PurchaseOrderItem{
+		confirmItems := []OrderItem{
 			{ProductID: prodID, QtyOrdered: 3, UnitCost: 8000},
 		}
 		err := svc.CreateDraft(ctx, confirmPO, confirmItems)
@@ -352,43 +352,43 @@ func TestPurchaseService_UpdateDraft(t *testing.T) {
 	})
 
 	t.Run("rejects update with zero UpdatedBy", func(t *testing.T) {
-		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1}, items)
+		err := svc.UpdateDraft(ctx, po.ID, &Order{SupplierID: supplierID, StoreID: 1}, items)
 		assert.ErrorContains(t, err, "updated_by is required")
 	})
 
 	t.Run("empty items returns error", func(t *testing.T) {
-		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, nil)
+		err := svc.UpdateDraft(ctx, po.ID, &Order{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, nil)
 		assert.ErrorContains(t, err, "items cannot be empty")
 	})
 
 	t.Run("duplicate product IDs returns error", func(t *testing.T) {
-		dupItems := []PurchaseOrderItem{
+		dupItems := []OrderItem{
 			{ProductID: prodID, QtyOrdered: 2, UnitCost: 8000},
 			{ProductID: prodID, QtyOrdered: 3, UnitCost: 8000},
 		}
-		err := svc.UpdateDraft(ctx, po.ID, &PurchaseOrder{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, dupItems)
+		err := svc.UpdateDraft(ctx, po.ID, &Order{SupplierID: supplierID, StoreID: 1, UpdatedBy: userID}, dupItems)
 		assert.ErrorIs(t, err, ErrDuplicatePOItem)
 	})
 
 	t.Run("enriches items with product lookup even with discount_amount", func(t *testing.T) {
-		discountPO := &PurchaseOrder{
+		discountPO := &Order{
 			SupplierID: supplierID,
 			StoreID:    1,
 			CreatedBy:  userID,
 			UpdatedBy:  userID,
 		}
-		discountItems := []PurchaseOrderItem{
+		discountItems := []OrderItem{
 			{ProductID: prodID, QtyOrdered: 10, UnitCost: 10000, DiscountAmount: 5000},
 		}
 		err := svc.CreateDraft(ctx, discountPO, discountItems)
 		require.NoError(t, err)
 
-		updated := &PurchaseOrder{
+		updated := &Order{
 			SupplierID: supplierID,
 			StoreID:    1,
 			UpdatedBy:  userID,
 		}
-		updatedItems := []PurchaseOrderItem{
+		updatedItems := []OrderItem{
 			{ProductID: prodID, QtyOrdered: 10, UnitCost: 10000, DiscountAmount: 5000},
 		}
 		err = svc.UpdateDraft(ctx, discountPO.ID, updated, updatedItems)
@@ -405,17 +405,17 @@ func TestPurchaseService_UpdateDraft(t *testing.T) {
 func TestPurchaseService_DuplicateItemRejected(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Dup Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-DUP-001", "Dup Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_dup_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Dup Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-DUP-001", "Dup Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_dup_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  5,
@@ -439,17 +439,17 @@ func TestPurchaseService_DuplicateItemRejected(t *testing.T) {
 func TestPurchaseService_ReceiveOnDraftFails(t *testing.T) {
 	svc, _, ctx := newSvc(t)
 
-	supplierID := insertTestSupplier(t, ctx, "Svc Draft Receive Supplier")
-	prodID := insertTestProduct(t, ctx, "SVC-DRAFT-RECV-001", "Draft Receive Product", 10000, 100)
-	userID := insertTestUser(t, ctx, "po_draft_recv_user")
+	supplierID := insertTestSupplier(ctx, t, "Svc Draft Receive Supplier")
+	prodID := insertTestProduct(ctx, t, "SVC-DRAFT-RECV-001", "Draft Receive Product", 10000, 100)
+	userID := insertTestUser(ctx, t, "po_draft_recv_user")
 
-	po := &PurchaseOrder{
+	po := &Order{
 		SupplierID: supplierID,
 		StoreID:    1,
 		CreatedBy:  userID,
 		UpdatedBy:  userID,
 	}
-	items := []PurchaseOrderItem{
+	items := []OrderItem{
 		{
 			ProductID:   prodID,
 			QtyOrdered:  5,

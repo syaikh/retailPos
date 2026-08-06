@@ -415,7 +415,7 @@ func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {
 	return suppliers, nil
 }
 
-type SupplierImportRow struct {
+type ImportRow struct {
 	Row         int
 	Code        string
 	Name        string
@@ -427,7 +427,7 @@ type SupplierImportRow struct {
 	IsActive    bool
 }
 
-type SupplierImportPayload struct {
+type ImportPayload struct {
 	Code        string
 	Name        string
 	ContactName *string
@@ -438,7 +438,7 @@ type SupplierImportPayload struct {
 	IsActive    bool
 }
 
-func (r *Repository) BulkInsertSuppliers(ctx context.Context, payloads []SupplierImportPayload) (int, error) {
+func (r *Repository) BulkInsertSuppliers(ctx context.Context, payloads []ImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}
@@ -467,7 +467,7 @@ func (r *Repository) BulkInsertSuppliers(ctx context.Context, payloads []Supplie
 	return count, nil
 }
 
-func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []SupplierImportPayload) (int, error) {
+func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []ImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}

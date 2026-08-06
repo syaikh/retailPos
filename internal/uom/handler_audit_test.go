@@ -16,17 +16,17 @@ import (
 )
 
 type mockAuditCreator struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupMockUOMRouterWithAudit(svc UOMService) *gin.Engine {
+func setupMockUOMRouterWithAudit(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -46,7 +46,7 @@ func setupMockUOMRouterWithAudit(svc UOMService) *gin.Engine {
 
 func TestAuditHandler_CreateUOM(t *testing.T) {
 	svc := &mockUOMService{
-		createFn: func(ctx context.Context, req *UOMCreateRequest) (*UnitOfMeasure, error) {
+		createFn: func(ctx context.Context, req *CreateRequest) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: 42, Name: req.Name, Code: req.Code}, nil
 		},
 	}
@@ -64,7 +64,7 @@ func TestAuditHandler_UpdateUOM(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: 1, Name: "Old", Code: "OLD"}, nil
 		},
-		updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: id, Name: req.Name, Code: req.Code}, nil
 		},
 	}
@@ -112,7 +112,7 @@ func TestAuditHandler_UpdateUOM_GetByIDError(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id int) (*UnitOfMeasure, error) {
 			return nil, errors.New("not found")
 		},
-		updateFn: func(ctx context.Context, id int, req *UOMUpdateRequest) (*UnitOfMeasure, error) {
+		updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*UnitOfMeasure, error) {
 			return &UnitOfMeasure{ID: id, Name: req.Name, Code: req.Code}, nil
 		},
 	}

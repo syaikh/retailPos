@@ -28,7 +28,7 @@ type mockProductService struct {
 	nextSKUFn           func(ctx context.Context) (string, error)
 	getTaxClassesFn     func(ctx context.Context) ([]TaxClass, error)
 	getWarehousesFn     func(ctx context.Context) ([]Warehouse, error)
-	getProductOptionsFn func(ctx context.Context) ([]ProductOption, error)
+	getProductOptionsFn func(ctx context.Context) ([]Option, error)
 }
 
 func (m *mockProductService) GetAllProducts(ctx context.Context, limit, offset int, search, sortBy, sortDir, category string, storeID *int, isActive *bool, maxStock *int, status string, supplierID *int) ([]Product, int, error) {
@@ -67,16 +67,31 @@ func (m *mockProductService) GetAllWarehouses(ctx context.Context) ([]Warehouse,
 	}
 	return []Warehouse{}, nil
 }
-func (m *mockProductService) GetActiveProductOptions(ctx context.Context) ([]ProductOption, error) {
+func (m *mockProductService) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	if m.getProductOptionsFn != nil {
 		return m.getProductOptionsFn(ctx)
 	}
-	return []ProductOption{}, nil
+	return []Option{}, nil
 }
 
-var _ ProductService = (*mockProductService)(nil)
+func (m *mockProductService) GetProductBySKU(ctx context.Context, sku string, storeID int) (*Product, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, 0, storeID)
+	}
+	return nil, nil
+}
 
-func setupMockProductRouter(svc ProductService) *gin.Engine {
+func (m *mockProductService) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error) {
+	return nil, nil
+}
+
+func (m *mockProductService) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
+	return nil, nil
+}
+
+var _ Service = (*mockProductService)(nil)
+
+func setupMockProductRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -619,8 +634,8 @@ func TestMockHandler_ListWarehouses(t *testing.T) {
 func TestMockHandler_ListProductOptions(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockProductService{
-			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
-				return []ProductOption{{ID: 1, SKU: "SKU-1", Name: "Apple"}}, nil
+			getProductOptionsFn: func(ctx context.Context) ([]Option, error) {
+				return []Option{{ID: 1, SKU: "SKU-1", Name: "Apple"}}, nil
 			},
 		}
 		r := setupMockProductRouter(svc)
@@ -632,7 +647,7 @@ func TestMockHandler_ListProductOptions(t *testing.T) {
 
 	t.Run("nil becomes empty array", func(t *testing.T) {
 		svc := &mockProductService{
-			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
+			getProductOptionsFn: func(ctx context.Context) ([]Option, error) {
 				return nil, nil
 			},
 		}
@@ -645,7 +660,7 @@ func TestMockHandler_ListProductOptions(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockProductService{
-			getProductOptionsFn: func(ctx context.Context) ([]ProductOption, error) {
+			getProductOptionsFn: func(ctx context.Context) ([]Option, error) {
 				return nil, errors.New("db error")
 			},
 		}

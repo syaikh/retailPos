@@ -143,7 +143,7 @@ func TestRepository_BulkUpsert_Empty(t *testing.T) {
 
 func TestRepository_BulkUpsert_NameRequired(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsert(context.Background(), []BrandImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Name: "", IsActive: true},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -456,7 +456,7 @@ func TestRepository_BulkUpsert_Success(t *testing.T) {
 	).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []BrandImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Name: "New", Description: "new", IsActive: true},
 		{Row: 2, Name: "Existing", Description: "upd", IsActive: false},
 	})
@@ -473,7 +473,7 @@ func TestRepository_BulkUpsert_DBError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO brands").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("db down"))
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []BrandImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Name: "Brand", IsActive: true},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -496,7 +496,7 @@ func TestRepository_BulkUpsert_WithCache(t *testing.T) {
 	rows := pgxmock.NewRows([]string{"is_insert"}).AddRow(true)
 	mock.ExpectQuery("INSERT INTO brands").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
 
-	result := repo.BulkUpsert(context.Background(), []BrandImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Name: "New", IsActive: true},
 	})
 	assert.Equal(t, 1, result.Inserted)
@@ -518,7 +518,7 @@ func TestRepository_BulkUpsert_ScanError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO brands").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []BrandImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Name: "Brand", IsActive: true},
 	})
 	assert.Equal(t, 0, result.Inserted)

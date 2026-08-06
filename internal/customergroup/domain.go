@@ -11,20 +11,20 @@ type CustomerGroup struct {
 	UpdatedAt     string `json:"updated_at,omitempty"`
 }
 
-type CustomerGroupCreateRequest struct {
+type CreateRequest struct {
 	Name        string `json:"name" binding:"required,max=100"`
 	Description string `json:"description"`
 	Color       string `json:"color"`
 }
 
-type CustomerGroupUpdateRequest struct {
+type UpdateRequest struct {
 	Name        *string `json:"name" binding:"omitempty,max=100"`
 	Description *string `json:"description"`
 	IsActive    *bool   `json:"is_active"`
 	Color       *string `json:"color"`
 }
 
-type CustomerGroupImportRow struct {
+type ImportRow struct {
 	Row         int
 	Name        string
 	Description string

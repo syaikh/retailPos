@@ -19,8 +19,8 @@ type mockCategoryService struct {
 	listFn    func(ctx context.Context) ([]Category, error)
 	getByIDFn func(ctx context.Context, id int) (*Category, error)
 	getAllFn  func(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
-	createFn  func(ctx context.Context, req *CategoryCreateRequest) (*Category, error)
-	updateFn  func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error)
+	createFn  func(ctx context.Context, req *CreateRequest) (*Category, error)
+	updateFn  func(ctx context.Context, id int, req *UpdateRequest) (*Category, error)
 	deleteFn  func(ctx context.Context, id int) error
 }
 
@@ -33,19 +33,25 @@ func (m *mockCategoryService) GetCategoryByID(ctx context.Context, id int) (*Cat
 func (m *mockCategoryService) GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error) {
 	return m.getAllFn(ctx, limit, offset, search)
 }
-func (m *mockCategoryService) CreateCategory(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
+func (m *mockCategoryService) CreateCategory(ctx context.Context, req *CreateRequest) (*Category, error) {
 	return m.createFn(ctx, req)
 }
-func (m *mockCategoryService) UpdateCategory(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+func (m *mockCategoryService) UpdateCategory(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 	return m.updateFn(ctx, id, req)
 }
 func (m *mockCategoryService) DeleteCategory(ctx context.Context, id int) error {
 	return m.deleteFn(ctx, id)
 }
+func (m *mockCategoryService) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
+	return false, nil
+}
+func (m *mockCategoryService) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
+	return false, nil
+}
 
-var _ CategoryService = (*mockCategoryService)(nil)
+var _ Service = (*mockCategoryService)(nil)
 
-func setupMockRouter(svc CategoryService) *gin.Engine {
+func setupMockRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -170,7 +176,7 @@ func TestMockHandler_ListCategoriesManagement(t *testing.T) {
 func TestMockHandler_CreateCategory(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := &mockCategoryService{
-			createFn: func(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*Category, error) {
 				assert.Equal(t, "New Category", req.Name)
 				return &Category{ID: 10, Name: "New Category", Slug: "new-category"}, nil
 			},
@@ -199,7 +205,7 @@ func TestMockHandler_CreateCategory(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		svc := &mockCategoryService{
-			createFn: func(ctx context.Context, req *CategoryCreateRequest) (*Category, error) {
+			createFn: func(ctx context.Context, req *CreateRequest) (*Category, error) {
 				return nil, errors.New("duplicate slug")
 			},
 		}
@@ -219,7 +225,7 @@ func TestMockHandler_UpdateCategory(t *testing.T) {
 			getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 				return &Category{ID: 1, Name: "Old"}, nil
 			},
-			updateFn: func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 				assert.Equal(t, 1, id)
 				return &Category{ID: 1, Name: req.Name}, nil
 			},
@@ -261,7 +267,7 @@ func TestMockHandler_UpdateCategory(t *testing.T) {
 			getByIDFn: func(ctx context.Context, id int) (*Category, error) {
 				return &Category{ID: 1}, nil
 			},
-			updateFn: func(ctx context.Context, id int, req *CategoryUpdateRequest) (*Category, error) {
+			updateFn: func(ctx context.Context, id int, req *UpdateRequest) (*Category, error) {
 				return nil, errors.New("db error")
 			},
 		}

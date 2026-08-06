@@ -18,10 +18,10 @@ import (
 
 type Handler struct {
 	svc      *Service
-	auditSvc audit.AuditCreator
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc *Service, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc *Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -472,7 +472,7 @@ func (h *Handler) writeAudit(c *gin.Context, action string, entityID int, descri
 		return
 	}
 	ctx := c.Request.Context()
-	_ = h.auditSvc.CreateAuditLog(ctx, &audit.AuditLog{
+	_ = h.auditSvc.CreateAuditLog(ctx, &audit.Log{
 		UserID:      middleware.UserIDFromContext(ctx),
 		Username:    middleware.UsernameFromContext(ctx),
 		Role:        middleware.RoleFromContext(ctx),

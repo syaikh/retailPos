@@ -20,7 +20,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type ShiftService interface {
+type Service interface {
 	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
 	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
 	CloseAll(ctx context.Context, userID int) ([]int, error)
@@ -33,11 +33,11 @@ type ShiftService interface {
 }
 
 type Handler struct {
-	svc      ShiftService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc ShiftService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -91,7 +91,7 @@ func (h *Handler) OpenShift(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -138,7 +138,7 @@ func (h *Handler) CloseShift(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -179,7 +179,7 @@ func (h *Handler) CloseAll(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -378,7 +378,7 @@ func (h *Handler) ExportShifts(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -437,7 +437,7 @@ func (h *Handler) ReviewShift(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -479,7 +479,7 @@ func (h *Handler) AuditShift(c *gin.Context) {
 	offBy := req.ActualBalance - expected
 
 	if h.auditSvc != nil {
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      middleware.UserIDFromContext(c.Request.Context()),
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),

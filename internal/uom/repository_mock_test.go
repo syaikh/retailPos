@@ -124,7 +124,7 @@ func TestRepository_BulkUpsert_Empty(t *testing.T) {
 
 func TestRepository_BulkUpsert_CodeRequired(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsert(context.Background(), []UOMImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Code: "", Name: "test"},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -133,7 +133,7 @@ func TestRepository_BulkUpsert_CodeRequired(t *testing.T) {
 
 func TestRepository_BulkUpsert_NameRequired(t *testing.T) {
 	repo := NewRepository(nil)
-	result := repo.BulkUpsert(context.Background(), []UOMImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Code: "KG", Name: ""},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -457,7 +457,7 @@ func TestRepository_BulkUpsert_Success(t *testing.T) {
 	).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []UOMImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Code: "L", Name: "Liter", IsActive: true},
 		{Row: 2, Code: "KG", Name: "Kilogram", IsActive: true},
 	})
@@ -474,7 +474,7 @@ func TestRepository_BulkUpsert_DBError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO units_of_measure").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("db down"))
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []UOMImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Code: "KG", Name: "Kilogram", IsActive: true},
 	})
 	assert.Len(t, result.Errors, 1)
@@ -491,7 +491,7 @@ func TestRepository_BulkUpsert_ScanError(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO units_of_measure").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
-	result := repo.BulkUpsert(context.Background(), []UOMImportRow{
+	result := repo.BulkUpsert(context.Background(), []ImportRow{
 		{Row: 1, Code: "KG", Name: "Kilogram", IsActive: true},
 	})
 	assert.Equal(t, 0, result.Inserted)

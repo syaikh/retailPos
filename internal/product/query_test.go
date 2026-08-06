@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seedTestProduct(t *testing.T, repo *Repository, ctx context.Context, p *Product) {
+func seedTestProduct(ctx context.Context, repo *Repository, t *testing.T, p *Product) {
 	t.Helper()
 	err := repo.CreateProduct(ctx, p)
 	require.NoError(t, err)
 	require.Greater(t, p.ID, 0)
 }
 
-func createTestCategory(t *testing.T, ctx context.Context, name string) int {
+func createTestCategory(ctx context.Context, t *testing.T, name string) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `INSERT INTO categories (name, slug, is_active) VALUES ($1, $1, true) RETURNING id`, name).Scan(&id)
@@ -33,19 +33,19 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 	skuD := uniqueSKU("QF-SEARCH-D")
 	barcodeD := uniqueSKU("BC-SEARCH-D")
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuA, Name: "Alpha Gadget", Price: 10000, Cost: 5000,
 		Stock: 10, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuB, Name: "Beta Gadget", Price: 20000, Cost: 10000,
 		Stock: 5, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuC, Name: "Omega Widget", Price: 30000, Cost: 15000,
 		Stock: 3, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuD, Name: "Delta Barcode", Price: 40000, Cost: 20000,
 		Stock: 7, Status: "active", Barcode: &barcodeD,
 	})
@@ -109,18 +109,18 @@ func TestGetAllProducts_CategoryFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	catID1 := createTestCategory(t, ctx, uniqueSKU("QF-Cat-Filter-1"))
-	catID2 := createTestCategory(t, ctx, uniqueSKU("QF-Cat-Filter-2"))
+	catID1 := createTestCategory(ctx, t, uniqueSKU("QF-Cat-Filter-1"))
+	catID2 := createTestCategory(ctx, t, uniqueSKU("QF-Cat-Filter-2"))
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-CAT-A"), Name: "CatFilterA", CategoryID: &catID1,
 		Price: 1000, Cost: 500, Stock: 10, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-CAT-B"), Name: "CatFilterB", CategoryID: &catID2,
 		Price: 2000, Cost: 1000, Stock: 5, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-CAT-C"), Name: "CatFilterC", CategoryID: &catID1,
 		Price: 3000, Cost: 1500, Stock: 7, Status: "active",
 	})
@@ -151,10 +151,10 @@ func TestGetAllProducts_StatusFilter(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-STATUS-A"), Name: "StatusActive", Price: 1000, Cost: 500, Stock: 10, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-STATUS-I"), Name: "StatusInactive", Price: 2000, Cost: 1000, Stock: 5, Status: "inactive",
 	})
 
@@ -184,10 +184,10 @@ func TestGetAllProducts_MaxStockFilter(t *testing.T) {
 	skuA := uniqueSKU("QF-STOCK-A")
 	skuB := uniqueSKU("QF-STOCK-B")
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuA, Name: "StockFilterA", Price: 1000, Cost: 500, Stock: 1, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuB, Name: "StockFilterB", Price: 2000, Cost: 1000, Stock: 9999, Status: "active",
 	})
 
@@ -212,7 +212,7 @@ func TestGetAllProducts_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		seedTestProduct(t, repo, ctx, &Product{
+		seedTestProduct(ctx, repo, t, &Product{
 			SKU: uniqueSKU("QF-PAGE"), Name: "PageTest",
 			Price: 1000 * (i + 1), Cost: 500 * (i + 1), Stock: 10, Status: "active",
 		})
@@ -242,10 +242,10 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-SORT-1"), Name: "Zebra Item", Price: 5000, Cost: 2500, Stock: 10, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-SORT-2"), Name: "Apple Item", Price: 3000, Cost: 1500, Stock: 20, Status: "active",
 	})
 
@@ -278,19 +278,19 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	catID := createTestCategory(t, ctx, uniqueSKU("QF-Combined-Cat"))
+	catID := createTestCategory(ctx, t, uniqueSKU("QF-Combined-Cat"))
 	skuA := uniqueSKU("QF-COMB-A")
 	skuB := uniqueSKU("QF-COMB-B")
 
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuA, Name: "Combo Alpha", CategoryID: &catID,
 		Price: 5000, Cost: 2500, Stock: 3, Status: "active",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: skuB, Name: "Combo Beta", CategoryID: &catID,
 		Price: 5000, Cost: 2500, Stock: 50, Status: "inactive",
 	})
-	seedTestProduct(t, repo, ctx, &Product{
+	seedTestProduct(ctx, repo, t, &Product{
 		SKU: uniqueSKU("QF-COMB-C"), Name: "Combo Gamma",
 		Price: 5000, Cost: 2500, Stock: 3, Status: "active",
 	})

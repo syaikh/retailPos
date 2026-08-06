@@ -65,7 +65,7 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 
 // insertRegressionProduct creates a product with a distinct cost so tests can
 // assert the cost field is either present or fully absent.
-func insertRegressionProduct(t *testing.T, ctx context.Context, sku, name string, price, cost, stock int) int {
+func insertRegressionProduct(ctx context.Context, t *testing.T, sku, name string, price, cost, stock int) int {
 	t.Helper()
 	var id int
 	err := dbPool.QueryRow(ctx, `
@@ -83,13 +83,13 @@ func insertRegressionProduct(t *testing.T, ctx context.Context, sku, name string
 }
 
 // createRegressionSale inserts a completed sale whose item carries a real cost.
-func createRegressionSale(t *testing.T, ctx context.Context, repo *Repository, invoice string, prodID, qty, price, cost int) *Sale {
+func createRegressionSale(ctx context.Context, t *testing.T, repo *Repository, invoice string, prodID, qty, price, cost int) *Sale {
 	t.Helper()
 	tx, err := repo.BeginTx(ctx)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	cashierID := insertTestCashier(t, ctx)
+	cashierID := insertTestCashier(ctx, t)
 	sale := &Sale{
 		InvoiceNumber: invoice,
 		CashierID:     cashierID,
@@ -100,7 +100,7 @@ func createRegressionSale(t *testing.T, ctx context.Context, repo *Repository, i
 		PaymentMethod: "CASH",
 		Status:        "completed",
 	}
-	items := []SaleItem{{
+	items := []Item{{
 		ProductID: prodID,
 		Name:      "Regression Sale Product",
 		Quantity:  qty,
@@ -146,8 +146,8 @@ func TestRegression_SaleDetail_CostVisibility(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRepository(dbPool)
 
-	prodID := insertRegressionProduct(t, ctx, "REG-SALE-PROD", "Regression Sale Product", 10000, 6000, 10)
-	sale := createRegressionSale(t, ctx, repo, "INV-REG-SALE-001", prodID, 2, 10000, 6000)
+	prodID := insertRegressionProduct(ctx, t, "REG-SALE-PROD", "Regression Sale Product", 10000, 6000, 10)
+	sale := createRegressionSale(ctx, t, repo, "INV-REG-SALE-001", prodID, 2, 10000, 6000)
 
 	cases := []struct {
 		name   string
@@ -195,7 +195,7 @@ func TestRegression_Cart_CostVisibility(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
 
-	prodID := insertRegressionProduct(t, ctx, "REG-CART-PROD", "Regression Cart Product", 10000, 5000, 50)
+	prodID := insertRegressionProduct(ctx, t, "REG-CART-PROD", "Regression Cart Product", 10000, 5000, 50)
 	createCartWithItem(t, setupSaleRouterWithPerms(t, []string{permissions.SaleCreate.String()}), prodID)
 
 	cases := []struct {
@@ -243,7 +243,7 @@ func TestRegression_HeldCarts_CostVisibility(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
 
-	prodID := insertRegressionProduct(t, ctx, "REG-HELD-PROD", "Regression Held Product", 10000, 5000, 50)
+	prodID := insertRegressionProduct(ctx, t, "REG-HELD-PROD", "Regression Held Product", 10000, 5000, 50)
 	r := setupSaleRouterWithPerms(t, []string{permissions.SaleCreate.String()})
 	cartID := createCartWithItem(t, r, prodID)
 

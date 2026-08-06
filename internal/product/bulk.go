@@ -21,7 +21,7 @@ func (r *Repository) BulkUpdateProductStatus(ctx context.Context, ids []int, sta
 	return err
 }
 
-func (r *Repository) BulkUpsertProduct(ctx context.Context, p ProductImportPayload) (inserted bool, err error) {
+func (r *Repository) BulkUpsertProduct(ctx context.Context, p ImportPayload) (inserted bool, err error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("begin transaction: %w", err)
@@ -112,7 +112,7 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ProductImportPaylo
 	return true, nil
 }
 
-func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductImportPayload) (int, error) {
+func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}
@@ -140,7 +140,7 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 	}
 	rows.Close()
 
-	var newPayloads []ProductImportPayload
+	var newPayloads []ImportPayload
 	for _, p := range payloads {
 		if _, exists := existingMap[p.SKU]; !exists {
 			newPayloads = append(newPayloads, p)
@@ -236,7 +236,7 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ProductI
 	return len(newIDs), nil
 }
 
-func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductImportPayload) (int, error) {
+func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ImportPayload) (int, error) {
 	if len(payloads) == 0 {
 		return 0, nil
 	}
@@ -266,7 +266,7 @@ func (r *Repository) BulkUpdateProducts(ctx context.Context, payloads []ProductI
 
 	type updateItem struct {
 		id      int
-		payload ProductImportPayload
+		payload ImportPayload
 	}
 	var updates []updateItem
 	for _, p := range payloads {

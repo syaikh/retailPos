@@ -46,7 +46,7 @@ func (a *adapter) MapToEntity(_ context.Context, _ importexportshared.ModuleSche
 	if v, ok := row["IsActive"]; ok {
 		isActive = parseBool(fmt.Sprintf("%v", v))
 	}
-	return CustomerImportRow{
+	return ImportRow{
 		Row:      rowNum,
 		Name:     name,
 		Phone:    phone,
@@ -67,9 +67,9 @@ type customerRepoAdapter struct {
 }
 
 func (r *customerRepoAdapter) Insert(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CustomerImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CustomerImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	storeID := extractStoreID(rows)
 	result := r.repo.BulkUpsertCustomers(ctx, rows, storeID)
@@ -80,9 +80,9 @@ func (r *customerRepoAdapter) Insert(ctx context.Context, entities []interface{}
 }
 
 func (r *customerRepoAdapter) Update(ctx context.Context, entities []interface{}) (int, error) {
-	rows := make([]CustomerImportRow, len(entities))
+	rows := make([]ImportRow, len(entities))
 	for i, e := range entities {
-		rows[i] = e.(CustomerImportRow)
+		rows[i] = e.(ImportRow)
 	}
 	storeID := extractStoreID(rows)
 	result := r.repo.BulkUpsertCustomers(ctx, rows, storeID)
@@ -92,7 +92,7 @@ func (r *customerRepoAdapter) Update(ctx context.Context, entities []interface{}
 	return result.Updated, nil
 }
 
-func extractStoreID(rows []CustomerImportRow) *int {
+func extractStoreID(rows []ImportRow) *int {
 	for _, r := range rows {
 		if r.StoreID != nil {
 			return r.StoreID

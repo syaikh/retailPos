@@ -32,7 +32,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 	tests := []struct {
 		name    string
 		row     map[string]interface{}
-		want    CustomerImportRow
+		want    ImportRow
 		wantErr bool
 	}{
 		{
@@ -46,7 +46,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Note":     "VIP customer",
 				"IsActive": "true",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      1,
 				Name:     "John Doe",
 				Phone:    "08123456789",
@@ -63,7 +63,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"_row": 2,
 				"Name": "Jane Smith",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      2,
 				Name:     "Jane Smith",
 				IsActive: true,
@@ -92,7 +92,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Name":  "DefaultActive",
 				"Phone": "081111111",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      5,
 				Name:     "DefaultActive",
 				Phone:    "081111111",
@@ -107,7 +107,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Name":     "InactiveGuy",
 				"IsActive": "false",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      6,
 				Name:     "InactiveGuy",
 				IsActive: false,
@@ -121,7 +121,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Name":     "YesMan",
 				"IsActive": "yes",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      7,
 				Name:     "YesMan",
 				IsActive: true,
@@ -135,7 +135,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Name":     "NumberOne",
 				"IsActive": "1",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      8,
 				Name:     "NumberOne",
 				IsActive: true,
@@ -149,7 +149,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"Name":     "Maybe",
 				"IsActive": "maybe",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      9,
 				Name:     "Maybe",
 				IsActive: false,
@@ -161,7 +161,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 			row: map[string]interface{}{
 				"Name": "ZeroRow",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      0,
 				Name:     "ZeroRow",
 				IsActive: true,
@@ -175,7 +175,7 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				"_store_id": 42,
 				"Name":      "StoreOwner",
 			},
-			want: CustomerImportRow{
+			want: ImportRow{
 				Row:      10,
 				Name:     "StoreOwner",
 				IsActive: true,
@@ -195,8 +195,8 @@ func TestCustomerAdapter_MapToEntity(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			importRow, ok := got.(CustomerImportRow)
-			require.True(t, ok, "expected CustomerImportRow")
+			importRow, ok := got.(ImportRow)
+			require.True(t, ok, "expected ImportRow")
 			assert.Equal(t, tt.want, importRow)
 		})
 	}
@@ -238,8 +238,8 @@ func TestCustomerAdapter_Insert_Success(t *testing.T) {
 	ra := adapter.Repository()
 
 	rows := []interface{}{
-		CustomerImportRow{Row: 1, Name: "DB Insert 1", Phone: "0811111111", Email: "dbins1@test.com", IsActive: true},
-		CustomerImportRow{Row: 2, Name: "DB Insert 2", Phone: "0812222222", Email: "dbins2@test.com", IsActive: true},
+		ImportRow{Row: 1, Name: "DB Insert 1", Phone: "0811111111", Email: "dbins1@test.com", IsActive: true},
+		ImportRow{Row: 2, Name: "DB Insert 2", Phone: "0812222222", Email: "dbins2@test.com", IsActive: true},
 	}
 
 	count, err := ra.Insert(ctx, rows)
@@ -259,7 +259,7 @@ func TestCustomerAdapter_Insert_WithStoreID(t *testing.T) {
 
 	storeID := 1
 	rows := []interface{}{
-		CustomerImportRow{Row: 1, Name: "Store Cust", Phone: "0813333333", Email: "store@test.com", IsActive: true, StoreID: &storeID},
+		ImportRow{Row: 1, Name: "Store Cust", Phone: "0813333333", Email: "store@test.com", IsActive: true, StoreID: &storeID},
 	}
 
 	count, err := ra.Insert(ctx, rows)
@@ -279,7 +279,7 @@ func TestCustomerAdapter_Update_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := []interface{}{
-		CustomerImportRow{Row: 1, Name: "After Update", Phone: "0814444444", Email: "after@test.com", IsActive: true},
+		ImportRow{Row: 1, Name: "After Update", Phone: "0814444444", Email: "after@test.com", IsActive: true},
 	}
 
 	count, err := ra.Update(ctx, rows)

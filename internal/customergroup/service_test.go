@@ -71,7 +71,7 @@ func TestService_Create_Success(t *testing.T) {
 	ctx := context.Background()
 
 	name := "SvcCreate-" + t.Name()
-	result, err := svc.Create(ctx, CustomerGroupCreateRequest{Name: name, Description: "test"})
+	result, err := svc.Create(ctx, CreateRequest{Name: name, Description: "test"})
 	require.NoError(t, err)
 	assert.Equal(t, name, result.Name)
 	assert.Greater(t, result.ID, 0)
@@ -84,7 +84,7 @@ func TestService_Create_EmptyName(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, CustomerGroupCreateRequest{Name: "  ", Description: "test"})
+	_, err := svc.Create(ctx, CreateRequest{Name: "  ", Description: "test"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 }
@@ -96,11 +96,11 @@ func TestService_Create_DuplicateName(t *testing.T) {
 	ctx := context.Background()
 
 	name := "SvcDup-" + t.Name()
-	result, err := svc.Create(ctx, CustomerGroupCreateRequest{Name: name})
+	result, err := svc.Create(ctx, CreateRequest{Name: name})
 	require.NoError(t, err)
 	defer func() { _ = repo.Delete(ctx, result.ID) }()
 
-	_, err = svc.Create(ctx, CustomerGroupCreateRequest{Name: name})
+	_, err = svc.Create(ctx, CreateRequest{Name: name})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -116,7 +116,7 @@ func TestService_Update_Success(t *testing.T) {
 	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	newName := "SvcUpd-Updated-" + t.Name()
-	updated, err := svc.Update(ctx, cg.ID, CustomerGroupUpdateRequest{Name: &newName})
+	updated, err := svc.Update(ctx, cg.ID, UpdateRequest{Name: &newName})
 	require.NoError(t, err)
 	assert.Equal(t, newName, updated.Name)
 }
@@ -128,7 +128,7 @@ func TestService_Update_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	name := "nope"
-	_, err := svc.Update(ctx, 999999, CustomerGroupUpdateRequest{Name: &name})
+	_, err := svc.Update(ctx, 999999, UpdateRequest{Name: &name})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
@@ -144,7 +144,7 @@ func TestService_Update_EmptyName(t *testing.T) {
 	defer func() { _ = repo.Delete(ctx, cg.ID) }()
 
 	empty := "  "
-	_, err := svc.Update(ctx, cg.ID, CustomerGroupUpdateRequest{Name: &empty})
+	_, err := svc.Update(ctx, cg.ID, UpdateRequest{Name: &empty})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -163,7 +163,7 @@ func TestService_Update_DuplicateName(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, cg2))
 	defer func() { _ = repo.Delete(ctx, cg2.ID) }()
 
-	_, err := svc.Update(ctx, cg1.ID, CustomerGroupUpdateRequest{Name: &cg2.Name})
+	_, err := svc.Update(ctx, cg1.ID, UpdateRequest{Name: &cg2.Name})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }

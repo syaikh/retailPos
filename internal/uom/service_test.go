@@ -14,7 +14,7 @@ func TestUOMService_ReadOperations(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	uom, err := svc.Create(ctx, &UOMCreateRequest{
+	uom, err := svc.Create(ctx, &CreateRequest{
 		Code: "SVCREAD",
 		Name: "Svc Read UOM",
 	})
@@ -46,7 +46,7 @@ func TestUOMService_CreateWithIsActiveFalse(t *testing.T) {
 	ctx := context.Background()
 
 	isActive := false
-	uom, err := svc.Create(ctx, &UOMCreateRequest{
+	uom, err := svc.Create(ctx, &CreateRequest{
 		Code:     "SVCINACT",
 		Name:     "Svc Inactive UOM",
 		IsActive: &isActive,
@@ -61,7 +61,7 @@ func TestUOMService_UpdateNotFound(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Update(ctx, -1, &UOMUpdateRequest{
+	_, err := svc.Update(ctx, -1, &UpdateRequest{
 		Code: "NONEXIST",
 		Name: "NonExistent",
 	})

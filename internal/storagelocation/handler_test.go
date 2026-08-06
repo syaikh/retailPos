@@ -277,11 +277,11 @@ func TestHandler_ErrorBranches(t *testing.T) {
 }
 
 type mockAuditCreator struct {
-	createFn func(ctx context.Context, log *audit.AuditLog) error
+	createFn func(ctx context.Context, log *audit.Log) error
 	calls    int
 }
 
-func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAuditCreator) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	m.calls++
 	if m.createFn != nil {
 		return m.createFn(ctx, log)

@@ -15,7 +15,7 @@ func TestCategoryService_ReadOperations(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
+	cat, err := svc.CreateCategory(ctx, &CreateRequest{
 		Name: "SvcReadTest-" + t.Name(),
 	})
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestCategoryService_DeleteWithActiveProductsFails(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	cat, err := svc.CreateCategory(ctx, &CategoryCreateRequest{
+	cat, err := svc.CreateCategory(ctx, &CreateRequest{
 		Name: "SvcCantDel-" + t.Name(),
 	})
 	require.NoError(t, err)

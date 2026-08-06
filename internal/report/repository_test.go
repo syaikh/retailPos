@@ -22,7 +22,7 @@ var dbPool *pgxpool.Pool
 
 var productCounter atomic.Int32
 
-func refreshMaterializedViews(t *testing.T, ctx context.Context) {
+func refreshMaterializedViews(ctx context.Context, t *testing.T) {
 	t.Helper()
 	_, err := dbPool.Exec(ctx, "SELECT refresh_sales_mv()")
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func uniqueSKU(prefix string) string {
 	return fmt.Sprintf("%s-RPT-%d-%d", prefix, time.Now().UnixNano(), n)
 }
 
-func seedSale(t *testing.T, ctx context.Context) (saleID int, productID int, saleAmount int, saleQty int) {
+func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, saleAmount int, saleQty int) {
 	t.Helper()
 	userSKU := uniqueSKU("USR")
 	var cashierID int
@@ -116,8 +116,8 @@ func TestReportRepository_PeriodComparison_SeededData(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed a sale in the current period first
-	_, _, amount, _ := seedSale(t, ctx)
-	refreshMaterializedViews(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
+	refreshMaterializedViews(ctx, t)
 
 	now := time.Now()
 	start := now.AddDate(0, -1, 0)
@@ -186,7 +186,7 @@ func TestReportRepository_PeriodComparison_PreviousHasAnyData(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	refreshMaterializedViews(t, ctx)
+	refreshMaterializedViews(ctx, t)
 
 	result, err := repo.GetPeriodComparison(ctx, start, now, prevStart, start, nil)
 	require.NoError(t, err)
@@ -200,8 +200,8 @@ func TestReportRepository_DualChartData_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(t, ctx)
-	refreshMaterializedViews(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
+	refreshMaterializedViews(ctx, t)
 
 	now := time.Now()
 	currentStart := now.AddDate(0, 0, -7)
@@ -234,7 +234,7 @@ func TestReportRepository_LiveDashboardStats_Seeded(t *testing.T) {
 	require.NoError(t, err)
 
 	// Seed a sale
-	_, _, amount, _ := seedSale(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
 
 	afterRev, sales, products, lowStock, err := repo.GetLiveDashboardStats(ctx, nil)
 	require.NoError(t, err)
@@ -258,8 +258,8 @@ func TestReportRepository_HourlySales_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(t, ctx)
-	refreshMaterializedViews(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
+	refreshMaterializedViews(ctx, t)
 	date := time.Now()
 
 	result, err := repo.GetHourlySales(ctx, date, nil)
@@ -281,8 +281,8 @@ func TestReportRepository_DailySales_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(t, ctx)
-	refreshMaterializedViews(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
+	refreshMaterializedViews(ctx, t)
 	start := time.Now().AddDate(0, -1, 0)
 	end := time.Now().Add(24 * time.Hour)
 
@@ -305,7 +305,7 @@ func TestReportRepository_SalesWeeklyReport_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
 	start := time.Now().AddDate(0, -3, 0)
 	end := time.Now()
 
@@ -328,7 +328,7 @@ func TestReportRepository_SalesMonthlyReport_Seeded(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
 
-	_, _, amount, _ := seedSale(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
 	start := time.Now().AddDate(0, -6, 0)
 	end := time.Now()
 
@@ -456,7 +456,7 @@ func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	refreshMaterializedViews(t, ctx)
+	refreshMaterializedViews(ctx, t)
 
 	now := time.Now()
 	start := now.AddDate(0, -1, 0)
@@ -551,7 +551,7 @@ func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed a sale first
-	_, _, amount, _ := seedSale(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
 
 	start := time.Now().AddDate(0, -1, 0)
 	end := time.Now()
@@ -614,7 +614,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 	listener := repo.NewSaleCreatedListener()
 	ctx := context.Background()
 
-	_, _, _, _ = seedSale(t, ctx)
+	_, _, _, _ = seedSale(ctx, t)
 
 	err := listener.HandleEvent(ctx, eventbus.Event{
 		Type:    eventbus.SaleCreated,
@@ -629,7 +629,7 @@ func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed a sale
-	_, _, amount, _ := seedSale(t, ctx)
+	_, _, amount, _ := seedSale(ctx, t)
 
 	stats, err := repo.GetDashboardStats(ctx, nil, shared.JakartaLocation())
 	require.NoError(t, err)

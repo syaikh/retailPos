@@ -55,7 +55,7 @@ func (r *Repository) GetNextDONumber(ctx context.Context) (string, error) {
 	return fmt.Sprintf("DO-%d-%06d", year, seq), nil
 }
 
-func (r *Repository) CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (r *Repository) CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Order, items []OrderItem) error {
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRow(ctx, `
 		INSERT INTO purchase_orders (
@@ -98,7 +98,7 @@ func (r *Repository) CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Pur
 	return nil
 }
 
-func (r *Repository) UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *PurchaseOrder, items []PurchaseOrderItem) error {
+func (r *Repository) UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Order, items []OrderItem) error {
 	_, err := tx.Exec(ctx, `
 		UPDATE purchase_orders
 		SET supplier_id = $2, expected_date = NULLIF($3, '')::date, payment_term = NULLIF($4, ''), delivery_address = NULLIF($5, ''),
@@ -268,8 +268,8 @@ func (r *Repository) CreateGoodsReceipt(ctx context.Context, tx pgx.Tx, gr *Good
 	return nil
 }
 
-func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *int) (*PurchaseOrder, error) {
-	var po PurchaseOrder
+func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *int) (*Order, error) {
+	var po Order
 	var warehouseID, confirmedBy, cancelledBy, approvedBy sql.NullInt64
 	var expectedDate sql.NullTime
 	var confirmedAt, cancelledAt, approvedAt sql.NullTime
@@ -378,7 +378,7 @@ func (r *Repository) GetPurchaseOrderByID(ctx context.Context, id int, storeID *
 	return &po, nil
 }
 
-func (r *Repository) getPOItems(ctx context.Context, poID int) ([]PurchaseOrderItem, error) {
+func (r *Repository) getPOItems(ctx context.Context, poID int) ([]OrderItem, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, purchase_order_id, product_id, qty_ordered, qty_received,
 		       unit_cost, discount_amount, subtotal, product_name, sku, barcode,
@@ -392,9 +392,9 @@ func (r *Repository) getPOItems(ctx context.Context, poID int) ([]PurchaseOrderI
 	}
 	defer rows.Close()
 
-	var items []PurchaseOrderItem
+	var items []OrderItem
 	for rows.Next() {
-		var item PurchaseOrderItem
+		var item OrderItem
 		var uomID sql.NullInt64
 		var sku, barcode, notes sql.NullString
 		var createdAt, updatedAt time.Time
@@ -427,7 +427,7 @@ func (r *Repository) getPOItems(ctx context.Context, poID int) ([]PurchaseOrderI
 	return items, nil
 }
 
-func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int, supplierIDs []int) ([]PurchaseOrder, int, error) {
+func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int, supplierIDs []int) ([]Order, int, error) {
 	qb := shared.NewQueryBuilder()
 	if search != "" {
 		qb.AddClause(" AND (po.po_number ILIKE $%[1]d OR po.supplier_id = ANY($%[2]d))", "%"+search+"%", supplierIDs)
@@ -489,9 +489,9 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 	}
 	defer rows.Close()
 
-	var pos []PurchaseOrder
+	var pos []Order
 	for rows.Next() {
-		var po PurchaseOrder
+		var po Order
 		var confirmedBy, cancelledBy sql.NullInt64
 		var confirmedAt, cancelledAt, expectedDate sql.NullTime
 		var paymentTerm sql.NullString
@@ -555,7 +555,7 @@ func (r *Repository) GetAllPurchaseOrders(ctx context.Context, limit, offset int
 	return pos, total, nil
 }
 
-func (r *Repository) batchGetPOItems(ctx context.Context, poIDs []int) (map[int][]PurchaseOrderItem, error) {
+func (r *Repository) batchGetPOItems(ctx context.Context, poIDs []int) (map[int][]OrderItem, error) {
 	if len(poIDs) == 0 {
 		return nil, nil
 	}
@@ -580,9 +580,9 @@ func (r *Repository) batchGetPOItems(ctx context.Context, poIDs []int) (map[int]
 	}
 	defer rows.Close()
 
-	itemsMap := make(map[int][]PurchaseOrderItem)
+	itemsMap := make(map[int][]OrderItem)
 	for rows.Next() {
-		var item PurchaseOrderItem
+		var item OrderItem
 		var uomID sql.NullInt64
 		var sku, barcode, notes sql.NullString
 		var createdAt, updatedAt time.Time

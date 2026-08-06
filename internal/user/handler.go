@@ -32,7 +32,7 @@ func auditContextFromGin(c *gin.Context) (userID *int, username, role string) {
 	return
 }
 
-type UserService interface {
+type Service interface {
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
 	GetAllUsers(ctx context.Context, limit, offset int, search, sortBy, sortDir string, roleID *int, isActive *bool) ([]User, int, error)
@@ -50,15 +50,16 @@ type UserService interface {
 	DeleteRole(ctx context.Context, id int) error
 	CountUsersByRole(ctx context.Context, roleID int) (int, error)
 	GetAllPermissions(ctx context.Context) ([]Permission, error)
+	GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error)
 	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
 }
 
 type Handler struct {
-	svc      UserService
-	auditSvc audit.AuditCreator
+	svc      Service
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc UserService, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, auditSvc: auditSvc}
 }
 
@@ -194,7 +195,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -309,7 +310,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -354,7 +355,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted user #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -442,7 +443,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -488,7 +489,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		actorID, actorUsername, actorRole := auditContextFromGin(c)
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,
@@ -563,7 +564,7 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted role #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      actorID,
 			Username:    actorUsername,
 			Role:        actorRole,

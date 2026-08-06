@@ -91,8 +91,8 @@ func TestHandler_GetSalesHistory(t *testing.T) {
 	t.Run("returns sales with valid params", func(t *testing.T) {
 		repo := NewRepository(dbPool)
 		ctx := context.Background()
-		prodID := insertTestProduct(t, ctx, "HDL-LIST-PROD", "Handler List Product", 10000, 50)
-		_ = createAndCommitSale(t, ctx, repo, "INV-HDL-LIST-001", prodID, 2, 10000, 20000, 20000, 0)
+		prodID := insertTestProduct(ctx, t, "HDL-LIST-PROD", "Handler List Product", 10000, 50)
+		_ = createAndCommitSale(ctx, t, repo, "INV-HDL-LIST-001", prodID, 2, 10000, 20000, 20000, 0)
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/sales?limit=10", nil)
@@ -132,7 +132,7 @@ func TestHandler_CreateSale(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		ctx := context.Background()
-		prodID := insertTestProduct(t, ctx, "HDL-CREATE-PROD", "Handler Create Product", 15000, 100)
+		prodID := insertTestProduct(ctx, t, "HDL-CREATE-PROD", "Handler Create Product", 15000, 100)
 
 		body := `{"invoice_number":"INV-HDL-CREATE-001","items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":2,"subtotal":30000}],"payment_method":"CASH"}`
 		w := httptest.NewRecorder()
@@ -154,7 +154,7 @@ func TestHandler_CreateSale(t *testing.T) {
 
 	t.Run("insufficient stock", func(t *testing.T) {
 		ctx := context.Background()
-		prodID := insertTestProduct(t, ctx, "HDL-LOW-STOCK", "Handler Low Stock", 5000, 1)
+		prodID := insertTestProduct(ctx, t, "HDL-LOW-STOCK", "Handler Low Stock", 5000, 1)
 
 		body := `{"invoice_number":"INV-HDL-LOW-001","items":[{"product_id":` + strconv.Itoa(prodID) + `,"quantity":10,"subtotal":50000}],"payment_method":"CASH"}`
 		w := httptest.NewRecorder()
@@ -187,7 +187,7 @@ func TestHandler_CreateSale(t *testing.T) {
 
 // insertOpenCartWithItem creates a server-side cart session with a single snapshot
 // item directly in the DB, returning the cart id.
-func insertOpenCartWithItem(t *testing.T, ctx context.Context, cashierID, prodID int, qty, unitPrice int) int {
+func insertOpenCartWithItem(ctx context.Context, t *testing.T, cashierID, prodID int, qty, unitPrice int) int {
 	t.Helper()
 	var cartID int
 	err := dbPool.QueryRow(ctx, `
@@ -211,11 +211,11 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 	r := setupSaleRouter()
 	ctx := context.Background()
 
-	prodID := insertTestProduct(t, ctx, "HDL-CART-CHECKOUT", "Cart Checkout Product", 10000, 100)
+	prodID := insertTestProduct(ctx, t, "HDL-CART-CHECKOUT", "Cart Checkout Product", 10000, 100)
 	cashierID := int(testCashierID)
 
 	t.Run("cart_session_id behaves like CheckoutCart", func(t *testing.T) {
-		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 2, 10000)
+		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 2, 10000)
 
 		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":20000}]}`
 		w := httptest.NewRecorder()
@@ -249,7 +249,7 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 	})
 
 	t.Run("cart_session_id falls back to legacy payment_method", func(t *testing.T) {
-		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 1, 10000)
+		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 1, 10000)
 
 		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payment_method":"CASH"}`
 		w := httptest.NewRecorder()
@@ -279,7 +279,7 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 	})
 
 	t.Run("cart_session_id with no payments returns 400", func(t *testing.T) {
-		cartID := insertOpenCartWithItem(t, ctx, cashierID, prodID, 1, 10000)
+		cartID := insertOpenCartWithItem(ctx, t, cashierID, prodID, 1, 10000)
 
 		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `}`
 		w := httptest.NewRecorder()
@@ -295,7 +295,7 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 		err := dbPool.QueryRow(ctx, `INSERT INTO users (username, email, password_hash, role_id) VALUES ('sale_handler_other', 'sale_handler_other@test.com', 'hash', 1) ON CONFLICT (username) DO UPDATE SET email = excluded.email RETURNING id`).Scan(&otherID)
 		require.NoError(t, err)
 
-		cartID := insertOpenCartWithItem(t, ctx, otherID, prodID, 1, 10000)
+		cartID := insertOpenCartWithItem(ctx, t, otherID, prodID, 1, 10000)
 
 		body := `{"cart_session_id":` + strconv.Itoa(cartID) + `,"payments":[{"payment_method_code":"CASH","amount":10000}]}`
 		w := httptest.NewRecorder()
@@ -343,8 +343,8 @@ func TestHandler_GetSaleByID(t *testing.T) {
 
 	repo := NewRepository(dbPool)
 	ctx := context.Background()
-	prodID := insertTestProduct(t, ctx, "HDL-GETBYID", "Handler ByID", 8000, 30)
-	sale := createAndCommitSale(t, ctx, repo, "INV-HDL-GETBYID-001", prodID, 3, 8000, 24000, 24000, 0)
+	prodID := insertTestProduct(ctx, t, "HDL-GETBYID", "Handler ByID", 8000, 30)
+	sale := createAndCommitSale(ctx, t, repo, "INV-HDL-GETBYID-001", prodID, 3, 8000, 24000, 24000, 0)
 
 	t.Run("found", func(t *testing.T) {
 		w := httptest.NewRecorder()

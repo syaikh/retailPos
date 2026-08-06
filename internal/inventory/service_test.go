@@ -29,8 +29,8 @@ func TestInventoryService_GetStockByProductID(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "SVC-GET-001")
-	insertTestStock(t, ctx, productID, 42)
+	productID := insertTestProduct(ctx, t, "SVC-GET-001")
+	insertTestStock(ctx, t, productID, 42)
 
 	stock, err := svc.GetStockByProductID(ctx, productID)
 	require.NoError(t, err)
@@ -48,9 +48,9 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("adjust and publish event", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "SVC-ADJ-001")
-		insertTestStock(t, ctx, productID, 50)
-		insertTestUser(t, ctx, 1)
+		productID := insertTestProduct(ctx, t, "SVC-ADJ-001")
+		insertTestStock(ctx, t, productID, 50)
+		insertTestUser(ctx, t, 1)
 
 		published := make(chan struct{}, 1)
 		bus.Subscribe(eventbus.NewListenerFunc(
@@ -76,8 +76,8 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 	})
 
 	t.Run("insufficient stock returns error", func(t *testing.T) {
-		productID := insertTestProduct(t, ctx, "SVC-ADJ-INSF-001")
-		insertTestStock(t, ctx, productID, 3)
+		productID := insertTestProduct(ctx, t, "SVC-ADJ-INSF-001")
+		insertTestStock(ctx, t, productID, 3)
 
 		err := svc.AdjustStock(ctx, productID, -10, 1, "overdraft")
 		assert.Error(t, err)
@@ -89,9 +89,9 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 
 	t.Run("event publish failure does not block adjust", func(t *testing.T) {
 		svcFailing := NewService(repo, &failingEventBus{})
-		productID := insertTestProduct(t, ctx, "SVC-ADJ-FAILPUB-001")
-		insertTestStock(t, ctx, productID, 20)
-		insertTestUser(t, ctx, 1)
+		productID := insertTestProduct(ctx, t, "SVC-ADJ-FAILPUB-001")
+		insertTestStock(ctx, t, productID, 20)
+		insertTestUser(ctx, t, 1)
 
 		err := svcFailing.AdjustStock(ctx, productID, 5, 1, "event fail test")
 		require.NoError(t, err)
@@ -129,11 +129,11 @@ func TestInventoryService_AdjustStockBatch(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	productA := insertTestProduct(t, ctx, "SVC-BATCH-A")
-	insertTestStock(t, ctx, productA, 100)
-	productB := insertTestProduct(t, ctx, "SVC-BATCH-B")
-	insertTestStock(t, ctx, productB, 200)
-	insertTestUser(t, ctx, 1)
+	productA := insertTestProduct(ctx, t, "SVC-BATCH-A")
+	insertTestStock(ctx, t, productA, 100)
+	productB := insertTestProduct(ctx, t, "SVC-BATCH-B")
+	insertTestStock(ctx, t, productB, 200)
+	insertTestUser(ctx, t, 1)
 
 	published := make(chan struct{}, 2)
 	bus.Subscribe(eventbus.NewListenerFunc(
@@ -198,16 +198,16 @@ func TestInventoryService_LocationDelegation(t *testing.T) {
 	svc := NewService(repo, bus)
 	ctx := context.Background()
 
-	productID := insertTestProduct(t, ctx, "SVC-LOC-001")
+	productID := insertTestProduct(ctx, t, "SVC-LOC-001")
 	var userID int
 	require.NoError(t, dbPool.QueryRow(ctx,
 		`INSERT INTO users (id, username, email, password_hash, role_id) VALUES (1, 'svc_loc', 'svc_loc@test.com', 'hash', 1) ON CONFLICT (id) DO NOTHING RETURNING id`).Scan(&userID))
 	if userID == 0 {
 		userID = 1
 	}
-	whID := createTestWarehouse(t, ctx, "SVC-WH")
-	locA := createTestLocation(t, ctx, "SVC-A", "Svc Rack A", &whID, nil, true)
-	locB := createTestLocation(t, ctx, "SVC-B", "Svc Rack B", &whID, nil, true)
+	whID := createTestWarehouse(ctx, t, "SVC-WH")
+	locA := createTestLocation(ctx, t, "SVC-A", "Svc Rack A", &whID, nil, true)
+	locB := createTestLocation(ctx, t, "SVC-B", "Svc Rack B", &whID, nil, true)
 
 	require.NoError(t, svc.SetLocationStock(ctx, productID, locA, 20, userID))
 	items, err := svc.ListLocationStock(ctx, productID, 0)

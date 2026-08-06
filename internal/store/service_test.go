@@ -116,7 +116,7 @@ func TestService_Create(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	st, err := svc.Create(ctx, StoreCreateRequest{
+	st, err := svc.Create(ctx, CreateRequest{
 		Name:    "Svc Create Store",
 		Address: "Svc Addr",
 		Phone:   "123",
@@ -134,7 +134,7 @@ func TestService_Create_EmptyName(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, StoreCreateRequest{Name: ""})
+	_, err := svc.Create(ctx, CreateRequest{Name: ""})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 }
@@ -145,7 +145,7 @@ func TestService_Create_WhitespaceName(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, StoreCreateRequest{Name: "   "})
+	_, err := svc.Create(ctx, CreateRequest{Name: "   "})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name is required")
 }
@@ -162,7 +162,7 @@ func TestService_Update(t *testing.T) {
 
 	newName := "Svc Updated"
 	newAddr := "New Addr"
-	updated, err := svc.Update(ctx, s.ID, StoreUpdateRequest{
+	updated, err := svc.Update(ctx, s.ID, UpdateRequest{
 		Name:    &newName,
 		Address: &newAddr,
 	})
@@ -178,7 +178,7 @@ func TestService_Update_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	newName := "nope"
-	_, err := svc.Update(ctx, 999999, StoreUpdateRequest{Name: &newName})
+	_, err := svc.Update(ctx, 999999, UpdateRequest{Name: &newName})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "store not found")
 }
@@ -193,7 +193,7 @@ func TestService_Update_EmptyName(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	emptyName := ""
-	_, err := svc.Update(ctx, s.ID, StoreUpdateRequest{Name: &emptyName})
+	_, err := svc.Update(ctx, s.ID, UpdateRequest{Name: &emptyName})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "name cannot be empty")
 }
@@ -236,12 +236,12 @@ func TestService_Update_IsActive(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	ff := false
-	updated, err := svc.Update(ctx, s.ID, StoreUpdateRequest{IsActive: &ff})
+	updated, err := svc.Update(ctx, s.ID, UpdateRequest{IsActive: &ff})
 	require.NoError(t, err)
 	assert.False(t, updated.IsActive)
 
 	tt := true
-	updated2, err := svc.Update(ctx, s.ID, StoreUpdateRequest{IsActive: &tt})
+	updated2, err := svc.Update(ctx, s.ID, UpdateRequest{IsActive: &tt})
 	require.NoError(t, err)
 	assert.True(t, updated2.IsActive)
 }
@@ -252,7 +252,7 @@ func TestService_Create_TrimmedFields(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
-	st, err := svc.Create(ctx, StoreCreateRequest{
+	st, err := svc.Create(ctx, CreateRequest{
 		Name:    "  Trimmed Name  ",
 		Address: "  Trimmed Addr  ",
 		Phone:   "  999  ",
@@ -274,7 +274,7 @@ func TestService_Update_TrimmedFields(t *testing.T) {
 
 	newName := "  Trimmed Update  "
 	newAddr := "  Trimmed Addr  "
-	updated, err := svc.Update(ctx, s.ID, StoreUpdateRequest{
+	updated, err := svc.Update(ctx, s.ID, UpdateRequest{
 		Name:    &newName,
 		Address: &newAddr,
 	})
@@ -293,7 +293,7 @@ func TestService_Update_PhoneOnly(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, s))
 
 	phone := "555"
-	updated, err := svc.Update(ctx, s.ID, StoreUpdateRequest{Phone: &phone})
+	updated, err := svc.Update(ctx, s.ID, UpdateRequest{Phone: &phone})
 	require.NoError(t, err)
 	assert.Equal(t, "555", updated.Phone)
 	assert.Equal(t, "Keep Addr", updated.Address)

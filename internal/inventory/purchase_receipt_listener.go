@@ -12,12 +12,12 @@ import (
 
 type PurchaseReceiptListener struct {
 	repo           *Repository
-	svc            *Service
+	svc            Service
 	processedItems map[string]bool
 	mu             sync.Mutex
 }
 
-func NewPurchaseReceiptListener(repo *Repository, svc *Service) *PurchaseReceiptListener {
+func NewPurchaseReceiptListener(repo *Repository, svc Service) *PurchaseReceiptListener {
 	return &PurchaseReceiptListener{
 		repo:           repo,
 		svc:            svc,

@@ -15,14 +15,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type PricingService interface {
-	GetByID(ctx context.Context, id int) (*PricingRule, error)
-	GetByProductID(ctx context.Context, productID int) ([]PricingRule, error)
-	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]PricingRule, int, error)
-	Create(ctx context.Context, rule *PricingRule) error
-	Update(ctx context.Context, rule *PricingRule) error
+type Service interface {
+	GetByID(ctx context.Context, id int) (*Rule, error)
+	GetByProductID(ctx context.Context, productID int) ([]Rule, error)
+	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error)
+	Create(ctx context.Context, rule *Rule) error
+	Update(ctx context.Context, rule *Rule) error
 	Delete(ctx context.Context, id int) error
-	FindConflictsForRule(ctx context.Context, rule *PricingRule, excludeID int) ([]PricingRule, error)
+	FindConflictsForRule(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error)
 	SubmitForApproval(ctx context.Context, id int) error
 	Approve(ctx context.Context, id int) error
 	Reject(ctx context.Context, id int) error
@@ -34,13 +34,13 @@ type ProductSearcher interface {
 }
 
 type Handler struct {
-	svc      PricingService
+	svc      Service
 	resolver PriceResolver
 	searcher ProductSearcher
-	auditSvc audit.AuditCreator
+	auditSvc audit.Creator
 }
 
-func NewHandler(svc PricingService, resolver PriceResolver, auditSvc audit.AuditCreator) *Handler {
+func NewHandler(svc Service, resolver PriceResolver, auditSvc audit.Creator) *Handler {
 	return &Handler{svc: svc, resolver: resolver, auditSvc: auditSvc}
 }
 
@@ -139,7 +139,7 @@ func (h *Handler) ListRules(c *gin.Context) {
 		return
 	}
 	if rules == nil {
-		rules = []PricingRule{}
+		rules = []Rule{}
 	}
 	shared.JSONPaginated(c, rules, total, limit, offset)
 }
@@ -176,11 +176,11 @@ func (h *Handler) GetRule(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        body  body      PricingRule  true  "Pricing rule data"
+// @Param        body  body      Rule  true  "Pricing rule data"
 // @Success      201   {object}  map[string]interface{}
 // @Router       /pricing-rules [post]
 func (h *Handler) CreateRule(c *gin.Context) {
-	var rule PricingRule
+	var rule Rule
 	if err := c.ShouldBindJSON(&rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -193,7 +193,7 @@ func (h *Handler) CreateRule(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -217,7 +217,7 @@ func (h *Handler) CreateRule(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id    path      int           true  "Rule ID"
-// @Param        body  body      PricingRule   true  "Update data"
+// @Param        body  body      Rule   true  "Update data"
 // @Success      200   {object}  map[string]interface{}
 // @Router       /pricing-rules/{id} [put]
 func (h *Handler) UpdateRule(c *gin.Context) {
@@ -227,12 +227,12 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 		return
 	}
 
-	var oldRule *PricingRule
+	var oldRule *Rule
 	if h.auditSvc != nil {
 		oldRule, _ = h.svc.GetByID(c.Request.Context(), id)
 	}
 
-	var rule PricingRule
+	var rule Rule
 	if err := c.ShouldBindJSON(&rule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -246,7 +246,7 @@ func (h *Handler) UpdateRule(c *gin.Context) {
 
 	if h.auditSvc != nil {
 		userID := middleware.UserIDFromContext(c.Request.Context())
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -300,7 +300,7 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 		} else {
 			description = fmt.Sprintf("Deleted pricing rule #%d", id)
 		}
-		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.AuditLog{
+		_ = h.auditSvc.CreateAuditLog(c.Request.Context(), &audit.Log{
 			UserID:      userID,
 			Username:    middleware.UsernameFromContext(c.Request.Context()),
 			Role:        middleware.RoleFromContext(c.Request.Context()),
@@ -391,8 +391,8 @@ type checkConflictsRequest struct {
 	ProductID       *int          `json:"product_id"`
 	CategoryID      *int          `json:"category_id"`
 	BrandID         *int          `json:"brand_id"`
-	PricingType     PricingType   `json:"pricing_type" binding:"required"`
-	PricingMethod   PricingMethod `json:"pricing_method" binding:"required"`
+	Type     Type   `json:"pricing_type" binding:"required"`
+	Method   Method `json:"pricing_method" binding:"required"`
 	PricingValue    float64       `json:"pricing_value"`
 	MinimumQuantity int           `json:"minimum_quantity"`
 	MaximumQuantity *int          `json:"maximum_quantity"`
@@ -421,12 +421,12 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 		req.MinimumQuantity = 1
 	}
 
-	rule := &PricingRule{
+	rule := &Rule{
 		ProductID:       req.ProductID,
 		CategoryID:      req.CategoryID,
 		BrandID:         req.BrandID,
-		PricingType:     req.PricingType,
-		PricingMethod:   req.PricingMethod,
+		Type:     req.Type,
+		Method:   req.Method,
 		PricingValue:    req.PricingValue,
 		MinimumQuantity: req.MinimumQuantity,
 		MaximumQuantity: req.MaximumQuantity,
@@ -439,7 +439,7 @@ func (h *Handler) CheckConflicts(c *gin.Context) {
 		return
 	}
 	if conflicts == nil {
-		conflicts = []PricingRule{}
+		conflicts = []Rule{}
 	}
 	c.JSON(http.StatusOK, gin.H{"data": conflicts, "has_conflicts": len(conflicts) > 0})
 }

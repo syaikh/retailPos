@@ -66,21 +66,21 @@ func (m *mockShiftService) ExportShifts(ctx context.Context, scope ownership.Sco
 }
 
 type mockAudit struct {
-	createAuditLogFn func(ctx context.Context, log *audit.AuditLog) error
+	createAuditLogFn func(ctx context.Context, log *audit.Log) error
 }
 
-func (m *mockAudit) CreateAuditLog(ctx context.Context, log *audit.AuditLog) error {
+func (m *mockAudit) CreateAuditLog(ctx context.Context, log *audit.Log) error {
 	if m.createAuditLogFn != nil {
 		return m.createAuditLogFn(ctx, log)
 	}
 	return nil
 }
 
-func setupShiftHandler(svc ShiftService, auditSvc audit.AuditCreator) *gin.Engine {
+func setupShiftHandler(svc Service, auditSvc audit.Creator) *gin.Engine {
 	return setupShiftHandlerWithCtx(svc, auditSvc, 1, "superadmin", nil)
 }
 
-func setupShiftHandlerWithCtx(svc ShiftService, auditSvc audit.AuditCreator, userID int, role string, perms []string) *gin.Engine {
+func setupShiftHandlerWithCtx(svc Service, auditSvc audit.Creator, userID int, role string, perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -155,7 +155,7 @@ func TestShiftHandler_ReviewShift_CreatesAuditLog(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "review", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
@@ -200,7 +200,7 @@ func TestShiftHandler_CloseAll_Success(t *testing.T) {
 	}
 	auditCalled := false
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "update", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
@@ -240,7 +240,7 @@ func TestShiftHandler_AuditShift_Success(t *testing.T) {
 	}
 	auditCalled := false
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "audit", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
@@ -417,7 +417,7 @@ func TestShiftHandler_OpenShift_CreatesAuditLog(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "create", log.Action)
 			assert.Equal(t, "shift", log.EntityType)
@@ -455,7 +455,7 @@ func TestShiftHandler_CloseShift_CreatesAuditLog(t *testing.T) {
 		},
 	}
 	auditSvc := &mockAudit{
-		createAuditLogFn: func(ctx context.Context, log *audit.AuditLog) error {
+		createAuditLogFn: func(ctx context.Context, log *audit.Log) error {
 			auditCalled = true
 			assert.Equal(t, "update", log.Action)
 			assert.Equal(t, "shift", log.EntityType)

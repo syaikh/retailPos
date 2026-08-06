@@ -327,7 +327,7 @@ func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category,
 }
 
 // BulkUpsertCategories inserts or updates categories in batch
-func (r *Repository) BulkUpsertCategories(ctx context.Context, records []CategoryImportRow) ImportResult {
+func (r *Repository) BulkUpsertCategories(ctx context.Context, records []ImportRow) ImportResult {
 	result := ImportResult{Errors: []string{}}
 	if len(records) == 0 {
 		return result
