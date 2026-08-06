@@ -13,27 +13,28 @@ import (
 
 const modulePrefix = "retail-pos-system/internal/"
 
-var forbiddenImports = map[string][]string{
-	"purchase": {
-		modulePrefix + "brand",
-		modulePrefix + "category",
-		modulePrefix + "customer",
-		modulePrefix + "customergroup",
-		modulePrefix + "inventory",
-		modulePrefix + "pricing",
-		modulePrefix + "product",
-		modulePrefix + "report",
-		modulePrefix + "sale",
-		modulePrefix + "shift",
-		modulePrefix + "stockopname",
-		modulePrefix + "storagelocation",
-		modulePrefix + "store",
-		modulePrefix + "supplier",
-		modulePrefix + "uom",
-	},
-	"inventory": {
-		modulePrefix + "purchase",
-	},
+// domainModules are the domain modules of the modular monolith. Shared
+// infrastructure (audit, config, events, eventbus, middleware, ownership,
+// permissions, shared) is intentionally importable from anywhere.
+var domainModules = []string{
+	"brand", "category", "customer", "customergroup", "inventory",
+	"platform", "pricing", "product", "purchase", "report", "sale",
+	"shift", "stockopname", "storagelocation", "store", "supplier", "uom", "user",
+}
+
+// isolatedModules must not import any other domain module. Cross-module reads
+// must go through ports wired in internal/wiring; cross-module effects must go
+// through events in internal/events.
+//
+// Known remaining coupling (not yet isolated; tracked for port extraction):
+//   - platform -> brand, category, customer, product, uom
+//   - product  -> brand, category, platform, ownership, uom
+//   - sale     -> pricing
+//   - report   -> sale
+var isolatedModules = []string{
+	"brand", "category", "customer", "customergroup", "inventory",
+	"pricing", "purchase", "shift", "stockopname", "storagelocation",
+	"store", "supplier", "uom", "user",
 }
 
 var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)
@@ -110,11 +111,15 @@ func collectSQLTables(t *testing.T, dir string) map[string]bool {
 }
 
 func TestModuleImportBoundaries(t *testing.T) {
-	for module, forbidden := range forbiddenImports {
+	for _, module := range isolatedModules {
 		imports := collectImports(t, filepath.Join("..", module))
-		for _, path := range forbidden {
-			if imports[path] {
-				t.Errorf("%s must not import %s", module, path)
+		for _, other := range domainModules {
+			if other == module {
+				continue
+			}
+			forbidden := modulePrefix + other
+			if imports[forbidden] {
+				t.Errorf("%s must not import %s", module, forbidden)
 			}
 		}
 	}

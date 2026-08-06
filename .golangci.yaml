@@ -13,12 +13,13 @@ linters:
 
   settings:
     depguard:
+      # depguard skips blank (_) imports; internal/archtest covers those.
       rules:
         purchase-boundary:
           list-mode: strict
           files:
-            - "internal/purchase/**"
-            - "!internal/purchase/**/*_test.go"
+            - "**/internal/purchase/**"
+            - "!**/*_test.go"
           allow:
             - $gostd
             - github.com/gin-gonic/gin
@@ -28,6 +29,41 @@ linters:
             - retail-pos-system/internal/middleware
             - retail-pos-system/internal/permissions
             - retail-pos-system/internal/shared
+        clean-module-boundary:
+          list-mode: strict
+          files:
+            - "**/internal/brand/**"
+            - "**/internal/category/**"
+            - "**/internal/customer/**"
+            - "**/internal/customergroup/**"
+            - "**/internal/inventory/**"
+            - "**/internal/pricing/**"
+            - "**/internal/shift/**"
+            - "**/internal/stockopname/**"
+            - "**/internal/storagelocation/**"
+            - "**/internal/store/**"
+            - "**/internal/supplier/**"
+            - "**/internal/uom/**"
+            - "**/internal/user/**"
+            - "!**/*_test.go"
+          allow:
+            - $gostd
+            - github.com/gin-gonic/gin
+            - github.com/golang-jwt/jwt/v5
+            - github.com/google/uuid
+            - github.com/jackc/pgx/v5
+            - github.com/jackc/pgx/v5/pgconn
+            - github.com/xuri/excelize/v2
+            - golang.org/x/crypto/bcrypt
+            - retail-pos-system/internal/audit
+            - retail-pos-system/internal/config
+            - retail-pos-system/internal/events
+            - retail-pos-system/internal/eventbus
+            - retail-pos-system/internal/middleware
+            - retail-pos-system/internal/ownership
+            - retail-pos-system/internal/permissions
+            - retail-pos-system/internal/shared
+            - retail-pos-system/pkg/cache
 
     revive:
       rules:
