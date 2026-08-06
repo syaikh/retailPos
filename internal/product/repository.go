@@ -638,22 +638,3 @@ func (r *Repository) GetActiveProductOptions(ctx context.Context) ([]Option, err
 	}
 	return options, nil
 }
-
-func (r *Repository) GetOrCreateCategoryIDByName(ctx context.Context, name string) (int, error) {
-	var id int
-	err := r.db.QueryRow(ctx, "SELECT id FROM categories WHERE name = $1 AND is_active = true", name).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	slug := strings.ToLower(strings.TrimSpace(name))
-	slug = strings.ReplaceAll(slug, " ", "-")
-	err = r.db.QueryRow(ctx, `
-		INSERT INTO categories (name, slug, description, is_active)
-		VALUES ($1, $2, '', true)
-		RETURNING id
-	`, name, slug).Scan(&id)
-	if err != nil {
-		return 0, fmt.Errorf("failed to auto-create category: %w", err)
-	}
-	return id, nil
-}
