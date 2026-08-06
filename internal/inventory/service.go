@@ -55,3 +55,29 @@ func (s *Service) AdjustStock(ctx context.Context, productID int, quantityChange
 
 	return nil
 }
+
+// AdjustStockBatch applies all deltas in a single transaction, then emits one
+// StockAdjusted event per product so realtime listeners still get per-product
+// notifications.
+func (s *Service) AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID int, notes string) error {
+	if len(adjustments) == 0 {
+		return nil
+	}
+
+	if err := s.repo.AdjustStockBatch(ctx, adjustments, &userID, notes); err != nil {
+		return fmt.Errorf("adjust stock batch: %w", err)
+	}
+
+	for _, adj := range adjustments {
+		if err := s.eventBus.Publish(ctx, string(eventbus.StockAdjusted), StockAdjustedEvent{
+			ProductID:      adj.ProductID,
+			QuantityChange: adj.QuantityChange,
+			UserID:         userID,
+			Notes:          notes,
+		}); err != nil {
+			slog.Warn("failed to publish stock adjusted event", "error", err)
+		}
+	}
+
+	return nil
+}

@@ -119,6 +119,75 @@ func TestInventoryService_AdjustStock_RepoError(t *testing.T) {
 	assert.ErrorContains(t, err, "adjust stock")
 }
 
+func TestInventoryService_AdjustStockBatch(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	productA := insertTestProduct(t, ctx, "SVC-BATCH-A")
+	insertTestStock(t, ctx, productA, 100)
+	productB := insertTestProduct(t, ctx, "SVC-BATCH-B")
+	insertTestStock(t, ctx, productB, 200)
+	insertTestUser(t, ctx, 1)
+
+	published := make(chan struct{}, 2)
+	bus.Subscribe(eventbus.NewListenerFunc(
+		[]eventbus.EventType{eventbus.StockAdjusted},
+		func(ctx context.Context, event eventbus.Event) error {
+			published <- struct{}{}
+			return nil
+		},
+	))
+
+	err := svc.AdjustStockBatch(ctx, []StockAdjustment{
+		{ProductID: productA, QuantityChange: 5},
+		{ProductID: productB, QuantityChange: 10},
+	}, 1, "service batch test")
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-published:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for stock.adjusted events")
+		}
+	}
+
+	stockA, err := svc.GetStockByProductID(ctx, productA)
+	require.NoError(t, err)
+	assert.Equal(t, 105, stockA.Quantity)
+
+	stockB, err := svc.GetStockByProductID(ctx, productB)
+	require.NoError(t, err)
+	assert.Equal(t, 210, stockB.Quantity)
+}
+
+func TestInventoryService_AdjustStockBatch_Empty(t *testing.T) {
+	repo := NewRepository(dbPool)
+	svc := NewService(repo, &failingEventBus{})
+	err := svc.AdjustStockBatch(context.Background(), nil, 1, "empty batch")
+	assert.NoError(t, err)
+}
+
+func TestInventoryService_AdjustStockBatch_RepoError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("begin failed"))
+
+	repo := NewRepository(mock)
+	svc := NewService(repo, &failingEventBus{})
+
+	err = svc.AdjustStockBatch(context.Background(), []StockAdjustment{{ProductID: 1, QuantityChange: 5}}, 1, "test")
+	assert.ErrorContains(t, err, "adjust stock batch")
+}
+
 func TestInventoryService_LocationDelegation(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)

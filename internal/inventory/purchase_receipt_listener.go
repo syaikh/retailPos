@@ -35,6 +35,7 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	var adjustments []StockAdjustment
 	for _, item := range payload.Items {
 		if item.QtyGood <= 0 {
 			continue
@@ -46,20 +47,43 @@ func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbu
 			continue
 		}
 
-		if err := l.svc.AdjustStock(ctx, item.ProductID, item.QtyGood, payload.UserID, "purchase_receipt"); err != nil {
-			slog.Error("failed to adjust stock for purchase receipt",
-				"product_id", item.ProductID,
-				"qty", item.QtyGood,
-				"gr_id", payload.GRID,
-				"error", err,
-			)
-			return err
-		}
+		adjustments = append(adjustments, StockAdjustment{
+			ProductID:      item.ProductID,
+			QuantityChange: item.QtyGood,
+		})
+	}
 
+	if len(adjustments) == 0 {
+		return nil
+	}
+
+	if err := l.svc.AdjustStockBatch(ctx, adjustments, payload.UserID, "purchase_receipt"); err != nil {
+		slog.Error("failed to adjust stock for purchase receipt",
+			"product_ids", adjustmentProductIDs(adjustments),
+			"gr_id", payload.GRID,
+			"po_id", payload.POID,
+			"error", err,
+		)
+		return err
+	}
+
+	for _, item := range payload.Items {
+		if item.QtyGood <= 0 {
+			continue
+		}
+		key := fmt.Sprintf("%d-%d-%d", payload.GRID, payload.POID, item.ProductID)
 		l.processedItems[key] = true
 	}
 
 	return nil
+}
+
+func adjustmentProductIDs(adjustments []StockAdjustment) []int {
+	ids := make([]int, len(adjustments))
+	for i, adj := range adjustments {
+		ids[i] = adj.ProductID
+	}
+	return ids
 }
 
 func (l *PurchaseReceiptListener) EventTypes() []eventbus.EventType {

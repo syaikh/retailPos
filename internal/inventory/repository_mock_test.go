@@ -324,3 +324,57 @@ func TestInventoryRepository_TransferLocationStock_LockError(t *testing.T) {
 	err = repo.TransferLocationStock(context.Background(), 1, 5, 6, 3, 1)
 	assert.ErrorContains(t, err, "failed to lock location stock")
 }
+
+func TestInventoryRepository_AdjustStockBatch_Success_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(20))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(30, 2).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectCommit()
+
+	repo := NewRepository(mock)
+	err = repo.AdjustStockBatch(context.Background(), []StockAdjustment{
+		{ProductID: 1, QuantityChange: 5},
+		{ProductID: 2, QuantityChange: 10},
+	}, nil, "batch test")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStockBatch_Empty_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := NewRepository(mock)
+	err = repo.AdjustStockBatch(context.Background(), nil, nil, "batch test")
+	assert.NoError(t, err)
+}
+
+func TestInventoryRepository_AdjustStockBatch_InsufficientStock_Mock(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(10))
+	mock.ExpectExec("UPDATE product_stock").WithArgs(15, 1).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("U", 1))
+	mock.ExpectExec("INSERT INTO inventory_movements").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("I", 1))
+	mock.ExpectQuery("SELECT COALESCE").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"quantity"}).AddRow(3))
+
+	repo := NewRepository(mock)
+	err = repo.AdjustStockBatch(context.Background(), []StockAdjustment{
+		{ProductID: 1, QuantityChange: 5},
+		{ProductID: 2, QuantityChange: -10},
+	}, nil, "batch test")
+	assert.ErrorContains(t, err, "insufficient stock")
+}

@@ -59,8 +59,30 @@ func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*P
 }
 
 func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error {
-	if quantityChange == 0 {
-		return fmt.Errorf("quantity change must not be zero")
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	if err := r.adjustStockInTx(ctx, tx, productID, quantityChange, userID, notes); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit stock adjustment: %w", err)
+	}
+
+	return nil
+}
+
+// AdjustStockBatch applies all stock deltas in a single transaction so a
+// multi-item goods receipt is no longer one transaction per product.
+func (r *Repository) AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID *int, notes string) error {
+	if len(adjustments) == 0 {
+		return nil
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -71,8 +93,26 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 		_ = tx.Rollback(ctx)
 	}()
 
+	for _, adj := range adjustments {
+		if err := r.adjustStockInTx(ctx, tx, adj.ProductID, adj.QuantityChange, userID, notes); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit stock adjustment batch: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) adjustStockInTx(ctx context.Context, tx pgx.Tx, productID int, quantityChange int, userID *int, notes string) error {
+	if quantityChange == 0 {
+		return fmt.Errorf("quantity change must not be zero")
+	}
+
 	var currentStock int
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT COALESCE(quantity, 0) FROM product_stock
 		WHERE product_id = $1 AND warehouse_id IS NULL AND store_id IS NULL
 		FOR UPDATE
@@ -119,10 +159,6 @@ func (r *Repository) AdjustStock(ctx context.Context, productID int, quantityCha
 	`, productID, quantityChange, "adjustment", userID, notes)
 	if err != nil {
 		return fmt.Errorf("failed to record inventory movement: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit stock adjustment: %w", err)
 	}
 
 	return nil
