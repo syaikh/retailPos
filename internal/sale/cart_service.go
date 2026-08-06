@@ -521,7 +521,7 @@ func (s *service) finalizeSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, 
 	if err := validateCheckoutItems(items); err != nil {
 		return err
 	}
-	if err := deductStock(ctx, tx, items); err != nil {
+	if err := s.stockStore.DeductStock(ctx, tx, toStockDeductItems(items)); err != nil {
 		return err
 	}
 

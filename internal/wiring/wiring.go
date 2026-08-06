@@ -347,6 +347,7 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleSvc.SetPriceStore(priceStore)
 	d.PricingResolver = pricing.NewResolver(d.PricingRepo)
 	d.SaleSvc.SetPriceResolver(&priceResolverAdapter{resolver: d.PricingResolver})
+	d.SaleSvc.SetStockDeducer(inventory.StockDeducer{})
 
 	d.InventorySvc = inventory.NewService(d.InventoryRepo, d.Bus)
 	d.CustomerSvc = customer.NewService(d.CustomerRepo)

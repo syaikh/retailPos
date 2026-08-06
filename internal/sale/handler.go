@@ -51,6 +51,7 @@ type Service interface {
 	SetCartConfig(cfg CartConfig)
 	SetPriceStore(ps ProductPriceGetter)
 	SetPriceResolver(r PriceResolver)
+	SetStockDeducer(sd StockDeducer)
 }
 
 type Handler struct {

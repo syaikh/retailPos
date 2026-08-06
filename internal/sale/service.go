@@ -13,7 +13,7 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-var ErrInsufficientStock = errors.New("insufficient stock")
+var ErrInsufficientStock = shared.ErrInsufficientStock
 var ErrPriceMismatch = errors.New("price mismatch: client-submitted price does not match server price")
 var ErrSaleNotFound = errors.New("sale not found")
 var ErrParkedSaleNotRecalled = errors.New("parked sale not in recalled state")
@@ -31,11 +31,16 @@ type service struct {
 	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
 	resolver   PriceResolver
+	stockStore StockDeducer
 	cartConfig CartConfig
 }
 
 func NewService(repo *Repository, eventBus shared.EventBus) Service {
-	return &service{repo: repo, eventBus: eventBus}
+	return &service{
+		repo:       repo,
+		eventBus:   eventBus,
+		stockStore: &stockDeducer{},
+	}
 }
 
 func (s *service) SetPriceStore(ps ProductPriceGetter) {
@@ -44,6 +49,10 @@ func (s *service) SetPriceStore(ps ProductPriceGetter) {
 
 func (s *service) SetPriceResolver(r PriceResolver) {
 	s.resolver = r
+}
+
+func (s *service) SetStockDeducer(sd StockDeducer) {
+	s.stockStore = sd
 }
 
 // publishSaleCreated publishes the cross-module sale.created event as a DTO so
@@ -87,8 +96,24 @@ func validateCheckoutItems(items []Item) error {
 	return nil
 }
 
-// deductStock checks and deducts stock for the given items.
-func deductStock(ctx context.Context, tx pgx.Tx, items []Item) error {
+// toStockDeductItems reduces sale items to the minimal deduction contract.
+func toStockDeductItems(items []Item) []shared.StockDeductItem {
+	result := make([]shared.StockDeductItem, len(items))
+	for i, item := range items {
+		result[i] = shared.StockDeductItem{ProductID: item.ProductID, Quantity: item.Quantity}
+	}
+	return result
+}
+
+// stockDeducer is the sale-local default implementation of StockDeducer. It is
+// used when the service is constructed standalone (e.g. unit tests). The
+// composition root overrides it with internal/inventory.StockDeducer, the
+// canonical single-writer for product_stock.
+type stockDeducer struct{}
+
+// DeductStock checks and deducts stock for the given items within the caller's
+// transaction.
+func (stockDeducer) DeductStock(ctx context.Context, tx pgx.Tx, items []shared.StockDeductItem) error {
 	productIDs := make([]int, len(items))
 	for i, item := range items {
 		productIDs[i] = item.ProductID
@@ -115,7 +140,7 @@ func deductStock(ctx context.Context, tx pgx.Tx, items []Item) error {
 			return fmt.Errorf("stock record not found for product %d", item.ProductID)
 		}
 		if stock < item.Quantity {
-			return ErrInsufficientStock
+			return shared.ErrInsufficientStock
 		}
 	}
 
