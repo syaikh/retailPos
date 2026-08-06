@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/shared"
 )
 
@@ -144,7 +143,7 @@ func (s *Service) AddCartItem(ctx context.Context, cartID int, productID, quanti
 		return nil, ErrCartNotOpen
 	}
 
-	snapshots, err := s.resolver.ResolveSnapshotsBatch(ctx, []pricing.ResolveItem{{
+	snapshots, err := s.resolver.ResolveSnapshotsBatch(ctx, []ResolveItem{{
 		ProductID:       productID,
 		Quantity:        quantity,
 		CustomerGroupID: customerGroupID,
@@ -505,7 +504,7 @@ func (s *Service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 	}
 
 	sale.Items = items
-	_ = s.eventBus.Publish(ctx, "sale.created", sale)
+	s.publishSaleCreated(ctx, sale)
 	_ = s.eventBus.Publish(ctx, "cart.checked_out", &CartCheckedOutEvent{
 		CartID:    cartID,
 		SaleID:    sale.ID,

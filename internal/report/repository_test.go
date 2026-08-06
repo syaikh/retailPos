@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/pkg/cache"
 )
@@ -615,7 +615,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 
 	err := listener.HandleEvent(ctx, eventbus.Event{
 		Type:    eventbus.SaleCreated,
-		Payload: &sale.Sale{ID: 1, StoreID: nil},
+		Payload: &events.SaleCreated{ID: 1},
 	})
 	assert.NoError(t, err)
 }

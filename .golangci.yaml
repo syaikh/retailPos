@@ -38,6 +38,8 @@ linters:
             - "**/internal/customergroup/**"
             - "**/internal/inventory/**"
             - "**/internal/pricing/**"
+            - "**/internal/report/**"
+            - "**/internal/sale/**"
             - "**/internal/shift/**"
             - "**/internal/stockopname/**"
             - "**/internal/storagelocation/**"

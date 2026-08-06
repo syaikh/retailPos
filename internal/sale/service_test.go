@@ -3,6 +3,8 @@ package sale
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/pricing"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -62,6 +64,65 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for sale.created event")
 	}
+}
+
+func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	bus := eventbus.New()
+	go bus.Run()
+	defer bus.Shutdown()
+
+	var (
+		count   atomic.Int32
+		mu      sync.Mutex
+		payload interface{}
+	)
+	bus.Subscribe(eventbus.NewListenerFunc(
+		[]eventbus.EventType{eventbus.SaleCreated},
+		func(ctx context.Context, event eventbus.Event) error {
+			count.Add(1)
+			mu.Lock()
+			payload = event.Payload
+			mu.Unlock()
+			return nil
+		},
+	))
+
+	svc := NewService(repo, bus)
+	ctx := context.Background()
+
+	prodID := insertTestProduct(t, ctx, "SVC-EVT-ONCE", "Event Once Product", 5000, 100)
+
+	sale := &Sale{
+		InvoiceNumber: "INV-SVC-EVT-ONCE",
+		CashierID:     insertTestCashier(t, ctx),
+		Subtotal:      5000,
+		Tax:           0,
+		TotalAmount:   5000,
+		PaymentMethod: "CASH",
+		Status:        "completed",
+	}
+	items := []SaleItem{{
+		ProductID: prodID,
+		Quantity:  1,
+		UnitPrice: 5000,
+		Subtotal:  5000,
+		DPPAmount: 5000,
+		TaxAmount: 0,
+	}}
+
+	err := svc.CreateSale(ctx, sale, items, []CreatePaymentRequest{{PaymentMethodCode: "CASH", Amount: 5000}})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return count.Load() == 1
+	}, 2*time.Second, 10*time.Millisecond, "sale.created must be published exactly once")
+
+	mu.Lock()
+	defer mu.Unlock()
+	_, ok := payload.(*events.SaleCreated)
+	assert.True(t, ok, "sale.created payload must be *events.SaleCreated")
 }
 
 func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
@@ -855,40 +916,15 @@ func TestSaleService_SetPriceResolver(t *testing.T) {
 
 type mockPriceResolver struct{}
 
-func (m *mockPriceResolver) Resolve(ctx context.Context, rc pricing.ResolveContext) (*pricing.ResolvedPrice, error) {
-	return &pricing.ResolvedPrice{UnitPrice: 10000, OriginalPrice: 10000, Discount: 0, PricingType: pricing.PricingTypeDefault, PricingMethod: pricing.PricingMethodFixedPrice}, nil
-}
-
-func (m *mockPriceResolver) ResolveBatch(ctx context.Context, items []pricing.ResolveItem) ([]pricing.ResolvedPrice, error) {
-	result := make([]pricing.ResolvedPrice, len(items))
+func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	result := make([]PriceSnapshot, len(items))
 	for i := range items {
-		result[i] = pricing.ResolvedPrice{UnitPrice: 10000, OriginalPrice: 10000, Discount: 0, PricingType: pricing.PricingTypeDefault, PricingMethod: pricing.PricingMethodFixedPrice}
-	}
-	return result, nil
-}
-
-func (m *mockPriceResolver) ResolveSnapshot(ctx context.Context, rc pricing.ResolveContext) (*pricing.PriceSnapshot, error) {
-	return &pricing.PriceSnapshot{
-		ProductID:     rc.ProductID,
-		UnitPrice:     10000,
-		OriginalPrice: 10000,
-		Discount:      0,
-		PricingType:   pricing.PricingTypeDefault,
-		PricingMethod: pricing.PricingMethodFixedPrice,
-		Cost:          5000,
-	}, nil
-}
-
-func (m *mockPriceResolver) ResolveSnapshotsBatch(ctx context.Context, items []pricing.ResolveItem) ([]pricing.PriceSnapshot, error) {
-	result := make([]pricing.PriceSnapshot, len(items))
-	for i := range items {
-		result[i] = pricing.PriceSnapshot{
+		result[i] = PriceSnapshot{
 			ProductID:     items[i].ProductID,
 			UnitPrice:     10000,
 			OriginalPrice: 10000,
 			Discount:      0,
-			PricingType:   pricing.PricingTypeDefault,
-			PricingMethod: pricing.PricingMethodFixedPrice,
+			PricingType:   PricingType("default"),
 			Cost:          5000,
 		}
 	}

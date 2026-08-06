@@ -111,6 +111,49 @@ func (a *supplierNameLookupAdapter) GetSupplierIDsByName(ctx context.Context, na
 	return a.repo.GetIDsByName(ctx, name)
 }
 
+type priceResolverAdapter struct {
+	resolver *pricing.Resolver
+}
+
+func (a *priceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items []sale.ResolveItem) ([]sale.PriceSnapshot, error) {
+	pricingItems := make([]pricing.ResolveItem, len(items))
+	for i, it := range items {
+		pricingItems[i] = pricing.ResolveItem{
+			ProductID:       it.ProductID,
+			Quantity:        it.Quantity,
+			CustomerGroupID: it.CustomerGroupID,
+			StoreID:         it.StoreID,
+		}
+	}
+	snaps, err := a.resolver.ResolveSnapshotsBatch(ctx, pricingItems)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]sale.PriceSnapshot, len(snaps))
+	for i, snap := range snaps {
+		result[i] = sale.PriceSnapshot{
+			ProductID:     snap.ProductID,
+			ProductName:   snap.ProductName,
+			UnitPrice:     snap.UnitPrice,
+			OriginalPrice: snap.OriginalPrice,
+			Discount:      snap.Discount,
+			PricingType:   sale.PricingType(snap.PricingType),
+			Cost:          snap.Cost,
+			TaxClassID:    snap.TaxClassID,
+			TaxRate:       snap.TaxRate,
+			SnapshotAt:    snap.SnapshotAt,
+		}
+		if snap.Rule != nil {
+			result[i].Rule = &sale.PricingRule{
+				ID:          snap.Rule.ID,
+				Name:        snap.Rule.Name,
+				PricingType: sale.PricingType(snap.Rule.PricingType),
+			}
+		}
+	}
+	return result, nil
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -231,7 +274,7 @@ func Initialize(p Providers) *Dependencies {
 	priceStore := &productPriceAdapter{repo: d.ProductRepo}
 	d.SaleSvc.SetPriceStore(priceStore)
 	d.PricingResolver = pricing.NewResolver(d.PricingRepo)
-	d.SaleSvc.SetPriceResolver(d.PricingResolver)
+	d.SaleSvc.SetPriceResolver(&priceResolverAdapter{resolver: d.PricingResolver})
 
 	d.InventorySvc = inventory.NewService(d.InventoryRepo, d.Bus)
 	d.CustomerSvc = customer.NewService(d.CustomerRepo)

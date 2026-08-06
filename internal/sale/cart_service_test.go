@@ -25,8 +25,57 @@ func newCartTestService(t *testing.T, ctx context.Context) (*Service, *eventbus.
 
 	svc := NewService(repo, bus)
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
-	svc.SetPriceResolver(pricing.NewResolver(pricing.NewRepository(dbPool)))
+	svc.SetPriceResolver(newPricingTestResolver())
 	return svc, bus
+}
+
+// pricingTestResolver adapts the real pricing subsystem to the consumer-side
+// sale.PriceResolver port so cart tests exercise the wiring boundary.
+type pricingTestResolver struct {
+	resolver *pricing.Resolver
+}
+
+func newPricingTestResolver() *pricingTestResolver {
+	return &pricingTestResolver{resolver: pricing.NewResolver(pricing.NewRepository(dbPool))}
+}
+
+func (a *pricingTestResolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {
+	pricingItems := make([]pricing.ResolveItem, len(items))
+	for i, it := range items {
+		pricingItems[i] = pricing.ResolveItem{
+			ProductID:       it.ProductID,
+			Quantity:        it.Quantity,
+			CustomerGroupID: it.CustomerGroupID,
+			StoreID:         it.StoreID,
+		}
+	}
+	snaps, err := a.resolver.ResolveSnapshotsBatch(ctx, pricingItems)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PriceSnapshot, len(snaps))
+	for i, snap := range snaps {
+		result[i] = PriceSnapshot{
+			ProductID:     snap.ProductID,
+			ProductName:   snap.ProductName,
+			UnitPrice:     snap.UnitPrice,
+			OriginalPrice: snap.OriginalPrice,
+			Discount:      snap.Discount,
+			PricingType:   PricingType(snap.PricingType),
+			Cost:          snap.Cost,
+			TaxClassID:    snap.TaxClassID,
+			TaxRate:       snap.TaxRate,
+			SnapshotAt:    snap.SnapshotAt,
+		}
+		if snap.Rule != nil {
+			result[i].Rule = &PricingRule{
+				ID:          snap.Rule.ID,
+				Name:        snap.Rule.Name,
+				PricingType: PricingType(snap.Rule.PricingType),
+			}
+		}
+	}
+	return result, nil
 }
 
 func insertTestProductWithTax(t *testing.T, ctx context.Context, sku, name string, price, stock int, taxRate float64) int {

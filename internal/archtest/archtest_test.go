@@ -29,12 +29,10 @@ var domainModules = []string{
 // Known remaining coupling (not yet isolated; tracked for port extraction):
 //   - platform -> brand, category, customer, product, uom
 //   - product  -> brand, category, platform, ownership, uom
-//   - sale     -> pricing
-//   - report   -> sale
 var isolatedModules = []string{
 	"brand", "category", "customer", "customergroup", "inventory",
-	"pricing", "purchase", "shift", "stockopname", "storagelocation",
-	"store", "supplier", "uom", "user",
+	"pricing", "purchase", "report", "sale", "shift", "stockopname",
+	"storagelocation", "store", "supplier", "uom", "user",
 }
 
 var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)

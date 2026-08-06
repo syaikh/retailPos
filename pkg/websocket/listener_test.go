@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
-	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/stockopname"
 
 	"github.com/stretchr/testify/assert"
@@ -42,14 +42,11 @@ func TestNewSaleCreatedListener(t *testing.T) {
 	assert.Contains(t, listener.EventTypes(), eventbus.SaleCreated)
 
 	t.Run("broadcasts sale event", func(t *testing.T) {
-		s := &sale.Sale{
+		s := &events.SaleCreated{
 			ID:            42,
 			InvoiceNumber: "INV-042",
 			TotalAmount:   75000,
-			Items: []sale.SaleItem{
-				{ID: 1, Quantity: 2},
-				{ID: 2, Quantity: 1},
-			},
+			ItemCount:     2,
 		}
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
@@ -68,11 +65,10 @@ func TestNewSaleCreatedListener(t *testing.T) {
 	})
 
 	t.Run("nil items count is zero", func(t *testing.T) {
-		s := &sale.Sale{
+		s := &events.SaleCreated{
 			ID:            99,
 			InvoiceNumber: "INV-099",
 			TotalAmount:   10000,
-			Items:         nil,
 		}
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{

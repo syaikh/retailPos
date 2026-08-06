@@ -16,7 +16,6 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
-	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/secregtest"
 	"retail-pos-system/internal/shared"
 )
@@ -49,7 +48,7 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 
 	svc := NewService(repo, bus)
 	svc.SetCartConfig(CartConfig{HoldTTLHours: 24})
-	svc.SetPriceResolver(pricing.NewResolver(pricing.NewRepository(dbPool)))
+	svc.SetPriceResolver(newPricingTestResolver())
 	h := NewHandler(svc, nil)
 
 	ctx := context.Background()

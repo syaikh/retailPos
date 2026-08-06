@@ -9,7 +9,7 @@ import (
 
 	"retail-pos-system/internal/config"
 	"retail-pos-system/internal/eventbus"
-	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/pkg/cache"
 )
@@ -53,7 +53,7 @@ func (l *saleCreatedListener) EventTypes() []eventbus.EventType {
 }
 
 func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Event) error {
-	s, ok := event.Payload.(*sale.Sale)
+	s, ok := event.Payload.(*events.SaleCreated)
 	if !ok {
 		return nil
 	}

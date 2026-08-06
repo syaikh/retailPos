@@ -6,9 +6,9 @@ import (
 	"log/slog"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
-	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/stockopname"
 )
 
@@ -16,20 +16,16 @@ func NewSaleCreatedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
 		[]eventbus.EventType{eventbus.SaleCreated},
 		func(ctx context.Context, event eventbus.Event) error {
-			s, ok := event.Payload.(*sale.Sale)
+			s, ok := event.Payload.(*events.SaleCreated)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for sale.created", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
-			}
-			items := 0
-			if s.Items != nil {
-				items = len(s.Items)
 			}
 			BroadcastSaleCreated(hub, SaleCreatedEvent{
 				ID:      s.ID,
 				Invoice: s.InvoiceNumber,
 				Total:   s.TotalAmount,
-				Items:   items,
+				Items:   s.ItemCount,
 				StoreID: s.StoreID,
 			})
 			return nil

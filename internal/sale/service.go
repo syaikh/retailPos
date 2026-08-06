@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"retail-pos-system/internal/pricing"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -30,7 +30,7 @@ type Service struct {
 	repo       *Repository
 	eventBus   shared.EventBus
 	priceStore ProductPriceGetter
-	resolver   pricing.PriceResolver
+	resolver   PriceResolver
 	cartConfig CartConfig
 }
 
@@ -42,8 +42,24 @@ func (s *Service) SetPriceStore(ps ProductPriceGetter) {
 	s.priceStore = ps
 }
 
-func (s *Service) SetPriceResolver(r pricing.PriceResolver) {
+func (s *Service) SetPriceResolver(r PriceResolver) {
 	s.resolver = r
+}
+
+// publishSaleCreated publishes the cross-module sale.created event as a DTO so
+// downstream modules (report, websocket) never need to import this package.
+func (s *Service) publishSaleCreated(ctx context.Context, sale *Sale) {
+	itemCount := 0
+	if sale.Items != nil {
+		itemCount = len(sale.Items)
+	}
+	_ = s.eventBus.Publish(ctx, events.TopicSaleCreated, &events.SaleCreated{
+		ID:            sale.ID,
+		InvoiceNumber: sale.InvoiceNumber,
+		StoreID:       sale.StoreID,
+		TotalAmount:   sale.TotalAmount,
+		ItemCount:     itemCount,
+	})
 }
 
 func (s *Service) processSaleItems(ctx context.Context, tx pgx.Tx, sale *Sale, items []SaleItem) error {
@@ -209,9 +225,6 @@ func (s *Service) CreateSale(ctx context.Context, sale *Sale, items []SaleItem, 
 		return err
 	}
 
-	sale.Items = items
-	_ = s.eventBus.Publish(ctx, "sale.created", sale)
-
 	return nil
 }
 
@@ -347,9 +360,6 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 		return err
 	}
 
-	sale.Items = items
-	_ = s.eventBus.Publish(ctx, "sale.created", sale)
-
 	return nil
 }
 
@@ -366,6 +376,6 @@ func (s *Service) finalizeSaleCreation(ctx context.Context, tx pgx.Tx, sale *Sal
 		return err
 	}
 	sale.Items = items
-	_ = s.eventBus.Publish(ctx, "sale.created", sale)
+	s.publishSaleCreated(ctx, sale)
 	return nil
 }
