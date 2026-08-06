@@ -55,6 +55,7 @@ func (c *Cache) Delete(key string) {
 	delete(c.keys, key)
 	c.mu.Unlock()
 	c.store.Del(key)
+	c.store.Wait()
 }
 
 func (c *Cache) FlushByPrefix(prefix string) {
