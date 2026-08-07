@@ -61,7 +61,3 @@ func (s *service) DeleteCategory(ctx context.Context, id int) error {
 func (s *service) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
 	return s.repo.SlugExists(ctx, slug, excludeID)
 }
-
-func (s *service) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
-	return s.repo.HasActiveProducts(ctx, categoryID)
-}

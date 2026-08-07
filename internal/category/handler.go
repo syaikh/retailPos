@@ -22,7 +22,6 @@ type Service interface {
 	UpdateCategory(ctx context.Context, id int, req *UpdateRequest) (*Category, error)
 	DeleteCategory(ctx context.Context, id int) error
 	SlugExists(ctx context.Context, slug string, excludeID int) (bool, error)
-	HasActiveProducts(ctx context.Context, categoryID int) (bool, error)
 }
 
 type Handler struct {

@@ -195,26 +195,6 @@ func TestCategoryRepository_CRUD(t *testing.T) {
 		assert.False(t, got.IsActive)
 	})
 
-	t.Run("HasActiveProducts", func(t *testing.T) {
-		cat := &Category{Name: "HasProd-" + t.Name(), IsActive: true}
-		require.NoError(t, repo.CreateCategory(ctx, cat))
-
-		has, err := repo.HasActiveProducts(ctx, cat.ID)
-		require.NoError(t, err)
-		assert.False(t, has)
-
-		sku := fmt.Sprintf("HAS-PROD-%d", cat.ID)
-		_, err = dbPool.Exec(ctx, `
-			INSERT INTO products (sku, name, price, cost, stock, status, category_id)
-			VALUES ($1, 'HasActive Test Product', 10000, 5000, 10, 'active', $2)
-		`, sku, cat.ID)
-		require.NoError(t, err)
-
-		has, err = repo.HasActiveProducts(ctx, cat.ID)
-		require.NoError(t, err)
-		assert.True(t, has)
-	})
-
 	t.Run("DeleteCategory", func(t *testing.T) {
 		c := &Category{Name: "DeleteOk-" + t.Name(), IsActive: true}
 		require.NoError(t, repo.CreateCategory(ctx, c))

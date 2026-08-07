@@ -11,8 +11,8 @@ import (
 // structural typing — no import of internal/category needed). internal/product
 // is the canonical owner of the products table (ADR
 // Modular_Monolith_Module_Boundaries §2.8 Katalog), so the per-category
-// active-product aggregates that internal/category lists and guards are
-// computed here rather than via direct SQL inside internal/category.
+// active-product aggregate that internal/category lists is computed here
+// rather than via direct SQL inside internal/category.
 type CategoryProductCountProvider struct{}
 
 // CountActiveByCategoryIDs returns the number of active (deleted_at IS NULL)
@@ -41,18 +41,4 @@ func (CategoryProductCountProvider) CountActiveByCategoryIDs(ctx context.Context
 		counts[categoryID] = n
 	}
 	return counts, rows.Err()
-}
-
-// HasActiveByCategoryID reports whether the category has at least one active
-// (deleted_at IS NULL) product, using EXISTS for early exit.
-func (CategoryProductCountProvider) HasActiveByCategoryID(ctx context.Context, db shared.DBPool, categoryID int) (bool, error) {
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM products
-			WHERE category_id = $1 AND deleted_at IS NULL
-			LIMIT 1
-		)
-	`, categoryID).Scan(&exists)
-	return exists, err
 }

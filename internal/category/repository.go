@@ -314,15 +314,6 @@ func (r *Repository) DeleteCategory(ctx context.Context, id int) error {
 	return err
 }
 
-// HasActiveProducts reports whether the category has at least one active
-// product, via the product-owned ProductQueryProvider port.
-func (r *Repository) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
-	if r.productQuery == nil {
-		return false, errors.New("category repository: product query provider not wired; call SetProductQueryProvider")
-	}
-	return r.productQuery.HasActiveByCategoryID(ctx, r.db, categoryID)
-}
-
 // GetAllCategoriesForExport returns all categories without pagination
 func (r *Repository) GetAllCategoriesForExport(ctx context.Context) ([]Category, error) {
 	rows, err := r.db.Query(ctx, `

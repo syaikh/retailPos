@@ -45,9 +45,6 @@ func (m *mockCategoryService) DeleteCategory(ctx context.Context, id int) error 
 func (m *mockCategoryService) SlugExists(ctx context.Context, slug string, excludeID int) (bool, error) {
 	return false, nil
 }
-func (m *mockCategoryService) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
-	return false, nil
-}
 
 var _ Service = (*mockCategoryService)(nil)
 

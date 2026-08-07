@@ -18,8 +18,6 @@ import (
 type stubProductQueryProvider struct {
 	counts map[int]int
 	err    error
-	has    bool
-	hasErr error
 }
 
 func (s stubProductQueryProvider) CountActiveByCategoryIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
@@ -31,13 +29,6 @@ func (s stubProductQueryProvider) CountActiveByCategoryIDs(ctx context.Context, 
 		out[id] = n
 	}
 	return out, nil
-}
-
-func (s stubProductQueryProvider) HasActiveByCategoryID(ctx context.Context, db shared.DBPool, categoryID int) (bool, error) {
-	if s.hasErr != nil {
-		return false, s.hasErr
-	}
-	return s.has, nil
 }
 
 func TestRepository_GetCategoryByID(t *testing.T) {
@@ -112,14 +103,6 @@ func TestRepository_SlugExists(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRepository_HasActiveProducts(t *testing.T) {
-	repo := NewRepository(nil)
-	repo.SetProductQueryProvider(stubProductQueryProvider{has: true})
-	exists, err := repo.HasActiveProducts(context.Background(), 5)
-	require.NoError(t, err)
-	assert.True(t, exists)
 }
 
 func TestRepository_DeleteCategory(t *testing.T) {
@@ -399,28 +382,6 @@ func TestRepository_SlugExists_DBError(t *testing.T) {
 	_, err = repo.SlugExists(context.Background(), "food", 0)
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRepository_HasActiveProducts_NotFound(t *testing.T) {
-	repo := NewRepository(nil)
-	repo.SetProductQueryProvider(stubProductQueryProvider{has: false})
-	exists, err := repo.HasActiveProducts(context.Background(), 1)
-	require.NoError(t, err)
-	assert.False(t, exists)
-}
-
-func TestRepository_HasActiveProducts_DBError(t *testing.T) {
-	repo := NewRepository(nil)
-	repo.SetProductQueryProvider(stubProductQueryProvider{hasErr: fmt.Errorf("db error")})
-	_, err := repo.HasActiveProducts(context.Background(), 1)
-	assert.Error(t, err)
-}
-
-func TestRepository_HasActiveProducts_NotWired(t *testing.T) {
-	repo := NewRepository(nil)
-	_, err := repo.HasActiveProducts(context.Background(), 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not wired")
 }
 
 func TestRepository_GetAllCategories_Success(t *testing.T) {

@@ -47,12 +47,6 @@ func TestCategoryService_ReadOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
-
-	t.Run("HasActiveProducts", func(t *testing.T) {
-		has, err := svc.HasActiveProducts(ctx, cat.ID)
-		require.NoError(t, err)
-		assert.False(t, has)
-	})
 }
 
 func TestCategoryService_DeleteWithActiveProductsFails(t *testing.T) {
