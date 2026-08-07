@@ -20,7 +20,7 @@ import (
 // snapshots carry actual unit prices, cost, and tax rates from the test DB.
 func newCartTestService(ctx context.Context, t *testing.T) (Service, *eventbus.Bus) {
 	t.Helper()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)

@@ -314,6 +314,8 @@ func Initialize(p Providers) *Dependencies {
 	d.ProductRepo.SetCache(d.Cache)
 	d.PurchaseRepo = purchase.NewRepository(p.DB)
 	d.SaleRepo = sale.NewRepository(p.DB)
+	d.SaleRepo.SetProductNameProvider(product.ProductNameLookup{})
+	d.SaleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
 	d.InventoryRepo = inventory.NewRepository(p.DB)
 	d.InventoryRepo.SetStockSyncer(product.StockSyncer{})
 	d.CustomerRepo = customer.NewRepository(p.DB)

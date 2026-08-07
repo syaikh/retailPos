@@ -47,10 +47,10 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	}
 }
 
-func setupSaleRouter() *gin.Engine {
+func setupSaleRouter(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -75,7 +75,7 @@ func setupSaleRouter() *gin.Engine {
 func TestHandler_GetSalesHistory(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 
 	t.Run("returns empty list when no sales match", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func TestHandler_GetSalesHistory(t *testing.T) {
 	})
 
 	t.Run("returns sales with valid params", func(t *testing.T) {
-		repo := NewRepository(dbPool)
+		repo := newTestRepo(t)
 		ctx := context.Background()
 		prodID := insertTestProduct(ctx, t, "HDL-LIST-PROD", "Handler List Product", 10000, 50)
 		_ = createAndCommitSale(ctx, t, repo, "INV-HDL-LIST-001", prodID, 2, 10000, 20000, 20000, 0)
@@ -132,7 +132,7 @@ func TestHandler_GetSalesHistory(t *testing.T) {
 func TestHandler_CreateSale(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 
 	t.Run("success", func(t *testing.T) {
 		ctx := context.Background()
@@ -212,7 +212,7 @@ func insertOpenCartWithItem(ctx context.Context, t *testing.T, cashierID, prodID
 func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "HDL-CART-CHECKOUT", "Cart Checkout Product", 10000, 100)
@@ -343,9 +343,9 @@ func TestHandler_CreateSale_WithCartSessionID_Integration(t *testing.T) {
 func TestHandler_GetSaleByID(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	prodID := insertTestProduct(ctx, t, "HDL-GETBYID", "Handler ByID", 8000, 30)
 	sale := createAndCommitSale(ctx, t, repo, "INV-HDL-GETBYID-001", prodID, 3, 8000, 24000, 24000, 0)
@@ -385,7 +385,7 @@ func TestHandler_GetSaleByID(t *testing.T) {
 func TestHandler_ExportSales(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 
 	t.Run("exports CSV", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -408,7 +408,7 @@ func TestHandler_ExportSales(t *testing.T) {
 
 func TestHandler_GetPaymentMethodByCode(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSaleRouter()
+	r := setupSaleRouter(t)
 
 	t.Run("found", func(t *testing.T) {
 		w := httptest.NewRecorder()

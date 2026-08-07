@@ -235,7 +235,7 @@ func TestSaleRepository_CreateCartSession(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	cashierID := insertTestCashier(ctx, t)
 	cart, err := repo.CreateCartSession(ctx, cashierID, nil, nil, nil)
@@ -313,7 +313,7 @@ func TestCartService_HoldCart_DefaultTTL(t *testing.T) {
 	bus := eventbus.New()
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)
-	svc := NewService(NewRepository(dbPool), bus)
+	svc := NewService(newTestRepo(t), bus)
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
 
@@ -421,7 +421,7 @@ func TestSaleRepository_UpdateCartItemQuantity_MissingItem(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	cashierID := insertTestCashier(ctx, t)
 	cart, err := repo.CreateCartSession(ctx, cashierID, nil, nil, nil)

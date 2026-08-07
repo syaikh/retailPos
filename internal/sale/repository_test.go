@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/customer"
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -33,6 +35,17 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
+}
+
+// newTestRepo returns a Repository wired with the owner-side name providers so
+// the sale repository can resolve product/customer names without direct SQL
+// (see sale.ProductNameProvider / sale.CustomerNameProvider).
+func newTestRepo(t *testing.T) *Repository {
+	t.Helper()
+	repo := NewRepository(dbPool)
+	repo.SetProductNameProvider(product.ProductNameLookup{})
+	repo.SetCustomerNameProvider(customer.CustomerNameLookup{})
+	return repo
 }
 
 func insertTestProduct(ctx context.Context, t *testing.T, sku, name string, price, stock int) int {
@@ -94,7 +107,7 @@ func createAndCommitSale(ctx context.Context, t *testing.T, repo *Repository, in
 }
 
 func TestSaleRepository_CreateAndGet(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("create sale with items", func(t *testing.T) {
@@ -207,7 +220,7 @@ func TestSaleRepository_CreateAndGet(t *testing.T) {
 }
 
 func TestSaleRepository_ListSales(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "REPO-LIST-PROD", "List Test Product", 10000, 100)
@@ -271,7 +284,7 @@ func TestSaleRepository_ListSales(t *testing.T) {
 }
 
 func TestSaleRepository_Export(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "REPO-EXPORT-PROD", "Export Product", 12000, 50)
@@ -295,7 +308,7 @@ func TestSaleRepository_Export(t *testing.T) {
 }
 
 func TestSaleRepository_StreamSalesExportCSV(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	prodID := insertTestProduct(ctx, t, "REPO-STREAM-PROD", "Stream Export Product", 15000, 50)
@@ -330,7 +343,7 @@ func TestSaleRepository_StreamSalesExportCSV(t *testing.T) {
 // the GetSaleByID store filter and the non-null store_id scan branches across
 // the sale read queries.
 func TestSaleRepository_StoreScopedReads(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -412,7 +425,7 @@ func TestSaleRepository_StoreScopedReads(t *testing.T) {
 }
 
 func TestSaleRepository_InvoiceNumber(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	inv, err := repo.GetNextInvoiceNumber(ctx)
@@ -421,7 +434,7 @@ func TestSaleRepository_InvoiceNumber(t *testing.T) {
 }
 
 func TestSaleRepository_PaymentMethods(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("get all active", func(t *testing.T) {
@@ -462,7 +475,7 @@ func TestSaleRepository_PaymentMethods(t *testing.T) {
 }
 
 func TestSaleRepository_BeginTx(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	tx, err := repo.BeginTx(ctx)
@@ -476,7 +489,7 @@ func TestSaleRepository_BeginTx(t *testing.T) {
 }
 
 func TestSaleRepository_CreateSalePayments(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("insert and retrieve single payment", func(t *testing.T) {
@@ -552,7 +565,7 @@ func TestSaleRepository_CreateSalePayments(t *testing.T) {
 }
 
 func TestSaleRepository_GetSaleByIDWithPayments(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("sale with split payments returns payments array", func(t *testing.T) {
@@ -635,7 +648,7 @@ func createParkedSale(ctx context.Context, t *testing.T, repo *Repository, cashi
 }
 
 func TestSaleRepository_GetParkedSales(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -693,7 +706,7 @@ func TestSaleRepository_GetParkedSales(t *testing.T) {
 }
 
 func TestSaleRepository_RecallSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -734,7 +747,7 @@ func TestSaleRepository_RecallSale(t *testing.T) {
 }
 
 func TestSaleRepository_GetParkedSaleByID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -786,7 +799,7 @@ func TestSaleRepository_GetParkedSaleByID(t *testing.T) {
 }
 
 func TestSaleRepository_ConsumeParkedSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 
@@ -828,7 +841,7 @@ func TestSaleRepository_ConsumeParkedSale(t *testing.T) {
 }
 
 func TestSaleRepository_CancelParkedSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 	_ = shared.TruncateTestData(dbPool)
 

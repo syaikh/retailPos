@@ -19,7 +19,7 @@ import (
 )
 
 func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -72,7 +72,7 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 
 func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -132,7 +132,7 @@ func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -168,7 +168,7 @@ func TestSaleService_CreateSaleInsufficientStock(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -223,7 +223,7 @@ func TestSaleService_CreateSaleDuplicateInvoice(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -269,7 +269,7 @@ func TestSaleService_CreateSaleDeductsStock(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleWithShift(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -315,7 +315,7 @@ func TestSaleService_CreateSaleWithShift(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -359,7 +359,7 @@ func TestSaleService_CreateSaleWithDiscount(t *testing.T) {
 }
 
 func TestSaleService_ReadOperations(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -441,7 +441,7 @@ func (m *mockPriceStore) GetProductPrices(_ context.Context, productIDs []int) (
 }
 
 func TestSaleService_CreateSalePriceValidation(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -531,7 +531,7 @@ func TestSaleService_CreateSalePriceValidation(t *testing.T) {
 }
 
 func TestSaleService_ParkSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -630,7 +630,7 @@ func TestSaleService_ParkSale(t *testing.T) {
 }
 
 func TestSaleService_RecallSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -666,7 +666,7 @@ func TestSaleService_RecallSale(t *testing.T) {
 }
 
 func TestSaleService_CancelParkedSale(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -693,7 +693,7 @@ func TestSaleService_CancelParkedSale(t *testing.T) {
 }
 
 func TestSaleService_ValidatePayments(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -839,7 +839,7 @@ func TestSaleService_ValidatePayments(t *testing.T) {
 }
 
 func TestSaleService_ListParkedSales(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -866,7 +866,7 @@ func TestSaleService_ListParkedSales(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -938,7 +938,7 @@ func TestSaleService_CreateSaleWithParkedSaleID(t *testing.T) {
 }
 
 func TestSaleService_SetPriceResolver(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := &service{repo: repo}
 	priceRes := &mockPriceResolver{}
 	svc.SetPriceResolver(priceRes)
@@ -975,7 +975,7 @@ func (m *mockSimplePriceStore) GetProductPrice(_ context.Context, productID int)
 }
 
 func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -1013,7 +1013,7 @@ func TestSaleService_CreateSaleWithPriceResolver(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -1051,7 +1051,7 @@ func TestSaleService_CreateSaleWithNonBatchPriceStore(t *testing.T) {
 
 func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -1090,7 +1090,7 @@ func TestSaleService_CreateSaleStockRecordNotFound(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -1125,7 +1125,7 @@ func TestSaleService_CreateSaleTotalAmountClamp(t *testing.T) {
 }
 
 func TestSaleService_GetAllPaymentMethods(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
@@ -1137,7 +1137,7 @@ func TestSaleService_GetAllPaymentMethods(t *testing.T) {
 }
 
 func TestSaleService_GetParkedSaleByID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
@@ -1157,7 +1157,7 @@ func TestSaleService_GetParkedSaleByID(t *testing.T) {
 }
 
 func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo, nil)
 	svc.SetStockDeducer(inventory.StockDeducer{})
 	svc.SetShiftTotalUpdater(shift.TotalUpdater{})
@@ -1168,7 +1168,7 @@ func TestSaleService_GetParkedSaleByID_NotFound(t *testing.T) {
 }
 
 func TestSaleService_CreateSaleNegativeUnitPrice(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()

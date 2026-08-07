@@ -41,6 +41,40 @@ type ShiftTotalUpdater interface {
 	UpdateShiftTotals(ctx context.Context, tx pgx.Tx, contribution shared.ShiftSaleContribution) error
 }
 
+// ProductNameProvider resolves product names and product-ID search matches for
+// sale listings, details, and exports. The products table is owned by the
+// katalog bounded context (internal/product); sale no longer JOINs products
+// directly (ADR audit finding, products) and instead routes reads through this
+// port. internal/product provides the production implementation; the
+// composition root MUST wire it via SetProductNameProvider before any read that
+// needs a product name or search — an unwired repository fails fast at runtime.
+type ProductNameProvider interface {
+	// ProductNamesByIDs returns product names keyed by product ID. IDs with no
+	// matching product are absent from the map.
+	ProductNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+	// ProductIDsByName returns the IDs of products whose name ILIKE-matches the
+	// given search pattern (caller supplies the '%' pattern). Used to resolve a
+	// free-text sale search into sale IDs without a products JOIN.
+	ProductIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
+}
+
+// CustomerNameProvider resolves customer names and customer-ID search matches
+// for sale listings, details, and exports. The customers table is owned by the
+// referensi bounded context (internal/customer); sale no longer JOINs customers
+// directly (ADR audit finding, customers) and instead routes reads through this
+// port. internal/customer provides the production implementation; the
+// composition root MUST wire it via SetCustomerNameProvider before any read that
+// needs a customer name or search — an unwired repository fails fast at runtime.
+type CustomerNameProvider interface {
+	// CustomerNamesByIDs returns customer names keyed by customer ID. IDs with
+	// no matching customer are absent from the map.
+	CustomerNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+	// CustomerIDsByName returns the IDs of customers whose name ILIKE-matches
+	// the given search pattern (caller supplies the '%' pattern). Used to
+	// resolve a free-text sale search into sale IDs without a customers JOIN.
+	CustomerIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error)
+}
+
 // Type is a classification label for the applied pricing.
 type Type string
 

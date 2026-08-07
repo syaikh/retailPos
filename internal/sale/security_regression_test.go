@@ -43,7 +43,7 @@ func setupSaleRouterWithPerms(t *testing.T, perms []string) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	t.Cleanup(bus.Shutdown)
@@ -148,7 +148,7 @@ func TestRegression_SaleDetail_CostVisibility(t *testing.T) {
 	skipIfNoDB(t)
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	prodID := insertRegressionProduct(ctx, t, "REG-SALE-PROD", "Regression Sale Product", 10000, 6000, 10)
 	sale := createRegressionSale(ctx, t, repo, "INV-REG-SALE-001", prodID, 2, 10000, 6000)
