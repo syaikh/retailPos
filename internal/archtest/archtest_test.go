@@ -34,6 +34,9 @@ var isolatedModules = []string{
 var sqlKeywordRe = regexp.MustCompile(`\b(?:FROM|INTO|UPDATE|JOIN|REFERENCES|TABLE)\s+([a-z_]+)`)
 
 var moduleTableAllowlist = map[string]map[string]bool{
+	"category": {
+		"categories": true,
+	},
 	"purchase": {
 		"purchase_orders":      true,
 		"purchase_order_items": true,

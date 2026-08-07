@@ -319,6 +319,7 @@ func Initialize(p Providers) *Dependencies {
 	d.CustomerRepo = customer.NewRepository(p.DB)
 	d.CategoryRepo = category.NewRepository(p.DB)
 	d.CategoryRepo.SetCache(d.Cache)
+	d.CategoryRepo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 	d.BrandRepo = brand.NewRepository(p.DB)
 	d.BrandRepo.SetCache(d.Cache)
 	d.UOMRepo = uom.NewRepository(p.DB)

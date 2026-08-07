@@ -2,6 +2,7 @@ package category
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,8 +24,9 @@ func (r *ImportResult) AddError(row int, msg string) {
 }
 
 type Repository struct {
-	db    shared.DBPool
-	cache *cache.Cache
+	db           shared.DBPool
+	cache        *cache.Cache
+	productQuery ProductQueryProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -33,6 +35,13 @@ func NewRepository(db shared.DBPool) *Repository {
 
 func (r *Repository) SetCache(c *cache.Cache) {
 	r.cache = c
+}
+
+// SetProductQueryProvider wires the product-owned implementation of the
+// ProductQueryProvider port. It MUST be called before any product-count read
+// or delete guard runs; an unwired repository fails fast at the read point.
+func (r *Repository) SetProductQueryProvider(p ProductQueryProvider) {
+	r.productQuery = p
 }
 
 // ==================== CATEGORY ====================
@@ -119,12 +128,11 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 		return nil, 0, fmt.Errorf("failed to count categories: %w", err)
 	}
 
-	// DATA query — LEFT JOIN + GROUP BY (optimized)
+	// DATA query — page of categories (product_count resolved via the
+	// product-owned query provider, not a direct JOIN on products)
 	query := `SELECT c.id, c.name, COALESCE(c.slug, ''), COALESCE(c.description, ''), c.is_active,
-			  COUNT(p.id) AS product_count,
 			  c.created_at, COALESCE(c.updated_at, c.created_at)
 			  FROM categories c
-			  LEFT JOIN products p ON p.category_id = c.id AND p.deleted_at IS NULL
 			  WHERE 1=1`
 	args2 := []interface{}{}
 	argIdx2 := 1
@@ -133,7 +141,6 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 		args2 = append(args2, "%"+search+"%")
 		argIdx2++
 	}
-	query += " GROUP BY c.id"
 	query += fmt.Sprintf(" ORDER BY c.name ASC LIMIT $%d OFFSET $%d", argIdx2, argIdx2+1)
 	args2 = append(args2, limit, offset)
 
@@ -147,7 +154,7 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 	for rows.Next() {
 		var c Category
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &c.ProductCount, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.IsActive, &createdAt, &updatedAt); err != nil {
 			continue
 		}
 		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -157,7 +164,30 @@ func (r *Repository) GetAllCategories(ctx context.Context, limit, offset int, se
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
+
+	if len(categories) > 0 {
+		counts, err := r.productCounts(ctx, categories)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range categories {
+			categories[i].ProductCount = counts[categories[i].ID]
+		}
+	}
 	return categories, total, nil
+}
+
+// productCounts resolves the active-product count for each category on a page
+// via the product-owned ProductQueryProvider port.
+func (r *Repository) productCounts(ctx context.Context, categories []Category) (map[int]int, error) {
+	if r.productQuery == nil {
+		return nil, errors.New("category repository: product query provider not wired; call SetProductQueryProvider")
+	}
+	ids := make([]int, 0, len(categories))
+	for _, c := range categories {
+		ids = append(ids, c.ID)
+	}
+	return r.productQuery.CountActiveByCategoryIDs(ctx, r.db, ids)
 }
 
 // GetCategoryByID returns a category by ID
@@ -284,17 +314,13 @@ func (r *Repository) DeleteCategory(ctx context.Context, id int) error {
 	return err
 }
 
-// HasActiveProducts checks if category has products using EXISTS (early exit)
+// HasActiveProducts reports whether the category has at least one active
+// product, via the product-owned ProductQueryProvider port.
 func (r *Repository) HasActiveProducts(ctx context.Context, categoryID int) (bool, error) {
-	var exists bool
-	err := r.db.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM products
-			WHERE category_id = $1 AND deleted_at IS NULL
-			LIMIT 1
-		)
-	`, categoryID).Scan(&exists)
-	return exists, err
+	if r.productQuery == nil {
+		return false, errors.New("category repository: product query provider not wired; call SetProductQueryProvider")
+	}
+	return r.productQuery.HasActiveByCategoryID(ctx, r.db, categoryID)
 }
 
 // GetAllCategoriesForExport returns all categories without pagination

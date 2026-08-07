@@ -7,10 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/product"
 )
 
 func TestCategoryService_ReadOperations(t *testing.T) {
 	repo := NewRepository(dbPool)
+	repo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 
 	svc := NewService(repo)
 	ctx := context.Background()

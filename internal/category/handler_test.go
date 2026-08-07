@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/product"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,7 @@ func setupCategoryRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewRepository(dbPool)
+	repo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 
 	svc := NewService(repo)
 	h := NewHandler(svc, nil)

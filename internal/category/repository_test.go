@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -37,6 +38,7 @@ func TestMain(m *testing.M) {
 func TestCategoryRepository_CRUD(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	repo := NewRepository(dbPool)
+	repo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 	ctx := context.Background()
 
 	t.Run("Create and get by ID", func(t *testing.T) {
@@ -133,6 +135,28 @@ func TestCategoryRepository_CRUD(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, 0, total)
 			assert.Empty(t, cats)
+		})
+
+		t.Run("product count counts only active products", func(t *testing.T) {
+			cat := &Category{Name: prefix + "-counted", IsActive: true}
+			require.NoError(t, repo.CreateCategory(ctx, cat))
+
+			_, err := dbPool.Exec(ctx, `
+				INSERT INTO products (sku, name, price, cost, stock, status, category_id)
+				VALUES ($1, 'Counted Active', 10000, 5000, 10, 'active', $2)
+			`, fmt.Sprintf("CNT-ACT-%d", cat.ID), cat.ID)
+			require.NoError(t, err)
+
+			_, err = dbPool.Exec(ctx, `
+				INSERT INTO products (sku, name, price, cost, stock, status, category_id, deleted_at)
+				VALUES ($1, 'Counted Deleted', 10000, 5000, 10, 'inactive', $2, NOW())
+			`, fmt.Sprintf("CNT-DEL-%d", cat.ID), cat.ID)
+			require.NoError(t, err)
+
+			cats, _, err := repo.GetAllCategories(ctx, 10, 0, prefix+"-counted")
+			require.NoError(t, err)
+			require.Len(t, cats, 1)
+			assert.Equal(t, 1, cats[0].ProductCount)
 		})
 	})
 

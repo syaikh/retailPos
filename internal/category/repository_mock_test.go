@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"retail-pos-system/internal/shared"
 	"retail-pos-system/pkg/cache"
 
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubProductQueryProvider struct {
+	counts map[int]int
+	err    error
+	has    bool
+	hasErr error
+}
+
+func (s stubProductQueryProvider) CountActiveByCategoryIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	out := make(map[int]int, len(ids))
+	for id, n := range s.counts {
+		out[id] = n
+	}
+	return out, nil
+}
+
+func (s stubProductQueryProvider) HasActiveByCategoryID(ctx context.Context, db shared.DBPool, categoryID int) (bool, error) {
+	if s.hasErr != nil {
+		return false, s.hasErr
+	}
+	return s.has, nil
+}
 
 func TestRepository_GetCategoryByID(t *testing.T) {
 	mock, err := pgxmock.NewPool()
@@ -89,18 +115,11 @@ func TestRepository_SlugExists(t *testing.T) {
 }
 
 func TestRepository_HasActiveProducts(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	rows := pgxmock.NewRows([]string{"exists"}).AddRow(true)
-	mock.ExpectQuery("SELECT EXISTS").WithArgs(5).WillReturnRows(rows)
-
-	repo := NewRepository(mock)
+	repo := NewRepository(nil)
+	repo.SetProductQueryProvider(stubProductQueryProvider{has: true})
 	exists, err := repo.HasActiveProducts(context.Background(), 5)
 	require.NoError(t, err)
 	assert.True(t, exists)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRepository_DeleteCategory(t *testing.T) {
@@ -383,31 +402,25 @@ func TestRepository_SlugExists_DBError(t *testing.T) {
 }
 
 func TestRepository_HasActiveProducts_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	rows := pgxmock.NewRows([]string{"exists"}).AddRow(false)
-	mock.ExpectQuery("SELECT EXISTS").WithArgs(pgxmock.AnyArg()).WillReturnRows(rows)
-
-	repo := NewRepository(mock)
+	repo := NewRepository(nil)
+	repo.SetProductQueryProvider(stubProductQueryProvider{has: false})
 	exists, err := repo.HasActiveProducts(context.Background(), 1)
 	require.NoError(t, err)
 	assert.False(t, exists)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRepository_HasActiveProducts_DBError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	mock.ExpectQuery("SELECT EXISTS").WithArgs(pgxmock.AnyArg()).WillReturnError(fmt.Errorf("db error"))
-
-	repo := NewRepository(mock)
-	_, err = repo.HasActiveProducts(context.Background(), 1)
+	repo := NewRepository(nil)
+	repo.SetProductQueryProvider(stubProductQueryProvider{hasErr: fmt.Errorf("db error")})
+	_, err := repo.HasActiveProducts(context.Background(), 1)
 	assert.Error(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_HasActiveProducts_NotWired(t *testing.T) {
+	repo := NewRepository(nil)
+	_, err := repo.HasActiveProducts(context.Background(), 1)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 }
 
 func TestRepository_GetAllCategories_Success(t *testing.T) {
@@ -419,11 +432,12 @@ func TestRepository_GetAllCategories_Success(t *testing.T) {
 	mock.ExpectQuery("SELECT COUNT").WillReturnRows(countRows)
 
 	now := time.Now()
-	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "product_count", "created_at", "updated_at"}).
-		AddRow(1, "Food", "food", "All food", true, 5, now, now)
+	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "created_at", "updated_at"}).
+		AddRow(1, "Food", "food", "All food", true, now, now)
 	mock.ExpectQuery("SELECT c.id, c.name").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(dataRows)
 
 	repo := NewRepository(mock)
+	repo.SetProductQueryProvider(stubProductQueryProvider{counts: map[int]int{1: 5}})
 	cats, total, err := repo.GetAllCategories(context.Background(), 10, 0, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
@@ -441,12 +455,53 @@ func TestRepository_GetAllCategories_WithSearch(t *testing.T) {
 	countRows := pgxmock.NewRows([]string{"count"}).AddRow(0)
 	mock.ExpectQuery("SELECT COUNT").WithArgs("%food%").WillReturnRows(countRows)
 
-	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "product_count", "created_at", "updated_at"})
+	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "created_at", "updated_at"})
 	mock.ExpectQuery("SELECT c.id, c.name").WithArgs("%food%", 10, 0).WillReturnRows(dataRows)
 
 	repo := NewRepository(mock)
+	repo.SetProductQueryProvider(stubProductQueryProvider{counts: map[int]int{}})
 	_, _, err = repo.GetAllCategories(context.Background(), 10, 0, "food")
 	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetAllCategories_ProductCountError(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	countRows := pgxmock.NewRows([]string{"count"}).AddRow(1)
+	mock.ExpectQuery("SELECT COUNT").WillReturnRows(countRows)
+
+	now := time.Now()
+	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "created_at", "updated_at"}).
+		AddRow(1, "Food", "food", "All food", true, now, now)
+	mock.ExpectQuery("SELECT c.id, c.name").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(dataRows)
+
+	repo := NewRepository(mock)
+	repo.SetProductQueryProvider(stubProductQueryProvider{err: fmt.Errorf("count error")})
+	_, _, err = repo.GetAllCategories(context.Background(), 10, 0, "")
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepository_GetAllCategories_NotWired(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	countRows := pgxmock.NewRows([]string{"count"}).AddRow(1)
+	mock.ExpectQuery("SELECT COUNT").WillReturnRows(countRows)
+
+	now := time.Now()
+	dataRows := pgxmock.NewRows([]string{"id", "name", "slug", "description", "is_active", "created_at", "updated_at"}).
+		AddRow(1, "Food", "food", "All food", true, now, now)
+	mock.ExpectQuery("SELECT c.id, c.name").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(dataRows)
+
+	repo := NewRepository(mock)
+	_, _, err = repo.GetAllCategories(context.Background(), 10, 0, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

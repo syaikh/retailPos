@@ -142,6 +142,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	inventoryRepo.SetStockSyncer(product.StockSyncer{})
 	customerRepo := customer.NewRepository(e2ePool)
 	categoryRepo := category.NewRepository(e2ePool)
+	categoryRepo.SetProductQueryProvider(product.CategoryProductCountProvider{})
 	brandRepo := brand.NewRepository(e2ePool)
 	uomRepo := uom.NewRepository(e2ePool)
 	auditRepo := audit.NewRepository(e2ePool)
