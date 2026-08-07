@@ -127,12 +127,6 @@ func (s *service) GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error
 func (s *service) GetAllTaxClasses(ctx context.Context) ([]TaxClass, error) {
 	return s.repo.GetAllTaxClasses(ctx)
 }
-func (s *service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
-	return s.repo.GetWarehouseByID(ctx, id)
-}
-func (s *service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
-	return s.repo.GetAllWarehouses(ctx, nil)
-}
 func (s *service) GetActiveProductOptions(ctx context.Context) ([]Option, error) {
 	return s.repo.GetActiveProductOptions(ctx)
 }

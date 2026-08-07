@@ -32,6 +32,30 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 	sg.DELETE("/:id", auth, perm(permissions.StoreDelete), h.Delete)
 }
 
+func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
+	r.GET("/warehouses", h.ListWarehouses)
+}
+
+// ListWarehouses godoc
+// @Summary List warehouses
+// @Description Get all active warehouses
+// @Tags Stores
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /warehouses [get]
+func (h *Handler) ListWarehouses(c *gin.Context) {
+	warehouses, err := h.svc.GetAllWarehouses(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch warehouses"})
+		return
+	}
+	if warehouses == nil {
+		warehouses = []Warehouse{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": warehouses})
+}
+
 // List godoc
 // @Summary      List stores
 // @Description  Get a paginated list of stores

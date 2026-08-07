@@ -142,6 +142,7 @@ func main() {
 	deps.ProductH.RegisterPublicRoutes(router.Group("/api"))
 	deps.BrandH.RegisterPublicRoutes(router.Group("/api"))
 	deps.UOMH.RegisterPublicRoutes(router.Group("/api"))
+	deps.StoreH.RegisterPublicRoutes(router.Group("/api"))
 
 	deps.AuthH.RegisterLoginRoute(router.Group("/api"), middleware.LoginRateLimitMiddleware())
 	deps.AuthH.RegisterRoutes(router.Group("/api"), authMiddleware, middleware.CSRFMiddleware(), permMiddleware)

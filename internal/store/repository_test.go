@@ -195,3 +195,63 @@ func TestStoreRepository_CRUD(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestStoreRepository_WarehouseQueries(t *testing.T) {
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	s := &Store{Name: "WH Store", IsActive: true}
+	require.NoError(t, repo.Create(ctx, s))
+
+	var whID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO warehouses (name, code, address, store_id, is_active) VALUES ('Repo WH', 'RWH01', 'Addr', $1, true) RETURNING id`, s.ID).Scan(&whID)
+	require.NoError(t, err)
+
+	var standaloneID int
+	err = dbPool.QueryRow(ctx, `INSERT INTO warehouses (name, code, is_active) VALUES ('Standalone WH', 'RWH02', true) RETURNING id`).Scan(&standaloneID)
+	require.NoError(t, err)
+
+	t.Run("Get by ID", func(t *testing.T) {
+		w, err := repo.GetWarehouseByID(ctx, whID)
+		require.NoError(t, err)
+		assert.Equal(t, "Repo WH", w.Name)
+		assert.Equal(t, "RWH01", w.Code)
+		assert.Equal(t, "Addr", w.Address)
+		assert.True(t, w.IsActive)
+		require.NotNil(t, w.StoreID)
+		assert.Equal(t, s.ID, *w.StoreID)
+	})
+
+	t.Run("Get by ID not found", func(t *testing.T) {
+		_, err := repo.GetWarehouseByID(ctx, 999999)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "warehouse not found")
+	})
+
+	t.Run("Get all", func(t *testing.T) {
+		whs, err := repo.GetAllWarehouses(ctx, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, whs)
+		found := false
+		for _, w := range whs {
+			if w.ID == whID || w.ID == standaloneID {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("Get all filtered by store ID", func(t *testing.T) {
+		whs, err := repo.GetAllWarehouses(ctx, &s.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, whs)
+		found := false
+		for _, w := range whs {
+			if w.ID == whID {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+}

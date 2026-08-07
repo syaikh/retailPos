@@ -170,18 +170,4 @@ func TestProductService_SubResourceMethods(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, list)
 	})
-
-	t.Run("Warehouse operations", func(t *testing.T) {
-		var whID int
-		err := dbPool.QueryRow(ctx, `INSERT INTO warehouses (name, code, is_active) VALUES ('Svc WH', 'SVWH01', true) RETURNING id`).Scan(&whID)
-		require.NoError(t, err)
-
-		wh, err := svc.GetWarehouseByID(ctx, whID)
-		require.NoError(t, err)
-		assert.Equal(t, "Svc WH", wh.Name)
-
-		list, err := svc.GetAllWarehouses(ctx)
-		require.NoError(t, err)
-		assert.NotNil(t, list)
-	})
 }

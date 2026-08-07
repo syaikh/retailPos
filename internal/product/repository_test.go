@@ -174,19 +174,6 @@ func TestProductRepository_TaxClassRead(t *testing.T) {
 	})
 }
 
-func TestProductRepository_WarehouseCRUD(t *testing.T) {
-	repo := NewRepository(dbPool)
-	ctx := context.Background()
-
-	t.Run("Get all warehouses", func(t *testing.T) {
-		_, err := dbPool.Exec(ctx, `INSERT INTO warehouses (name, code, is_active) VALUES ('Test WH', 'TWH01', true)`)
-		require.NoError(t, err)
-		warehouses, err := repo.GetAllWarehouses(ctx, nil)
-		require.NoError(t, err)
-		assert.NotNil(t, warehouses)
-	})
-}
-
 func TestProductRepository_ActiveProductOptions(t *testing.T) {
 	repo := NewRepository(dbPool)
 	ctx := context.Background()

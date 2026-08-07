@@ -50,8 +50,6 @@ type Service interface {
 	GetNextSKU(ctx context.Context) (string, error)
 	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
 	GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error)
-	GetAllWarehouses(ctx context.Context) ([]Warehouse, error)
-	GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error)
 	GetActiveProductOptions(ctx context.Context) ([]Option, error)
 }
 
@@ -78,7 +76,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, auth gin.HandlerFunc, perm 
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 	r.GET("/tax-classes", h.ListTaxClasses)
 	r.GET("/stock-thresholds", h.GetStockThresholds)
-	r.GET("/warehouses", h.ListWarehouses)
 	r.GET("/products/options", h.ListProductOptions)
 }
 
@@ -417,26 +414,6 @@ func (h *Handler) ListTaxClasses(c *gin.Context) {
 
 func (h *Handler) GetStockThresholds(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"warning": 10, "critical": 5})
-}
-
-// ListWarehouses godoc
-// @Summary List warehouses
-// @Description Get all active warehouses
-// @Tags products
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /warehouses [get]
-func (h *Handler) ListWarehouses(c *gin.Context) {
-	warehouses, err := h.svc.GetAllWarehouses(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch warehouses"})
-		return
-	}
-	if warehouses == nil {
-		warehouses = []Warehouse{}
-	}
-	c.JSON(http.StatusOK, gin.H{"data": warehouses})
 }
 
 // ListProductOptions godoc

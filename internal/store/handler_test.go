@@ -15,6 +15,7 @@ import (
 
 	"retail-pos-system/internal/audit"
 	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/shared"
 )
 
 func skipIfNoDB(t *testing.T) {
@@ -51,6 +52,46 @@ func setupStoreRouter() *gin.Engine {
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/"), testAuthMiddleware(), testPermMiddleware)
 	return r
+}
+
+func setupStorePublicRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	h := NewHandler(svc, nil)
+
+	r := gin.New()
+	h.RegisterPublicRoutes(r.Group("/"))
+	return r
+}
+
+func TestHandler_ListWarehouses(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	ctx := context.Background()
+	var whID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO warehouses (name, code, is_active) VALUES ('Handler WH', 'HWH01', true) RETURNING id`).Scan(&whID)
+	require.NoError(t, err)
+
+	r := setupStorePublicRouter()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/warehouses", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []Warehouse `json:"data"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.NotNil(t, resp.Data)
+	found := false
+	for _, wh := range resp.Data {
+		if wh.ID == whID {
+			found = true
+		}
+	}
+	assert.True(t, found)
 }
 
 func TestHandler_ListStores(t *testing.T) {

@@ -22,6 +22,16 @@ type UpdateRequest struct {
 	IsActive *bool   `json:"is_active"`
 }
 
+type Warehouse struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Code      string `json:"code"`
+	Address   string `json:"address,omitempty"`
+	StoreID   *int   `json:"store_id,omitempty"`
+	IsActive  bool   `json:"is_active"`
+	CreatedAt string `json:"created_at,omitempty"`
+}
+
 type ImportRow struct {
 	Row      int
 	Name     string

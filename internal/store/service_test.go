@@ -311,3 +311,33 @@ func TestService_GetAll_Empty(t *testing.T) {
 	assert.Equal(t, 0, total)
 	assert.NotNil(t, stores)
 }
+
+func TestService_Warehouses(t *testing.T) {
+	skipIfNoDB(t)
+	_ = shared.TruncateTestData(dbPool)
+	repo := NewRepository(dbPool)
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	var whID int
+	err := dbPool.QueryRow(ctx, `INSERT INTO warehouses (name, code, is_active) VALUES ('Svc WH', 'SVWH01', true) RETURNING id`).Scan(&whID)
+	require.NoError(t, err)
+
+	t.Run("Get by ID", func(t *testing.T) {
+		w, err := svc.GetWarehouseByID(ctx, whID)
+		require.NoError(t, err)
+		assert.Equal(t, "Svc WH", w.Name)
+		assert.Equal(t, "SVWH01", w.Code)
+	})
+
+	t.Run("Get by ID not found", func(t *testing.T) {
+		_, err := svc.GetWarehouseByID(ctx, 999999)
+		assert.Error(t, err)
+	})
+
+	t.Run("Get all", func(t *testing.T) {
+		whs, err := svc.GetAllWarehouses(ctx)
+		require.NoError(t, err)
+		assert.NotNil(t, whs)
+	})
+}

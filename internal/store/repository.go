@@ -2,11 +2,14 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	"retail-pos-system/internal/shared"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
@@ -162,4 +165,63 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*Store, error)
 	}
 	s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &s, nil
+}
+
+func (r *Repository) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
+	var w Warehouse
+	var storeID sql.NullInt64
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, "SELECT id, name, code, COALESCE(address,''), store_id, is_active, created_at FROM warehouses WHERE id = $1", id).Scan(
+		&w.ID, &w.Name, &w.Code, &w.Address, &storeID, &w.IsActive, &createdAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("warehouse not found")
+		}
+		return nil, err
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		w.StoreID = &v
+	}
+	w.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+	return &w, nil
+}
+
+func (r *Repository) GetAllWarehouses(ctx context.Context, storeID *int) ([]Warehouse, error) {
+	query := "SELECT id, name, code, COALESCE(address,''), store_id, is_active, created_at FROM warehouses WHERE is_active = true"
+	args := []interface{}{}
+	if storeID != nil {
+		query += " AND store_id = $1"
+		args = append(args, *storeID)
+	}
+	query += " ORDER BY name"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var warehouses []Warehouse
+	for rows.Next() {
+		var w Warehouse
+		var storeIDVal sql.NullInt64
+		var createdAt time.Time
+		if err := rows.Scan(&w.ID, &w.Name, &w.Code, &w.Address, &storeIDVal, &w.IsActive, &createdAt); err != nil {
+			return nil, err
+		}
+		if storeIDVal.Valid {
+			v := int(storeIDVal.Int64)
+			w.StoreID = &v
+		}
+		w.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+		warehouses = append(warehouses, w)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if warehouses == nil {
+		warehouses = []Warehouse{}
+	}
+	return warehouses, nil
 }

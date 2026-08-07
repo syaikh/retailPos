@@ -79,3 +79,11 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 	}
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *Service) GetWarehouseByID(ctx context.Context, id int) (*Warehouse, error) {
+	return s.repo.GetWarehouseByID(ctx, id)
+}
+
+func (s *Service) GetAllWarehouses(ctx context.Context) ([]Warehouse, error) {
+	return s.repo.GetAllWarehouses(ctx, nil)
+}
