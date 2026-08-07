@@ -46,7 +46,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 
 	event := eventbus.Event{
 		Type:      events.TopicPurchaseReceiptCompleted,
-		Payload:   payload,
+		Payload:   &payload,
 		Ctx:       ctx,
 		Timestamp: time.Now(),
 	}
@@ -93,7 +93,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 
 	event := eventbus.Event{
 		Type:      events.TopicPurchaseReceiptCompleted,
-		Payload:   payload,
+		Payload:   &payload,
 		Ctx:       ctx,
 		Timestamp: time.Now(),
 	}
@@ -138,7 +138,7 @@ func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
 	}
 	event := eventbus.Event{
 		Type:      events.TopicPurchaseReceiptCompleted,
-		Payload:   payload,
+		Payload:   &payload,
 		Ctx:       ctx,
 		Timestamp: time.Now(),
 	}

@@ -26,7 +26,7 @@ func NewPurchaseReceiptListener(repo *Repository, svc Service) *PurchaseReceiptL
 }
 
 func (l *PurchaseReceiptListener) HandleEvent(ctx context.Context, event eventbus.Event) error {
-	payload, ok := event.Payload.(events.PurchaseReceiptCompleted)
+	payload, ok := event.Payload.(*events.PurchaseReceiptCompleted)
 	if !ok {
 		slog.Warn("invalid payload type for PurchaseReceiptCompleted", "type", fmt.Sprintf("%T", event.Payload))
 		return nil

@@ -9,9 +9,6 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
-	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/product"
-	"retail-pos-system/internal/stockopname"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,10 +101,10 @@ func TestNewProductUpdatedListener(t *testing.T) {
 	drainMessages(client.send)
 
 	listener := NewProductUpdatedListener(hub)
-	assert.Contains(t, listener.EventTypes(), eventbus.ProductUpdated)
+	assert.Contains(t, listener.EventTypes(), eventbus.EventType(events.TopicProductUpdated))
 
-	t.Run("direct product pointer", func(t *testing.T) {
-		p := &product.Product{
+	t.Run("direct DTO pointer", func(t *testing.T) {
+		p := &events.ProductUpdated{
 			ID:    10,
 			SKU:   "SKU-010",
 			Stock: 50,
@@ -115,7 +112,7 @@ func TestNewProductUpdatedListener(t *testing.T) {
 		}
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.ProductUpdated,
+			Type:    eventbus.EventType(events.TopicProductUpdated),
 			Payload: p,
 		})
 		assert.NoError(t, err)
@@ -129,21 +126,26 @@ func TestNewProductUpdatedListener(t *testing.T) {
 		_ = msg
 	})
 
-	t.Run("update payload wrapper", func(t *testing.T) {
-		p := &product.Product{
-			ID:    20,
-			SKU:   "SKU-020",
-			Stock: 30,
-			Price: 15000,
+	t.Run("forwards store_id", func(t *testing.T) {
+		sid := 5
+		p := &events.ProductUpdated{
+			ID:      20,
+			SKU:     "SKU-020",
+			Stock:   30,
+			Price:   15000,
+			StoreID: &sid,
 		}
 
+		storeScopedClient := registerClient(t, hub, 2, &sid, false)
+		drainMessages(storeScopedClient.send)
+
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.ProductUpdated,
-			Payload: eventbus.UpdatePayload{Old: nil, New: p},
+			Type:    eventbus.EventType(events.TopicProductUpdated),
+			Payload: p,
 		})
 		assert.NoError(t, err)
 
-		msg, ok := waitForMessage(t, client.send, func(s string) bool {
+		msg, ok := waitForMessage(t, storeScopedClient.send, func(s string) bool {
 			return strings.Contains(s, "product_updated") && strings.Contains(s, "SKU-020")
 		}, 2*time.Second)
 		if !ok {
@@ -152,17 +154,9 @@ func TestNewProductUpdatedListener(t *testing.T) {
 		_ = msg
 	})
 
-	t.Run("update payload with wrong new type", func(t *testing.T) {
-		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.ProductUpdated,
-			Payload: eventbus.UpdatePayload{Old: nil, New: "wrong type"},
-		})
-		assert.NoError(t, err)
-	})
-
 	t.Run("wrong payload type", func(t *testing.T) {
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.ProductUpdated,
+			Type:    eventbus.EventType(events.TopicProductUpdated),
 			Payload: 12345,
 		})
 		assert.NoError(t, err)
@@ -198,8 +192,8 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.StockAdjusted,
-			Payload: inventory.StockAdjustedEvent{
+			Type: eventbus.EventType(events.TopicStockAdjusted),
+			Payload: &events.StockAdjusted{
 				ProductID:      100,
 				QuantityChange: 5,
 			},
@@ -231,8 +225,8 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.StockAdjusted,
-			Payload: inventory.StockAdjustedEvent{
+			Type: eventbus.EventType(events.TopicStockAdjusted),
+			Payload: &events.StockAdjusted{
 				ProductID:      200,
 				QuantityChange: -5,
 			},
@@ -272,8 +266,8 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.StockAdjusted,
-			Payload: inventory.StockAdjustedEvent{
+			Type: eventbus.EventType(events.TopicStockAdjusted),
+			Payload: &events.StockAdjusted{
 				ProductID:      300,
 				QuantityChange: -10,
 			},
@@ -314,8 +308,8 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.StockAdjusted,
-			Payload: inventory.StockAdjustedEvent{
+			Type: eventbus.EventType(events.TopicStockAdjusted),
+			Payload: &events.StockAdjusted{
 				ProductID: 999,
 			},
 		})
@@ -338,7 +332,7 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.StockAdjusted,
+			Type:    eventbus.EventType(events.TopicStockAdjusted),
 			Payload: "not an event",
 		})
 		assert.NoError(t, err)
@@ -362,8 +356,8 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		listener := NewStockAdjustedListener(hub, mock)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.StockAdjusted,
-			Payload: inventory.StockAdjustedEvent{
+			Type: eventbus.EventType(events.TopicStockAdjusted),
+			Payload: &events.StockAdjusted{
 				ProductID: 400,
 			},
 		})
@@ -379,106 +373,6 @@ func TestNewStockAdjustedListener(t *testing.T) {
 	})
 }
 
-func TestExtractPOEventFields(t *testing.T) {
-	t.Run("returns all fields when present", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     42,
-			"po_number": "PO-042",
-			"store_id":  5,
-		}
-		poID, poNumber, storeID := extractPOEventFields(payload)
-		assert.Equal(t, 42, poID)
-		assert.Equal(t, "PO-042", poNumber)
-		require.NotNil(t, storeID)
-		assert.Equal(t, 5, *storeID)
-	})
-
-	t.Run("handles float64 po_id and store_id (JSON unmarshaling)", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     float64(42),
-			"po_number": "PO-042",
-			"store_id":  float64(5),
-		}
-		poID, poNumber, storeID := extractPOEventFields(payload)
-		assert.Equal(t, 42, poID)
-		assert.Equal(t, "PO-042", poNumber)
-		require.NotNil(t, storeID)
-		assert.Equal(t, 5, *storeID)
-	})
-
-	t.Run("handles int64 po_id and store_id", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     int64(42),
-			"po_number": "PO-042",
-			"store_id":  int64(5),
-		}
-		poID, poNumber, storeID := extractPOEventFields(payload)
-		assert.Equal(t, 42, poID)
-		assert.Equal(t, "PO-042", poNumber)
-		require.NotNil(t, storeID)
-		assert.Equal(t, 5, *storeID)
-	})
-
-	t.Run("nil store_id when missing", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     1,
-			"po_number": "PO-001",
-		}
-		_, _, storeID := extractPOEventFields(payload)
-		assert.Nil(t, storeID)
-	})
-
-	t.Run("nil store_id when zero", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     1,
-			"po_number": "PO-001",
-			"store_id":  0,
-		}
-		_, _, storeID := extractPOEventFields(payload)
-		assert.Nil(t, storeID)
-	})
-
-	t.Run("nil store_id when zero float64", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     1,
-			"po_number": "PO-001",
-			"store_id":  float64(0),
-		}
-		_, _, storeID := extractPOEventFields(payload)
-		assert.Nil(t, storeID)
-	})
-
-	t.Run("nil store_id when negative", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     1,
-			"po_number": "PO-001",
-			"store_id":  -1,
-		}
-		_, _, storeID := extractPOEventFields(payload)
-		assert.Nil(t, storeID)
-	})
-
-	t.Run("zero values for missing po_id and po_number", func(t *testing.T) {
-		payload := map[string]interface{}{}
-		poID, poNumber, storeID := extractPOEventFields(payload)
-		assert.Equal(t, 0, poID)
-		assert.Equal(t, "", poNumber)
-		assert.Nil(t, storeID)
-	})
-
-	t.Run("wrong types fall back to zero values", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"po_id":     "not-an-int",
-			"po_number": 123,
-			"store_id":  "not-an-int",
-		}
-		poID, poNumber, storeID := extractPOEventFields(payload)
-		assert.Equal(t, 0, poID)
-		assert.Equal(t, "", poNumber)
-		assert.Nil(t, storeID)
-	})
-}
-
 type poListenerTestCase struct {
 	name          string
 	eventType     eventbus.EventType
@@ -491,21 +385,21 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 	cases := []poListenerTestCase{
 		{
 			name:          "created",
-			eventType:     eventbus.EventType("purchase_order.created"),
+			eventType:     eventbus.EventType(events.TopicPOCreated),
 			broadcastType: EventPOCreated,
 			wsEventName:   "po_created",
 			newListener:   NewPOCreatedListener,
 		},
 		{
 			name:          "confirmed",
-			eventType:     eventbus.EventType("purchase_order.confirmed"),
+			eventType:     eventbus.EventType(events.TopicPOConfirmed),
 			broadcastType: EventPOConfirmed,
 			wsEventName:   "po_confirmed",
 			newListener:   NewPOConfirmedListener,
 		},
 		{
 			name:          "cancelled",
-			eventType:     eventbus.EventType("purchase_order.cancelled"),
+			eventType:     eventbus.EventType(events.TopicPOCancelled),
 			broadcastType: EventPOCancelled,
 			wsEventName:   "po_cancelled",
 			newListener:   NewPOCancelledListener,
@@ -526,10 +420,10 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 			t.Run("broadcasts on valid event", func(t *testing.T) {
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"po_id":     42,
-						"po_number": "PO-042",
-						"store_id":  5,
+					Payload: &events.PurchaseOrderEvent{
+						POID:     42,
+						PONumber: "PO-042",
+						StoreID:  5,
 					},
 				})
 				assert.NoError(t, err)
@@ -563,7 +457,7 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 				drainMessages(client.send)
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type:    tc.eventType,
-					Payload: map[string]interface{}{},
+					Payload: &events.PurchaseOrderEvent{},
 				})
 				assert.NoError(t, err)
 
@@ -588,10 +482,10 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"po_id":     99,
-						"po_number": "PO-099",
-						"store_id":  5,
+					Payload: &events.PurchaseOrderEvent{
+						POID:     99,
+						PONumber: "PO-099",
+						StoreID:  5,
 					},
 				})
 				assert.NoError(t, err)
@@ -614,10 +508,10 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"po_id":     55,
-						"po_number": "PO-055",
-						"store_id":  5,
+					Payload: &events.PurchaseOrderEvent{
+						POID:     55,
+						PONumber: "PO-055",
+						StoreID:  5,
 					},
 				})
 				assert.NoError(t, err)
@@ -639,10 +533,10 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"po_id":     77,
-						"po_number": "PO-077",
-						"store_id":  5,
+					Payload: &events.PurchaseOrderEvent{
+						POID:     77,
+						PONumber: "PO-077",
+						StoreID:  5,
 					},
 				})
 				assert.NoError(t, err)
@@ -661,9 +555,9 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"po_id":     111,
-						"po_number": "PO-111",
+					Payload: &events.PurchaseOrderEvent{
+						POID:     111,
+						PONumber: "PO-111",
 					},
 				})
 				assert.NoError(t, err)
@@ -676,6 +570,28 @@ func TestPOCreatedConfirmedCancelledListeners(t *testing.T) {
 				}
 				assert.Contains(t, msg, "PO-111")
 			})
+
+			t.Run("zero store_id broadcasts to all", func(t *testing.T) {
+				drainMessages(client.send)
+
+				err := listener.HandleEvent(context.Background(), eventbus.Event{
+					Type: tc.eventType,
+					Payload: &events.PurchaseOrderEvent{
+						POID:     112,
+						PONumber: "PO-112",
+						StoreID:  0,
+					},
+				})
+				assert.NoError(t, err)
+
+				msg, ok := waitForMessage(t, client.send, func(s string) bool {
+					return strings.Contains(s, tc.wsEventName)
+				}, 2*time.Second)
+				if !ok {
+					t.Fatal("timeout waiting for broadcast with zero store_id")
+				}
+				assert.Contains(t, msg, "PO-112")
+			})
 		})
 	}
 }
@@ -687,35 +603,35 @@ func TestListener_EventTypes(t *testing.T) {
 	assert.Equal(t, []eventbus.EventType{eventbus.SaleCreated}, saleListener.EventTypes())
 
 	productListener := NewProductUpdatedListener(hub)
-	assert.Equal(t, []eventbus.EventType{eventbus.ProductUpdated}, productListener.EventTypes())
+	assert.Equal(t, []eventbus.EventType{eventbus.EventType(events.TopicProductUpdated)}, productListener.EventTypes())
 
 	mock := &mockProductLookup{}
 	stockListener := NewStockAdjustedListener(hub, mock)
-	assert.Equal(t, []eventbus.EventType{eventbus.StockAdjusted}, stockListener.EventTypes())
+	assert.Equal(t, []eventbus.EventType{eventbus.EventType(events.TopicStockAdjusted)}, stockListener.EventTypes())
 
 	poListener := NewPOReceivedListener(hub)
-	assert.Equal(t, []eventbus.EventType{eventbus.EventType("goods_receipt.created")}, poListener.EventTypes())
+	assert.Equal(t, []eventbus.EventType{eventbus.EventType(events.TopicGoodsReceiptCreated)}, poListener.EventTypes())
 
 	createdListener := NewPOCreatedListener(hub)
-	assert.Contains(t, createdListener.EventTypes(), eventbus.EventType("purchase_order.created"))
+	assert.Contains(t, createdListener.EventTypes(), eventbus.EventType(events.TopicPOCreated))
 
 	confirmedListener := NewPOConfirmedListener(hub)
-	assert.Contains(t, confirmedListener.EventTypes(), eventbus.EventType("purchase_order.confirmed"))
+	assert.Contains(t, confirmedListener.EventTypes(), eventbus.EventType(events.TopicPOConfirmed))
 
 	cancelledListener := NewPOCancelledListener(hub)
-	assert.Contains(t, cancelledListener.EventTypes(), eventbus.EventType("purchase_order.cancelled"))
+	assert.Contains(t, cancelledListener.EventTypes(), eventbus.EventType(events.TopicPOCancelled))
 
 	soListener := NewStockOpnameStatusListener(hub)
 	assert.ElementsMatch(t, []eventbus.EventType{
-		eventbus.EventType(stockopname.EventStockOpnameCreated),
-		eventbus.EventType(stockopname.EventStockOpnameOpened),
-		eventbus.EventType(stockopname.EventStockOpnameSubmitted),
-		eventbus.EventType(stockopname.EventStockOpnameApproved),
-		eventbus.EventType(stockopname.EventStockOpnamePosted),
-		eventbus.EventType(stockopname.EventStockOpnameClosed),
-		eventbus.EventType(stockopname.EventStockOpnameRejected),
-		eventbus.EventType(stockopname.EventStockOpnameRecount),
-		eventbus.EventType(stockopname.EventStockOpnameCancelled),
+		eventbus.EventType(events.TopicStockOpnameCreated),
+		eventbus.EventType(events.TopicStockOpnameOpened),
+		eventbus.EventType(events.TopicStockOpnameSubmitted),
+		eventbus.EventType(events.TopicStockOpnameApproved),
+		eventbus.EventType(events.TopicStockOpnamePosted),
+		eventbus.EventType(events.TopicStockOpnameClosed),
+		eventbus.EventType(events.TopicStockOpnameRejected),
+		eventbus.EventType(events.TopicStockOpnameRecount),
+		eventbus.EventType(events.TopicStockOpnameCancelled),
 	}, soListener.EventTypes())
 }
 
@@ -728,15 +644,15 @@ func TestNewPOReceivedListener(t *testing.T) {
 	drainMessages(client.send)
 
 	listener := NewPOReceivedListener(hub)
-	assert.Contains(t, listener.EventTypes(), eventbus.EventType("goods_receipt.created"))
+	assert.Contains(t, listener.EventTypes(), eventbus.EventType(events.TopicGoodsReceiptCreated))
 
 	t.Run("broadcasts po_received on valid event", func(t *testing.T) {
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{
-				"po_id":     42,
-				"po_number": "PO-042",
-				"gr_number": "GR-007",
+			Type: eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{
+				POID:     42,
+				PONumber: "PO-042",
+				GRNumber: "GR-007",
 			},
 		})
 		assert.NoError(t, err)
@@ -753,7 +669,7 @@ func TestNewPOReceivedListener(t *testing.T) {
 	t.Run("wrong payload type returns nil without error", func(t *testing.T) {
 		drainMessages(client.send)
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.EventType("goods_receipt.created"),
+			Type:    eventbus.EventType(events.TopicGoodsReceiptCreated),
 			Payload: "not a map",
 		})
 		assert.NoError(t, err)
@@ -769,8 +685,8 @@ func TestNewPOReceivedListener(t *testing.T) {
 	t.Run("missing fields produce empty broadcast", func(t *testing.T) {
 		drainMessages(client.send)
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{},
+			Type:    eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{},
 		})
 		assert.NoError(t, err)
 
@@ -794,12 +710,12 @@ func TestNewPOReceivedListener(t *testing.T) {
 		drainMessages(storeScopedClient.send)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{
-				"po_id":     99,
-				"po_number": "PO-099",
-				"gr_number": "GR-099",
-				"store_id":  5,
+			Type: eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{
+				POID:     99,
+				PONumber: "PO-099",
+				GRNumber: "GR-099",
+				StoreID:  5,
 			},
 		})
 		assert.NoError(t, err)
@@ -822,12 +738,12 @@ func TestNewPOReceivedListener(t *testing.T) {
 		drainMessages(otherClient.send)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{
-				"po_id":     55,
-				"po_number": "PO-055",
-				"gr_number": "GR-055",
-				"store_id":  5,
+			Type: eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{
+				POID:     55,
+				PONumber: "PO-055",
+				GRNumber: "GR-055",
+				StoreID:  5,
 			},
 		})
 		assert.NoError(t, err)
@@ -848,12 +764,12 @@ func TestNewPOReceivedListener(t *testing.T) {
 		drainMessages(adminClient.send)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{
-				"po_id":     77,
-				"po_number": "PO-077",
-				"gr_number": "GR-077",
-				"store_id":  5,
+			Type: eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{
+				POID:     77,
+				PONumber: "PO-077",
+				GRNumber: "GR-077",
+				StoreID:  5,
 			},
 		})
 		assert.NoError(t, err)
@@ -871,11 +787,11 @@ func TestNewPOReceivedListener(t *testing.T) {
 		drainMessages(client.send)
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type: eventbus.EventType("goods_receipt.created"),
-			Payload: map[string]interface{}{
-				"po_id":     111,
-				"po_number": "PO-111",
-				"gr_number": "GR-111",
+			Type: eventbus.EventType(events.TopicGoodsReceiptCreated),
+			Payload: &events.GoodsReceiptCreated{
+				POID:     111,
+				PONumber: "PO-111",
+				GRNumber: "GR-111",
 			},
 		})
 		assert.NoError(t, err)
@@ -924,55 +840,55 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 	}{
 		{
 			name:          "created",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameCreated),
+			eventType:     eventbus.EventType(events.TopicStockOpnameCreated),
 			broadcastType: EventSOCreated,
 			wsEventName:   "so_created",
 		},
 		{
 			name:          "opened",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameOpened),
+			eventType:     eventbus.EventType(events.TopicStockOpnameOpened),
 			broadcastType: EventSOOpened,
 			wsEventName:   "so_opened",
 		},
 		{
 			name:          "submitted",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameSubmitted),
+			eventType:     eventbus.EventType(events.TopicStockOpnameSubmitted),
 			broadcastType: EventSOSubmitted,
 			wsEventName:   "so_submitted",
 		},
 		{
 			name:          "approved",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameApproved),
+			eventType:     eventbus.EventType(events.TopicStockOpnameApproved),
 			broadcastType: EventSOApproved,
 			wsEventName:   "so_approved",
 		},
 		{
 			name:          "posted",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnamePosted),
+			eventType:     eventbus.EventType(events.TopicStockOpnamePosted),
 			broadcastType: EventSOPosted,
 			wsEventName:   "so_posted",
 		},
 		{
 			name:          "closed",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameClosed),
+			eventType:     eventbus.EventType(events.TopicStockOpnameClosed),
 			broadcastType: EventSOClosed,
 			wsEventName:   "so_closed",
 		},
 		{
 			name:          "rejected",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameRejected),
+			eventType:     eventbus.EventType(events.TopicStockOpnameRejected),
 			broadcastType: EventSORejected,
 			wsEventName:   "so_rejected",
 		},
 		{
 			name:          "needs_recount",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameRecount),
+			eventType:     eventbus.EventType(events.TopicStockOpnameRecount),
 			broadcastType: EventSORecount,
 			wsEventName:   "so_needs_recount",
 		},
 		{
 			name:          "cancelled",
-			eventType:     eventbus.EventType(stockopname.EventStockOpnameCancelled),
+			eventType:     eventbus.EventType(events.TopicStockOpnameCancelled),
 			broadcastType: EventSOCancelled,
 			wsEventName:   "so_cancelled",
 		},
@@ -992,10 +908,10 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 			t.Run("broadcasts on valid event", func(t *testing.T) {
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
 					},
 				})
 				assert.NoError(t, err)
@@ -1031,7 +947,7 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 				drainMessages(client.send)
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type:    tc.eventType,
-					Payload: map[string]interface{}{},
+					Payload: &events.StockOpnameStatusChanged{},
 				})
 				assert.NoError(t, err)
 
@@ -1050,11 +966,11 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
-						"store_id":       5,
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
+						StoreID:       5,
 					},
 				})
 				assert.NoError(t, err)
@@ -1076,11 +992,11 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
-						"store_id":       5,
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
+						StoreID:       5,
 					},
 				})
 				assert.NoError(t, err)
@@ -1100,11 +1016,11 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
-						"store_id":       5,
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
+						StoreID:       5,
 					},
 				})
 				assert.NoError(t, err)
@@ -1126,10 +1042,10 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
 					},
 				})
 				assert.NoError(t, err)
@@ -1151,11 +1067,11 @@ func TestNewStockOpnameStatusListener(t *testing.T) {
 
 				err := listener.HandleEvent(context.Background(), eventbus.Event{
 					Type: tc.eventType,
-					Payload: map[string]interface{}{
-						"session_id":     42,
-						"session_number": "SO-042",
-						"status":         "pending_approval",
-						"store_id":       0,
+					Payload: &events.StockOpnameStatusChanged{
+						SessionID:     42,
+						SessionNumber: "SO-042",
+						Status:        "pending_approval",
+						StoreID:       0,
 					},
 				})
 				assert.NoError(t, err)

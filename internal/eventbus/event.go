@@ -5,17 +5,10 @@ import (
 	"time"
 )
 
-type UpdatePayload struct {
-	Old interface{}
-	New interface{}
-}
-
 type EventType string
 
 const (
 	SaleCreated    EventType = "sale.created"
-	ProductUpdated EventType = "product.updated"
-	StockAdjusted  EventType = "stock.adjusted"
 	CartCheckedOut EventType = "cart.checked_out"
 )
 

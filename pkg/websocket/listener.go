@@ -7,14 +7,11 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
-	"retail-pos-system/internal/inventory"
-	"retail-pos-system/internal/product"
-	"retail-pos-system/internal/stockopname"
 )
 
 func NewSaleCreatedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.SaleCreated},
+		[]eventbus.EventType{events.TopicSaleCreated},
 		func(ctx context.Context, event eventbus.Event) error {
 			s, ok := event.Payload.(*events.SaleCreated)
 			if !ok {
@@ -35,20 +32,10 @@ func NewSaleCreatedListener(hub *Hub) eventbus.Listener {
 
 func NewProductUpdatedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.ProductUpdated},
+		[]eventbus.EventType{events.TopicProductUpdated},
 		func(ctx context.Context, event eventbus.Event) error {
-			var p *product.Product
-			switch payload := event.Payload.(type) {
-			case *product.Product:
-				p = payload
-			case eventbus.UpdatePayload:
-				var ok bool
-				p, ok = payload.New.(*product.Product)
-				if !ok {
-					slog.Warn("[ws] unexpected New type in UpdatePayload for product.updated", "type", fmt.Sprintf("%T", payload.New))
-					return nil
-				}
-			default:
+			p, ok := event.Payload.(*events.ProductUpdated)
+			if !ok {
 				slog.Warn("[ws] unexpected payload type for product.updated", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
@@ -68,87 +55,48 @@ type ProductLookup interface {
 	GetProductByID(ctx context.Context, id int) (sku string, name string, stock int, storeID *int, err error)
 }
 
+// storeIDPtr converts a DTO store id to the broadcast pointer form: zero or
+// negative values mean "global" and map to nil (broadcast to all stores).
+func storeIDPtr(storeID int) *int {
+	if storeID <= 0 {
+		return nil
+	}
+	return &storeID
+}
+
 func NewPOReceivedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.EventType("goods_receipt.created")},
+		[]eventbus.EventType{events.TopicGoodsReceiptCreated},
 		func(ctx context.Context, event eventbus.Event) error {
-			payload, ok := event.Payload.(map[string]interface{})
+			payload, ok := event.Payload.(*events.GoodsReceiptCreated)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for goods_receipt.created", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			poID, _ := payload["po_id"].(int)
-			poNumber, _ := payload["po_number"].(string)
-			grNumber, _ := payload["gr_number"].(string)
-			var storeID *int
-			if sid, ok := payload["store_id"].(int); ok && sid > 0 {
-				storeID = &sid
-			}
 			BroadcastPOReceived(hub, POReceivedEvent{
-				POID:     poID,
-				PONumber: poNumber,
-				GRNumber: grNumber,
-				StoreID:  storeID,
+				POID:     payload.POID,
+				PONumber: payload.PONumber,
+				GRNumber: payload.GRNumber,
+				StoreID:  storeIDPtr(payload.StoreID),
 			})
 			return nil
 		},
 	)
 }
 
-func extractPOID(payload map[string]interface{}) int {
-	switch v := payload["po_id"].(type) {
-	case int:
-		return v
-	case float64:
-		return int(v)
-	case int64:
-		return int(v)
-	default:
-		return 0
-	}
-}
-
-func extractStoreID(payload map[string]interface{}) *int {
-	switch v := payload["store_id"].(type) {
-	case int:
-		if v > 0 {
-			return &v
-		}
-	case float64:
-		if v > 0 {
-			sid := int(v)
-			return &sid
-		}
-	case int64:
-		if v > 0 {
-			sid := int(v)
-			return &sid
-		}
-	}
-	return nil
-}
-
-func extractPOEventFields(payload map[string]interface{}) (poID int, poNumber string, storeID *int) {
-	poID = extractPOID(payload)
-	poNumber, _ = payload["po_number"].(string)
-	storeID = extractStoreID(payload)
-	return
-}
-
 func NewPOCreatedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.EventType("purchase_order.created")},
+		[]eventbus.EventType{events.TopicPOCreated},
 		func(ctx context.Context, event eventbus.Event) error {
-			payload, ok := event.Payload.(map[string]interface{})
+			payload, ok := event.Payload.(*events.PurchaseOrderEvent)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for purchase_order.created", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			poID, poNumber, storeID := extractPOEventFields(payload)
 			BroadcastPOCreated(hub, POCreatedEvent{
-				POID:     poID,
-				PONumber: poNumber,
-				StoreID:  storeID,
+				POID:     payload.POID,
+				PONumber: payload.PONumber,
+				StoreID:  storeIDPtr(payload.StoreID),
 			})
 			return nil
 		},
@@ -157,18 +105,17 @@ func NewPOCreatedListener(hub *Hub) eventbus.Listener {
 
 func NewPOConfirmedListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.EventType("purchase_order.confirmed")},
+		[]eventbus.EventType{events.TopicPOConfirmed},
 		func(ctx context.Context, event eventbus.Event) error {
-			payload, ok := event.Payload.(map[string]interface{})
+			payload, ok := event.Payload.(*events.PurchaseOrderEvent)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for purchase_order.confirmed", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			poID, poNumber, storeID := extractPOEventFields(payload)
 			BroadcastPOConfirmed(hub, POConfirmedEvent{
-				POID:     poID,
-				PONumber: poNumber,
-				StoreID:  storeID,
+				POID:     payload.POID,
+				PONumber: payload.PONumber,
+				StoreID:  storeIDPtr(payload.StoreID),
 			})
 			return nil
 		},
@@ -177,18 +124,17 @@ func NewPOConfirmedListener(hub *Hub) eventbus.Listener {
 
 func NewPOCancelledListener(hub *Hub) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.EventType("purchase_order.cancelled")},
+		[]eventbus.EventType{events.TopicPOCancelled},
 		func(ctx context.Context, event eventbus.Event) error {
-			payload, ok := event.Payload.(map[string]interface{})
+			payload, ok := event.Payload.(*events.PurchaseOrderEvent)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for purchase_order.cancelled", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			poID, poNumber, storeID := extractPOEventFields(payload)
 			BroadcastPOCancelled(hub, POCancelledEvent{
-				POID:     poID,
-				PONumber: poNumber,
-				StoreID:  storeID,
+				POID:     payload.POID,
+				PONumber: payload.PONumber,
+				StoreID:  storeIDPtr(payload.StoreID),
 			})
 			return nil
 		},
@@ -197,9 +143,9 @@ func NewPOCancelledListener(hub *Hub) eventbus.Listener {
 
 func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listener {
 	return eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.StockAdjusted},
+		[]eventbus.EventType{events.TopicStockAdjusted},
 		func(ctx context.Context, event eventbus.Event) error {
-			sa, ok := event.Payload.(inventory.StockAdjustedEvent)
+			sa, ok := event.Payload.(*events.StockAdjusted)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for stock.adjusted", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
@@ -235,15 +181,15 @@ func NewStockAdjustedListener(hub *Hub, products ProductLookup) eventbus.Listene
 // event type. Only status transitions are broadcast; item-level counts are
 // deliberately excluded to preserve blind counting (BR-008).
 var stockOpnameEventTypes = map[eventbus.EventType]EventType{
-	eventbus.EventType(stockopname.EventStockOpnameCreated):   EventSOCreated,
-	eventbus.EventType(stockopname.EventStockOpnameOpened):    EventSOOpened,
-	eventbus.EventType(stockopname.EventStockOpnameSubmitted): EventSOSubmitted,
-	eventbus.EventType(stockopname.EventStockOpnameApproved):  EventSOApproved,
-	eventbus.EventType(stockopname.EventStockOpnamePosted):    EventSOPosted,
-	eventbus.EventType(stockopname.EventStockOpnameClosed):    EventSOClosed,
-	eventbus.EventType(stockopname.EventStockOpnameRejected):  EventSORejected,
-	eventbus.EventType(stockopname.EventStockOpnameRecount):   EventSORecount,
-	eventbus.EventType(stockopname.EventStockOpnameCancelled): EventSOCancelled,
+	eventbus.EventType(events.TopicStockOpnameCreated):   EventSOCreated,
+	eventbus.EventType(events.TopicStockOpnameOpened):    EventSOOpened,
+	eventbus.EventType(events.TopicStockOpnameSubmitted): EventSOSubmitted,
+	eventbus.EventType(events.TopicStockOpnameApproved):  EventSOApproved,
+	eventbus.EventType(events.TopicStockOpnamePosted):    EventSOPosted,
+	eventbus.EventType(events.TopicStockOpnameClosed):    EventSOClosed,
+	eventbus.EventType(events.TopicStockOpnameRejected):  EventSORejected,
+	eventbus.EventType(events.TopicStockOpnameRecount):   EventSORecount,
+	eventbus.EventType(events.TopicStockOpnameCancelled): EventSOCancelled,
 }
 
 func NewStockOpnameStatusListener(hub *Hub) eventbus.Listener {
@@ -259,38 +205,21 @@ func NewStockOpnameStatusListener(hub *Hub) eventbus.Listener {
 				slog.Warn("[ws] unknown stock opname event", "type", event.Type)
 				return nil
 			}
-			payload, ok := event.Payload.(map[string]interface{})
+			payload, ok := event.Payload.(*events.StockOpnameStatusChanged)
 			if !ok {
 				slog.Warn("[ws] unexpected payload type for stock opname event", "type", fmt.Sprintf("%T", event.Payload))
 				return nil
 			}
-			sessionID := extractSessionID(payload)
-			if sessionID == 0 {
+			if payload.SessionID == 0 {
 				return nil
 			}
-			sessionNumber, _ := payload["session_number"].(string)
-			status, _ := payload["status"].(string)
-			storeID := extractStoreID(payload)
 			BroadcastStockOpnameStatus(hub, wsType, StockOpnameStatusEvent{
-				SessionID:     sessionID,
-				SessionNumber: sessionNumber,
-				Status:        status,
-				StoreID:       storeID,
+				SessionID:     payload.SessionID,
+				SessionNumber: payload.SessionNumber,
+				Status:        payload.Status,
+				StoreID:       storeIDPtr(payload.StoreID),
 			})
 			return nil
 		},
 	)
-}
-
-func extractSessionID(payload map[string]interface{}) int {
-	switch v := payload["session_id"].(type) {
-	case int:
-		return v
-	case float64:
-		return int(v)
-	case int64:
-		return int(v)
-	default:
-		return 0
-	}
 }

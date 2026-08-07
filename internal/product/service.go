@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -90,14 +90,22 @@ func (s *service) CreateProduct(ctx context.Context, product *Product) error {
 }
 
 func (s *service) UpdateProduct(ctx context.Context, product *Product) error {
-	old, err := s.repo.GetProductByID(ctx, product.ID, product.StoreID)
-	if err != nil {
+	// Guard against updating a non-existent product. The fetched row is not
+	// published anymore (the DTO carries only the new state), but the lookup
+	// preserves the prior behavior of failing instead of silently succeeding.
+	if _, err := s.repo.GetProductByID(ctx, product.ID, product.StoreID); err != nil {
 		return err
 	}
 	if err := s.repo.UpdateProduct(ctx, product, product.StoreID); err != nil {
 		return err
 	}
-	return s.eventBus.Publish(ctx, "product.updated", eventbus.UpdatePayload{Old: old, New: product})
+	return s.eventBus.Publish(ctx, events.TopicProductUpdated, &events.ProductUpdated{
+		ID:      product.ID,
+		SKU:     product.SKU,
+		Stock:   product.Stock,
+		Price:   product.Price,
+		StoreID: product.StoreID,
+	})
 }
 
 func (s *service) DeleteProduct(ctx context.Context, id int, storeID *int) error {

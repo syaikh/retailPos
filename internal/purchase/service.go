@@ -132,10 +132,10 @@ func (s *service) CreateDraft(ctx context.Context, po *Order, items []OrderItem)
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, string(EventPOCreated), map[string]interface{}{
-		"po_id":     po.ID,
-		"po_number": po.PONumber,
-		"store_id":  po.StoreID,
+	_ = s.eventBus.Publish(ctx, events.TopicPOCreated, &events.PurchaseOrderEvent{
+		POID:     po.ID,
+		PONumber: po.PONumber,
+		StoreID:  po.StoreID,
 	})
 
 	return nil
@@ -276,10 +276,10 @@ func (s *service) Confirm(ctx context.Context, id, userID int) error {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, string(EventPOConfirmed), map[string]interface{}{
-		"po_id":     id,
-		"po_number": existing.PONumber,
-		"store_id":  existing.StoreID,
+	_ = s.eventBus.Publish(ctx, events.TopicPOConfirmed, &events.PurchaseOrderEvent{
+		POID:     id,
+		PONumber: existing.PONumber,
+		StoreID:  existing.StoreID,
 	})
 
 	return nil
@@ -321,10 +321,10 @@ func (s *service) Cancel(ctx context.Context, id, userID int) error {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	_ = s.eventBus.Publish(ctx, string(EventPOCancelled), map[string]interface{}{
-		"po_id":     id,
-		"po_number": existing.PONumber,
-		"store_id":  existing.StoreID,
+	_ = s.eventBus.Publish(ctx, events.TopicPOCancelled, &events.PurchaseOrderEvent{
+		POID:     id,
+		PONumber: existing.PONumber,
+		StoreID:  existing.StoreID,
 	})
 
 	return nil
@@ -496,17 +496,17 @@ func (s *service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 
 	bgCtx := context.Background()
-	_ = s.eventBus.Publish(bgCtx, string(EventGoodsReceiptCreated), map[string]interface{}{
-		"gr_id":                 gr.ID,
-		"gr_number":             gr.GRNumber,
-		"delivery_order_number": gr.DeliveryOrderNumber,
-		"po_id":                 poID,
-		"po_number":             po.PONumber,
-		"store_id":              storeID,
+	_ = s.eventBus.Publish(bgCtx, events.TopicGoodsReceiptCreated, &events.GoodsReceiptCreated{
+		GRID:                gr.ID,
+		GRNumber:            gr.GRNumber,
+		DeliveryOrderNumber: gr.DeliveryOrderNumber,
+		POID:                poID,
+		PONumber:            po.PONumber,
+		StoreID:             storeID,
 	})
 
 	if len(receiptItems) > 0 {
-		_ = s.eventBus.Publish(bgCtx, events.TopicPurchaseReceiptCompleted, events.PurchaseReceiptCompleted{
+		_ = s.eventBus.Publish(bgCtx, events.TopicPurchaseReceiptCompleted, &events.PurchaseReceiptCompleted{
 			POID:    poID,
 			GRID:    gr.ID,
 			StoreID: storeID,

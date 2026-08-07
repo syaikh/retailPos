@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
 )
@@ -568,9 +569,9 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 	var found bool
 	for _, pr := range bus.published {
 		if pr.topic == EventStockOpnameCreated {
-			m, ok := pr.event.(map[string]interface{})
+			ev, ok := pr.event.(*events.StockOpnameStatusChanged)
 			require.True(t, ok)
-			assert.Equal(t, 102, m["store_id"])
+			assert.Equal(t, 102, ev.StoreID)
 			found = true
 		}
 	}
@@ -611,11 +612,11 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 	var found bool
 	for _, pr := range bus.published {
 		if pr.topic == EventStockOpnameSubmitted {
-			m, ok := pr.event.(map[string]interface{})
+			ev, ok := pr.event.(*events.StockOpnameStatusChanged)
 			require.True(t, ok)
-			assert.Equal(t, session.ID, m["session_id"])
-			assert.Equal(t, session.SessionNumber, m["session_number"])
-			assert.Equal(t, StatusPendingApproval, m["status"])
+			assert.Equal(t, session.ID, ev.SessionID)
+			assert.Equal(t, session.SessionNumber, ev.SessionNumber)
+			assert.Equal(t, StatusPendingApproval, ev.Status)
 			found = true
 		}
 	}
@@ -686,9 +687,9 @@ func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
 	var found bool
 	for _, pr := range bus.published {
 		if pr.topic == EventStockOpnameCreated {
-			m, ok := pr.event.(map[string]interface{})
+			ev, ok := pr.event.(*events.StockOpnameStatusChanged)
 			require.True(t, ok)
-			assert.Equal(t, 0, m["store_id"], "global sessions should publish store_id 0")
+			assert.Equal(t, 0, ev.StoreID, "global sessions should publish store_id 0")
 			found = true
 		}
 	}

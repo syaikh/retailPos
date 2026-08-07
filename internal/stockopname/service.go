@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -40,11 +41,11 @@ func (s *Service) publishStatusEvent(ctx context.Context, topic string, sessionI
 		slog.Warn("[stock-opname] failed to load session broadcast meta for status event", "session_id", sessionID, "error", err)
 		return
 	}
-	_ = s.eventBus.Publish(ctx, topic, map[string]interface{}{
-		"session_id":     sessionID,
-		"session_number": sessionNumber,
-		"status":         status,
-		"store_id":       storeIDOrZero(storeID),
+	_ = s.eventBus.Publish(ctx, topic, &events.StockOpnameStatusChanged{
+		SessionID:     sessionID,
+		SessionNumber: sessionNumber,
+		Status:        status,
+		StoreID:       storeIDOrZero(storeID),
 	})
 }
 
@@ -57,17 +58,19 @@ func storeIDOrZero(storeID *int) int {
 	return *storeID
 }
 
-// Status event topics published to the event bus.
+// Status event topics published to the event bus. Values are defined in
+// internal/events so cross-module consumers (websocket broadcast) never import
+// this module.
 const (
-	EventStockOpnameCreated   = "stock_opname.created"
-	EventStockOpnameOpened    = "stock_opname.opened"
-	EventStockOpnameSubmitted = "stock_opname.submitted"
-	EventStockOpnameApproved  = "stock_opname.approved"
-	EventStockOpnamePosted    = "stock_opname.posted"
-	EventStockOpnameClosed    = "stock_opname.closed"
-	EventStockOpnameRejected  = "stock_opname.rejected"
-	EventStockOpnameRecount   = "stock_opname.needs_recount"
-	EventStockOpnameCancelled = "stock_opname.cancelled"
+	EventStockOpnameCreated   = events.TopicStockOpnameCreated
+	EventStockOpnameOpened    = events.TopicStockOpnameOpened
+	EventStockOpnameSubmitted = events.TopicStockOpnameSubmitted
+	EventStockOpnameApproved  = events.TopicStockOpnameApproved
+	EventStockOpnamePosted    = events.TopicStockOpnamePosted
+	EventStockOpnameClosed    = events.TopicStockOpnameClosed
+	EventStockOpnameRejected  = events.TopicStockOpnameRejected
+	EventStockOpnameRecount   = events.TopicStockOpnameRecount
+	EventStockOpnameCancelled = events.TopicStockOpnameCancelled
 )
 
 // CreateSession creates a stock opname session that spans one or more scopes.

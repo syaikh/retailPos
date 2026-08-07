@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -44,7 +44,7 @@ func (s *service) AdjustStock(ctx context.Context, productID int, quantityChange
 		return fmt.Errorf("adjust stock: %w", err)
 	}
 
-	if err := s.eventBus.Publish(ctx, string(eventbus.StockAdjusted), StockAdjustedEvent{
+	if err := s.eventBus.Publish(ctx, events.TopicStockAdjusted, &events.StockAdjusted{
 		ProductID:      productID,
 		QuantityChange: quantityChange,
 		UserID:         userID,
@@ -69,7 +69,7 @@ func (s *service) AdjustStockBatch(ctx context.Context, adjustments []StockAdjus
 	}
 
 	for _, adj := range adjustments {
-		if err := s.eventBus.Publish(ctx, string(eventbus.StockAdjusted), StockAdjustedEvent{
+		if err := s.eventBus.Publish(ctx, events.TopicStockAdjusted, &events.StockAdjusted{
 			ProductID:      adj.ProductID,
 			QuantityChange: adj.QuantityChange,
 			UserID:         userID,

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
@@ -56,7 +57,7 @@ func TestInventoryService_AdjustStock(t *testing.T) {
 
 		published := make(chan struct{}, 1)
 		bus.Subscribe(eventbus.NewListenerFunc(
-			[]eventbus.EventType{eventbus.StockAdjusted},
+			[]eventbus.EventType{eventbus.EventType(events.TopicStockAdjusted)},
 			func(ctx context.Context, event eventbus.Event) error {
 				published <- struct{}{}
 				return nil
@@ -140,7 +141,7 @@ func TestInventoryService_AdjustStockBatch(t *testing.T) {
 
 	published := make(chan struct{}, 2)
 	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.StockAdjusted},
+		[]eventbus.EventType{eventbus.EventType(events.TopicStockAdjusted)},
 		func(ctx context.Context, event eventbus.Event) error {
 			published <- struct{}{}
 			return nil

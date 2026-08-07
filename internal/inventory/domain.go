@@ -48,13 +48,6 @@ type ProductStock struct {
 	UpdatedAt       string `json:"updated_at"`
 }
 
-type StockAdjustedEvent struct {
-	ProductID      int
-	QuantityChange int
-	UserID         int
-	Notes          string
-}
-
 // StockAdjustment is one product's stock delta to apply within a batch.
 type StockAdjustment struct {
 	ProductID      int

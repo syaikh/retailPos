@@ -27,15 +27,6 @@ const (
 	StatusRejected        = "rejected"
 )
 
-type DomainEvent string
-
-const (
-	EventPOCreated           DomainEvent = "purchase_order.created"
-	EventPOConfirmed         DomainEvent = "purchase_order.confirmed"
-	EventPOCancelled         DomainEvent = "purchase_order.cancelled"
-	EventGoodsReceiptCreated DomainEvent = "goods_receipt.created"
-)
-
 type Order struct {
 	ID                      int                 `json:"id"`
 	PONumber                string              `json:"po_number"`
