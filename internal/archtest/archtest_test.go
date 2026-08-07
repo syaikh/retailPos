@@ -129,6 +129,9 @@ var strictModuleTables = map[string]map[string]bool{
 		"goods_receipts":       true,
 		"goods_receipt_items":  true,
 	},
+	"shift": {
+		"shifts": true,
+	},
 }
 
 // crossContextDebt lists acknowledged cross-context references awaiting
@@ -144,8 +147,6 @@ var strictModuleTables = map[string]map[string]bool{
 //     writer), suppliers/warehouses JOIN (enrichment) -> inventory/store ports.
 //   - sale: products/customers JOIN (listing enrichment) -> product/customer
 //     read ports.
-//   - shift: stores/users JOIN (store + cashier names) -> store/user read
-//     ports.
 //   - stockopname: katalog (brands/categories/products/units_of_measure/
 //     product_suppliers), transaksional (product_stock), referensi
 //     (storage_locations/stores/suppliers/warehouses), platform
@@ -165,10 +166,6 @@ var crossContextDebt = map[string]map[string]bool{
 	"sale": {
 		"customers": true,
 		"products":  true,
-	},
-	"shift": {
-		"stores": true,
-		"users":  true,
 	},
 	"stockopname": {
 		"brands":            true,

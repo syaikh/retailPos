@@ -23,3 +23,22 @@ type SalesSummaryProvider interface {
 	ShiftSummary(ctx context.Context, db shared.DBPool, shiftID int) (shared.ShiftSaleSummary, error)
 	ShiftSummaryInTx(ctx context.Context, tx pgx.Tx, shiftID int) (shared.ShiftSaleSummary, error)
 }
+
+// StoreNameProvider resolves store display names for shift listings and
+// close/active reads. The stores table is owned by the referensi bounded
+// context (internal/store); shift no longer LEFT JOINs stores directly (ADR
+// audit finding, stores/users) and instead routes the read through this port.
+// The composition root MUST wire it via SetStoreNameProvider before any read
+// that needs a store name — an unwired repository fails fast at runtime.
+type StoreNameProvider interface {
+	StoreNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}
+
+// UsernameProvider resolves cashier usernames for shift listings and detail
+// reads. The users table is owned by the platform bounded context
+// (internal/user); shift routes the read through this port instead of a
+// direct JOIN. SetUsernameProvider MUST be wired before any read that needs a
+// username.
+type UsernameProvider interface {
+	UsernamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}

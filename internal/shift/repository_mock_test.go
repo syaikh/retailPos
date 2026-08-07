@@ -12,7 +12,32 @@ import (
 
 	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/sale"
+	"retail-pos-system/internal/shared"
 )
+
+type stubStoreNameProvider struct{ names map[int]string }
+
+func (p stubStoreNameProvider) StoreNamesByIDs(_ context.Context, _ shared.DBPool, ids []int) (map[int]string, error) {
+	out := make(map[int]string, len(ids))
+	for _, id := range ids {
+		if name, ok := p.names[id]; ok {
+			out[id] = name
+		}
+	}
+	return out, nil
+}
+
+type stubUsernameProvider struct{ names map[int]string }
+
+func (p stubUsernameProvider) UsernamesByIDs(_ context.Context, _ shared.DBPool, ids []int) (map[int]string, error) {
+	out := make(map[int]string, len(ids))
+	for _, id := range ids {
+		if name, ok := p.names[id]; ok {
+			out[id] = name
+		}
+	}
+	return out, nil
+}
 
 func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Context) {
 	t.Helper()
@@ -21,6 +46,8 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	t.Cleanup(func() { mock.Close() })
 	repo := NewRepository(mock)
 	repo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
+	repo.SetStoreNameProvider(stubStoreNameProvider{names: map[int]string{}})
+	repo.SetUsernameProvider(stubUsernameProvider{names: map[int]string{}})
 	return mock, repo, context.Background()
 }
 
@@ -32,8 +59,8 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 			AddRow(1, 1, nil, "open", 100000, now, now, now)
 	}
 	rowShift := func() *pgxmock.Rows {
-		return pgxmock.NewRows([]string{"id", "user_id", "store_id", "store_name", "status", "opening_balance", "opened_at", "created_at"}).
-			AddRow(1, 1, nil, nil, "open", 100000, now, now)
+		return pgxmock.NewRows([]string{"id", "user_id", "store_id", "status", "opening_balance", "opened_at", "created_at"}).
+			AddRow(1, 1, nil, "open", 100000, now, now)
 	}
 	summaryRow := func() *pgxmock.Rows {
 		return pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(0, 0, 0, 0)
@@ -167,11 +194,11 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{
-				"id", "user_id", "username", "store_id", "store_name", "status", "opening_balance",
+				"id", "user_id", "store_id", "status", "opening_balance",
 				"closing_balance", "cash_sales", "non_cash_sales", "total_sales", "transaction_count",
 				"discrepancy", "notes", "needs_review", "reviewed_by", "reviewed_at",
 				"opened_at", "closed_at", "created_at", "updated_at",
-			}).AddRow(1, 1, "u", nil, nil, "open", 0, nil, 0, 0, 0, 0, nil, nil, false, nil, nil,
+			}).AddRow(1, 1, nil, "open", 0, nil, 0, 0, 0, 0, nil, nil, false, nil, nil,
 				now, nil, now, now))
 		mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnError(boom)
 		_, _, err := repo.GetShiftWithLiveSales(ctx, 1)
@@ -205,13 +232,14 @@ func TestRepositoryMock_GetActiveShiftByUserID_FullData(t *testing.T) {
 
 	mock.ExpectQuery("SELECT s.id, s.user_id").WithArgs(1).WillReturnRows(
 		pgxmock.NewRows([]string{
-			"id", "user_id", "store_id", "store_name", "status", "opening_balance", "closing_balance",
+			"id", "user_id", "store_id", "status", "opening_balance", "closing_balance",
 			"cash_sales", "non_cash_sales", "total_sales", "transaction_count",
 			"discrepancy", "notes", "needs_review", "reviewed_by", "reviewed_at",
 			"opened_at", "closed_at", "created_at", "updated_at",
-		}).AddRow(1, 1, storeID, "Store A", "open", 100000, closing,
+		}).AddRow(1, 1, storeID, "open", 100000, closing,
 			0, 0, 0, 0, disc, notes, true, reviewedBy, now,
 			now, now, now, now))
+	repo.SetStoreNameProvider(stubStoreNameProvider{names: map[int]string{7: "Store A"}})
 	mock.ExpectQuery("FROM sales").WithArgs(1).WillReturnRows(
 		pgxmock.NewRows([]string{"cash", "non_cash", "total", "count"}).AddRow(100000, 50000, 150000, 3))
 

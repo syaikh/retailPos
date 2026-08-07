@@ -15,8 +15,10 @@ import (
 )
 
 type Repository struct {
-	db              shared.DBPool
-	summaryProvider SalesSummaryProvider
+	db                shared.DBPool
+	summaryProvider   SalesSummaryProvider
+	storeNameProvider StoreNameProvider
+	usernameProvider  UsernameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -29,6 +31,22 @@ func NewRepository(db shared.DBPool) *Repository {
 // point.
 func (r *Repository) SetSalesSummaryProvider(p SalesSummaryProvider) {
 	r.summaryProvider = p
+}
+
+// SetStoreNameProvider wires the store-owned implementation of the
+// StoreNameProvider port (ADR §2.4). It MUST be called before any read that
+// needs a store name (close, active, list, get-by-id); an unwired repository
+// fails fast at the read point.
+func (r *Repository) SetStoreNameProvider(p StoreNameProvider) {
+	r.storeNameProvider = p
+}
+
+// SetUsernameProvider wires the user-owned implementation of the
+// UsernameProvider port (ADR §2.4). It MUST be called before any read that
+// needs a username (list, get-by-id); an unwired repository fails fast at the
+// read point.
+func (r *Repository) SetUsernameProvider(p UsernameProvider) {
+	r.usernameProvider = p
 }
 
 func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error) {
@@ -96,6 +114,20 @@ func (r *Repository) shiftSalesSummaryInTx(ctx context.Context, tx pgx.Tx, shift
 	return r.summaryProvider.ShiftSummaryInTx(ctx, tx, shiftID)
 }
 
+func (r *Repository) storeNamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
+	if r.storeNameProvider == nil {
+		return nil, errors.New("shift repository: store name provider not wired; call SetStoreNameProvider")
+	}
+	return r.storeNameProvider.StoreNamesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
+	if r.usernameProvider == nil {
+		return nil, errors.New("shift repository: username provider not wired; call SetUsernameProvider")
+	}
+	return r.usernameProvider.UsernamesByIDs(ctx, r.db, ids)
+}
+
 func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -105,17 +137,15 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 
 	var shift Shift
 	var storeID sql.NullInt64
-	var storeName sql.NullString
 	var openedAt, createdAt time.Time
 
 	err = tx.QueryRow(ctx, `
-		SELECT s.id, s.user_id, s.store_id, st.name, s.status, s.opening_balance, s.opened_at, s.created_at
+		SELECT s.id, s.user_id, s.store_id, s.status, s.opening_balance, s.opened_at, s.created_at
 		FROM shifts s
-		LEFT JOIN stores st ON st.id = s.store_id
 		WHERE s.id = $1 AND s.user_id = $2 AND s.status = 'open'
 		FOR UPDATE OF s
 	`, shiftID, userID).Scan(
-		&shift.ID, &shift.UserID, &storeID, &storeName, &shift.Status, &shift.OpeningBalance,
+		&shift.ID, &shift.UserID, &storeID, &shift.Status, &shift.OpeningBalance,
 		&openedAt, &createdAt,
 	)
 	if err != nil {
@@ -128,9 +158,11 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		shift.StoreID = &v
-	}
-	if storeName.Valid {
-		shift.StoreName = storeName.String
+		storeNames, err := r.storeNamesByIDs(ctx, []int{v})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve store name: %w", err)
+		}
+		shift.StoreName = storeNames[v]
 	}
 
 	summary, err := r.shiftSalesSummaryInTx(ctx, tx, shiftID)
@@ -189,22 +221,20 @@ func (r *Repository) CloseShift(ctx context.Context, shiftID, userID int, closin
 func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error) {
 	var shift Shift
 	var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
-	var storeName sql.NullString
 	var notes sql.NullString
 	var openedAt, createdAt, updatedAt time.Time
 	var closedAt, reviewedAt sql.NullTime
 
 	err := r.db.QueryRow(ctx, `
-		SELECT s.id, s.user_id, s.store_id, st.name, s.status, s.opening_balance, s.closing_balance,
+		SELECT s.id, s.user_id, s.store_id, s.status, s.opening_balance, s.closing_balance,
 		       s.cash_sales, s.non_cash_sales, s.total_sales, s.transaction_count,
 		       s.discrepancy, s.notes, s.needs_review, s.reviewed_by, s.reviewed_at,
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
-		LEFT JOIN stores st ON st.id = s.store_id
 		WHERE s.user_id = $1 AND s.status = 'open'
 		LIMIT 1
 	`, userID).Scan(
-		&shift.ID, &shift.UserID, &storeID, &storeName, &shift.Status, &shift.OpeningBalance,
+		&shift.ID, &shift.UserID, &storeID, &shift.Status, &shift.OpeningBalance,
 		&closingBalance, &shift.CashSales, &shift.NonCashSales, &shift.TotalSales,
 		&shift.TransactionCount, &discrepancy, &notes,
 		&shift.NeedsReview, &reviewedBy, &reviewedAt,
@@ -229,9 +259,11 @@ func (r *Repository) GetActiveShiftByUserID(ctx context.Context, userID int) (*S
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		shift.StoreID = &v
-	}
-	if storeName.Valid {
-		shift.StoreName = storeName.String
+		storeNames, err := r.storeNamesByIDs(ctx, []int{v})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve store name: %w", err)
+		}
+		shift.StoreName = storeNames[v]
 	}
 	if closingBalance.Valid {
 		v := int(closingBalance.Int64)
@@ -318,14 +350,12 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, fmt.Sprintf(`
-		SELECT s.id, s.user_id, u.username, s.store_id, st.name, s.status,
+		SELECT s.id, s.user_id, s.store_id, s.status,
 		       s.opening_balance, s.closing_balance, s.cash_sales, s.non_cash_sales,
 		       s.total_sales, s.transaction_count, s.discrepancy, s.notes,
 		       s.needs_review, s.reviewed_by, s.reviewed_at,
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
-		LEFT JOIN users u ON u.id = s.user_id
-		LEFT JOIN stores st ON st.id = s.store_id
 		WHERE %s
 		ORDER BY s.%s %s
 		LIMIT $%d OFFSET $%d
@@ -336,16 +366,16 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 	defer rows.Close()
 
 	var shifts []Shift
+	var storeIDs, userIDs []int
 	for rows.Next() {
 		var s Shift
 		var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
-		var storeName sql.NullString
 		var notes sql.NullString
 		var openedAt, createdAt, updatedAt time.Time
 		var closedAt, reviewedAt sql.NullTime
 
 		err := rows.Scan(
-			&s.ID, &s.UserID, &s.Username, &storeID, &storeName, &s.Status,
+			&s.ID, &s.UserID, &storeID, &s.Status,
 			&s.OpeningBalance, &closingBalance, &s.CashSales, &s.NonCashSales,
 			&s.TotalSales, &s.TransactionCount, &discrepancy, &notes,
 			&s.NeedsReview, &reviewedBy, &reviewedAt,
@@ -358,10 +388,9 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 		if storeID.Valid {
 			v := int(storeID.Int64)
 			s.StoreID = &v
+			storeIDs = append(storeIDs, v)
 		}
-		if storeName.Valid {
-			s.StoreName = storeName.String
-		}
+		userIDs = append(userIDs, s.UserID)
 		if closingBalance.Valid {
 			v := int(closingBalance.Int64)
 			s.ClosingBalance = &v
@@ -388,6 +417,24 @@ func (r *Repository) ListShifts(ctx context.Context, scope ownership.Scope, stat
 		s.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		s.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		shifts = append(shifts, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to iterate shifts: %w", err)
+	}
+
+	storeNames, err := r.storeNamesByIDs(ctx, storeIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to resolve store names: %w", err)
+	}
+	usernames, err := r.usernamesByIDs(ctx, userIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to resolve usernames: %w", err)
+	}
+	for i := range shifts {
+		if shifts[i].StoreID != nil {
+			shifts[i].StoreName = storeNames[*shifts[i].StoreID]
+		}
+		shifts[i].Username = usernames[shifts[i].UserID]
 	}
 
 	return shifts, total, nil
@@ -452,20 +499,17 @@ func (r *Repository) CloseAll(ctx context.Context, userID int) ([]int, error) {
 func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error) {
 	var s Shift
 	var storeID, closingBalance, discrepancy, reviewedBy sql.NullInt64
-	var storeName sql.NullString
 	var notes sql.NullString
 	var openedAt, createdAt, updatedAt time.Time
 	var closedAt, reviewedAt sql.NullTime
 
 	query := `
-		SELECT s.id, s.user_id, u.username, s.store_id, st.name, s.status,
+		SELECT s.id, s.user_id, s.store_id, s.status,
 		       s.opening_balance, s.closing_balance, s.cash_sales, s.non_cash_sales,
 		       s.total_sales, s.transaction_count, s.discrepancy, s.notes,
 		       s.needs_review, s.reviewed_by, s.reviewed_at,
 		       s.opened_at, s.closed_at, s.created_at, s.updated_at
 		FROM shifts s
-		LEFT JOIN users u ON u.id = s.user_id
-		LEFT JOIN stores st ON st.id = s.store_id
 		WHERE s.id = $1`
 	args := []interface{}{shiftID}
 	if ownerID, restricted := scope.OwnID(); restricted {
@@ -474,7 +518,7 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 	}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&s.ID, &s.UserID, &s.Username, &storeID, &storeName, &s.Status,
+		&s.ID, &s.UserID, &storeID, &s.Status,
 		&s.OpeningBalance, &closingBalance, &s.CashSales, &s.NonCashSales,
 		&s.TotalSales, &s.TransactionCount, &discrepancy, &notes,
 		&s.NeedsReview, &reviewedBy, &reviewedAt,
@@ -487,10 +531,17 @@ func (r *Repository) GetShiftByID(ctx context.Context, scope ownership.Scope, sh
 	if storeID.Valid {
 		v := int(storeID.Int64)
 		s.StoreID = &v
+		storeNames, err := r.storeNamesByIDs(ctx, []int{v})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve store name: %w", err)
+		}
+		s.StoreName = storeNames[v]
 	}
-	if storeName.Valid {
-		s.StoreName = storeName.String
+	usernames, err := r.usernamesByIDs(ctx, []int{s.UserID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve username: %w", err)
 	}
+	s.Username = usernames[s.UserID]
 	if closingBalance.Valid {
 		v := int(closingBalance.Int64)
 		s.ClosingBalance = &v
