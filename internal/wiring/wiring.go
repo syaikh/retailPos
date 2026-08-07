@@ -331,6 +331,7 @@ func Initialize(p Providers) *Dependencies {
 	d.ReportRepo.SetCache(d.Cache)
 	d.PricingRepo = pricing.NewRepository(p.DB)
 	d.SupplierRepo = supplier.NewRepository(p.DB)
+	d.SupplierRepo.SetProductSupplierStore(product.ProductSupplierLinkStore{})
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)

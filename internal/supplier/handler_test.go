@@ -40,10 +40,11 @@ func testPermMiddleware(_ permissions.Code) gin.HandlerFunc {
 	return func(c *gin.Context) { c.Next() }
 }
 
-func setupSupplierRouter() *gin.Engine {
+func setupSupplierRouter(t *testing.T) *gin.Engine {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	h := NewHandler(svc, nil)
 
@@ -54,7 +55,7 @@ func setupSupplierRouter() *gin.Engine {
 
 func TestHandler_ListSuppliers(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/suppliers", nil)
@@ -71,7 +72,7 @@ func TestHandler_ListSuppliers(t *testing.T) {
 
 func TestHandler_CreateSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
 	t.Run("success", func(t *testing.T) {
 		code := "HDL-SUP-" + strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -113,9 +114,9 @@ func TestHandler_CreateSupplier(t *testing.T) {
 
 func TestHandler_UpdateSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	s := &Supplier{
 		Name:     "Before Update",
 		Code:     "HDL-UPD-" + strconv.FormatInt(time.Now().UnixNano(), 10),
@@ -151,9 +152,9 @@ func TestHandler_UpdateSupplier(t *testing.T) {
 
 func TestHandler_DeleteSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	s := &Supplier{
 		Name:     "Delete Handler",
 		Code:     "HDL-DEL-" + strconv.FormatInt(time.Now().UnixNano(), 10),
@@ -186,8 +187,8 @@ func TestHandler_DeleteSupplier(t *testing.T) {
 
 func TestHandler_GetSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 
 	s := &Supplier{
 		Name:     "Get Handler Supplier",
@@ -221,8 +222,8 @@ func TestHandler_GetSupplier(t *testing.T) {
 
 func TestHandler_GetProductsBySupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 
 	s := &Supplier{
 		Name:     "Products For Supplier",
@@ -256,7 +257,7 @@ func TestHandler_GetProductsBySupplier(t *testing.T) {
 
 func TestHandler_GetSuppliersByProduct(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 	ctx := t.Context()
 	productID := insertTestProduct(ctx, t, "HDL-SP-"+strconv.FormatInt(time.Now().UnixNano(), 10), "Handler SP Product", 5000)
 
@@ -285,8 +286,8 @@ func TestHandler_GetSuppliersByProduct(t *testing.T) {
 
 func TestHandler_LinkProduct(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s := &Supplier{
@@ -327,8 +328,8 @@ func TestHandler_LinkProduct(t *testing.T) {
 
 func TestHandler_UnlinkProduct(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s := &Supplier{
@@ -380,8 +381,8 @@ func TestHandler_UnlinkProduct(t *testing.T) {
 
 func TestHandler_UpdateProductSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s := &Supplier{
@@ -437,8 +438,8 @@ func TestHandler_UpdateProductSupplier(t *testing.T) {
 
 func TestHandler_SetPreferredSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s := &Supplier{
@@ -490,8 +491,8 @@ func TestHandler_SetPreferredSupplier(t *testing.T) {
 
 func TestHandler_BulkUpdate(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s1 := &Supplier{Name: "BU-H1", Code: "HDL-BU1-" + strconv.FormatInt(time.Now().UnixNano(), 10), IsActive: true}
@@ -527,8 +528,8 @@ func TestHandler_BulkUpdate(t *testing.T) {
 
 func TestHandler_BulkDelete(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
-	repo := NewRepository(dbPool)
+	r := setupSupplierRouter(t)
+	repo := newTestRepo(t)
 	ctx := t.Context()
 
 	s1 := &Supplier{Name: "BD-H1", Code: "HDL-BD1-" + strconv.FormatInt(time.Now().UnixNano(), 10), IsActive: true}
@@ -564,7 +565,7 @@ func TestHandler_BulkDelete(t *testing.T) {
 
 func TestHandler_ListSuppliers_IsActiveFilter(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/suppliers?is_active=true", nil)
@@ -575,9 +576,9 @@ func TestHandler_ListSuppliers_IsActiveFilter(t *testing.T) {
 
 func TestHandler_UpdateSupplier_ErrorBranches(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	s := &Supplier{
 		Name:     "Branch Fill",
 		Code:     "HDL-FILL-" + strconv.FormatInt(time.Now().UnixNano(), 10),
@@ -619,7 +620,7 @@ func TestHandler_UpdateSupplier_ErrorBranches(t *testing.T) {
 
 func TestHandler_LinkProduct_ErrorBranches(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
 	t.Run("bad json", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -641,7 +642,7 @@ func TestHandler_LinkProduct_ErrorBranches(t *testing.T) {
 
 func TestHandler_UpdateProductSupplier_ErrorBranches(t *testing.T) {
 	skipIfNoDB(t)
-	r := setupSupplierRouter()
+	r := setupSupplierRouter(t)
 
 	t.Run("bad json", func(t *testing.T) {
 		w := httptest.NewRecorder()

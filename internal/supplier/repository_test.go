@@ -50,7 +50,7 @@ func TestSupplierRepository_CRUD(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("Create and get by ID", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestSupplierRepository_ProductSupplierLinking(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	s := &Supplier{
@@ -266,7 +266,7 @@ func TestSupplierRepository_GetAllInactiveFilter(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	s := &Supplier{
@@ -297,7 +297,7 @@ func TestSupplierRepository_BulkUpdate(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	s1 := &Supplier{Name: "Bulk Upd 1", Code: "SUP-BU1-" + time.Now().Format("0102150405"), IsActive: true}
@@ -332,7 +332,7 @@ func TestSupplierRepository_BulkDelete(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	s1 := &Supplier{Name: "Bulk Del 1", Code: "SUP-BD1-" + time.Now().Format("0102150405"), IsActive: true}
@@ -360,7 +360,7 @@ func TestSupplierRepository_BulkInsertSuppliers(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	t.Run("insert multiple", func(t *testing.T) {
@@ -397,7 +397,7 @@ func TestSupplierRepository_BulkUpdateSuppliers(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	code := "SUP-BUS-" + time.Now().Format("0102150405")
@@ -433,7 +433,7 @@ func TestSupplierRepository_GetAllForExport(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	ctx := context.Background()
 
 	s := &Supplier{

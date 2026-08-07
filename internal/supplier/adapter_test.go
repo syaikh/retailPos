@@ -37,21 +37,21 @@ func TestNilStr(t *testing.T) {
 
 func TestNewAdapter(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 	assert.NotNil(t, a)
 }
 
 func TestAdapter_ModuleName(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 	assert.Equal(t, "suppliers", a.ModuleName())
 }
 
 func TestAdapter_ValidateBusiness(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 	result := a.ValidateBusiness(context.Background(), Schema, []map[string]interface{}{})
 	assert.Nil(t, result)
@@ -59,7 +59,7 @@ func TestAdapter_ValidateBusiness(t *testing.T) {
 
 func TestAdapter_MapToEntity(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 
 	t.Run("valid row", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestAdapter_MapToEntity(t *testing.T) {
 
 func TestAdapter_LoadReferences(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 	repoActions := a.Repository()
 	result, err := repoActions.LoadReferences(context.Background(), Schema)
@@ -122,7 +122,7 @@ func TestAdapter_LoadReferences(t *testing.T) {
 
 func TestAdapter_Repository_Insert(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	a := NewAdapter(repo)
 	repoActions := a.Repository()
 
@@ -146,7 +146,7 @@ func TestAdapter_Repository_Insert(t *testing.T) {
 
 func TestAdapter_Repository_Update(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	code := "SUP-BULK-UPD-" + time.Now().Format("0102150405")
 	s := &Supplier{
@@ -179,7 +179,7 @@ func TestAdapter_Repository_Update(t *testing.T) {
 
 func TestAdapter_Repository_ExportData(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	s := &Supplier{
 		Name:     "Export Supplier",

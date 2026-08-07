@@ -140,6 +140,9 @@ var strictModuleTables = map[string]map[string]bool{
 		"cart_sessions":    true,
 		"cart_items":       true,
 	},
+	"supplier": {
+		"suppliers": true,
+	},
 }
 
 // crossContextDebt lists acknowledged cross-context references awaiting
@@ -157,8 +160,6 @@ var strictModuleTables = map[string]map[string]bool{
 //     product_suppliers), transaksional (product_stock), referensi
 //     (storage_locations/stores/suppliers/warehouses), platform
 //     (users/roles) -> per-owner read ports.
-//   - supplier: product_suppliers + products (product-supplier link CRUD) ->
-//     product-owned read port.
 var crossContextDebt = map[string]map[string]bool{
 	"inventory": {
 		"products":          true,
@@ -182,10 +183,6 @@ var crossContextDebt = map[string]map[string]bool{
 		"units_of_measure":  true,
 		"users":             true,
 		"warehouses":        true,
-	},
-	"supplier": {
-		"product_suppliers": true,
-		"products":          true,
 	},
 }
 

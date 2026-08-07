@@ -3,6 +3,7 @@ package supplier
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,10 +14,31 @@ import (
 
 type Repository struct {
 	db shared.DBPool
+
+	// psStore is the product-owned port for the product_suppliers link table
+	// (katalog-owned, ADR Modular_Monolith_Module_Boundaries §2.8). It MUST be
+	// wired via SetProductSupplierStore by the composition root.
+	psStore ProductSupplierStore
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetProductSupplierStore wires the product-owned port that backs all
+// product_suppliers reads and writes. Calls to the linked-product methods
+// fail fast until it is set.
+func (r *Repository) SetProductSupplierStore(ps ProductSupplierStore) {
+	r.psStore = ps
+}
+
+// linkStore returns the wired product_suppliers port, failing fast when the
+// composition root has not wired it.
+func (r *Repository) linkStore() ProductSupplierStore {
+	if r.psStore == nil {
+		panic("supplier.Repository: ProductSupplierStore is not wired — set it via SetProductSupplierStore")
+	}
+	return r.psStore
 }
 
 func (r *Repository) GetByID(ctx context.Context, id int) (*Supplier, error) {
@@ -203,192 +225,86 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 }
 
 func (r *Repository) LinkProduct(ctx context.Context, ps *ProductSupplier) error {
-	var createdAt time.Time
-	err := r.db.QueryRow(ctx, `
-		INSERT INTO product_suppliers (product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at
-	`, ps.ProductID, ps.SupplierID, ps.SupplierSKU, ps.UnitCost, ps.LeadTimeDays, ps.IsPreferred,
-	).Scan(&ps.ID, &createdAt)
-	if err != nil {
-		return fmt.Errorf("link product supplier: %w", err)
-	}
-	ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	return nil
+	return r.linkStore().CreateLink(ctx, r.db, ps)
 }
 
 func (r *Repository) UnlinkProduct(ctx context.Context, productID, supplierID int) error {
-	_, err := r.db.Exec(ctx, `
-		DELETE FROM product_suppliers WHERE product_id = $1 AND supplier_id = $2
-	`, productID, supplierID)
-	if err != nil {
-		return fmt.Errorf("unlink product supplier: %w", err)
-	}
-	return nil
+	return r.linkStore().DeleteLink(ctx, r.db, productID, supplierID)
 }
 
 func (r *Repository) GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error) {
-	var ps ProductSupplier
-	var createdAt time.Time
-
-	err := r.db.QueryRow(ctx, `
-		SELECT id, product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at
-		FROM product_suppliers WHERE product_id = $1 AND supplier_id = $2
-	`, productID, supplierID).Scan(
-		&ps.ID, &ps.ProductID, &ps.SupplierID, &ps.SupplierSKU,
-		&ps.UnitCost, &ps.LeadTimeDays, &ps.IsPreferred, &createdAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, ErrProductSupplierNotFound
-		}
-		return nil, err
-	}
-
-	ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	return &ps, nil
+	return r.linkStore().GetLink(ctx, r.db, productID, supplierID)
 }
 
 func (r *Repository) GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error) {
-	var ps ProductSupplier
-	var createdAt time.Time
-
-	err := r.db.QueryRow(ctx, `
-		SELECT id, product_id, supplier_id, supplier_sku, unit_cost, lead_time_days, is_preferred, created_at
-		FROM product_suppliers WHERE product_id = $1 AND is_preferred = true
-	`, productID).Scan(
-		&ps.ID, &ps.ProductID, &ps.SupplierID, &ps.SupplierSKU,
-		&ps.UnitCost, &ps.LeadTimeDays, &ps.IsPreferred, &createdAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, ErrProductSupplierNotFound
-		}
-		return nil, err
-	}
-
-	ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-	return &ps, nil
+	return r.linkStore().GetPreferredLink(ctx, r.db, productID)
 }
 
 func (r *Repository) SetPreferredSupplier(ctx context.Context, productID, supplierID int) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE product_suppliers SET is_preferred = false
-		WHERE product_id = $1 AND is_preferred = true
-	`, productID)
-	if err != nil {
-		return fmt.Errorf("clear preferred supplier: %w", err)
-	}
-
-	_, err = r.db.Exec(ctx, `
-		UPDATE product_suppliers SET is_preferred = true
-		WHERE product_id = $1 AND supplier_id = $2
-	`, productID, supplierID)
-	if err != nil {
-		return fmt.Errorf("set preferred supplier: %w", err)
-	}
-	return nil
+	return r.linkStore().SetPreferredLink(ctx, r.db, productID, supplierID)
 }
 
 func (r *Repository) UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE product_suppliers
-		SET supplier_sku = $1, unit_cost = $2, lead_time_days = $3, is_preferred = $4, updated_at = NOW()
-		WHERE product_id = $5 AND supplier_id = $6
-	`, ps.SupplierSKU, ps.UnitCost, ps.LeadTimeDays, ps.IsPreferred, ps.ProductID, ps.SupplierID)
-	if err != nil {
-		return fmt.Errorf("update product supplier: %w", err)
-	}
-	return nil
+	return r.linkStore().UpdateLink(ctx, r.db, ps)
 }
 
+// GetSuppliersByProductID returns the product-supplier links of a product,
+// enriched with the supplier name/code. The link rows come from the
+// product-owned port; supplier enrichment is computed here on the suppliers
+// table (referensi-owned), preserving the previous JOIN's ordering.
 func (r *Repository) GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT ps.id, ps.product_id, ps.supplier_id, ps.supplier_sku, ps.unit_cost, ps.lead_time_days, ps.is_preferred, ps.created_at,
-		       s.name, s.code
-		FROM product_suppliers ps
-		JOIN suppliers s ON ps.supplier_id = s.id AND s.deleted_at IS NULL
-		WHERE ps.product_id = $1
-		ORDER BY ps.is_preferred DESC, s.name ASC
-	`, productID)
+	links, err := r.linkStore().ListLinksByProduct(ctx, r.db, productID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var result []ProductSupplier
-	for rows.Next() {
-		var ps ProductSupplier
-		var createdAt time.Time
-		var supplierName, supplierCode string
-
-		err := rows.Scan(
-			&ps.ID, &ps.ProductID, &ps.SupplierID, &ps.SupplierSKU,
-			&ps.UnitCost, &ps.LeadTimeDays, &ps.IsPreferred, &createdAt,
-			&supplierName, &supplierCode,
-		)
-		if err != nil {
-			return nil, err
-		}
-		ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-		ps.SupplierName = &supplierName
-		ps.SupplierCode = &supplierCode
-		result = append(result, ps)
+	if len(links) == 0 {
+		return []ProductSupplier{}, nil
 	}
-	if err := rows.Err(); err != nil {
+
+	ids := make([]int, len(links))
+	for i, l := range links {
+		ids[i] = l.SupplierID
+	}
+	suppliers, err := r.GetByIDs(ctx, ids)
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	byID := make(map[int]Supplier, len(suppliers))
+	for _, s := range suppliers {
+		byID[s.ID] = s
+	}
+	for i := range links {
+		s, ok := byID[links[i].SupplierID]
+		if !ok {
+			continue
+		}
+		name, code := s.Name, s.Code
+		links[i].SupplierName = &name
+		links[i].SupplierCode = &code
+	}
+
+	sort.SliceStable(links, func(i, j int) bool {
+		if links[i].IsPreferred != links[j].IsPreferred {
+			return links[i].IsPreferred
+		}
+		ni, nj := "", ""
+		if links[i].SupplierName != nil {
+			ni = *links[i].SupplierName
+		}
+		if links[j].SupplierName != nil {
+			nj = *links[j].SupplierName
+		}
+		return ni < nj
+	})
+	return links, nil
 }
 
 func (r *Repository) GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT ps.id, ps.product_id, ps.supplier_id, ps.supplier_sku, ps.unit_cost, ps.lead_time_days, ps.is_preferred, ps.created_at,
-		       p.name, p.sku
-		FROM product_suppliers ps
-		JOIN products p ON ps.product_id = p.id AND p.deleted_at IS NULL
-		WHERE ps.supplier_id = $1
-		ORDER BY p.name ASC
-	`, supplierID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []ProductSupplier
-	for rows.Next() {
-		var ps ProductSupplier
-		var createdAt time.Time
-		var productName, productSKU string
-
-		err := rows.Scan(
-			&ps.ID, &ps.ProductID, &ps.SupplierID, &ps.SupplierSKU,
-			&ps.UnitCost, &ps.LeadTimeDays, &ps.IsPreferred, &createdAt,
-			&productName, &productSKU,
-		)
-		if err != nil {
-			return nil, err
-		}
-		ps.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-		ps.ProductName = &productName
-		ps.ProductSKU = &productSKU
-		result = append(result, ps)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return r.linkStore().ListLinksBySupplier(ctx, r.db, supplierID)
 }
 
 func (r *Repository) HasPreferredSupplier(ctx context.Context, productID int) (bool, error) {
-	var exists bool
-	err := r.db.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM product_suppliers WHERE product_id = $1 AND is_preferred = true)
-	`, productID).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("check preferred supplier: %w", err)
-	}
-	return exists, nil
+	return r.linkStore().HasPreferredLink(ctx, r.db, productID)
 }
 
 func scanSuppliers(rows pgx.Rows) ([]Supplier, error) {

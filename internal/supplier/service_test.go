@@ -230,7 +230,7 @@ func TestValidateProductSupplier(t *testing.T) {
 
 func TestService_GetByID(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -251,7 +251,7 @@ func TestService_GetByID(t *testing.T) {
 
 func TestService_GetByCode(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -269,7 +269,7 @@ func TestService_GetByCode(t *testing.T) {
 
 func TestService_GetAll(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -281,7 +281,7 @@ func TestService_GetAll(t *testing.T) {
 
 func TestService_Create_And_Delete(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -300,7 +300,7 @@ func TestService_Create_And_Delete(t *testing.T) {
 
 func TestService_Create_ValidationFails(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -311,7 +311,7 @@ func TestService_Create_ValidationFails(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -333,7 +333,7 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Update_ValidationFails(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -344,7 +344,7 @@ func TestService_Update_ValidationFails(t *testing.T) {
 
 func TestService_LinkProduct(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -372,7 +372,7 @@ func TestService_LinkProduct(t *testing.T) {
 
 func TestService_LinkProduct_ValidationFails(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -383,7 +383,7 @@ func TestService_LinkProduct_ValidationFails(t *testing.T) {
 
 func TestService_GetProductSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -415,7 +415,7 @@ func TestService_GetProductSupplier(t *testing.T) {
 
 func TestService_GetPreferredSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -445,7 +445,7 @@ func TestService_GetPreferredSupplier(t *testing.T) {
 
 func TestService_SetPreferredSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -482,7 +482,7 @@ func TestService_SetPreferredSupplier(t *testing.T) {
 
 func TestService_UpdateProductSupplier(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -513,7 +513,7 @@ func TestService_UpdateProductSupplier(t *testing.T) {
 
 func TestService_UpdateProductSupplier_ValidationFails(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -524,7 +524,7 @@ func TestService_UpdateProductSupplier_ValidationFails(t *testing.T) {
 
 func TestService_GetSuppliersByProductID(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -549,7 +549,7 @@ func TestService_GetSuppliersByProductID(t *testing.T) {
 
 func TestService_GetProductsBySupplierID(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -574,7 +574,7 @@ func TestService_GetProductsBySupplierID(t *testing.T) {
 
 func TestService_BulkUpdate(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -594,7 +594,7 @@ func TestService_BulkUpdate(t *testing.T) {
 
 func TestService_BulkDelete(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo)
 	ctx := context.Background()
 
