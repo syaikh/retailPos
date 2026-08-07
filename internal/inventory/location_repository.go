@@ -3,9 +3,12 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"retail-pos-system/internal/shared"
 )
 
 type queryer interface {
@@ -15,14 +18,14 @@ type queryer interface {
 }
 
 // ListLocationStock returns rack-level stock rows, optionally filtered by a
-// single product and/or a single location.
+// single product and/or a single location. The rack rows are read from the
+// owned product_stock table and then enriched with storage_locations and
+// products metadata through consumer-side ports
+// (LocationRackProvider/ProductMetaProvider) instead of cross-context JOINs.
 func (r *Repository) ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error) {
 	query := `
-		SELECT ps.product_id, COALESCE(p.sku, ''), COALESCE(p.name, ''), ps.location_id,
-		       COALESCE(sl.code, ''), COALESCE(sl.name, ''), ps.quantity
+		SELECT ps.product_id, ps.location_id, ps.quantity
 		FROM product_stock ps
-		JOIN storage_locations sl ON sl.id = ps.location_id
-		JOIN products p ON p.id = ps.product_id
 		WHERE ps.location_id IS NOT NULL`
 	args := []interface{}{}
 	if productID > 0 {
@@ -33,7 +36,7 @@ func (r *Repository) ListLocationStock(ctx context.Context, productID, locationI
 		args = append(args, locationID)
 		query += fmt.Sprintf(" AND ps.location_id = $%d", len(args))
 	}
-	query += ` ORDER BY sl.name ASC, p.name ASC`
+	query += ` ORDER BY ps.location_id ASC, ps.product_id ASC`
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -41,39 +44,83 @@ func (r *Repository) ListLocationStock(ctx context.Context, productID, locationI
 	}
 	defer rows.Close()
 
-	var items []LocationStockItem
+	type rawRow struct {
+		ProductID  int
+		LocationID int
+		Quantity   int
+	}
+	var raws []rawRow
+	locSet := map[int]struct{}{}
+	prodSet := map[int]struct{}{}
 	for rows.Next() {
-		var it LocationStockItem
-		if err := rows.Scan(&it.ProductID, &it.SKU, &it.Name, &it.LocationID, &it.LocationCode, &it.LocationName, &it.Quantity); err != nil {
+		var rw rawRow
+		if err := rows.Scan(&rw.ProductID, &rw.LocationID, &rw.Quantity); err != nil {
 			return nil, fmt.Errorf("failed to scan location stock: %w", err)
 		}
-		items = append(items, it)
+		raws = append(raws, rw)
+		locSet[rw.LocationID] = struct{}{}
+		prodSet[rw.ProductID] = struct{}{}
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to list location stock: %w", err)
+	}
+
+	racks, err := r.locationProvider().RacksByIDs(ctx, r.db, sortedKeys(locSet))
+	if err != nil {
+		return nil, err
+	}
+	metas, err := r.productMetaProvider().ProductMetasByIDs(ctx, r.db, sortedKeys(prodSet))
+	if err != nil {
+		return nil, err
+	}
+	rackByID := make(map[int]LocationRack, len(racks))
+	for _, rack := range racks {
+		rackByID[rack.ID] = rack
+	}
+
+	items := make([]LocationStockItem, 0, len(raws))
+	for _, rw := range raws {
+		rack, ok := rackByID[rw.LocationID]
+		if !ok {
+			rack = LocationRack{}
+		}
+		meta, ok := metas[rw.ProductID]
+		if !ok {
+			meta = shared.ProductMeta{}
+		}
+		items = append(items, LocationStockItem{
+			ProductID:    rw.ProductID,
+			SKU:          meta.SKU,
+			Name:         meta.Name,
+			LocationID:   rw.LocationID,
+			LocationCode: rack.Code,
+			LocationName: rack.Name,
+			Quantity:     rw.Quantity,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].LocationName != items[j].LocationName {
+			return items[i].LocationName < items[j].LocationName
+		}
+		return items[i].Name < items[j].Name
+	})
+	return items, nil
+}
+
+func sortedKeys(set map[int]struct{}) []int {
+	keys := make([]int, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	return keys
 }
 
 // LoadLocationForStock returns the rack metadata for writing rack stock rows.
-// The caller must check IsActive before writing.
+// The caller must check IsActive before writing. The storage_locations read is
+// delegated to the LocationRackProvider (internal/storagelocation).
 func (r *Repository) LoadLocationForStock(ctx context.Context, locationID int) (*LocationRack, error) {
-	return r.loadLocationForStock(ctx, r.db, locationID)
-}
-
-func (r *Repository) loadLocationForStock(ctx context.Context, q queryer, locationID int) (*LocationRack, error) {
-	var rack LocationRack
-	var warehouseID, storeID *int
-	err := q.QueryRow(ctx, `
-		SELECT id, code, name, warehouse_id, store_id, is_active
-		FROM storage_locations WHERE id = $1
-	`, locationID).Scan(&rack.ID, &rack.Code, &rack.Name, &warehouseID, &storeID, &rack.IsActive)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, ErrLocationNotFound
-		}
-		return nil, fmt.Errorf("failed to load storage location %d: %w", locationID, err)
-	}
-	rack.WarehouseID = warehouseID
-	rack.StoreID = storeID
-	return &rack, nil
+	return r.locationProvider().GetRack(ctx, r.db, locationID)
 }
 
 // SetLocationStock records how much of a product sits in a rack, creating the

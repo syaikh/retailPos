@@ -15,7 +15,6 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/permissions"
-	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -44,11 +43,10 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 	}
 }
 
-func setupInventoryRouter() *gin.Engine {
+func setupInventoryRouter(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -65,7 +63,7 @@ func TestHandler_AdjustStock(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
 	insertTestUser(ctx, t, 1)
-	r := setupInventoryRouter()
+	r := setupInventoryRouter(t)
 
 	t.Run("success increase", func(t *testing.T) {
 		productID := insertTestProduct(ctx, t, "HDL-ADJ-INC-001")

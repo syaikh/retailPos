@@ -70,7 +70,7 @@ func rackStock(ctx context.Context, t *testing.T, productID, locationID int) (in
 func TestLocationStock_SetRecordsRackRow_GlobalUnchanged(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-SET-001")
 	insertTestStock(ctx, t, productID, 50)
@@ -105,7 +105,7 @@ func TestLocationStock_SetRecordsRackRow_GlobalUnchanged(t *testing.T) {
 func TestLocationStock_SetUpdatesExistingRow(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-SET-002")
 	insertTestUser(ctx, t, 1)
@@ -142,7 +142,7 @@ func TestLocationStock_SetUpdatesExistingRow(t *testing.T) {
 func TestLocationStock_SetErrors(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-SET-003")
 	insertTestUser(ctx, t, 1)
@@ -164,7 +164,7 @@ func TestLocationStock_SetErrors(t *testing.T) {
 func TestLocationStock_TransferMovesBetweenRacks_GlobalUnchanged(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-TFR-001")
 	insertTestStock(ctx, t, productID, 100)
@@ -196,7 +196,7 @@ func TestLocationStock_TransferMovesBetweenRacks_GlobalUnchanged(t *testing.T) {
 func TestLocationStock_TransferErrors(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-TFR-002")
 	insertTestUser(ctx, t, 1)
@@ -222,7 +222,7 @@ func TestLocationStock_TransferErrors(t *testing.T) {
 func TestLocationStock_ListFilters(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productA := insertTestProduct(ctx, t, "LOC-LST-001")
 	productB := insertTestProduct(ctx, t, "LOC-LST-002")
@@ -269,7 +269,7 @@ func TestLocationStock_ListFilters(t *testing.T) {
 func TestLocationStock_TransferToEmptyRackCreatesRow(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-TFR-003")
 	insertTestUser(ctx, t, 1)
@@ -290,7 +290,7 @@ func TestLocationStock_TransferToEmptyRackCreatesRow(t *testing.T) {
 func TestLocationStock_TransferInvalidQuantity(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-TFR-004")
 	insertTestUser(ctx, t, 1)
@@ -311,7 +311,7 @@ func TestLocationStock_TransferInvalidQuantity(t *testing.T) {
 func TestLocationStock_ListEmpty(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	items, err := repo.ListLocationStock(ctx, 0, 0)
 	require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestLocationStock_ListEmpty(t *testing.T) {
 func TestLocationStock_StoreOnlyRack(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 
 	productID := insertTestProduct(ctx, t, "LOC-STO-001")
 	insertTestUser(ctx, t, 1)

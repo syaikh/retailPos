@@ -1,11 +1,15 @@
 package inventory
 
-import "errors"
+import (
+	"errors"
+
+	"retail-pos-system/internal/shared"
+)
 
 var (
 	ErrInsufficientLocationStock = errors.New("insufficient stock at source location")
 	ErrLocationInactive          = errors.New("storage location is inactive")
-	ErrLocationNotFound          = errors.New("storage location not found")
+	ErrLocationNotFound          = shared.ErrLocationNotFound
 	ErrSameLocation              = errors.New("source and destination location must differ")
 	ErrNegativeQuantity          = errors.New("quantity must not be negative")
 	ErrNonPositiveQuantity       = errors.New("quantity must be positive")
@@ -25,15 +29,10 @@ type LocationStockItem struct {
 
 // LocationRack carries the storage-location metadata needed to write rack
 // stock rows. Rack rows mirror the rack's warehouse_id/store_id so global-row
-// queries (warehouse_id IS NULL AND store_id IS NULL) stay unambiguous.
-type LocationRack struct {
-	ID          int    `json:"id"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	WarehouseID *int   `json:"warehouse_id,omitempty"`
-	StoreID     *int   `json:"store_id,omitempty"`
-	IsActive    bool   `json:"is_active"`
-}
+// queries (warehouse_id IS NULL AND store_id IS NULL) stay unambiguous. It is
+// an alias of shared.LocationRack, the cross-module contract with
+// internal/storagelocation (single-writer of storage_locations).
+type LocationRack = shared.LocationRack
 
 type ProductStock struct {
 	ID              int    `json:"id"`

@@ -12,7 +12,6 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
-	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -23,7 +22,7 @@ func (f *failingEventBus) Publish(_ context.Context, _ string, _ interface{}) er
 }
 
 func TestInventoryService_GetStockByProductID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -41,8 +40,7 @@ func TestInventoryService_GetStockByProductID(t *testing.T) {
 }
 
 func TestInventoryService_AdjustStock(t *testing.T) {
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -124,8 +122,7 @@ func TestInventoryService_AdjustStock_RepoError(t *testing.T) {
 
 func TestInventoryService_AdjustStockBatch(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -172,7 +169,7 @@ func TestInventoryService_AdjustStockBatch(t *testing.T) {
 }
 
 func TestInventoryService_AdjustStockBatch_Empty(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	svc := NewService(repo, &failingEventBus{})
 	err := svc.AdjustStockBatch(context.Background(), nil, 1, "empty batch")
 	assert.NoError(t, err)
@@ -194,7 +191,7 @@ func TestInventoryService_AdjustStockBatch_RepoError(t *testing.T) {
 
 func TestInventoryService_LocationDelegation(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepo(t)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()

@@ -133,15 +133,19 @@ var strictModuleTables = map[string]map[string]bool{
 		"shifts": true,
 	},
 	"sale": {
-		"sales":            true,
-		"sale_items":       true,
-		"sale_payments":    true,
-		"payment_methods":  true,
-		"cart_sessions":    true,
-		"cart_items":       true,
+		"sales":           true,
+		"sale_items":      true,
+		"sale_payments":   true,
+		"payment_methods": true,
+		"cart_sessions":   true,
+		"cart_items":      true,
 	},
 	"supplier": {
 		"suppliers": true,
+	},
+	"inventory": {
+		"product_stock":       true,
+		"inventory_movements": true,
 	},
 }
 
@@ -152,8 +156,6 @@ var strictModuleTables = map[string]map[string]bool{
 // is ported.
 //
 // Triage:
-//   - inventory: products JOIN (stock names), storage_locations (rack-stock)
-//     -> storage-location/product-owned read ports.
 //   - product: product_stock INTO (bulk import stock adjust, ADR-audited
 //     writer), suppliers/warehouses JOIN (enrichment) -> inventory/store ports.
 //   - stockopname: katalog (brands/categories/products/units_of_measure/
@@ -161,10 +163,6 @@ var strictModuleTables = map[string]map[string]bool{
 //     (storage_locations/stores/suppliers/warehouses), platform
 //     (users/roles) -> per-owner read ports.
 var crossContextDebt = map[string]map[string]bool{
-	"inventory": {
-		"products":          true,
-		"storage_locations": true,
-	},
 	"product": {
 		"product_stock": true,
 		"suppliers":     true,

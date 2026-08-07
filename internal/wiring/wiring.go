@@ -137,7 +137,7 @@ func (a *priceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items 
 			UnitPrice:     snap.UnitPrice,
 			OriginalPrice: snap.OriginalPrice,
 			Discount:      snap.Discount,
-			Type:   sale.Type(snap.Type),
+			Type:          sale.Type(snap.Type),
 			Cost:          snap.Cost,
 			TaxClassID:    snap.TaxClassID,
 			TaxRate:       snap.TaxRate,
@@ -145,8 +145,8 @@ func (a *priceResolverAdapter) ResolveSnapshotsBatch(ctx context.Context, items 
 		}
 		if snap.Rule != nil {
 			result[i].Rule = &sale.Rule{
-				ID:          snap.Rule.ID,
-				Name:        snap.Rule.Name,
+				ID:   snap.Rule.ID,
+				Name: snap.Rule.Name,
 				Type: sale.Type(snap.Rule.Type),
 			}
 		}
@@ -318,6 +318,8 @@ func Initialize(p Providers) *Dependencies {
 	d.SaleRepo.SetCustomerNameProvider(customer.CustomerNameLookup{})
 	d.InventoryRepo = inventory.NewRepository(p.DB)
 	d.InventoryRepo.SetStockSyncer(product.StockSyncer{})
+	d.InventoryRepo.SetLocationRackProvider(storagelocation.RackProvider{})
+	d.InventoryRepo.SetProductMetaProvider(product.ProductMetaLookup{})
 	d.CustomerRepo = customer.NewRepository(p.DB)
 	d.CategoryRepo = category.NewRepository(p.DB)
 	d.CategoryRepo.SetCache(d.Cache)

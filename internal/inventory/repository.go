@@ -13,8 +13,10 @@ import (
 )
 
 type Repository struct {
-	db          shared.DBPool
-	stockSyncer StockSyncer
+	db           shared.DBPool
+	stockSyncer  StockSyncer
+	locProvider  LocationRackProvider
+	metaProvider ProductMetaProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -27,6 +29,36 @@ func NewRepository(db shared.DBPool) *Repository {
 // sync point.
 func (r *Repository) SetStockSyncer(s StockSyncer) {
 	r.stockSyncer = s
+}
+
+// SetLocationRackProvider wires the storage_locations read port, implemented
+// by internal/storagelocation (see LocationRackProvider). It MUST be called
+// before rack-stock paths run; an unwired repository fails fast at the load
+// point.
+func (r *Repository) SetLocationRackProvider(p LocationRackProvider) {
+	r.locProvider = p
+}
+
+// SetProductMetaProvider wires the products sku/name read port, implemented by
+// internal/product (see ProductMetaProvider). It MUST be called before
+// ListLocationStock runs; an unwired repository fails fast at the enrichment
+// point.
+func (r *Repository) SetProductMetaProvider(p ProductMetaProvider) {
+	r.metaProvider = p
+}
+
+func (r *Repository) locationProvider() LocationRackProvider {
+	if r.locProvider == nil {
+		panic("inventory.Repository: LocationRackProvider not wired (SetLocationRackProvider)")
+	}
+	return r.locProvider
+}
+
+func (r *Repository) productMetaProvider() ProductMetaProvider {
+	if r.metaProvider == nil {
+		panic("inventory.Repository: ProductMetaProvider not wired (SetProductMetaProvider)")
+	}
+	return r.metaProvider
 }
 
 func (r *Repository) GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error) {

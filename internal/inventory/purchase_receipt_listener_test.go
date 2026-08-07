@@ -10,12 +10,10 @@ import (
 
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/events"
-	"retail-pos-system/internal/product"
 )
 
 func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	svc := NewService(repo, eventbus.New())
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
@@ -61,8 +59,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsStock(t *testing.T) {
 }
 
 func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *testing.T) {
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	svc := NewService(repo, eventbus.New())
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
@@ -111,8 +108,7 @@ func TestPurchaseReceiptListener_HandleEvent_AdjustsMultipleItemsInOneBatch(t *t
 }
 
 func TestPurchaseReceiptListener_HandleEvent_IsIdempotent(t *testing.T) {
-	repo := NewRepository(dbPool)
-	repo.SetStockSyncer(product.StockSyncer{})
+	repo := newTestRepo(t)
 	svc := NewService(repo, eventbus.New())
 	listener := NewPurchaseReceiptListener(repo, svc)
 	ctx := context.Background()
