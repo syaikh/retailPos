@@ -30,16 +30,9 @@ const productSelectCols = `
 		SELECT v.id, v.sku, v.name, v.barcode, v.category_id, v.category_name, v.price, v.cost, v.stock, v.status, v.store_id,
 		       v.brand_id, v.brand_name, v.unit_of_measure_id, v.unit_of_measure, v.weight_grams, v.description,
 		       v.tax_class_id, v.tax_rate,
-		       ps_preferred.supplier_id, ps_preferred.supplier_name,
+		       v.supplier_id, v.supplier_name,
 		       v.created_at, v.updated_at
-		FROM v_products_full v
-		LEFT JOIN LATERAL (
-			SELECT s.id as supplier_id, s.name as supplier_name
-			FROM product_suppliers ps
-			JOIN suppliers s ON ps.supplier_id = s.id AND s.deleted_at IS NULL
-			WHERE ps.product_id = v.id AND ps.is_preferred = true
-			LIMIT 1
-		) ps_preferred ON true`
+		FROM v_products_full v`
 
 type rowScanner interface {
 	Scan(dest ...any) error

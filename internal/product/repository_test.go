@@ -319,3 +319,61 @@ func TestProductRepository_GetAllProductsPagination(t *testing.T) {
 		assert.Greater(t, len(products), 0)
 	})
 }
+
+func TestProductRepository_PreferredSupplierEnrichment(t *testing.T) {
+	repo := NewRepository(dbPool)
+	ctx := context.Background()
+
+	var supplierID int
+	err := dbPool.QueryRow(ctx, `
+		INSERT INTO suppliers (name, code)
+		VALUES ('Preferred Supplier Test', $1)
+		RETURNING id`, uniqueSKU("SUP-")).Scan(&supplierID)
+	require.NoError(t, err)
+
+	t.Run("preferred supplier is enriched from v_products_full", func(t *testing.T) {
+		p := &Product{
+			SKU:    uniqueSKU("TEST-SUPPLIER-ENRICH"),
+			Name:   "Supplier Enrichment Test",
+			Price:  10000,
+			Cost:   5000,
+			Stock:  5,
+			Status: "active",
+		}
+		require.NoError(t, repo.CreateProduct(ctx, p))
+
+		_, err := dbPool.Exec(ctx, `
+			INSERT INTO product_suppliers (product_id, supplier_id, is_preferred)
+			VALUES ($1, $2, true)`, p.ID, supplierID)
+		require.NoError(t, err)
+
+		got, err := repo.GetProductByID(ctx, p.ID, nil)
+		require.NoError(t, err)
+		require.NotNil(t, got.SupplierID, "expected preferred supplier id to be enriched")
+		require.NotNil(t, got.SupplierName, "expected preferred supplier name to be enriched")
+		assert.Equal(t, supplierID, *got.SupplierID)
+		assert.Equal(t, "Preferred Supplier Test", *got.SupplierName)
+	})
+
+	t.Run("non-preferred link is not enriched", func(t *testing.T) {
+		p := &Product{
+			SKU:    uniqueSKU("TEST-NONPREF-ENRICH"),
+			Name:   "Non Preferred Enrichment Test",
+			Price:  10000,
+			Cost:   5000,
+			Stock:  5,
+			Status: "active",
+		}
+		require.NoError(t, repo.CreateProduct(ctx, p))
+
+		_, err := dbPool.Exec(ctx, `
+			INSERT INTO product_suppliers (product_id, supplier_id, is_preferred)
+			VALUES ($1, $2, false)`, p.ID, supplierID)
+		require.NoError(t, err)
+
+		got, err := repo.GetProductByID(ctx, p.ID, nil)
+		require.NoError(t, err)
+		assert.Nil(t, got.SupplierID)
+		assert.Nil(t, got.SupplierName)
+	})
+}
