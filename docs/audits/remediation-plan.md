@@ -1524,13 +1524,14 @@ function handleKeydown(e: KeyboardEvent) {
 
 ---
 
-### 5.3 Replace `patrickmn/go-cache` with `ristretto`
+### 5.3 Replace `patrickmn/go-cache` with `ristretto` ✅ DONE
 
 **Audit Ref:** DR‑01  
 **Effort:** 2 days  
 **Difficulty:** Medium  
 **Risk:** Low (the `Cache` wrapper abstracts the implementation)  
 **Files affected:** `pkg/cache/cache.go`
+**Status:** SUDAH DIIMPLEMENTASI — `pkg/cache/cache.go` sekarang menggunakan `github.com/dgraph-io/ristretto v0.2.0` (lihat `go.mod`). Konfigurasi: `NumCounters: 1e7`, `MaxCost: 1 << 30`, `BufferItems: 64`, `Metrics: true`. Wrapper menyimpan `keys map[string]struct{}` untuk `FlushByPrefix`, menerapkan TTL + jitter (10%) per set, dan memanggil `store.Wait()` setelah `Del` untuk memastikan invalidation tercatat sebelum event `sale.created` diproses. Tercatat juga di `docs/audits/post-hardening-improvement-plan.md`.
 
 **Problem:** `patrickmn/go-cache` is unmaintained (last updated 2019). The wrapper abstraction makes replacement contained.
 
@@ -1609,7 +1610,7 @@ Phase 4 — Post-launch
 │
 ├── 5.1 Multi-warehouse inventory       ← Feature-driven
 ├── 5.2 POS keyboard navigation         ← UX-driven
-├── 5.3 Replace go-cache                ← Low priority
+├── 5.3 Replace go-cache                ✅ DONE (ristretto)
 ```
 
 **Recommended ordering within Phase 2:**
@@ -1628,7 +1629,7 @@ Phase 4 — Post-launch
 | Phase 1 — Code Health | 9 tasks | ~7 hours | Low |
 | Phase 2 — Structural | 11 tasks | ~9 days | Medium (sale refactor) |
 | Phase 3 — Pre-Production | 3 tasks | ~8 days | Low |
-| Phase 4 — Enhancements | 3 tasks | ~8 days | Low |
+| Phase 4 — Enhancements | 2 tasks (5.3 ✅ DONE) | ~5 days | Low |
 | **Total** | **26 tasks** | **~22 developer days** | |
 
 **Critical path** (must be done in order):
