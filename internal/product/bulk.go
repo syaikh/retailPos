@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"retail-pos-system/internal/shared"
 )
 
 func (r *Repository) BulkUpdateProductStatus(ctx context.Context, ids []int, status string, storeID *int) error {
@@ -98,11 +100,8 @@ func (r *Repository) BulkUpsertProduct(ctx context.Context, p ImportPayload) (in
 		return false, err
 	}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO product_stock (product_id, quantity) VALUES ($1, $2)
-	`, existingID, p.Stock)
-	if err != nil {
-		return false, fmt.Errorf("failed to initialize stock: %w", err)
+	if err := r.setStoreStock(ctx, tx, existingID, nil, p.Stock); err != nil {
+		return false, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -215,21 +214,12 @@ func (r *Repository) BulkInsertProducts(ctx context.Context, payloads []ImportPa
 	}
 
 	if len(newIDs) > 0 {
-		stockStrings := make([]string, 0, len(newIDs))
-		stockArgs := make([]interface{}, 0, len(newIDs)*2)
+		rows := make([]shared.StockRowSet, 0, len(newIDs))
 		for i, id := range newIDs {
-			offset := len(stockArgs)
-			stockStrings = append(stockStrings, fmt.Sprintf("($%d, $%d)", offset+1, offset+2))
-			stockArgs = append(stockArgs, id, newPayloads[i].Stock)
+			rows = append(rows, shared.StockRowSet{ProductID: id, Quantity: newPayloads[i].Stock})
 		}
-		stockQuery := fmt.Sprintf(`
-			INSERT INTO product_stock (product_id, quantity)
-			VALUES %s
-			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity
-		`, strings.Join(stockStrings, ", "))
-		_, err = r.db.Exec(ctx, stockQuery, stockArgs...)
-		if err != nil {
-			return len(newIDs), fmt.Errorf("batch insert stock: %w", err)
+		if err := r.setStoreStockBatch(ctx, rows); err != nil {
+			return len(newIDs), err
 		}
 	}
 

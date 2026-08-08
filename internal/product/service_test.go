@@ -12,7 +12,7 @@ import (
 )
 
 func TestProductService_UpdatePublishesEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -51,7 +51,7 @@ func TestProductService_UpdatePublishesEvent(t *testing.T) {
 }
 
 func TestProductService_ReadOperations(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -119,7 +119,7 @@ func TestProductService_ReadOperations(t *testing.T) {
 }
 
 func TestProductService_BulkUpdate(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -146,7 +146,7 @@ func TestProductService_BulkUpdate(t *testing.T) {
 }
 
 func TestProductService_SubResourceMethods(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()

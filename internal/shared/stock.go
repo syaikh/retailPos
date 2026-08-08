@@ -27,6 +27,17 @@ type StockSetItem struct {
 	Quantity  int
 }
 
+// StockRowSet is the input for setting a product's stock row to an absolute
+// value, either the store-scoped row (StoreID != nil) or the global row
+// (StoreID == nil, i.e. NULL warehouse/store/location). It is the cross-module
+// contract between internal/product (consumer) and internal/inventory
+// (single-writer of product_stock).
+type StockRowSet struct {
+	ProductID int
+	StoreID   *int
+	Quantity  int
+}
+
 // LocationStockReconcile is the input for a location-scoped stock reconcile:
 // apply a signed delta to a product's rack row and recompute the global row
 // from the reconciled rack share (max(global-rack, 0) + newRack). It is the

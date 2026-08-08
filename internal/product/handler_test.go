@@ -47,7 +47,7 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 func setupProductRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -70,7 +70,7 @@ func (m *mockProductAudit) CreateAuditLog(_ context.Context, _ *audit.Log) error
 
 func setupProductRouterWithAudit() (*gin.Engine, *mockProductAudit) {
 	gin.SetMode(gin.TestMode)
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -97,7 +97,7 @@ func setupProductRouterWithAudit() (*gin.Engine, *mockProductAudit) {
 
 func TestHandler_UpdateProduct_WithAudit(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 	_, err := dbPool.Exec(ctx, `INSERT INTO stores (id, name, is_active) VALUES (1, 'Test Store', true) ON CONFLICT (id) DO NOTHING`)
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestHandler_GetProducts(t *testing.T) {
 	})
 
 	t.Run("returns products with valid params", func(t *testing.T) {
-		repo := NewRepository(dbPool)
+		repo := testRepo()
 		ctx := context.Background()
 		p := &Product{
 			SKU: "HDL-PROD-01", Name: "Handler Product",
@@ -172,7 +172,7 @@ func TestHandler_GetProductByID(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 	p := &Product{
 		SKU: "HDL-BYID", Name: "By ID Test",
@@ -246,7 +246,7 @@ func TestHandler_UpdateProduct(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 	p := &Product{
 		SKU: "HDL-UPD", Name: "Before Update",
@@ -269,7 +269,7 @@ func TestHandler_DeleteProduct(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 	p := &Product{
 		SKU: "HDL-DEL", Name: "To Delete",
@@ -307,7 +307,7 @@ func TestHandler_BulkUpdateProductStatus(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupProductRouter()
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	p1 := &Product{SKU: "BULK-01", Name: "Bulk Product 1", Price: 5000, Cost: 2500, Stock: 10, Status: "active"}
@@ -359,7 +359,7 @@ func TestHandler_PublicRoutes(t *testing.T) {
 	skipIfNoDB(t)
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -397,7 +397,7 @@ func TestHandler_PublicRoutes(t *testing.T) {
 func setupProductRouterWithPerms(perms []string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	bus := eventbus.New()
 	go bus.Run()
 
@@ -445,7 +445,7 @@ func productCostPresent(body []byte) (bool, error) {
 
 func TestHandler_ProductCostVisibility(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	p := &Product{

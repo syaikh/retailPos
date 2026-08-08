@@ -9,7 +9,28 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/shared"
 )
+
+// stubStockWriter is a no-op ProductStockWriter used by the pgxmock tests:
+// the product_stock SQL now lives in the inventory-provided writer, so the
+// mock tests only exercise the product-owned products SQL and assert the rows
+// the repository delegated to the port.
+type stubStockWriter struct {
+	calls      []shared.StockRowSet
+	batchCalls [][]shared.StockRowSet
+}
+
+func (s *stubStockWriter) SetStoreStock(_ context.Context, _ pgx.Tx, item shared.StockRowSet) error {
+	s.calls = append(s.calls, item)
+	return nil
+}
+
+func (s *stubStockWriter) SetStoreStockBatch(_ context.Context, _ pgx.Tx, items []shared.StockRowSet) error {
+	s.batchCalls = append(s.batchCalls, items)
+	return nil
+}
 
 func productFullRow(id int, sku, name string, price, cost, stock int, status string) *pgxmock.Rows {
 	return pgxmock.NewRows([]string{
@@ -320,11 +341,12 @@ func TestRepo_CreateProduct(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(1, time.Now(), time.Now()))
-	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
+	stub := &stubStockWriter{}
 	repo := NewRepository(mock)
+	repo.SetProductStockWriter(stub)
 	p := &Product{
 		SKU: "SKU-001", Name: "Widget", Price: 10000, Cost: 5000,
 		Stock: 100, Status: "active",
@@ -332,6 +354,7 @@ func TestRepo_CreateProduct(t *testing.T) {
 	err = repo.CreateProduct(context.Background(), p)
 	require.NoError(t, err)
 	assert.Equal(t, 1, p.ID)
+	assert.Equal(t, []shared.StockRowSet{{ProductID: 1, Quantity: 100}}, stub.calls)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -346,7 +369,6 @@ func TestRepo_CreateProduct_WithOptionals(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(2, time.Now(), time.Now()))
-	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
@@ -360,7 +382,9 @@ func TestRepo_CreateProduct_WithOptionals(t *testing.T) {
 	disc := 5.0
 	desc := "A widget"
 
+	stub := &stubStockWriter{}
 	repo := NewRepository(mock)
+	repo.SetProductStockWriter(stub)
 	p := &Product{
 		SKU: "SKU-002", Name: "Widget Pro", Barcode: &bc, CategoryID: &cid,
 		Price: 20000, Cost: 10000, Stock: 50, Status: "active",
@@ -370,6 +394,7 @@ func TestRepo_CreateProduct_WithOptionals(t *testing.T) {
 	err = repo.CreateProduct(context.Background(), p)
 	require.NoError(t, err)
 	assert.Equal(t, 2, p.ID)
+	assert.Equal(t, []shared.StockRowSet{{ProductID: 2, StoreID: &sid, Quantity: 50}}, stub.calls)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -410,18 +435,20 @@ func TestRepo_UpdateProduct_WithStoreID(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
 	sid := 2
+	stub := &stubStockWriter{}
 	repo := NewRepository(mock)
+	repo.SetProductStockWriter(stub)
 	p := &Product{
 		ID: 1, SKU: "SKU-001", Name: "Widget", Price: 10000, Cost: 5000, Stock: 50, Status: "active",
 		StoreID: &sid,
 	}
 	err = repo.UpdateProduct(context.Background(), p, &sid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	assert.Equal(t, []shared.StockRowSet{{ProductID: 1, StoreID: &sid, Quantity: 50}}, stub.calls)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -458,18 +485,41 @@ func TestRepo_RestoreProduct_WithStoreID(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectExec("INSERT INTO product_stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("UPDATE products SET stock").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 
 	sid := 1
+	stub := &stubStockWriter{}
 	repo := NewRepository(mock)
+	repo.SetProductStockWriter(stub)
 	p := &Product{
 		ID: 1, SKU: "SKU-001", Name: "Widget", Price: 10000, Cost: 5000, Stock: 100, Status: "active",
 		StoreID: &sid,
 	}
 	err = repo.RestoreProduct(context.Background(), p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	assert.Equal(t, []shared.StockRowSet{{ProductID: 1, StoreID: &sid, Quantity: 100}}, stub.calls)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRepo_CreateProduct_UnwiredStockWriter(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("INSERT INTO products").WithArgs(
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+	).WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(1, time.Now(), time.Now()))
+	mock.ExpectRollback()
+
+	repo := NewRepository(mock)
+	p := &Product{SKU: "SKU-001", Name: "Widget", Price: 10000, Cost: 5000, Stock: 100, Status: "active"}
+	err = repo.CreateProduct(context.Background(), p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "product_stock writer not wired")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 func TestBulkUpdateProductStatus(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("update multiple products to inactive", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestBulkUpdateProductStatus(t *testing.T) {
 }
 
 func TestBulkUpsertProduct_Insert(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("inserts a new product", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestBulkUpsertProduct_Insert(t *testing.T) {
 }
 
 func TestBulkUpsertProduct_Update(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("updates an existing product", func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestBulkUpsertProduct_Update(t *testing.T) {
 }
 
 func TestBulkInsertProducts(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("inserts multiple new products", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestBulkInsertProducts(t *testing.T) {
 }
 
 func TestBulkUpdateProducts(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("empty payloads returns 0", func(t *testing.T) {

@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,8 +15,9 @@ import (
 )
 
 type Repository struct {
-	db    shared.DBPool
-	cache *cache.Cache
+	db          shared.DBPool
+	cache       *cache.Cache
+	stockWriter ProductStockWriter
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -24,6 +26,39 @@ func NewRepository(db shared.DBPool) *Repository {
 
 func (r *Repository) SetCache(c *cache.Cache) {
 	r.cache = c
+}
+
+// SetProductStockWriter wires the product_stock row writer port. internal/
+// inventory provides the production implementation; the composition root MUST
+// call this before any product stock write path runs (see ProductStockWriter).
+func (r *Repository) SetProductStockWriter(w ProductStockWriter) {
+	r.stockWriter = w
+}
+
+// setStoreStock writes a single product_stock row through the wired port. The
+// caller's tx must be used to preserve atomicity. An unwired writer fails fast.
+func (r *Repository) setStoreStock(ctx context.Context, tx pgx.Tx, productID int, storeID *int, quantity int) error {
+	if r.stockWriter == nil {
+		return errors.New("product: product_stock writer not wired; set ProductStockWriter")
+	}
+	return r.stockWriter.SetStoreStock(ctx, tx, shared.StockRowSet{ProductID: productID, StoreID: storeID, Quantity: quantity})
+}
+
+// setStoreStockBatch writes many product_stock rows through the wired port in
+// a single transaction. An unwired writer fails fast.
+func (r *Repository) setStoreStockBatch(ctx context.Context, items []shared.StockRowSet) error {
+	if r.stockWriter == nil {
+		return errors.New("product: product_stock writer not wired; set ProductStockWriter")
+	}
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := r.stockWriter.SetStoreStockBatch(ctx, tx, items); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 const productSelectCols = `
@@ -306,11 +341,8 @@ func (r *Repository) CreateProduct(ctx context.Context, product *Product) error 
 	product.CreatedAt = createdTime.In(shared.JakartaLocation()).Format(time.RFC3339)
 	product.UpdatedAt = updatedTime.In(shared.JakartaLocation()).Format(time.RFC3339)
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
-	`, product.ID, storeIDVal, product.Stock)
-	if err != nil {
-		return fmt.Errorf("failed to initialize product stock: %w", err)
+	if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
+		return err
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE products SET stock = $1 WHERE id = $2
@@ -404,13 +436,9 @@ func (r *Repository) UpdateProduct(ctx context.Context, product *Product, storeI
 		return err
 	}
 
-	if storeIDVal != nil {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
-			ON CONFLICT ON CONSTRAINT uq_product_stock DO UPDATE SET quantity = EXCLUDED.quantity
-		`, product.ID, storeIDVal, product.Stock)
-		if err != nil {
-			return fmt.Errorf("failed to sync product stock: %w", err)
+	if product.StoreID != nil {
+		if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
+			return err
 		}
 	}
 	_, err = tx.Exec(ctx, `
@@ -473,12 +501,9 @@ func (r *Repository) RestoreProduct(ctx context.Context, product *Product) error
 		return err
 	}
 
-	if storeIDVal != nil {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO product_stock (product_id, store_id, quantity) VALUES ($1, $2, $3)
-		`, product.ID, storeIDVal, product.Stock)
-		if err != nil {
-			return fmt.Errorf("failed to restore product stock: %w", err)
+	if product.StoreID != nil {
+		if err := r.setStoreStock(ctx, tx, product.ID, product.StoreID, product.Stock); err != nil {
+			return err
 		}
 	}
 	_, err = tx.Exec(ctx, `

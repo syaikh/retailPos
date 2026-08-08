@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestProductRepository_CRUD(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("Create and get by ID", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestProductRepository_CRUD(t *testing.T) {
 }
 
 func TestProductRepository_NextSKU(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	sku, err := repo.GetNextSKU(ctx)
@@ -157,7 +157,7 @@ func TestProductRepository_NextSKU(t *testing.T) {
 }
 
 func TestProductRepository_TaxClassRead(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("Get tax class not found", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestProductRepository_TaxClassRead(t *testing.T) {
 }
 
 func TestProductRepository_ActiveProductOptions(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("only returns active, non-deleted products", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestProductRepository_ActiveProductOptions(t *testing.T) {
 }
 
 func TestProductRepository_DeletedProductRestore(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("Get deleted by barcode", func(t *testing.T) {
@@ -262,7 +262,7 @@ func TestProductRepository_DeletedProductRestore(t *testing.T) {
 }
 
 func TestProductRepository_GetProductsByIDs(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	t.Run("returns products matching ids", func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestProductRepository_GetProductsByIDs(t *testing.T) {
 }
 
 func TestProductRepository_GetAllProductsPagination(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
@@ -321,7 +321,7 @@ func TestProductRepository_GetAllProductsPagination(t *testing.T) {
 }
 
 func TestProductRepository_PreferredSupplierEnrichment(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	var supplierID int

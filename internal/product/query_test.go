@@ -24,7 +24,7 @@ func createTestCategory(ctx context.Context, t *testing.T, name string) int {
 }
 
 func TestGetAllProducts_SearchFilter(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	skuA := uniqueSKU("QF-SEARCH-A")
@@ -106,7 +106,7 @@ func TestGetAllProducts_SearchFilter(t *testing.T) {
 }
 
 func TestGetAllProducts_CategoryFilter(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	catID1 := createTestCategory(ctx, t, uniqueSKU("QF-Cat-Filter-1"))
@@ -148,7 +148,7 @@ func TestGetAllProducts_CategoryFilter(t *testing.T) {
 }
 
 func TestGetAllProducts_StatusFilter(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	seedTestProduct(ctx, repo, t, &Product{
@@ -178,7 +178,7 @@ func TestGetAllProducts_StatusFilter(t *testing.T) {
 }
 
 func TestGetAllProducts_MaxStockFilter(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	skuA := uniqueSKU("QF-STOCK-A")
@@ -208,7 +208,7 @@ func TestGetAllProducts_MaxStockFilter(t *testing.T) {
 }
 
 func TestGetAllProducts_Pagination(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
@@ -239,7 +239,7 @@ func TestGetAllProducts_Pagination(t *testing.T) {
 }
 
 func TestGetAllProducts_SortOptions(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	seedTestProduct(ctx, repo, t, &Product{
@@ -275,7 +275,7 @@ func TestGetAllProducts_SortOptions(t *testing.T) {
 }
 
 func TestGetAllProducts_CombinedFilters(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	catID := createTestCategory(ctx, t, uniqueSKU("QF-Combined-Cat"))
@@ -335,7 +335,7 @@ func TestGetAllProducts_CombinedFilters(t *testing.T) {
 }
 
 func TestGetAllProducts_EmptyResult(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	ctx := context.Background()
 
 	products, total, err := repo.GetAllProducts(ctx, 10, 0, "zzz-no-match-zzz", nil, "", "", nil, nil, "", nil)

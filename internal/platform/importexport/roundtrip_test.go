@@ -16,6 +16,7 @@ import (
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/customer"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/platform/importexport"
 	"retail-pos-system/internal/platform/importexport/export"
 	importer "retail-pos-system/internal/platform/importexport/import"
@@ -66,6 +67,7 @@ func TestMain(m *testing.M) {
 	_ = adapterReg.Register(uom.NewAdapter(uom.NewRepository(dbPool)))
 	_ = adapterReg.Register(customer.NewAdapter(customer.NewRepository(dbPool)))
 	productRepo := product.NewRepository(dbPool)
+	productRepo.SetProductStockWriter(inventory.ProductStockWriter{})
 	_ = adapterReg.Register(product.NewAdapter(productRepo, &testCategoryRefRepo{category.NewRepository(dbPool)}, &testBrandRefRepo{brand.NewRepository(dbPool)}, &testUOMRefRepo{uom.NewRepository(dbPool)}))
 
 	val := validation.NewDefaultPipeline()

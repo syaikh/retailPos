@@ -285,7 +285,7 @@ func TestProductAdapter_Insert_Success(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(ctx, t)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
@@ -315,7 +315,7 @@ func TestProductAdapter_Insert_MissingCategory(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(ctx, t)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
@@ -340,7 +340,7 @@ func TestProductAdapter_Update_Success(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(ctx, t)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
@@ -376,7 +376,7 @@ func TestProductAdapter_ExportData_Success(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(ctx, t)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
@@ -485,7 +485,7 @@ func TestProductAdapter_LoadReferences_Success(t *testing.T) {
 	ctx := context.Background()
 	seedProductReferences(ctx, t)
 
-	repo := NewRepository(dbPool)
+	repo := testRepo()
 	catRepo := category.NewRepository(dbPool)
 	brandRepo := brand.NewRepository(dbPool)
 	uomRepo := uom.NewRepository(dbPool)
