@@ -145,3 +145,58 @@ Baca lintas context diizinkan hanya pada read model / reporting (CQRS); command 
 3. Enkapsulasi read lintas modul di belakang Query interface.
 4. Enkapsulasi write lintas modul di belakang Application Service; pindahkan ke pola transaksi sesuai ADR strategi transaksi.
 5. Terapkan aturan yang sama ke seluruh modul secara bertahap.
+
+---
+
+## 5. Status implementasi (2026-08-08)
+
+Penegakan di `internal/archtest` sudah berjalan dan hampir menyeluruh. Seluruh modul domain **kecuali `report`** terdaftar di `strictModuleTables` dan hanya boleh menyentuh tabel yang dimilikinya (modul yang tidak terdaftar ditegakkan lewat `moduleContext`/`tableContext`: baca lintas context boleh, tulis lintas context dilarang).
+
+### 5.1 Pola port sisi-konsumen (consumer-side port)
+
+Baca/tulis lintas modul dienkapsulasi lewat interface kecil yang dideklarasikan **di modul pemakai**, diimplementasikan **di modul pemilik tabel** (structural typing — tidak ada import package pemakai), dan disambung di composition root (`internal/wiring/wiring.go`):
+
+1. `internal/<pemakai>/ports.go` — deklarasi interface `XxxProvider` + dokumen tanggung jawab port.
+2. `internal/<pemilik>/<xxx>_provider.go` — struct implementasi milik pemilik tabel.
+3. DTO bersama di `internal/shared` bila signature port memakai tipe lintas modul (mis. `shared.StockSetItem`, `shared.InventoryMovement`, `shared.LocationStockReconcile`, `shared.UserRoleRef`).
+4. `SetXxxProvider(...)` pada repository/service pemakai; composition root memanggil setter saat wiring; repository **fail-fast** (error runtime) bila port belum di-wire saat dipakai.
+
+### 5.2 Kepemilikan per modul (kondisi aktual `strictModuleTables`)
+
+| Modul | Tabel yang dimiliki | Status |
+|---|---|---|
+| `category` | `categories` | strict |
+| `purchase` | `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items` | strict |
+| `shift` | `shifts` | strict |
+| `sale` | `sales`, `sale_items`, `sale_payments`, `payment_methods`, `cart_sessions`, `cart_items` | strict |
+| `supplier` | `suppliers` | strict |
+| `inventory` | `product_stock`, `inventory_movements` | strict |
+| `product` | `products`, `product_suppliers`, `tax_classes`, `v_products_full`, `categories` | strict |
+| `pricing` | `pricing_rules` | strict |
+| `customer` | `customers` | strict |
+| `brand` | `brands` | strict |
+| `uom` | `units_of_measure` | strict |
+| `customergroup` | `customer_groups` | strict |
+| `stockopname` | `stock_opnames`, `stock_opname_items`, `stock_opname_counts`, `stock_opname_assignments`, `stock_opname_recount_requests`, `stock_opname_session_scopes`, `inventory_adjustments`, `inventory_adjustment_items` | strict |
+| `store` | `stores`, `warehouses` | strict |
+| `storagelocation` | `storage_locations` | strict |
+| `user` | `users`, `roles`, `permissions`, `role_permissions`, `refresh_tokens`, `audit_logs` | strict |
+| `platform` | `import_jobs`, `import_snapshots`, `import_rows`, `import_errors`, `outbox`, `dead_letter_events` | strict |
+| `report` | read model `mv_*` (hanya baca) | **lax** |
+
+Catatan:
+- `categories` dimiliki bersama oleh `category` (CRUD) dan `product` (LEFT JOIN pada query restore produk by barcode) — pengecualian yang disengaja.
+- `audit_logs` ditulis oleh `internal/audit` (shared infrastructure, di luar `domainModules`), tapi kepemilikan tabel ditetapkan ke `user` (platform).
+- `inventory_movements` dimiliki `inventory`; `stockopname` menulisnya lewat port `MovementWriter` di dalam Unit of Work posting, bukan CopyFrom langsung.
+- `warehouses` dimiliki `store`; `storage_locations` dimiliki `storagelocation`; `payment_methods` dan `tax_classes` (tabel referensi dari seed) dimiliki masing-masing `sale` dan `product`.
+
+### 5.3 Debt lintas context yang diakui (`crossContextDebt`)
+
+`crossContextDebt` adalah mekanisme untuk menandai referensi lintas modul yang sengaja dipertahankan sementara menunggu port; entri tersebut tetap memicu pelanggaran pada modul non-pemilik. Archtest memeriksa **stale entry** — entri yang sudah tidak relevan (referensi sudah diport) harus dihapus, sehingga debt tidak diam-diam tertinggal tanpa refactor. Saat ini **tidak ada entri** (semua referensi lintas modul sudah melalui port).
+
+### 5.4 Batasan yang tersisa
+
+- **`report` tetap lax (read model):** analitik diizinkan `SELECT` ke tabel domain mana pun (CQRS read-model allowance), tapi tidak boleh menulis tabel domain. Ini disengaja dan konsisten dengan §2.8.
+- **`audit` adalah shared infrastructure:** boleh diimpor/dibaca dari mana saja; tidak ditegakkan oleh `internal/archtest`.
+- Posting stock opname bergantung pada tiga port inventory (`StockApplier`, `StockLocker`, `MovementWriter`) yang berjalan pada `tx` pemanggil agar atomis (lihat `ADR_Cross_Module_Transaction_Strategy`).
+
