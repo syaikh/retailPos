@@ -14,7 +14,10 @@ import (
 )
 
 type Repository struct {
-	db shared.DBPool
+	db                 shared.DBPool
+	usernameProvider   UsernameProvider
+	assignableProvider AssignableUserProvider
+	roleNameProvider   UserRoleNameProvider
 }
 
 // scopeNameExpr resolves a human-readable name for a session's primary scope
@@ -34,6 +37,48 @@ const scopeNameExpr = `
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetUsernameProvider wires the user-owned implementation of the
+// UsernameProvider port (ADR §2.4). It MUST be called before any read that
+// resolves usernames — an unwired repository fails fast at runtime.
+func (r *Repository) SetUsernameProvider(p UsernameProvider) {
+	r.usernameProvider = p
+}
+
+// SetAssignableUserProvider wires the user-owned implementation of the
+// AssignableUserProvider port (ADR §2.4). It MUST be called before
+// ListAssignableUsers runs.
+func (r *Repository) SetAssignableUserProvider(p AssignableUserProvider) {
+	r.assignableProvider = p
+}
+
+// SetUserRoleNameProvider wires the user-owned implementation of the
+// UserRoleNameProvider port (ADR §2.4). It MUST be called before
+// GetUserRoleName runs.
+func (r *Repository) SetUserRoleNameProvider(p UserRoleNameProvider) {
+	r.roleNameProvider = p
+}
+
+func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
+	if r.usernameProvider == nil {
+		return nil, errors.New("stockopname repository: username provider not wired; call SetUsernameProvider")
+	}
+	return r.usernameProvider.UsernamesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) assignableUsers(ctx context.Context, search string) ([]shared.UserRoleRef, error) {
+	if r.assignableProvider == nil {
+		return nil, errors.New("stockopname repository: assignable user provider not wired; call SetAssignableUserProvider")
+	}
+	return r.assignableProvider.AssignableUsers(ctx, r.db, search)
+}
+
+func (r *Repository) roleNameByUserID(ctx context.Context, userID int) (string, bool, error) {
+	if r.roleNameProvider == nil {
+		return "", false, errors.New("stockopname repository: role name provider not wired; call SetUserRoleNameProvider")
+	}
+	return r.roleNameProvider.RoleNameByUserID(ctx, r.db, userID)
 }
 
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
@@ -79,47 +124,36 @@ func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, e
 
 // ListAssignableUsers returns active users eligible for assignment to a stock
 // opname session (counters and supervisors). Superadmins are excluded as they
-// sit outside the day-to-day assignment flow.
+// sit outside the day-to-day assignment flow. The read is routed through the
+// AssignableUserProvider port owned by internal/user.
 func (r *Repository) ListAssignableUsers(ctx context.Context, search string) ([]AssignableUser, error) {
-	query := `
-		SELECT u.id, u.username, u.email, u.role_id, r.name
-		FROM users u
-		JOIN roles r ON r.id = u.role_id
-		WHERE u.deleted_at IS NULL AND u.is_active = true
-		  AND r.name IN ('cashier', 'staff', 'manager', 'admin')
-		  AND ($1 = '' OR u.username ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%')
-		ORDER BY u.username ASC`
-	rows, err := r.db.Query(ctx, query, search)
+	refs, err := r.assignableUsers(ctx, search)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list assignable users: %w", err)
 	}
-	defer rows.Close()
-
-	var users []AssignableUser
-	for rows.Next() {
-		var u AssignableUser
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.RoleID, &u.RoleName); err != nil {
-			return nil, fmt.Errorf("failed to scan assignable user: %w", err)
-		}
-		users = append(users, u)
+	users := make([]AssignableUser, 0, len(refs))
+	for _, ref := range refs {
+		users = append(users, AssignableUser{
+			ID:       ref.ID,
+			Username: ref.Username,
+			Email:    ref.Email,
+			RoleID:   ref.RoleID,
+			RoleName: ref.RoleName,
+		})
 	}
-	return users, rows.Err()
+	return users, nil
 }
 
 // GetUserRoleName returns the role name for a user, or empty string when the
-// user does not exist or is inactive.
+// user does not exist or is inactive. The read is routed through the
+// UserRoleNameProvider port owned by internal/user.
 func (r *Repository) GetUserRoleName(ctx context.Context, userID int) (string, error) {
-	var roleName string
-	err := r.db.QueryRow(ctx, `
-		SELECT r.name
-		FROM users u
-		JOIN roles r ON r.id = u.role_id
-		WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = true`, userID).Scan(&roleName)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrAssigneeNotFound
-	}
+	roleName, ok, err := r.roleNameByUserID(ctx, userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user role: %w", err)
+	}
+	if !ok {
+		return "", ErrAssigneeNotFound
 	}
 	return roleName, nil
 }
@@ -532,9 +566,8 @@ func (r *Repository) GetAssignmentUserID(ctx context.Context, sessionID, assignm
 
 func (r *Repository) ListAssignments(ctx context.Context, sessionID int) ([]Assignment, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT a.id, a.stock_opname_id, a.user_id, a.role, a.assigned_at, COALESCE(u.username, '')
+		SELECT a.id, a.stock_opname_id, a.user_id, a.role, a.assigned_at
 		FROM stock_opname_assignments a
-		LEFT JOIN users u ON u.id = a.user_id
 		WHERE a.stock_opname_id = $1
 		ORDER BY a.assigned_at ASC
 	`, sessionID)
@@ -544,16 +577,29 @@ func (r *Repository) ListAssignments(ctx context.Context, sessionID int) ([]Assi
 	defer rows.Close()
 
 	var out []Assignment
+	var userIDs []int
 	for rows.Next() {
 		var a Assignment
 		var assignedAt time.Time
-		if err := rows.Scan(&a.ID, &a.StockOpnameID, &a.UserID, &a.Role, &assignedAt, &a.Username); err != nil {
+		if err := rows.Scan(&a.ID, &a.StockOpnameID, &a.UserID, &a.Role, &assignedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan assignment: %w", err)
 		}
 		a.AssignedAt = assignedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		out = append(out, a)
+		userIDs = append(userIDs, a.UserID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	usernames, err := r.usernamesByIDs(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve assignment usernames: %w", err)
+	}
+	for i := range out {
+		out[i].Username = usernames[out[i].UserID]
+	}
+	return out, nil
 }
 
 func (r *Repository) IsAssigned(ctx context.Context, sessionID, userID int) (bool, error) {
@@ -660,10 +706,9 @@ func (r *Repository) LockItemForCount(ctx context.Context, tx pgx.Tx, itemID int
 
 func (r *Repository) GetCountHistory(ctx context.Context, itemID int) ([]CountRecord, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT c.id, c.stock_opname_item_id, c.count_sequence, c.physical_qty, c.counted_by,
-		       COALESCE(u.username, ''), c.counted_at, COALESCE(c.remarks, '')
+		SELECT c.id, c.stock_opname_item_id, c.count_sequence, c.physical_qty, COALESCE(c.counted_by, 0),
+		       c.counted_at, COALESCE(c.remarks, '')
 		FROM stock_opname_counts c
-		LEFT JOIN users u ON u.id = c.counted_by
 		WHERE c.stock_opname_item_id = $1
 		ORDER BY c.count_sequence ASC
 	`, itemID)
@@ -673,17 +718,32 @@ func (r *Repository) GetCountHistory(ctx context.Context, itemID int) ([]CountRe
 	defer rows.Close()
 
 	var out []CountRecord
+	var userIDs []int
 	for rows.Next() {
 		var c CountRecord
 		var countedAt time.Time
 		if err := rows.Scan(&c.ID, &c.StockOpnameItemID, &c.CountSequence, &c.PhysicalQty, &c.CountedBy,
-			&c.CountedByUser, &countedAt, &c.Remarks); err != nil {
+			&countedAt, &c.Remarks); err != nil {
 			return nil, fmt.Errorf("failed to scan count record: %w", err)
 		}
 		c.CountedAt = countedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		out = append(out, c)
+		if c.CountedBy != 0 {
+			userIDs = append(userIDs, c.CountedBy)
+		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	usernames, err := r.usernamesByIDs(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve count history usernames: %w", err)
+	}
+	for i := range out {
+		out[i].CountedByUser = usernames[out[i].CountedBy]
+	}
+	return out, nil
 }
 
 // --- approval transaction support ---

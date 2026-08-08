@@ -368,13 +368,12 @@ func (r *Repository) getAdjustment(ctx context.Context, q queryer, where string,
 	var createdAt time.Time
 	err := q.QueryRow(ctx, `
 		SELECT a.id, a.adjustment_number, a.session_id, COALESCE(o.session_number,''), a.status,
-		       COALESCE(a.notes,''), COALESCE(a.created_by,0), COALESCE(u.username,''), a.created_at
+		       COALESCE(a.notes,''), COALESCE(a.created_by,0), a.created_at
 		FROM inventory_adjustments a
 		LEFT JOIN stock_opnames o ON o.id = a.session_id
-		LEFT JOIN users u ON u.id = a.created_by
 		`+where, arg).
 		Scan(&adj.ID, &adj.AdjustmentNumber, &adj.SessionID, &adj.SessionNumber, &adj.Status,
-			&adj.Notes, &adj.CreatedBy, &adj.CreatedByName, &createdAt)
+			&adj.Notes, &adj.CreatedBy, &createdAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAdjustmentNotFound
 	}
@@ -382,6 +381,14 @@ func (r *Repository) getAdjustment(ctx context.Context, q queryer, where string,
 		return nil, fmt.Errorf("failed to load adjustment: %w", err)
 	}
 	adj.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
+
+	if adj.CreatedBy != 0 {
+		usernames, err := r.usernamesByIDs(ctx, []int{adj.CreatedBy})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve adjustment creator: %w", err)
+		}
+		adj.CreatedByName = usernames[adj.CreatedBy]
+	}
 
 	items, err := r.getAdjustmentItems(ctx, q, adj.ID)
 	if err != nil {
@@ -462,14 +469,13 @@ func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, sta
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
 		SELECT a.id, a.adjustment_number, a.session_id, COALESCE(o.session_number,''), a.status,
-		       COALESCE(a.notes,''), COALESCE(a.created_by,0), COALESCE(u.username,''), a.created_at,
+		       COALESCE(a.notes,''), COALESCE(a.created_by,0), a.created_at,
 		       COALESCE(SUM(i.difference_qty),0), COALESCE(SUM(i.adjustment_qty),0)
 		FROM inventory_adjustments a
 		LEFT JOIN stock_opnames o ON o.id = a.session_id
-		LEFT JOIN users u ON u.id = a.created_by
 		LEFT JOIN inventory_adjustment_items i ON i.adjustment_id = a.id
 		`+whereSQL+`
-		GROUP BY a.id, o.session_number, u.username
+		GROUP BY a.id, o.session_number
 		ORDER BY a.created_at DESC
 		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)), args...)
 	if err != nil {
@@ -478,15 +484,30 @@ func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, sta
 	defer rows.Close()
 
 	var out []Adjustment
+	var userIDs []int
 	for rows.Next() {
 		var adj Adjustment
 		var createdAt time.Time
 		if err := rows.Scan(&adj.ID, &adj.AdjustmentNumber, &adj.SessionID, &adj.SessionNumber, &adj.Status,
-			&adj.Notes, &adj.CreatedBy, &adj.CreatedByName, &createdAt, &adj.TotalDifference, &adj.TotalAdjustment); err != nil {
+			&adj.Notes, &adj.CreatedBy, &createdAt, &adj.TotalDifference, &adj.TotalAdjustment); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan adjustment: %w", err)
 		}
 		adj.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		out = append(out, adj)
+		if adj.CreatedBy != 0 {
+			userIDs = append(userIDs, adj.CreatedBy)
+		}
 	}
-	return out, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	usernames, err := r.usernamesByIDs(ctx, userIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to resolve adjustment creators: %w", err)
+	}
+	for i := range out {
+		out[i].CreatedByName = usernames[out[i].CreatedBy]
+	}
+	return out, total, nil
 }

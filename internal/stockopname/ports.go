@@ -20,3 +20,30 @@ type StockApplier interface {
 	SetProductStock(ctx context.Context, tx pgx.Tx, item shared.StockSetItem) error
 	ReconcileLocationStock(ctx context.Context, tx pgx.Tx, reconcile shared.LocationStockReconcile) error
 }
+
+// UsernameProvider resolves usernames for stock opname reads (assignments,
+// count history, adjustment created-by). The users table is owned by the
+// platform bounded context (internal/user); stockopname routes the read here
+// instead of a direct LEFT JOIN (ADR §2.8 Platform). The composition root MUST
+// wire it via SetUsernameProvider before any such read — an unwired repository
+// fails fast at runtime.
+type UsernameProvider interface {
+	UsernamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}
+
+// AssignableUserProvider lists active users eligible for assignment to a stock
+// opname session (counters and supervisors). users/roles are owned by
+// internal/user, which owns the eligibility (role, active, deleted) and
+// username/email search filtering. stockopname maps the result into its own
+// AssignableUser read model. SetAssignableUserProvider MUST be wired before
+// ListAssignableUsers runs.
+type AssignableUserProvider interface {
+	AssignableUsers(ctx context.Context, db shared.DBPool, search string) ([]shared.UserRoleRef, error)
+}
+
+// UserRoleNameProvider resolves the role name of a single user. ok is false
+// when the user does not exist or is inactive. SetUserRoleNameProvider MUST be
+// wired before GetUserRoleName runs.
+type UserRoleNameProvider interface {
+	RoleNameByUserID(ctx context.Context, db shared.DBPool, userID int) (roleName string, ok bool, err error)
+}

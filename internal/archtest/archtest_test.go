@@ -163,12 +163,9 @@ var strictModuleTables = map[string]map[string]bool{
 // is ported.
 //
 // Triage:
-//   - product: product_stock INTO (bulk import stock adjust, ADR-audited
-//     writer) -> transaksional-owned port.
 //   - stockopname: katalog (brands/categories/products/units_of_measure/
 //     product_suppliers), transaksional (product_stock), referensi
-//     (storage_locations/stores/suppliers/warehouses), platform
-//     (users/roles) -> per-owner read ports.
+//     (storage_locations/stores/suppliers/warehouses) -> per-owner read ports.
 var crossContextDebt = map[string]map[string]bool{
 	"stockopname": {
 		"brands":            true,
@@ -176,12 +173,10 @@ var crossContextDebt = map[string]map[string]bool{
 		"product_stock":     true,
 		"product_suppliers": true,
 		"products":          true,
-		"roles":             true,
 		"storage_locations": true,
 		"stores":            true,
 		"suppliers":         true,
 		"units_of_measure":  true,
-		"users":             true,
 		"warehouses":        true,
 	},
 }

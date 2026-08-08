@@ -174,7 +174,7 @@ func createTestSessionScope(ctx context.Context, t *testing.T, repo *Repository,
 }
 
 func TestRepository_GetNextSessionNumber(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 
 	num1, err := repo.GetNextSessionNumber(ctx)
@@ -186,7 +186,7 @@ func TestRepository_GetNextSessionNumber(t *testing.T) {
 }
 
 func TestRepository_CreateSessionAndGetSession(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9001, "so_user_9001")
@@ -218,13 +218,13 @@ func TestRepository_CreateSessionAndGetSession(t *testing.T) {
 }
 
 func TestRepository_GetSessionNotFound(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	_, err := repo.GetSession(context.Background(), -1)
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestRepository_LoadSnapshotProducts(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	p := insertTestProduct(ctx, t, "SO-SNAP-001")
 	insertTestStock(ctx, t, p, 7)
@@ -243,7 +243,7 @@ func TestRepository_LoadSnapshotProducts(t *testing.T) {
 }
 
 func TestRepository_UpdateStatusGuarded(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9002, "so_user_9002")
@@ -262,7 +262,7 @@ func TestRepository_UpdateStatusGuarded(t *testing.T) {
 }
 
 func TestRepository_CancelSession(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9003, "so_user_9003")
@@ -280,7 +280,7 @@ func TestRepository_CancelSession(t *testing.T) {
 }
 
 func TestRepository_Assignments(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9004, "so_user_9004")
@@ -332,7 +332,7 @@ func TestRepository_Assignments(t *testing.T) {
 }
 
 func TestRepository_SaveCountAndHistory(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9006, "so_user_9006")
@@ -385,7 +385,7 @@ func TestRepository_SaveCountAndHistory(t *testing.T) {
 }
 
 func TestRepository_ApprovalFlow(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9007, "so_user_9007")
@@ -466,7 +466,7 @@ func TestRepository_ApprovalFlow(t *testing.T) {
 }
 
 func TestRepository_ListAssignableUsers(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9301, "so_cashier_9301", 4)
@@ -496,7 +496,7 @@ func TestRepository_ListAssignableUsers(t *testing.T) {
 }
 
 func TestRepository_GetUserRoleName(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUserWithRole(ctx, t, 9306, "so_staff_9306", 5)
@@ -509,8 +509,28 @@ func TestRepository_GetUserRoleName(t *testing.T) {
 	require.ErrorIs(t, err, ErrAssigneeNotFound)
 }
 
+func TestRepository_UserReadPortsFailFast(t *testing.T) {
+	ctx := context.Background()
+	repo := NewRepository(dbPool) // user-owned ports intentionally unwired
+
+	_, err := repo.ListAssignableUsers(ctx, "")
+	require.ErrorContains(t, err, "assignable user provider not wired")
+
+	_, err = repo.GetUserRoleName(ctx, 1)
+	require.ErrorContains(t, err, "role name provider not wired")
+
+	_, err = repo.ListAssignments(ctx, 1)
+	require.ErrorContains(t, err, "username provider not wired")
+
+	_, err = repo.GetCountHistory(ctx, 1)
+	require.ErrorContains(t, err, "username provider not wired")
+
+	_, _, err = repo.ListAdjustments(ctx, 10, 0, "", "")
+	require.ErrorContains(t, err, "username provider not wired")
+}
+
 func TestRepository_GetSessionBroadcastMeta(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9501, "so_meta_user_9501")
@@ -562,7 +582,7 @@ func TestRepository_GetSessionBroadcastMeta(t *testing.T) {
 }
 
 func TestRepository_GetWarehouseStoreID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	insertTestStore(ctx, t, 9601)
 	insertTestStore(ctx, t, 9602)
@@ -593,7 +613,7 @@ func TestRepository_GetWarehouseStoreID(t *testing.T) {
 }
 
 func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9701, "so_store_roundtrip_9701")
@@ -635,7 +655,7 @@ func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
 }
 
 func TestRepository_ListSessions(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9008, "so_user_9008")
@@ -660,7 +680,7 @@ func TestRepository_ListSessions(t *testing.T) {
 }
 
 func TestRepository_ScopeName(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9701, "so_scope_user_9701")

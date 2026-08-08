@@ -36,7 +36,7 @@ func setupStockOpnameRouter() *gin.Engine {
 func setupStockOpnameRouterAs(userID int, role string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	bus := eventbus.New()
 	go bus.Run()
 

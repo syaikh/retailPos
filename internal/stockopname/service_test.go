@@ -42,7 +42,7 @@ func (b *capturingEventBus) topics() []string {
 }
 
 func TestService_CreateSession(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -64,7 +64,7 @@ func TestService_CreateSession(t *testing.T) {
 }
 
 func TestService_CreateSessionInvalidScope(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -77,7 +77,7 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 	// ensure empty DB snapshot yields ErrNoItems; guard against races by
 	// creating a fresh session for a scope after truncating nothing (items
 	// exist from other tests, so this test only validates the error path shape).
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -88,7 +88,7 @@ func TestService_CreateSessionNoProducts(t *testing.T) {
 }
 
 func TestService_CreateSession_ResolvesStoreID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -178,7 +178,7 @@ func countAllItems(ctx context.Context, t *testing.T, svc *Service, sessionID, c
 }
 
 func TestService_AssignVerifyPostClose(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -291,7 +291,7 @@ func TestService_AssignVerifyPostClose(t *testing.T) {
 }
 
 func TestService_RejectAndRecount(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -330,7 +330,7 @@ func TestService_RejectAndRecount(t *testing.T) {
 }
 
 func TestService_CancelSession(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -355,7 +355,7 @@ func TestService_CancelSession(t *testing.T) {
 }
 
 func TestService_SummaryAndDifferenceReport(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -408,7 +408,7 @@ func TestService_SummaryAndDifferenceReport(t *testing.T) {
 }
 
 func TestService_ListAssignableUsers(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -425,7 +425,7 @@ func TestService_ListAssignableUsers(t *testing.T) {
 }
 
 func TestService_AssignCounterRoleValidation(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -467,7 +467,7 @@ func TestService_AssignCounterRoleValidation(t *testing.T) {
 }
 
 func TestService_ReassignCounterRoleValidation(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -498,7 +498,7 @@ func TestService_ReassignCounterRoleValidation(t *testing.T) {
 }
 
 func TestService_BlindCountMasksQuantities(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -546,7 +546,7 @@ func TestService_BlindCountMasksQuantities(t *testing.T) {
 }
 
 func TestService_PublishesStatusEvents(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
@@ -584,7 +584,7 @@ func TestService_PublishesStatusEvents(t *testing.T) {
 }
 
 func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
@@ -625,7 +625,7 @@ func TestService_SubmitPublishesSubmittedEvent(t *testing.T) {
 }
 
 func TestService_VerifyPublishesApprovedEvent(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
@@ -664,7 +664,7 @@ func TestStoreIDOrZero(t *testing.T) {
 }
 
 func TestService_PublishesGlobalEvent_NoStore(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	bus := &capturingEventBus{}
 	svc := NewService(repo, bus)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})

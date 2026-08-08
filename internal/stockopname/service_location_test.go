@@ -35,7 +35,7 @@ func insertTestStorageLocation(ctx context.Context, t *testing.T, code string, w
 }
 
 func TestRepository_GetLocationScope_Errors(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 
@@ -62,7 +62,7 @@ func TestRepository_GetLocationScope_Errors(t *testing.T) {
 }
 
 func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -96,7 +96,7 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 	// by ErrNoItems (500) when the rack carried no products, because location
 	// validation ran after the candidate-universe resolution. It must surface
 	// as ErrLocationNotFound (404) regardless of rack contents.
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -112,7 +112,7 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) {
 	// Regression for review finding #3: a failed CreateSession (inactive
 	// location) must not advance so_seq, so session numbers stay contiguous.
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -147,7 +147,7 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 }
 
 func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
@@ -171,7 +171,7 @@ func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 }
 
 func TestRepository_LocationScope_ProductUniverse(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 
@@ -201,7 +201,7 @@ func TestRepository_LocationScope_ProductUniverse(t *testing.T) {
 }
 
 func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 	resetStockOpname(ctx, t)
 	insertTestUser(ctx, t, 9803, "so_loc_rt_9803")
@@ -252,7 +252,7 @@ func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
 }
 
 func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo, nil)
 	svc.SetStockApplier(inventory.StockApplier{StockSyncer: product.StockSyncer{}})
 	ctx := context.Background()
