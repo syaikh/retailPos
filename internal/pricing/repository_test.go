@@ -72,8 +72,8 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	t.Run("Create and get by ID", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    12000,
 			Name:            "Test Discount",
 			MinimumQuantity: 1,
@@ -117,8 +117,8 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	t.Run("Update rule", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypeSpecialPrice,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypeSpecialPrice,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    10000,
 			Name:            "Updated Rule",
 			MinimumQuantity: 5,
@@ -141,8 +141,8 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	t.Run("Delete rule", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    5000,
 			Name:            "Delete Me",
 			MinimumQuantity: 1,
@@ -225,8 +225,8 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	t.Run("GetActiveRulesBatch", func(t *testing.T) {
 		rule := &Rule{
 			ProductID:       &productID,
-			Type:     PricingTypePromotion,
-			Method:   PricingMethodFixedPrice,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
 			PricingValue:    18000,
 			Name:            "Batch Discount",
 			MinimumQuantity: 1,
@@ -256,8 +256,8 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "PRC-GAF-"+time.Now().Format("0102150405"), "GetAll Filter Product", 15000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "GetAll Filter Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -325,6 +325,91 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	})
 }
 
+func TestPricingRepository_GetAll_SearchByOwnerNames(t *testing.T) {
+	if dbPool == nil {
+		t.Skip("no database connection")
+	}
+	repo := newWiredRepo()
+	ctx := context.Background()
+	ts := time.Now().Format("0102150405.000000")
+
+	var catID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO categories (name, is_active) VALUES ($1, true) RETURNING id`,
+		"ZZZ Category Alpha "+ts).Scan(&catID))
+	var brandID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO brands (name, is_active) VALUES ($1, true) RETURNING id`,
+		"ZZZ Brand Beta "+ts).Scan(&brandID))
+	var productID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO products (sku, name, price, stock, status, category_id, brand_id)
+		 VALUES ($1, $2, $3, 100, 'active', $4, $5) RETURNING id`,
+		"PRC-SRCH-"+ts, "ZZZ Product Gamma "+ts, 15000, catID, brandID).Scan(&productID))
+
+	newRule := func(scopeName string, productID, categoryID, brandID *int) *Rule {
+		rule := &Rule{
+			ProductID:       productID,
+			CategoryID:      categoryID,
+			BrandID:         brandID,
+			Type:            PricingTypePromotion,
+			Method:          PricingMethodFixedPrice,
+			PricingValue:    12000,
+			Name:            "Rule " + scopeName + " Scope " + ts,
+			MinimumQuantity: 1,
+			Priority:        0,
+			IsActive:        true,
+			Status:          StatusApproved,
+		}
+		require.NoError(t, repo.Create(ctx, rule))
+		return rule
+	}
+	productRule := newRule("Product", &productID, nil, nil)
+	categoryRule := newRule("Category", nil, &catID, nil)
+	brandRule := newRule("Brand", nil, nil, &brandID)
+
+	containsID := func(rules []Rule, id int) bool {
+		for _, r := range rules {
+			if r.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("match by product name", func(t *testing.T) {
+		rules, _, err := repo.GetAll(ctx, 10, 0, "ZZZ Product Gamma "+ts, nil, "", "", nil, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.True(t, containsID(rules, productRule.ID), "expected product-scoped rule in results")
+		assert.False(t, containsID(rules, categoryRule.ID))
+		assert.False(t, containsID(rules, brandRule.ID))
+	})
+
+	t.Run("match by category name", func(t *testing.T) {
+		rules, _, err := repo.GetAll(ctx, 10, 0, "ZZZ Category Alpha "+ts, nil, "", "", nil, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.True(t, containsID(rules, categoryRule.ID), "expected category-scoped rule in results")
+		assert.False(t, containsID(rules, productRule.ID))
+		assert.False(t, containsID(rules, brandRule.ID))
+	})
+
+	t.Run("match by brand name", func(t *testing.T) {
+		rules, _, err := repo.GetAll(ctx, 10, 0, "ZZZ Brand Beta "+ts, nil, "", "", nil, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.True(t, containsID(rules, brandRule.ID), "expected brand-scoped rule in results")
+		assert.False(t, containsID(rules, productRule.ID))
+		assert.False(t, containsID(rules, categoryRule.ID))
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		rules, _, err := repo.GetAll(ctx, 10, 0, "ZZZ NoSuchEntity "+ts, nil, "", "", nil, nil, nil, nil, nil, "")
+		require.NoError(t, err)
+		assert.False(t, containsID(rules, productRule.ID))
+		assert.False(t, containsID(rules, categoryRule.ID))
+		assert.False(t, containsID(rules, brandRule.ID))
+	})
+}
+
 func TestPricingRepository_GetByID_Fields(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
@@ -341,8 +426,8 @@ func TestPricingRepository_GetByID_Fields(t *testing.T) {
 
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypeSpecialPrice,
-		Method:   PricingMethodDiscountPct,
+		Type:            PricingTypeSpecialPrice,
+		Method:          PricingMethodDiscountPct,
 		PricingValue:    15.0,
 		Name:            "Full Fields Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 2,
@@ -465,8 +550,8 @@ func TestPricingRepository_NameExists(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "NEX-/"+time.Now().Format("0102150405"), "NameExists Product", 10000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypeSpecialPrice,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypeSpecialPrice,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    5000,
 		Name:            "UniqueName-" + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -512,8 +597,8 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 		payloads := []RuleImportPayload{
 			{
 				ProductID:       &productID,
-				Type:     string(PricingTypePromotion),
-				Method:   string(PricingMethodFixedPrice),
+				Type:            string(PricingTypePromotion),
+				Method:          string(PricingMethodFixedPrice),
 				PricingValue:    10000,
 				Name:            "Bulk Insert 1 " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 1,
@@ -521,8 +606,8 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 			},
 			{
 				ProductID:       &productID,
-				Type:     string(PricingTypeSpecialPrice),
-				Method:   string(PricingMethodDiscountAmt),
+				Type:            string(PricingTypeSpecialPrice),
+				Method:          string(PricingMethodDiscountAmt),
 				PricingValue:    2000,
 				Name:            "Bulk Insert 2 " + time.Now().Format("0102150405.000"),
 				MinimumQuantity: 5,
@@ -551,8 +636,8 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "BUPR-"+time.Now().Format("0102150405"), "BulkUpdate Product", 20000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    15000,
 		Name:            "BulkUpdate Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
@@ -564,8 +649,8 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 		payloads := []RuleImportPayload{
 			{
 				ProductID:       &productID,
-				Type:     string(PricingTypePromotion),
-				Method:   string(PricingMethodFixedPrice),
+				Type:            string(PricingTypePromotion),
+				Method:          string(PricingMethodFixedPrice),
 				PricingValue:    12000,
 				Name:            rule.Name,
 				MinimumQuantity: 1,
@@ -592,8 +677,8 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 		payloads := []RuleImportPayload{
 			{
 				ProductID:       &nonExistent,
-				Type:     string(PricingTypePromotion),
-				Method:   string(PricingMethodFixedPrice),
+				Type:            string(PricingTypePromotion),
+				Method:          string(PricingMethodFixedPrice),
 				PricingValue:    5000,
 				Name:            "Non-existent",
 				MinimumQuantity: 1,
@@ -616,8 +701,8 @@ func TestPricingRepository_GetAllForExport(t *testing.T) {
 	productID := insertTestProduct(ctx, t, "EXP-"+time.Now().Format("0102150405"), "Export Product", 15000)
 	rule := &Rule{
 		ProductID:       &productID,
-		Type:     PricingTypePromotion,
-		Method:   PricingMethodFixedPrice,
+		Type:            PricingTypePromotion,
+		Method:          PricingMethodFixedPrice,
 		PricingValue:    10000,
 		Name:            "Export Rule " + time.Now().Format("0102150405.000"),
 		MinimumQuantity: 1,
