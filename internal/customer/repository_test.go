@@ -88,27 +88,49 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 	repo := newWiredRepo()
 	ctx := context.Background()
 
+	// TestMain truncates the DB and never loads seeds, so this test creates the
+	// customers it relies on instead of assuming 014_customers.sql exists.
+	fixtures := []struct{ name, phone string }{
+		{"Ahmad Zulkarnaen", "081100000001"},
+		{"Budi Santoso", "081100000002"},
+		{"Siti Nurhaliza", "081100000003"},
+		{"Dewi Lestari", "081100000004"},
+		{"Eko Prasetyo", "081100000005"},
+		{"Rina Wijaya", "081100000006"},
+		{"Hendra Gunawan", "081100000007"},
+		{"Maya Anggraini", "081100000008"},
+		{"Rizky Pratama", "081100000009"},
+	}
+	for _, f := range fixtures {
+		phone := f.phone
+		require.NoError(t, repo.CreateCustomer(ctx, &Customer{Name: f.name, Phone: &phone, Email: ptr("list@test.com"), IsActive: true}))
+	}
+	walkInPhone := "081100000010"
+	require.NoError(t, repo.CreateCustomer(ctx, &Customer{Name: "Walk-in List", Phone: &walkInPhone, Email: ptr("walkin.list@test.com"), IsWalkIn: true, IsActive: true}))
+
 	t.Run("default list excludes walk-in", func(t *testing.T) {
 		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", nil, nil, nil)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 9)
+		assert.GreaterOrEqual(t, total, len(fixtures))
+		assert.GreaterOrEqual(t, len(customers), len(fixtures))
 		for _, c := range customers {
 			assert.False(t, c.IsWalkIn)
 		}
 	})
 
 	t.Run("search by name", func(t *testing.T) {
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad", nil, nil, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "Ahmad Zulkarnaen", nil, nil, nil)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 1)
+		assert.Equal(t, 1, total)
+		require.Len(t, customers, 1)
 		assert.Contains(t, customers[0].Name, "Ahmad")
 	})
 
 	t.Run("filter by active", func(t *testing.T) {
 		active := true
-		customers, total, err := repo.GetAllCustomers(ctx, 10, 0, "", &active, nil, nil)
+		customers, total, err := repo.GetAllCustomers(ctx, 100, 0, "", &active, nil, nil)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 1)
+		assert.GreaterOrEqual(t, total, len(fixtures))
 		for _, c := range customers {
 			assert.True(t, c.IsActive)
 		}
@@ -118,7 +140,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 		customers, total, err := repo.GetAllCustomers(ctx, 2, 0, "", nil, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, customers, 2)
-		assert.GreaterOrEqual(t, total, 9)
+		assert.GreaterOrEqual(t, total, len(fixtures))
 	})
 }
 
