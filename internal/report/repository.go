@@ -340,16 +340,18 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 }
 
 func (r *Repository) GetAvailableYears(ctx context.Context, storeID *int) ([]int, error) {
+	// Read from mv_daily_sales (Jakarta dates) instead of scanning the raw
+	// sales table; the view holds the same completed-sale rows grouped by
+	// Jakarta day, so the set of distinct years is equivalent.
 	query := `
-		SELECT DISTINCT EXTRACT(YEAR FROM (created_at AT TIME ZONE 'Asia/Jakarta'))::integer as year
-		FROM sales
-		WHERE status = 'completed'
+		SELECT DISTINCT EXTRACT(YEAR FROM sale_date)::integer as year
+		FROM mv_daily_sales
 	`
 	args := []interface{}{}
 	argIdx := 1
 
 	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
+		query += fmt.Sprintf(" WHERE store_id = $%d", argIdx)
 		args = append(args, *storeID)
 	}
 

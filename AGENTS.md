@@ -39,11 +39,14 @@ Key points:
 
 ## Analytical Data Consideration
 
-For analytical/reporting purposes, materialized views or summary tables are used for:
-- Period comparisons (reads `mv_hourly_sales`, refreshed via `refresh_sales_mv()`)
-- Daily/hourly revenue aggregation (still computed on-the-fly from the raw `sales` table via `GetSalesChartData`)
+Analytical queries are served from materialized views pre-aggregated in Jakarta time and refreshed via `refresh_sales_mv()`:
 
-`GetPeriodComparison` was migrated to the `mv_hourly_sales` materialized view; `GetSalesChartData` (daily/hourly revenue chart) still uses real-time aggregation. For production with large datasets (>1M records), a nightly-refreshed daily/hourly summary table would improve chart query performance.
+- `mv_hourly_sales` — period comparisons (`GetPeriodComparison`) and the hourly chart (`GetHourlySales`)
+- `mv_daily_sales` — the daily chart (`GetDailySales`), the dual-period chart (`GetDualChartData`), and available years (`GetAvailableYears`)
+
+`refresh_sales_mv()` runs in the `sale.created` event listener (async, off the HTTP write path) and at server startup, so charts stay near-real-time without scanning the raw `sales` table.
+
+Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. For production with very large datasets (>1M records), the per-sale MV refresh could be moved to a debounced or scheduled job; charts would then lag up to one refresh interval.
 
 ## Git Commit Policy
 Never auto-commit on each change. User will request commits explicitly when ready.
