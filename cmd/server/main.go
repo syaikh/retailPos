@@ -100,6 +100,9 @@ func main() {
 	go deps.Bus.Run()
 	defer deps.Bus.Shutdown()
 
+	deps.ReportRefreshCoord.Start()
+	defer deps.ReportRefreshCoord.Shutdown()
+
 	go deps.Hub.Run()
 	defer deps.Hub.Shutdown()
 

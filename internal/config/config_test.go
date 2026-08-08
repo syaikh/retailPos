@@ -30,6 +30,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, 10, cfg.StockWarningThreshold)
 	assert.Equal(t, 5, cfg.StockCriticalThreshold)
 	assert.Equal(t, "Asia/Jakarta", cfg.Timezone.String())
+	assert.Equal(t, 30, cfg.ReportRefreshDebounce)
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -141,6 +142,21 @@ func TestLoad_ExplicitJWTSecretRefresh(t *testing.T) {
 
 	cfg := Load()
 	assert.Equal(t, "refresh-secret", cfg.JWTSecretRefresh)
+}
+
+func TestLoad_ExplicitReportRefreshDebounce(t *testing.T) {
+	resetConfigForTest()
+	_ = os.Setenv("ENV", "development")
+	_ = os.Setenv("JWT_SECRET", "test-secret")
+	_ = os.Setenv("REPORT_REFRESH_DEBOUNCE", "45")
+	defer func() {
+		_ = os.Unsetenv("ENV")
+		_ = os.Unsetenv("JWT_SECRET")
+		_ = os.Unsetenv("REPORT_REFRESH_DEBOUNCE")
+	}()
+
+	cfg := Load()
+	assert.Equal(t, 45, cfg.ReportRefreshDebounce)
 }
 
 func TestLoad_ProductionCORSExit(t *testing.T) {

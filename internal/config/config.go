@@ -19,6 +19,7 @@ type Config struct {
 	StockCriticalThreshold int
 	StockMinimum           int
 	CartHoldTTLHours       int
+	ReportRefreshDebounce  int
 	LogLevel               string
 	Timezone               *time.Location
 }
@@ -86,6 +87,7 @@ func Load() *Config {
 		criticalThreshold := getEnvInt("STOCK_CRITICAL_THRESHOLD", 5)
 		stockMinimum := getEnvInt("STOCK_MINIMUM", 10)
 		cartHoldTTLHours := getEnvInt("CART_HOLD_TTL_HOURS", 24)
+		reportRefreshDebounce := getEnvInt("REPORT_REFRESH_DEBOUNCE", 30)
 
 		logLevel := os.Getenv("LOG_LEVEL")
 		if logLevel == "" {
@@ -105,6 +107,7 @@ func Load() *Config {
 			StockCriticalThreshold: criticalThreshold,
 			StockMinimum:           stockMinimum,
 			CartHoldTTLHours:       cartHoldTTLHours,
+			ReportRefreshDebounce:  reportRefreshDebounce,
 			LogLevel:               logLevel,
 			Timezone:               defaultLocation,
 		}

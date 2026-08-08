@@ -40,12 +40,24 @@ func (r *Repository) InvalidateDashboardCache(storeID *int) {
 	r.cache.FlushByPrefix("report:")
 }
 
-func (r *Repository) NewSaleCreatedListener() eventbus.Listener {
-	return &saleCreatedListener{repo: r}
+// RefreshSalesMV executes a single full refresh of the reporting materialized
+// views. Used by the RefreshCoordinator worker and by the startup/seed paths;
+// SaleCreated event listeners never call it directly.
+func (r *Repository) RefreshSalesMV(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, "SELECT refresh_sales_mv()")
+	if err != nil {
+		return fmt.Errorf("refresh sales mv: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) NewSaleCreatedListener(coord *RefreshCoordinator) eventbus.Listener {
+	return &saleCreatedListener{repo: r, coord: coord}
 }
 
 type saleCreatedListener struct {
-	repo *Repository
+	repo  *Repository
+	coord *RefreshCoordinator
 }
 
 func (l *saleCreatedListener) EventTypes() []eventbus.EventType {
@@ -58,10 +70,11 @@ func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Ev
 		return nil
 	}
 	l.repo.InvalidateDashboardCache(s.StoreID)
-	_, err := l.repo.db.Exec(ctx, "SELECT refresh_sales_mv()")
-	if err != nil {
-		return fmt.Errorf("refresh sales mv: %w", err)
-	}
+	// Reporting is allowed to be eventually consistent: the handler only marks
+	// the store dirty and returns. The RefreshCoordinator worker owns the actual
+	// materialized view refresh (debounced, single-flight), so a refresh failure
+	// can never fail the SaleCreated event or trigger eventbus retries.
+	l.coord.MarkDirty()
 	return nil
 }
 

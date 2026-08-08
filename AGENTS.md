@@ -44,9 +44,9 @@ Analytical queries are served from materialized views pre-aggregated in Jakarta 
 - `mv_hourly_sales` — period comparisons (`GetPeriodComparison`) and the hourly chart (`GetHourlySales`)
 - `mv_daily_sales` — the daily chart (`GetDailySales`), the dual-period chart (`GetDualChartData`), and available years (`GetAvailableYears`)
 
-`refresh_sales_mv()` runs in the `sale.created` event listener (async, off the HTTP write path) and at server startup, so charts stay near-real-time without scanning the raw `sales` table.
+`refresh_sales_mv()` is owned by `report.RefreshCoordinator` (`internal/report/refresh_coordinator.go`), which coalesces `sale.created`-driven refreshes: the listener only calls `MarkDirty()`, and a single debounced worker (default 30s, `REPORT_REFRESH_DEBOUNCE`) runs at most one refresh at a time. Startup (`cmd/server/main.go`) and seed (`cmd/dummy/main.go`) still refresh directly. Refresh failures are retried by the coordinator (exponential backoff) and never fail the `SaleCreated` event or trigger eventbus retries.
 
-Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. For production with very large datasets (>1M records), the per-sale MV refresh could be moved to a debounced or scheduled job; charts would then lag up to one refresh interval.
+Remaining real-time `sales` reads are intentional: the live dashboard stats (`GetLiveDashboardStats`, `GetDashboardStats`) are today-only with a short cache TTL, and the weekly/monthly sales reports are date-bounded scans. Charts read the MVs and are eventually consistent within one refresh window (~30s).
 
 ## Git Commit Policy
 Never auto-commit on each change. User will request commits explicitly when ready.

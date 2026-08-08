@@ -298,6 +298,7 @@ type Dependencies struct {
 	UOMRepo             *uom.Repository
 	AuditRepo           *audit.Repository
 	ReportRepo          *report.Repository
+	ReportRefreshCoord  *report.RefreshCoordinator
 	PricingRepo         *pricing.Repository
 	SupplierRepo        *supplier.Repository
 	CustomerGroupRepo   *customergroup.Repository
@@ -393,6 +394,10 @@ func Initialize(p Providers) *Dependencies {
 	d.AuditRepo = audit.NewRepository(p.DB)
 	d.ReportRepo = report.NewRepository(p.DB)
 	d.ReportRepo.SetCache(d.Cache)
+	d.ReportRefreshCoord = report.NewRefreshCoordinator(
+		time.Duration(p.Config.ReportRefreshDebounce)*time.Second,
+		d.ReportRepo.RefreshSalesMV,
+	)
 	d.PricingRepo = pricing.NewRepository(p.DB)
 	d.PricingRepo.SetProductPricingProvider(product.ProductPricingLookup{})
 	d.PricingRepo.SetCategorySearchProvider(category.CategoryNamesProvider{})
@@ -526,7 +531,7 @@ func Initialize(p Providers) *Dependencies {
 	d.Bus.Subscribe(websocket.NewPOCancelledListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockOpnameStatusListener(d.Hub))
 	d.Bus.Subscribe(websocket.NewStockAdjustedListener(d.Hub, wsProductLookup))
-	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener())
+	d.Bus.Subscribe(d.ReportRepo.NewSaleCreatedListener(d.ReportRefreshCoord))
 	d.Bus.Subscribe(inventory.NewPurchaseReceiptListener(d.InventoryRepo, d.InventorySvc))
 
 	return d
