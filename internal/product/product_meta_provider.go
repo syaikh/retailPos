@@ -71,3 +71,80 @@ func (ProductMetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool
 	}
 	return costs, rows.Err()
 }
+
+// ScopeProductIDs returns the active product universe covered by a
+// product-scoped stock opname scope (store/category/brand/supplier/product, or
+// "manual" for every active product). Warehouse/location scopes are resolved
+// from product_stock by internal/inventory, not here. Scope IDs ≤ 0 yield an
+// empty result (products.supplier membership lives in product_suppliers, also
+// owned by internal/product).
+func (ProductMetaLookup) ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error) {
+	var query string
+	var args []interface{}
+	switch scopeType {
+	case "store":
+		query = `SELECT id FROM products WHERE store_id = $1 AND deleted_at IS NULL AND status = 'active'`
+	case "category":
+		query = `SELECT id FROM products WHERE category_id = $1 AND deleted_at IS NULL AND status = 'active'`
+	case "brand":
+		query = `SELECT id FROM products WHERE brand_id = $1 AND deleted_at IS NULL AND status = 'active'`
+	case "supplier":
+		query = `SELECT DISTINCT product_id FROM product_suppliers WHERE supplier_id = $1`
+	case "product":
+		query = `SELECT id FROM products WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`
+	case "manual":
+		query = `SELECT id FROM products WHERE deleted_at IS NULL AND status = 'active'`
+	default:
+		return nil, nil
+	}
+	if scopeType != "manual" {
+		args = append(args, scopeID)
+	}
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve scope products for %s #%d: %w", scopeType, scopeID, err)
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan scope product: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// SnapshotProducts returns the active product catalog rows of the stock
+// opname snapshot read-model, ordered by name. When ids is empty all active
+// products are returned. Stock quantities are NOT included — they are owned
+// by internal/inventory (product_stock) and merged by the consumer.
+func (ProductMetaLookup) SnapshotProducts(ctx context.Context, db shared.DBPool, ids []int) ([]shared.SnapshotProduct, error) {
+	query := `
+		SELECT p.id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id
+		FROM products p
+		WHERE p.deleted_at IS NULL AND p.status = 'active'`
+	args := []interface{}{}
+	if len(ids) > 0 {
+		args = append(args, ids)
+		query += ` AND p.id = ANY($1::int[])`
+	}
+	query += ` ORDER BY p.name ASC`
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list snapshot products: %w", err)
+	}
+	defer rows.Close()
+	var out []shared.SnapshotProduct
+	for rows.Next() {
+		var p shared.SnapshotProduct
+		var uomID *int
+		if err := rows.Scan(&p.ProductID, &p.Name, &p.SKU, &p.Barcode, &uomID); err != nil {
+			return nil, fmt.Errorf("failed to scan snapshot product: %w", err)
+		}
+		p.UOMID = uomID
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}

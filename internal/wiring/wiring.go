@@ -418,7 +418,9 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameRepo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	d.StockOpnameRepo.SetStockLocker(inventory.StockLocker{})
 	d.StockOpnameRepo.SetProductCatalogProvider(product.ProductMetaLookup{})
+	d.StockOpnameRepo.SetProductScopeProvider(product.ProductMetaLookup{})
 	d.StockOpnameRepo.SetUOMNameProvider(uom.UnitNameLookup{})
+	d.StockOpnameRepo.SetStockSnapshotProvider(inventory.StockSnapshotProvider{})
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)

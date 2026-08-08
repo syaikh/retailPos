@@ -162,29 +162,13 @@ var strictModuleTables = map[string]map[string]bool{
 // CI green while tracking the backlog. Remove an entry once its table access
 // is ported.
 //
-// Triage:
-//   - stockopname: katalog (products/product_suppliers) and transaksional
-//     (product_stock snapshot/scope read-models) -> per-owner read ports.
-//     Scope-name reads
-//     (stores/warehouses/categories/brands/suppliers/products), the location
-//     scope read (storage_locations), the warehouse->store read
-//     (warehouses), the transactional product_stock locks
-//     (LockStockForProducts/LockStockForLocation), the product identity/cost
-//     reads (GetProductSKUs, LoadApprovalItems, GetAdjustment* via
-//     ProductCatalogProvider), and the unit-of-measure name reads
-//     (LoadSnapshotProducts* via UOMNameProvider) are ported via
-//     stockopname.ScopeNameResolver, LocationScopeProvider,
-//     WarehouseStoreIDProvider, StockLocker, ProductCatalogProvider, and
-//     UOMNameProvider. The remaining product_stock / products /
-//     product_suppliers references live in LoadSnapshotProducts*/ScopeProductIDs
-//     (bulk scope read-models, next work item).
-var crossContextDebt = map[string]map[string]bool{
-	"stockopname": {
-		"product_stock":     true,
-		"product_suppliers": true,
-		"products":          true,
-	},
-}
+// Empty as of the stockopname snapshot/scope porting: all stockopname reads of
+// katalog tables (products, product_suppliers, units_of_measure) and of
+// product_stock (snapshots, scope universes, posting locks) are routed through
+// owner modules (product.ProductMetaLookup, uom.UnitNameLookup,
+// inventory.StockLocker, inventory.StockSnapshotProvider, and the
+// ScopeNameResolver/LocationScopeProvider/WarehouseStoreIDProvider ports).
+var crossContextDebt = map[string]map[string]bool{}
 
 func nonTestGoFiles(t *testing.T, dir string) []string {
 	t.Helper()

@@ -2,7 +2,6 @@ package stockopname
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -36,40 +35,28 @@ func (r *Repository) GetLocationScope(ctx context.Context, db shared.DBPool, loc
 // LoadSnapshotProductsByLocation returns the rack-stock snapshot for the given
 // active product ids on a specific storage location. Products without a rack
 // row are included with expected quantity 0.
+// LoadSnapshotProductsByLocation returns the rack-stock snapshot for the given
+// active product ids on a specific storage location. Products without a rack
+// row are included with expected quantity 0. The catalog rows come from the
+// product-owned ProductCatalogProvider and the rack quantities from the
+// inventory-owned StockSnapshotProvider.
 func (r *Repository) LoadSnapshotProductsByLocation(ctx context.Context, db shared.DBPool, locationID int, ids []int) ([]SessionItem, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	rows, err := db.Query(ctx, `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id,
-		       COALESCE(ps.quantity, 0)
-		FROM products p
-		LEFT JOIN product_stock ps ON ps.product_id = p.id AND ps.location_id = $2
-		WHERE p.id = ANY($1::int[]) AND p.status = 'active' AND p.deleted_at IS NULL
-		ORDER BY p.name ASC
-	`, ids, locationID)
+	catalog, err := r.snapshotCatalog(ctx, db, ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load location snapshot products: %w", err)
-	}
-	defer rows.Close()
-	var items []SessionItem
-	var uomIDs []sql.NullInt64
-	for rows.Next() {
-		var it SessionItem
-		var uomID sql.NullInt64
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
-			return nil, fmt.Errorf("failed to scan location snapshot product: %w", err)
-		}
-		items = append(items, it)
-		uomIDs = append(uomIDs, uomID)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if err := r.fillUOMNames(ctx, db, items, uomIDs); err != nil {
+	catalogIDs := make([]int, 0, len(catalog))
+	for _, p := range catalog {
+		catalogIDs = append(catalogIDs, p.ProductID)
+	}
+	quantities, err := r.snapshotQuantities(ctx, db, catalogIDs, &locationID)
+	if err != nil {
 		return nil, err
 	}
-	return items, nil
+	return r.buildSnapshotItems(ctx, db, catalog, quantities, true)
 }
 
 // LockStockForLocation locks the rack stock rows of the given products on a

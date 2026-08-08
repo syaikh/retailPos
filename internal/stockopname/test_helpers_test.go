@@ -83,6 +83,8 @@ func newTestRepository() *Repository {
 	repo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	repo.SetStockLocker(inventory.StockLocker{})
 	repo.SetProductCatalogProvider(product.ProductMetaLookup{})
+	repo.SetProductScopeProvider(product.ProductMetaLookup{})
 	repo.SetUOMNameProvider(uom.UnitNameLookup{})
+	repo.SetStockSnapshotProvider(inventory.StockSnapshotProvider{})
 	return repo
 }

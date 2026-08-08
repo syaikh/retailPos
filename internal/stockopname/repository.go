@@ -23,6 +23,8 @@ type Repository struct {
 	warehouseStoreIDProvider WarehouseStoreIDProvider
 	stockLocker             StockLocker
 	productCatalogProvider  ProductCatalogProvider
+	productScopeProvider    ProductScopeProvider
+	stockSnapshotProvider   StockSnapshotProvider
 	uomNameProvider         UOMNameProvider
 }
 
@@ -86,6 +88,22 @@ func (r *Repository) SetStockLocker(l StockLocker) {
 // at runtime.
 func (r *Repository) SetProductCatalogProvider(p ProductCatalogProvider) {
 	r.productCatalogProvider = p
+}
+
+// SetProductScopeProvider wires the product-owned implementation of the
+// ProductScopeProvider port (ADR §2.4). It MUST be called before session
+// creation resolves a product-scoped universe — an unwired repository fails
+// fast at runtime.
+func (r *Repository) SetProductScopeProvider(p ProductScopeProvider) {
+	r.productScopeProvider = p
+}
+
+// SetStockSnapshotProvider wires the inventory-owned implementation of the
+// StockSnapshotProvider port (ADR §2.4). It MUST be called before session
+// creation resolves a stock-scoped universe or a snapshot is built — an
+// unwired repository fails fast at runtime.
+func (r *Repository) SetStockSnapshotProvider(p StockSnapshotProvider) {
+	r.stockSnapshotProvider = p
 }
 
 // SetUOMNameProvider wires the uom-owned implementation of the UOMNameProvider
@@ -179,6 +197,77 @@ func (r *Repository) fillUOMNames(ctx context.Context, db shared.DBPool, items [
 	return nil
 }
 
+// scopeProductIDs resolves the product universe of a scope through the owner
+// modules: product-scoped scopes (store/category/brand/supplier/product/
+// manual) via the product-owned ProductScopeProvider, stock-scoped scopes
+// (warehouse/location) via the inventory-owned StockSnapshotProvider.
+func (r *Repository) scopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error) {
+	switch scope.ScopeType {
+	case "store", "category", "brand", "supplier", "product", "manual":
+		if r.productScopeProvider == nil {
+			return nil, errors.New("stockopname repository: product scope provider not wired; call SetProductScopeProvider")
+		}
+		return r.productScopeProvider.ScopeProductIDs(ctx, db, scope.ScopeType, scope.ScopeID)
+	case "warehouse", "location":
+		if r.stockSnapshotProvider == nil {
+			return nil, errors.New("stockopname repository: stock snapshot provider not wired; call SetStockSnapshotProvider")
+		}
+		return r.stockSnapshotProvider.ScopeProductIDs(ctx, db, scope.ScopeType, scope.ScopeID)
+	default:
+		return nil, ErrUnsupportedScope
+	}
+}
+
+// snapshotCatalog returns the active product catalog rows of the snapshot
+// read-model via the product-owned ProductCatalogProvider.
+func (r *Repository) snapshotCatalog(ctx context.Context, db shared.DBPool, ids []int) ([]shared.SnapshotProduct, error) {
+	if r.productCatalogProvider == nil {
+		return nil, errors.New("stockopname repository: product catalog provider not wired; call SetProductCatalogProvider")
+	}
+	return r.productCatalogProvider.SnapshotProducts(ctx, db, ids)
+}
+
+// snapshotQuantities returns product_stock quantities via the inventory-owned
+// StockSnapshotProvider (nil locationID reads the global row).
+func (r *Repository) snapshotQuantities(ctx context.Context, db shared.DBPool, ids []int, locationID *int) (map[int]int, error) {
+	if r.stockSnapshotProvider == nil {
+		return nil, errors.New("stockopname repository: stock snapshot provider not wired; call SetStockSnapshotProvider")
+	}
+	return r.stockSnapshotProvider.SnapshotQuantities(ctx, db, ids, locationID)
+}
+
+// buildSnapshotItems merges the product-owned catalog rows with the
+// inventory-owned stock quantities into the stock opname snapshot items.
+// includeNoStock mirrors the original join semantics: the global snapshot
+// inner-joins product_stock (products without a global stock row are dropped),
+// while the rack snapshot left-joins (they stay with quantity 0).
+func (r *Repository) buildSnapshotItems(ctx context.Context, db shared.DBPool, catalog []shared.SnapshotProduct, quantities map[int]int, includeNoStock bool) ([]SessionItem, error) {
+	items := make([]SessionItem, 0, len(catalog))
+	uomIDs := make([]sql.NullInt64, 0, len(catalog))
+	for _, p := range catalog {
+		qty, ok := quantities[p.ProductID]
+		if !ok && !includeNoStock {
+			continue
+		}
+		var uomID sql.NullInt64
+		if p.UOMID != nil {
+			uomID = sql.NullInt64{Int64: int64(*p.UOMID), Valid: true}
+		}
+		items = append(items, SessionItem{
+			ProductID:   p.ProductID,
+			ProductName: p.Name,
+			SKU:         p.SKU,
+			Barcode:     p.Barcode,
+			OpeningQty:  float64(qty),
+		})
+		uomIDs = append(uomIDs, uomID)
+	}
+	if err := r.fillUOMNames(ctx, db, items, uomIDs); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.db.Begin(ctx)
 }
@@ -194,38 +283,25 @@ func (r *Repository) GetNextSessionNumber(ctx context.Context) (string, error) {
 }
 
 // LoadSnapshotProducts returns the general-stock snapshot for all active products.
+// LoadSnapshotProducts returns the general-stock snapshot for all active
+// products. The catalog rows come from the product-owned ProductCatalogProvider
+// and the stock quantities from the inventory-owned StockSnapshotProvider; the
+// global snapshot inner-joins product_stock, so products without a global stock
+// row are excluded.
 func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id, COALESCE(ps.quantity, 0)
-		FROM product_stock ps
-		JOIN products p ON p.id = ps.product_id
-		WHERE ps.warehouse_id IS NULL AND ps.store_id IS NULL
-		  AND p.status = 'active' AND p.deleted_at IS NULL
-		ORDER BY p.name ASC
-	`)
+	catalog, err := r.snapshotCatalog(ctx, r.db, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load snapshot products: %w", err)
-	}
-	defer rows.Close()
-
-	var items []SessionItem
-	var uomIDs []sql.NullInt64
-	for rows.Next() {
-		var it SessionItem
-		var uomID sql.NullInt64
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
-			return nil, fmt.Errorf("failed to scan snapshot product: %w", err)
-		}
-		items = append(items, it)
-		uomIDs = append(uomIDs, uomID)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if err := r.fillUOMNames(ctx, r.db, items, uomIDs); err != nil {
+	ids := make([]int, 0, len(catalog))
+	for _, p := range catalog {
+		ids = append(ids, p.ProductID)
+	}
+	quantities, err := r.snapshotQuantities(ctx, r.db, ids, nil)
+	if err != nil {
 		return nil, err
 	}
-	return items, nil
+	return r.buildSnapshotItems(ctx, r.db, catalog, quantities, false)
 }
 
 // ListAssignableUsers returns active users eligible for assignment to a stock

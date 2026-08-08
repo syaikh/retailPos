@@ -18,42 +18,26 @@ import (
 // LoadSnapshotProductsByIDs returns the general-stock snapshot for the given
 // active product ids (used for scoped cycle counts). When ids is empty all
 // active products are returned.
+// LoadSnapshotProductsByIDs returns the general-stock snapshot for the given
+// active product ids (used for scoped cycle counts). When ids is empty all
+// active products are returned. The catalog rows come from the product-owned
+// ProductCatalogProvider and the stock quantities from the inventory-owned
+// StockSnapshotProvider; the global snapshot inner-joins product_stock, so
+// products without a global stock row are excluded.
 func (r *Repository) LoadSnapshotProductsByIDs(ctx context.Context, db shared.DBPool, ids []int) ([]SessionItem, error) {
-	query := `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id, COALESCE(ps.quantity, 0)
-		FROM product_stock ps
-		JOIN products p ON p.id = ps.product_id
-		WHERE ps.warehouse_id IS NULL AND ps.store_id IS NULL
-		  AND p.status = 'active' AND p.deleted_at IS NULL`
-	args := []interface{}{}
-	if len(ids) > 0 {
-		args = append(args, ids)
-		query += ` AND p.id = ANY($1::int[])`
-	}
-	query += ` ORDER BY p.name ASC`
-	rows, err := db.Query(ctx, query, args...)
+	catalog, err := r.snapshotCatalog(ctx, db, ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load snapshot products: %w", err)
-	}
-	defer rows.Close()
-	var items []SessionItem
-	var uomIDs []sql.NullInt64
-	for rows.Next() {
-		var it SessionItem
-		var uomID sql.NullInt64
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
-			return nil, fmt.Errorf("failed to scan snapshot product: %w", err)
-		}
-		items = append(items, it)
-		uomIDs = append(uomIDs, uomID)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if err := r.fillUOMNames(ctx, db, items, uomIDs); err != nil {
+	catalogIDs := make([]int, 0, len(catalog))
+	for _, p := range catalog {
+		catalogIDs = append(catalogIDs, p.ProductID)
+	}
+	quantities, err := r.snapshotQuantities(ctx, db, catalogIDs, nil)
+	if err != nil {
 		return nil, err
 	}
-	return items, nil
+	return r.buildSnapshotItems(ctx, db, catalog, quantities, false)
 }
 
 // ResolveScopeName returns a human-readable name for a scope reference, or an
@@ -71,47 +55,13 @@ func (r *Repository) ResolveScopeName(ctx context.Context, db shared.DBPool, sco
 	return names[ScopeRef{ScopeType: scopeType, ScopeID: scopeID}], nil
 }
 
-// ScopeProductIDs returns the product universe covered by a scope.
-func (r *Repository) ScopeProductIDs(ctx context.Context, q queryer, scope Scope) ([]int, error) {
-	var query string
-	var args []interface{}
-	switch scope.ScopeType {
-	case "store":
-		query = `SELECT id FROM products WHERE store_id = $1 AND deleted_at IS NULL AND status = 'active'`
-	case "warehouse":
-		query = `SELECT DISTINCT product_id FROM product_stock WHERE warehouse_id = $1`
-	case "category":
-		query = `SELECT id FROM products WHERE category_id = $1 AND deleted_at IS NULL AND status = 'active'`
-	case "brand":
-		query = `SELECT id FROM products WHERE brand_id = $1 AND deleted_at IS NULL AND status = 'active'`
-	case "supplier":
-		query = `SELECT DISTINCT product_id FROM product_suppliers WHERE supplier_id = $1`
-	case "product":
-		query = `SELECT id FROM products WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`
-	case "location":
-		query = `SELECT DISTINCT product_id FROM product_stock WHERE location_id = $1`
-	case "manual":
-		query = `SELECT id FROM products WHERE deleted_at IS NULL AND status = 'active'`
-	default:
-		return nil, ErrUnsupportedScope
-	}
-	if scope.ScopeType != "manual" {
-		args = append(args, scope.ScopeID)
-	}
-	rows, err := q.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve scope products for %s #%d: %w", scope.ScopeType, scope.ScopeID, err)
-	}
-	defer rows.Close()
-	var ids []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan scope product: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+// ScopeProductIDs returns the product universe covered by a scope. The read
+// is routed to the owner modules: product-scoped scopes
+// (store/category/brand/supplier/product/manual) through the product-owned
+// ProductScopeProvider, stock-scoped scopes (warehouse/location) through the
+// inventory-owned StockSnapshotProvider.
+func (r *Repository) ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error) {
+	return r.scopeProductIDs(ctx, db, scope)
 }
 
 // InsertSessionScopes persists the scope list of a session.

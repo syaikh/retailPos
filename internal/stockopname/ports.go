@@ -113,6 +113,36 @@ type ProductCatalogProvider interface {
 	ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error)
 	// ProductCostsByIDs returns product unit costs keyed by product ID.
 	ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error)
+	// SnapshotProducts returns the active product catalog rows of the stock
+	// snapshot read-model (identity + unit-of-measure id), ordered by name.
+	// When ids is empty all active products are returned.
+	SnapshotProducts(ctx context.Context, db shared.DBPool, ids []int) ([]shared.SnapshotProduct, error)
+}
+
+// ProductScopeProvider resolves the product universe of a product-scoped
+// stock opname scope (store/category/brand/supplier/product, or "manual" for
+// every active product) via products / product_suppliers, both owned by
+// internal/product (ADR §2.8 Katalog). Warehouse/location scopes read
+// product_stock and are handled by the inventory-owned StockSnapshotProvider.
+// SetProductScopeProvider MUST be wired before session creation runs — an
+// unwired repository fails fast at runtime.
+type ProductScopeProvider interface {
+	ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error)
+}
+
+// StockSnapshotProvider resolves stock-scoped reads over product_stock, owned
+// by internal/inventory (ADR §2.8 transaksional): the warehouse/location scope
+// product universe and the snapshot stock quantities. SetStockSnapshotProvider
+// MUST be wired before session creation/snapshot reads run — an unwired
+// repository fails fast at runtime.
+type StockSnapshotProvider interface {
+	// ScopeProductIDs returns the product universe of a warehouse/location
+	// scope read from product_stock.
+	ScopeProductIDs(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) ([]int, error)
+	// SnapshotQuantities returns product_stock quantities keyed by product id.
+	// Only products with a matching stock row are present; a nil locationID
+	// reads the global row, a non-nil one the rack row.
+	SnapshotQuantities(ctx context.Context, db shared.DBPool, ids []int, locationID *int) (map[int]int, error)
 }
 
 // UOMNameProvider resolves unit-of-measure names for stock snapshot reads.
