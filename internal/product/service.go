@@ -21,15 +21,30 @@ type UOMRepo interface {
 	GetIDByCode(ctx context.Context, code string) (int, error)
 }
 
+type Repo interface {
+	GetProductByID(ctx context.Context, id int, storeID *int) (*Product, error)
+	GetProductsByIDs(ctx context.Context, ids []int) ([]Product, error)
+	GetProductBySKU(ctx context.Context, sku string, storeID *int) (*Product, error)
+	GetAllProducts(ctx context.Context, limit, offset int, search string, categoryIDs []int, sortBy, sortDir string, maxStock *int, storeID *int, status string, supplierID *int) ([]Product, int, error)
+	GetNextSKU(ctx context.Context) (string, error)
+	GetTaxClassByID(ctx context.Context, id int) (*TaxClass, error)
+	GetAllTaxClasses(ctx context.Context) ([]TaxClass, error)
+	GetActiveProductOptions(ctx context.Context) ([]Option, error)
+	CreateProduct(ctx context.Context, product *Product) error
+	UpdateProduct(ctx context.Context, product *Product, storeID *int) error
+	DeleteProduct(ctx context.Context, id int, storeID *int) error
+	BulkUpdateProductStatus(ctx context.Context, ids []int, status string, storeID *int) error
+}
+
 type service struct {
-	repo         *Repository
+	repo         Repo
 	categoryRepo CategoryRepo
 	brandRepo    BrandRepo
 	uomRepo      UOMRepo
 	eventBus     shared.EventBus
 }
 
-func NewService(repo *Repository, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) Service {
+func NewService(repo Repo, categoryRepo CategoryRepo, brandRepo BrandRepo, uomRepo UOMRepo, eventBus shared.EventBus) Service {
 	return &service{repo: repo, categoryRepo: categoryRepo, brandRepo: brandRepo, uomRepo: uomRepo, eventBus: eventBus}
 }
 

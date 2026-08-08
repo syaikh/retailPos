@@ -7,12 +7,25 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
+type Repo interface {
+	GetAvailableYears(ctx context.Context, storeID *int) ([]int, error)
+	GetDailySales(ctx context.Context, start, end time.Time, storeID *int) ([]ChartDataPoint, error)
+	GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error)
+	GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error)
+	GetHourlySales(ctx context.Context, date time.Time, storeID *int) ([]ChartDataPoint, error)
+	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
+	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error)
+	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
+	GetSalesMonthlyReport(ctx context.Context, start, end time.Time, storeID *int) ([]MonthlyReportItem, error)
+	GetSalesWeeklyReport(ctx context.Context, start, end time.Time, storeID *int) ([]WeeklyReportItem, error)
+}
+
 type service struct {
-	repo     *Repository
+	repo     Repo
 	eventBus shared.EventBus
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) Service {
+func NewService(repo Repo, eventBus shared.EventBus) Service {
 	return &service{
 		repo:     repo,
 		eventBus: eventBus,

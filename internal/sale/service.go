@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -26,8 +27,39 @@ type ProductBatchPriceGetter interface {
 	GetProductPrices(ctx context.Context, productIDs []int) (map[int]int, error)
 }
 
+type Repo interface {
+	AtomicGetOrCreateOpenCart(ctx context.Context, cashierID int, storeID, shiftID, customerID *int) (*CartSession, error)
+	BeginTx(ctx context.Context) (pgx.Tx, error)
+	CancelParkedSale(ctx context.Context, saleID int) error
+	ConsumeParkedSale(ctx context.Context, tx pgx.Tx, parkedSaleID int) error
+	CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, items []Item) error
+	CreateSalePayments(ctx context.Context, tx pgx.Tx, saleID int, payments []Payment) error
+	DeleteCartItem(ctx context.Context, tx pgx.Tx, cartID, itemID int) error
+	GetAllActive(ctx context.Context) ([]PaymentMethod, error)
+	GetAllSales(ctx context.Context, limit, offset int, search string, sortBy, sortDir, startDate, endDate string, storeID *int, paymentMethods string, minTotal, maxTotal, cashierID *int) ([]Sale, int, error)
+	GetCartItems(ctx context.Context, cartID int) ([]CartItem, error)
+	GetCartSessionByID(ctx context.Context, cartID int) (*CartSession, error)
+	GetNextInvoiceNumber(ctx context.Context) (string, error)
+	GetOpenCartByCashier(ctx context.Context, cashierID int) (*CartSession, error)
+	GetParkedSaleByID(ctx context.Context, id int, cashierID int) (*Sale, error)
+	GetParkedSales(ctx context.Context, cashierID int) ([]Sale, error)
+	GetPaymentMethodByCode(ctx context.Context, code string) (*PaymentMethod, error)
+	GetSaleByID(ctx context.Context, id int, storeID *int) (*Sale, error)
+	GetSalesForExport(ctx context.Context, search, startDate, endDate string, paymentMethods string, minTotal, maxTotal *int, storeID *int) ([]ExportRow, error)
+	InsertCartItem(ctx context.Context, tx pgx.Tx, item *CartItem) error
+	ListHeldCarts(ctx context.Context, cashierID int) ([]CartSession, error)
+	LoadCartItemsForCheckout(ctx context.Context, tx pgx.Tx, cartID int) ([]CartItem, error)
+	LockCartSession(ctx context.Context, tx pgx.Tx, cartID int) (status string, expiredAt *time.Time, err error)
+	RecallSale(ctx context.Context, saleID int) (*Sale, error)
+	StreamSalesExportCSV(ctx context.Context, w io.Writer, search, startDate, endDate, paymentMethods string, minTotal, maxTotal *int, storeID *int) error
+	UpdateCartCustomer(ctx context.Context, tx pgx.Tx, cartID int, customerID *int) error
+	UpdateCartItemQuantity(ctx context.Context, tx pgx.Tx, cartID, itemID, quantity, subtotal, dppAmount, taxAmount int) error
+	UpdateCartStatus(ctx context.Context, tx pgx.Tx, cartID int, status string, expiredAt *time.Time) error
+	UpdateCartTotals(ctx context.Context, tx pgx.Tx, cartID, subtotal, discount, tax, totalAmount int) error
+}
+
 type service struct {
-	repo        *Repository
+	repo        Repo
 	eventBus    shared.EventBus
 	priceStore  ProductPriceGetter
 	resolver    PriceResolver
@@ -36,7 +68,7 @@ type service struct {
 	cartConfig  CartConfig
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) Service {
+func NewService(repo Repo, eventBus shared.EventBus) Service {
 	return &service{
 		repo:     repo,
 		eventBus: eventBus,

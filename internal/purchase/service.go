@@ -5,18 +5,39 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
+type Repo interface {
+	BeginTx(ctx context.Context) (pgx.Tx, error)
+	CancelPurchaseOrder(ctx context.Context, tx pgx.Tx, id, userID int, cancelledAt string) error
+	ConfirmPurchaseOrder(ctx context.Context, tx pgx.Tx, id, userID int, confirmedAt string) error
+	CreateGoodsReceipt(ctx context.Context, tx pgx.Tx, gr *GoodsReceipt, items []GoodsReceiptItem) error
+	CreatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Order, items []OrderItem) error
+	DeletePurchaseOrder(ctx context.Context, tx pgx.Tx, id int) error
+	GetAllPurchaseOrders(ctx context.Context, limit, offset int, search, sortBy, sortDir, status, supplierID, startDate, endDate string, storeID *int, supplierIDs []int) ([]Order, int, error)
+	GetNextDONumber(ctx context.Context) (string, error)
+	GetNextGRNumber(ctx context.Context) (string, error)
+	GetNextPONumber(ctx context.Context) (string, error)
+	GetPurchaseOrderByID(ctx context.Context, id int, storeID *int) (*Order, error)
+	GetReceiptsByPOID(ctx context.Context, poID int, storeID *int) ([]GoodsReceipt, error)
+	LockPurchaseOrderForUpdate(ctx context.Context, tx pgx.Tx, id int) error
+	RecalculatePOStatus(ctx context.Context, tx pgx.Tx, poID int) error
+	UpdatePOItemQtyReceived(ctx context.Context, tx pgx.Tx, poItemID, qtyReceived int) error
+	UpdatePurchaseOrder(ctx context.Context, tx pgx.Tx, po *Order, items []OrderItem) error
+}
+
 type service struct {
-	repo          *Repository
+	repo          Repo
 	eventBus      shared.EventBus
 	productLookup ProductLookup
 	supplierLookup SupplierLookup
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) Service {
+func NewService(repo Repo, eventBus shared.EventBus) Service {
 	return &service{repo: repo, eventBus: eventBus}
 }
 

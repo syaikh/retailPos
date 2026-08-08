@@ -7,11 +7,22 @@ import (
 	"retail-pos-system/internal/ownership"
 )
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	OpenShift(ctx context.Context, userID int, storeID *int, openingBalance int) (*Shift, error)
+	CloseShift(ctx context.Context, shiftID, userID int, closingBalance int, notes *string) (*Shift, error)
+	ReviewShift(ctx context.Context, shiftID, reviewerID int) (*Shift, error)
+	CloseAll(ctx context.Context, userID int) ([]int, error)
+	GetActiveShiftByUserID(ctx context.Context, userID int) (*Shift, error)
+	GetShiftByID(ctx context.Context, scope ownership.Scope, shiftID int) (*Shift, error)
+	GetShiftWithLiveSales(ctx context.Context, shiftID int) (*Shift, int, error)
+	ListShifts(ctx context.Context, scope ownership.Scope, status string, needsReview *bool, discrepancyFilter string, limit, offset int, sortBy, sortDir string) ([]Shift, int, error)
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

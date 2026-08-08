@@ -5,11 +5,22 @@ import (
 	"fmt"
 )
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	GetByID(ctx context.Context, id int) (*Rule, error)
+	GetByProductID(ctx context.Context, productID int) ([]Rule, error)
+	GetAll(ctx context.Context, limit, offset int, search string, productID *int, pricingType, pricingMethod string, categoryID, brandID, customerGroupID, storeID *int, isActive *bool, status string) ([]Rule, int, error)
+	FindConflicts(ctx context.Context, rule *Rule, excludeID int) ([]Rule, error)
+	NameExists(ctx context.Context, name string, excludeID int) (bool, error)
+	Create(ctx context.Context, rule *Rule) error
+	Update(ctx context.Context, rule *Rule) error
+	Delete(ctx context.Context, id int) error
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

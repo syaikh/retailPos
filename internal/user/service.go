@@ -7,11 +7,33 @@ import (
 
 var ErrManagerNotFound = errors.New("manager not found")
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	GetByID(ctx context.Context, id int) (*User, error)
+	GetByUsername(ctx context.Context, username string) (*User, error)
+	GetAllUsers(ctx context.Context, limit, offset int, search string, sortBy string, sortDir string, roleID int, isActive *bool) ([]User, int, error)
+	CreateUser(ctx context.Context, user *User) error
+	UpdateUser(ctx context.Context, user *User) error
+	DeleteUser(ctx context.Context, id int) error
+	CountUsersByRole(ctx context.Context, roleID int) (int, error)
+	GetAllRoles(ctx context.Context) ([]Role, error)
+	GetRoleByID(ctx context.Context, id int) (*Role, error)
+	GetRolePermissions(ctx context.Context, roleID int) ([]Permission, error)
+	GetAllPermissions(ctx context.Context) ([]Permission, error)
+	CreateRole(ctx context.Context, role *Role) error
+	UpdateRole(ctx context.Context, role *Role) error
+	UpdateRolePermissions(ctx context.Context, roleID int, permissionIDs []int) error
+	DeleteRole(ctx context.Context, id int) error
+	GetManager(ctx context.Context, userID int) (*User, error)
+	GetOrgChart(ctx context.Context) ([]User, error)
+	GetSubordinates(ctx context.Context, managerID int) ([]User, error)
+	IsSubordinate(ctx context.Context, managerID, userID int) (bool, error)
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

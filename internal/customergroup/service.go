@@ -6,11 +6,23 @@ import (
 	"strings"
 )
 
-type Service struct {
-	repo *Repository
+type Repo interface {
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool, hasCustomers *bool) ([]CustomerGroup, int, error)
+	GetByID(ctx context.Context, id int) (*CustomerGroup, error)
+	GetAllActive(ctx context.Context) ([]CustomerGroup, error)
+	NameExists(ctx context.Context, name string, excludeID int) (bool, error)
+	Create(ctx context.Context, cg *CustomerGroup) error
+	Update(ctx context.Context, cg *CustomerGroup) error
+	Delete(ctx context.Context, id int) error
+	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
+	BulkDelete(ctx context.Context, ids []int) (int, error)
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) *Service {
 	return &Service{repo: repo}
 }
 

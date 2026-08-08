@@ -4,11 +4,21 @@ import (
 	"context"
 )
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	ListCategories(ctx context.Context) ([]Category, error)
+	GetAllCategories(ctx context.Context, limit, offset int, search string) ([]Category, int, error)
+	GetCategoryByID(ctx context.Context, id int) (*Category, error)
+	SlugExists(ctx context.Context, slug string, excludeID int) (bool, error)
+	CreateCategory(ctx context.Context, category *Category) error
+	UpdateCategory(ctx context.Context, category *Category) error
+	DeleteCategory(ctx context.Context, id int) error
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

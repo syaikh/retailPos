@@ -11,11 +11,30 @@ var (
 	phoneRegex = regexp.MustCompile(`^\+?[0-9]{7,15}$`)
 )
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	GetAll(ctx context.Context, limit, offset int, search string, isActive *bool) ([]Supplier, int, error)
+	GetByID(ctx context.Context, id int) (*Supplier, error)
+	GetByCode(ctx context.Context, code string) (*Supplier, error)
+	Create(ctx context.Context, supplier *Supplier) error
+	Update(ctx context.Context, supplier *Supplier) error
+	Delete(ctx context.Context, id int) error
+	BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error)
+	BulkDelete(ctx context.Context, ids []int) (int, error)
+	GetPreferredSupplier(ctx context.Context, productID int) (*ProductSupplier, error)
+	GetProductsBySupplierID(ctx context.Context, supplierID int) ([]ProductSupplier, error)
+	GetProductSupplier(ctx context.Context, productID, supplierID int) (*ProductSupplier, error)
+	GetSuppliersByProductID(ctx context.Context, productID int) ([]ProductSupplier, error)
+	LinkProduct(ctx context.Context, ps *ProductSupplier) error
+	UnlinkProduct(ctx context.Context, productID, supplierID int) error
+	SetPreferredSupplier(ctx context.Context, productID, supplierID int) error
+	UpdateProductSupplier(ctx context.Context, ps *ProductSupplier) error
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

@@ -8,17 +8,74 @@ import (
 	"math"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
+type Repo interface {
+	AcquireCreateLock(ctx context.Context, tx pgx.Tx) error
+	BeginTx(ctx context.Context) (pgx.Tx, error)
+	CancelSession(ctx context.Context, id, userID int) error
+	CountPendingItems(ctx context.Context, sessionID int) (int, error)
+	CreateSession(ctx context.Context, tx pgx.Tx, s *Session) error
+	GetAdjustment(ctx context.Context, id int) (*Adjustment, error)
+	GetAdjustmentBySession(ctx context.Context, sessionID int) (*Adjustment, error)
+	GetAssignmentUserID(ctx context.Context, sessionID, assignmentID int) (int, error)
+	GetCountHistory(ctx context.Context, itemID int) ([]CountRecord, error)
+	GetItemForCount(ctx context.Context, itemID int) (*SessionItem, *Session, error)
+	GetLocationScope(ctx context.Context, db shared.DBPool, locationID int) (*int, *int, error)
+	GetNextAdjustmentNumber(ctx context.Context) (string, error)
+	GetNextSessionNumber(ctx context.Context) (string, error)
+	GetProductSKUs(ctx context.Context, productIDs []int) (map[int]string, error)
+	GetSession(ctx context.Context, id int) (*Session, error)
+	GetSessionBroadcastMeta(ctx context.Context, id int) (string, *int, error)
+	GetSessionStatus(ctx context.Context, id int) (string, error)
+	GetUserRoleName(ctx context.Context, userID int) (string, error)
+	GetWarehouseStoreID(ctx context.Context, warehouseID int) (*int, error)
+	InsertAdjustment(ctx context.Context, tx pgx.Tx, adj *Adjustment) error
+	InsertAdjustmentItems(ctx context.Context, tx pgx.Tx, adjustmentID int, items []AdjustmentItem) error
+	InsertAssignment(ctx context.Context, tx pgx.Tx, sessionID, userID int, role string) error
+	InsertMovements(ctx context.Context, tx pgx.Tx, sessionID, userID int, rowsData []movementRow) error
+	InsertRecountRequest(ctx context.Context, sessionID, userID int, reason string) error
+	InsertSessionItems(ctx context.Context, tx pgx.Tx, sessionID int, items []SessionItem) error
+	InsertSessionScopes(ctx context.Context, tx pgx.Tx, sessionID int, scopes []SessionScope) error
+	IsCounterAssigned(ctx context.Context, sessionID, userID int) (bool, error)
+	ListActiveSessions(ctx context.Context, q queryer) ([]Session, error)
+	ListAdjustments(ctx context.Context, limit, offset int, status, search string) ([]Adjustment, int, error)
+	ListAssignableUsers(ctx context.Context, search string) ([]AssignableUser, error)
+	ListAssignments(ctx context.Context, sessionID int) ([]Assignment, error)
+	ListSessions(ctx context.Context, limit, offset int, status, search string) ([]Session, int, error)
+	LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]ApprovalItem, error)
+	LoadSessionScopes(ctx context.Context, q queryer, sessionID int) ([]SessionScope, error)
+	LoadSnapshotProductsByIDs(ctx context.Context, db shared.DBPool, ids []int) ([]SessionItem, error)
+	LoadSnapshotProductsByLocation(ctx context.Context, db shared.DBPool, locationID int, ids []int) ([]SessionItem, error)
+	LockItemForCount(ctx context.Context, tx pgx.Tx, itemID int) error
+	LockSessionForApproval(ctx context.Context, tx pgx.Tx, id int) (*Session, error)
+	LockStockForLocation(ctx context.Context, tx pgx.Tx, productIDs []int, locationID int) (map[int]int, error)
+	LockStockForProducts(ctx context.Context, tx pgx.Tx, productIDs []int) (map[int]int, error)
+	MarkSessionClosed(ctx context.Context, tx pgx.Tx, id, userID int) error
+	MarkSessionOpened(ctx context.Context, tx pgx.Tx, id, userID int) error
+	MarkSessionPosted(ctx context.Context, tx pgx.Tx, id, userID int) error
+	MarkSessionTotals(ctx context.Context, tx pgx.Tx, id int, totalDiff, totalAdj float64) error
+	MarkSessionVerified(ctx context.Context, tx pgx.Tx, id, userID int) error
+	NextCountSequence(ctx context.Context, tx pgx.Tx, itemID int) (int, error)
+	ResolveScopeName(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) (string, error)
+	SaveCount(ctx context.Context, tx pgx.Tx, itemID, seq int, qty float64, userID int, remarks string) error
+	ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error)
+	UpdateAssignmentRole(ctx context.Context, tx pgx.Tx, sessionID, assignmentID int, role string) error
+	UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64, reason string) error
+	UpdateStatus(ctx context.Context, id int, currentStatus, nextStatus string) error
+}
+
 type Service struct {
-	repo         *Repository
+	repo         Repo
 	eventBus     shared.EventBus
 	stockApplier StockApplier
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) *Service {
+func NewService(repo Repo, eventBus shared.EventBus) *Service {
 	return &Service{repo: repo, eventBus: eventBus}
 }
 

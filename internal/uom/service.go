@@ -4,11 +4,21 @@ import (
 	"context"
 )
 
-type service struct {
-	repo *Repository
+type Repo interface {
+	GetByID(ctx context.Context, id int) (*UnitOfMeasure, error)
+	GetAll(ctx context.Context) ([]UnitOfMeasure, error)
+	GetAllPaginated(ctx context.Context, limit, offset int, search string) ([]UnitOfMeasure, int, error)
+	GetIDByCode(ctx context.Context, code string) (int, error)
+	Create(ctx context.Context, uom *UnitOfMeasure) error
+	Update(ctx context.Context, uom *UnitOfMeasure) error
+	Delete(ctx context.Context, id int) error
 }
 
-func NewService(repo *Repository) Service {
+type service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) Service {
 	return &service{repo: repo}
 }
 

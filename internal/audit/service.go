@@ -7,11 +7,18 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
-type Service struct {
-	repo *Repository
+type Repo interface {
+	CreateAuditLog(ctx context.Context, log *Log) error
+	GetAuditLogByID(ctx context.Context, id int) (*Log, error)
+	GetAuditLogs(ctx context.Context, limit, offset int, userID *int, search string, action string, entityType string, entityID *int, startDate *time.Time, endDate *time.Time) ([]LogListItem, int, error)
+	GetDistinctEntityTypes(ctx context.Context) ([]string, error)
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo Repo
+}
+
+func NewService(repo Repo) *Service {
 	return &Service{repo: repo}
 }
 

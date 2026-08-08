@@ -9,12 +9,21 @@ import (
 	"retail-pos-system/internal/shared"
 )
 
+type Repo interface {
+	AdjustStock(ctx context.Context, productID int, quantityChange int, userID *int, notes string) error
+	AdjustStockBatch(ctx context.Context, adjustments []StockAdjustment, userID *int, notes string) error
+	GetStockByProductID(ctx context.Context, productID int) (*ProductStock, error)
+	ListLocationStock(ctx context.Context, productID, locationID int) ([]LocationStockItem, error)
+	SetLocationStock(ctx context.Context, productID, locationID, quantity, userID int) error
+	TransferLocationStock(ctx context.Context, productID, fromLocationID, toLocationID, quantity, userID int) error
+}
+
 type service struct {
-	repo     *Repository
+	repo     Repo
 	eventBus shared.EventBus
 }
 
-func NewService(repo *Repository, eventBus shared.EventBus) Service {
+func NewService(repo Repo, eventBus shared.EventBus) Service {
 	return &service{repo: repo, eventBus: eventBus}
 }
 
