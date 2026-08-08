@@ -62,6 +62,7 @@ type Bus struct {
 	eventCh         chan Event
 	dispatchWg      sync.WaitGroup
 	loopWg          sync.WaitGroup
+	loopStarted     chan struct{}
 	dropCount       atomic.Int64
 	metrics         busMetrics
 	deadLetterStore DeadLetterStore
@@ -69,8 +70,9 @@ type Bus struct {
 
 func New() *Bus {
 	return &Bus{
-		listeners: make(map[EventType][]Listener),
-		eventCh:   make(chan Event, 1000),
+		listeners:   make(map[EventType][]Listener),
+		eventCh:     make(chan Event, 1000),
+		loopStarted: make(chan struct{}),
 	}
 }
 
@@ -117,6 +119,7 @@ func (b *Bus) Publish(ctx context.Context, topic string, payload interface{}) er
 // Gunakan Shutdown() untuk graceful stop.
 func (b *Bus) Run() {
 	b.loopWg.Add(1)
+	close(b.loopStarted)
 	defer b.loopWg.Done()
 	for event := range b.eventCh {
 		b.dispatch(event)
@@ -238,7 +241,11 @@ func (b *Bus) Shutdown() {
 	b.mu.Unlock()
 
 	close(b.eventCh)
-	b.loopWg.Wait()
+	select {
+	case <-b.loopStarted:
+		b.loopWg.Wait()
+	default:
+	}
 	b.dispatchWg.Wait()
 }
 
