@@ -22,6 +22,8 @@ type Repository struct {
 	locationScopeProvider   LocationScopeProvider
 	warehouseStoreIDProvider WarehouseStoreIDProvider
 	stockLocker             StockLocker
+	productCatalogProvider  ProductCatalogProvider
+	uomNameProvider         UOMNameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -78,6 +80,21 @@ func (r *Repository) SetStockLocker(l StockLocker) {
 	r.stockLocker = l
 }
 
+// SetProductCatalogProvider wires the product-owned implementation of the
+// ProductCatalogProvider port (ADR §2.4). It MUST be called before any read
+// that resolves product identity or cost — an unwired repository fails fast
+// at runtime.
+func (r *Repository) SetProductCatalogProvider(p ProductCatalogProvider) {
+	r.productCatalogProvider = p
+}
+
+// SetUOMNameProvider wires the uom-owned implementation of the UOMNameProvider
+// port (ADR §2.4). It MUST be called before any stock snapshot read — an
+// unwired repository fails fast at runtime.
+func (r *Repository) SetUOMNameProvider(p UOMNameProvider) {
+	r.uomNameProvider = p
+}
+
 func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
 	if r.usernameProvider == nil {
 		return nil, errors.New("stockopname repository: username provider not wired; call SetUsernameProvider")
@@ -108,6 +125,60 @@ func (r *Repository) scopeNames(ctx context.Context, db shared.DBPool, refs []Sc
 	return r.scopeNameResolver.ScopeNames(ctx, db, refs)
 }
 
+// productMetas resolves product identity via the wired ProductCatalogProvider
+// port (owned by internal/product, ADR §2.8).
+func (r *Repository) productMetas(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error) {
+	if r.productCatalogProvider == nil {
+		return nil, errors.New("stockopname repository: product catalog provider not wired; call SetProductCatalogProvider")
+	}
+	return r.productCatalogProvider.ProductMetasByIDs(ctx, db, ids)
+}
+
+// productCosts resolves product unit costs via the wired ProductCatalogProvider
+// port (owned by internal/product, ADR §2.8).
+func (r *Repository) productCosts(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
+	if r.productCatalogProvider == nil {
+		return nil, errors.New("stockopname repository: product catalog provider not wired; call SetProductCatalogProvider")
+	}
+	return r.productCatalogProvider.ProductCostsByIDs(ctx, db, ids)
+}
+
+// uomNames resolves unit-of-measure names via the wired UOMNameProvider port
+// (owned by internal/uom, ADR §2.8).
+func (r *Repository) uomNames(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error) {
+	if r.uomNameProvider == nil {
+		return nil, errors.New("stockopname repository: uom name provider not wired; call SetUOMNameProvider")
+	}
+	return r.uomNameProvider.UnitNamesByIDs(ctx, db, ids)
+}
+
+// fillUOMNames backfills the UOMName of each snapshot item from the parallel
+// uomID slice (one unit-of-measure id per item; NULL ids fall back to "pcs").
+func (r *Repository) fillUOMNames(ctx context.Context, db shared.DBPool, items []SessionItem, uomIDs []sql.NullInt64) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(uomIDs))
+	for _, id := range uomIDs {
+		if id.Valid {
+			ids = append(ids, int(id.Int64))
+		}
+	}
+	names, err := r.uomNames(ctx, db, ids)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].UOMName = "pcs"
+		if uomIDs[i].Valid {
+			if name, ok := names[int(uomIDs[i].Int64)]; ok && name != "" {
+				items[i].UOMName = name
+			}
+		}
+	}
+	return nil
+}
+
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.db.Begin(ctx)
 }
@@ -125,10 +196,9 @@ func (r *Repository) GetNextSessionNumber(ctx context.Context) (string, error) {
 // LoadSnapshotProducts returns the general-stock snapshot for all active products.
 func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), COALESCE(u.name, 'pcs'), COALESCE(ps.quantity, 0)
+		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id, COALESCE(ps.quantity, 0)
 		FROM product_stock ps
 		JOIN products p ON p.id = ps.product_id
-		LEFT JOIN units_of_measure u ON u.id = p.unit_of_measure_id
 		WHERE ps.warehouse_id IS NULL AND ps.store_id IS NULL
 		  AND p.status = 'active' AND p.deleted_at IS NULL
 		ORDER BY p.name ASC
@@ -139,14 +209,23 @@ func (r *Repository) LoadSnapshotProducts(ctx context.Context) ([]SessionItem, e
 	defer rows.Close()
 
 	var items []SessionItem
+	var uomIDs []sql.NullInt64
 	for rows.Next() {
 		var it SessionItem
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &it.UOMName, &it.OpeningQty); err != nil {
+		var uomID sql.NullInt64
+		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
 			return nil, fmt.Errorf("failed to scan snapshot product: %w", err)
 		}
 		items = append(items, it)
+		uomIDs = append(uomIDs, uomID)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.fillUOMNames(ctx, r.db, items, uomIDs); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // ListAssignableUsers returns active users eligible for assignment to a stock
@@ -839,9 +918,8 @@ func (r *Repository) LockSessionForApproval(ctx context.Context, tx pgx.Tx, id i
 
 func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]ApprovalItem, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT i.id, i.product_id, i.physical_qty, COALESCE(p.cost, 0)
+		SELECT i.id, i.product_id, i.physical_qty
 		FROM stock_opname_items i
-		LEFT JOIN products p ON p.id = i.product_id
 		WHERE i.stock_opname_id = $1
 	`, sessionID)
 	if err != nil {
@@ -850,14 +928,26 @@ func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID
 	defer rows.Close()
 
 	var items []ApprovalItem
+	productIDs := make([]int, 0)
 	for rows.Next() {
 		var it ApprovalItem
-		if err := rows.Scan(&it.ID, &it.ProductID, &it.PhysicalQy, &it.UnitCost); err != nil {
+		if err := rows.Scan(&it.ID, &it.ProductID, &it.PhysicalQy); err != nil {
 			return nil, fmt.Errorf("failed to scan approval item: %w", err)
 		}
 		items = append(items, it)
+		productIDs = append(productIDs, it.ProductID)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	costs, err := r.productCosts(ctx, tx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load approval item costs: %w", err)
+	}
+	for i := range items {
+		items[i].UnitCost = float64(costs[items[i].ProductID])
+	}
+	return items, nil
 }
 
 // LockStockForProducts locks the global stock rows of the given products and

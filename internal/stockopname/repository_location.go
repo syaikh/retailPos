@@ -2,6 +2,7 @@ package stockopname
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -35,16 +36,15 @@ func (r *Repository) GetLocationScope(ctx context.Context, db shared.DBPool, loc
 // LoadSnapshotProductsByLocation returns the rack-stock snapshot for the given
 // active product ids on a specific storage location. Products without a rack
 // row are included with expected quantity 0.
-func (r *Repository) LoadSnapshotProductsByLocation(ctx context.Context, q queryer, locationID int, ids []int) ([]SessionItem, error) {
+func (r *Repository) LoadSnapshotProductsByLocation(ctx context.Context, db shared.DBPool, locationID int, ids []int) ([]SessionItem, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	rows, err := q.Query(ctx, `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), COALESCE(u.name, 'pcs'),
+	rows, err := db.Query(ctx, `
+		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id,
 		       COALESCE(ps.quantity, 0)
 		FROM products p
 		LEFT JOIN product_stock ps ON ps.product_id = p.id AND ps.location_id = $2
-		LEFT JOIN units_of_measure u ON u.id = p.unit_of_measure_id
 		WHERE p.id = ANY($1::int[]) AND p.status = 'active' AND p.deleted_at IS NULL
 		ORDER BY p.name ASC
 	`, ids, locationID)
@@ -53,14 +53,23 @@ func (r *Repository) LoadSnapshotProductsByLocation(ctx context.Context, q query
 	}
 	defer rows.Close()
 	var items []SessionItem
+	var uomIDs []sql.NullInt64
 	for rows.Next() {
 		var it SessionItem
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &it.UOMName, &it.OpeningQty); err != nil {
+		var uomID sql.NullInt64
+		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
 			return nil, fmt.Errorf("failed to scan location snapshot product: %w", err)
 		}
 		items = append(items, it)
+		uomIDs = append(uomIDs, uomID)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.fillUOMNames(ctx, db, items, uomIDs); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // LockStockForLocation locks the rack stock rows of the given products on a

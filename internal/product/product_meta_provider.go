@@ -42,3 +42,32 @@ func (ProductMetaLookup) ProductMetasByIDs(ctx context.Context, db shared.DBPool
 	}
 	return metas, rows.Err()
 }
+
+// ProductCostsByIDs returns product unit costs keyed by product ID. IDs with
+// no matching product are absent from the map. Cost is governed by the
+// product.cost.view permission on display paths; this provider serves backend
+// business reads (e.g. stock opname posting computes adjustment line totals
+// from the product cost).
+func (ProductMetaLookup) ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error) {
+	if len(ids) == 0 {
+		return map[int]int{}, nil
+	}
+	costs := make(map[int]int, len(ids))
+	rows, err := db.Query(ctx, `
+		SELECT id, COALESCE(cost, 0)
+		FROM products
+		WHERE id = ANY($1)
+	`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list product costs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, cost int
+		if err := rows.Scan(&id, &cost); err != nil {
+			return nil, fmt.Errorf("failed to scan product cost: %w", err)
+		}
+		costs[id] = cost
+	}
+	return costs, rows.Err()
+}

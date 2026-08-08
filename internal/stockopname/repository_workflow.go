@@ -18,12 +18,11 @@ import (
 // LoadSnapshotProductsByIDs returns the general-stock snapshot for the given
 // active product ids (used for scoped cycle counts). When ids is empty all
 // active products are returned.
-func (r *Repository) LoadSnapshotProductsByIDs(ctx context.Context, q queryer, ids []int) ([]SessionItem, error) {
+func (r *Repository) LoadSnapshotProductsByIDs(ctx context.Context, db shared.DBPool, ids []int) ([]SessionItem, error) {
 	query := `
-		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), COALESCE(u.name, 'pcs'), COALESCE(ps.quantity, 0)
+		SELECT ps.product_id, p.name, p.sku, COALESCE(p.barcode, ''), p.unit_of_measure_id, COALESCE(ps.quantity, 0)
 		FROM product_stock ps
 		JOIN products p ON p.id = ps.product_id
-		LEFT JOIN units_of_measure u ON u.id = p.unit_of_measure_id
 		WHERE ps.warehouse_id IS NULL AND ps.store_id IS NULL
 		  AND p.status = 'active' AND p.deleted_at IS NULL`
 	args := []interface{}{}
@@ -32,20 +31,29 @@ func (r *Repository) LoadSnapshotProductsByIDs(ctx context.Context, q queryer, i
 		query += ` AND p.id = ANY($1::int[])`
 	}
 	query += ` ORDER BY p.name ASC`
-	rows, err := q.Query(ctx, query, args...)
+	rows, err := db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load snapshot products: %w", err)
 	}
 	defer rows.Close()
 	var items []SessionItem
+	var uomIDs []sql.NullInt64
 	for rows.Next() {
 		var it SessionItem
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &it.UOMName, &it.OpeningQty); err != nil {
+		var uomID sql.NullInt64
+		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &uomID, &it.OpeningQty); err != nil {
 			return nil, fmt.Errorf("failed to scan snapshot product: %w", err)
 		}
 		items = append(items, it)
+		uomIDs = append(uomIDs, uomID)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.fillUOMNames(ctx, db, items, uomIDs); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // ResolveScopeName returns a human-readable name for a scope reference, or an
@@ -190,26 +198,18 @@ func (r *Repository) ListActiveSessions(ctx context.Context, q queryer) ([]Sessi
 	return out, rows.Err()
 }
 
-// GetProductSKUs returns a product id -> sku map for the given ids.
+// GetProductSKUs returns a product id -> sku map for the given ids. The read
+// is routed through the ProductCatalogProvider port owned by internal/product.
 func (r *Repository) GetProductSKUs(ctx context.Context, productIDs []int) (map[int]string, error) {
-	out := make(map[int]string, len(productIDs))
-	if len(productIDs) == 0 {
-		return out, nil
-	}
-	rows, err := r.db.Query(ctx, `SELECT id, sku FROM products WHERE id = ANY($1::int[])`, productIDs)
+	metas, err := r.productMetas(ctx, r.db, productIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load product skus: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int
-		var sku string
-		if err := rows.Scan(&id, &sku); err != nil {
-			return nil, fmt.Errorf("failed to scan product sku: %w", err)
-		}
-		out[id] = sku
+	out := make(map[int]string, len(metas))
+	for id, m := range metas {
+		out[id] = m.SKU
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // --- workflow transitions ---
@@ -341,10 +341,10 @@ func (r *Repository) GetAdjustment(ctx context.Context, id int) (*Adjustment, er
 	return adj, nil
 }
 
-func (r *Repository) getAdjustment(ctx context.Context, q queryer, where string, arg interface{}) (*Adjustment, error) {
+func (r *Repository) getAdjustment(ctx context.Context, db shared.DBPool, where string, arg interface{}) (*Adjustment, error) {
 	var adj Adjustment
 	var createdAt time.Time
-	err := q.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT a.id, a.adjustment_number, a.session_id, COALESCE(o.session_number,''), a.status,
 		       COALESCE(a.notes,''), COALESCE(a.created_by,0), a.created_at
 		FROM inventory_adjustments a
@@ -368,7 +368,7 @@ func (r *Repository) getAdjustment(ctx context.Context, q queryer, where string,
 		adj.CreatedByName = usernames[adj.CreatedBy]
 	}
 
-	items, err := r.getAdjustmentItems(ctx, q, adj.ID)
+	items, err := r.getAdjustmentItems(ctx, db, adj.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -382,13 +382,12 @@ func (r *Repository) getAdjustment(ctx context.Context, q queryer, where string,
 	return &adj, nil
 }
 
-func (r *Repository) getAdjustmentItems(ctx context.Context, q queryer, adjustmentID int) ([]AdjustmentItem, error) {
-	rows, err := q.Query(ctx, `
-		SELECT i.id, i.adjustment_id, i.product_id, COALESCE(p.name,''), COALESCE(p.sku,''),
+func (r *Repository) getAdjustmentItems(ctx context.Context, db shared.DBPool, adjustmentID int) ([]AdjustmentItem, error) {
+	rows, err := db.Query(ctx, `
+		SELECT i.id, i.adjustment_id, i.product_id,
 		       i.warehouse_id, i.store_id, i.expected_qty, i.physical_qty, i.difference_qty,
 		       i.adjustment_qty, i.unit_cost, i.line_total, COALESCE(i.reason,'')
 		FROM inventory_adjustment_items i
-		LEFT JOIN products p ON p.id = i.product_id
 		WHERE i.adjustment_id = $1
 		ORDER BY i.id ASC
 	`, adjustmentID)
@@ -397,10 +396,11 @@ func (r *Repository) getAdjustmentItems(ctx context.Context, q queryer, adjustme
 	}
 	defer rows.Close()
 	var out []AdjustmentItem
+	productIDs := make([]int, 0)
 	for rows.Next() {
 		var it AdjustmentItem
 		var warehouseID, storeID sql.NullInt64
-		if err := rows.Scan(&it.ID, &it.AdjustmentID, &it.ProductID, &it.ProductName, &it.SKU,
+		if err := rows.Scan(&it.ID, &it.AdjustmentID, &it.ProductID,
 			&warehouseID, &storeID, &it.ExpectedQty, &it.PhysicalQty, &it.DifferenceQty,
 			&it.AdjustmentQty, &it.UnitCost, &it.LineTotal, &it.Reason); err != nil {
 			return nil, fmt.Errorf("failed to scan adjustment item: %w", err)
@@ -414,8 +414,22 @@ func (r *Repository) getAdjustmentItems(ctx context.Context, q queryer, adjustme
 			it.StoreID = &v
 		}
 		out = append(out, it)
+		productIDs = append(productIDs, it.ProductID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	metas, err := r.productMetas(ctx, db, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve adjustment item products: %w", err)
+	}
+	for i := range out {
+		if m, ok := metas[out[i].ProductID]; ok {
+			out[i].ProductName = m.Name
+			out[i].SKU = m.SKU
+		}
+	}
+	return out, nil
 }
 
 // ListAdjustments returns paginated adjustment documents.

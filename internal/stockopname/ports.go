@@ -100,3 +100,25 @@ type StockLocker interface {
 	// rack quantities (0 when no rack row exists).
 	LockLocationStock(ctx context.Context, tx pgx.Tx, productIDs []int, locationID int) (map[int]int, error)
 }
+
+// ProductCatalogProvider resolves product identity (sku/name) and unit cost for
+// stock opname reads — SKU conflict hints on session creation, adjustment item
+// display, and posting line totals. products is owned by internal/product
+// (ADR Modular_Monolith_Module_Boundaries §2.8 Katalog), so stockopname routes
+// these reads here instead of LEFT JOINs / direct SELECTs over products.
+// SetProductCatalogProvider MUST be wired before those paths run — an unwired
+// repository fails fast at runtime.
+type ProductCatalogProvider interface {
+	// ProductMetasByIDs returns product sku/name identity keyed by product ID.
+	ProductMetasByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]shared.ProductMeta, error)
+	// ProductCostsByIDs returns product unit costs keyed by product ID.
+	ProductCostsByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]int, error)
+}
+
+// UOMNameProvider resolves unit-of-measure names for stock snapshot reads.
+// units_of_measure is owned by internal/uom (ADR §2.8 Katalog).
+// SetUOMNameProvider MUST be wired before LoadSnapshotProducts* runs — an
+// unwired repository fails fast at runtime.
+type UOMNameProvider interface {
+	UnitNamesByIDs(ctx context.Context, db shared.DBPool, ids []int) (map[int]string, error)
+}

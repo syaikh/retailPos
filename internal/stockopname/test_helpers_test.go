@@ -11,6 +11,7 @@ import (
 	"retail-pos-system/internal/store"
 	"retail-pos-system/internal/storagelocation"
 	"retail-pos-system/internal/supplier"
+	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 )
 
@@ -81,5 +82,7 @@ func newTestRepository() *Repository {
 	repo.SetLocationScopeProvider(storagelocation.RackProvider{})
 	repo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	repo.SetStockLocker(inventory.StockLocker{})
+	repo.SetProductCatalogProvider(product.ProductMetaLookup{})
+	repo.SetUOMNameProvider(uom.UnitNameLookup{})
 	return repo
 }
