@@ -10,23 +10,29 @@ import (
 )
 
 const selectColumns = `cg.id, cg.name, COALESCE(cg.description, ''), cg.is_active, COALESCE(cg.color, ''),
-	COALESCE(cc.cnt, 0), cg.created_at, cg.updated_at`
+	cg.created_at, cg.updated_at`
 
-const baseJoin = `FROM customer_groups cg
-	LEFT JOIN (SELECT customer_group_id, COUNT(*) AS cnt FROM customers GROUP BY customer_group_id) cc ON cc.customer_group_id = cg.id`
+const baseFrom = `FROM customer_groups cg`
 
 type Repository struct {
-	db shared.DBPool
+	db            shared.DBPool
+	countProvider CustomerCountProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
+// SetCustomerCountProvider wires the customer-owned count provider through
+// which customer group counts are resolved. Required by read methods.
+func (r *Repository) SetCustomerCountProvider(p CustomerCountProvider) {
+	r.countProvider = p
+}
+
 func (r *Repository) scanGroup(scanner interface{ Scan(...interface{}) error }) (*CustomerGroup, error) {
 	var cg CustomerGroup
 	var createdAt, updatedAt time.Time
-	if err := scanner.Scan(&cg.ID, &cg.Name, &cg.Description, &cg.IsActive, &cg.Color, &cg.CustomerCount, &createdAt, &updatedAt); err != nil {
+	if err := scanner.Scan(&cg.ID, &cg.Name, &cg.Description, &cg.IsActive, &cg.Color, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	cg.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -49,26 +55,37 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 		args = append(args, *isActive)
 		argIdx++
 	}
+
+	var counts map[int]int
 	if hasCustomers != nil {
-		if *hasCustomers {
-			where += " AND cc.cnt > 0"
-		} else {
-			where += " AND (cc.cnt = 0 OR cc.cnt IS NULL)"
+		var err error
+		counts, err = r.customerGroupCounts(ctx)
+		if err != nil {
+			return nil, 0, err
 		}
+		ids := []int{}
+		for id, cnt := range counts {
+			if cnt > 0 {
+				ids = append(ids, id)
+			}
+		}
+		if *hasCustomers {
+			where += fmt.Sprintf(" AND cg.id = ANY($%d)", argIdx)
+		} else {
+			where += fmt.Sprintf(" AND NOT (cg.id = ANY($%d))", argIdx)
+		}
+		args = append(args, ids)
+		argIdx++
 	}
 
 	var total int
-	countJoin := ""
-	if hasCustomers != nil {
-		countJoin = " LEFT JOIN (SELECT customer_group_id, COUNT(*) AS cnt FROM customers GROUP BY customer_group_id) cc ON cc.customer_group_id = cg.id"
-	}
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM customer_groups cg%s WHERE %s", countJoin, where)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM customer_groups cg WHERE %s", where)
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count customer groups: %w", err)
 	}
 
 	query := fmt.Sprintf(`SELECT %s %s WHERE %s ORDER BY cg.id ASC LIMIT $%d OFFSET $%d`,
-		selectColumns, baseJoin, where, argIdx, argIdx+1)
+		selectColumns, baseFrom, where, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -88,6 +105,17 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("iterate customer groups: %w", err)
 	}
+	if len(groups) > 0 {
+		if counts == nil {
+			if err := r.enrichCustomerCounts(ctx, toPtrs(groups)); err != nil {
+				return nil, 0, err
+			}
+		} else {
+			for i := range groups {
+				groups[i].CustomerCount = counts[groups[i].ID]
+			}
+		}
+	}
 	if groups == nil {
 		groups = []CustomerGroup{}
 	}
@@ -95,13 +123,27 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 }
 
 func (r *Repository) GetByID(ctx context.Context, id int) (*CustomerGroup, error) {
-	query := fmt.Sprintf(`SELECT %s %s WHERE cg.id = $1`, selectColumns, baseJoin)
-	return r.scanGroup(r.db.QueryRow(ctx, query, id))
+	query := fmt.Sprintf(`SELECT %s %s WHERE cg.id = $1`, selectColumns, baseFrom)
+	cg, err := r.scanGroup(r.db.QueryRow(ctx, query, id))
+	if err != nil {
+		return nil, err
+	}
+	if err := r.enrichCustomerCounts(ctx, []*CustomerGroup{cg}); err != nil {
+		return nil, err
+	}
+	return cg, nil
 }
 
 func (r *Repository) GetByName(ctx context.Context, name string) (*CustomerGroup, error) {
-	query := fmt.Sprintf(`SELECT %s %s WHERE LOWER(cg.name) = LOWER($1)`, selectColumns, baseJoin)
-	return r.scanGroup(r.db.QueryRow(ctx, query, name))
+	query := fmt.Sprintf(`SELECT %s %s WHERE LOWER(cg.name) = LOWER($1)`, selectColumns, baseFrom)
+	cg, err := r.scanGroup(r.db.QueryRow(ctx, query, name))
+	if err != nil {
+		return nil, err
+	}
+	if err := r.enrichCustomerCounts(ctx, []*CustomerGroup{cg}); err != nil {
+		return nil, err
+	}
+	return cg, nil
 }
 
 func (r *Repository) Create(ctx context.Context, cg *CustomerGroup) error {
@@ -146,7 +188,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 }
 
 func (r *Repository) GetAllActive(ctx context.Context) ([]CustomerGroup, error) {
-	query := fmt.Sprintf(`SELECT %s %s WHERE cg.is_active = true ORDER BY cg.name ASC`, selectColumns, baseJoin)
+	query := fmt.Sprintf(`SELECT %s %s WHERE cg.is_active = true ORDER BY cg.name ASC`, selectColumns, baseFrom)
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("list active customer groups: %w", err)
@@ -164,6 +206,9 @@ func (r *Repository) GetAllActive(ctx context.Context) ([]CustomerGroup, error) 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate customer groups: %w", err)
 	}
+	if err := r.enrichCustomerCounts(ctx, toPtrs(groups)); err != nil {
+		return nil, err
+	}
 	if groups == nil {
 		groups = []CustomerGroup{}
 	}
@@ -171,7 +216,7 @@ func (r *Repository) GetAllActive(ctx context.Context) ([]CustomerGroup, error) 
 }
 
 func (r *Repository) GetAllForExport(ctx context.Context) ([]CustomerGroup, error) {
-	query := fmt.Sprintf(`SELECT %s %s ORDER BY cg.id ASC`, selectColumns, baseJoin)
+	query := fmt.Sprintf(`SELECT %s %s ORDER BY cg.id ASC`, selectColumns, baseFrom)
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("export customer groups: %w", err)
@@ -186,7 +231,13 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]CustomerGroup, erro
 		}
 		groups = append(groups, *cg)
 	}
-	return groups, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate customer groups for export: %w", err)
+	}
+	if err := r.enrichCustomerCounts(ctx, toPtrs(groups)); err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
 
 func (r *Repository) NameExists(ctx context.Context, name string, excludeID int) (bool, error) {
@@ -258,4 +309,41 @@ func (r *Repository) BulkUpsertCustomerGroups(ctx context.Context, records []Imp
 		result.Updated++
 	}
 	return result
+}
+
+// customerGroupCounts resolves per-group customer counts through the
+// customer-owned port. Groups with no customers are absent from the map.
+func (r *Repository) customerGroupCounts(ctx context.Context) (map[int]int, error) {
+	if r.countProvider == nil {
+		return nil, fmt.Errorf("customer group repository: customer count provider not wired; call SetCustomerCountProvider")
+	}
+	counts, err := r.countProvider.CustomerGroupCounts(ctx, r.db)
+	if err != nil {
+		return nil, fmt.Errorf("resolve customer group counts: %w", err)
+	}
+	return counts, nil
+}
+
+// enrichCustomerCounts fills CustomerCount on the given groups. It is a no-op
+// when there is nothing to enrich.
+func (r *Repository) enrichCustomerCounts(ctx context.Context, groups []*CustomerGroup) error {
+	if len(groups) == 0 {
+		return nil
+	}
+	counts, err := r.customerGroupCounts(ctx)
+	if err != nil {
+		return err
+	}
+	for _, g := range groups {
+		g.CustomerCount = counts[g.ID]
+	}
+	return nil
+}
+
+func toPtrs(groups []CustomerGroup) []*CustomerGroup {
+	ptrs := make([]*CustomerGroup, len(groups))
+	for i := range groups {
+		ptrs[i] = &groups[i]
+	}
+	return ptrs
 }

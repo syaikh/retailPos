@@ -157,6 +157,41 @@ var strictModuleTables = map[string]map[string]bool{
 	"customer": {
 		"customers": true,
 	},
+	"brand": {
+		"brands": true,
+	},
+	"uom": {
+		"units_of_measure": true,
+	},
+	"customergroup": {
+		"customer_groups": true,
+	},
+	"stockopname": {
+		"stock_opnames":                 true,
+		"stock_opname_items":            true,
+		"stock_opname_counts":           true,
+		"stock_opname_assignments":      true,
+		"stock_opname_recount_requests": true,
+		"stock_opname_session_scopes":   true,
+		"inventory_adjustments":         true,
+		"inventory_adjustment_items":    true,
+	},
+	"user": {
+		"users":            true,
+		"roles":            true,
+		"permissions":      true,
+		"role_permissions": true,
+		"refresh_tokens":   true,
+		"audit_logs":       true,
+	},
+	"platform": {
+		"import_jobs":        true,
+		"import_snapshots":   true,
+		"import_rows":        true,
+		"import_errors":      true,
+		"outbox":             true,
+		"dead_letter_events": true,
+	},
 }
 
 // crossContextDebt lists acknowledged cross-context references awaiting

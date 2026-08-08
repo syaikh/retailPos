@@ -9,7 +9,21 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/shared"
 )
+
+type stubCustomerCountProvider struct{}
+
+func (stubCustomerCountProvider) CustomerGroupCounts(context.Context, shared.DBPool) (map[int]int, error) {
+	return map[int]int{}, nil
+}
+
+func newMockRepo(mock shared.DBPool) *Repository {
+	repo := NewRepository(mock)
+	repo.SetCustomerCountProvider(stubCustomerCountProvider{})
+	return repo
+}
 
 func TestCGAdapter_NewAdapter(t *testing.T) {
 	a := NewAdapter(nil)
@@ -212,11 +226,11 @@ func TestCGAdapter_ReposAdapter_Insert(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows(cgCols))
 	mock.ExpectQuery("(?si)INSERT INTO customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(1, now, now))
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -234,13 +248,13 @@ func TestCGAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows(cgCols))
 	mock.ExpectQuery("(?si)INSERT INTO customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(1, now, now))
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows(cgCols))
 	mock.ExpectQuery("(?si)INSERT INTO customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("insert failed"))
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -258,13 +272,13 @@ func TestCGAdapter_ReposAdapter_Update(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows(cgCols).AddRow(1, "Existing CG", "desc", true, "#6C5CE7", 0, now, now),
+		pgxmock.NewRows(cgCols).AddRow(1, "Existing CG", "desc", true, "#6C5CE7", now, now),
 	)
 	mock.ExpectExec("(?si)UPDATE customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -282,17 +296,17 @@ func TestCGAdapter_ReposAdapter_Update_Errors(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows(cgCols).AddRow(1, "Valid", "desc", true, "#6C5CE7", 0, now, now),
+		pgxmock.NewRows(cgCols).AddRow(1, "Valid", "desc", true, "#6C5CE7", now, now),
 	)
 	mock.ExpectExec("(?si)UPDATE customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectQuery("(?si)SELECT .+ FROM customer_groups .+ WHERE LOWER").WithArgs(pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows(cgCols).AddRow(2, "Valid2", "desc", true, "#6C5CE7", 0, now, now),
+		pgxmock.NewRows(cgCols).AddRow(2, "Valid2", "desc", true, "#6C5CE7", now, now),
 	)
 	mock.ExpectExec("(?si)UPDATE customer_groups").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(fmt.Errorf("update failed"))
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -310,12 +324,12 @@ func TestCGAdapter_ReposAdapter_ExportData(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?i)SELECT .+ FROM customer_groups .+ ORDER BY cg.id ASC").WillReturnRows(
-		pgxmock.NewRows(cgCols).AddRow(1, "VIP", "VIP group", true, "#FF0000", 5, now, now),
+		pgxmock.NewRows(cgCols).AddRow(1, "VIP", "VIP group", true, "#FF0000", now, now),
 	)
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -335,12 +349,12 @@ func TestCGAdapter_ReposAdapter_ExportData_NoColor(t *testing.T) {
 	defer mock.Close()
 
 	now := time.Now()
-	cgCols := []string{"id", "name", "description", "is_active", "color", "customer_count", "created_at", "updated_at"}
+	cgCols := []string{"id", "name", "description", "is_active", "color", "created_at", "updated_at"}
 	mock.ExpectQuery("(?i)SELECT .+ FROM customer_groups .+ ORDER BY cg.id ASC").WillReturnRows(
-		pgxmock.NewRows(cgCols).AddRow(1, "Basic", "basic group", true, "", 0, now, now),
+		pgxmock.NewRows(cgCols).AddRow(1, "Basic", "basic group", true, "", now, now),
 	)
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 
@@ -360,7 +374,7 @@ func TestCGAdapter_ReposAdapter_ExportData_Error(t *testing.T) {
 
 	mock.ExpectQuery("(?i)SELECT .+ FROM customer_groups .+ ORDER BY cg.id ASC").WillReturnError(fmt.Errorf("db error"))
 
-	repo := NewRepository(mock)
+	repo := newMockRepo(mock)
 	a := NewAdapter(repo)
 	ra := a.Repository()
 

@@ -44,7 +44,7 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 
 func setupCGRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	h := NewHandler(svc, nil)
 
@@ -398,7 +398,7 @@ func (m *mockAuditCreator) CreateAuditLog(_ context.Context, _ *audit.Log) error
 
 func setupCGRouterWithAudit() (*gin.Engine, *mockAuditCreator) {
 	gin.SetMode(gin.TestMode)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	mockAudit := &mockAuditCreator{}
 	h := NewHandler(svc, mockAudit)

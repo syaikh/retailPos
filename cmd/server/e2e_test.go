@@ -152,6 +152,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	auditRepo := audit.NewRepository(e2ePool)
 	reportRepo := report.NewRepository(e2ePool)
 	cgRepo := customergroup.NewRepository(e2ePool)
+	cgRepo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
 	storeRepo := store.NewRepository(e2ePool)
 	pricingRepo := pricing.NewRepository(e2ePool)
 	pricingRepo.SetProductPricingProvider(product.ProductPricingLookup{})

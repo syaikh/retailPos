@@ -9,10 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/customer"
 	"retail-pos-system/internal/shared"
 )
 
 var dbPool *pgxpool.Pool
+
+func newWiredRepo() *Repository {
+	repo := NewRepository(dbPool)
+	repo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
+	return repo
+}
 
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
@@ -35,7 +42,7 @@ func TestMain(m *testing.M) {
 
 func TestCustomerGroupRepository_CRUD(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	t.Run("Create and get by ID", func(t *testing.T) {
@@ -327,7 +334,7 @@ func TestCustomerGroupRepository_CRUD(t *testing.T) {
 }
 
 func TestCustomerGroupRepository_GetByID_NotFound(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	_, err := repo.GetByID(ctx, 999999)
@@ -335,7 +342,7 @@ func TestCustomerGroupRepository_GetByID_NotFound(t *testing.T) {
 }
 
 func TestCustomerGroupRepository_GetAll_AllFiltersCombined(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	cg := &CustomerGroup{Name: "AllFiltersCG", Description: "combo test", IsActive: true}

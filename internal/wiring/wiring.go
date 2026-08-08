@@ -400,6 +400,7 @@ func Initialize(p Providers) *Dependencies {
 	d.SupplierRepo = supplier.NewRepository(p.DB)
 	d.SupplierRepo.SetProductSupplierStore(product.ProductSupplierLinkStore{})
 	d.CustomerGroupRepo = customergroup.NewRepository(p.DB)
+	d.CustomerGroupRepo.SetCustomerCountProvider(customer.CustomerGroupCountsLookup{})
 	d.StoreRepo = store.NewRepository(p.DB)
 	d.ShiftRepo = shift.NewRepository(p.DB)
 	d.ShiftRepo.SetSalesSummaryProvider(sale.ShiftSummaryProvider{})
