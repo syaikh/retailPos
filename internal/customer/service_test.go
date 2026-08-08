@@ -9,7 +9,7 @@ import (
 )
 
 func TestCustomerService_CreateCustomerNilError(t *testing.T) {
-	svc := NewService(NewRepository(dbPool))
+	svc := NewService(newWiredRepo())
 	ctx := context.Background()
 
 	err := svc.CreateCustomer(ctx, nil, nil)
@@ -17,7 +17,7 @@ func TestCustomerService_CreateCustomerNilError(t *testing.T) {
 }
 
 func TestCustomerService_UpdateCustomerNilError(t *testing.T) {
-	svc := NewService(NewRepository(dbPool))
+	svc := NewService(newWiredRepo())
 	ctx := context.Background()
 
 	err := svc.UpdateCustomer(ctx, nil, 1, nil)
@@ -25,7 +25,7 @@ func TestCustomerService_UpdateCustomerNilError(t *testing.T) {
 }
 
 func TestCustomerService_ReadOperations(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	svc := NewService(repo)
 	ctx := context.Background()
@@ -60,7 +60,7 @@ func TestCustomerService_ReadOperations(t *testing.T) {
 }
 
 func TestCustomerService_BulkOperations(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	svc := NewService(repo)
 	ctx := context.Background()

@@ -382,6 +382,7 @@ func Initialize(p Providers) *Dependencies {
 	d.InventoryRepo.SetLocationRackProvider(storagelocation.RackProvider{})
 	d.InventoryRepo.SetProductMetaProvider(product.ProductMetaLookup{})
 	d.CustomerRepo = customer.NewRepository(p.DB)
+	d.CustomerRepo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
 	d.CategoryRepo = category.NewRepository(p.DB)
 	d.CategoryRepo.SetCache(d.Cache)
 	d.CategoryRepo.SetProductQueryProvider(product.CategoryProductCountProvider{})

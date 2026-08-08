@@ -154,6 +154,9 @@ var strictModuleTables = map[string]map[string]bool{
 		"v_products_full":   true,
 		"categories":        true,
 	},
+	"customer": {
+		"customers": true,
+	},
 }
 
 // crossContextDebt lists acknowledged cross-context references awaiting

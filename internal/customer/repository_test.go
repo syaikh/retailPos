@@ -4,15 +4,23 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/customergroup"
 	"retail-pos-system/internal/shared"
 )
 
 var dbPool *pgxpool.Pool
+
+func newWiredRepo() *Repository {
+	repo := NewRepository(dbPool)
+	repo.SetCustomerGroupNameProvider(customergroup.CustomerGroupNameLookup{})
+	return repo
+}
 
 func TestMain(m *testing.M) {
 	pool, err := shared.NewTestDB()
@@ -34,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCustomerRepository_GetByPhone(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	t.Run("found", func(t *testing.T) {
@@ -55,7 +63,7 @@ func TestCustomerRepository_GetByPhone(t *testing.T) {
 }
 
 func TestCustomerRepository_GetCustomerByID(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	t.Run("found", func(t *testing.T) {
@@ -77,7 +85,7 @@ func TestCustomerRepository_GetCustomerByID(t *testing.T) {
 }
 
 func TestCustomerRepository_GetAllCustomers(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	t.Run("default list excludes walk-in", func(t *testing.T) {
@@ -115,7 +123,7 @@ func TestCustomerRepository_GetAllCustomers(t *testing.T) {
 }
 
 func TestCustomerRepository_CreateCustomer(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	t.Run("create regular customer", func(t *testing.T) {
@@ -165,7 +173,7 @@ func TestCustomerRepository_CreateCustomer(t *testing.T) {
 }
 
 func TestCustomerRepository_UpdateCustomer(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	phone := "083333333333"
@@ -194,7 +202,7 @@ func TestCustomerRepository_UpdateCustomer(t *testing.T) {
 }
 
 func TestCustomerRepository_DeleteCustomer(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	phone := "084444444444"
@@ -216,7 +224,7 @@ func TestCustomerRepository_DeleteCustomer(t *testing.T) {
 }
 
 func TestCustomerRepository_BulkUpdateCustomersStatus(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	phone1 := "085555555551"
@@ -236,7 +244,7 @@ func TestCustomerRepository_BulkUpdateCustomersStatus(t *testing.T) {
 }
 
 func TestCustomerRepository_BulkDeleteCustomers(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	phone1 := "086666666661"
@@ -256,3 +264,51 @@ func TestCustomerRepository_BulkDeleteCustomers(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+// TestCustomerRepository_GroupNameEnrichment verifies that customer reads
+// resolve customer_group_name through the customergroup-owned port instead of
+// a direct customer_groups JOIN.
+func TestCustomerRepository_GroupNameEnrichment(t *testing.T) {
+	repo := newWiredRepo()
+	ctx := context.Background()
+
+	var groupID int
+	require.NoError(t, dbPool.QueryRow(ctx,
+		`INSERT INTO customer_groups (name, is_active) VALUES ($1, true) RETURNING id`,
+		"Platinum "+time.Now().Format("0102150405.000000")).Scan(&groupID))
+
+	phone := "08777" + time.Now().Format("0102150405")
+	c := &Customer{Name: "Grouped Customer", Phone: &phone, Email: ptr("grouped@test.com"), CustomerGroupID: &groupID, IsActive: true}
+	require.NoError(t, repo.CreateCustomer(ctx, c))
+	customerID := c.ID
+
+	t.Run("by phone", func(t *testing.T) {
+		got, err := repo.GetByPhone(ctx, phone, nil)
+		require.NoError(t, err)
+		require.NotNil(t, got.CustomerGroupID)
+		assert.Equal(t, groupID, *got.CustomerGroupID)
+		require.NotNil(t, got.CustomerGroupName)
+		assert.Contains(t, *got.CustomerGroupName, "Platinum")
+	})
+
+	t.Run("by id", func(t *testing.T) {
+		got, err := repo.GetCustomerByID(ctx, customerID, nil)
+		require.NoError(t, err)
+		require.NotNil(t, got.CustomerGroupName)
+		assert.Contains(t, *got.CustomerGroupName, "Platinum")
+	})
+
+	t.Run("list", func(t *testing.T) {
+		customers, _, err := repo.GetAllCustomers(ctx, 10, 0, "", nil, nil, nil)
+		require.NoError(t, err)
+		var found bool
+		for _, row := range customers {
+			if row.ID == customerID {
+				found = true
+				require.NotNil(t, row.CustomerGroupName)
+				assert.Contains(t, *row.CustomerGroupName, "Platinum")
+			}
+		}
+		assert.True(t, found)
+	})
+}

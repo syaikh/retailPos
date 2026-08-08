@@ -233,7 +233,7 @@ func ptrHelper(s string) *string {
 
 func TestCustomerAdapter_Insert_Success(t *testing.T) {
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	adapter := NewAdapter(repo)
 	ra := adapter.Repository()
 
@@ -253,7 +253,7 @@ func TestCustomerAdapter_Insert_Success(t *testing.T) {
 
 func TestCustomerAdapter_Insert_WithStoreID(t *testing.T) {
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	adapter := NewAdapter(repo)
 	ra := adapter.Repository()
 
@@ -269,7 +269,7 @@ func TestCustomerAdapter_Insert_WithStoreID(t *testing.T) {
 
 func TestCustomerAdapter_Update_Success(t *testing.T) {
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	adapter := NewAdapter(repo)
 	ra := adapter.Repository()
 
@@ -294,7 +294,7 @@ func TestCustomerAdapter_Update_Success(t *testing.T) {
 
 func TestCustomerAdapter_ExportData_Success(t *testing.T) {
 	ctx := context.Background()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	adapter := NewAdapter(repo)
 	ra := adapter.Repository()
 

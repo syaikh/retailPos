@@ -44,7 +44,7 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 func setupCustomerRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	svc := NewService(repo)
 	h := NewHandler(svc, nil)
@@ -58,7 +58,7 @@ func TestHandler_GetCustomers(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone1 := "0812AHMAD001"
 	phone2 := "0812AHMAD002"
@@ -120,7 +120,7 @@ func TestHandler_GetCustomerByID(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone := "0811WALKINHDL01"
 	c := &Customer{Name: "Pelanggan Umum / Walk-in", Phone: &phone, Email: ptr("walkin@test.com"), IsWalkIn: true, IsActive: true}
@@ -193,7 +193,7 @@ func TestHandler_UpdateCustomer(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone := "0812000002"
 	c := &Customer{
@@ -229,7 +229,7 @@ func TestHandler_DeleteCustomer(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone := "0812TEST003"
 	c := &Customer{
@@ -267,7 +267,7 @@ func TestHandler_BulkUpdateCustomerStatus(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone1 := "0812TEST004"
 	phone2 := "0812TEST005"
@@ -306,7 +306,7 @@ func TestHandler_BulkDeleteCustomers(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupCustomerRouter()
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 	phone1 := "0812TEST006"
 	phone2 := "0812TEST007"

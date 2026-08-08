@@ -23,11 +23,20 @@ func (r *ImportResult) AddError(row int, msg string) {
 }
 
 type Repository struct {
-	db shared.DBPool
+	db                shared.DBPool
+	groupNameProvider CustomerGroupNameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetCustomerGroupNameProvider wires the customer-group-owned implementation of
+// the CustomerGroupNameProvider port (see ports.go). customer_groups is owned
+// by internal/customergroup (ADR §2.8 Referensi); customer routes group-name
+// enrichment through this port instead of a customer_groups JOIN.
+func (r *Repository) SetCustomerGroupNameProvider(p CustomerGroupNameProvider) {
+	r.groupNameProvider = p
 }
 
 func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int) (*Customer, error) {
@@ -35,10 +44,9 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int)
 	var createdAt, updatedAt time.Time
 	var storeIDVal int
 	query := `
-		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id,
 		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
 		FROM customers c
-		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
 		WHERE c.phone = $1`
 	args := []interface{}{phone}
 	if storeID != nil {
@@ -55,6 +63,9 @@ func (r *Repository) GetByPhone(ctx context.Context, phone string, storeID *int)
 	if !c.IsWalkIn {
 		c.StoreID = &storeIDVal
 	}
+	if err := r.enrichGroupNames(ctx, []*Customer{&c}); err != nil {
+		return nil, err
+	}
 	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	return &c, nil
@@ -65,10 +76,9 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 	var createdAt, updatedAt time.Time
 	var storeIDVal int
 	query := `
-		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id,
 		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
 		FROM customers c
-		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
 		WHERE c.id = $1`
 	args := []interface{}{id}
 	if storeID != nil {
@@ -84,6 +94,9 @@ func (r *Repository) GetCustomerByID(ctx context.Context, id int, storeID *int) 
 	}
 	if !c.IsWalkIn {
 		c.StoreID = &storeIDVal
+	}
+	if err := r.enrichGroupNames(ctx, []*Customer{&c}); err != nil {
+		return nil, err
 	}
 	c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 	c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
@@ -118,10 +131,9 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 		return nil, 0, err
 	}
 
-	query := `SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+	query := `SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id,
 	                 c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
 	          FROM customers c
-	          LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
 	          WHERE c.is_walk_in = false`
 	queryArgs := []interface{}{}
 	argIdx2 := 1
@@ -166,6 +178,9 @@ func (r *Repository) GetAllCustomers(ctx context.Context, limit, offset int, sea
 		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		customers = append(customers, c)
+	}
+	if err := r.enrichGroupNames(ctx, toPtrs(customers)); err != nil {
+		return nil, 0, err
 	}
 	return customers, total, nil
 }
@@ -233,10 +248,9 @@ func (r *Repository) BulkDeleteCustomers(ctx context.Context, ids []int, storeID
 
 func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int) ([]Customer, error) {
 	query := `
-		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id, cg.name,
+		SELECT c.id, c.name, c.phone, c.email, c.address, c.tax_id, c.customer_group_id,
 		       c.loyalty_points, c.total_spent, c.last_purchase_at, c.note, c.is_active, c.is_walk_in, c.store_id, c.created_at, c.updated_at
 		FROM customers c
-		LEFT JOIN customer_groups cg ON cg.id = c.customer_group_id
 		WHERE c.is_walk_in = false`
 	args := []interface{}{}
 	if storeID != nil {
@@ -262,6 +276,9 @@ func (r *Repository) GetAllCustomersForExport(ctx context.Context, storeID *int)
 		c.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
 		customers = append(customers, c)
+	}
+	if err := r.enrichGroupNames(ctx, toPtrs(customers)); err != nil {
+		return nil, err
 	}
 	return customers, nil
 }
@@ -397,10 +414,9 @@ type scannable interface {
 func scanCustomerRow(src scannable, c *Customer, createdAt, updatedAt *time.Time, storeIDVal *int) error {
 	var phone, email, address, taxID, lastPurchaseAt, note sql.NullString
 	var customerGroupID sql.NullInt64
-	var customerGroupName sql.NullString
 	err := src.Scan(
 		&c.ID, &c.Name, &phone, &email, &address, &taxID,
-		&customerGroupID, &customerGroupName,
+		&customerGroupID,
 		&c.LoyaltyPoints, &c.TotalSpent, &lastPurchaseAt, &note,
 		&c.IsActive, &c.IsWalkIn, storeIDVal, createdAt, updatedAt,
 	)
@@ -417,8 +433,51 @@ func scanCustomerRow(src scannable, c *Customer, createdAt, updatedAt *time.Time
 		id := int(customerGroupID.Int64)
 		c.CustomerGroupID = &id
 	}
-	if customerGroupName.Valid {
-		c.CustomerGroupName = &customerGroupName.String
+	return nil
+}
+
+// enrichGroupNames resolves the customer_group_id of each scanned customer to a
+// group name via the customer-group-owned port. IDs with no matching group are
+// left without a CustomerGroupName.
+func (r *Repository) enrichGroupNames(ctx context.Context, customers []*Customer) error {
+	seen := make(map[int]bool)
+	var ids []int
+	for _, c := range customers {
+		if c.CustomerGroupID == nil {
+			continue
+		}
+		id := *c.CustomerGroupID
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if r.groupNameProvider == nil {
+		return fmt.Errorf("customer repository: customer group name provider not wired; call SetCustomerGroupNameProvider")
+	}
+	names, err := r.groupNameProvider.CustomerGroupNamesByIDs(ctx, r.db, ids)
+	if err != nil {
+		return err
+	}
+	for _, c := range customers {
+		if c.CustomerGroupID == nil {
+			continue
+		}
+		if name, ok := names[*c.CustomerGroupID]; ok {
+			n := name
+			c.CustomerGroupName = &n
+		}
 	}
 	return nil
+}
+
+func toPtrs(customers []Customer) []*Customer {
+	ptrs := make([]*Customer, len(customers))
+	for i := range customers {
+		ptrs[i] = &customers[i]
+	}
+	return ptrs
 }

@@ -13,12 +13,12 @@ import (
 
 func customerRow(id int, name, phone string, storeID int, isActive, isWalkIn bool, now time.Time) *pgxmock.Rows {
 	return pgxmock.NewRows([]string{
-		"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "cg.name",
+		"id", "name", "phone", "email", "address", "tax_id", "customer_group_id",
 		"loyalty_points", "total_spent", "last_purchase_at", "note",
 		"is_active", "is_walk_in", "store_id", "created_at", "updated_at",
 	}).AddRow(
 		id, name, phone, "", "", "",
-		nil, nil,
+		nil,
 		0, 0.0, nil, "",
 		isActive, isWalkIn, storeID, now, now,
 	)
@@ -31,7 +31,7 @@ func TestRepository_GetByPhone(t *testing.T) {
 
 	now := time.Now()
 	rows := customerRow(1, "John", "081234", 1, true, false, now)
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs("081234").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs("081234").WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	c, err := repo.GetByPhone(context.Background(), "081234", nil)
@@ -52,7 +52,7 @@ func TestRepository_GetByPhone_WithStoreID(t *testing.T) {
 	now := time.Now()
 	sid := 1
 	rows := customerRow(1, "John", "081234", 1, true, false, now)
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs("081234", sid).WillReturnRows(rows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs("081234", sid).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	c, err := repo.GetByPhone(context.Background(), "081234", &sid)
@@ -66,7 +66,7 @@ func TestRepository_GetByPhone_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs("000").WillReturnError(pgx.ErrNoRows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs("000").WillReturnError(pgx.ErrNoRows)
 
 	repo := NewRepository(mock)
 	_, err = repo.GetByPhone(context.Background(), "000", nil)
@@ -82,7 +82,7 @@ func TestRepository_GetCustomerByID(t *testing.T) {
 
 	now := time.Now()
 	rows := customerRow(5, "Jane", "089999", 2, true, false, now)
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs(5).WillReturnRows(rows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs(5).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	c, err := repo.GetCustomerByID(context.Background(), 5, nil)
@@ -98,7 +98,7 @@ func TestRepository_GetCustomerByID_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs(999).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs(999).WillReturnError(pgx.ErrNoRows)
 
 	repo := NewRepository(mock)
 	_, err = repo.GetCustomerByID(context.Background(), 999, nil)
@@ -114,7 +114,7 @@ func TestRepository_GetCustomerByID_WalkIn(t *testing.T) {
 
 	now := time.Now()
 	rows := customerRow(10, "Walk-in", "", 1, true, true, now)
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs(10).WillReturnRows(rows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs(10).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	c, err := repo.GetCustomerByID(context.Background(), 10, nil)
@@ -234,7 +234,7 @@ func TestRepository_GetAllCustomersForExport_WithStoreID(t *testing.T) {
 	now := time.Now()
 	sid := 1
 	rows := customerRow(1, "Cust", "08111", sid, true, false, now)
-	mock.ExpectQuery("SELECT (.+) FROM customers c LEFT JOIN customer_groups").WithArgs(sid).WillReturnRows(rows)
+	mock.ExpectQuery("SELECT (.+) FROM customers c").WithArgs(sid).WillReturnRows(rows)
 
 	repo := NewRepository(mock)
 	customers, err := repo.GetAllCustomersForExport(context.Background(), &sid)
@@ -351,7 +351,7 @@ func TestRepository_GetAllCustomers_SearchAndFilter(t *testing.T) {
 		WithArgs(sid, "%search%", active).
 		WillReturnRows(countRows)
 
-	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "cg.name", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
+	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
 	mock.ExpectQuery("SELECT c.id, c.name, c.phone").
 		WithArgs(sid, "%search%", active, 10, 0).
 		WillReturnRows(dataRows)
@@ -373,7 +373,7 @@ func TestRepository_GetAllCustomers_StoreIDFilter(t *testing.T) {
 		WithArgs(sid).
 		WillReturnRows(countRows)
 
-	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "cg.name", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
+	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
 	mock.ExpectQuery("SELECT c.id, c.name, c.phone").
 		WithArgs(sid, 10, 0).
 		WillReturnRows(dataRows)
@@ -395,7 +395,7 @@ func TestRepository_GetAllCustomers_FilterOnly(t *testing.T) {
 		WithArgs(active).
 		WillReturnRows(countRows)
 
-	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "cg.name", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
+	dataRows := pgxmock.NewRows([]string{"id", "name", "phone", "email", "address", "tax_id", "customer_group_id", "loyalty_points", "total_spent", "last_purchase_at", "note", "is_active", "is_walk_in", "store_id", "created_at", "updated_at"})
 	mock.ExpectQuery("SELECT c.id, c.name, c.phone").
 		WithArgs(active, 10, 0).
 		WillReturnRows(dataRows)
