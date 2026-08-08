@@ -49,40 +49,18 @@ func (r *Repository) LoadSnapshotProductsByIDs(ctx context.Context, q queryer, i
 }
 
 // ResolveScopeName returns a human-readable name for a scope reference, or an
-// empty string when the referenced record does not exist. The table name is
-// drawn only from the whitelisted switch below to avoid SQL injection.
-func (r *Repository) ResolveScopeName(ctx context.Context, q queryer, scopeType string, scopeID int64) (string, error) {
+// empty string when the referenced record does not exist or the scope type is
+// not one of the supported referensi/katalog scopes. The read is routed
+// through the ScopeNameResolver port to each owner module.
+func (r *Repository) ResolveScopeName(ctx context.Context, db shared.DBPool, scopeType string, scopeID int64) (string, error) {
 	if scopeID <= 0 {
 		return "", nil
 	}
-	var table string
-	switch scopeType {
-	case "store":
-		table = "stores"
-	case "warehouse":
-		table = "warehouses"
-	case "category":
-		table = "categories"
-	case "brand":
-		table = "brands"
-	case "supplier":
-		table = "suppliers"
-	case "product":
-		table = "products"
-	case "location":
-		table = "storage_locations"
-	default:
-		return "", nil
-	}
-	var name string
-	err := q.QueryRow(ctx, "SELECT name FROM "+table+" WHERE id = $1", scopeID).Scan(&name)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", nil
-	}
+	names, err := r.scopeNames(ctx, db, []ScopeRef{{ScopeType: scopeType, ScopeID: scopeID}})
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve scope name for %s #%d: %w", scopeType, scopeID, err)
+		return "", err
 	}
-	return name, nil
+	return names[ScopeRef{ScopeType: scopeType, ScopeID: scopeID}], nil
 }
 
 // ScopeProductIDs returns the product universe covered by a scope.

@@ -47,3 +47,38 @@ type AssignableUserProvider interface {
 type UserRoleNameProvider interface {
 	RoleNameByUserID(ctx context.Context, db shared.DBPool, userID int) (roleName string, ok bool, err error)
 }
+
+// ScopeRef identifies a session scope by type and id. The human-readable name
+// lives in the owner module of the referenced table (ADR Modular_Monolith_Module_Boundaries
+// §2.8), so stockopname only carries the reference.
+type ScopeRef struct {
+	ScopeType string
+	ScopeID   int64
+}
+
+// ScopeNameResolver is the consumer-side port that resolves session scope names
+// (store/warehouse/category/brand/supplier/product/location). Each referenced
+// table is owned by another bounded context, so stockopname routes the read
+// here instead of the legacy correlated-subquery over cross-context tables. The
+// composition root MUST wire it via SetScopeNameResolver before any session
+// read that renders a scope name — an unwired repository fails fast at runtime.
+type ScopeNameResolver interface {
+	ScopeNames(ctx context.Context, db shared.DBPool, refs []ScopeRef) (map[ScopeRef]string, error)
+}
+
+// LocationScopeProvider is the consumer-side port that resolves the warehouse,
+// store, and active state of a storage location for location-scoped sessions.
+// storage_locations is owned by internal/storagelocation, whose RackProvider
+// satisfies this interface (shared.LocationRack contract). SetLocationScopeProvider
+// MUST be wired before GetLocationScope runs.
+type LocationScopeProvider interface {
+	GetRack(ctx context.Context, db shared.DBPool, locationID int) (*shared.LocationRack, error)
+}
+
+// WarehouseStoreIDProvider is the consumer-side port that resolves the store_id
+// linked to a warehouse for warehouse-scoped sessions. warehouses is owned by
+// internal/store. SetWarehouseStoreIDProvider MUST be wired before
+// GetWarehouseStoreID runs.
+type WarehouseStoreIDProvider interface {
+	WarehouseStoreID(ctx context.Context, db shared.DBPool, warehouseID int) (*int, error)
+}

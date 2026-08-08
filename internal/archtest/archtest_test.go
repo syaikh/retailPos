@@ -163,21 +163,18 @@ var strictModuleTables = map[string]map[string]bool{
 // is ported.
 //
 // Triage:
-//   - stockopname: katalog (brands/categories/products/units_of_measure/
-//     product_suppliers), transaksional (product_stock), referensi
-//     (storage_locations/stores/suppliers/warehouses) -> per-owner read ports.
+//   - stockopname: katalog (products/units_of_measure/product_suppliers),
+//     transaksional (product_stock) -> per-owner read ports. Scope-name reads
+//     (stores/warehouses/categories/brands/suppliers/products), the location
+//     scope read (storage_locations), and the warehouse->store read
+//     (warehouses) are ported via stockopname.ScopeNameResolver,
+//     LocationScopeProvider, and WarehouseStoreIDProvider.
 var crossContextDebt = map[string]map[string]bool{
 	"stockopname": {
-		"brands":            true,
-		"categories":        true,
 		"product_stock":     true,
 		"product_suppliers": true,
 		"products":          true,
-		"storage_locations": true,
-		"stores":            true,
-		"suppliers":         true,
 		"units_of_measure":  true,
-		"warehouses":        true,
 	},
 }
 

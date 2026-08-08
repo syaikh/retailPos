@@ -6,28 +6,30 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
+	"retail-pos-system/internal/shared"
 )
 
 // --- location-scoped stock opnames ---
 
 // GetLocationScope returns the warehouse and store a storage location belongs
-// to. It errors when the location does not exist or is inactive.
-func (r *Repository) GetLocationScope(ctx context.Context, q queryer, locationID int) (*int, *int, error) {
-	var warehouseID, storeID *int
-	var isActive bool
-	err := q.QueryRow(ctx, `
-		SELECT warehouse_id, store_id, is_active FROM storage_locations WHERE id = $1
-	`, locationID).Scan(&warehouseID, &storeID, &isActive)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, ErrLocationNotFound
+// to. It errors when the location does not exist or is inactive. The read is
+// routed through the LocationScopeProvider port owned by internal/storagelocation.
+func (r *Repository) GetLocationScope(ctx context.Context, db shared.DBPool, locationID int) (*int, *int, error) {
+	if r.locationScopeProvider == nil {
+		return nil, nil, errors.New("stockopname repository: location scope provider not wired; call SetLocationScopeProvider")
 	}
+	rack, err := r.locationScopeProvider.GetRack(ctx, db, locationID)
 	if err != nil {
+		if errors.Is(err, shared.ErrLocationNotFound) {
+			return nil, nil, ErrLocationNotFound
+		}
 		return nil, nil, fmt.Errorf("failed to load storage location scope: %w", err)
 	}
-	if !isActive {
+	if !rack.IsActive {
 		return nil, nil, ErrLocationInactive
 	}
-	return warehouseID, storeID, nil
+	return rack.WarehouseID, rack.StoreID, nil
 }
 
 // LoadSnapshotProductsByLocation returns the rack-stock snapshot for the given

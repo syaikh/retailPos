@@ -226,6 +226,66 @@ func (a *uomRefRepoAdapter) GetAllForExport(ctx context.Context) ([]product.UOMR
 	return result, nil
 }
 
+type scopeNameResolverAdapter struct {
+	storeNames     store.StoreNamesProvider
+	warehouseNames store.WarehouseNamesProvider
+	categoryNames  category.CategoryNamesProvider
+	brandNames     brand.BrandNamesProvider
+	supplierNames  supplier.SupplierNamesProvider
+	productNames   product.ProductNameLookup
+	locationRacks  storagelocation.RackProvider
+}
+
+func (a *scopeNameResolverAdapter) ScopeNames(ctx context.Context, db shared.DBPool, refs []stockopname.ScopeRef) (map[stockopname.ScopeRef]string, error) {
+	names := make(map[stockopname.ScopeRef]string, len(refs))
+	if len(refs) == 0 {
+		return names, nil
+	}
+	grouped := make(map[string][]int)
+	for _, ref := range refs {
+		if ref.ScopeID <= 0 {
+			continue
+		}
+		grouped[ref.ScopeType] = append(grouped[ref.ScopeType], int(ref.ScopeID))
+	}
+	for scopeType, ids := range grouped {
+		var byID map[int]string
+		var err error
+		switch scopeType {
+		case "store":
+			byID, err = a.storeNames.StoreNamesByIDs(ctx, db, ids)
+		case "warehouse":
+			byID, err = a.warehouseNames.WarehouseNamesByIDs(ctx, db, ids)
+		case "category":
+			byID, err = a.categoryNames.CategoryNamesByIDs(ctx, db, ids)
+		case "brand":
+			byID, err = a.brandNames.BrandNamesByIDs(ctx, db, ids)
+		case "supplier":
+			byID, err = a.supplierNames.SupplierNamesByIDs(ctx, db, ids)
+		case "product":
+			byID, err = a.productNames.ProductNamesByIDs(ctx, db, ids)
+		case "location":
+			racks, rerr := a.locationRacks.RacksByIDs(ctx, db, ids)
+			if rerr != nil {
+				return nil, rerr
+			}
+			byID = make(map[int]string, len(racks))
+			for _, rack := range racks {
+				byID[rack.ID] = rack.Name
+			}
+		default:
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			names[stockopname.ScopeRef{ScopeType: scopeType, ScopeID: int64(id)}] = byID[id]
+		}
+	}
+	return names, nil
+}
+
 type Dependencies struct {
 	UserRepo            *user.Repository
 	ProductRepo         *product.Repository
@@ -345,6 +405,17 @@ func Initialize(p Providers) *Dependencies {
 	d.StockOpnameRepo.SetUsernameProvider(user.UsernamesProvider{})
 	d.StockOpnameRepo.SetAssignableUserProvider(user.AssignableUsersProvider{})
 	d.StockOpnameRepo.SetUserRoleNameProvider(user.RoleNameProvider{})
+	d.StockOpnameRepo.SetScopeNameResolver(&scopeNameResolverAdapter{
+		storeNames:     store.StoreNamesProvider{},
+		warehouseNames: store.WarehouseNamesProvider{},
+		categoryNames:  category.CategoryNamesProvider{},
+		brandNames:     brand.BrandNamesProvider{},
+		supplierNames:  supplier.SupplierNamesProvider{},
+		productNames:   product.ProductNameLookup{},
+		locationRacks:  storagelocation.RackProvider{},
+	})
+	d.StockOpnameRepo.SetLocationScopeProvider(storagelocation.RackProvider{})
+	d.StockOpnameRepo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)

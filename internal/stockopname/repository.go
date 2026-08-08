@@ -14,26 +14,14 @@ import (
 )
 
 type Repository struct {
-	db                 shared.DBPool
-	usernameProvider   UsernameProvider
-	assignableProvider AssignableUserProvider
-	roleNameProvider   UserRoleNameProvider
+	db                      shared.DBPool
+	usernameProvider        UsernameProvider
+	assignableProvider      AssignableUserProvider
+	roleNameProvider        UserRoleNameProvider
+	scopeNameResolver       ScopeNameResolver
+	locationScopeProvider   LocationScopeProvider
+	warehouseStoreIDProvider WarehouseStoreIDProvider
 }
-
-// scopeNameExpr resolves a human-readable name for a session's primary scope
-// from the id stored in scope_id. It is a correlated subquery over the outer
-// stock_opnames row, so it must only be appended to SELECTs that read from
-// stock_opnames without an alias.
-const scopeNameExpr = `
-	COALESCE(CASE scope_type
-		WHEN 'store' THEN (SELECT name FROM stores WHERE id = scope_id)
-		WHEN 'warehouse' THEN (SELECT name FROM warehouses WHERE id = scope_id)
-		WHEN 'category' THEN (SELECT name FROM categories WHERE id = scope_id)
-		WHEN 'brand' THEN (SELECT name FROM brands WHERE id = scope_id)
-		WHEN 'supplier' THEN (SELECT name FROM suppliers WHERE id = scope_id)
-		WHEN 'product' THEN (SELECT name FROM products WHERE id = scope_id)
-		WHEN 'manual' THEN scope_name
-	END, '') AS scope_name`
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
@@ -60,6 +48,28 @@ func (r *Repository) SetUserRoleNameProvider(p UserRoleNameProvider) {
 	r.roleNameProvider = p
 }
 
+// SetScopeNameResolver wires the composition-root dispatcher that resolves
+// scope names through each referensi/katalog owner module (ADR §2.4). It MUST
+// be called before any read that renders a scope name (GetSession,
+// ListSessions) — an unwired repository fails fast at runtime.
+func (r *Repository) SetScopeNameResolver(p ScopeNameResolver) {
+	r.scopeNameResolver = p
+}
+
+// SetLocationScopeProvider wires the storagelocation-owned implementation of
+// the LocationScopeProvider port (ADR §2.4). It MUST be called before
+// GetLocationScope runs.
+func (r *Repository) SetLocationScopeProvider(p LocationScopeProvider) {
+	r.locationScopeProvider = p
+}
+
+// SetWarehouseStoreIDProvider wires the store-owned implementation of the
+// WarehouseStoreIDProvider port (ADR §2.4). It MUST be called before
+// GetWarehouseStoreID runs.
+func (r *Repository) SetWarehouseStoreIDProvider(p WarehouseStoreIDProvider) {
+	r.warehouseStoreIDProvider = p
+}
+
 func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
 	if r.usernameProvider == nil {
 		return nil, errors.New("stockopname repository: username provider not wired; call SetUsernameProvider")
@@ -79,6 +89,15 @@ func (r *Repository) roleNameByUserID(ctx context.Context, userID int) (string, 
 		return "", false, errors.New("stockopname repository: role name provider not wired; call SetUserRoleNameProvider")
 	}
 	return r.roleNameProvider.RoleNameByUserID(ctx, r.db, userID)
+}
+
+// scopeNames resolves human-readable names for the given scope references via
+// the wired ScopeNameResolver port.
+func (r *Repository) scopeNames(ctx context.Context, db shared.DBPool, refs []ScopeRef) (map[ScopeRef]string, error) {
+	if r.scopeNameResolver == nil {
+		return nil, errors.New("stockopname repository: scope name resolver not wired; call SetScopeNameResolver")
+	}
+	return r.scopeNameResolver.ScopeNames(ctx, db, refs)
 }
 
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
@@ -223,17 +242,17 @@ type queryer interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*Session, error) {
+func (r *Repository) getSessionHeader(ctx context.Context, db shared.DBPool, id int) (*Session, error) {
 	var s Session
 	var warehouseID, storeID, locationID, approvedBy, openedBy, verifiedBy, postedBy, closedBy sql.NullInt64
 	var approvedAt, cancelledAt, createdAt, updatedAt, openedAt, verifiedAt, postedAt, closedAt sql.NullTime
-	err := q.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT id, session_number, scope_type, scope_id, warehouse_id, store_id, location_id, blind_count, status,
 		       COALESCE(title,''), COALESCE(notes,''),
 		       created_by, approved_by, approved_at, cancelled_at, created_at, updated_at,
 		       opened_by, opened_at, verified_by, verified_at,
 		       posted_by, posted_at, closed_by, closed_at,
-		       total_difference, total_adjustment,`+scopeNameExpr+`
+		       total_difference, total_adjustment, COALESCE(scope_name, '') AS scope_name
 		FROM stock_opnames
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &locationID, &s.BlindCount,
@@ -246,6 +265,13 @@ func (r *Repository) getSessionHeader(ctx context.Context, q queryer, id int) (*
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to load session: %w", err)
+	}
+	if s.ScopeType != "manual" && s.ScopeID > 0 {
+		names, err := r.scopeNames(ctx, db, []ScopeRef{{ScopeType: s.ScopeType, ScopeID: s.ScopeID}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve scope name for %s #%d: %w", s.ScopeType, s.ScopeID, err)
+		}
+		s.ScopeName = names[ScopeRef{ScopeType: s.ScopeType, ScopeID: s.ScopeID}]
 	}
 	if warehouseID.Valid {
 		v := int(warehouseID.Int64)
@@ -353,7 +379,7 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 		       approved_by, approved_at, cancelled_at, created_at, updated_at,
 		       opened_by, opened_at, verified_by, verified_at,
 		       posted_by, posted_at, closed_by, closed_at,
-		       total_difference, total_adjustment,`+scopeNameExpr+`
+		       total_difference, total_adjustment, COALESCE(scope_name, '') AS scope_name
 		FROM stock_opnames
 		WHERE `+whereSQL+`
 		ORDER BY created_at DESC
@@ -403,7 +429,30 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 		}
 		sessions = append(sessions, s)
 	}
-	return sessions, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	// Scope names for non-manual scopes are resolved through the owner modules
+	// (the stored scope_name column is only authoritative for manual scopes).
+	var refs []ScopeRef
+	for i := range sessions {
+		if sessions[i].ScopeType != "manual" && sessions[i].ScopeID > 0 {
+			refs = append(refs, ScopeRef{ScopeType: sessions[i].ScopeType, ScopeID: sessions[i].ScopeID})
+		}
+	}
+	if len(refs) > 0 {
+		names, err := r.scopeNames(ctx, r.db, refs)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to resolve scope names: %w", err)
+		}
+		for i := range sessions {
+			if sessions[i].ScopeType != "manual" {
+				sessions[i].ScopeName = names[ScopeRef{ScopeType: sessions[i].ScopeType, ScopeID: sessions[i].ScopeID}]
+			}
+		}
+	}
+	return sessions, total, nil
 }
 
 func (r *Repository) CancelSession(ctx context.Context, id, userID int) error {
@@ -462,21 +511,17 @@ func (r *Repository) GetSessionBroadcastMeta(ctx context.Context, id int) (strin
 }
 
 // GetWarehouseStoreID returns the store_id linked to a warehouse, or nil when
-// the warehouse does not exist or has no linked store.
+// the warehouse does not exist or has no linked store. The read is routed
+// through the WarehouseStoreIDProvider port owned by internal/store.
 func (r *Repository) GetWarehouseStoreID(ctx context.Context, warehouseID int) (*int, error) {
-	var storeID sql.NullInt64
-	err := r.db.QueryRow(ctx, `SELECT store_id FROM warehouses WHERE id = $1`, warehouseID).Scan(&storeID)
+	if r.warehouseStoreIDProvider == nil {
+		return nil, errors.New("stockopname repository: warehouse store id provider not wired; call SetWarehouseStoreIDProvider")
+	}
+	storeID, err := r.warehouseStoreIDProvider.WarehouseStoreID(ctx, r.db, warehouseID)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to load warehouse store: %w", err)
 	}
-	if !storeID.Valid {
-		return nil, nil
-	}
-	v := int(storeID.Int64)
-	return &v, nil
+	return storeID, nil
 }
 
 func (r *Repository) CountPendingItems(ctx context.Context, sessionID int) (int, error) {
