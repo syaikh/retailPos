@@ -49,7 +49,7 @@ type saleCreatedListener struct {
 }
 
 func (l *saleCreatedListener) EventTypes() []eventbus.EventType {
-	return []eventbus.EventType{eventbus.SaleCreated}
+	return []eventbus.EventType{events.TopicSaleCreated}
 }
 
 func (l *saleCreatedListener) HandleEvent(ctx context.Context, event eventbus.Event) error {

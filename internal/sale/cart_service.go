@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
 
@@ -508,7 +509,7 @@ func (s *service) checkoutCart(ctx context.Context, cartID int, payments []Creat
 
 	sale.Items = items
 	s.publishSaleCreated(ctx, sale)
-	_ = s.eventBus.Publish(ctx, "cart.checked_out", &CartCheckedOutEvent{
+	_ = s.eventBus.Publish(ctx, events.TopicCartCheckedOut, &events.CartCheckedOut{
 		CartID:    cartID,
 		SaleID:    sale.ID,
 		CashierID: cart.CashierID,

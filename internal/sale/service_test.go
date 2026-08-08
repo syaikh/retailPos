@@ -31,7 +31,7 @@ func TestSaleService_CreateSalePublishesEvent(t *testing.T) {
 
 	published := make(chan struct{}, 1)
 	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.SaleCreated},
+		[]eventbus.EventType{events.TopicSaleCreated},
 		func(ctx context.Context, event eventbus.Event) error {
 			published <- struct{}{}
 			return nil
@@ -83,7 +83,7 @@ func TestSaleService_CreateSalePublishesEventOnce(t *testing.T) {
 		payload interface{}
 	)
 	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.SaleCreated},
+		[]eventbus.EventType{events.TopicSaleCreated},
 		func(ctx context.Context, event eventbus.Event) error {
 			count.Add(1)
 			mu.Lock()

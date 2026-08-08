@@ -1,6 +1,6 @@
 package events
 
-const TopicStockAdjusted = "stock.adjusted"
+const TopicStockAdjusted = "stock.adjusted.v1"
 
 // StockAdjusted is the cross-module payload published after inventory stock
 // changes. Consumers (websocket broadcast) must rely on this DTO instead of

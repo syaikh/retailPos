@@ -12,6 +12,7 @@ import (
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/product"
@@ -313,7 +314,7 @@ func TestCartService_IT08_CheckoutDeductsStockAndPublishes(t *testing.T) {
 
 	published := make(chan struct{}, 1)
 	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{eventbus.SaleCreated},
+		[]eventbus.EventType{events.TopicSaleCreated},
 		func(ctx context.Context, event eventbus.Event) error {
 			published <- struct{}{}
 			return nil

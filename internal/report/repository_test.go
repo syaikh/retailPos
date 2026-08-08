@@ -591,7 +591,7 @@ func TestReportRepository_SaleCreatedListener_EventTypes(t *testing.T) {
 	listener := repo.NewSaleCreatedListener()
 
 	types := listener.EventTypes()
-	assert.Contains(t, types, eventbus.SaleCreated)
+	assert.Contains(t, types, eventbus.EventType(events.TopicSaleCreated))
 }
 
 func TestReportRepository_SaleCreatedListener_HandleEvent_InvalidPayload(t *testing.T) {
@@ -599,7 +599,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_InvalidPayload(t *test
 	listener := repo.NewSaleCreatedListener()
 
 	err := listener.HandleEvent(context.Background(), eventbus.Event{
-		Type:    eventbus.SaleCreated,
+		Type:    events.TopicSaleCreated,
 		Payload: "not-a-sale",
 	})
 	assert.NoError(t, err)
@@ -617,7 +617,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 	_, _, _, _ = seedSale(ctx, t)
 
 	err := listener.HandleEvent(ctx, eventbus.Event{
-		Type:    eventbus.SaleCreated,
+		Type:    events.TopicSaleCreated,
 		Payload: &events.SaleCreated{ID: 1},
 	})
 	assert.NoError(t, err)

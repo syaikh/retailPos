@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// saleTopic is an arbitrary probe topic used by the bus tests. Its string value
+// is irrelevant to production; it only needs to be stable within this package.
+const saleTopic EventType = "sale.created"
+
 func TestBus_PublishSubscribe(t *testing.T) {
 	bus := New()
 	go bus.Run()
@@ -14,7 +18,7 @@ func TestBus_PublishSubscribe(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			done <- struct{}{}
 			return nil
@@ -39,7 +43,7 @@ func TestBus_MultipleListeners(t *testing.T) {
 	done := make(chan struct{}, numListeners)
 	for i := 0; i < numListeners; i++ {
 		bus.Subscribe(NewListenerFunc(
-			[]EventType{SaleCreated},
+			[]EventType{saleTopic},
 			func(ctx context.Context, event Event) error {
 				done <- struct{}{}
 				return nil
@@ -65,14 +69,14 @@ func TestBus_ListenerErrorDoesNotPanic(t *testing.T) {
 
 	done := make(chan struct{}, 2)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			done <- struct{}{}
 			return nil
 		},
 	))
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			done <- struct{}{}
 			return nil
@@ -97,7 +101,7 @@ func TestBus_UnrelatedEventTypeIgnored(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			done <- struct{}{}
 			return nil
@@ -120,7 +124,7 @@ func TestBus_ShutdownDrainsEvents(t *testing.T) {
 	const numEvents = 20
 	done := make(chan struct{}, numEvents)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			time.Sleep(5 * time.Millisecond)
 			done <- struct{}{}
@@ -149,7 +153,7 @@ func TestBus_ChannelFullDoesNotBlockPublisher(t *testing.T) {
 	defer bus.Shutdown()
 
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			time.Sleep(10 * time.Millisecond)
 			return nil
@@ -170,7 +174,7 @@ func TestBus_ConcurrentSafety(t *testing.T) {
 
 	done := make(chan struct{}, 100)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			done <- struct{}{}
 			return nil
@@ -206,7 +210,7 @@ func TestBus_EventCarriesContext(t *testing.T) {
 
 	gotCtx := make(chan context.Context, 1)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			gotCtx <- ctx
 			return nil
@@ -233,7 +237,7 @@ func TestBus_TimestampAutoSet(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			if event.Timestamp.IsZero() {
 				t.Error("expected non-zero timestamp")
@@ -272,7 +276,7 @@ func TestBus_SubscribeAfterShutdown(t *testing.T) {
 	bus.Shutdown()
 
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return nil
 		},

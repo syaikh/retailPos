@@ -1,11 +1,11 @@
 package events
 
 const (
-	TopicPurchaseReceiptCompleted = "PurchaseReceiptCompleted"
-	TopicPOCreated                = "purchase_order.created"
-	TopicPOConfirmed              = "purchase_order.confirmed"
-	TopicPOCancelled              = "purchase_order.cancelled"
-	TopicGoodsReceiptCreated      = "goods_receipt.created"
+	TopicPurchaseReceiptCompleted = "purchase_receipt.completed.v1"
+	TopicPOCreated                = "purchase_order.created.v1"
+	TopicPOConfirmed              = "purchase_order.confirmed.v1"
+	TopicPOCancelled              = "purchase_order.cancelled.v1"
+	TopicGoodsReceiptCreated      = "goods_receipt.created.v1"
 )
 
 // PurchaseOrderEvent is the cross-module payload published when a purchase

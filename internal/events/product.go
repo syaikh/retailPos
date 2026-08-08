@@ -1,6 +1,6 @@
 package events
 
-const TopicProductUpdated = "product.updated"
+const TopicProductUpdated = "product.updated.v1"
 
 // ProductUpdated is the cross-module payload published after a product is
 // updated. Consumers (websocket broadcast) must rely on this DTO instead of

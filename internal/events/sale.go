@@ -1,7 +1,7 @@
 package events
 
 const (
-	TopicSaleCreated = "sale.created"
+	TopicSaleCreated = "sale.created.v1"
 )
 
 // SaleCreated is the cross-module payload published after a sale is completed.

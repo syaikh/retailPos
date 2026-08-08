@@ -7,11 +7,6 @@ import (
 
 type EventType string
 
-const (
-	SaleCreated    EventType = "sale.created"
-	CartCheckedOut EventType = "cart.checked_out"
-)
-
 // Event bersifat IMMUTABLE setelah dipublikasikan.
 // PERINGATAN: Jangan pernah mengubah (mutate) data di dalam Payload atau Metadata
 // di dalam komponen Listener, karena objek ini diakses secara konkuren oleh banyak goroutine.

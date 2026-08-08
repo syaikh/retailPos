@@ -102,9 +102,3 @@ type UpdateCartItemQuantityRequest struct {
 type UpdateCartCustomerRequest struct {
 	CustomerID *int `json:"customer_id"`
 }
-
-type CartCheckedOutEvent struct {
-	CartID    int `json:"cart_id"`
-	SaleID    int `json:"sale_id"`
-	CashierID int `json:"cashier_id"`
-}

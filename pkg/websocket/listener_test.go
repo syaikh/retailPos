@@ -36,7 +36,7 @@ func TestNewSaleCreatedListener(t *testing.T) {
 	drainMessages(client.send)
 
 	listener := NewSaleCreatedListener(hub)
-	assert.Contains(t, listener.EventTypes(), eventbus.SaleCreated)
+	assert.Contains(t, listener.EventTypes(), eventbus.EventType(events.TopicSaleCreated))
 
 	t.Run("broadcasts sale event", func(t *testing.T) {
 		s := &events.SaleCreated{
@@ -47,7 +47,7 @@ func TestNewSaleCreatedListener(t *testing.T) {
 		}
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.SaleCreated,
+			Type:    events.TopicSaleCreated,
 			Payload: s,
 		})
 		assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestNewSaleCreatedListener(t *testing.T) {
 		}
 
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.SaleCreated,
+			Type:    events.TopicSaleCreated,
 			Payload: s,
 		})
 		assert.NoError(t, err)
@@ -85,7 +85,7 @@ func TestNewSaleCreatedListener(t *testing.T) {
 
 	t.Run("wrong payload type returns nil", func(t *testing.T) {
 		err := listener.HandleEvent(context.Background(), eventbus.Event{
-			Type:    eventbus.SaleCreated,
+			Type:    events.TopicSaleCreated,
 			Payload: "not a sale",
 		})
 		assert.NoError(t, err)
@@ -600,7 +600,7 @@ func TestListener_EventTypes(t *testing.T) {
 	hub := newListenerHub()
 
 	saleListener := NewSaleCreatedListener(hub)
-	assert.Equal(t, []eventbus.EventType{eventbus.SaleCreated}, saleListener.EventTypes())
+	assert.Equal(t, []eventbus.EventType{events.TopicSaleCreated}, saleListener.EventTypes())
 
 	productListener := NewProductUpdatedListener(hub)
 	assert.Equal(t, []eventbus.EventType{eventbus.EventType(events.TopicProductUpdated)}, productListener.EventTypes())

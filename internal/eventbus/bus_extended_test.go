@@ -28,7 +28,7 @@ func (m *mockDeadLetterStore) Store(_ context.Context, eventType string, payload
 }
 
 // probeEvent is a private event type used only by waitForBus to avoid
-// interfering with metrics in tests that also subscribe to SaleCreated.
+// interfering with metrics in tests that also subscribe to saleTopic.
 const probeEvent EventType = "__probe__"
 
 // waitForBus ensures Run() has started by publishing a probe event.
@@ -53,7 +53,7 @@ func TestBus_Metrics(t *testing.T) {
 
 	var count atomic.Int32
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			count.Add(1)
 			return nil
@@ -92,7 +92,7 @@ func TestBus_MetricsWithFailure(t *testing.T) {
 	errTest := errors.New("listener failure")
 
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},
@@ -162,7 +162,7 @@ func TestBus_SetDeadLetterStore(t *testing.T) {
 
 	errTest := errors.New("permanent failure")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},
@@ -197,7 +197,7 @@ func TestBus_DeadLetterNilStore(t *testing.T) {
 
 	errTest := errors.New("permanent failure")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},
@@ -224,7 +224,7 @@ func TestBus_DeadLetterUnmarshalablePayload(t *testing.T) {
 
 	errTest := errors.New("permanent failure")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},
@@ -251,7 +251,7 @@ func TestBus_DeadLetterStoreError(t *testing.T) {
 
 	errTest := errors.New("permanent failure")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},
@@ -274,7 +274,7 @@ func TestBus_NilContextFallback(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			if ctx == nil {
 				t.Error("context should not be nil in listener")
@@ -286,7 +286,7 @@ func TestBus_NilContextFallback(t *testing.T) {
 
 	// Inject event with nil Ctx directly into the channel.
 	bus.eventCh <- Event{
-		Type:      SaleCreated,
+		Type:      saleTopic,
 		Payload:   nil,
 		Ctx:       nil,
 		Timestamp: time.Now(),
@@ -308,7 +308,7 @@ func TestBus_DispatchCancelledContextDuringRetry(t *testing.T) {
 	var attempts atomic.Int32
 	errTest := errors.New("always fail")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			attempts.Add(1)
 			return errTest
@@ -342,7 +342,7 @@ func TestBus_NilPayloadDeadLetter(t *testing.T) {
 
 	errTest := errors.New("failure")
 	bus.Subscribe(NewListenerFunc(
-		[]EventType{SaleCreated},
+		[]EventType{saleTopic},
 		func(ctx context.Context, event Event) error {
 			return errTest
 		},

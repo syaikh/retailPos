@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"retail-pos-system/internal/eventbus"
+	"retail-pos-system/internal/events"
 )
 
 func TestProductService_UpdatePublishesEvent(t *testing.T) {
@@ -22,7 +23,7 @@ func TestProductService_UpdatePublishesEvent(t *testing.T) {
 
 	published := make(chan struct{}, 1)
 	bus.Subscribe(eventbus.NewListenerFunc(
-		[]eventbus.EventType{"product.updated"},
+		[]eventbus.EventType{events.TopicProductUpdated},
 		func(ctx context.Context, event eventbus.Event) error {
 			published <- struct{}{}
 			return nil
