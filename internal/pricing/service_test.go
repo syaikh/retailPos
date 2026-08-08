@@ -150,7 +150,7 @@ func TestValidateRule_MinimumQuantityZero(t *testing.T) {
 
 func TestService_GetByID(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	ctx := t.Context()
 
@@ -180,7 +180,7 @@ func TestService_GetByID(t *testing.T) {
 
 func TestService_GetByProductID(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	ctx := t.Context()
 
@@ -211,7 +211,7 @@ func TestService_GetByProductID(t *testing.T) {
 
 func TestService_Delete(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	ctx := t.Context()
 
@@ -240,7 +240,7 @@ func TestService_Delete(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	ctx := t.Context()
 
@@ -295,7 +295,7 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Create(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	ctx := t.Context()
 

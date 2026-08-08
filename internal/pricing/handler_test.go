@@ -42,7 +42,7 @@ func testPermMiddleware(_ permissions.Code) gin.HandlerFunc {
 func setupPricingRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	svc := NewService(repo)
 	resolver := NewResolver(repo)
 	h := NewHandler(svc, resolver, nil)
@@ -124,7 +124,7 @@ func TestHandler_UpdateRule(t *testing.T) {
 	r := setupPricingRouter()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-UPD-"+time.Now().Format("0102150405"), "Handler Update Product", 15000)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	rule := &Rule{
 		ProductID:       &productID,
 		Type:     PricingTypePromotion,
@@ -202,7 +202,7 @@ func TestHandler_DeleteRule(t *testing.T) {
 	r := setupPricingRouter()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-DEL-"+time.Now().Format("0102150405"), "Handler Delete Product", 15000)
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	rule := &Rule{
 		ProductID:       &productID,
 		Type:     PricingTypePromotion,
@@ -327,7 +327,7 @@ func TestHandler_SearchProducts(t *testing.T) {
 func TestHandler_SubmitForApproval(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-SUB-"+time.Now().Format("0102150405"), "Submit Test Product", 15000)
 
@@ -387,7 +387,7 @@ func TestHandler_SubmitForApproval(t *testing.T) {
 func TestHandler_ApproveRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-APR-"+time.Now().Format("0102150405"), "Approve Test Product", 15000)
 
@@ -439,7 +439,7 @@ func TestHandler_ApproveRule(t *testing.T) {
 func TestHandler_RejectRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-REJ-"+time.Now().Format("0102150405"), "Reject Test Product", 15000)
 
@@ -491,7 +491,7 @@ func TestHandler_RejectRule(t *testing.T) {
 func TestHandler_GetRule(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-GR-"+time.Now().Format("0102150405"), "GetRule Test Product", 15000)
 
@@ -552,7 +552,7 @@ func TestHandler_GetRule_NotFound(t *testing.T) {
 func TestHandler_ListRules_WithFilters(t *testing.T) {
 	skipIfNoDB(t)
 	r := setupPricingRouter()
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 
 	productID := insertTestProduct(t.Context(), t, "HDL-LF-"+time.Now().Format("0102150405"), "Filter Test Product", 15000)
 	rule := &Rule{

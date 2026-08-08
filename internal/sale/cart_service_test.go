@@ -9,9 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/brand"
+	"retail-pos-system/internal/category"
 	"retail-pos-system/internal/eventbus"
 	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/pricing"
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/shift"
 )
@@ -40,7 +43,11 @@ type pricingTestResolver struct {
 }
 
 func newPricingTestResolver() *pricingTestResolver {
-	return &pricingTestResolver{resolver: pricing.NewResolver(pricing.NewRepository(dbPool))}
+	repo := pricing.NewRepository(dbPool)
+	repo.SetProductPricingProvider(product.ProductPricingLookup{})
+	repo.SetCategorySearchProvider(category.CategoryNamesProvider{})
+	repo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	return &pricingTestResolver{resolver: pricing.NewResolver(repo)}
 }
 
 func (a *pricingTestResolver) ResolveSnapshotsBatch(ctx context.Context, items []ResolveItem) ([]PriceSnapshot, error) {

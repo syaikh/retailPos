@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"retail-pos-system/internal/shared"
@@ -13,147 +12,142 @@ import (
 )
 
 type Repository struct {
-	db shared.DBPool
+	db                       shared.DBPool
+	productPricingProvider   ProductPricingProvider
+	categorySearchProvider   CategoryNameSearchProvider
+	brandSearchProvider      BrandNameSearchProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
 }
 
+// SetProductPricingProvider wires the product-owned implementation of the
+// ProductPricingProvider port (see ports.go). products/tax_classes are owned by
+// internal/product (ADR §2.8 Katalog); pricing routes base-price, scope,
+// cost/tax, and autocomplete reads through this port instead of querying those
+// tables directly.
+func (r *Repository) SetProductPricingProvider(p ProductPricingProvider) {
+	r.productPricingProvider = p
+}
+
+// SetCategorySearchProvider wires the category-owned implementation of the
+// CategoryNameSearchProvider port (see ports.go). categories is owned by
+// internal/category; pricing routes the rule-listing category-name search
+// through this port instead of a categories EXISTS clause.
+func (r *Repository) SetCategorySearchProvider(p CategoryNameSearchProvider) {
+	r.categorySearchProvider = p
+}
+
+// SetBrandSearchProvider wires the brand-owned implementation of the
+// BrandNameSearchProvider port (see ports.go). brands is owned by
+// internal/brand; pricing routes the rule-listing brand-name search through
+// this port instead of a brands EXISTS clause.
+func (r *Repository) SetBrandSearchProvider(p BrandNameSearchProvider) {
+	r.brandSearchProvider = p
+}
+
+func (r *Repository) basePricesByIDs(ctx context.Context, ids []int) (map[int]int, error) {
+	if r.productPricingProvider == nil {
+		return nil, fmt.Errorf("pricing repository: product pricing provider not wired; call SetProductPricingProvider")
+	}
+	return r.productPricingProvider.BasePricesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) productScopesByIDs(ctx context.Context, ids []int) (map[int]ProductScope, error) {
+	if r.productPricingProvider == nil {
+		return nil, fmt.Errorf("pricing repository: product pricing provider not wired; call SetProductPricingProvider")
+	}
+	return r.productPricingProvider.ProductScopesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) productCostTaxesByIDs(ctx context.Context, ids []int) (map[int]ProductCostTax, error) {
+	if r.productPricingProvider == nil {
+		return nil, fmt.Errorf("pricing repository: product pricing provider not wired; call SetProductPricingProvider")
+	}
+	return r.productPricingProvider.ProductCostTaxesByIDs(ctx, r.db, ids)
+}
+
+func (r *Repository) productIDsByName(ctx context.Context, search string) ([]int, error) {
+	if r.productPricingProvider == nil {
+		return nil, fmt.Errorf("pricing repository: product pricing provider not wired; call SetProductPricingProvider")
+	}
+	return r.productPricingProvider.ProductIDsByName(ctx, r.db, search)
+}
+
+func (r *Repository) categoryIDsByName(ctx context.Context, search string) ([]int, error) {
+	if r.categorySearchProvider == nil {
+		return nil, fmt.Errorf("pricing repository: category search provider not wired; call SetCategorySearchProvider")
+	}
+	return r.categorySearchProvider.CategoryIDsByName(ctx, r.db, search)
+}
+
+func (r *Repository) brandIDsByName(ctx context.Context, search string) ([]int, error) {
+	if r.brandSearchProvider == nil {
+		return nil, fmt.Errorf("pricing repository: brand search provider not wired; call SetBrandSearchProvider")
+	}
+	return r.brandSearchProvider.BrandIDsByName(ctx, r.db, search)
+}
+
+func (r *Repository) searchPricingProducts(ctx context.Context, query string, limit int) ([]ProductSearchResult, error) {
+	if r.productPricingProvider == nil {
+		return nil, fmt.Errorf("pricing repository: product pricing provider not wired; call SetProductPricingProvider")
+	}
+	return r.productPricingProvider.SearchPricingProducts(ctx, r.db, query, limit)
+}
+
 func (r *Repository) GetBasePrice(ctx context.Context, productID int) (int, error) {
-	var price int
-	err := r.db.QueryRow(ctx, `
-		SELECT price FROM products WHERE id = $1 AND deleted_at IS NULL
-	`, productID).Scan(&price)
+	prices, err := r.basePricesByIDs(ctx, []int{productID})
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return 0, ErrProductNotFound
-		}
 		return 0, err
+	}
+	price, ok := prices[productID]
+	if !ok {
+		return 0, ErrProductNotFound
 	}
 	return price, nil
 }
 
 func (r *Repository) GetProductScope(ctx context.Context, productID int) (categoryID *int, brandID *int, err error) {
-	err = r.db.QueryRow(ctx, `
-		SELECT category_id, brand_id FROM products WHERE id = $1 AND deleted_at IS NULL
-	`, productID).Scan(&categoryID, &brandID)
+	scopes, err := r.productScopesByIDs(ctx, []int{productID})
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil, ErrProductNotFound
-		}
 		return nil, nil, err
 	}
-	return categoryID, brandID, nil
+	scope, ok := scopes[productID]
+	if !ok {
+		return nil, nil, ErrProductNotFound
+	}
+	return scope.CategoryID, scope.BrandID, nil
 }
 
 func (r *Repository) GetProductCostAndTax(ctx context.Context, productID int) (ProductCostTax, error) {
-	var ct ProductCostTax
-	err := r.db.QueryRow(ctx, `
-		SELECT COALESCE(p.cost, 0), p.tax_class_id, tc.rate_percent, p.name
-		FROM products p
-		LEFT JOIN tax_classes tc ON tc.id = p.tax_class_id
-		WHERE p.id = $1 AND p.deleted_at IS NULL
-	`, productID).Scan(&ct.Cost, &ct.TaxClassID, &ct.TaxRate, &ct.ProductName)
+	costs, err := r.productCostTaxesByIDs(ctx, []int{productID})
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return ProductCostTax{}, ErrProductNotFound
-		}
 		return ProductCostTax{}, err
+	}
+	ct, ok := costs[productID]
+	if !ok {
+		return ProductCostTax{}, ErrProductNotFound
 	}
 	return ct, nil
 }
 
 func (r *Repository) GetProductCostAndTaxBatch(ctx context.Context, productIDs []int) (map[int]ProductCostTax, error) {
-	if len(productIDs) == 0 {
-		return map[int]ProductCostTax{}, nil
-	}
-
-	rows, err := r.db.Query(ctx, `
-		SELECT p.id, COALESCE(p.cost, 0), p.tax_class_id, tc.rate_percent, p.name
-		FROM products p
-		LEFT JOIN tax_classes tc ON tc.id = p.tax_class_id
-		WHERE p.id = ANY($1) AND p.deleted_at IS NULL
-	`, productIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[int]ProductCostTax, len(productIDs))
-	for rows.Next() {
-		var id int
-		var ct ProductCostTax
-		if err := rows.Scan(&id, &ct.Cost, &ct.TaxClassID, &ct.TaxRate, &ct.ProductName); err != nil {
-			return nil, err
-		}
-		result[id] = ct
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return r.productCostTaxesByIDs(ctx, productIDs)
 }
 
 func (r *Repository) GetBasePricesBatch(ctx context.Context, productIDs []int) (map[int]int, error) {
-	if len(productIDs) == 0 {
-		return map[int]int{}, nil
-	}
-
-	rows, err := r.db.Query(ctx, `
-		SELECT id, price FROM products WHERE id = ANY($1) AND deleted_at IS NULL
-	`, productIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[int]int, len(productIDs))
-	for rows.Next() {
-		var id, price int
-		if err := rows.Scan(&id, &price); err != nil {
-			return nil, err
-		}
-		result[id] = price
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return r.basePricesByIDs(ctx, productIDs)
 }
 
 func (r *Repository) GetProductScopesBatch(ctx context.Context, productIDs []int) (map[int]ProductScope, error) {
-	if len(productIDs) == 0 {
-		return map[int]ProductScope{}, nil
-	}
-
-	rows, err := r.db.Query(ctx, `
-		SELECT id, category_id, brand_id FROM products WHERE id = ANY($1) AND deleted_at IS NULL
-	`, productIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[int]ProductScope, len(productIDs))
-	for rows.Next() {
-		var id int
-		var categoryID, brandID *int
-		if err := rows.Scan(&id, &categoryID, &brandID); err != nil {
-			return nil, err
-		}
-		result[id] = ProductScope{CategoryID: categoryID, BrandID: brandID}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return r.productScopesByIDs(ctx, productIDs)
 }
 
-type ProductScope struct {
-	CategoryID *int
-	BrandID    *int
-}
+// ProductScope is the category/brand membership of a product. It is an alias
+// of shared.ProductScope, the cross-module contract produced by the
+// product-owned ProductPricingProvider port.
+type ProductScope = shared.ProductScope
 
 func (r *Repository) GetByID(ctx context.Context, id int) (*Rule, error) {
 	var rule Rule
@@ -244,81 +238,97 @@ func (r *Repository) GetActiveRules(ctx context.Context, productID int, category
 	return scanRules(rows)
 }
 
+// GetActiveRulesBatch returns the active approved rules that match each
+// product. Product identity (id, category, brand, non-deleted) is resolved via
+// the product-owned ProductPricingProvider; rules are then matched in Go
+// because pricing_rules scope columns reference products it no longer queries
+// directly (ADR §2.8 Katalog). Per-product ordering matches the previous
+// SQL ordering (priority DESC, pricing_value ASC, id ASC).
 func (r *Repository) GetActiveRulesBatch(ctx context.Context, productIDs []int, now time.Time) (map[int][]Rule, error) {
 	if len(productIDs) == 0 {
 		return map[int][]Rule{}, nil
 	}
 
+	scopes, err := r.productScopesByIDs(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(scopes) == 0 {
+		return map[int][]Rule{}, nil
+	}
+
+	activeProductIDs := make([]int, 0, len(scopes))
+	catIDSet := make(map[int]struct{})
+	brandIDSet := make(map[int]struct{})
+	for id, scope := range scopes {
+		activeProductIDs = append(activeProductIDs, id)
+		if scope.CategoryID != nil {
+			catIDSet[*scope.CategoryID] = struct{}{}
+		}
+		if scope.BrandID != nil {
+			brandIDSet[*scope.BrandID] = struct{}{}
+		}
+	}
+	catIDs := make([]int, 0, len(catIDSet))
+	for id := range catIDSet {
+		catIDs = append(catIDs, id)
+	}
+	brandIDs := make([]int, 0, len(brandIDSet))
+	for id := range brandIDSet {
+		brandIDs = append(brandIDs, id)
+	}
+
 	rows, err := r.db.Query(ctx, `
-		SELECT p.id AS matched_product_id, pr.id, pr.product_id, pr.category_id, pr.brand_id, pr.pricing_type, pr.pricing_method,
-		       pr.pricing_value, pr.name, pr.minimum_quantity, pr.maximum_quantity, pr.priority,
-		       pr.customer_group_id, pr.store_id, pr.recurrence_days, pr.time_from, pr.time_to,
-		       pr.allow_combine, pr.is_active, pr.status, pr.effective_from, pr.effective_until, pr.created_at, pr.updated_at
-		FROM pricing_rules pr
-		JOIN products p ON p.id = ANY($1)
-		WHERE p.deleted_at IS NULL
-		  AND pr.is_active = true
-		  AND pr.status = 'approved'
-		  AND (pr.effective_from IS NULL OR pr.effective_from <= $2)
-		  AND (pr.effective_until IS NULL OR pr.effective_until >= $2)
+		SELECT id, product_id, category_id, brand_id, pricing_type, pricing_method,
+		       pricing_value, name, minimum_quantity, maximum_quantity, priority,
+		       customer_group_id, store_id, recurrence_days, time_from, time_to,
+		       allow_combine, is_active, status, effective_from, effective_until, created_at, updated_at
+		FROM pricing_rules
+		WHERE is_active = true
+		  AND status = 'approved'
+		  AND (effective_from IS NULL OR effective_from <= $1)
+		  AND (effective_until IS NULL OR effective_until >= $1)
 		  AND (
-		    (pr.product_id IS NOT NULL AND pr.product_id = p.id)
-		    OR (pr.category_id IS NOT NULL AND pr.category_id = p.category_id)
-		    OR (pr.brand_id IS NOT NULL AND pr.brand_id = p.brand_id)
+		    (product_id IS NOT NULL AND product_id = ANY($2))
+		    OR (category_id IS NOT NULL AND category_id = ANY($3))
+		    OR (brand_id IS NOT NULL AND brand_id = ANY($4))
 		  )
-		ORDER BY p.id, pr.priority DESC, pr.pricing_value ASC, pr.id ASC
-	`, productIDs, now)
+		ORDER BY priority DESC, pricing_value ASC, id ASC
+	`, now, activeProductIDs, catIDs, brandIDs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make(map[int][]Rule)
-	for rows.Next() {
-		var matchedProductID int
-		var rule Rule
-		var createdAt, updatedAt time.Time
-		var effectiveFrom, effectiveUntil sql.NullTime
-		var timeFrom, timeTo sql.NullString
-		var recurrenceDays []string
-
-		err := rows.Scan(
-			&matchedProductID, &rule.ID, &rule.ProductID, &rule.CategoryID, &rule.BrandID,
-			&rule.Type, &rule.Method, &rule.PricingValue,
-			&rule.Name, &rule.MinimumQuantity, &rule.MaximumQuantity,
-			&rule.Priority, &rule.CustomerGroupID, &rule.StoreID,
-			&recurrenceDays, &timeFrom, &timeTo,
-			&rule.AllowCombine, &rule.IsActive, &rule.Status,
-			&effectiveFrom, &effectiveUntil, &createdAt, &updatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if effectiveFrom.Valid {
-			rule.EffectiveFrom = &effectiveFrom.Time
-		}
-		if effectiveUntil.Valid {
-			rule.EffectiveUntil = &effectiveUntil.Time
-		}
-		if timeFrom.Valid {
-			rule.TimeFrom = &timeFrom.String
-		}
-		if timeTo.Valid {
-			rule.TimeTo = &timeTo.String
-		}
-		if recurrenceDays != nil {
-			rule.RecurrenceDays = recurrenceDays
-		}
-		rule.CreatedAt = createdAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-		rule.UpdatedAt = updatedAt.In(shared.JakartaLocation()).Format(time.RFC3339)
-
-		result[matchedProductID] = append(result[matchedProductID], rule)
-	}
-	if err := rows.Err(); err != nil {
+	rules, err := scanRules(rows)
+	if err != nil {
 		return nil, err
 	}
+
+	result := make(map[int][]Rule)
+	for productID, scope := range scopes {
+		for _, rule := range rules {
+			if ruleMatchesProduct(rule, productID, scope) {
+				result[productID] = append(result[productID], rule)
+			}
+		}
+	}
 	return result, nil
+}
+
+// ruleMatchesProduct reports whether a rule applies to a product given its
+// category/brand membership (product-scope wins; category/brand only when set).
+func ruleMatchesProduct(rule Rule, productID int, scope ProductScope) bool {
+	if rule.ProductID != nil && *rule.ProductID == productID {
+		return true
+	}
+	if rule.CategoryID != nil && scope.CategoryID != nil && *rule.CategoryID == *scope.CategoryID {
+		return true
+	}
+	if rule.BrandID != nil && scope.BrandID != nil && *rule.BrandID == *scope.BrandID {
+		return true
+	}
+	return false
 }
 
 func (r *Repository) Create(ctx context.Context, rule *Rule) error {
@@ -455,17 +465,40 @@ func (r *Repository) GetAll(ctx context.Context, limit, offset int, search strin
 	argIdx := 1
 
 	if search != "" {
+		pattern := "%" + search + "%"
+		productIDs, err := r.productIDsByName(ctx, pattern)
+		if err != nil {
+			return nil, 0, err
+		}
+		categoryIDs, err := r.categoryIDsByName(ctx, pattern)
+		if err != nil {
+			return nil, 0, err
+		}
+		brandIDs, err := r.brandIDsByName(ctx, pattern)
+		if err != nil {
+			return nil, 0, err
+		}
+		if productIDs == nil {
+			productIDs = []int{}
+		}
+		if categoryIDs == nil {
+			categoryIDs = []int{}
+		}
+		if brandIDs == nil {
+			brandIDs = []int{}
+		}
+
 		searchFilter := fmt.Sprintf(` AND (
 			name ILIKE $%d
 			OR pricing_type ILIKE $%d
-			OR EXISTS (SELECT 1 FROM products p WHERE p.id = pricing_rules.product_id AND p.deleted_at IS NULL AND p.name ILIKE $%d)
-			OR EXISTS (SELECT 1 FROM categories c WHERE c.id = pricing_rules.category_id AND c.name ILIKE $%d)
-			OR EXISTS (SELECT 1 FROM brands b WHERE b.id = pricing_rules.brand_id AND b.name ILIKE $%d)
-		)`, argIdx, argIdx, argIdx, argIdx, argIdx)
+			OR (product_id IS NOT NULL AND product_id = ANY($%d))
+			OR (category_id IS NOT NULL AND category_id = ANY($%d))
+			OR (brand_id IS NOT NULL AND brand_id = ANY($%d))
+		)`, argIdx, argIdx, argIdx+1, argIdx+2, argIdx+3)
 		countQuery += searchFilter
 		dataQuery += searchFilter
-		args = append(args, "%"+search+"%")
-		argIdx++
+		args = append(args, pattern, productIDs, categoryIDs, brandIDs)
+		argIdx += 4
 	}
 	if productID != nil {
 		filter := fmt.Sprintf(" AND product_id = $%d", argIdx)
@@ -736,37 +769,12 @@ func (r *Repository) GetAllForExport(ctx context.Context) ([]Rule, error) {
 }
 
 // SearchProducts searches products by name, SKU, or barcode for autocomplete.
+// Routed through the product-owned ProductPricingProvider port.
 func (r *Repository) SearchProducts(ctx context.Context, query string, limit int) ([]ProductSearchResult, error) {
-	if query == "" {
-		return []ProductSearchResult{}, nil
-	}
-	like := "%" + strings.ToLower(query) + "%"
-	rows, err := r.db.Query(ctx, `
-		SELECT id, name, sku, price FROM products
-		WHERE deleted_at IS NULL AND status = 'active'
-		  AND (LOWER(name) LIKE $1 OR LOWER(sku) LIKE $1 OR LOWER(barcode) LIKE $1)
-		ORDER BY name ASC
-		LIMIT $2
-	`, like, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []ProductSearchResult
-	for rows.Next() {
-		var p ProductSearchResult
-		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.Price); err != nil {
-			return nil, err
-		}
-		results = append(results, p)
-	}
-	return results, rows.Err()
+	return r.searchPricingProducts(ctx, query, limit)
 }
 
-type ProductSearchResult struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	SKU   string `json:"sku"`
-	Price int    `json:"price"`
-}
+// ProductSearchResult is an autocomplete hit for product search. It is an
+// alias of shared.ProductSearchResult, the cross-module contract produced by
+// the product-owned ProductPricingProvider port.
+type ProductSearchResult = shared.ProductSearchResult

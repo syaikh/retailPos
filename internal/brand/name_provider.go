@@ -39,3 +39,28 @@ func (BrandNamesProvider) BrandNamesByIDs(ctx context.Context, db shared.DBPool,
 	}
 	return names, rows.Err()
 }
+
+// BrandIDsByName returns the IDs of brands whose name ILIKE-matches the given
+// search pattern (caller supplies the '%' pattern). Used by internal/pricing
+// to resolve the pricing rule listing search filter without a brands EXISTS
+// clause (see pricing.BrandNameSearchProvider).
+func (BrandNamesProvider) BrandIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id
+		FROM brands
+		WHERE name ILIKE $1
+	`, search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

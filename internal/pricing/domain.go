@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"retail-pos-system/internal/shared"
 )
 
 var (
@@ -102,13 +104,10 @@ type PriceSnapshot struct {
 	SnapshotAt    time.Time
 }
 
-// ProductCostTax holds the cost and tax-class information of a product at snapshot time.
-type ProductCostTax struct {
-	Cost        int
-	TaxClassID  *int
-	TaxRate     *float64
-	ProductName string
-}
+// ProductCostTax holds the cost and tax-class information of a product at
+// snapshot time. It is an alias of shared.ProductCostTax, the cross-module
+// contract produced by the product-owned ProductPricingProvider port.
+type ProductCostTax = shared.ProductCostTax
 
 // PriceResolver is the public interface for the pricing subsystem.
 type PriceResolver interface {

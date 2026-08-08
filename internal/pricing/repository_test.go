@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"retail-pos-system/internal/brand"
+	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 )
 
@@ -47,11 +50,21 @@ func insertTestProduct(ctx context.Context, t *testing.T, sku string, name strin
 	return id
 }
 
+// newWiredRepo returns a pricing Repository with the product/category/brand
+// owner providers wired, mirroring production wiring (internal/wiring).
+func newWiredRepo() *Repository {
+	repo := NewRepository(dbPool)
+	repo.SetProductPricingProvider(product.ProductPricingLookup{})
+	repo.SetCategorySearchProvider(category.CategoryNamesProvider{})
+	repo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	return repo
+}
+
 func TestPricingRepository_CRUD(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-CRUD-"+time.Now().Format("0102150405"), "Pricing Test Product", 15000)
@@ -181,7 +194,7 @@ func TestPricingRepository_BatchMethods(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-BATCH-"+time.Now().Format("0102150405"), "Batch Test Product", 20000)
@@ -237,7 +250,7 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-GAF-"+time.Now().Format("0102150405"), "GetAll Filter Product", 15000)
@@ -316,7 +329,7 @@ func TestPricingRepository_GetByID_Fields(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-FID-"+time.Now().Format("0102150405"), "GetByID Fields Product", 15000)
@@ -365,7 +378,7 @@ func TestPricingRepository_GetByProductID_Empty(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	rules, err := repo.GetByProductID(ctx, -99999)
@@ -377,7 +390,7 @@ func TestPricingRepository_GetBasePricesBatch_Multiple(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	id1 := insertTestProduct(ctx, t, "BATCH1-"+time.Now().Format("0102150405"), "Batch Product 1", 10000)
@@ -393,7 +406,7 @@ func TestPricingRepository_ProductScope(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-SCOPE-"+time.Now().Format("0102150405"), "Scope Test Product", 25000)
@@ -416,7 +429,7 @@ func TestPricingRepository_SearchProducts(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	sku := "SRC-" + time.Now().Format("0102150405")
@@ -446,7 +459,7 @@ func TestPricingRepository_NameExists(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := t.Context()
 
 	productID := insertTestProduct(ctx, t, "NEX-/"+time.Now().Format("0102150405"), "NameExists Product", 10000)
@@ -490,7 +503,7 @@ func TestPricingRepository_BulkInsertPricingRules(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := t.Context()
 
 	productID := insertTestProduct(ctx, t, "BIPR-"+time.Now().Format("0102150405"), "BulkInsert Product", 15000)
@@ -532,7 +545,7 @@ func TestPricingRepository_BulkUpdatePricingRules(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := t.Context()
 
 	productID := insertTestProduct(ctx, t, "BUPR-"+time.Now().Format("0102150405"), "BulkUpdate Product", 20000)
@@ -597,7 +610,7 @@ func TestPricingRepository_GetAllForExport(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := t.Context()
 
 	productID := insertTestProduct(ctx, t, "EXP-"+time.Now().Format("0102150405"), "Export Product", 15000)
@@ -621,7 +634,7 @@ func TestPricingRepository_GetProductCostAndTax(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	productID := insertTestProduct(ctx, t, "PRC-COST-"+time.Now().Format("0102150405"), "Cost Tax Product", 15000)
@@ -643,7 +656,7 @@ func TestPricingRepository_GetProductCostAndTaxBatch(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	ctx := context.Background()
 
 	id1 := insertTestProduct(ctx, t, "PRC-CB1-"+time.Now().Format("0102150405"), "CB One", 10000)

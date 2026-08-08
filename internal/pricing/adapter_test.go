@@ -296,7 +296,7 @@ func TestAdapter_Repository_Insert(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	a := NewAdapter(repo)
 	ctx := t.Context()
 
@@ -349,7 +349,7 @@ func TestAdapter_Repository_Update(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	a := NewAdapter(repo)
 	ctx := t.Context()
 
@@ -417,7 +417,7 @@ func TestAdapter_Repository_ExportData(t *testing.T) {
 	if dbPool == nil {
 		t.Skip("no database connection")
 	}
-	repo := NewRepository(dbPool)
+	repo := newWiredRepo()
 	a := NewAdapter(repo)
 	schema := testSchema()
 	ctx := t.Context()

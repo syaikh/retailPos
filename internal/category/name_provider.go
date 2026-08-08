@@ -39,3 +39,28 @@ func (CategoryNamesProvider) CategoryNamesByIDs(ctx context.Context, db shared.D
 	}
 	return names, rows.Err()
 }
+
+// CategoryIDsByName returns the IDs of categories whose name ILIKE-matches the
+// given search pattern (caller supplies the '%' pattern). Used by
+// internal/pricing to resolve the pricing rule listing search filter without a
+// categories EXISTS clause (see pricing.CategoryNameSearchProvider).
+func (CategoryNamesProvider) CategoryIDsByName(ctx context.Context, db shared.DBPool, search string) ([]int, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id
+		FROM categories
+		WHERE name ILIKE $1
+	`, search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
