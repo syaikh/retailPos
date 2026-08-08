@@ -2,6 +2,7 @@ package storagelocation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,11 +18,20 @@ const selectColumns = `sl.id, sl.code, sl.name, sl.warehouse_id, sl.store_id,
 const baseFrom = `FROM storage_locations sl`
 
 type Repository struct {
-	db shared.DBPool
+	db                     shared.DBPool
+	storeExistenceProvider StoreExistenceProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
 	return &Repository{db: db}
+}
+
+// SetStoreExistenceProvider wires the store-owned implementation of the
+// StoreExistenceProvider port (ADR §2.4). It MUST be called before any
+// create/update path validates a store/warehouse reference — an unwired
+// repository fails fast at runtime.
+func (r *Repository) SetStoreExistenceProvider(p StoreExistenceProvider) {
+	r.storeExistenceProvider = p
 }
 
 func (r *Repository) scanLocation(scanner interface{ Scan(...interface{}) error }) (*StorageLocation, error) {
@@ -181,21 +191,17 @@ func (r *Repository) CodeExists(ctx context.Context, code string, excludeID int)
 }
 
 func (r *Repository) WarehouseExists(ctx context.Context, id int) (bool, error) {
-	var count int
-	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM warehouses WHERE id = $1`, id).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("check warehouse exists: %w", err)
+	if r.storeExistenceProvider == nil {
+		return false, errors.New("storagelocation repository: store existence provider not wired; call SetStoreExistenceProvider")
 	}
-	return count > 0, nil
+	return r.storeExistenceProvider.WarehouseExists(ctx, r.db, id)
 }
 
 func (r *Repository) StoreExists(ctx context.Context, id int) (bool, error) {
-	var count int
-	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM stores WHERE id = $1`, id).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("check store exists: %w", err)
+	if r.storeExistenceProvider == nil {
+		return false, errors.New("storagelocation repository: store existence provider not wired; call SetStoreExistenceProvider")
 	}
-	return count > 0, nil
+	return r.storeExistenceProvider.StoreExists(ctx, r.db, id)
 }
 
 func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (int, error) {

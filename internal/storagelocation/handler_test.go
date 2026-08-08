@@ -45,7 +45,7 @@ func testPermMiddleware(perm permissions.Code) gin.HandlerFunc {
 
 func setupRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	h := NewHandler(svc, nil)
 
@@ -318,7 +318,7 @@ func TestHandler_AuditBranches(t *testing.T) {
 	whID := createTestWarehouse(t, "HANDLER-AUD")
 
 	gin.SetMode(gin.TestMode)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	auditMock := &mockAuditCreator{}
 	h := NewHandler(svc, auditMock)

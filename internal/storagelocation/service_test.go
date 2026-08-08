@@ -12,7 +12,7 @@ import (
 
 func TestService_GetAll(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -30,7 +30,7 @@ func TestService_GetAll(t *testing.T) {
 
 func TestService_GetByID_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -47,7 +47,7 @@ func TestService_GetByID_Success(t *testing.T) {
 
 func TestService_GetByID_NotFound(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -57,7 +57,7 @@ func TestService_GetByID_NotFound(t *testing.T) {
 
 func TestService_GetAllActive(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -74,7 +74,7 @@ func TestService_GetAllActive(t *testing.T) {
 
 func TestService_Create_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -91,7 +91,7 @@ func TestService_Create_Success(t *testing.T) {
 
 func TestService_Create_EmptyCode(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -105,7 +105,7 @@ func TestService_Create_EmptyCode(t *testing.T) {
 
 func TestService_Create_EmptyName(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -119,7 +119,7 @@ func TestService_Create_EmptyName(t *testing.T) {
 
 func TestService_Create_NoScope(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -130,7 +130,7 @@ func TestService_Create_NoScope(t *testing.T) {
 
 func TestService_Create_InvalidWarehouse(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -142,7 +142,7 @@ func TestService_Create_InvalidWarehouse(t *testing.T) {
 
 func TestService_Create_InvalidStore(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -154,7 +154,7 @@ func TestService_Create_InvalidStore(t *testing.T) {
 
 func TestService_Create_DuplicateCode(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -173,7 +173,7 @@ func TestService_Create_DuplicateCode(t *testing.T) {
 
 func TestService_Update_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -191,7 +191,7 @@ func TestService_Update_Success(t *testing.T) {
 
 func TestService_Update_NotFound(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -203,7 +203,7 @@ func TestService_Update_NotFound(t *testing.T) {
 
 func TestService_Update_DuplicateCode(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -224,7 +224,7 @@ func TestService_Update_DuplicateCode(t *testing.T) {
 
 func TestService_Delete_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -242,7 +242,7 @@ func TestService_Delete_Success(t *testing.T) {
 
 func TestService_Delete_NotFound(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -253,7 +253,7 @@ func TestService_Delete_NotFound(t *testing.T) {
 
 func TestService_BulkUpdate_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -273,7 +273,7 @@ func TestService_BulkUpdate_Success(t *testing.T) {
 
 func TestService_BulkUpdate_EmptyIDs(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -284,7 +284,7 @@ func TestService_BulkUpdate_EmptyIDs(t *testing.T) {
 
 func TestService_BulkDelete_Success(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 
@@ -302,7 +302,7 @@ func TestService_BulkDelete_Success(t *testing.T) {
 
 func TestService_BulkDelete_EmptyIDs(t *testing.T) {
 	skipIfNoDB(t)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	svc := NewService(repo)
 	ctx := context.Background()
 

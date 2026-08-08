@@ -55,7 +55,7 @@ func createTestStore(t *testing.T, name string) int {
 
 func TestStorageLocationRepository_CRUD(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 
 	whID := createTestWarehouse(t, "CRUD-WH")
@@ -201,7 +201,7 @@ func TestStorageLocationRepository_CRUD(t *testing.T) {
 }
 
 func TestStorageLocationRepository_GetByID_NotFound(t *testing.T) {
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 
 	_, err := repo.GetByID(ctx, 999999)
@@ -210,7 +210,7 @@ func TestStorageLocationRepository_GetByID_NotFound(t *testing.T) {
 
 func TestStorageLocationRepository_ScopeChecks(t *testing.T) {
 	_ = shared.TruncateTestData(dbPool)
-	repo := NewRepository(dbPool)
+	repo := newTestRepository()
 	ctx := context.Background()
 
 	t.Run("WarehouseExists true for existing", func(t *testing.T) {

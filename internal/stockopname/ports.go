@@ -101,6 +101,20 @@ type StockLocker interface {
 	LockLocationStock(ctx context.Context, tx pgx.Tx, productIDs []int, locationID int) (map[int]int, error)
 }
 
+// MovementWriter is the consumer-side port that appends rows to the
+// inventory_movements ledger, owned by internal/inventory (ADR §2.8
+// transaksional). Stock opname posting records its adjustment movements within
+// the posting Unit of Work (ADR_Cross_Module_Transaction_Strategy), so the
+// implementation MUST run against the caller's tx to preserve atomicity — a
+// session must never post while its ledger write fails. internal/inventory is
+// the canonical single-writer of inventory_movements and provides the
+// production implementation; the composition root MUST wire it via
+// SetMovementWriter before any posting path runs — an unwired repository fails
+// fast at runtime.
+type MovementWriter interface {
+	InsertMovements(ctx context.Context, tx pgx.Tx, rows []shared.InventoryMovement) error
+}
+
 // ProductCatalogProvider resolves product identity (sku/name) and unit cost for
 // stock opname reads — SKU conflict hints on session creation, adjustment item
 // display, and posting line totals. products is owned by internal/product

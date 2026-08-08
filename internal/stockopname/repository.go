@@ -14,18 +14,19 @@ import (
 )
 
 type Repository struct {
-	db                      shared.DBPool
-	usernameProvider        UsernameProvider
-	assignableProvider      AssignableUserProvider
-	roleNameProvider        UserRoleNameProvider
-	scopeNameResolver       ScopeNameResolver
-	locationScopeProvider   LocationScopeProvider
+	db                       shared.DBPool
+	usernameProvider         UsernameProvider
+	assignableProvider       AssignableUserProvider
+	roleNameProvider         UserRoleNameProvider
+	scopeNameResolver        ScopeNameResolver
+	locationScopeProvider    LocationScopeProvider
 	warehouseStoreIDProvider WarehouseStoreIDProvider
-	stockLocker             StockLocker
-	productCatalogProvider  ProductCatalogProvider
-	productScopeProvider    ProductScopeProvider
-	stockSnapshotProvider   StockSnapshotProvider
-	uomNameProvider         UOMNameProvider
+	stockLocker              StockLocker
+	movementWriter           MovementWriter
+	productCatalogProvider   ProductCatalogProvider
+	productScopeProvider     ProductScopeProvider
+	stockSnapshotProvider    StockSnapshotProvider
+	uomNameProvider          UOMNameProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -80,6 +81,13 @@ func (r *Repository) SetWarehouseStoreIDProvider(p WarehouseStoreIDProvider) {
 // unwired repository fails fast at runtime.
 func (r *Repository) SetStockLocker(l StockLocker) {
 	r.stockLocker = l
+}
+
+// SetMovementWriter wires the inventory-owned implementation of the
+// MovementWriter port (ADR §2.4). It MUST be called before any posting path
+// runs — an unwired repository fails fast at runtime.
+func (r *Repository) SetMovementWriter(w MovementWriter) {
+	r.movementWriter = w
 }
 
 // SetProductCatalogProvider wires the product-owned implementation of the
@@ -1059,16 +1067,20 @@ func (r *Repository) InsertMovements(ctx context.Context, tx pgx.Tx, sessionID, 
 	if len(rowsData) == 0 {
 		return nil
 	}
-	rows := make([][]interface{}, len(rowsData))
+	if r.movementWriter == nil {
+		return errors.New("stockopname repository: movement writer not wired; call SetMovementWriter")
+	}
+	rows := make([]shared.InventoryMovement, len(rowsData))
 	for i, m := range rowsData {
-		rows[i] = []interface{}{m.ProductID, m.QuantityChange, MovementTypeStockOpname, sessionID, "stock_opnames", userID, m.Notes}
+		rows[i] = shared.InventoryMovement{
+			ProductID:      m.ProductID,
+			QuantityChange: m.QuantityChange,
+			Type:           MovementTypeStockOpname,
+			ReferenceID:    sessionID,
+			ReferenceTable: "stock_opnames",
+			UserID:         userID,
+			Notes:          m.Notes,
+		}
 	}
-	_, err := tx.CopyFrom(ctx, pgx.Identifier{"inventory_movements"},
-		[]string{"product_id", "quantity_change", "type", "reference_id", "reference_table", "user_id", "notes"},
-		pgx.CopyFromRows(rows),
-	)
-	if err != nil {
-		return fmt.Errorf("batch insert inventory movements: %w", err)
-	}
-	return nil
+	return r.movementWriter.InsertMovements(ctx, tx, rows)
 }

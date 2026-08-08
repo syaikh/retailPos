@@ -50,3 +50,20 @@ type LocationStockReconcile struct {
 	StoreID     *int
 	Delta       int
 }
+
+// InventoryMovement is one row of the inventory_movements ledger, owned by
+// internal/inventory (ADR Modular_Monolith_Module_Boundaries §2.8
+// transaksional). It is the cross-module contract between internal/stockopname
+// (consumer) and internal/inventory (single-writer of the movement ledger):
+// stock opname posting appends adjustment movements within the posting Unit of
+// Work (ADR_Cross_Module_Transaction_Strategy), so the write runs on the
+// caller's tx.
+type InventoryMovement struct {
+	ProductID      int
+	QuantityChange int
+	Type           string
+	ReferenceID    int
+	ReferenceTable string
+	UserID         int
+	Notes          string
+}

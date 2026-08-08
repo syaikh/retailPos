@@ -8,6 +8,8 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"retail-pos-system/internal/store"
 )
 
 func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Context) {
@@ -15,7 +17,9 @@ func newMockRepo(t *testing.T) (pgxmock.PgxPoolIface, *Repository, context.Conte
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	t.Cleanup(func() { mock.Close() })
-	return mock, NewRepository(mock), context.Background()
+	repo := NewRepository(mock)
+	repo.SetStoreExistenceProvider(store.StoreExistenceProvider{})
+	return mock, repo, context.Background()
 }
 
 func TestRepositoryMock_ErrorBranches(t *testing.T) {
@@ -97,14 +101,14 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 
 	t.Run("warehouseexists error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectQuery("SELECT COUNT.*warehouses").WithArgs(1).WillReturnError(boom)
+		mock.ExpectQuery("SELECT EXISTS.*warehouses").WithArgs(1).WillReturnError(boom)
 		_, err := repo.WarehouseExists(ctx, 1)
 		assert.ErrorContains(t, err, "check warehouse exists")
 	})
 
 	t.Run("storeexists error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
-		mock.ExpectQuery("SELECT COUNT.*stores").WithArgs(1).WillReturnError(boom)
+		mock.ExpectQuery("SELECT EXISTS.*stores").WithArgs(1).WillReturnError(boom)
 		_, err := repo.StoreExists(ctx, 1)
 		assert.ErrorContains(t, err, "check store exists")
 	})

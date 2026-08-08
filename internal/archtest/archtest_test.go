@@ -154,6 +154,9 @@ var strictModuleTables = map[string]map[string]bool{
 		"v_products_full":   true,
 		"categories":        true,
 	},
+	"pricing": {
+		"pricing_rules": true,
+	},
 	"customer": {
 		"customers": true,
 	},
@@ -175,6 +178,13 @@ var strictModuleTables = map[string]map[string]bool{
 		"stock_opname_session_scopes":   true,
 		"inventory_adjustments":         true,
 		"inventory_adjustment_items":    true,
+	},
+	"store": {
+		"stores":     true,
+		"warehouses": true,
+	},
+	"storagelocation": {
+		"storage_locations": true,
 	},
 	"user": {
 		"users":            true,
