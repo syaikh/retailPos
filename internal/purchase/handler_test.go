@@ -72,7 +72,7 @@ func TestHandler_CreateDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "draft", data["status"])
 	assert.Equal(t, float64(40000), data["grand_total"])
@@ -103,7 +103,7 @@ func TestHandler_ConfirmPO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "confirmed", data["status"])
 }
@@ -163,7 +163,7 @@ func TestHandler_GetPO(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, float64(po.ID), data["id"])
 	assert.Equal(t, "draft", data["status"])
@@ -212,7 +212,7 @@ func TestHandler_ListPOs(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].([]interface{})
 	assert.GreaterOrEqual(t, len(data), 3)
 	total := resp["total"].(float64)
@@ -228,7 +228,7 @@ func TestHandler_ListPOs_EmptyResult(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].([]interface{})
 	assert.Empty(t, data)
 }
@@ -262,7 +262,7 @@ func TestHandler_UpdateDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "draft", data["status"])
 }
@@ -309,7 +309,7 @@ func TestHandler_DeleteDraft(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.True(t, resp["data"].(map[string]interface{})["deleted"].(bool))
 }
 
@@ -400,7 +400,7 @@ func TestHandler_GetReceipts(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].([]interface{})
 	require.Len(t, data, 1)
 	rcpt := data[0].(map[string]interface{})
@@ -453,7 +453,7 @@ func TestHandler_CreateGoodsReceipt(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]interface{})
 	assert.NotEmpty(t, data["gr_number"])
 }

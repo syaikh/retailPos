@@ -273,10 +273,13 @@ func TestService_GetAll(t *testing.T) {
 	svc := NewService(repo)
 	ctx := context.Background()
 
+	s := &Supplier{Name: "SVC-GetAll", Code: "SUP-SVC-GA-" + time.Now().Format("0102150405"), IsActive: true}
+	require.NoError(t, repo.Create(ctx, s))
+
 	suppliers, total, err := svc.GetAll(ctx, 10, 0, "", nil)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, total, 0)
-	assert.NotNil(t, suppliers)
+	assert.GreaterOrEqual(t, total, 1)
+	assert.NotEmpty(t, suppliers)
 }
 
 func TestService_Create_And_Delete(t *testing.T) {

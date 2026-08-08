@@ -62,7 +62,9 @@ func TestJSONSuccess(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 	var body map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	data, ok := body["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data field, got %v", body)
@@ -83,7 +85,9 @@ func TestJSONError(t *testing.T) {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 	var body map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	errObj, ok := body["error"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected error object, got %T: %v", body["error"], body["error"])
@@ -107,7 +111,9 @@ func TestInternalError(t *testing.T) {
 		t.Errorf("expected 500, got %d", w.Code)
 	}
 	var body map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	errObj, ok := body["error"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected error object, got %T: %v", body["error"], body["error"])
@@ -132,7 +138,9 @@ func TestJSONPaginated(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 	var body map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	if body["total"] != float64(10) {
 		t.Errorf("expected total=10, got %v", body["total"])
 	}

@@ -26,7 +26,7 @@ func TestCategoryService_ReadOperations(t *testing.T) {
 	t.Run("ListCategories", func(t *testing.T) {
 		list, err := svc.ListCategories(ctx)
 		require.NoError(t, err)
-		assert.NotNil(t, list)
+		assert.NotEmpty(t, list)
 	})
 
 	t.Run("GetCategoryByID", func(t *testing.T) {

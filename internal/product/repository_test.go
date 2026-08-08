@@ -170,7 +170,7 @@ func TestProductRepository_TaxClassRead(t *testing.T) {
 		require.NoError(t, err)
 		list, err := repo.GetAllTaxClasses(ctx)
 		require.NoError(t, err)
-		assert.NotNil(t, list)
+		assert.NotEmpty(t, list)
 	})
 }
 

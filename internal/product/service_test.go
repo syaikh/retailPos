@@ -169,6 +169,6 @@ func TestProductService_SubResourceMethods(t *testing.T) {
 		require.NoError(t, err)
 		list, err := svc.GetAllTaxClasses(ctx)
 		require.NoError(t, err)
-		assert.NotNil(t, list)
+		assert.NotEmpty(t, list)
 	})
 }

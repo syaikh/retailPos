@@ -231,7 +231,7 @@ func TestHandler_Confirm(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var previewResp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &previewResp)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &previewResp))
 	token, ok := previewResp["token"].(string)
 	require.True(t, ok, "preview should return a token")
 	require.NotEmpty(t, token)

@@ -301,7 +301,7 @@ func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		var resp map[string]string
-		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Contains(t, resp["error"], "cannot set self as manager")
 	})
 
@@ -315,7 +315,7 @@ func TestHandler_UpdateUser_WithReportsTo(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		var resp map[string]string
-		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Contains(t, resp["error"], "circular reference")
 	})
 }

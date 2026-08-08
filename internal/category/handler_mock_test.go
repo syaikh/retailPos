@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockCategoryService struct {
@@ -186,7 +187,7 @@ func TestMockHandler_CreateCategory(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var resp map[string]interface{}
-		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		data := resp["data"].(map[string]interface{})
 		assert.Equal(t, float64(10), data["id"])
 	})

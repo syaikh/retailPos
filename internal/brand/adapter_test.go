@@ -207,7 +207,7 @@ func TestBrandAdapter_ReposAdapter_Insert_Errors(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "brand import errors")
-	_ = inserted
+	assert.Equal(t, 1, inserted)
 }
 
 func TestBrandAdapter_ReposAdapter_Update(t *testing.T) {

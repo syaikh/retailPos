@@ -28,7 +28,7 @@ func TestBrandService_ReadOperations(t *testing.T) {
 	t.Run("GetAll", func(t *testing.T) {
 		list, err := svc.GetAll(ctx)
 		require.NoError(t, err)
-		assert.NotNil(t, list)
+		assert.NotEmpty(t, list)
 	})
 
 	t.Run("GetIDByName", func(t *testing.T) {

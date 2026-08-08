@@ -73,6 +73,6 @@ func TestWriteCSVRow(t *testing.T) {
 		err := WriteCSVRow(w, []string{"a", "b"})
 		w.Flush()
 		assert.NoError(t, err)
-		assert.True(t, buf.Len() > 0)
+		assert.Equal(t, "a,b\n", buf.String())
 	})
 }

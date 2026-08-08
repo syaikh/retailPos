@@ -209,8 +209,7 @@ func TestPurchaseService_List_PassesThrough(t *testing.T) {
 	storeID := 1
 	shifts, total, err := svc.List(ctx, 10, 0, "", "created_at", "DESC", "", "", "", "", &storeID)
 	assert.NoError(t, err)
-	assert.GreaterOrEqual(t, total, 0)
-	_ = shifts
+	assert.GreaterOrEqual(t, total, len(shifts))
 }
 
 func TestPurchaseService_GetReceipts_PassesStoreScope(t *testing.T) {

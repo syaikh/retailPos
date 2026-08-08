@@ -132,7 +132,7 @@ func TestSupplierRepository_CRUD(t *testing.T) {
 	t.Run("GetAll", func(t *testing.T) {
 		suppliers, total, err := repo.GetAll(ctx, 10, 0, "", nil)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
+		assert.GreaterOrEqual(t, total, 1)
 		assert.NotNil(t, suppliers)
 	})
 
@@ -279,7 +279,7 @@ func TestSupplierRepository_GetAllInactiveFilter(t *testing.T) {
 	inactive := false
 	suppliers, total, err := repo.GetAll(ctx, 10, 0, "", &inactive)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, total, 0)
+	assert.GreaterOrEqual(t, total, 1)
 	assert.NotNil(t, suppliers)
 
 	found := false

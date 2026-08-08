@@ -160,7 +160,7 @@ func TestPricingRepository_CRUD(t *testing.T) {
 	t.Run("GetAll with filters", func(t *testing.T) {
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
+		assert.GreaterOrEqual(t, total, 1)
 		assert.NotNil(t, rules)
 	})
 
@@ -269,7 +269,7 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	t.Run("filter by pricing_method", func(t *testing.T) {
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "fixed_price", nil, nil, nil, nil, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
+		assert.GreaterOrEqual(t, total, 1)
 		for _, r := range rules {
 			assert.Equal(t, PricingMethodFixedPrice, r.Method)
 		}
@@ -278,7 +278,7 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 	t.Run("filter by status", func(t *testing.T) {
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, nil, "approved")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
+		assert.GreaterOrEqual(t, total, 1)
 		for _, r := range rules {
 			assert.Equal(t, StatusApproved, r.Status)
 		}
@@ -288,40 +288,35 @@ func TestPricingRepository_GetAll_Filters(t *testing.T) {
 		catID := 1
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", &catID, nil, nil, nil, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-		_ = rules
+		assert.GreaterOrEqual(t, total, len(rules))
 	})
 
 	t.Run("filter by brand_id", func(t *testing.T) {
 		brandID := 1
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, &brandID, nil, nil, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-		_ = rules
+		assert.GreaterOrEqual(t, total, len(rules))
 	})
 
 	t.Run("filter by customer_group_id", func(t *testing.T) {
 		cgID := 1
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, &cgID, nil, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-		_ = rules
+		assert.GreaterOrEqual(t, total, len(rules))
 	})
 
 	t.Run("filter by store_id", func(t *testing.T) {
 		sid := 1
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, &sid, nil, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-		_ = rules
+		assert.GreaterOrEqual(t, total, len(rules))
 	})
 
 	t.Run("filter by is_active false", func(t *testing.T) {
 		inactive := false
 		rules, total, err := repo.GetAll(ctx, 10, 0, "", nil, "", "", nil, nil, nil, nil, &inactive, "")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-		_ = rules
+		assert.GreaterOrEqual(t, total, len(rules))
 	})
 }
 
