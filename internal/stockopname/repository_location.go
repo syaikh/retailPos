@@ -65,29 +65,11 @@ func (r *Repository) LoadSnapshotProductsByLocation(ctx context.Context, q query
 
 // LockStockForLocation locks the rack stock rows of the given products on a
 // location and returns the current rack quantities (0 when no rack row exists).
+// The lock is taken inside the caller's tx via the StockLocker port owned by
+// internal/inventory.
 func (r *Repository) LockStockForLocation(ctx context.Context, tx pgx.Tx, productIDs []int, locationID int) (map[int]int, error) {
-	stock := make(map[int]int, len(productIDs))
-	if len(productIDs) == 0 {
-		return stock, nil
+	if r.stockLocker == nil {
+		return nil, errors.New("stockopname repository: stock locker not wired; call SetStockLocker")
 	}
-	for _, pid := range productIDs {
-		stock[pid] = 0
-	}
-	rows, err := tx.Query(ctx, `
-		SELECT product_id, quantity FROM product_stock
-		WHERE product_id = ANY($1::int[]) AND location_id = $2
-		FOR UPDATE
-	`, productIDs, locationID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to lock location stock: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var pid, qty int
-		if err := rows.Scan(&pid, &qty); err != nil {
-			return nil, fmt.Errorf("failed to scan location stock: %w", err)
-		}
-		stock[pid] = qty
-	}
-	return stock, rows.Err()
+	return r.stockLocker.LockLocationStock(ctx, tx, productIDs, locationID)
 }

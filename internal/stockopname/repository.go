@@ -21,6 +21,7 @@ type Repository struct {
 	scopeNameResolver       ScopeNameResolver
 	locationScopeProvider   LocationScopeProvider
 	warehouseStoreIDProvider WarehouseStoreIDProvider
+	stockLocker             StockLocker
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -68,6 +69,13 @@ func (r *Repository) SetLocationScopeProvider(p LocationScopeProvider) {
 // GetWarehouseStoreID runs.
 func (r *Repository) SetWarehouseStoreIDProvider(p WarehouseStoreIDProvider) {
 	r.warehouseStoreIDProvider = p
+}
+
+// SetStockLocker wires the inventory-owned implementation of the StockLocker
+// port (ADR §2.4). It MUST be called before any posting path runs — an
+// unwired repository fails fast at runtime.
+func (r *Repository) SetStockLocker(l StockLocker) {
+	r.stockLocker = l
 }
 
 func (r *Repository) usernamesByIDs(ctx context.Context, ids []int) (map[int]string, error) {
@@ -852,28 +860,15 @@ func (r *Repository) LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID
 	return items, rows.Err()
 }
 
+// LockStockForProducts locks the global stock rows of the given products and
+// returns their current quantities. The lock is taken inside the caller's tx
+// via the StockLocker port owned by internal/inventory, so concurrent sessions
+// cannot double-count the same stock during posting.
 func (r *Repository) LockStockForProducts(ctx context.Context, tx pgx.Tx, productIDs []int) (map[int]int, error) {
-	stock := make(map[int]int, len(productIDs))
-	if len(productIDs) == 0 {
-		return stock, nil
+	if r.stockLocker == nil {
+		return nil, errors.New("stockopname repository: stock locker not wired; call SetStockLocker")
 	}
-	rows, err := tx.Query(ctx, `
-		SELECT product_id, quantity FROM product_stock
-		WHERE product_id = ANY($1::int[]) AND warehouse_id IS NULL AND store_id IS NULL
-		FOR UPDATE
-	`, productIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to lock product stock: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var pid, qty int
-		if err := rows.Scan(&pid, &qty); err != nil {
-			return nil, fmt.Errorf("failed to scan product stock: %w", err)
-		}
-		stock[pid] = qty
-	}
-	return stock, rows.Err()
+	return r.stockLocker.LockProductStock(ctx, tx, productIDs)
 }
 
 func (r *Repository) UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64, reason string) error {

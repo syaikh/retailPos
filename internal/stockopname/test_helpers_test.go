@@ -5,6 +5,7 @@ import (
 
 	"retail-pos-system/internal/brand"
 	"retail-pos-system/internal/category"
+	"retail-pos-system/internal/inventory"
 	"retail-pos-system/internal/product"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/store"
@@ -79,5 +80,6 @@ func newTestRepository() *Repository {
 	repo.SetScopeNameResolver(testScopeNameResolver{})
 	repo.SetLocationScopeProvider(storagelocation.RackProvider{})
 	repo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
+	repo.SetStockLocker(inventory.StockLocker{})
 	return repo
 }

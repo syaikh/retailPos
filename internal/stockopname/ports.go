@@ -82,3 +82,21 @@ type LocationScopeProvider interface {
 type WarehouseStoreIDProvider interface {
 	WarehouseStoreID(ctx context.Context, db shared.DBPool, warehouseID int) (*int, error)
 }
+
+// StockLocker is the consumer-side port that locks product_stock rows ahead of
+// stock opname posting so concurrent sessions cannot double-count the same
+// stock. Posting is a Unit of Work (ADR_Cross_Module_Transaction_Strategy), so
+// the locks MUST be taken on the caller's tx to be released on commit/rollback.
+// internal/inventory is the canonical owner of product_stock
+// (ADR Modular_Monolith_Module_Boundaries §2.8) and provides the production
+// implementation; the composition root MUST wire it via SetStockLocker before
+// any posting path runs — an unwired repository fails fast at runtime.
+type StockLocker interface {
+	// LockProductStock locks the global product_stock rows of the given
+	// products within the caller's tx and returns their current quantities.
+	LockProductStock(ctx context.Context, tx pgx.Tx, productIDs []int) (map[int]int, error)
+	// LockLocationStock locks the rack product_stock rows of the given
+	// products on a location within the caller's tx and returns the current
+	// rack quantities (0 when no rack row exists).
+	LockLocationStock(ctx context.Context, tx pgx.Tx, productIDs []int, locationID int) (map[int]int, error)
+}

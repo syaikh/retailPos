@@ -416,6 +416,7 @@ func Initialize(p Providers) *Dependencies {
 	})
 	d.StockOpnameRepo.SetLocationScopeProvider(storagelocation.RackProvider{})
 	d.StockOpnameRepo.SetWarehouseStoreIDProvider(store.WarehouseStoreIDProvider{})
+	d.StockOpnameRepo.SetStockLocker(inventory.StockLocker{})
 	d.StorageLocationRepo = storagelocation.NewRepository(p.DB)
 
 	d.AuditSvc = audit.NewService(d.AuditRepo)
