@@ -2,8 +2,10 @@ package audit
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -141,7 +143,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		sheet := "Audit Logs"
 		_ = wb.SetSheetName("Sheet1", sheet)
 
-		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"}
+		headers := []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent"}
 		for i, hdr := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetCellValue(sheet, col+"1", hdr)
@@ -150,7 +152,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
 			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7C3AED"}},
 		})
-		_ = wb.SetCellStyle(sheet, "A1", "G1", headerStyle)
+		_ = wb.SetCellStyle(sheet, "A1", "J1", headerStyle)
 
 		for i, log := range logs {
 			r := i + 2
@@ -163,11 +165,14 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("C%d", r), log.Role)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("D%d", r), log.Action)
 			_ = wb.SetCellValue(sheet, fmt.Sprintf("E%d", r), log.EntityType)
-			_ = wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), log.Description)
-			_ = wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), log.IPAddress)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("F%d", r), formatEntityID(log.EntityID))
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("G%d", r), log.Description)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("H%d", r), formatChanges(log.OldValues, log.NewValues))
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("I%d", r), log.IPAddress)
+			_ = wb.SetCellValue(sheet, fmt.Sprintf("J%d", r), log.UserAgent)
 		}
 
-		colWidths := []float64{22, 20, 15, 12, 15, 50, 18}
+		colWidths := []float64{22, 20, 15, 12, 15, 10, 50, 50, 18, 30}
 		for i, w := range colWidths {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			_ = wb.SetColWidth(sheet, col, col, w)
@@ -187,7 +192,7 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 		writer := csv.NewWriter(c.Writer)
-		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Description", "IP Address"})
+		_ = shared.WriteCSVRow(writer, []string{"Timestamp", "Actor", "Role", "Action", "Resource", "Entity ID", "Description", "Changes", "IP Address", "User Agent"})
 		for _, log := range logs {
 			t := log.CreatedAt
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
@@ -199,8 +204,11 @@ func (h *Handler) ExportAuditLogs(c *gin.Context) {
 				log.Role,
 				log.Action,
 				log.EntityType,
+				formatEntityID(log.EntityID),
 				log.Description,
+				formatChanges(log.OldValues, log.NewValues),
 				log.IPAddress,
+				log.UserAgent,
 			})
 		}
 		writer.Flush()
@@ -297,4 +305,83 @@ func parseDateParam(s string) string {
 		return s
 	}
 	return ""
+}
+
+func formatEntityID(entityID *int) string {
+	if entityID == nil {
+		return ""
+	}
+	return strconv.Itoa(*entityID)
+}
+
+var formatSensitiveFields = map[string]struct{}{
+	"password":      {},
+	"password_hash": {},
+	"token":         {},
+	"salt":          {},
+	"refresh_token": {},
+}
+
+func formatChanges(oldValues, newValues interface{}) string {
+	oldMap := changesToMap(oldValues)
+	newMap := changesToMap(newValues)
+	if len(oldMap) == 0 && len(newMap) == 0 {
+		return ""
+	}
+
+	keys := map[string]struct{}{}
+	for k := range oldMap {
+		keys[k] = struct{}{}
+	}
+	for k := range newMap {
+		keys[k] = struct{}{}
+	}
+
+	sortedKeys := make([]string, 0, len(keys))
+	for k := range keys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	var parts []string
+	for _, k := range sortedKeys {
+		if _, isSensitive := formatSensitiveFields[k]; isSensitive {
+			continue
+		}
+		oldV, hasOld := oldMap[k]
+		newV, hasNew := newMap[k]
+		switch {
+		case hasOld && hasNew && fmt.Sprintf("%v", oldV) == fmt.Sprintf("%v", newV):
+			continue
+		case hasOld && hasNew:
+			parts = append(parts, fmt.Sprintf("%s: %v -> %v", k, oldV, newV))
+		case hasNew:
+			parts = append(parts, fmt.Sprintf("%s: %v", k, newV))
+		case hasOld:
+			parts = append(parts, fmt.Sprintf("%s: %v (removed)", k, oldV))
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func changesToMap(v interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	if v == nil {
+		return result
+	}
+	if m, ok := v.(map[string]interface{}); ok {
+		return m
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return result
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return result
+	}
+	if m != nil {
+		return m
+	}
+	return result
 }

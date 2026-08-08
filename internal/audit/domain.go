@@ -34,4 +34,6 @@ type LogListItem struct {
 	UserAgent   string `json:"user_agent,omitempty"`
 	EntityID    *int   `json:"entity_id,omitempty"`
 	CreatedAt   string `json:"created_at"`
+	OldValues   interface{} `json:"old_values,omitempty"`
+	NewValues   interface{} `json:"new_values,omitempty"`
 }

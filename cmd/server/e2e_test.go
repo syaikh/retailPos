@@ -28,11 +28,13 @@ import (
 	"retail-pos-system/internal/middleware"
 	"retail-pos-system/internal/pricing"
 	"retail-pos-system/internal/product"
+	"retail-pos-system/internal/purchase"
 	"retail-pos-system/internal/report"
 	"retail-pos-system/internal/sale"
 	"retail-pos-system/internal/shared"
 	"retail-pos-system/internal/shift"
 	"retail-pos-system/internal/store"
+	"retail-pos-system/internal/supplier"
 	"retail-pos-system/internal/uom"
 	"retail-pos-system/internal/user"
 	"retail-pos-system/pkg/websocket"
@@ -44,6 +46,42 @@ func init() {
 
 type authAdapter struct {
 	svc *user.AuthService
+}
+
+type e2eProductNameLookup struct {
+	repo *product.Repository
+}
+
+func (l e2eProductNameLookup) GetProductNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.ProductInfo, error) {
+	products, err := l.repo.GetProductsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]purchase.ProductInfo, len(products))
+	for _, p := range products {
+		result[p.ID] = purchase.ProductInfo{Name: p.Name, SKU: p.SKU}
+	}
+	return result, nil
+}
+
+type e2eSupplierNameLookup struct {
+	repo *supplier.Repository
+}
+
+func (l e2eSupplierNameLookup) GetSupplierNamesByIDs(ctx context.Context, ids []int) (map[int]purchase.SupplierInfo, error) {
+	suppliers, err := l.repo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]purchase.SupplierInfo, len(suppliers))
+	for _, s := range suppliers {
+		result[s.ID] = purchase.SupplierInfo{Name: s.Name}
+	}
+	return result, nil
+}
+
+func (l e2eSupplierNameLookup) GetSupplierIDsByName(ctx context.Context, name string) ([]int, error) {
+	return l.repo.GetIDsByName(ctx, name)
 }
 
 func (a *authAdapter) ValidateToken(tokenString string) (*websocket.Claims, error) {
@@ -109,6 +147,8 @@ func TestMain(m *testing.M) {
 		"customer_group.view", "customer_group.create", "customer_group.update", "customer_group.delete",
 		"store.view", "store.create", "store.update", "store.delete",
 		"pricing.view", "pricing.create", "pricing.update", "pricing.delete",
+		"purchase_order.view", "purchase_order.create", "purchase_order.update", "purchase_order.delete",
+		"purchase_order.confirm", "purchase_order.cancel", "purchase_order.receive",
 	} {
 		_, _ = pool.Exec(context.Background(),
 			`INSERT INTO permissions (code, name, description) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING`, code, code, code)
@@ -158,6 +198,8 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	pricingRepo.SetProductPricingProvider(product.ProductPricingLookup{})
 	pricingRepo.SetCategorySearchProvider(category.CategoryNamesProvider{})
 	pricingRepo.SetBrandSearchProvider(brand.BrandNamesProvider{})
+	supplierRepo := supplier.NewRepository(e2ePool)
+	purchaseRepo := purchase.NewRepository(e2ePool)
 
 	userSvc := user.NewService(userRepo)
 	authSvc := user.NewAuthService(userRepo, nil, config.Load())
@@ -177,6 +219,10 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	resolver := pricing.NewResolver(pricingRepo)
 	pricingSvc := pricing.NewService(pricingRepo)
 
+	purchaseSvc := purchase.NewService(purchaseRepo, bus)
+	purchaseSvc.SetProductLookup(e2eProductNameLookup{repo: productRepo})
+	purchaseSvc.SetSupplierLookup(e2eSupplierNameLookup{repo: supplierRepo})
+
 	userH := user.NewHandler(userSvc, nil)
 	authH := user.NewAuthHandler(authSvc, nil)
 	productH := product.NewHandler(productSvc, nil)
@@ -192,6 +238,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 	storeH := store.NewHandler(storeSvc, nil)
 	pricingH := pricing.NewHandler(pricingSvc, resolver, nil)
 	pricingH.SetProductSearcher(pricingRepo)
+	purchaseH := purchase.NewHandler(purchaseSvc, auditSvc)
 
 	hub := websocket.NewHub(&authAdapter{authSvc})
 	go hub.Run()
@@ -205,6 +252,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 
 	noopCSRF := func(c *gin.Context) { c.Next() }
 	noopRateLimit := func(c *gin.Context) { c.Next() }
+	noopAuth := func(c *gin.Context) { c.Next() }
 	authH.RegisterLoginRoute(r.Group("/api"), noopRateLimit)
 	authH.RegisterRoutes(r.Group("/api"), authMiddleware, noopCSRF, permMiddleware)
 
@@ -224,6 +272,7 @@ func setupE2ERouter(t *testing.T) *gin.Engine {
 		cgH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		storeH.RegisterRoutes(protected, authMiddleware, permMiddleware)
 		pricingH.RegisterRoutes(protected, authMiddleware, permMiddleware)
+		purchaseH.RegisterRoutes(protected, noopAuth, permMiddleware)
 	}
 
 	r.GET("/health", func(c *gin.Context) {
@@ -1395,6 +1444,460 @@ func TestE2E_SplitPayment(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func seedE2EProduct(t *testing.T) int {
+	t.Helper()
+	if e2ePool == nil {
+		t.Skip("no database connection")
+		return 0
+	}
+	var id int
+	err := e2ePool.QueryRow(context.Background(),
+		`INSERT INTO products (sku, name, price, cost, stock, status)
+		 VALUES (concat('E2E-PROD-', floor(random()*100000)::int), 'E2E Test Product', 100000, 50000, 100, 'active')
+		 RETURNING id`).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
+func seedE2ESupplier(t *testing.T) int {
+	t.Helper()
+	if e2ePool == nil {
+		t.Skip("no database connection")
+		return 0
+	}
+	var id int
+	err := e2ePool.QueryRow(context.Background(),
+		`INSERT INTO suppliers (name, code, is_active) VALUES ('E2E Supplier', 'E2E-SUP', true)
+		 ON CONFLICT (code) DO UPDATE SET name = 'E2E Supplier' RETURNING id`).Scan(&id)
+	if err != nil {
+		err = e2ePool.QueryRow(context.Background(),
+			`INSERT INTO suppliers (name, code, is_active) VALUES ('E2E Supplier', concat('E2E-SUP-', floor(random()*100000)::int), true) RETURNING id`).Scan(&id)
+		require.NoError(t, err)
+	}
+	return id
+}
+
+func seedE2EStore(t *testing.T) {
+	t.Helper()
+	if e2ePool == nil {
+		t.Skip("no database connection")
+	}
+	var storeCount int
+	e2ePool.QueryRow(context.Background(), "SELECT COUNT(*) FROM stores").Scan(&storeCount)
+	if storeCount == 0 {
+		_, err := e2ePool.Exec(context.Background(), `
+			INSERT INTO stores (name, address, phone, is_active)
+			VALUES ('E2E Test Store', 'Test Address', '081234567890', true)`)
+		require.NoError(t, err)
+	}
+	_, err := e2ePool.Exec(context.Background(), `
+		UPDATE users SET store_id = (SELECT id FROM stores LIMIT 1)
+		WHERE username = 'superadmin' AND store_id IS NULL`)
+	require.NoError(t, err)
+}
+
+func TestE2E_PurchaseOrders(t *testing.T) {
+	router := setupE2ERouter(t)
+	seedE2EStore(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+
+	var poID int
+	supplierID := seedE2ESupplier(t)
+	productID := seedE2EProduct(t)
+
+	t.Run("POST /api/purchase-orders creates draft", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"supplier_id": %d,
+			"store_id": 1,
+			"expected_date": "2026-08-15",
+			"payment_term": "NET30",
+			"notes": "E2E test PO",
+			"items": [{"product_id": %d, "qty_ordered": 5, "unit_cost": 50000, "discount_amount": 0}]
+		}`, supplierID, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/purchase-orders", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data struct {
+				ID       int    `json:"id"`
+				PONumber string `json:"po_number"`
+				Status   string `json:"status"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.Greater(t, resp.Data.ID, 0)
+		require.NotEmpty(t, resp.Data.PONumber)
+		require.Equal(t, "draft", resp.Data.Status)
+		poID = resp.Data.ID
+	})
+
+	t.Run("GET /api/purchase-orders lists POs", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/purchase-orders?limit=10&offset=0", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data []struct {
+				ID           int    `json:"id"`
+				PONumber     string `json:"po_number"`
+				Status       string `json:"status"`
+				SupplierName string `json:"supplier_name"`
+			} `json:"data"`
+			Total int `json:"total"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.GreaterOrEqual(t, len(resp.Data), 1)
+		assert.GreaterOrEqual(t, resp.Total, 1)
+		assert.Equal(t, poID, resp.Data[0].ID)
+		assert.Equal(t, "draft", resp.Data[0].Status)
+	})
+
+	t.Run("GET /api/purchase-orders/:id gets detail", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data struct {
+				ID       int    `json:"id"`
+				PONumber string `json:"po_number"`
+				Status   string `json:"status"`
+				Items    []struct {
+					ID int `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, poID, resp.Data.ID)
+		assert.Equal(t, "draft", resp.Data.Status)
+		require.GreaterOrEqual(t, len(resp.Data.Items), 1)
+	})
+
+	var poItemID int
+	t.Run("GET /api/purchase-orders/:id gets item id for update", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data struct {
+				Items []struct {
+					ID int `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.GreaterOrEqual(t, len(resp.Data.Items), 1)
+		poItemID = resp.Data.Items[0].ID
+	})
+
+	t.Run("PUT /api/purchase-orders/:id updates draft", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		require.Greater(t, poItemID, 0)
+		body := fmt.Sprintf(`{
+			"supplier_id": %d,
+			"notes": "Updated E2E test PO",
+			"items": [{"id": %d, "product_id": %d, "qty_ordered": 10, "unit_cost": 45000, "discount_amount": 0}]
+		}`, supplierID, poItemID, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/purchase-orders/%d", poID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("POST /api/purchase-orders/:id/confirm confirms PO", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/confirm", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data struct {
+				Status string `json:"status"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "confirmed", resp.Data.Status)
+	})
+
+	t.Run("POST /api/purchase-orders/:id/confirm twice returns 409", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/confirm", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+
+	t.Run("GET /api/purchase-orders/:id/receipts returns empty", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d/receipts", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var listResp struct {
+			Data []interface{} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &listResp))
+		assert.Empty(t, listResp.Data)
+	})
+
+	t.Run("POST /api/purchase-orders/:id/cancel cancels confirmed PO", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/cancel", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Data struct {
+				Status string `json:"status"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "cancelled", resp.Data.Status)
+	})
+
+	t.Run("POST /api/purchase-orders/:id/cancel on cancelled PO returns 409", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/cancel", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+
+	t.Run("GET /api/purchase-orders without auth returns 401", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/purchase-orders", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("GET /api/purchase-orders as cashier returns 403", func(t *testing.T) {
+		if e2ePool != nil {
+			_, err := e2ePool.Exec(context.Background(),
+				`INSERT INTO users (username, email, password_hash, role_id, is_active)
+				 VALUES ('cashier', 'cashier@test.local', crypt('admin123', gen_salt('bf', 14)), (SELECT id FROM roles WHERE name='cashier'), true)
+				 ON CONFLICT (username) DO NOTHING`)
+			require.NoError(t, err)
+		}
+		loginRes := httptest.NewRecorder()
+		loginReq, _ := http.NewRequest("POST", "/api/login", strings.NewReader(`{"username":"cashier","password":"admin123"}`))
+		loginReq.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(loginRes, loginReq)
+		if loginRes.Code != http.StatusOK {
+			t.Skip("cashier login failed")
+			return
+		}
+		var loginResp struct {
+			AccessToken string `json:"access_token"`
+		}
+		require.NoError(t, json.Unmarshal(loginRes.Body.Bytes(), &loginResp))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/purchase-orders", nil)
+		req.Header.Set("Authorization", "Bearer "+loginResp.AccessToken)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("POST /api/purchase-orders without items returns error", func(t *testing.T) {
+		body := fmt.Sprintf(`{"supplier_id": %d, "store_id": 1, "items": []}`, supplierID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/purchase-orders", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.GreaterOrEqual(t, w.Code, http.StatusBadRequest)
+	})
+
+	t.Run("GET /api/purchase-orders/:id with invalid id returns 400", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/purchase-orders/abc", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET /api/purchase-orders/:id not found returns 404", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/purchase-orders/999999", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+func TestE2E_PurchaseOrderGoodsReceipt(t *testing.T) {
+	router := setupE2ERouter(t)
+	seedE2EStore(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+
+	supplierID := seedE2ESupplier(t)
+	productID := seedE2EProduct(t)
+	var poID int
+	var poItemID int
+	var grID int
+
+	t.Run("POST /api/purchase-orders creates draft", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"supplier_id": %d, "store_id": 1, "expected_date": "2026-08-15",
+			"notes": "GR E2E test PO",
+			"items": [{"product_id": %d, "qty_ordered": 10, "unit_cost": 50000, "discount_amount": 0}]
+		}`, supplierID, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/purchase-orders", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+		var createResp struct {
+			Data struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &createResp))
+		poID = createResp.Data.ID
+	})
+
+	t.Run("GET /api/purchase-orders/:id gets items for GR", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var detailResp struct {
+			Data struct {
+				Items []struct{ ID int `json:"id"` } `json:"items"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &detailResp))
+		require.Greater(t, len(detailResp.Data.Items), 0)
+		poItemID = detailResp.Data.Items[0].ID
+	})
+
+	t.Run("POST /api/purchase-orders/:id/confirm", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/confirm", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("POST /api/goods-receipts creates GR", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		require.Greater(t, poItemID, 0)
+		body := fmt.Sprintf(`{
+			"purchase_order_id": %d, "delivery_order_number": "DO-001",
+			"shipping_method": "courier", "driver_name": "E2E Driver",
+			"notes": "E2E GR test",
+			"items": [{"purchase_order_item_id": %d, "qty_good": 8, "qty_damaged": 1}]
+		}`, poID, poItemID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/goods-receipts", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data struct {
+				ID              int    `json:"id"`
+				GRNumber        string `json:"gr_number"`
+				PurchaseOrderID int    `json:"purchase_order_id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Greater(t, resp.Data.ID, 0)
+		assert.NotEmpty(t, resp.Data.GRNumber)
+		assert.Equal(t, poID, resp.Data.PurchaseOrderID)
+		grID = resp.Data.ID
+	})
+
+	t.Run("GET /api/purchase-orders/:id/receipts returns GR", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d/receipts", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		var listResp struct {
+			Data []struct{ ID int `json:"id"` } `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &listResp))
+		assert.GreaterOrEqual(t, len(listResp.Data), 1)
+		assert.Equal(t, grID, listResp.Data[0].ID)
+	})
+
+	t.Run("POST /api/purchase-orders/:id/cancel with receipts returns 409", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/purchase-orders/%d/cancel", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+}
+
+func TestE2E_PurchaseOrderDeleteDraft(t *testing.T) {
+	router := setupE2ERouter(t)
+	seedE2EStore(t)
+	token := loginAs(t, router, "superadmin", "admin123")
+
+	supplierID := seedE2ESupplier(t)
+	productID := seedE2EProduct(t)
+	var poID int
+
+	t.Run("POST /api/purchase-orders creates draft to delete", func(t *testing.T) {
+		body := fmt.Sprintf(`{
+			"supplier_id": %d, "store_id": 1, "notes": "delete me",
+			"items": [{"product_id": %d, "qty_ordered": 3, "unit_cost": 10000, "discount_amount": 0}]
+		}`, supplierID, productID)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/purchase-orders", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+		var resp struct{ Data struct{ ID int `json:"id"` } `json:"data"` }
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		poID = resp.Data.ID
+	})
+
+	t.Run("DELETE /api/purchase-orders/:id deletes draft", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/purchase-orders/%d", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("GET /api/purchase-orders/:id after delete returns 404", func(t *testing.T) {
+		require.Greater(t, poID, 0)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/api/purchase-orders/%d", poID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 

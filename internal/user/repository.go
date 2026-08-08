@@ -274,18 +274,28 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 }
 
 func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
+	var err error
 	if user.Password != "" {
-		_, err := r.db.Exec(ctx, `
+		_, err = r.db.Exec(ctx, `
 			UPDATE users SET username = $1, email = $2, password_hash = $3, role_id = $4, store_id = $5, reports_to = $6, is_active = $7, updated_at = NOW()
 			WHERE id = $8
 		`, user.Username, user.Email, user.Password, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
-		return err
+	} else {
+		_, err = r.db.Exec(ctx, `
+			UPDATE users SET username = $1, email = $2, role_id = $3, store_id = $4, reports_to = $5, is_active = $6, updated_at = NOW()
+			WHERE id = $7
+		`, user.Username, user.Email, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
 	}
-	_, err := r.db.Exec(ctx, `
-		UPDATE users SET username = $1, email = $2, role_id = $3, store_id = $4, reports_to = $5, is_active = $6, updated_at = NOW()
-		WHERE id = $7
-	`, user.Username, user.Email, user.RoleID, user.StoreID, user.ReportsToID, user.IsActive, user.ID)
+	if err == nil {
+		r.invalidateUserCache(user.Username)
+	}
 	return err
+}
+
+func (r *Repository) invalidateUserCache(username string) {
+	if r.cache != nil {
+		r.cache.Delete(fmt.Sprintf("user:username:%s", username))
+	}
 }
 
 func (r *Repository) DeleteUser(ctx context.Context, id int) error {

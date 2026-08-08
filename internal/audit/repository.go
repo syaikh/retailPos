@@ -97,7 +97,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 		return nil, 0, err
 	}
 
-	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, '') FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
+	query = `SELECT al.id, al.user_id, COALESCE(u.username, 'Unknown'), COALESCE(al.role, ''), al.action, al.entity_type, al.entity_id, COALESCE(al.ip_address::text, ''), COALESCE(al.user_agent, ''), to_char(al.created_at AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS+07:00'), COALESCE(al.description, ''), COALESCE(al.old_values, '{}'::jsonb), COALESCE(al.new_values, '{}'::jsonb) FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`
 	args2 := []interface{}{}
 	if userID != nil {
 		query += fmt.Sprintf(" AND al.user_id = $%d", len(args2)+1)
@@ -138,7 +138,7 @@ func (r *Repository) GetAuditLogs(ctx context.Context, limit, offset int, userID
 
 	for rows.Next() {
 		var al LogListItem
-		err = rows.Scan(&al.ID, &al.UserID, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description)
+		err = rows.Scan(&al.ID, &al.UserID, &al.Username, &al.Role, &al.Action, &al.EntityType, &al.EntityID, &al.IPAddress, &al.UserAgent, &al.CreatedAt, &al.Description, &al.OldValues, &al.NewValues)
 		if err != nil {
 			slog.Error("error scanning audit log row", "error", err)
 			continue
