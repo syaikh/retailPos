@@ -163,8 +163,6 @@ func TestBus_ChannelFullDoesNotBlockPublisher(t *testing.T) {
 	for i := 0; i < 1100; i++ {
 		_ = bus.Publish(context.Background(), "sale.created", nil)
 	}
-
-	time.Sleep(200 * time.Millisecond)
 }
 
 func TestBus_ConcurrentSafety(t *testing.T) {

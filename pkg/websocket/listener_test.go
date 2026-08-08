@@ -297,9 +297,6 @@ func TestNewStockAdjustedListener(t *testing.T) {
 		defer hub.Shutdown()
 
 		client := registerClient(t, hub, 1, nil, true)
-		time.Sleep(50 * time.Millisecond)
-		drainMessages(client.send)
-		time.Sleep(50 * time.Millisecond)
 		drainMessages(client.send)
 
 		mock := &mockProductLookup{

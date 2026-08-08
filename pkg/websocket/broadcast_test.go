@@ -131,7 +131,6 @@ func TestBroadcastProductUpdate_WithHub(t *testing.T) {
 	defer hub.Shutdown()
 
 	client := registerClient(t, hub, 1, nil, true)
-	time.Sleep(50 * time.Millisecond)
 	drainMessages(client.send)
 
 	BroadcastProductUpdate(hub, ProductUpdateEvent{
@@ -196,10 +195,6 @@ func TestBroadcastStockUpdate_StoreFiltering(t *testing.T) {
 
 	regularClient := registerClient(t, hub, 1, store2, false)
 	adminClient := registerClient(t, hub, 2, store1, true)
-	time.Sleep(50 * time.Millisecond)
-	drainMessages(regularClient.send)
-	drainMessages(adminClient.send)
-	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 	drainMessages(adminClient.send)
 
@@ -242,9 +237,6 @@ func TestBroadcastSaleCreated_StoreFiltering(t *testing.T) {
 	store2 := intPtr(2)
 
 	regularClient := registerClient(t, hub, 1, store2, false)
-	time.Sleep(50 * time.Millisecond)
-	drainMessages(regularClient.send)
-	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 
 	BroadcastSaleCreated(hub, SaleCreatedEvent{
@@ -271,10 +263,6 @@ func TestBroadcastProductUpdate_StoreFiltering(t *testing.T) {
 
 	regularClient := registerClient(t, hub, 1, store2, false)
 	adminClient := registerClient(t, hub, 2, store1, true)
-	time.Sleep(50 * time.Millisecond)
-	drainMessages(regularClient.send)
-	drainMessages(adminClient.send)
-	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 	drainMessages(adminClient.send)
 
@@ -505,9 +493,6 @@ func TestBroadcastLowStockAlert_StoreFiltering(t *testing.T) {
 	store2 := intPtr(2)
 
 	regularClient := registerClient(t, hub, 1, store2, false)
-	time.Sleep(50 * time.Millisecond)
-	drainMessages(regularClient.send)
-	time.Sleep(50 * time.Millisecond)
 	drainMessages(regularClient.send)
 
 	BroadcastLowStockAlert(hub, LowStockAlertEvent{

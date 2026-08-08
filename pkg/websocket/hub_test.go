@@ -196,7 +196,6 @@ func TestHub_Shutdown(t *testing.T) {
 	}
 
 	go hub.Run()
-	time.Sleep(50 * time.Millisecond)
 
 	registerClient(t, hub, 1, nil, true)
 	registerClient(t, hub, 2, nil, false)
