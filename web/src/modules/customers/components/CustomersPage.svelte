@@ -6,6 +6,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { Pagination, ImportWizard } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
+  import { labels, t } from '$shared/i18n';
   import { getCustomerGroups } from '$modules/customer-groups';
   import { ArrowLeft } from 'lucide-svelte';
   import CreateCustomerModal from './CreateCustomerModal.svelte';
@@ -51,21 +52,21 @@
     const eligibleIds = customers.filter(c => selectedIds.has(c.id) && (c.is_active !== false) !== bulkStatusTargetIsActive).map(c => c.id);
     const skippedCount = selectedIds.size - eligibleIds.length;
     if (eligibleIds.length === 0) {
-      toast.warning(`All selected customer(s) already ${bulkStatusTargetIsActive ? 'Active' : 'Deactivated'}`);
+      toast.warning(t('toastAllSelectedCustomersAlreadyStatus', { status: bulkStatusTargetIsActive ? labels.active : labels.inactive }));
       isBulkUpdating = false;
       showBulkStatusModal = false;
       return;
     }
     try {
       await apiClient.post('/customers/bulk/status', { ids: eligibleIds, is_active: bulkStatusTargetIsActive });
-      toast.success(`${bulkStatusTargetIsActive ? 'Activated' : 'Deactivated'} ${eligibleIds.length} customer(s)`);
+      toast.success(t(bulkStatusTargetIsActive ? 'toastActivatedCustomersCount' : 'toastDeactivatedCustomersCount', { count: eligibleIds.length }));
       if (skippedCount > 0) {
-        toast.warning(`${skippedCount} customer(s) already ${bulkStatusTargetIsActive ? 'Active' : 'Deactivated'}`);
+        toast.warning(t('toastCustomersSkippedAlreadyStatus', { count: skippedCount, status: bulkStatusTargetIsActive ? labels.active : labels.inactive }));
       }
       selectedIds = new Set();
       await load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to update customer status');
+      toast.error(err?.response?.data?.error || labels.toastFailedUpdateCustomerStatus);
     } finally {
       isBulkUpdating = false;
       showBulkStatusModal = false;
@@ -77,11 +78,11 @@
     try {
       const ids = Array.from(selectedIds);
       await apiClient.post('/customers/bulk/delete', { ids });
-      toast.success(`Deleted ${ids.length} customer(s)`);
+      toast.success(t('toastDeletedCustomersCount', { count: ids.length }));
       selectedIds = new Set();
       await load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to delete customers');
+      toast.error(err?.response?.data?.error || labels.toastFailedDeleteCustomers);
     } finally {
       isBulkDeleting = false;
       showBulkDeleteModal = false;
@@ -124,26 +125,26 @@
     let valid = true;
 
     if (!formName.trim()) {
-      errors.name = 'Name is required';
+      errors.name = labels.errorNameRequired;
       valid = false;
     } else if (formName.trim().length > 200) {
-      errors.name = 'Name must be at most 200 characters';
+      errors.name = labels.errorNameMaxLength;
       valid = false;
     }
 
     if (!formPhone.trim()) {
-      errors.phone = 'Phone is required';
+      errors.phone = labels.errorPhoneRequired;
       valid = false;
     } else if (!validatePhone(formPhone.trim())) {
-      errors.phone = 'Invalid phone format';
+      errors.phone = labels.errorPhoneInvalid;
       valid = false;
     }
 
     if (!formEmail.trim()) {
-      errors.email = 'Email is required';
+      errors.email = labels.errorEmailRequired;
       valid = false;
     } else if (!validateEmail(formEmail.trim())) {
-      errors.email = 'Invalid email format';
+      errors.email = labels.errorEmailInvalid;
       valid = false;
     }
 
@@ -183,7 +184,7 @@
       sortCustomers();
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.response?.data?.error || e?.message || 'Failed to load customers');
+      toast.error(e?.response?.data?.error || e?.message || labels.toastFailedLoadCustomers);
     } finally {
       loading = false;
     }
@@ -250,12 +251,12 @@
         note: formNote.trim() || null,
         customer_group_id: formGroupId,
       });
-      toast.success(`Customer "${formName.trim()}" created successfully`);
+      toast.success(t('toastCustomerCreated', { name: formName.trim() }));
       resetForm();
       showCreateModal = false;
       await load();
     } catch (e: any) {
-      const msg = e?.response?.data?.error || 'Failed to create customer';
+      const msg = e?.response?.data?.error || labels.toastFailedCreateCustomer;
       toast.error(msg);
     } finally {
       creating = false;
@@ -279,12 +280,12 @@
         is_active: data.is_active,
         customer_group_id: data.customer_group_id,
       });
-      toast.success('Customer updated successfully');
+      toast.success(labels.toastCustomerUpdated);
       showEditModal = false;
       editTarget = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to update customer');
+      toast.error(e?.response?.data?.error || labels.toastFailedUpdateCustomer);
     } finally {
       isSaving = false;
     }
@@ -305,12 +306,12 @@
     deactivating = true;
     try {
       await apiClient.delete(`/customers/${deactivateTarget.id}`);
-      toast.success(`Customer "${deactivateTarget.name}" deactivated`);
+      toast.success(t('toastCustomerDeactivated', { name: deactivateTarget.name }));
       showDeactivateModal = false;
       deactivateTarget = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to deactivate customer');
+      toast.error(e?.response?.data?.error || labels.toastFailedDeactivateCustomer);
     } finally {
       deactivating = false;
     }
@@ -328,7 +329,7 @@
 
   function handleImportComplete() {
     load();
-    toast.success('Customer import completed');
+    toast.success(labels.toastCustomerImportCompleted);
   }
 
   onMount(async () => {
@@ -362,11 +363,11 @@
         onclick={handleBackToGroups}
       >
         <ArrowLeft size={16} />
-        Kembali
+        {labels.back}
       </button>
       <span class="text-border-default">|</span>
       <span class="text-sm text-text-muted">
-        Menampilkan anggota dari: <span class="font-medium text-text-secondary">{backToGroups.groupName}</span>
+        {labels.showingMembersFrom} <span class="font-medium text-text-secondary">{backToGroups.groupName}</span>
       </span>
     </div>
   {/if}
@@ -468,7 +469,7 @@
 <ImportWizard
   bind:open={showImportWizard}
   module="customers"
-  displayName="Customers"
+  displayName={labels.customers}
   onComplete={handleImportComplete}
 />
 

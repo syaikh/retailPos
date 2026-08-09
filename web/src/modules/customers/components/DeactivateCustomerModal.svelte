@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Modal } from '$shared/ui';
   import { Trash2, Loader2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -17,17 +18,17 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title="Deactivate Customer" size="sm">
+<Modal bind:open={open} title={labels.deactivateCustomer} size="sm">
   <p class="text-sm text-text-secondary">
-    Are you sure you want to deactivate <strong class="text-text-primary">{targetName}</strong>? This will hide them from active listings but preserve their history.
+    {labels.deactivateConfirmPrefix} <strong class="text-text-primary">{targetName}</strong>? {labels.deactivateConfirmSuffix}
   </p>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={oncancel}>Cancel</Button>
+    <Button variant="secondary" class="px-5" onclick={oncancel}>{labels.cancel}</Button>
     <Button variant="danger" class="px-5" disabled={deactivating} onclick={onconfirm}>
       {#if deactivating}
-        <Loader2 size={14} class="animate-spin mr-1" /> Deactivating...
+        <Loader2 size={14} class="animate-spin mr-1" /> {labels.deactivating}
       {:else}
-        <Trash2 size={14} class="mr-1" /> Deactivate
+        <Trash2 size={14} class="mr-1" /> {labels.deactivate}
       {/if}
     </Button>
   {/snippet}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Input, Modal } from '$shared/ui';
   import { Save, Loader2, X } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -68,26 +69,26 @@
     let valid = true;
 
     if (!name.trim()) {
-      errors.name = 'Name is required';
+      errors.name = labels.errorNameRequired;
       valid = false;
     } else if (name.trim().length > 200) {
-      errors.name = 'Name must be at most 200 characters';
+      errors.name = labels.errorNameMaxLength;
       valid = false;
     }
 
     if (!phone.trim()) {
-      errors.phone = 'Phone is required';
+      errors.phone = labels.errorPhoneRequired;
       valid = false;
     } else if (!validatePhone(phone.trim())) {
-      errors.phone = 'Invalid phone format';
+      errors.phone = labels.errorPhoneInvalid;
       valid = false;
     }
 
     if (!email.trim()) {
-      errors.email = 'Email is required';
+      errors.email = labels.errorEmailRequired;
       valid = false;
     } else if (!validateEmail(email.trim())) {
-      errors.email = 'Invalid email format';
+      errors.email = labels.errorEmailInvalid;
       valid = false;
     }
 
@@ -113,14 +114,14 @@
   }
 </script>
 
-<Modal bind:open={open} title="Edit Customer" size="md">
+<Modal bind:open={open} title={labels.editCustomer} size="md">
   <div class="space-y-4">
     <div class="space-y-1">
-      <label for="edit-name" class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
+      <label for="edit-name" class="text-xs font-semibold text-text-secondary">{labels.name} <span class="text-danger">*</span></label>
       <Input
         id="edit-name"
         class={fieldErrors.name ? 'border-danger' : ''}
-        placeholder="e.g. John Doe"
+        placeholder={labels.egName}
         bind:value={name}
       />
       {#if fieldErrors.name}
@@ -129,11 +130,11 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label for="edit-phone" class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
+        <label for="edit-phone" class="text-xs font-semibold text-text-secondary">{labels.phone} <span class="text-danger">*</span></label>
         <Input
           id="edit-phone"
           class={fieldErrors.phone ? 'border-danger' : ''}
-          placeholder="e.g. 08123456789"
+          placeholder={labels.egPhone}
           bind:value={phone}
         />
         {#if fieldErrors.phone}
@@ -141,11 +142,11 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label for="edit-email" class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
+        <label for="edit-email" class="text-xs font-semibold text-text-secondary">{labels.email} <span class="text-danger">*</span></label>
         <Input
           id="edit-email"
           class={fieldErrors.email ? 'border-danger' : ''}
-          placeholder="e.g. john@example.com"
+          placeholder={labels.egEmail}
           bind:value={email}
         />
         {#if fieldErrors.email}
@@ -154,48 +155,48 @@
       </div>
     </div>
     <div class="space-y-1">
-      <label for="edit-address" class="text-xs font-semibold text-text-secondary">Address</label>
+      <label for="edit-address" class="text-xs font-semibold text-text-secondary">{labels.address}</label>
       <Input
         id="edit-address"
-        placeholder="e.g. 123 Main St"
+        placeholder={labels.egAddress}
         bind:value={address}
       />
     </div>
     <div class="space-y-1">
-      <label for="edit-group" class="text-xs font-semibold text-text-secondary">Customer Group</label>
+      <label for="edit-group" class="text-xs font-semibold text-text-secondary">{labels.customerGroup}</label>
       <select
         id="edit-group"
         class="w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 transition-colors duration-200"
         bind:value={groupId}
       >
-        <option value={null}>— No Group —</option>
+        <option value={null}>{labels.noGroup}</option>
         {#each groups as g}
           <option value={g.id}>{g.name}</option>
         {/each}
       </select>
     </div>
     <div class="space-y-1">
-      <label for="edit-note" class="text-xs font-semibold text-text-secondary">Note</label>
+      <label for="edit-note" class="text-xs font-semibold text-text-secondary">{labels.note}</label>
       <Input
         tag="textarea"
         id="edit-note"
         class="min-h-[60px] resize-none"
-        placeholder="Optional notes about this customer"
+        placeholder={labels.optionalNotesCustomer}
         bind:value={note}
       />
     </div>
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" bind:checked={isActive} />
-      <span class="text-text-secondary font-medium">Active</span>
+      <span class="text-text-secondary font-medium">{labels.active}</span>
     </label>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={handleCancel}>Cancel</Button>
+    <Button variant="secondary" class="px-5" onclick={handleCancel}>{labels.cancel}</Button>
     <Button variant="primary" class="px-5" disabled={saving} onclick={handleSave}>
       {#if saving}
-        <Loader2 size={14} class="animate-spin mr-1" /> Saving...
+        <Loader2 size={14} class="animate-spin mr-1" /> {labels.saving}
       {:else}
-        <Save size={14} class="mr-1" /> Save Changes
+        <Save size={14} class="mr-1" /> {labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}

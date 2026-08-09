@@ -19,12 +19,16 @@ describe('BulkStatusModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Modal } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('renders Modal with "Bulk Update Status" title', () => {
-    expect(src).toContain('title="Bulk Update Status"');
+    expect(src).toContain('title={labels.bulkUpdateStatus}');
   });
 
   it('has Activate/Deactivate toggle buttons', () => {
-    expect(src).toContain('Activate');
-    expect(src).toContain('Deactivate');
+    expect(src).toContain('{labels.activate}');
+    expect(src).toContain('{labels.deactivate}');
   });
 });

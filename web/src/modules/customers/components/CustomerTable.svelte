@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { Pencil, Trash2, Search } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
 
   let {
     customers = [],
@@ -66,26 +67,26 @@
   <thead class="bg-muted/50">
     <tr>
       <th class="p-4 font-semibold w-12">
-        <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all customers" />
+        <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label={labels.selectAllCustomers} />
       </th>
       <th class="text-left p-4 font-semibold w-[18%]">
-        <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        <SortableHeader label={labels.nameLabel} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-left p-4 font-semibold w-[11%]">
-        <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        <SortableHeader label={labels.phoneLabel} column="phone" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
       <th class="text-left p-4 font-semibold w-[14%]">
-        <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        <SortableHeader label={labels.emailLabel} column="email" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-left p-4 font-semibold w-[14%]">ADDRESS</th>
+      <th class="text-left p-4 font-semibold w-[14%]">{labels.addressLabel}</th>
       <th class="text-left p-4 font-semibold w-[11%]">
-        <SortableHeader label="GROUP" column="group" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        <SortableHeader label={labels.groupLabel} column="group" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-left p-4 font-semibold w-[11%]">NOTE</th>
+      <th class="text-left p-4 font-semibold w-[11%]">{labels.notesLabel}</th>
       <th class="text-left p-4 font-semibold w-[10%]">
-        <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+        <SortableHeader label={labels.statusLabel} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
       </th>
-      <th class="text-center p-4 font-semibold w-20">Actions</th>
+      <th class="text-center p-4 font-semibold w-20">{labels.actionsLabel}</th>
     </tr>
   </thead>
   <tbody>
@@ -111,10 +112,10 @@
               <Search size={32} class="text-text-muted" />
             </div>
             <p class="text-text-primary font-semibold mt-4">
-              {searchQuery ? 'No customers found' : 'No customers yet'}
+              {searchQuery ? labels.noCustomersFound : labels.noCustomersYet}
             </p>
             <p class="text-text-muted text-sm mt-1">
-              {searchQuery ? `No customers matching "${searchQuery}"` : 'Start by adding your first customer'}
+              {searchQuery ? t('noCustomersMatching', { query: searchQuery }) : labels.addFirstCustomer}
             </p>
           </div>
         </td>
@@ -123,7 +124,7 @@
       {#each customers as c}
         <tr class="border-t border-border hover:bg-surface-hover/50 transition-colors">
           <td class="px-4 py-1.5 h-12 w-12" onclick={(e) => e.stopPropagation()}>
-            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label="Select {c.name}" />
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(c.id)} onchange={() => toggleSelect(c.id)} aria-label={t('selectCustomerWithName', { name: c.name })} />
           </td>
           <td class="px-4 py-1.5 h-12 overflow-hidden">
             <div class="flex items-center gap-3">
@@ -158,20 +159,20 @@
           </td>
           <td class="px-4 py-1.5 h-12 overflow-hidden">
             {#if c.is_active !== false}
-              <Badge variant="success" size="sm">Active</Badge>
+              <Badge variant="success" size="sm">{labels.active}</Badge>
             {:else}
-              <Badge variant="danger" size="sm">Inactive</Badge>
+              <Badge variant="danger" size="sm">{labels.inactive}</Badge>
             {/if}
           </td>
           <td class="px-4 py-1.5 h-12 overflow-hidden text-center">
             <div class="flex items-center justify-center gap-1">
               {#if canUpdate}
-                <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onedit(c)} title="Edit" aria-label="Edit">
+                <Button variant="ghost" size="icon" class="text-text-muted hover:text-primary-light transition-all active:scale-90" onclick={() => onedit(c)} title={labels.edit} aria-label={labels.edit}>
                   <Pencil size={14} />
                 </Button>
               {/if}
               {#if canDelete && c.is_active !== false}
-                <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => ondeactivate(c)} title="Deactivate" aria-label="Deactivate">
+                <Button variant="ghost" size="icon" class="text-text-muted hover:text-danger hover:bg-danger-subtle transition-all active:scale-90" onclick={() => ondeactivate(c)} title={labels.deactivate} aria-label={labels.deactivate}>
                   <Trash2 size={14} />
                 </Button>
               {/if}

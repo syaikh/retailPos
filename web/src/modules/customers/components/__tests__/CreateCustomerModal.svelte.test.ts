@@ -19,8 +19,12 @@ describe('CreateCustomerModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Input, Modal } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('renders Modal with "Add Customer" title', () => {
-    expect(src).toContain('title="Add Customer"');
+    expect(src).toContain('title={labels.addCustomer}');
   });
 
   it('has form fields for name, phone, email, note', () => {

@@ -23,6 +23,10 @@ describe('CustomersPage.svelte source-structure guards', () => {
     expect(src).toContain("import { Pagination, ImportWizard } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('imports extracted modal and table components', () => {
     expect(src).toContain("import CreateCustomerModal from './CreateCustomerModal.svelte'");
     expect(src).toContain("import DeactivateCustomerModal from './DeactivateCustomerModal.svelte'");

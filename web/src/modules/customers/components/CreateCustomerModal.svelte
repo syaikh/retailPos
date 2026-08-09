@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Input, Modal } from '$shared/ui';
   import { UserPlus, Loader2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -29,14 +30,14 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title="Add Customer" size="md">
+<Modal bind:open={open} title={labels.addCustomer} size="md">
   <div class="space-y-4">
     <div class="space-y-1">
-      <label for="customer-name" class="text-xs font-semibold text-text-secondary">Name <span class="text-danger">*</span></label>
+      <label for="customer-name" class="text-xs font-semibold text-text-secondary">{labels.name} <span class="text-danger">*</span></label>
       <Input
         id="customer-name"
         class={fieldErrors.name ? 'border-danger' : ''}
-        placeholder="e.g. John Doe"
+        placeholder={labels.egName}
         bind:value={formName}
       />
       {#if fieldErrors.name}
@@ -45,11 +46,11 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label for="customer-phone" class="text-xs font-semibold text-text-secondary">Phone <span class="text-danger">*</span></label>
+        <label for="customer-phone" class="text-xs font-semibold text-text-secondary">{labels.phone} <span class="text-danger">*</span></label>
         <Input
           id="customer-phone"
           class={fieldErrors.phone ? 'border-danger' : ''}
-          placeholder="e.g. 08123456789"
+          placeholder={labels.egPhone}
           bind:value={formPhone}
         />
         {#if fieldErrors.phone}
@@ -57,11 +58,11 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label for="customer-email" class="text-xs font-semibold text-text-secondary">Email <span class="text-danger">*</span></label>
+        <label for="customer-email" class="text-xs font-semibold text-text-secondary">{labels.email} <span class="text-danger">*</span></label>
         <Input
           id="customer-email"
           class={fieldErrors.email ? 'border-danger' : ''}
-          placeholder="e.g. john@example.com"
+          placeholder={labels.egEmail}
           bind:value={formEmail}
         />
         {#if fieldErrors.email}
@@ -70,44 +71,44 @@
       </div>
     </div>
     <div class="space-y-1">
-      <label for="customer-address" class="text-xs font-semibold text-text-secondary">Address</label>
+      <label for="customer-address" class="text-xs font-semibold text-text-secondary">{labels.address}</label>
       <Input
         id="customer-address"
-        placeholder="e.g. 123 Main St"
+        placeholder={labels.egAddress}
         bind:value={formAddress}
       />
     </div>
     <div class="space-y-1">
-      <label for="customer-group" class="text-xs font-semibold text-text-secondary">Customer Group</label>
+      <label for="customer-group" class="text-xs font-semibold text-text-secondary">{labels.customerGroup}</label>
       <select
         id="customer-group"
         class="w-full rounded-xl border border-border-default bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary focus:border-primary-default focus:outline-none focus:ring-2 focus:ring-primary-default/20 transition-colors duration-200"
         bind:value={formGroupId}
       >
-        <option value={null}>— No Group —</option>
+        <option value={null}>{labels.noGroup}</option>
         {#each groups as g}
           <option value={g.id}>{g.name}</option>
         {/each}
       </select>
     </div>
     <div class="space-y-1">
-      <label for="customer-note" class="text-xs font-semibold text-text-secondary">Note</label>
+      <label for="customer-note" class="text-xs font-semibold text-text-secondary">{labels.note}</label>
       <Input
         tag="textarea"
         id="customer-note"
         class="min-h-[60px] resize-none"
-        placeholder="Optional notes about this customer"
+        placeholder={labels.optionalNotesCustomer}
         bind:value={formNote}
       />
     </div>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => open = false}>Cancel</Button>
+    <Button variant="secondary" class="px-5" onclick={() => open = false}>{labels.cancel}</Button>
     <Button variant="primary" class="px-5" disabled={creating} onclick={oncreate}>
       {#if creating}
-        <Loader2 size={14} class="animate-spin mr-1" /> Creating...
+        <Loader2 size={14} class="animate-spin mr-1" /> {labels.creating}
       {:else}
-        <UserPlus size={14} class="mr-1" /> Create Customer
+        <UserPlus size={14} class="mr-1" /> {labels.createCustomer}
       {/if}
     </Button>
   {/snippet}

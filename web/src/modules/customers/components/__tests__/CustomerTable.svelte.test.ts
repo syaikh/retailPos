@@ -15,6 +15,10 @@ describe('CustomerTable.svelte source-structure guards', () => {
     expect(src).toContain("import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $bindable for selectedIds, sortBy, sortDir', () => {
     expect(src).toContain('selectedIds = $bindable');
     expect(src).toContain('sortBy = $bindable');
@@ -42,7 +46,7 @@ describe('CustomerTable.svelte source-structure guards', () => {
   });
 
   it('handles empty state', () => {
-    expect(src).toContain('No customers yet');
+    expect(src).toContain('labels.noCustomersYet');
   });
 
   it('does not have inline editing row', () => {

@@ -19,8 +19,12 @@ describe('DeactivateCustomerModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Modal } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('renders Modal with "Deactivate Customer" title', () => {
-    expect(src).toContain('title="Deactivate Customer"');
+    expect(src).toContain('title={labels.deactivateCustomer}');
   });
 
   it('shows target name in confirmation', () => {
