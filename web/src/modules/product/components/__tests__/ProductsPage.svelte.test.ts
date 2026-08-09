@@ -24,6 +24,10 @@ describe('ProductsPage.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('imports child components (CategoryFilterModal, ProductFormModal, etc.)', () => {
     expect(src).toContain("import CategoryFilterModal");
     expect(src).toContain("import ProductActionsDropdown");

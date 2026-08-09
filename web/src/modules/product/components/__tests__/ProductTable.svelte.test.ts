@@ -19,6 +19,10 @@ describe('ProductTable.svelte source-structure guards', () => {
     expect(src).toContain("import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $bindable for selectedIds, sortBy, sortDir, showCopySuccess', () => {
     expect(src).toContain('selectedIds = $bindable');
     expect(src).toContain('sortBy = $bindable');
@@ -49,11 +53,12 @@ describe('ProductTable.svelte source-structure guards', () => {
   });
 
   it('handles empty state', () => {
-    expect(src).toContain('No products found');
+    expect(src).toContain('{labels.noProductsFound}');
+    expect(src).toContain('{labels.tryAdjustingOrAddFirstProduct}');
   });
 
   it('renders table with sortable headers', () => {
-    expect(src).toContain('PRODUCT NAME');
-    expect(src).toContain('CATEGORY');
+    expect(src).toContain('label={labels.productName}');
+    expect(src).toContain('label={labels.category}');
   });
 });

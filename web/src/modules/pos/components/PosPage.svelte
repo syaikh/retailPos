@@ -19,6 +19,7 @@
     import { ShoppingCart, Hand, RotateCcw } from 'lucide-svelte';
     import { useAuthStore } from '$modules/auth';
     import { useShiftStore } from '$modules/shifts';
+    import { labels, t } from '$shared/i18n';
     import ProductSearchPanel from './ProductSearchPanel.svelte';
     import PosProductTable from './PosProductTable.svelte';
     import CartPanel from './CartPanel.svelte';
@@ -92,7 +93,7 @@ let selectedProductIndex = $state(-1);
    let customerResults: Customer[] = $state([]);
    let customerSearching = $state(false);
    let selectedCustomerLabel = $derived((() => {
-     if (!selectedCustomerId) return 'Walk-in / General';
+     if (!selectedCustomerId) return labels.walkInGeneral;
      return customers.find(c => c.id === selectedCustomerId)?.name
        || customerResults.find(c => c.id === selectedCustomerId)?.name
        || '';
@@ -146,7 +147,7 @@ let selectedProductIndex = $state(-1);
       total = r.data.total || 0;
       selectedProductIndex = products.length > 0 ? 0 : -1;
     } catch (err) {
-      toast.error('Failed to load products');
+      toast.error(labels.toastFailedToLoadProducts);
     } finally {
       if (!isSearch) loading = false;
       isSearching = false;
@@ -269,8 +270,8 @@ let selectedProductIndex = $state(-1);
       }
       applyCartSession(session);
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.message || 'Failed to add item';
-      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to add item');
+      const errMsg = err.response?.data?.error || err.message || labels.toastFailedToAddItem;
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || labels.toastFailedToAddItem);
     } finally {
       cartLoading = false;
     }
@@ -283,8 +284,8 @@ let selectedProductIndex = $state(-1);
       const session = await removeCartItem(activeCartId, id);
       applyCartSession(session);
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.message || 'Failed to remove item';
-      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to remove item');
+      const errMsg = err.response?.data?.error || err.message || labels.toastFailedToRemoveItem;
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || labels.toastFailedToRemoveItem);
     } finally {
       cartLoading = false;
     }
@@ -306,8 +307,8 @@ let selectedProductIndex = $state(-1);
         const session = await updateCartItemQuantity(activeCartId, id, finalQty);
         applyCartSession(session);
       } catch (err: any) {
-        const errMsg = err.response?.data?.error || err.message || 'Failed to update quantity';
-        toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to update quantity');
+        const errMsg = err.response?.data?.error || err.message || labels.toastFailedToUpdateQuantity;
+        toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || labels.toastFailedToUpdateQuantity);
       } finally {
         cartLoading = false;
       }
@@ -330,7 +331,7 @@ let selectedProductIndex = $state(-1);
 
    async function processCheckout(payments?: PaymentAllocation[]) {
     if (!activeCartId || cartItems.length === 0) {
-      toast.error('Cart is empty');
+      toast.error(labels.toastCartIsEmpty);
       return;
     }
     checkingOut = true;
@@ -340,14 +341,14 @@ let selectedProductIndex = $state(-1);
       if (payments) {
         capturedPayments = payments;
       }
-      toast.success('Sale completed');
+      toast.success(labels.toastSaleCompleted);
       cartSession = null;
       cartItems = [];
       activeCartId = null;
       await fetchProducts(false);
     } catch (err: any) {
       const errData = err.response?.data?.error;
-      const errMsg = typeof errData === 'string' ? errData : errData?.message || 'Checkout failed';
+      const errMsg = typeof errData === 'string' ? errData : errData?.message || labels.toastCheckoutFailed;
       toast.error(errMsg);
       throw err;
     } finally {
@@ -365,8 +366,8 @@ let selectedProductIndex = $state(-1);
       const last = sessions[sessions.length - 1];
       if (last) applyCartSession(last);
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.message || 'Failed to clear cart';
-      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Failed to clear cart');
+      const errMsg = err.response?.data?.error || err.message || labels.toastFailedToClearCart;
+      toast.error(typeof errMsg === 'string' ? errMsg : errMsg?.message || labels.toastFailedToClearCart);
     } finally {
       cartLoading = false;
     }
@@ -374,20 +375,20 @@ let selectedProductIndex = $state(-1);
 
   async function holdSale() {
     if (!activeCartId || cartItems.length === 0) {
-      toast.error('Cart is empty');
+      toast.error(labels.toastCartIsEmpty);
       return;
     }
     holdingSale = true;
     try {
       await holdCart(activeCartId);
-      toast.success('Sale held');
+      toast.success(labels.toastSaleHeld);
       cartSession = null;
       cartItems = [];
       activeCartId = null;
       await fetchHeldCarts();
     } catch (err: any) {
       const errData = err.response?.data?.error;
-      toast.error(typeof errData === 'string' ? errData : errData?.message || 'Failed to hold sale');
+      toast.error(typeof errData === 'string' ? errData : errData?.message || labels.toastFailedToHoldSale);
     } finally {
       holdingSale = false;
     }
@@ -406,19 +407,19 @@ let selectedProductIndex = $state(-1);
       const session = await resumeCart(cartId);
       applyCartSession(session);
       showParkedModal = false;
-      toast.success('Sale resumed');
+      toast.success(labels.toastSaleResumed);
       await fetchHeldCarts();
     } catch (err: any) {
       const errData = err.response?.data?.error;
-      toast.error(typeof errData === 'string' ? errData : errData?.message || 'Failed to resume sale');
+      toast.error(typeof errData === 'string' ? errData : errData?.message || labels.toastFailedToResumeSale);
     }
   }
 
    function buildReceiptPayload(sale: Sale, payments: PaymentAllocation[], customer: Customer | undefined) {
     const saleTaxAmount = sale.tax || 0;
     const paymentsList = payments.length > 0
-      ? payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ')
-      : (sale.payment_method || 'Cash');
+      ? payments.map(p => `${p.payment_method_code}: ${labels.currencySymbol} ${p.amount.toLocaleString('id-ID')}`).join(', ')
+      : (sale.payment_method || labels.cash);
     return {
       invoice_number: sale.invoice_number,
       created_at: sale.created_at,
@@ -483,7 +484,7 @@ let selectedProductIndex = $state(-1);
 
    function openCheckoutModal() {
     if (cartItems.length === 0) {
-      toast.error('Cart is empty');
+      toast.error(labels.toastCartIsEmpty);
       return;
     }
     showCheckoutModal = true;
@@ -502,7 +503,7 @@ let selectedProductIndex = $state(-1);
      processCheckout(payments).then(() => {
        if (lastSale && lastSale.items) {
          const taxAmt = lastSale.tax || 0;
-         const paymentLines = payments.map(p => `${p.payment_method_code}: Rp ${p.amount.toLocaleString('id-ID')}`).join(', ');
+         const paymentLines = payments.map(p => `${p.payment_method_code}: ${labels.currencySymbol} ${p.amount.toLocaleString('id-ID')}`).join(', ');
          printReceiptStore.set(buildReceiptPayload(lastSale, payments, customer));
          setTimeout(() => {
            window.print();
@@ -511,7 +512,7 @@ let selectedProductIndex = $state(-1);
        }
      }).catch((err: any) => {
        console.error('Checkout failed:', err);
-       toast.error('Checkout failed. Please try again.');
+       toast.error(labels.toastCheckoutFailedRetry);
      });
     }
 
@@ -528,7 +529,7 @@ let selectedProductIndex = $state(-1);
       event.preventDefault();
       if (cartItems.length > 0) {
         clearCart();
-        toast.info('Cart cleared');
+        toast.info(labels.toastCartCleared);
       }
       return;
     }
@@ -627,7 +628,7 @@ let selectedProductIndex = $state(-1);
       // @display-only — flow guard navigasi UX: cashier tanpa shift aktif diarahkan ke /shifts.
       const userRole = typeof authStore.user?.role === 'string' ? authStore.user.role : authStore.user?.role?.name ?? '';
       if (userRole === 'cashier' && !shiftStore.activeShift) {
-        toast.error('Anda harus membuka shift terlebih dahulu');
+        toast.error(labels.toastMustOpenShiftFirst);
         goto('/shifts');
         return;
       }
@@ -714,12 +715,12 @@ let selectedProductIndex = $state(-1);
       onclick={() => showCart = !showCart}
     >
       <span class="flex items-center gap-2">
-        <span class="text-primary-light">Cart</span>
+        <span class="text-primary-light">{labels.cart}</span>
         {#if totalItems > 0}
-          <span class="px-2 py-0.5 rounded-full bg-primary-subtle text-primary-light text-xs font-semibold">{totalItems} items</span>
+          <span class="px-2 py-0.5 rounded-full bg-primary-subtle text-primary-light text-xs font-semibold">{t('itemsCount', { count: totalItems })}</span>
         {/if}
       </span>
-      <span class="text-text-muted">{showCart ? 'Hide' : 'Show'}</span>
+      <span class="text-text-muted">{showCart ? labels.hide : labels.show}</span>
     </button>
     {#if showCart}
       <div class="mt-2">

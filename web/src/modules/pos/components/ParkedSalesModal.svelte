@@ -4,6 +4,7 @@
   import { X, RotateCcw } from 'lucide-svelte';
   import { tick } from 'svelte';
   import type { CartSession } from '../types';
+  import { labels, t } from '$shared/i18n';
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
@@ -50,22 +51,22 @@
     <div class="absolute inset-0 bg-black/60" onclick={close} role="presentation"></div>
     <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="parked-modal-heading">
       <div class="flex items-center justify-between mb-4">
-        <h2 id="parked-modal-heading" class="text-lg font-bold text-text-primary">Held Sales</h2>
-        <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Close">
+        <h2 id="parked-modal-heading" class="text-lg font-bold text-text-primary">{labels.heldSales}</h2>
+        <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label={labels.close}>
           <X size={18} />
         </button>
       </div>
 
       {#if heldCarts.length === 0}
-        <p class="text-sm text-text-muted text-center py-8">No held sales</p>
+        <p class="text-sm text-text-muted text-center py-8">{labels.noHeldSales}</p>
       {:else}
         <div class="space-y-2">
           {#each heldCarts as cart (cart.id)}
             <div class="flex items-center justify-between px-3 py-3 rounded-lg border border-border hover:border-primary/40 transition-colors">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-text-primary truncate">Cart #{cart.id}</p>
+                <p class="text-sm font-medium text-text-primary truncate">{t('cartWithId', { id: cart.id })}</p>
                 <p class="text-xs text-text-muted">
-                  Rp {cart.total_amount?.toLocaleString('id-ID') || '0'} · {cart.items?.length || 0} items
+                  {labels.currencySymbol} {cart.total_amount?.toLocaleString('id-ID') || '0'} · {t('itemsCount', { count: cart.items?.length || 0 })}
                 </p>
               </div>
               <div class="flex items-center gap-1.5 shrink-0 ml-3">
@@ -77,7 +78,7 @@
                   class="text-xs text-primary-light hover:bg-primary-subtle"
                 >
                   <RotateCcw size={12} />
-                  Recall
+                  {labels.recall}
                 </Button>
               </div>
             </div>

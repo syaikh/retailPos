@@ -8,6 +8,7 @@
   import { routePermissions } from '$app/config/permissions';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Roles } from '$shared/constants/roles';
+  import { labels } from '$shared/i18n';
 
   let {
     currentPath = $bindable('/'),
@@ -66,68 +67,68 @@
     return rbac.canAny(required);
   }
 
-  const navItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
-    { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
-    { label: 'Reports',       href: '/reports',           icon: BarChart3 },
-    { label: 'Shifts',        href: '/shifts',             icon: Clock },
-    { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
-    { label: 'Stock Opname',  href: '/stock-opnames',      icon: ClipboardList },
+  const navItems: Array<{ label: () => string; href: string; icon: any; iconText?: string }> = [
+    { label: () => labels.dashboard,     href: '/',                  icon: LayoutDashboard },
+    { label: () => labels.pointOfSale, href: '/pos',               icon: ShoppingCart },
+    { label: () => labels.transactionHistory,  href: '/transactions',       icon: undefined, iconText: 'Rp' },
+    { label: () => labels.reports,       href: '/reports',           icon: BarChart3 },
+    { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
+    { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
+    { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
   ];
 
   const masterDataSubItems = [
-    { label: 'Products',   href: '/inventory/products', icon: Package },
-    { label: 'Categories', href: '/categories',          icon: Tag },
-    { label: 'Brands',     href: '/brands',        icon: Building2 },
-    { label: 'Units',      href: '/units-of-measure', icon: Ruler },
-    { label: 'Customers',  href: '/customers',           icon: User },
-    { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
-    { label: 'Customer Groups', href: '/customer-groups', icon: Users },
-    { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
-    { label: 'Storage Locations', href: '/storage-locations', icon: Warehouse },
+    { label: () => labels.products,   href: '/inventory/products', icon: Package },
+    { label: () => labels.categories, href: '/categories',          icon: Tag },
+    { label: () => labels.brands,     href: '/brands',        icon: Building2 },
+    { label: () => labels.unitOfMeasureManagement,      href: '/units-of-measure', icon: Ruler },
+    { label: () => labels.customers,  href: '/customers',           icon: User },
+    { label: () => labels.pricingRules, href: '/pricing-rules', icon: Percent },
+    { label: () => labels.customerGroups, href: '/customer-groups', icon: Users },
+    { label: () => labels.supplierManagement,  href: '/suppliers',           icon: Truck },
+    { label: () => labels.storageLocations, href: '/storage-locations', icon: Warehouse },
   ];
 
-  const managerNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Dashboard',     href: '/',                  icon: LayoutDashboard },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
-    { label: 'Reports',       href: '/reports',           icon: BarChart3 },
-    { label: 'Shifts',        href: '/shifts',             icon: Clock },
-    { label: 'Purchase Orders', href: '/purchase-orders',  icon: Truck },
-    { label: 'Stock Opname',  href: '/stock-opnames',      icon: ClipboardList },
+  const managerNavItems: Array<{ label: () => string; href: string; icon: any; iconText?: string }> = [
+    { label: () => labels.dashboard,     href: '/',                  icon: LayoutDashboard },
+    { label: () => labels.transactionHistory,  href: '/transactions',       icon: undefined, iconText: 'Rp' },
+    { label: () => labels.reports,       href: '/reports',           icon: BarChart3 },
+    { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
+    { label: () => labels.purchaseOrders, href: '/purchase-orders',  icon: Truck },
+    { label: () => labels.stockOpname,  href: '/stock-opnames',      icon: ClipboardList },
   ];
 
   const managerMasterDataSubItems = [
-    { label: 'Products',   href: '/inventory/products', icon: Package },
-    { label: 'Categories', href: '/categories',          icon: Tag },
-    { label: 'Brands',     href: '/brands',        icon: Building2 },
-    { label: 'Units',      href: '/units-of-measure', icon: Ruler },
-    { label: 'Customers',  href: '/customers',           icon: User },
-    { label: 'Pricing Rules', href: '/pricing-rules', icon: Percent },
-    { label: 'Customer Groups', href: '/customer-groups', icon: Users },
-    { label: 'Suppliers',  href: '/suppliers',           icon: Truck },
-    { label: 'Storage Locations', href: '/storage-locations', icon: Warehouse },
+    { label: () => labels.products,   href: '/inventory/products', icon: Package },
+    { label: () => labels.categories, href: '/categories',          icon: Tag },
+    { label: () => labels.brands,     href: '/brands',        icon: Building2 },
+    { label: () => labels.unitOfMeasureManagement,      href: '/units-of-measure', icon: Ruler },
+    { label: () => labels.customers,  href: '/customers',           icon: User },
+    { label: () => labels.pricingRules, href: '/pricing-rules', icon: Percent },
+    { label: () => labels.customerGroups, href: '/customer-groups', icon: Users },
+    { label: () => labels.supplierManagement,  href: '/suppliers',           icon: Truck },
+    { label: () => labels.storageLocations, href: '/storage-locations', icon: Warehouse },
   ];
 
-  const cashierNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Point of Sale', href: '/pos',               icon: ShoppingCart },
-    { label: 'Transactions',  href: '/transactions',       icon: undefined, iconText: 'Rp' },
-    { label: 'Shifts',        href: '/shifts',             icon: Clock },
+  const cashierNavItems: Array<{ label: () => string; href: string; icon: any; iconText?: string }> = [
+    { label: () => labels.pointOfSale, href: '/pos',               icon: ShoppingCart },
+    { label: () => labels.transactionHistory,  href: '/transactions',       icon: undefined, iconText: 'Rp' },
+    { label: () => labels.shiftManagement,        href: '/shifts',             icon: Clock },
   ];
 
-  const staffNavItems: Array<{ label: string; href: string; icon: any; iconText?: string }> = [
-    { label: 'Stock Opname', href: '/stock-opnames', icon: ClipboardList },
+  const staffNavItems: Array<{ label: () => string; href: string; icon: any; iconText?: string }> = [
+    { label: () => labels.stockOpname, href: '/stock-opnames', icon: ClipboardList },
   ];
 
   const staffMasterDataSubItems = [
-    { label: 'Products',   href: '/inventory/products', icon: Package },
+    { label: () => labels.products,   href: '/inventory/products', icon: Package },
   ];
 
   const adminItems = [
-    { label: 'Stores',      href: '/stores',       icon: Store },
-    { label: 'Users',       href: '/admin/users',       icon: Users },
-    { label: 'Roles',       href: '/admin/roles',       icon: Shield },
-    { label: 'Audit Logs',  href: '/admin/audit-logs',  icon: ScrollText },
+    { label: () => labels.storeManagement,      href: '/stores',       icon: Store },
+    { label: () => labels.userManagement,       href: '/admin/users',       icon: Users },
+    { label: () => labels.roleManagement,       href: '/admin/roles',       icon: Shield },
+    { label: () => labels.auditLogs,  href: '/admin/audit-logs',  icon: ScrollText },
   ];
 
   // @display-only — grouping kandidat menu per role (presentasi, bukan authz);
@@ -194,7 +195,7 @@
 <aside
   class="sidebar-shell flex flex-col bg-sidebar border-r border-sidebar-border shadow-sidebar shrink-0 transition-all duration-300 ease-spring max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[var(--sidebar-width)] {isMobileMenuOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'}"
   style:width={collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'}
-  aria-label="Sidebar"
+  aria-label={labels.sidebar}
 >
   <!-- Brand -->
   <div class="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
@@ -204,20 +205,20 @@
     {#if !collapsed}
       <div class="overflow-hidden">
         <p class="text-sm font-bold text-text-primary leading-tight truncate">RetailPOS</p>
-        <p class="text-[10px] text-text-muted truncate">Management System</p>
+        <p class="text-[10px] text-text-muted truncate">{labels.managementSystem}</p>
       </div>
     {/if}
   </div>
 
   <!-- Nav -->
-  <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar" aria-label="Main navigation">
+  <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2.5 space-y-0.5 no-scrollbar" aria-label={labels.mainNavigation}>
     {#each visibleNavItems as item}
 <button type="button" 
         onclick={(e) => { createRipple(e, e.currentTarget); navigate(item.href); }}
         class={isActive(item.href) ? 'sidebar-item-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-current={isActive(item.href) ? 'page' : undefined}
-        aria-label={collapsed ? item.label : undefined}
-        title={collapsed ? item.label : ''}
+        aria-label={collapsed ? item.label() : undefined}
+        title={collapsed ? item.label() : ''}
       >
         {#if item.iconText}
           <span class="text-xs font-bold shrink-0">{item.iconText}</span>
@@ -225,31 +226,31 @@
           <item.icon size={18} class="shrink-0" />
         {/if}
         {#if !collapsed}
-          <span class="relative z-10">{item.label}</span>
+          <span class="relative z-10">{item.label()}</span>
         {/if}
       </button>
     {/each}
 
     <!-- Master Data group -->
     {#if visibleMasterDataSubItems.length > 0}
-      <div class="pt-1" role="group" aria-label="Master Data">
+      <div class="pt-1" role="group" aria-label={labels.masterData}>
         {#if !collapsed}
-          <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Master Data</p>
+          <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">{labels.masterData}</p>
         {/if}
   <button type="button" 
-          onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
-          class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
-          aria-expanded={masterDataExpanded}
-          aria-controls="sidebar-section-master-data"
-          aria-label={collapsed ? 'Master Data' : undefined}
-          title={collapsed ? 'Master Data' : ''}
-        >
-          <Database size={18} class="shrink-0" />
-          {#if !collapsed}
-            <span class="relative z-10 flex-1">Master Data</span>
-            <ChevronDown size={14} class="text-text-muted transition-transform duration-200 {masterDataExpanded ? 'rotate-0' : '-rotate-90'}" />
-          {/if}
-        </button>
+        onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) masterDataExpanded = !masterDataExpanded; else navigate('/inventory/products'); }}
+        class={isMasterDataPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
+        aria-expanded={masterDataExpanded}
+        aria-controls="sidebar-section-master-data"
+        aria-label={collapsed ? labels.masterData : undefined}
+        title={collapsed ? labels.masterData : ''}
+      >
+        <Database size={18} class="shrink-0" />
+        {#if !collapsed}
+          <span class="relative z-10 flex-1">{labels.masterData}</span>
+          <ChevronDown size={14} class="text-text-muted transition-transform duration-200 {masterDataExpanded ? 'rotate-0' : '-rotate-90'}" />
+        {/if}
+      </button>
 
         {#if masterDataExpanded && !collapsed}
           <div id="sidebar-section-master-data" transition:fly={{ y: -8, duration: 200, opacity: 0 }} class="pt-0.5">
@@ -260,7 +261,7 @@
                 aria-current={isActive(subItem.href) ? 'page' : undefined}
               >
                 <subItem.icon size={16} class="shrink-0" />
-                <span class="relative z-10">{subItem.label}</span>
+                <span class="relative z-10">{subItem.label()}</span>
               </button>
             {/each}
           </div>
@@ -270,21 +271,21 @@
 
     <!-- Administration group -->
     {#if showAdminSection}
-    <div class="pt-4" role="group" aria-label="Administration">
+    <div class="pt-4" role="group" aria-label={labels.administration}>
       {#if !collapsed}
-        <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">Administration</p>
+        <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted">{labels.administration}</p>
       {/if}
 <button type="button" 
         onclick={(e) => { createRipple(e, e.currentTarget); if (!collapsed) adminExpanded = !adminExpanded; else navigate('/admin/users'); }}
         class={isAdminPath ? 'sidebar-parent-active w-full text-left relative overflow-hidden px-3 py-2.5' : 'sidebar-item w-full text-left relative overflow-hidden px-3 py-2.5'}
         aria-expanded={adminExpanded}
         aria-controls="sidebar-section-admin"
-        aria-label={collapsed ? 'Administration' : undefined}
-        title={collapsed ? 'Administration' : ''}
+        aria-label={collapsed ? labels.administration : undefined}
+        title={collapsed ? labels.administration : ''}
       >
         <Shield size={18} class="shrink-0" />
         {#if !collapsed}
-          <span class="relative z-10 flex-1">Administration</span>
+          <span class="relative z-10 flex-1">{labels.administration}</span>
           <ChevronDown size={14} class="text-text-muted transition-transform duration-200 {adminExpanded ? 'rotate-0' : '-rotate-90'}" />
         {/if}
       </button>
@@ -298,7 +299,7 @@
               aria-current={isActive(item.href) ? 'page' : undefined}
             >
               <item.icon size={16} class="shrink-0" />
-              <span class="relative z-10">{item.label}</span>
+              <span class="relative z-10">{item.label()}</span>
             </button>
           {/each}
         </div>
@@ -324,16 +325,16 @@
           <button type="button" 
             onclick={handleLogout}
             class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger-subtle transition-all duration-200 group"
-            title="Logout"
+            title={labels.logout}
           >
             <LogOut size={14} class="group-hover:scale-110 transition-transform" />
-            <span class="text-xs font-medium">Logout</span>
+            <span class="text-xs font-medium">{labels.logout}</span>
           </button>
         {:else}
-          <Tooltip content="Close shift first" placement="top">
+          <Tooltip content={labels.closeShiftFirst} placement="top">
             <span class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-text-muted/40 cursor-not-allowed">
               <LogOut size={14} />
-              <span class="text-xs font-medium">Logout</span>
+              <span class="text-xs font-medium">{labels.logout}</span>
             </span>
           </Tooltip>
         {/if}
@@ -345,13 +346,13 @@
         <button type="button" 
           onclick={handleLogout}
           class="sidebar-item w-full justify-center text-text-muted hover:text-danger hover:bg-danger-subtle px-3 py-2.5"
-          title="Logout"
-          aria-label="Logout"
+          title={labels.logout}
+          aria-label={labels.logout}
         >
           <LogOut size={18} />
         </button>
       {:else}
-        <Tooltip content="Close shift first" placement="right">
+        <Tooltip content={labels.closeShiftFirst} placement="right">
           <span class="sidebar-item w-full justify-center text-text-muted/40 cursor-not-allowed px-3 py-2.5">
             <LogOut size={18} />
           </span>
@@ -364,14 +365,14 @@
     <button
       onclick={() => collapsed = !collapsed}
       class="sidebar-item w-full justify-center text-text-muted px-3 py-2.5"
-      title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      title={collapsed ? labels.expandSidebar : labels.collapseSidebar}
+      aria-label={collapsed ? labels.expandSidebar : labels.collapseSidebar}
     >
       {#if collapsed}
         <ChevronRight size={16} />
       {:else}
         <ChevronLeft size={16} />
-        <span class="text-xs">Collapse</span>
+        <span class="text-xs">{labels.collapse}</span>
       {/if}
     </button>
   </div>

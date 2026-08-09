@@ -23,6 +23,10 @@ describe('CustomerSelectModal.svelte source-structure guards', () => {
     expect(src).toContain("import { X } from 'lucide-svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $bindable for showCustomerModal and customerSearch', () => {
     expect(src).toContain('showCustomerModal = $bindable(');
     expect(src).toContain('customerSearch = $bindable(');
@@ -33,18 +37,18 @@ describe('CustomerSelectModal.svelte source-structure guards', () => {
   });
 
   it('renders Pilih Customer heading', () => {
-    expect(src).toContain('Pilih Customer');
+    expect(src).toContain('{labels.selectCustomer}');
   });
 
   it('renders walk-in option', () => {
-    expect(src).toContain('Walk-in / Umum');
+    expect(src).toContain('{labels.walkInGeneral}');
   });
 
   it('renders no customers found message', () => {
-    expect(src).toContain('Customer tidak ditemukan');
+    expect(src).toContain('{labels.customerNotFound}');
   });
 
   it('renders customer search input', () => {
-    expect(src).toContain('Cari berdasarkan');
+    expect(src).toContain('placeholder={labels.searchByNameOrPhone}');
   });
 });

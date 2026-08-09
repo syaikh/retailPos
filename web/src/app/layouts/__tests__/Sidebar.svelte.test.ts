@@ -48,7 +48,7 @@ describe('Sidebar.svelte source-structure guards', () => {
   });
 
   it('has aria-label on aside for accessibility', () => {
-    expect(src).toContain('aria-label="Sidebar"');
+    expect(src).toContain('aria-label={labels.sidebar}');
   });
 
   it('has handleLogout function that calls logout()', () => {
@@ -62,8 +62,8 @@ describe('Sidebar.svelte source-structure guards', () => {
   });
 
   it('has collapse toggle buttons', () => {
-    expect(src).toContain('Collapse sidebar');
-    expect(src).toContain('Expand sidebar');
+    expect(src).toContain('labels.collapseSidebar');
+    expect(src).toContain('labels.expandSidebar');
   });
 
   it('renders user info from auth store and RBAC', () => {

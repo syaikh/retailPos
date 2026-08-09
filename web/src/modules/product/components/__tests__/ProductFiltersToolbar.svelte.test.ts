@@ -15,6 +15,10 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, SearchBar, BulkActionDropdown, Dropdown, FilterChipBar } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $bindable for searchQuery, selectedCategories, filterStatus, lowStockOnly', () => {
     expect(src).toContain('searchQuery = $bindable');
     expect(src).toContain('selectedCategories = $bindable');
@@ -33,15 +37,15 @@ describe('ProductFiltersToolbar.svelte source-structure guards', () => {
 
   it('renders filter chips section', () => {
     expect(src).toContain('activeChips = $derived');
-    expect(src).toContain('Clear all');
+    expect(src).toContain('clearLabel={labels.clearAll}');
   });
 
   it('shows Add Product button with canCreate guard', () => {
-    expect(src).toContain('Add Product');
+    expect(src).toContain('{labels.tambahProduk}');
     expect(src).toContain('disabled={!canCreate}');
   });
 
   it('has Low Stock toggle switch', () => {
-    expect(src).toContain('Low Stock');
+    expect(src).toContain('{labels.lowStock}');
   });
 });

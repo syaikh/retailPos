@@ -1,15 +1,16 @@
 <script lang="ts">
   import { Button, Modal } from '$shared/ui';
   import { Trash2, Loader2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
-    title = 'Confirm Delete',
+    title = '',
     itemName = '',
     message = '',
     description = '',
-    confirmLabel = 'Delete',
-    cancelLabel = 'Cancel',
+    confirmLabel = '',
+    cancelLabel = '',
     loading = false,
     onconfirm,
     oncancel,
@@ -32,7 +33,7 @@
   }
 </script>
 
-<Modal bind:open {title} size="sm">
+<Modal bind:open title={title || labels.confirmDelete} size="sm">
   <div class="text-center py-2">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
       <Trash2 size={24} class="text-danger" />
@@ -40,23 +41,23 @@
     {#if message}
       <p class="text-text-primary font-semibold mb-1">{message}</p>
     {:else if itemName}
-      <p class="text-text-primary font-semibold mb-1">{title.includes('Hapus') ? 'Hapus' : 'Delete'} "{itemName}"?</p>
+      <p class="text-text-primary font-semibold mb-1">{labels.delete} "{itemName}"?</p>
     {:else}
-      <p class="text-text-primary font-semibold mb-1">Are you sure you want to delete this item?</p>
+      <p class="text-text-primary font-semibold mb-1">{labels.deleteConfirm}</p>
     {/if}
     {#if description}
       <p class="text-text-muted text-sm">{description}</p>
     {:else if !message && !itemName}
-      <p class="text-text-muted text-sm">This action cannot be undone.</p>
+      <p class="text-text-muted text-sm">{labels.thisActionCannotBeUndone}</p>
     {/if}
   </div>
   {#snippet footer()}
-    <Button variant="secondary" disabled={loading} onclick={handleCancel}>{cancelLabel}</Button>
+    <Button variant="secondary" disabled={loading} onclick={handleCancel}>{cancelLabel || labels.cancel}</Button>
     <Button variant="danger" disabled={loading} onclick={onconfirm}>
       {#if loading}
-        <Loader2 size={14} class="animate-spin mr-1" /> {confirmLabel}...
+        <Loader2 size={14} class="animate-spin mr-1" /> {confirmLabel || labels.delete}...
       {:else}
-        {confirmLabel}
+        {confirmLabel || labels.delete}
       {/if}
     </Button>
   {/snippet}

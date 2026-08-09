@@ -13,6 +13,7 @@
 
   import Layout from '$app/layouts/Layout.svelte';
   import { Toast } from '$shared/ui';
+  import { labels, t } from '$shared/i18n';
 
   // Always-needed pages (loaded eagerly)
   import LoginPage from '$modules/auth/components/LoginPage.svelte';
@@ -23,39 +24,39 @@
   let isInitializing = $state(true);
 
   const pageTitles = {
-    '/login':              'Login',
-    '/':                   'Dashboard',
-    '/pos':                'Point of Sale',
-    '/inventory':          'Products',
-    '/inventory/products': 'Products',
-    '/reports':            'Reports',
-    '/transactions':       'Transaction History',
-    '/customers':          'Customers',
-    '/categories':          'Category Management',
-    '/categories/import-history': 'Import History — Categories',
-    '/brands/import-history':     'Import History — Brands',
-    '/units-of-measure/import-history': 'Import History — Units',
-    '/customers/import-history':  'Import History — Customers',
-    '/products/import-history':   'Import History — Products',
-    '/admin':              'Administration',
-    '/admin/users':        'User Management',
-    '/admin/roles':        'Role Management',
-    '/admin/audit-logs':   'Audit Logs',
-    '/admin/categories':   'Category Management',
-    '/stores':             'Store Management',
-    '/stores/import-history': 'Import History — Stores',
-    '/brands':             'Brand Management',
-    '/units-of-measure':   'Unit of Measure Management',
-    '/pricing-rules':      'Pricing Rules',
-    '/customer-groups':    'Customer Groups',
-    '/suppliers':          'Supplier Management',
-    '/admin/brands':       'Brand Management',
-    '/admin/units-of-measure': 'Unit of Measure Management',
-    '/shifts':             'Shift Management',
-    '/purchase-orders':    'Purchase Orders',
-    '/stock-opnames':      'Stock Opname',
-    '/stock-opnames/adjustments': 'Stock Opname Adjustments',
-    '/storage-locations':  'Storage Locations',
+    '/login':              () => labels.login,
+    '/':                   () => labels.dashboard,
+    '/pos':                () => labels.pointOfSale,
+    '/inventory':          () => labels.products,
+    '/inventory/products': () => labels.products,
+    '/reports':            () => labels.reports,
+    '/transactions':       () => labels.transactionHistory,
+    '/customers':          () => labels.customers,
+    '/categories':          () => labels.categoryManagement,
+    '/categories/import-history': () => t('importHistoryWithName', { name: labels.categories }),
+    '/brands/import-history':     () => t('importHistoryWithName', { name: labels.brands }),
+    '/units-of-measure/import-history': () => t('importHistoryWithName', { name: labels.unitsOfMeasure }),
+    '/customers/import-history':  () => t('importHistoryWithName', { name: labels.customers }),
+    '/products/import-history':   () => t('importHistoryWithName', { name: labels.products }),
+    '/admin':              () => labels.administration,
+    '/admin/users':        () => labels.userManagement,
+    '/admin/roles':        () => labels.roleManagement,
+    '/admin/audit-logs':   () => labels.auditLogs,
+    '/admin/categories':   () => labels.categoryManagement,
+    '/stores':             () => labels.storeManagement,
+    '/stores/import-history': () => t('importHistoryWithName', { name: labels.stores }),
+    '/brands':             () => labels.brandManagement,
+    '/units-of-measure':   () => labels.unitOfMeasureManagement,
+    '/pricing-rules':      () => labels.pricingRules,
+    '/customer-groups':    () => labels.customerGroups,
+    '/suppliers':          () => labels.supplierManagement,
+    '/admin/brands':       () => labels.brandManagement,
+    '/admin/units-of-measure': () => labels.unitOfMeasureManagement,
+    '/shifts':             () => labels.shiftManagement,
+    '/purchase-orders':    () => labels.purchaseOrders,
+    '/stock-opnames':      () => labels.stockOpname,
+    '/stock-opnames/adjustments': () => labels.stockOpnameAdjustments,
+    '/storage-locations':  () => labels.storageLocations,
   };
 
   const pageModules = {
@@ -112,8 +113,8 @@
   }
 
   function updateTitle(path) {
-    const page = pageTitles[path] || 'Dashboard';
-    document.title = `${page} — RetailPOS`;
+    const title = pageTitles[path]?.() ?? labels.dashboard;
+    document.title = `${title} — RetailPOS`;
   }
 
   function hasRoutePermission(path) {
@@ -145,7 +146,7 @@
     }
 
     if (!hasRoutePermission(path)) {
-      toast.error('You do not have permission to access this page');
+      toast.error(labels.noPermissionToAccessPage);
       const fallback = getDefaultRoute(useAuthStore().user);
       if (fallback === path) {
         goto('/');
@@ -213,7 +214,7 @@
       }
 
       if (!hasRoutePermission(path)) {
-        toast.error('You do not have permission to access this page');
+        toast.error(labels.noPermissionToAccessPage);
         let fallback = getDefaultRoute(authStore.user);
         if (fallback === path) {
           fallback = '/';

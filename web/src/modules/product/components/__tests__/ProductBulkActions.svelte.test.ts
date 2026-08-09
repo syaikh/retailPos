@@ -15,6 +15,10 @@ describe('ProductBulkActions.svelte source-structure guards', () => {
     expect(src).toContain("import { Button } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $props', () => {
     expect(src).toContain('= $props()');
   });
@@ -25,7 +29,7 @@ describe('ProductBulkActions.svelte source-structure guards', () => {
   });
 
   it('renders selected count', () => {
-    expect(src).toContain('selectedCount} selected');
+    expect(src).toContain("t('selectedCountLabel', { count: selectedCount })");
   });
 
   it('wraps content in conditional block', () => {

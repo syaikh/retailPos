@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, SearchBar, BulkActionDropdown, Dropdown, FilterChipBar } from '$shared/ui';
   import { Plus, SlidersHorizontal, ChevronDown, AlertTriangle } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
 
   let {
     searchQuery = $bindable(''),
@@ -39,7 +40,11 @@
   } = $props();
 
   let statusLabel = $derived(
-    filterStatus === 'all' ? 'All Status' : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)
+    filterStatus === 'all' ? labels.allStatus
+    : filterStatus === 'active' ? labels.active
+    : filterStatus === 'inactive' ? labels.inactive
+    : filterStatus === 'archived' ? labels.archived
+    : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)
   );
 
   let categoryBtnStyle = $derived(selectedCategories.length > 0
@@ -53,13 +58,13 @@
       chips.push({ type: 'status', label: statusLabel });
     }
     if (selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')) {
-      chips.push({ type: 'category', label: `${selectedCategories.length} Kategori` });
+      chips.push({ type: 'category', label: t('categoriesCount', { count: selectedCategories.length }) });
     }
     if (lowStockOnly) {
-      chips.push({ type: 'stock', label: 'Low Stock' });
+      chips.push({ type: 'stock', label: labels.lowStock });
     }
     if (supplierFilterId !== null) {
-      chips.push({ type: 'supplier', label: `Supplier: ${supplierFilterName}` });
+      chips.push({ type: 'supplier', label: t('supplierWithName', { name: supplierFilterName }) });
     }
     return chips;
   });
@@ -76,7 +81,7 @@
 <div class="card p-4">
   <div class="flex items-center gap-4">
     <div class="flex-2">
-      <SearchBar bind:value={searchQuery} placeholder="Search by name, SKU, or barcode..." oninput={onsearch} inputClass="h-10" />
+      <SearchBar bind:value={searchQuery} placeholder={labels.searchByNameSkuBarcode} oninput={onsearch} inputClass="h-10" />
     </div>
     <button
       type="button"
@@ -87,18 +92,18 @@
       <SlidersHorizontal size={15} style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}" />
       <span class="text-[13px] font-medium whitespace-nowrap">
         {#if selectedCategories.length > 0 && !(selectedCategories.length === 1 && selectedCategories[0] === 'All')}
-          {selectedCategories.length} Kategori Dipilih
+          {t('categoriesSelectedCount', { count: selectedCategories.length })}
         {:else}
-          Kategori
+          {labels.category}
         {/if}
       </span>
       <ChevronDown size={13} class="shrink-0 transition-opacity duration-150" style="color: {selectedCategories.length > 0 ? '#c4b5fd' : '#9ca3af'}; opacity: {selectedCategories.length > 0 ? 0.7 : 0.4}" />
     </button>
     <Dropdown placement="bottom-start" items={[
-      { label: 'All Status', checked: filterStatus === 'all', onclick: () => { filterStatus = 'all'; onrefresh(); } },
-      { label: 'Active', checked: filterStatus === 'active', onclick: () => { filterStatus = 'active'; onrefresh(); } },
-      { label: 'Inactive', checked: filterStatus === 'inactive', onclick: () => { filterStatus = 'inactive'; onrefresh(); } },
-      { label: 'Archived', checked: filterStatus === 'archived', onclick: () => { filterStatus = 'archived'; onrefresh(); } },
+      { label: labels.allStatus, checked: filterStatus === 'all', onclick: () => { filterStatus = 'all'; onrefresh(); } },
+      { label: labels.active, checked: filterStatus === 'active', onclick: () => { filterStatus = 'active'; onrefresh(); } },
+      { label: labels.inactive, checked: filterStatus === 'inactive', onclick: () => { filterStatus = 'inactive'; onrefresh(); } },
+      { label: labels.archived, checked: filterStatus === 'archived', onclick: () => { filterStatus = 'archived'; onrefresh(); } },
     ]}>
       {#snippet trigger({ toggle })}
         <button
@@ -119,7 +124,7 @@
       class="flex items-center gap-[9px] h-10 px-[14px] rounded-xl shrink-0 transition-all duration-200 border {lowStockOnly ? 'bg-warning/10 border-warning/30 text-warning-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
     >
       <AlertTriangle size={14} class={lowStockOnly ? 'text-warning-light' : 'text-text-muted'} />
-      <span class="text-[13px] font-medium whitespace-nowrap">Low Stock</span>
+      <span class="text-[13px] font-medium whitespace-nowrap">{labels.lowStock}</span>
     </button>
     <BulkActionDropdown module="products" canExport={canExport} canImport={canImport} {onImport} />
     <Button
@@ -127,12 +132,12 @@
       disabled={!canCreate}
       variant="primary"
       class="shrink-0 shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed"
-      title={canCreate ? 'Add product' : 'Requires product create permission'}
+      title={canCreate ? labels.addProductTitle : labels.requiresProductCreatePermission}
     >
       <Plus size={18} />
-      Add Product
+      {labels.tambahProduk}
     </Button>
   </div>
 
-  <FilterChipBar chips={activeChips} onclear={clearFilter} onclearall={onclearall} clearLabel="Clear all" />
+  <FilterChipBar chips={activeChips} onclear={clearFilter} onclearall={onclearall} clearLabel={labels.clearAll} />
 </div>

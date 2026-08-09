@@ -32,6 +32,10 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("import { useShiftStore } from '$modules/shifts'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('imports ShoppingCart from lucide-svelte for paymentOptions', () => {
     expect(src).toContain("import { ShoppingCart, Hand, RotateCcw } from 'lucide-svelte'");
   });

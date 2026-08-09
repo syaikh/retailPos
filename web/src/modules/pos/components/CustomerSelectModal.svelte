@@ -3,6 +3,7 @@
   import { Button, Input } from '$shared/ui';
   import { X } from 'lucide-svelte';
   import { tick } from 'svelte';
+  import { labels } from '$shared/i18n';
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previousFocus: HTMLElement | null = null;
@@ -73,27 +74,27 @@
     <div class="absolute inset-0 bg-black/60" onclick={close} role="presentation"></div>
     <div bind:this={dialogEl} class="relative z-[65] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border-default bg-bg-card shadow-modal p-5" role="dialog" aria-modal="true" aria-labelledby="customer-modal-heading">
       <div class="flex items-center justify-between mb-4">
-        <h2 id="customer-modal-heading" class="text-lg font-bold text-text-primary">Pilih Customer</h2>
-        <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label="Tutup">
+        <h2 id="customer-modal-heading" class="text-lg font-bold text-text-primary">{labels.selectCustomer}</h2>
+        <button type="button" onclick={close} class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50" aria-label={labels.close}>
           <X size={18} />
         </button>
       </div>
-      <Input class="w-full mb-3" placeholder="Cari berdasarkan nama atau telepon..." bind:value={customerSearch} />
+      <Input class="w-full mb-3" placeholder={labels.searchByNameOrPhone} bind:value={customerSearch} />
       {#if customerSearching}
-        <p class="text-sm text-text-muted mb-2">Mencari...</p>
+        <p class="text-sm text-text-muted mb-2">{labels.searching}</p>
       {/if}
       <div class="max-h-80 overflow-y-auto space-y-1">
         <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { close(); onselectcustomer(null); }}>
-          <span class="text-sm font-medium">Walk-in / Umum</span>
+          <span class="text-sm font-medium">{labels.walkInGeneral}</span>
         </button>
         {#each customerResults as c}
           <button type="button" class="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-subtle transition-colors" onclick={() => { close(); onselectcustomer(c.id); }}>
             <div class="text-sm font-medium">{c.name}</div>
-            <div class="text-xs text-text-muted">{c.phone || 'tanpa telepon'} {c.email ? `· ${c.email}` : ''}</div>
+            <div class="text-xs text-text-muted">{c.phone || labels.noPhone} {c.email ? `· ${c.email}` : ''}</div>
           </button>
         {:else}
           {#if customerSearch.trim() && !customerSearching}
-            <p class="text-sm text-text-muted text-center py-4">Customer tidak ditemukan</p>
+            <p class="text-sm text-text-muted text-center py-4">{labels.customerNotFound}</p>
           {/if}
         {/each}
       </div>

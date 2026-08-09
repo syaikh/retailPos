@@ -5,6 +5,7 @@
   import type { PricingRule } from '$modules/pricing/types';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
+  import { labels, t } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -41,11 +42,11 @@
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
-    if (!form.name.trim()) errors.name = 'Name is required';
-    if (!form.sku.trim()) errors.sku = 'SKU is required';
-    if (!form.category.trim()) errors.category = 'Category is required';
-    if (form.price <= 0) errors.price = 'Price must be greater than zero';
-    if (form.stock < 0) errors.stock = 'Stock must not be negative';
+    if (!form.name.trim()) errors.name = labels.errorNameRequired;
+    if (!form.sku.trim()) errors.sku = labels.errorSkuRequired;
+    if (!form.category.trim()) errors.category = labels.errorCategoryRequired;
+    if (form.price <= 0) errors.price = labels.errorPricePositive;
+    if (form.stock < 0) errors.stock = labels.errorStockNonNegative;
     fieldErrors = errors;
     return Object.keys(errors).length === 0;
   }
@@ -103,7 +104,7 @@
   }
 
   function formatCurrency(value: number): string {
-    return 'Rp ' + value.toLocaleString('id-ID');
+    return labels.currencySymbol + ' ' + value.toLocaleString('id-ID');
   }
 
   function selectModalCategory(category: string) {
@@ -129,32 +130,32 @@
   }
 </script>
 
-<Modal bind:open title={mode === 'add' ? 'Add Product' : 'Edit Product'}>
+<Modal bind:open title={mode === 'add' ? labels.tambahProduk : labels.editProduk}>
   <form onsubmit={handleSubmit} class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">Name <span class="text-destructive">*</span></label>
+        <label for="prod-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.name} <span class="text-destructive">*</span></label>
 <Input id="prod-name" bind:value={form.name} type="text" error={fieldErrors.name} required />
       </div>
       <div>
-        <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">SKU <span class="text-destructive">*</span></label>
+        <label for="prod-sku" class="block text-sm font-medium text-text-secondary mb-2">{labels.sku} <span class="text-destructive">*</span></label>
 <Input id="prod-sku" bind:value={form.sku} type="text" error={fieldErrors.sku} required />
       </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">Barcode <span class="text-text-muted text-xs">(optional)</span></label>
-        <Input id="prod-barcode" bind:value={form.barcode} type="text" placeholder="Optional barcode" />
+        <label for="prod-barcode" class="block text-sm font-medium text-text-secondary mb-2">{labels.barcode} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+        <Input id="prod-barcode" bind:value={form.barcode} type="text" placeholder={labels.optionalBarcode} />
       </div>
       <div>
-        <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">Category <span class="text-destructive">*</span></label>
+        <label for="prod-category" class="block text-sm font-medium text-text-secondary mb-2">{labels.category} <span class="text-destructive">*</span></label>
         <div bind:this={categoryContainer} class="relative">
           <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <Input
             type="text"
             id="prod-category"
-            placeholder="Select a category"
+            placeholder={labels.selectCategory}
             bind:value={modalCategorySearch}
             oninput={() => form.category = modalCategorySearch}
             onfocus={handleModalCategoryFocus}
@@ -167,8 +168,8 @@
               type="button"
               onclick={() => { modalCategorySearch = ''; form.category = ''; }}
               class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-              title="Clear"
-              aria-label="Clear"
+              title={labels.clear}
+              aria-label={labels.clear}
             >
               <X size={14} />
             </button>
@@ -178,7 +179,7 @@
           {#if showModalCategoryDropdown}
             <div style={categoryMenuStyle} class="fixed z-50 card-glass p-1.5 min-w-0 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
               {#if filteredModalCategories.length === 0}
-                <div class="px-3 py-2 text-sm text-text-muted">No categories found</div>
+                <div class="px-3 py-2 text-sm text-text-muted">{labels.noCategoriesFound}</div>
               {:else}
                 {#each filteredModalCategories as cat}
                   <button
@@ -199,27 +200,27 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label for="prod-brand" class="block text-sm font-medium text-text-secondary mb-2">Brand</label>
+        <label for="prod-brand" class="block text-sm font-medium text-text-secondary mb-2">{labels.brand}</label>
         <Input tag="select" id="prod-brand" bind:value={form.brand_id}>
-          <option value={null}>Select brand</option>
+          <option value={null}>{labels.selectBrand}</option>
           {#each brands as brand}
             <option value={brand.id}>{brand.name}</option>
           {/each}
         </Input>
       </div>
       <div>
-        <label for="prod-uom" class="block text-sm font-medium text-text-secondary mb-2">Unit</label>
+        <label for="prod-uom" class="block text-sm font-medium text-text-secondary mb-2">{labels.unitOfMeasure}</label>
         <Input tag="select" id="prod-uom" bind:value={form.unit_of_measure_id}>
-          <option value={null}>Select unit</option>
+          <option value={null}>{labels.selectUnit}</option>
           {#each unitsOfMeasure as uom}
             <option value={uom.id}>{uom.name} ({uom.code})</option>
           {/each}
         </Input>
       </div>
       <div>
-        <label for="prod-tax" class="block text-sm font-medium text-text-secondary mb-2">Tax Class</label>
+        <label for="prod-tax" class="block text-sm font-medium text-text-secondary mb-2">{labels.taxClass}</label>
         <Input tag="select" id="prod-tax" bind:value={form.tax_class_id}>
-          <option value={null}>Select tax</option>
+          <option value={null}>{labels.selectTax}</option>
           {#each taxClasses as tax}
             <option value={tax.id}>{tax.name} ({tax.rate_percent}%)</option>
           {/each}
@@ -229,36 +230,36 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">Price (IDR) <span class="text-destructive">*</span></label>
+        <label for="prod-price" class="block text-sm font-medium text-text-secondary mb-2">{labels.price} <span class="text-destructive">*</span></label>
         <CurrencyInput id="prod-price" bind:value={form.price} required />
         {#if fieldErrors.price}
           <p class="text-xs text-danger mt-1" role="alert">{fieldErrors.price}</p>
         {/if}
       </div>
       <div>
-        <label for="prod-cost" class="block text-sm font-medium text-text-secondary mb-2">Cost (IDR)</label>
+        <label for="prod-cost" class="block text-sm font-medium text-text-secondary mb-2">{labels.cost}</label>
         <CurrencyInput id="prod-cost" bind:value={form.cost} />
       </div>
       <div>
-        <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">Stock <span class="text-destructive">*</span></label>
+        <label for="prod-stock" class="block text-sm font-medium text-text-secondary mb-2">{labels.stock} <span class="text-destructive">*</span></label>
         <Input id="prod-stock" bind:value={form.stock} type="number" error={fieldErrors.stock} required />
       </div>
     </div>
 
     <div>
-      <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">Description</label>
-      <Input tag="textarea" id="prod-description" bind:value={form.description} rows="2" placeholder="Product description (optional)" />
+      <label for="prod-description" class="block text-sm font-medium text-text-secondary mb-2">{labels.description}</label>
+      <Input tag="textarea" id="prod-description" bind:value={form.description} rows="2" placeholder={labels.productDescription} />
     </div>
 
     <div>
-      <label for="prod-status" class="block text-sm font-medium text-text-secondary mb-2">Status</label>
+      <label for="prod-status" class="block text-sm font-medium text-text-secondary mb-2">{labels.status}</label>
       <Input tag="select" id="prod-status" bind:value={form.status}>
-        <option value="draft">Draft</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-        <option value="discontinued">Discontinued</option>
+        <option value="draft">{labels.draft}</option>
+        <option value="active">{labels.active}</option>
+        <option value="inactive">{labels.inactive}</option>
+        <option value="discontinued">{labels.discontinued}</option>
         {#if canArchive}
-        <option value="archived">Archived</option>
+        <option value="archived">{labels.archived}</option>
         {/if}
       </Input>
     </div>
@@ -267,16 +268,16 @@
       <div class="rounded-xl border border-border bg-surface-default overflow-hidden">
         <div class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2">
           <Percent size={14} class="text-primary-light" />
-          <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">Pricing Rules</span>
+          <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">{labels.pricingRules}</span>
           {#if pricingRules.length > 0}
             <span class="text-[10px] font-medium text-text-muted bg-surface px-1.5 py-0.5 rounded-full">{pricingRules.length}</span>
           {/if}
         </div>
         <div class="px-4 py-3">
           {#if loadingPricing}
-            <p class="text-xs text-text-muted">Loading pricing rules...</p>
+            <p class="text-xs text-text-muted">{labels.loadingPricingRules}</p>
           {:else if pricingRules.length === 0}
-            <p class="text-xs text-text-muted">No pricing rules configured. Base price: {formatCurrency(form.price)}</p>
+            <p class="text-xs text-text-muted">{t('noPricingRulesBasePrice', { price: formatCurrency(form.price) })}</p>
           {:else}
             <div class="space-y-2">
               {#each pricingRules as rule}
@@ -292,7 +293,7 @@
                   </div>
                   <div class="flex items-center gap-3">
                     {#if rule.minimum_quantity > 1}
-                      <span class="text-text-muted">min {rule.minimum_quantity}</span>
+                      <span class="text-text-muted">{t('minWithValue', { qty: rule.minimum_quantity })}</span>
                     {/if}
                     <span class="text-text-primary font-semibold">{formatCurrency(rule.pricing_value)}</span>
                   </div>
@@ -306,10 +307,10 @@
 
     <div class="flex justify-end gap-4 pt-4">
       <Button variant="secondary" class="px-5 disabled:opacity-50 disabled:cursor-not-allowed" onclick={onCancel}>
-        Cancel
+        {labels.cancel}
       </Button>
       <Button variant="primary" type="submit" class="shadow-glow-primary-sm px-5 disabled:opacity-50 disabled:cursor-not-allowed" disabled={saving}>
-        {saving ? 'Saving...' : mode === 'add' ? 'Add' : 'Update'}
+        {saving ? labels.saving : mode === 'add' ? labels.add : labels.update}
       </Button>
     </div>
   </form>

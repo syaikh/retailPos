@@ -27,6 +27,10 @@ describe('ProductDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $props() for component props', () => {
     expect(src).toContain('= $props()');
   });

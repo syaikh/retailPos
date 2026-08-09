@@ -4,17 +4,18 @@
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime';
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
+  import { labels, t } from '$shared/i18n';
 
   const SLIDER_MAX_BOUND = 50000000;
 
-  const datePresets = [
-    { label: 'Today', days: 0 },
-    { label: 'Yesterday', days: 1 },
-    { label: 'Last 7 Days', days: 7 },
-    { label: 'Last 30 Days', days: 30 },
-    { label: 'This Month', days: 'month' as const },
-    { label: 'This Year', days: 'year' as const },
-  ];
+  const datePresets = $derived([
+    { label: labels.today, days: 0 },
+    { label: labels.yesterday, days: 1 },
+    { label: labels.last7Days, days: 7 },
+    { label: labels.last30Days, days: 30 },
+    { label: labels.thisMonth, days: 'month' as const },
+    { label: labels.thisYear, days: 'year' as const },
+  ]);
 
   let {
     searchQuery = $bindable(''),
@@ -39,27 +40,32 @@
 
   const dateRangeLabel = $derived.by(() => {
     if (selectedDateRange === 'custom') {
-      return `Custom: ${formatJakartaDateStr(startDate)} – ${formatJakartaDateStr(endDate)}`;
+      return t('customDateRange', {
+        start: formatJakartaDateStr(startDate),
+        end: formatJakartaDateStr(endDate),
+      });
     }
     const preset = datePresets.find(p => {
-      if (p.label === 'Yesterday') return selectedDateRange === 'yesterday';
       if (typeof p.days === 'number') {
         if (p.days === 0) return selectedDateRange === 'today';
+        if (p.days === 1) return selectedDateRange === 'yesterday';
         return selectedDateRange === `last${p.days}d`;
       }
       if (p.days === 'month') return selectedDateRange === 'thisMonth';
       if (p.days === 'year') return selectedDateRange === 'thisYear';
       return false;
     });
-    return preset?.label || 'Last 30 Days';
+    return preset?.label || labels.last30Days;
   });
 
   const amountError = $derived.by(() => {
-    if (sliderMin !== null && sliderMin < 0) return 'Min cannot be negative';
-    if (sliderMin !== null && sliderMin > SLIDER_MAX_BOUND) return `Min exceeds max (${SLIDER_MAX_BOUND.toLocaleString('id-ID')})`;
-    if (sliderMax !== null && sliderMax < 0) return 'Max cannot be negative';
-    if (sliderMax !== null && sliderMax > SLIDER_MAX_BOUND) return `Max exceeds max (${SLIDER_MAX_BOUND.toLocaleString('id-ID')})`;
-    if (sliderMin !== null && sliderMax !== null && sliderMin > sliderMax) return 'Min cannot exceed Max';
+    if (sliderMin !== null && sliderMin < 0) return labels.errorMinCannotBeNegative;
+    if (sliderMin !== null && sliderMin > SLIDER_MAX_BOUND)
+      return t('errorMinExceedsMax', { max: SLIDER_MAX_BOUND.toLocaleString('id-ID') });
+    if (sliderMax !== null && sliderMax < 0) return labels.errorMaxCannotBeNegative;
+    if (sliderMax !== null && sliderMax > SLIDER_MAX_BOUND)
+      return t('errorMaxExceedsMax', { max: SLIDER_MAX_BOUND.toLocaleString('id-ID') });
+    if (sliderMin !== null && sliderMax !== null && sliderMin > sliderMax) return labels.errorMinCannotExceedMax;
     return '';
   });
 
@@ -209,12 +215,12 @@
 
   async function downloadExport(format: string) {
     const token = getAuthToken();
-    if (!token) { toast.error('Session expired'); return; }
+    if (!token) { toast.error(labels.toastSessionExpired); return; }
 
     const res = await fetch(buildExportUrl(format), {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) { toast.error('Export failed'); return; }
+    if (!res.ok) { toast.error(labels.toastExportFailed); return; }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -247,7 +253,7 @@
 <div class="card p-3">
   <div class="flex flex-wrap items-center gap-3">
     <div class="min-w-0 flex-[2_1_200px]">
-      <SearchBar bind:value={searchQuery} placeholder="Search by invoice, product, or customer..." />
+      <SearchBar bind:value={searchQuery} placeholder={labels.searchByInvoiceProductCustomer} />
     </div>
 
     <Dropdown menu={false} placement="bottom-start" bind:open={dropdownOpen}>
@@ -260,7 +266,7 @@
           <span class="text-sm truncate flex-1 text-left text-text-secondary">
             {selectedPaymentMethods.length > 0
               ? `${paymentMethodName(selectedPaymentMethods[0])}${selectedPaymentMethods.length > 1 ? ` +${selectedPaymentMethods.length - 1}` : ''}`
-              : 'All methods'}
+              : labels.allMethods}
           </span>
           <ChevronDown size={14} class="opacity-60 shrink-0" />
         </Button>
@@ -285,13 +291,13 @@
               class="flex-1 px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-surface-hover rounded"
               onclick={() => { selectedPaymentMethods = []; pendingPaymentMethods = []; close(); }}
             >
-              Clear
+              {labels.clear}
             </button>
             <button
               class="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-primary-default hover:bg-primary-hover rounded"
               onclick={() => { selectedPaymentMethods = pendingPaymentMethods; close(); }}
             >
-              Apply
+              {labels.apply}
             </button>
           </div>
         </div>
@@ -300,12 +306,12 @@
 
     <div class="flex items-center gap-1.5">
       <div class="flex items-center gap-1 bg-surface-default border border-border rounded-lg px-2.5 h-[38px] {amountError ? 'border-danger' : ''}">
-        <span class="text-xs text-text-muted font-medium shrink-0">Rp</span>
+        <span class="text-xs text-text-muted font-medium shrink-0">{labels.currencySymbol}</span>
         <input
           type="text"
           inputmode="numeric"
           value={minDisplay}
-          placeholder="Min"
+          placeholder={labels.minLabel}
           class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMinInput}
           onblur={handleMinBlur}
@@ -315,7 +321,7 @@
           type="text"
           inputmode="numeric"
           value={maxDisplay}
-          placeholder="Max"
+          placeholder={labels.maxLabel}
           class="w-20 bg-transparent text-sm text-right text-text-primary outline-none placeholder:text-text-muted"
           oninput={handleMaxInput}
           onblur={handleMaxBlur}
@@ -323,8 +329,8 @@
         <button
           class="p-1 -mr-1.5 text-text-muted hover:text-danger hover:bg-danger-subtle rounded transition-colors {sliderMin !== null || sliderMax !== null ? '' : 'invisible'}"
           onclick={() => { sliderMin = null; sliderMax = null; }}
-          title="Reset filter jumlah"
-          aria-label="Reset filter jumlah"
+          title={labels.filterJumlah}
+          aria-label={labels.filterJumlah}
         >
           <X size={14} />
         </button>
@@ -351,7 +357,7 @@
         >
           <div class="p-4 space-y-4">
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">{labels.presetRanges}</p>
               <div class="flex flex-wrap gap-1.5">
                 {#each datePresets as preset}
                   <Button
@@ -368,14 +374,14 @@
             <hr class="border-border" />
 
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">{labels.customRange}</p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label for="txn-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <label for="txn-start-date" class="block text-xs text-text-secondary mb-1">{labels.startDateLabel}</label>
                   <Input id="txn-start-date" type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
                 </div>
                 <div class="flex-1">
-                  <label for="txn-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <label for="txn-end-date" class="block text-xs text-text-secondary mb-1">{labels.endDateLabel}</label>
                   <Input id="txn-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
                 </div>
               </div>
@@ -384,10 +390,10 @@
 
           <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
             <Button variant="ghost" size="sm" onclick={cancelCustomRange}>
-              Cancel
+              {labels.cancel}
             </Button>
             <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomRange}>
-              Apply
+              {labels.apply}
             </Button>
           </div>
         </div>
@@ -395,8 +401,8 @@
     </div>
 
     <Dropdown items={[
-      { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
-      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
+      { label: labels.exportCSV, icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportCsv },
+      { label: labels.exportExcel, icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportExcel },
     ]}>
       {#snippet trigger({ toggle })}
         <Button
@@ -405,7 +411,7 @@
           onclick={toggle}
         >
           <Download size={15} />
-          Export
+          {labels.export}
           <ChevronDown size={14} class="transition-transform duration-300" />
         </Button>
       {/snippet}

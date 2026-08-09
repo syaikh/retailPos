@@ -3,6 +3,7 @@
   import { Loader2, AlertCircle, Upload, CheckCircle2, ArrowLeft, ArrowRight, Download, FileSpreadsheet } from 'lucide-svelte';
   import { uploadPreview, confirmImport, getProgress, cancelImport, downloadTemplate } from '$shared/services/import-export-service';
   import type { PreviewResult, ImportProgress } from '$shared/types/import-export';
+  import { labels, t } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -62,7 +63,7 @@
       preview = await uploadPreview(module, file);
       step = 'preview';
     } catch (err: any) {
-      error = err?.response?.data?.error || err?.message || 'Preview failed';
+      error = err?.response?.data?.error || err?.message || labels.previewFailed;
     } finally {
       loading = false;
     }
@@ -88,7 +89,7 @@
       };
       step = 'progress';
     } catch (err: any) {
-      error = err?.response?.data?.error || err?.message || 'Confirm failed';
+      error = err?.response?.data?.error || err?.message || labels.confirmFailed;
     } finally {
       loading = false;
     }
@@ -150,7 +151,7 @@
   );
 </script>
 
-<Modal bind:open={open} title={displayName ? `Import ${displayName}` : 'Import'} size="xl">
+<Modal bind:open={open} title={displayName ? t('importWithName', { name: displayName }) : labels.import} size="xl">
   <div class="space-y-4 min-h-[200px]">
     {#if step === 'upload'}
       <div class="space-y-4">
@@ -163,12 +164,12 @@
             onclick={handleDownloadTemplate}
           >
             <Download size={12} />
-            Download Template
+            {labels.downloadTemplate}
           </button>
           {#if file}
             <span class="text-xs text-text-muted">
               <FileSpreadsheet size={12} class="inline mr-1" />
-              {file.name.endsWith('.csv') ? 'CSV' : 'XLSX'} file selected
+              {t('fileSelected', { format: file.name.endsWith('.csv') ? 'CSV' : 'XLSX' })}
             </span>
           {/if}
         </div>
@@ -185,20 +186,20 @@
       <div class="space-y-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3 text-sm">
-            <span class="text-text-primary font-medium">Preview</span>
-            <span class="text-text-muted">{preview.total_rows} rows</span>
+            <span class="text-text-primary font-medium">{labels.preview}</span>
+            <span class="text-text-muted">{preview.total_rows} {labels.rows}</span>
             <span class="inline-flex items-center gap-1 text-emerald-400">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              {preview.insert_count} insert
+              {preview.insert_count} {labels.insert}
             </span>
             <span class="inline-flex items-center gap-1 text-amber-400">
               <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-              {preview.update_count} update
+              {preview.update_count} {labels.update}
             </span>
             {#if preview.error_count > 0}
               <span class="inline-flex items-center gap-1 text-rose-400">
                 <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                {preview.error_count} error
+                {preview.error_count} {labels.error}
               </span>
             {/if}
           </div>
@@ -212,7 +213,7 @@
           <div class="p-3 bg-danger-subtle/10 rounded-lg flex items-start gap-2">
             <AlertCircle size={16} class="text-danger shrink-0 mt-0.5" />
             <p class="text-sm text-danger">
-              Fix the errors above before importing. Rows with errors will be skipped.
+              {labels.fixErrorsBeforeImport}
             </p>
           </div>
         {/if}
@@ -232,33 +233,33 @@
 
   {#snippet footer()}
     {#if step === 'upload'}
-      <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+      <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
       <Button variant="primary" disabled={!file || loading} onclick={handleUpload}>
         {#if loading}
-          <Loader2 size={16} class="animate-spin" /> Parsing...
+          <Loader2 size={16} class="animate-spin" /> {labels.parsing}
         {:else}
-          <Upload size={14} /> Preview
+          <Upload size={14} /> {labels.preview}
         {/if}
       </Button>
 
     {:else if step === 'preview'}
       <div class="flex items-center gap-3 w-full">
         <Button variant="secondary" onclick={handleBack}>
-          <ArrowLeft size={14} /> Back
+          <ArrowLeft size={14} /> {labels.back}
         </Button>
         <div class="flex-1"></div>
-        <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+        <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
           <Button variant="primary" disabled={!canImport || loading} onclick={handleConfirm}>
             {#if loading}
-              <Loader2 size={16} class="animate-spin" /> Confirming...
+              <Loader2 size={16} class="animate-spin" /> {labels.confirming}
             {:else}
-              <CheckCircle2 size={14} /> Import {preview?.insert_count ?? 0 + (preview?.update_count ?? 0)} Rows
+              <CheckCircle2 size={14} /> {t('importRows', { count: (preview?.insert_count ?? 0) + (preview?.update_count ?? 0) })}
             {/if}
           </Button>
       </div>
 
     {:else if step === 'summary'}
-      <Button variant="primary" onclick={handleClose}>Close</Button>
+      <Button variant="primary" onclick={handleClose}>{labels.close}</Button>
     {/if}
   {/snippet}
 </Modal>

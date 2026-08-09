@@ -4,6 +4,7 @@
   import { X, Check, User, ChevronRight, Plus, Trash2 } from 'lucide-svelte';
   import { tick } from 'svelte';
   import type { PaymentAllocation } from '../types';
+  import { labels, t } from '$shared/i18n';
 
   const denominations = [5000, 10000, 20000, 50000, 100000];
   let dialogEl: HTMLDivElement | undefined = $state();
@@ -185,16 +186,16 @@
       bind:this={dialogEl}
       role="dialog"
       aria-modal="true"
-      aria-label="Pembayaran"
+      aria-label={labels.payment}
       class="relative z-[55] w-full max-w-4xl h-dvh max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl border border-border-default bg-bg-card shadow-modal p-5"
     >
       <div class="flex items-center justify-between shrink-0 mb-3">
-        <h2 class="text-lg font-bold text-text-primary">Pembayaran</h2>
+        <h2 class="text-lg font-bold text-text-primary">{labels.payment}</h2>
         <button
           onclick={close}
           class="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover/50 transition-colors"
-          title="Tutup [Esc]"
-          aria-label="Tutup"
+          title={`${labels.close} [Esc]`}
+          aria-label={labels.close}
         >
           <X size={18} />
         </button>
@@ -206,11 +207,11 @@
           <!-- LEFT: Item table -->
           <div class="col-span-7 flex flex-col min-h-0 rounded-lg border border-border/50 bg-surface/50">
             <div class="grid grid-cols-12 gap-1 px-4 py-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider border-b border-border/30">
-              <span class="col-span-4">Item</span>
-              <span class="col-span-2 text-right">Harga</span>
-              <span class="col-span-1 text-center">Qty</span>
-              <span class="col-span-2 text-right">Diskon</span>
-              <span class="col-span-3 text-right">Subtotal</span>
+              <span class="col-span-4">{labels.item}</span>
+              <span class="col-span-2 text-right">{labels.price}</span>
+              <span class="col-span-1 text-center">{labels.qty}</span>
+              <span class="col-span-2 text-right">{labels.discount}</span>
+              <span class="col-span-3 text-right">{labels.subtotal}</span>
             </div>
             <div class="flex-1 min-h-0 overflow-y-auto p-1">
               {#each cart as item}
@@ -245,17 +246,17 @@
               <div class="text-center pb-2 border-b border-border/30">
                 {#if taxAmount > 0}
                   <div class="flex justify-center gap-4 text-[11px] text-text-muted mb-1">
-                    <span>DPP: {dppDisplay.toLocaleString('id-ID')}</span>
-                    <span>PPN: {taxAmount.toLocaleString('id-ID')}</span>
+                    <span>{labels.dpp}: {dppDisplay.toLocaleString('id-ID')}</span>
+                    <span>{labels.ppn}: {taxAmount.toLocaleString('id-ID')}</span>
                   </div>
                 {/if}
                 {#if hasDiscountedItems}
                   <div class="text-[11px] text-green-500 mb-1">
-                    Hemat: {totalSavings.toLocaleString('id-ID')}
+                    {t('savingsWithAmount', { amount: totalSavings.toLocaleString('id-ID') })}
                   </div>
                 {/if}
                 <p class="text-3xl font-extrabold text-purple-400">
-                  Rp {totalAmount.toLocaleString('id-ID')}
+                  {labels.currencySymbol} {totalAmount.toLocaleString('id-ID')}
                 </p>
               </div>
 
@@ -286,12 +287,12 @@
             <!-- Scrollable: Allocations List -->
             {#if allocations.length > 0}
               <div class="flex items-center justify-between px-1">
-                <span class="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Alokasi Pembayaran</span>
+                <span class="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{labels.paymentAllocation}</span>
                 <button
                   class="text-[10px] text-danger hover:text-danger-light transition-colors"
                   onclick={() => { allocations = []; }}
                 >
-                  Hapus semua
+                  {labels.removeAll}
                 </button>
               </div>
             {/if}
@@ -307,8 +308,8 @@
                     <button
                       class="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-danger hover:bg-danger-subtle/30 transition-colors"
                       onclick={() => removeAllocation(alloc.id)}
-                      title="Hapus pembayaran ini"
-                      aria-label="Hapus pembayaran"
+                      title={labels.removeThisPayment}
+                      aria-label={labels.removePayment}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -316,7 +317,7 @@
 
                   <div>
                     <label for="alloc-amount-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
-                      Jumlah
+                      {labels.amount}
                     </label>
                     <CurrencyInput
                       id="alloc-amount-{alloc.id}"
@@ -328,13 +329,13 @@
                   {#if !isCash && opt?.requiresReference}
                     <div>
                       <label for="alloc-ref-{alloc.id}" class="text-[10px] text-text-muted mb-1 block">
-                        No. Referensi
+                        {labels.referenceNumber}
                       </label>
                       <input
                         id="alloc-ref-{alloc.id}"
                         type="text"
                         bind:value={alloc.referenceNumber}
-                        placeholder="Masukkan no. referensi"
+                        placeholder={labels.referenceNumberPlaceholder}
                         class="w-full px-2 py-1.5 rounded-lg border border-border bg-surface text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary-light transition-colors"
                       />
                     </div>
@@ -347,7 +348,7 @@
                           class="py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
                           onclick={() => { alloc.amount += denom; allocations = allocations; }}
                         >
-                          {denom >= 1000000 ? `${denom / 1000000}jt` : denom >= 1000 ? `${denom / 1000}rb` : String(denom)}
+                          {denom >= 1000000 ? `${denom / 1000000}${labels.denomMillion}` : denom >= 1000 ? `${denom / 1000}${labels.denomThousand}` : String(denom)}
                         </button>
                       {/each}
                     </div>
@@ -356,13 +357,13 @@
                         class="flex-1 py-1 rounded-lg border text-[10px] font-semibold transition-all border-border text-text-secondary hover:border-primary-light hover:text-primary-light hover:bg-primary-subtle/30"
                         onclick={() => { alloc.amount = totalAmount; allocations = allocations; }}
                       >
-                        Tepat [F7]
+                        {labels.exactAmountShortcut}
                       </button>
                       <button
                         class="flex-1 py-1 rounded-lg border border-danger/30 text-[10px] font-semibold text-danger hover:bg-danger-subtle/30 transition-all"
                         onclick={() => { alloc.amount = 0; allocations = allocations; }}
                       >
-                        Reset
+                        {labels.reset}
                       </button>
                     </div>
                   {/if}
@@ -371,7 +372,7 @@
 
               {#if allocations.length === 0}
                 <div class="text-center py-4 text-[11px] text-text-muted">
-                  Pilih metode pembayaran di samping untuk menambahkan pembayaran
+                  {labels.selectPaymentMethodHint}
                 </div>
               {/if}
             </div>
@@ -384,7 +385,7 @@
                   class="flex-1 py-2"
                   onclick={close}
                 >
-                  Batal [Esc]
+                  {labels.cancelEsc}
                 </Button>
                 <Button
                   variant="success"
@@ -393,7 +394,7 @@
                   onclick={handleFinalize}
                 >
                   <Check size={14} />
-                  Selesai [Enter]
+                  {labels.doneEnter}
                 </Button>
               </div>
             </div>

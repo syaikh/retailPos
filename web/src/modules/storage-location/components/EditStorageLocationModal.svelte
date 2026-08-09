@@ -55,6 +55,8 @@
   });
 
   function handleSave() {
+    if (!location) return;
+
     const errors = { code: '', name: '', scope: '' };
     let valid = true;
 

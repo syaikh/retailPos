@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { MoreVertical, Package, Pencil, Trash2, ArrowUpDown } from 'lucide-svelte';
+import { labels } from '$shared/i18n';
 
 let {
   product,
@@ -91,8 +92,8 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
       toggleDropdown();
     }}
     class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
-    title="Actions"
-    aria-label="Product actions"
+    title={labels.actions}
+    aria-label={labels.productActions}
   >
     <MoreVertical size={14} />
   </button>
@@ -119,7 +120,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
         role="menuitem"
       >
         <Package size={14} />
-        View Details
+        {labels.lihatDetail}
       </button>
       {#if canAdjustStock}
         <button
@@ -128,7 +129,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
           role="menuitem"
         >
           <ArrowUpDown size={14} />
-          Adjust Stock
+          {labels.adjustStock}
         </button>
       {/if}
       {#if canEdit}
@@ -138,7 +139,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
           role="menuitem"
         >
           <Pencil size={14} />
-          Edit Product
+          {labels.editProduk}
         </button>
       {/if}
       {#if canDelete && product.stock === 0}
@@ -148,7 +149,7 @@ function handleAction(action: 'view' | 'edit' | 'delete' | 'adjust') {
           role="menuitem"
         >
           <Trash2 size={14} />
-          Delete Product
+          {labels.deleteProduct}
         </button>
       {/if}
     </div>

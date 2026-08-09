@@ -39,20 +39,36 @@ describe('TransactionFilters.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('defines SLIDER_MAX_BOUND', () => {
     expect(src).toContain('SLIDER_MAX_BOUND');
   });
 
-  it('defines datePresets', () => {
+  it('defines datePresets with localized labels', () => {
     expect(src).toContain('datePresets');
+    expect(src).toContain('labels.today');
+    expect(src).toContain('labels.yesterday');
+    expect(src).toContain('labels.last7Days');
+    expect(src).toContain('labels.last30Days');
+    expect(src).toContain('labels.thisMonth');
+    expect(src).toContain('labels.thisYear');
   });
 
   it('has dateRangeLabel derived', () => {
     expect(src).toContain('const dateRangeLabel = $derived');
+    expect(src).toContain("t('customDateRange'");
   });
 
-  it('has amountError derived', () => {
+  it('has amountError derived with localized messages', () => {
     expect(src).toContain('const amountError = $derived');
+    expect(src).toContain('labels.errorMinCannotBeNegative');
+    expect(src).toContain("t('errorMinExceedsMax'");
+    expect(src).toContain('labels.errorMaxCannotBeNegative');
+    expect(src).toContain("t('errorMaxExceedsMax'");
+    expect(src).toContain('labels.errorMinCannotExceedMax');
   });
 
   it('has handleMinInput and handleMaxInput', () => {
@@ -111,19 +127,30 @@ describe('TransactionFilters.svelte source-structure guards', () => {
   });
 
   it('renders export via Dropdown', () => {
-    expect(src).toContain('Export to CSV');
-    expect(src).toContain('Export to Excel');
+    expect(src).toContain('labels.exportCSV');
+    expect(src).toContain('labels.exportExcel');
   });
 
   it('renders date picker with presets and custom range', () => {
     expect(src).toContain('showDatePicker');
-    expect(src).toContain('Preset Ranges');
-    expect(src).toContain('Custom Range');
+    expect(src).toContain('{labels.presetRanges}');
+    expect(src).toContain('{labels.customRange}');
   });
 
-  it('has date picker footer with Cancel and Apply', () => {
-    expect(src).toContain('Cancel');
-    expect(src).toContain('Apply');
+  it('has date picker footer with localized Cancel and Apply', () => {
+    expect(src).toContain('{labels.cancel}');
+    expect(src).toContain('{labels.apply}');
+  });
+
+  it('localizes export toast errors', () => {
+    expect(src).toContain('labels.toastSessionExpired');
+    expect(src).toContain('labels.toastExportFailed');
+  });
+
+  it('localizes amount placeholders and reset', () => {
+    expect(src).toContain('placeholder={labels.minLabel}');
+    expect(src).toContain('placeholder={labels.maxLabel}');
+    expect(src).toContain('labels.filterJumlah');
   });
 
   it('does not have old draft/applied pattern', () => {

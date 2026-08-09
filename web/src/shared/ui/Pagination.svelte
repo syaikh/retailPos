@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button } from '$shared/ui';
   import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
 
   let { 
     total = 0, 
@@ -88,7 +89,7 @@
 <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-border-subtle">
   <!-- Rows per page -->
   <div class="flex items-center gap-3 text-sm text-text-secondary">
-    <label for="rows-per-page">Rows per page:</label>
+    <label for="rows-per-page">{labels.rowsPerPage}</label>
     <select 
       id="rows-per-page"
       class="bg-surface-default border border-border-strong rounded-xl px-2 py-1 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-default cursor-pointer"
@@ -101,21 +102,21 @@
       <option value={100}>100</option>
     </select>
     <span class="ml-2">
-      Showing {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)} of {total}
+      {labels.showing} {Math.min(offset + 1, total)}-{Math.min(offset + limit, total)} {labels.of} {total}
     </span>
   </div>
 
   <!-- Navigation -->
   <div class="flex items-center gap-1">
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(1)} disabled={!canPrev} title="First Page" aria-label="First page">
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(1)} disabled={!canPrev} title={labels.firstPage} aria-label={labels.firstPage}>
       <ChevronsLeft size={18} />
     </Button>
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage - 1)} disabled={!canPrev} title="Previous" aria-label="Previous page">
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage - 1)} disabled={!canPrev} title={labels.previous} aria-label={labels.previousPage}>
       <ChevronLeft size={18} />
     </Button>
     
     {#if editing}
-      <label for="page-input" class="sr-only">Go to page</label>
+      <label for="page-input" class="sr-only">{labels.goToPage}</label>
       <input
         id="page-input"
         type="text"
@@ -126,24 +127,24 @@
         oninput={handleInput}
         onkeydown={handleKeydown}
         onblur={submitEdit}
-        aria-label="Go to page"
+        aria-label={labels.goToPage}
       />
       <span class="text-sm text-text-muted" aria-hidden="true">/ {totalPages}</span>
     {:else}
       <button
         class="px-4 py-1.5 text-sm font-medium bg-surface-default border border-border-strong rounded-xl min-w-[100px] text-center hover:border-primary-default/50 transition-colors cursor-text"
         onclick={startEdit}
-        title="Click to jump to page"
-        aria-label="Current page. Click to jump to a specific page."
+        title={labels.clickToJumpToPage}
+        aria-label={labels.currentPageClickToJump}
       >
-        Page {currentPage} of {totalPages}
+        {t('pageXOfY', { page: currentPage, total: totalPages })}
       </button>
     {/if}
 
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage + 1)} disabled={!canNext} title="Next" aria-label="Next page">
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(currentPage + 1)} disabled={!canNext} title={labels.next} aria-label={labels.nextPage}>
       <ChevronRight size={18} />
     </Button>
-    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(totalPages)} disabled={!canNext} title="Last Page" aria-label="Last page">
+    <Button variant="ghost" size="icon" class="p-1.5 disabled:opacity-30" onclick={() => goToPage(totalPages)} disabled={!canNext} title={labels.lastPage} aria-label={labels.lastPage}>
       <ChevronsRight size={18} />
     </Button>
   </div>

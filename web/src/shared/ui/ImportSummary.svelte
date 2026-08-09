@@ -1,6 +1,7 @@
 <script lang="ts">
   import { CheckCircle2, AlertCircle } from 'lucide-svelte';
   import type { ImportProgress } from '$shared/types/import-export';
+  import { labels } from '$shared/i18n';
 
   let {
     progress,
@@ -25,32 +26,32 @@
 
     <p class="text-text-primary font-semibold">
       {#if progress.status === 'completed'}
-        Import Completed
+        {labels.importCompleted}
       {:else if progress.status === 'failed'}
-        Import Failed
+        {labels.importFailed}
       {:else}
-        Import Cancelled
+        {labels.importCancelled}
       {/if}
     </p>
 
     <div class="grid grid-cols-3 gap-3">
       <div class="p-3 bg-surface-subtle rounded-lg">
         <p class="text-lg font-bold text-emerald-400">{progress.inserted ?? 0}</p>
-        <p class="text-xs text-text-muted">Inserted</p>
+        <p class="text-xs text-text-muted">{labels.inserted}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">
         <p class="text-lg font-bold text-amber-400">{progress.updated ?? 0}</p>
-        <p class="text-xs text-text-muted">Updated</p>
+        <p class="text-xs text-text-muted">{labels.updated}</p>
       </div>
       <div class="p-3 bg-surface-subtle rounded-lg">
         <p class="text-lg font-bold text-rose-400">{progress.errors}</p>
-        <p class="text-xs text-text-muted">Errors</p>
+        <p class="text-xs text-text-muted">{labels.errors}</p>
       </div>
     </div>
 
     {#if progress.duration_ms > 0}
       <p class="text-xs text-text-muted">
-        Duration: {progress.duration_ms >= 1000
+        {labels.duration}: {progress.duration_ms >= 1000
           ? `${(progress.duration_ms / 1000).toFixed(1)}s`
           : `${progress.duration_ms}ms`}
       </p>

@@ -2,6 +2,7 @@
   import { SearchBar } from '$shared/ui';
   import { X } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
+  import { labels } from '$shared/i18n';
   let {
     open = $bindable(false),
     categories = [],
@@ -78,16 +79,16 @@
     transition:fly={{ x: '100%', duration: 300 }}
     role="dialog"
     aria-modal="true"
-    aria-label="Filter Kategori"
+    aria-label={labels.filterKategori}
     tabindex="-1"
   >
     <!-- Header -->
     <div class="flex items-center justify-between px-6 py-4 border-b border-border">
-      <h2 class="text-lg font-semibold text-text-primary">Filter Produk</h2>
+      <h2 class="text-lg font-semibold text-text-primary">{labels.filterProduk}</h2>
 <button type="button" 
         onclick={() => open = false}
         class="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
-        aria-label="Close"
+        aria-label={labels.close}
       >
         <X size={20} />
       </button>
@@ -95,11 +96,11 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-      <SearchBar bind:value={searchQuery} placeholder="Cari berdasarkan nama..." inputClass="bg-surface border-border focus:ring-primary focus:border-transparent" />
+      <SearchBar bind:value={searchQuery} placeholder={labels.cariNama} inputClass="bg-surface border-border focus:ring-primary focus:border-transparent" />
 
       <!-- All Categories Grid -->
       <div>
-        <h3 class="text-sm font-medium text-text-secondary mb-3">Semua Kategori (A-Z)</h3>
+        <h3 class="text-sm font-medium text-text-secondary mb-3">{labels.allCategoriesAZ}</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
           {#each filteredCategories as cat}
             {@const isSelected = tempSelectedCategories.includes(cat)}
@@ -121,7 +122,7 @@
           {/each}
         </div>
         {#if filteredCategories.length === 0}
-          <p class="text-sm text-text-muted text-center py-4">Tidak ada kategori ditemukan</p>
+          <p class="text-sm text-text-muted text-center py-4">{labels.noCategoriesFound}</p>
         {/if}
       </div>
     </div>
@@ -132,13 +133,13 @@
         onclick={resetFilters}
         class="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors"
       >
-        Reset Semua
+        {labels.resetAll}
       </button>
 <button type="button"
         onclick={applyFilters}
         class="px-5 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-2"
       >
-        Terapkan Filter
+        {labels.applyFilter}
         {#if activeCount > 0}
           <span class="bg-white/20 px-1.5 py-0.5 rounded-full text-xs">{activeCount}</span>
         {/if}

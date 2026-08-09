@@ -14,6 +14,7 @@
     type Notification,
   } from '$shared/stores/notifications.svelte';
   import { useAuthStore } from '$modules/auth';
+  import { labels, t } from '$shared/i18n';
 
   const ws = useWebSocket();
   const authStore = useAuthStore();
@@ -94,42 +95,42 @@
       ws.on('low_stock_alert', (data: any) => {
         notifications.push({
           type: 'low_stock',
-          title: 'Stok Menipis',
-          description: `${data.name} — sisa ${data.stock}`,
+          title: labels.lowStockAlert,
+          description: t('lowStockAlertDesc', { name: data.name, stock: data.stock }),
           navigateTo: '/inventory/products?low_stock=true',
         });
-        toast.error(`Low stock alert: ${data.name} (stock: ${data.stock})`);
+        toast.error(t('lowStockAlertToast', { name: data.name, stock: data.stock }));
       }),
       ws.on('sale_created', (data: any) => {
         notifications.push({
           type: 'sale_created',
-          title: 'Transaksi Baru',
-          description: `${data.invoice} — Rp ${(data.total || 0).toLocaleString('id-ID')}`,
+          title: labels.newTransaction,
+          description: t('newTransactionDesc', { invoice: data.invoice, amount: (data.total || 0).toLocaleString('id-ID') }),
           navigateTo: '/transactions',
         });
       }),
       ws.on('stock_update', (data: any) => {
-        const status = data.low_stock ? '⚠️ low stock' : `${data.stock} units`;
+        const status = data.low_stock ? `⚠️ ${labels.stockUpdateStatusLow}` : t('stockUpdateUnits', { count: data.stock });
         notifications.push({
           type: 'stock_update',
-          title: 'Stok Diubah',
-          description: `${data.sku} — ${status}`,
+          title: labels.stockUpdated,
+          description: t('stockUpdatedDesc', { sku: data.sku, status }),
           navigateTo: `/inventory/products?product_id=${data.id}`,
         });
       }),
       ws.on('product_updated', (data: any) => {
         notifications.push({
           type: 'product_updated',
-          title: 'Produk Diubah',
-          description: `${data.sku} — harga: Rp ${(data.price || 0).toLocaleString('id-ID')}`,
+          title: labels.productUpdated,
+          description: t('productUpdatedDesc', { sku: data.sku, price: (data.price || 0).toLocaleString('id-ID') }),
           navigateTo: `/inventory/products?product_id=${data.id}`,
         });
       }),
       ws.on('po_received', (data: any) => {
         notifications.push({
           type: 'po_received',
-          title: 'PO Diterima',
-          description: `${data.po_number} — ${data.gr_number}`,
+          title: labels.poReceived,
+          description: t('poReceivedDesc', { po_number: data.po_number, gr_number: data.gr_number }),
           navigateTo: `/purchase-orders?po_id=${data.po_id}`,
         });
       }),
@@ -137,8 +138,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_created',
-          title: 'Stock Opname Dibuat',
-          description: `Sesi ${data.session_number} dibuat`,
+          title: labels.soCreatedTitle,
+          description: t('soSessionCreatedDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -146,8 +147,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_submitted',
-          title: 'Stock Opname Diserahkan',
-          description: `Sesi ${data.session_number} menunggu persetujuan`,
+          title: labels.soSubmittedTitle,
+          description: t('soSessionAwaitingDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -155,8 +156,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_approved',
-          title: 'Stock Opname Disetujui',
-          description: `Sesi ${data.session_number} disetujui`,
+          title: labels.soApprovedTitle,
+          description: t('soSessionApprovedDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -164,8 +165,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_rejected',
-          title: 'Stock Opname Ditolak',
-          description: `Sesi ${data.session_number} ditolak — perlu penghitungan ulang`,
+          title: labels.soRejectedTitle,
+          description: t('soSessionRejectedDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -173,8 +174,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_needs_recount',
-          title: 'Perlu Penghitungan Ulang',
-          description: `Sesi ${data.session_number} diminta penghitungan ulang`,
+          title: labels.soNeedsRecountTitle,
+          description: t('soSessionNeedsRecountDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -182,8 +183,8 @@
         if (!canSeeStockOpname) return;
         notifications.push({
           type: 'so_cancelled',
-          title: 'Stock Opname Dibatalkan',
-          description: `Sesi ${data.session_number} dibatalkan`,
+          title: labels.soCancelledTitle,
+          description: t('soSessionCancelledDesc', { number: data.session_number }),
           navigateTo: `/stock-opnames/${data.session_id}`,
         });
       }),
@@ -193,7 +194,7 @@
 </script>
 
 <div bind:this={container} class="relative">
-  <Button variant="ghost" size="icon" class="relative text-text-muted hover:text-text-primary" onclick={handleClick} aria-label="Notifications">
+  <Button variant="ghost" size="icon" class="relative text-text-muted hover:text-text-primary" onclick={handleClick} aria-label={labels.notifications}>
     <Bell size={18} />
     {#if unread > 0}
       <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-danger text-white text-[10px] font-bold rounded-full px-1 leading-none shadow-glow-danger">
@@ -208,14 +209,14 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-2 py-1.5 border-b border-border/50">
           <span class="text-xs font-semibold text-text-primary uppercase tracking-wide">
-            Notifications {unread > 0 ? `(${unread})` : ''}
+            {labels.notifications} {unread > 0 ? `(${unread})` : ''}
           </span>
           {#if items.length > 0 && unread > 0}
 <button type="button" 
               class="text-[10px] font-medium text-primary-light hover:text-primary transition-colors"
               onclick={handleMarkAllRead}
             >
-              Mark all read
+              {labels.markAllRead}
             </button>
           {/if}
         </div>
@@ -225,7 +226,7 @@
           {#if items.length === 0}
             <div class="flex flex-col items-center justify-center py-8 text-text-muted">
               <Bell size={24} class="opacity-30 mb-2" />
-              <span class="text-xs">No notifications yet</span>
+              <span class="text-xs">{labels.noNotificationsYet}</span>
             </div>
           {:else}
             {#each items as n (n.id)}

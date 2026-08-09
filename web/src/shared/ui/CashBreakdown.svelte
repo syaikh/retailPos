@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { labels } from '$shared/i18n';
+
   let {
     total = $bindable(0),
     disabled = false,
@@ -62,7 +64,7 @@
     {/each}
   </div>
   <div class="flex items-center justify-between px-3 py-2 border-t border-border">
-    <span class="text-sm font-semibold text-text-primary">Total</span>
+    <span class="text-sm font-semibold text-text-primary">{labels.total}</span>
     <span class="text-lg font-bold text-primary">Rp{fmt(total)}</span>
   </div>
 </div>

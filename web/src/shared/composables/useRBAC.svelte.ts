@@ -19,10 +19,10 @@ export function useRBAC() {
   function can(permission: string): boolean {
     return userPerms.includes(permission);
   }
-  function canAny(permissions: string[]): boolean {
+  function canAny(permissions: readonly string[]): boolean {
     return permissions.some((p) => userPerms.includes(p));
   }
-  function canAll(permissions: string[]): boolean {
+  function canAll(permissions: readonly string[]): boolean {
     return permissions.every((p) => userPerms.includes(p));
   }
 

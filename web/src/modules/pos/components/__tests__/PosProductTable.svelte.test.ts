@@ -19,6 +19,10 @@ describe('PosProductTable.svelte source-structure guards', () => {
     expect(src).toContain("import { Plus, Copy, Package } from 'lucide-svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $bindable for showCopySuccess', () => {
     expect(src).toContain('showCopySuccess = $bindable(');
   });
@@ -35,13 +39,13 @@ describe('PosProductTable.svelte source-structure guards', () => {
   });
 
   it('handles empty state', () => {
-    expect(src).toContain('No products found');
+    expect(src).toContain('{labels.noProductsFound}');
   });
 
   it('renders table headers', () => {
-    expect(src).toContain('PRODUCT NAME');
-    expect(src).toContain('Stock');
-    expect(src).toContain('Price');
+    expect(src).toContain('{labels.productName}');
+    expect(src).toContain('{labels.stock}');
+    expect(src).toContain('{labels.price}');
   });
 
   it('renders stock badges with variants', () => {

@@ -31,6 +31,10 @@ describe('TransactionTable.svelte source-structure guards', () => {
     expect(src).toContain("import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('has getPaymentMethodVariant function', () => {
     expect(src).toContain('function getPaymentMethodVariant');
   });
@@ -50,19 +54,30 @@ describe('TransactionTable.svelte source-structure guards', () => {
 
   it('renders empty state with Banknote icon', () => {
     expect(src).toContain('<Banknote');
-    expect(src).toContain('No transactions found');
+    expect(src).toContain('{labels.noTransactionsFound}');
+    expect(src).toContain('{labels.tryAdjustingSearchOrDateRange}');
   });
 
-  it('renders sortable table headers', () => {
-    expect(src).toContain('INVOICE');
-    expect(src).toContain('DATE');
-    expect(src).toContain('CUSTOMER');
-    expect(src).toContain('PAYMENT');
-    expect(src).toContain('TOTAL (RP)');
+  it('renders sortable table headers with localized labels', () => {
+    expect(src).toContain('label={labels.invoiceLabel}');
+    expect(src).toContain('label={labels.dateLabel}');
+    expect(src).toContain('{labels.customerLabel}');
+    expect(src).toContain('{labels.itemsLabel}');
+    expect(src).toContain('label={labels.paymentLabel}');
+    expect(src).toContain('label={labels.totalRp}');
   });
 
-  it('shows Walk-in / General for sales without customer', () => {
-    expect(src).toContain("Walk-in / General");
+  it('shows localized Walk-in / General for sales without customer', () => {
+    expect(src).toContain('labels.walkInGeneral');
+  });
+
+  it('localizes items count and more count', () => {
+    expect(src).toContain("t('itemsCount'");
+    expect(src).toContain("t('moreWithCount'");
+  });
+
+  it('shows localized loading aria-label', () => {
+    expect(src).toContain('labels.loadingTransactions');
   });
 
   it('renders Pagination component', () => {

@@ -2,6 +2,7 @@
   import { Badge, Pagination, Skeleton, SortableHeader } from '$shared/ui';
   import { Banknote } from 'lucide-svelte';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
 
   let {
     salesData = [],
@@ -69,7 +70,7 @@
 
 <div class="card p-0 overflow-hidden">
   {#if loading}
-    <div aria-busy="true" aria-label="Loading transactions">
+    <div aria-busy="true" aria-label={labels.loadingTransactions}>
       <div class="divide-y divide-border">
       {#each { length: 5 } as _}
         <div class="flex items-center gap-4 px-4 py-3.5">
@@ -86,8 +87,8 @@
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
         <Banknote size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold mt-4">No transactions found</p>
-      <p class="text-text-muted text-sm mt-1">Try adjusting the search or date range</p>
+      <p class="text-text-primary font-semibold mt-4">{labels.noTransactionsFound}</p>
+      <p class="text-text-muted text-sm mt-1">{labels.tryAdjustingSearchOrDateRange}</p>
     </div>
   {:else}
     <div class="overflow-x-auto">
@@ -95,18 +96,18 @@
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label="INVOICE" column="invoice_number" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.invoiceLabel} column="invoice_number" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label="DATE" column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.dateLabel} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
-            <th class="text-left p-4 font-semibold w-[30%]">CUSTOMER</th>
-            <th class="text-left p-4 font-semibold">ITEMS</th>
+            <th class="text-left p-4 font-semibold w-[30%]">{labels.customerLabel}</th>
+            <th class="text-left p-4 font-semibold">{labels.itemsLabel}</th>
             <th class="text-left p-4 font-semibold">
-              <SortableHeader label="PAYMENT" column="payment_method" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.paymentLabel} column="payment_method" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-right p-4 font-semibold">
-              <SortableHeader label="TOTAL (RP)" column="total_amount" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+              <SortableHeader label={labels.totalRp} column="total_amount" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
             </th>
           </tr>
         </thead>
@@ -128,10 +129,10 @@
                 {formatDateTime(new Date(sale.created_at))}
               </td>
               <td class="p-4 text-sm text-text-secondary">
-                {sale.customer_name || 'Walk-in / General'}
+                {sale.customer_name || labels.walkInGeneral}
               </td>
               <td class="p-4 text-sm text-text-secondary">
-                {sale.items?.length || 0} items
+                {t('itemsCount', { count: sale.items?.length || 0 })}
               </td>
               <td class="p-4">
                 {#if sale.payment_method && sale.payment_method.includes(',')}
@@ -141,7 +142,7 @@
                       {methods[0]}
                     </Badge>
                     <Badge variant="muted" class="text-xs px-2.5 py-0.5">
-                      +{methods.length - 1} more
+                      {t('moreWithCount', { count: methods.length - 1 })}
                     </Badge>
                   </div>
                 {:else}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge } from '$shared/ui';
   import type { PreviewRow } from '$shared/types/import-export';
+  import { labels } from '$shared/i18n';
 
   let {
     rows = [] as PreviewRow[],
@@ -15,11 +16,11 @@
   function statusBadge(row: PreviewRow) {
     switch (row.status) {
       case 'insert':
-        return { label: 'Insert', class: 'bg-emerald-500/10 text-emerald-400' };
+        return { label: labels.insert, class: 'bg-emerald-500/10 text-emerald-400' };
       case 'update':
-        return { label: 'Update', class: 'bg-amber-500/10 text-amber-400' };
+        return { label: labels.update, class: 'bg-amber-500/10 text-amber-400' };
       case 'error':
-        return { label: 'Error', class: 'bg-rose-500/10 text-rose-400' };
+        return { label: labels.error, class: 'bg-rose-500/10 text-rose-400' };
     }
   }
 
@@ -42,8 +43,8 @@
     <table class="w-full text-xs">
       <thead class="bg-surface-subtle sticky top-0 z-10 border-b border-border">
         <tr>
-          <th class="px-3 py-2 text-left font-semibold text-text-muted uppercase tracking-wider w-16">Status</th>
-          <th class="px-3 py-2 text-left font-semibold text-text-muted uppercase tracking-wider w-12">Row</th>
+          <th class="px-3 py-2 text-left font-semibold text-text-muted uppercase tracking-wider w-16">{labels.status}</th>
+          <th class="px-3 py-2 text-left font-semibold text-text-muted uppercase tracking-wider w-12">{labels.row}</th>
           {#each columns as col}
             <th class="px-3 py-2 text-left font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap">{col}</th>
           {/each}
@@ -56,12 +57,12 @@
               {#if row.status === 'error'}
                 <span class="inline-flex items-center gap-1 text-rose-400 font-medium">
                   <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
-                  Error
+                  {labels.error}
                 </span>
               {:else}
                 <span class="inline-flex items-center gap-1 {row.status === 'insert' ? 'text-emerald-400' : 'text-amber-400'} font-medium">
                   <span class="w-1.5 h-1.5 rounded-full {row.status === 'insert' ? 'bg-emerald-400' : 'bg-amber-400'} shrink-0"></span>
-                  {row.status === 'insert' ? 'Insert' : 'Update'}
+                  {row.status === 'insert' ? labels.insert : labels.update}
                 </span>
               {/if}
             </td>

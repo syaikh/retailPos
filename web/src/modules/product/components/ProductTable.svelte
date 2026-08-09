@@ -2,6 +2,7 @@
   import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { Package, Copy } from 'lucide-svelte';
   import ProductActionsDropdown from '$modules/product/components/ProductActionsDropdown.svelte';
+  import { labels, t } from '$shared/i18n';
 
   let {
     products = [],
@@ -66,32 +67,43 @@
     onselect(id);
   }
 
+  function statusLabel(status?: string): string {
+    switch ((status || '').toLowerCase()) {
+      case 'active': return labels.active;
+      case 'draft': return labels.draft;
+      case 'inactive': return labels.inactive;
+      case 'discontinued': return labels.discontinued;
+      case 'archived': return labels.archived;
+      default: return '- ';
+    }
+  }
+
   function statusInfo(status?: string): { variant: 'success' | 'muted' | 'danger'; label: string } {
     switch ((status || '').toLowerCase()) {
-      case 'active': return { variant: 'success', label: 'Active' };
+      case 'active': return { variant: 'success', label: labels.active };
       case 'draft':
       case 'inactive':
-        return { variant: 'muted', label: (status || 'Draft').charAt(0).toUpperCase() + (status || 'draft').slice(1) };
+        return { variant: 'muted', label: statusLabel(status) };
       case 'discontinued':
       case 'archived':
-        return { variant: 'danger', label: status!.charAt(0).toUpperCase() + status!.slice(1) };
+        return { variant: 'danger', label: statusLabel(status) };
       default: return { variant: 'muted', label: '- ' };
     }
   }
 </script>
 
 {#if loading}
-  <div aria-busy="true" aria-label="Loading products" aria-live="polite" class="overflow-x-auto">
+  <div aria-busy="true" aria-label={labels.loadingProducts} aria-live="polite" class="overflow-x-auto">
   <table class="w-full table-fixed min-w-[900px]">
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12"></th>
-        <th class="text-left p-4 font-semibold" style="width: 30%;">PRODUCT NAME</th>
-        <th class="text-left p-4 font-semibold w-52">CATEGORY</th>
-        <th class="text-left p-4 font-semibold w-24">UOM</th>
-        <th class="p-4 font-semibold w-28 text-right"><span class="flex items-center justify-end gap-1">PRICE</span></th>
-        <th class="p-4 font-semibold w-20 text-right"><span class="flex items-center justify-end gap-1">STOCK</span></th>
-        <th class="text-left p-4 font-semibold w-20">STATUS</th>
+        <th class="text-left p-4 font-semibold" style="width: 30%;">{labels.productName}</th>
+        <th class="text-left p-4 font-semibold w-52">{labels.category}</th>
+        <th class="text-left p-4 font-semibold w-24">{labels.unitOfMeasure}</th>
+        <th class="p-4 font-semibold w-28 text-right"><span class="flex items-center justify-end gap-1">{labels.price}</span></th>
+        <th class="p-4 font-semibold w-20 text-right"><span class="flex items-center justify-end gap-1">{labels.stock}</span></th>
+        <th class="text-left p-4 font-semibold w-20">{labels.status}</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
     </thead>
@@ -116,8 +128,8 @@
     <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
       <Package size={32} class="text-text-muted" />
     </div>
-    <p class="text-text-primary font-semibold mt-4">No products found</p>
-    <p class="text-text-muted text-sm mt-1">Try adjusting your filters or start by adding your first product</p>
+    <p class="text-text-primary font-semibold mt-4">{labels.noProductsFound}</p>
+    <p class="text-text-muted text-sm mt-1">{labels.tryAdjustingOrAddFirstProduct}</p>
   </div>
 {:else}
   <div class="overflow-x-auto">
@@ -125,22 +137,22 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="p-4 font-semibold w-12">
-          <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Select all products" />
+          <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label={labels.selectAllProducts} />
         </th>
         <th class="text-left p-4 font-semibold" style="width: 30%;">
-          <SortableHeader label="PRODUCT NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.productName} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-52">
-          <SortableHeader label="CATEGORY" column="category" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.category} column="category" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="text-left p-4 font-semibold w-24">UOM</th>
+        <th class="text-left p-4 font-semibold w-24">{labels.unitOfMeasure}</th>
         <th class="p-4 font-semibold w-28">
-          <SortableHeader label="PRICE" column="price" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+          <SortableHeader label={labels.price} column="price" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
         <th class="p-4 font-semibold w-20">
-          <SortableHeader label="STOCK" column="stock" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+          <SortableHeader label={labels.stock} column="stock" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
         </th>
-        <th class="text-left p-4 font-semibold w-20">STATUS</th>
+        <th class="text-left p-4 font-semibold w-20">{labels.status}</th>
         <th class="text-left p-4 font-semibold w-10"></th>
       </tr>
     </thead>
@@ -154,14 +166,14 @@
           onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onproductclick(product); } }}
         >
           <td class="p-4 w-12" onclick={(e) => e.stopPropagation()}>
-            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} aria-label="Select {product.name}" />
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(product.id)} onchange={() => toggleSelect(product.id)} aria-label={t('selectProductWithName', { name: product.name })} />
           </td>
           <td class="p-4 pr-6" style="width: 30%;">
             <div class="font-medium truncate" title={product.name}>{product.name}</div>
             <div class="flex items-baseline gap-2 mt-1 text-xs text-text-muted">
               <span class="flex items-center gap-1">
-                <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[120px]" title="Salin SKU" onclick={(e) => { e.stopPropagation(); oncopy(product.sku, `sku_${product.id}`, product.id); }}>{product.sku}</button>
-                <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin SKU" aria-label="Salin SKU" onclick={(e) => { e.stopPropagation(); oncopy(product.sku, `sku_${product.id}`, product.id); }}>
+                <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[120px]" title={labels.copySku} onclick={(e) => { e.stopPropagation(); oncopy(product.sku, `sku_${product.id}`, product.id); }}>{product.sku}</button>
+                <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title={labels.copySku} aria-label={labels.copySku} onclick={(e) => { e.stopPropagation(); oncopy(product.sku, `sku_${product.id}`, product.id); }}>
                   {#if showCopySuccess?.has(`sku_${product.id}`)}
                     <span class="text-xs text-primary font-bold leading-none">✓</span>
                   {:else}
@@ -171,8 +183,8 @@
               </span>
               {#if product.barcode}
                 <span class="flex items-center gap-1 ml-4">
-                  <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[140px]" title="Salin barcode" onclick={(e) => { e.stopPropagation(); oncopy(product.barcode, `barcode_${product.id}`, product.id); }}>{product.barcode}</button>
-                  <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin barcode" aria-label="Salin barcode" onclick={(e) => { e.stopPropagation(); oncopy(product.barcode, `barcode_${product.id}`, product.id); }}>
+                  <button type="button" class="text-left hover:text-primary transition-colors truncate max-w-[140px]" title={labels.copyBarcode} onclick={(e) => { e.stopPropagation(); oncopy(product.barcode, `barcode_${product.id}`, product.id); }}>{product.barcode}</button>
+                  <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title={labels.copyBarcode} aria-label={labels.copyBarcode} onclick={(e) => { e.stopPropagation(); oncopy(product.barcode, `barcode_${product.id}`, product.id); }}>
                     {#if showCopySuccess?.has(`barcode_${product.id}`)}
                       <span class="text-xs text-primary font-bold leading-none">✓</span>
                     {:else}

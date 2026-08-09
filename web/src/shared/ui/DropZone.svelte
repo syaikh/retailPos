@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Upload, FileText } from 'lucide-svelte';
   import { cn } from '$shared/utils/cn';
+  import { labels } from '$shared/i18n';
 
   let {
     file = $bindable(null),
@@ -47,7 +48,7 @@
       onclick={reset}
       disabled={disabled}
     >
-      Change
+      {labels.change}
     </button>
   </div>
 {:else}
@@ -66,8 +67,8 @@
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(inputId)?.click(); } }}
   >
     <Upload size={36} class="mx-auto mb-3 text-text-muted" />
-    <p class="text-text-primary font-semibold">Drop file here or click to browse</p>
-    <p class="text-text-muted text-sm mt-1">Supports CSV and XLSX files</p>
+    <p class="text-text-primary font-semibold">{labels.dropFileHereOrClickToBrowse}</p>
+    <p class="text-text-muted text-sm mt-1">{labels.supportsCSVAndXLSX}</p>
     <input
       id={inputId}
       type="file"

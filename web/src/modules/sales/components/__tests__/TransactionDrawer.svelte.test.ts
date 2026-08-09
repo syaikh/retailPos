@@ -43,6 +43,10 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { toast } from '$shared/stores/toast.svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('has detailLoading state for full sale fetch', () => {
     expect(src).toContain('let detailLoading = $state');
   });
@@ -77,26 +81,49 @@ describe('TransactionDrawer.svelte source-structure guards', () => {
   });
 
   it('renders Print Receipt button', () => {
-    expect(src).toContain('Print Receipt');
+    expect(src).toContain('{labels.printReceipt}');
   });
 
   it('renders Download Invoice button', () => {
-    expect(src).toContain('Download Invoice');
+    expect(src).toContain('{labels.downloadInvoice}');
   });
 
   it('renders Close button', () => {
-    expect(src).toContain('Close');
+    expect(src).toContain('{labels.close}');
   });
 
   it('renders transaction details heading', () => {
-    expect(src).toContain('Transaction Details');
+    expect(src).toContain('{labels.transactionDetails}');
   });
 
-  it('renders items table', () => {
-    expect(src).toContain('Description');
-    expect(src).toContain('Qty');
-    expect(src).toContain('Price');
-    expect(src).toContain('Subtotal');
+  it('renders localized metadata fields', () => {
+    expect(src).toContain('{labels.invoiceNumber}');
+    expect(src).toContain('{labels.dateAndTime}');
+    expect(src).toContain('{labels.customer}');
+    expect(src).toContain('{labels.paymentMethod}');
+    expect(src).toContain('{labels.refLabel}');
+    expect(src).toContain('labels.walkInGeneral');
+  });
+
+  it('renders items table with localized headers', () => {
+    expect(src).toContain('{labels.description}');
+    expect(src).toContain('{labels.qty}');
+    expect(src).toContain('{labels.price}');
+    expect(src).toContain('{labels.subTotal}');
+    expect(src).toContain('{labels.items}');
+  });
+
+  it('localizes totals, tax and savings labels', () => {
+    expect(src).toContain('{labels.totalLabel}');
+    expect(src).toContain('{labels.hemat}');
+    expect(src).toContain('{labels.subTotal} ({labels.dpp})');
+    expect(src).toContain('{labels.ppn}');
+    expect(src).toContain('{labels.currencySymbol}');
+  });
+
+  it('localizes download toast messages', () => {
+    expect(src).toContain('labels.toastInvoiceDownloaded');
+    expect(src).toContain('labels.toastFailedToDownloadInvoice');
   });
 
 });

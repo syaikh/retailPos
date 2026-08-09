@@ -4,6 +4,7 @@
   import { tick } from 'svelte';
   import { Badge, Button } from '$shared/ui';
   import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
 
   let scrollEl: HTMLDivElement | undefined = $state();
 
@@ -61,7 +62,7 @@
   <div class="px-4 py-3.5 border-b border-border flex items-center justify-between shrink-0">
     <div class="flex items-center gap-2">
       <ShoppingCart size={18} class="text-primary-light" />
-      <span class="font-semibold text-text-primary">Cart</span>
+      <span class="font-semibold text-text-primary">{labels.cart}</span>
       {#if totalItems > 0}
         <Badge variant="primary" size="sm">{totalItems}</Badge>
       {/if}
@@ -71,14 +72,14 @@
         <button
           onclick={onholdsale}
           class="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-amber-700 bg-amber-50/70 hover:bg-amber-100/70 rounded-md border border-amber-300/40 transition-colors active:scale-95"
-          title="Hold Sale" aria-label="Hold sale"
+          title={labels.holdSale} aria-label={labels.holdSale}
         >
           <Hand size={12} />
-          Hold
+          {labels.hold}
           <kbd class="px-1 py-px text-[9px] font-medium text-amber-600/70 bg-white rounded border border-amber-300/30">F6</kbd>
         </button>
         <kbd class="px-1 py-0.5 text-[10px] font-medium text-danger/60 bg-danger-subtle/30 rounded border border-danger/20 select-none">ALT+DEL</kbd>
-        <Button onclick={onclearcart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title="Clear cart [ALT+DEL]" aria-label="Clear cart">
+        <Button onclick={onclearcart} variant="ghost" size="icon" class="text-xs text-danger hover:bg-danger-subtle" title={`${labels.clearCart} [ALT+DEL]`} aria-label={labels.clearCart}>
           <X size={14} />
         </Button>
       </div>
@@ -90,8 +91,8 @@
       <div class="empty-state-icon bg-surface w-20 h-20 rounded-2xl mb-4 border border-dashed border-border-strong flex items-center justify-center animate-pulse">
         <ShoppingCart size={32} class="text-text-muted opacity-50" />
       </div>
-      <p class="text-text-secondary font-medium">Your cart is empty</p>
-      <p class="text-text-muted text-xs mt-1">Add products to start selling</p>
+      <p class="text-text-secondary font-medium">{labels.yourCartIsEmpty}</p>
+      <p class="text-text-muted text-xs mt-1">{labels.addProductsToStartSelling}</p>
     </div>
   {:else}
     <div bind:this={scrollEl} class="flex-1 overflow-y-auto divide-y divide-border overflow-x-hidden">
@@ -120,14 +121,14 @@
                 </p>
               {/if}
               {#if item.snapshot_created_at}
-                <p class="text-[10px] text-text-muted mt-0.5" title="Harga dibekukan saat item ditambahkan">harga dibekukan</p>
+                <p class="text-[10px] text-text-muted mt-0.5" title={labels.priceFrozenTitle}>{labels.priceFrozen}</p>
               {/if}
             </div>
           <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
             <button
               class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
               onclick={() => onupdateqty(item.id, -1)}
-              aria-label="Decrease quantity"
+              aria-label={labels.decreaseQuantity}
             >
               <Minus size={14} />
             </button>
@@ -152,14 +153,14 @@
             <button
               class="w-8 h-8 rounded-lg bg-surface hover:bg-surface-hover text-text-secondary flex items-center justify-center transition-colors border border-border active:scale-95"
               onclick={() => onupdateqty(item.id, 1)}
-              aria-label="Increase quantity"
+              aria-label={labels.increaseQuantity}
             >
               <Plus size={14} />
             </button>
             <button
               class="w-8 h-8 rounded-lg hover:bg-danger-subtle text-text-muted hover:text-danger flex items-center justify-center transition-colors ml-1 active:scale-95"
               onclick={() => onremovefromcart(item.id)}
-              aria-label="Remove item"
+              aria-label={labels.removeItem}
             >
               <X size={14} />
             </button>
@@ -172,16 +173,16 @@
   <div class="border-t border-border px-4 py-3 space-y-2 bg-bg-secondary shrink-0">
     {#if taxAmount > 0}
       <div class="flex justify-between text-[11px] text-text-muted leading-tight">
-        <span>DPP</span>
+        <span>{labels.dpp}</span>
         <span>{dppDisplay.toLocaleString('id-ID')}</span>
       </div>
       <div class="flex justify-between text-[11px] text-text-muted leading-tight">
-        <span>PPN 11%</span>
+        <span>{labels.ppn}</span>
         <span>{taxAmount.toLocaleString('id-ID')}</span>
       </div>
     {/if}
     <div class="flex justify-between font-bold text-text-primary">
-      <span>Total</span>
+      <span>{labels.total}</span>
       <span class="text-white text-base">{totalAmount.toLocaleString('id-ID')}</span>
     </div>
 
@@ -193,10 +194,10 @@
     >
       {#if checkingOut}
         <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-        Processing…
+        {labels.processing}
       {:else}
         <Wallet size={16} />
-        Bayar [F4] · Rp {totalAmount.toLocaleString('id-ID')}
+        {t('payWithAmount', { amount: `${labels.currencySymbol} ${totalAmount.toLocaleString('id-ID')}` })}
       {/if}
     </Button>
 
@@ -207,9 +208,9 @@
       >
         <RotateCcw size={12} />
         {#if parkedSaleCount > 0}
-          Recall ({parkedSaleCount})
+          {t('recallWithCount', { count: parkedSaleCount })}
         {:else}
-          Recall
+          {labels.recall}
         {/if}
         <kbd class="px-1 py-0.5 text-[9px] font-medium text-amber-600/60 bg-amber-50/50 rounded border border-amber-300/20 select-none">F5</kbd>
       </button>
@@ -221,9 +222,9 @@
       >
         <Printer size={12} />
         {#if lastSale && lastSale.invoice_number}
-          Print · {lastSale.invoice_number}
+          {t('printInvoice', { invoice: lastSale.invoice_number })}
         {:else}
-          Print
+          {labels.print}
         {/if}
       </button>
     </div>

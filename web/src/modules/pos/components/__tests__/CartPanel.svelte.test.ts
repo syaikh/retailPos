@@ -15,6 +15,10 @@ describe('CartPanel.svelte source-structure guards', () => {
     expect(src).toContain("import { ShoppingCart, X, Minus, Plus, Wallet, Printer, Hand, RotateCcw } from 'lucide-svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses svelte transitions', () => {
     expect(src).toContain("import { slide } from 'svelte/transition'");
     expect(src).toContain("import { flip } from 'svelte/animate'");
@@ -42,26 +46,26 @@ describe('CartPanel.svelte source-structure guards', () => {
   });
 
   it('shows empty state when cart is empty', () => {
-    expect(src).toContain("Your cart is empty");
-    expect(src).toContain("Add products to start selling");
+    expect(src).toContain('{labels.yourCartIsEmpty}');
+    expect(src).toContain('{labels.addProductsToStartSelling}');
   });
 
   it('renders quantity controls for each item', () => {
     expect(src).toContain('<Minus size={14} />');
     expect(src).toContain('<Plus size={14} />');
-    expect(src).toContain('Decrease quantity');
-    expect(src).toContain('Increase quantity');
+    expect(src).toContain('aria-label={labels.decreaseQuantity}');
+    expect(src).toContain('aria-label={labels.increaseQuantity}');
   });
 
   it('renders checkout button with Wallet icon', () => {
     expect(src).toContain('<Wallet size={16} />');
-    expect(src).toContain('Bayar');
+    expect(src).toContain("t('payWithAmount'");
   });
 
   it('renders print and recall buttons', () => {
     expect(src).toContain('<Printer size={12} />');
-    expect(src).toContain('Recall');
-    expect(src).toContain('Print');
+    expect(src).toContain('{labels.recall}');
+    expect(src).toContain('{labels.print}');
   });
 
   it('has Badge for item count', () => {

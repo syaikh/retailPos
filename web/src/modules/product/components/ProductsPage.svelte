@@ -20,6 +20,7 @@
   import { Plus, Pencil, Trash2, Package, Loader2, ArrowLeft } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
+  import { labels, t } from '$shared/i18n';
 
   const rbac = useRBAC();
 
@@ -71,7 +72,7 @@
 
   function handleImportComplete() {
     fetchProducts(offset, limit);
-    toast.success('Product import completed');
+    toast.success(labels.toastProductImportCompleted);
   }
 
   function clearSelection() {
@@ -83,21 +84,21 @@
     const eligibleIds = products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).map(p => p.id);
     const skippedCount = selectedIds.size - eligibleIds.length;
     if (eligibleIds.length === 0) {
-      toast.warning(`All selected product(s) already ${bulkStatusTarget}`);
+      toast.warning(t('toastAllSelectedAlreadyStatus', { status: bulkStatusTarget }));
       isBulkUpdating = false;
       showBulkStatusModal = false;
       return;
     }
     try {
       await apiClient.post('/products/bulk/status', { ids: eligibleIds, status: bulkStatusTarget });
-      toast.success(`Updated ${eligibleIds.length} product(s) to ${bulkStatusTarget}`);
+      toast.success(t('toastUpdatedProductsToStatus', { count: eligibleIds.length, status: bulkStatusTarget }));
       if (skippedCount > 0) {
-        toast.warning(`${skippedCount} product(s) already ${bulkStatusTarget}`);
+        toast.warning(t('toastProductsAlreadyStatus', { count: skippedCount, status: bulkStatusTarget }));
       }
       selectedIds = new Set();
       await fetchProducts(offset, limit);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to update product statuses');
+      toast.error(err.response?.data?.error || labels.toastFailedToUpdateStatuses);
     } finally {
       isBulkUpdating = false;
       showBulkStatusModal = false;
@@ -163,12 +164,12 @@
         quantity_change: Number(adjustQuantityChange),
         notes: adjustNotes
       });
-      toast.success('Stock adjusted successfully');
+      toast.success(labels.toastStockAdjusted);
       showAdjustStockModal = false;
       stockAdjustProduct = null;
       await fetchProducts(offset, limit);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to adjust stock';
+      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToAdjustStock;
       toast.error(errorMsg);
     } finally {
       adjustingStock = false;
@@ -184,7 +185,7 @@
         form.category = catList[0].name;
       }
     } catch (err) {
-      toast.error('Failed to load categories');
+      toast.error(labels.toastFailedToLoadCategories);
     }
   }
 
@@ -193,7 +194,7 @@
       const r = await apiClient.get('/brands');
       brands = r.data.data || [];
     } catch (err) {
-      toast.error('Failed to load brands');
+      toast.error(labels.toastFailedToLoadBrands);
     }
   }
 
@@ -202,7 +203,7 @@
       const r = await apiClient.get('/tax-classes');
       taxClasses = r.data.data || [];
     } catch (err) {
-      toast.error('Failed to load tax classes');
+      toast.error(labels.toastFailedToLoadTaxClasses);
     }
   }
 
@@ -211,7 +212,7 @@
       const r = await apiClient.get('/units-of-measure');
       unitsOfMeasure = r.data.data || [];
     } catch (err) {
-      toast.error('Failed to load units of measure');
+      toast.error(labels.toastFailedToLoadUnitsOfMeasure);
     }
   }
 
@@ -235,7 +236,7 @@
       products = r.data.data || [];
       total = r.data.total || 0;
     } catch (err) {
-      toast.error('Failed to load products');
+      toast.error(labels.toastFailedToLoadProducts);
     } finally {
       loading = false;
     }
@@ -292,7 +293,7 @@
 
   async function handleAdd() {
     if (!canCreate) {
-      toast.error('Insufficient permission to add products');
+      toast.error(labels.toastInsufficientPermissionToAdd);
       return;
     }
     saving = true;
@@ -306,12 +307,12 @@
         weight_grams: form.weight_grams ?? undefined
       };
       await apiClient.post('/products', payload);
-      toast.success('Product added');
+      toast.success(labels.toastProductAdded);
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to add product';
+      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToAddProduct;
       console.error('Add product error:', err, errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -321,11 +322,11 @@
 
   async function handleUpdate() {
     if (!canEdit) {
-      toast.error('Insufficient permission to update products');
+      toast.error(labels.toastInsufficientPermissionToUpdate);
       return;
     }
     if (!selectedProduct) {
-      toast.error('No product selected');
+      toast.error(labels.toastNoProductSelected);
       return;
     }
     saving = true;
@@ -339,12 +340,12 @@
         weight_grams: form.weight_grams ?? undefined
       };
       await apiClient.put(`/products/${selectedProduct.id}`, payload);
-      toast.success('Product updated');
+      toast.success(labels.toastProductUpdated);
       showModal = false;
       resetForm();
       await fetchProducts(offset, limit);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to update product';
+      const errorMsg = err.response?.data?.error || err.message || labels.toastFailedToUpdateProduct;
       console.error('Update product error:', err, errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -354,19 +355,19 @@
 
   async function handleDelete() {
     if (!selectedProduct) {
-      toast.error('No product selected');
+      toast.error(labels.toastNoProductSelected);
       return;
     }
     isDeleting = true;
     try {
       await apiClient.delete(`/products/${selectedProduct.id}`);
-      toast.success('Product deleted successfully');
+      toast.success(labels.toastProductDeleted);
       showDeleteModal = false;
       selectedProduct = null;
       await fetchProducts(offset, limit);
     } catch (err: any) {
       console.error('Delete error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to delete product';
+      const errorMessage = err.response?.data?.error || err.message || labels.toastFailedToDeleteProduct;
       toast.error(errorMessage);
     } finally {
       isDeleting = false;
@@ -397,7 +398,7 @@
       const next = new Set(base);
       next.add(field);
       showCopySuccess = next;
-      toast.success('Copied to clipboard');
+      toast.success(labels.copiedToClipboard);
       setTimeout(() => {
         const removed = new Set(next);
         removed.delete(field);
@@ -443,7 +444,7 @@
       const sid = parseInt(sidParam, 10);
       if (!isNaN(sid) && sid > 0) {
         supplierFilterId = sid;
-        supplierFilterName = urlParams.get('supplier_name') || `Supplier #${sid}`;
+        supplierFilterName = urlParams.get('supplier_name') || t('supplierWithId', { id: sid });
       }
     }
 
@@ -513,7 +514,7 @@
       onclick={() => goto('/suppliers')}
     >
       <ArrowLeft size={16} />
-      Kembali ke Suppliers
+      {labels.backToSuppliers}
     </button>
   {/if}
 
@@ -605,7 +606,7 @@
   onCancel={() => { showModal = false; }}
 />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Delete Product" itemName={selectedProduct?.name} description="This action cannot be undone and will remove the product from the catalog." loading={isDeleting} onconfirm={handleDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteProduct} itemName={selectedProduct?.name} description={labels.deleteProductDescription} loading={isDeleting} onconfirm={handleDelete} oncancel={() => showDeleteModal = false} />
 
 <StockAdjustModal
   bind:open={showAdjustStockModal}
@@ -618,24 +619,24 @@
   onCancel={() => { showAdjustStockModal = false; stockAdjustProduct = null; }}
 />
 
-<Modal bind:open={showBulkStatusModal} title="Change Status" size="sm">
+<Modal bind:open={showBulkStatusModal} title={labels.changeStatus} size="sm">
   <div class="py-2">
-    <p class="text-text-primary font-semibold mb-3">Set status to <span class="text-primary-light">{bulkStatusTarget}</span> for {products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).length} of {selectedIds.size} product(s):</p>
+    <p class="text-text-primary font-semibold mb-3">{labels.setStatusToPrefix} <span class="text-primary-light">{bulkStatusTarget}</span> {t('setStatusToForCount', { count: products.filter(p => selectedIds.has(p.id) && p.status !== bulkStatusTarget).length, total: selectedIds.size })}</p>
     <div class="flex flex-wrap gap-2 justify-center">
       {#each ['active', 'inactive', 'archived'] as status}
         <button
           class="px-4 py-2 rounded-lg text-sm font-medium border transition-all {bulkStatusTarget === status ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border text-text-muted hover:border-border-strong hover:text-text-secondary'}"
           onclick={() => bulkStatusTarget = status}
         >
-          {status.charAt(0).toUpperCase() + status.slice(1)}
+          {status === 'active' ? labels.active : status === 'inactive' ? labels.inactive : labels.archived}
         </button>
       {/each}
     </div>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>Cancel</Button>
+    <Button variant="secondary" class="px-5" disabled={isBulkUpdating} onclick={() => showBulkStatusModal = false}>{labels.cancel}</Button>
     <Button variant="primary" class="px-5" disabled={isBulkUpdating} onclick={handleBulkStatusUpdate}>
-      {isBulkUpdating ? 'Updating...' : 'Update'}
+      {isBulkUpdating ? labels.updating : labels.update}
     </Button>
   {/snippet}
 </Modal>
@@ -673,9 +674,9 @@
 <ImportWizard
   bind:open={showImportWizard}
   module="products"
-  displayName="Products"
+  displayName={labels.products}
   onComplete={handleImportComplete}
-/>
+ />
 
 
 

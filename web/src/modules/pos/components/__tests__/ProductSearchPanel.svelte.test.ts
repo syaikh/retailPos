@@ -15,6 +15,10 @@ describe('ProductSearchPanel.svelte source-structure guards', () => {
     expect(src).toContain("import { SearchBar } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $bindable for searchQuery', () => {
     expect(src).toContain('searchQuery = $bindable(');
   });

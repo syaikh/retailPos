@@ -19,6 +19,10 @@ describe('CheckoutModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, CurrencyInput } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('has denominations array', () => {
     expect(src).toContain('const denominations = [5000, 10000, 20000, 50000, 100000]');
   });
@@ -52,7 +56,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   it('renders dialog with aria-modal', () => {
     expect(src).toContain('role="dialog"');
     expect(src).toContain('aria-modal="true"');
-    expect(src).toContain('aria-label="Pembayaran"');
+    expect(src).toContain('aria-label={labels.payment}');
   });
 
   it('renders total amount display', () => {
@@ -75,13 +79,13 @@ describe('CheckoutModal.svelte source-structure guards', () => {
 
   it('renders denomination quick buttons for cash rows', () => {
     expect(src).toContain('denom >= 1000000');
-    expect(src).toContain('`${denom / 1000000}jt`');
-    expect(src).toContain('`${denom / 1000}rb`');
+    expect(src).toContain('labels.denomMillion');
+    expect(src).toContain('labels.denomThousand');
   });
 
   it('renders Batal and Selesai action buttons', () => {
-    expect(src).toContain('Batal [Esc]');
-    expect(src).toContain('Selesai [Enter]');
+    expect(src).toContain('{labels.cancelEsc}');
+    expect(src).toContain('{labels.doneEnter}');
     expect(src).toContain('onfinalize');
   });
 
@@ -117,7 +121,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('displays reference number input for non-cash methods', () => {
-    expect(src).toContain("No. Referensi");
+    expect(src).toContain("{labels.referenceNumber}");
     expect(src).toContain("bind:value={alloc.referenceNumber}");
   });
 
@@ -127,7 +131,7 @@ describe('CheckoutModal.svelte source-structure guards', () => {
   });
 
   it('has Hapus semua button to clear all allocations', () => {
-    expect(src).toContain("Hapus semua");
+    expect(src).toContain("{labels.removeAll}");
     expect(src).toContain("allocations = [];");
   });
 
