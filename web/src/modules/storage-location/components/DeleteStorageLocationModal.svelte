@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Modal } from '$shared/ui';
   import { Trash2, Loader2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -17,17 +18,17 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title="Hapus Lokasi Penyimpanan" size="sm">
+<Modal bind:open={open} title={labels.deleteStorageLocation} size="sm">
   <p class="text-sm text-text-secondary">
-    Apakah Anda yakin ingin menghapus <strong class="text-text-primary">{targetName}</strong>? Tindakan ini tidak dapat dibatalkan.
+    {labels.deleteConfirmPrefix} <strong class="text-text-primary">{targetName}</strong>? {labels.thisActionCannotBeUndone}
   </p>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={oncancel}>Batal</Button>
+    <Button variant="secondary" class="px-5" onclick={oncancel}>{labels.cancel}</Button>
     <Button variant="danger" class="px-5" disabled={deleting} onclick={onconfirm}>
       {#if deleting}
-        <Loader2 size={14} class="animate-spin mr-1" /> Menghapus...
+        <Loader2 size={14} class="animate-spin mr-1" /> {labels.deleting}
       {:else}
-        <Trash2 size={14} class="mr-1" /> Hapus
+        <Trash2 size={14} class="mr-1" /> {labels.delete}
       {/if}
     </Button>
   {/snippet}

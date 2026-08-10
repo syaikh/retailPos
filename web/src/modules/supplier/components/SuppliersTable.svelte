@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button, Skeleton, SortableHeader, Badge, Tooltip, Dropdown } from '$shared/ui';
+  import { labels, t } from '$shared/i18n';
   import { Pencil, Trash2, Truck, Copy, Package, MoreVertical } from 'lucide-svelte';
   import type { Supplier } from '../types';
 
@@ -103,7 +104,7 @@
 
 {#if loading}
   <div class="overflow-x-auto">
-    <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading suppliers">
+    <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label={labels.loadingSuppliers}>
       <colgroup>
         <col style="width: 3%;" />
         <col style="width: 22%;" />
@@ -113,21 +114,21 @@
         <col style="width: 10%;" />
         <col style="width: 12%;" />
       </colgroup>
-      <thead><tr><th></th><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th></th><th>{labels.name}</th><th>{labels.contactPerson}</th><th>{labels.phone}</th><th>{labels.email}</th><th>{labels.statusLabel}</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
     </table>
   </div>
 {:else if suppliers.length === 0}
   <div class="flex flex-col items-center justify-center py-12 text-gray-400" role="status">
     <Truck class="w-12 h-12 mb-3" aria-hidden="true" />
-    <p>No suppliers found</p>
+    <p>{labels.noSuppliersFound}</p>
     {#if searchQuery}
-      <p class="text-sm text-text-muted mt-1">Try adjusting your search or filters</p>
+      <p class="text-sm text-text-muted mt-1">{labels.tryAdjustingYourSearch}</p>
     {/if}
   </div>
 {:else}
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[800px]" style="table-layout: fixed;" role="grid" aria-label="Suppliers">
+    <table class="w-full min-w-[800px]" style="table-layout: fixed;" role="grid" aria-label={labels.suppliers}>
       <colgroup>
         <col style="width: 3%;" />
         <col style="width: 22%;" />
@@ -146,25 +147,25 @@
               checked={allSelected}
               bind:indeterminate={someSelected}
               onchange={toggleAll}
-              aria-label="Select all suppliers"
+              aria-label={labels.selectAllSuppliers}
             />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+            <SortableHeader label={labels.nameLabel} column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="CONTACT" column="contact_name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+            <SortableHeader label={labels.contactPerson} column="contact_name" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="PHONE" column="phone" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+            <SortableHeader label={labels.phoneLabel} column="phone" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="EMAIL" column="email" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+            <SortableHeader label={labels.emailLabel} column="email" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
           <th class="px-4 py-3 font-semibold" scope="col">
-            <SortableHeader label="STATUS" column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
+            <SortableHeader label={labels.statusLabel} column="is_active" sortColumn={sortBy} sortDirection={sortDir} onsort={onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold text-right" scope="col">ACTIONS</th>
+          <th class="px-4 py-3 font-semibold text-right" scope="col">{labels.actionsLabel}</th>
         </tr>
       </thead>
       <tbody>
@@ -182,7 +183,7 @@
                 class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary"
                 checked={selectedIds.includes(supplier.id)}
                 onchange={() => toggleOne(supplier.id)}
-                aria-label="Select {supplier.name}"
+                aria-label={t('selectSupplierWithName', { name: supplier.name })}
               />
             </td>
             <td class="px-4 py-3 font-medium truncate">
@@ -195,34 +196,34 @@
             <td class="px-4 py-3 text-text-secondary text-sm truncate">{supplier.email || '-'}</td>
             <td class="px-4 py-3">
               <Badge variant={supplier.is_active ? 'success' : 'muted'}>
-                {supplier.is_active ? 'Active' : 'Inactive'}
+                {supplier.is_active ? labels.active : labels.inactive}
               </Badge>
             </td>
             <td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
-              <div class="flex items-center justify-center" role="group" aria-label="Actions for {supplier.name}">
+              <div class="flex items-center justify-center" role="group" aria-label={t('actionsFor', { name: supplier.name })}>
                 <Dropdown placement="bottom-end" items={[]}>
                   {#snippet content({ close })}
                     <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onviewproducts(supplier); close(); }}>
-                      <Package size={14} /> Lihat Produk
+                      <Package size={14} /> {labels.viewProducts}
                     </button>
                     {#if canEdit}
                       <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onedit(supplier); close(); }}>
-                        <Pencil size={14} /> Edit
+                        <Pencil size={14} /> {labels.edit}
                       </button>
                     {/if}
                     {#if canCreate}
                       <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onduplicate(supplier); close(); }}>
-                        <Copy size={14} /> Duplikasi
+                        <Copy size={14} /> {labels.duplicate}
                       </button>
                     {/if}
                     {#if canDelete}
                       <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem" onclick={() => { ondelete(supplier); close(); }}>
-                        <Trash2 size={14} /> Hapus
+                        <Trash2 size={14} /> {labels.delete}
                       </button>
                     {/if}
                   {/snippet}
                   {#snippet trigger({ toggle })}
-                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={(e) => { e.stopPropagation(); toggle(); }} aria-label="Actions for {supplier.name}">
+                    <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={(e) => { e.stopPropagation(); toggle(); }} aria-label={t('actionsFor', { name: supplier.name })}>
                       <MoreVertical size={16} />
                     </Button>
                   {/snippet}
@@ -237,10 +238,10 @@
 
   {#if selectedIds.length > 0}
     <div class="px-4 py-3 bg-primary-subtle/20 border-t border-primary-default/20 flex items-center gap-3">
-      <span class="text-sm text-text-secondary">{selectedIds.length} selected</span>
-      <Button variant="secondary" size="sm" onclick={() => onbulkactivate(selectedIds)}>Activate</Button>
-      <Button variant="secondary" size="sm" onclick={() => onbulkdeactivate(selectedIds)}>Deactivate</Button>
-      <Button variant="danger" size="sm" onclick={() => onbulkdelete(selectedIds)}>Delete</Button>
+      <span class="text-sm text-text-secondary">{t('selectedCountLabel', { count: selectedIds.length })}</span>
+      <Button variant="secondary" size="sm" onclick={() => onbulkactivate(selectedIds)}>{labels.activate}</Button>
+      <Button variant="secondary" size="sm" onclick={() => onbulkdeactivate(selectedIds)}>{labels.deactivate}</Button>
+      <Button variant="danger" size="sm" onclick={() => onbulkdelete(selectedIds)}>{labels.delete}</Button>
     </div>
   {/if}
 {/if}

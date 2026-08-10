@@ -40,22 +40,22 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
 
   it('builds filter chips for approval', () => {
     expect(src).toContain("type: 'approval'");
-    expect(src).toContain("label: `Approval: ${approvalLabels[approvalFilter] || approvalFilter}`");
+    expect(src).toContain("label: labels.approvalChip.replace('{value}', approvalLabels[approvalFilter] || approvalFilter)");
   });
 
   it('builds filter chips for status', () => {
     expect(src).toContain("type: 'status'");
-    expect(src).toContain("label: `Status: ${statusLabels[statusFilter] || statusFilter}`");
+    expect(src).toContain("label: labels.statusChip.replace('{value}', statusLabels[statusFilter] || statusFilter)");
   });
 
   it('builds filter chips for type', () => {
     expect(src).toContain("type: 'type'");
-    expect(src).toContain("label: `Tipe: ${label}`");
+    expect(src).toContain("label: labels.typeChip.replace('{value}', label)");
   });
 
   it('builds filter chips for method', () => {
     expect(src).toContain("type: 'method'");
-    expect(src).toContain("label: `Metode: ${label}`");
+    expect(src).toContain("label: labels.methodChip.replace('{value}', label)");
   });
 
   it('has clearAllFilters function', () => {
@@ -90,20 +90,20 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
 
   it('renders simulate button with Calculator icon', () => {
     expect(src).toContain('onclick={onsimulate}');
-    expect(src).toContain('Simulasi');
+    expect(src).toContain('labels.simulation');
     expect(src).toContain('Calculator');
   });
 
-  it('typeLabel default is Indonesian (Semua Tipe)', () => {
-    expect(src).toContain("typeLabel = 'Semua Tipe'");
+  it('typeLabel default is localized (all types)', () => {
+    expect(src).toContain('typeLabel = labels.allTypes');
   });
 
   it('has aria-label on type filter dropdown trigger', () => {
-    expect(src).toContain("aria-label=\"Filter tipe: {typeLabel}\"");
+    expect(src).toContain("aria-label={labels.filterTipe.replace('{typeLabel}', typeLabel)}");
   });
 
   it('has aria-label on method filter dropdown trigger', () => {
-    expect(src).toContain("aria-label=\"Filter metode: {methodLabel}\"");
+    expect(src).toContain("aria-label={labels.filterMetode.replace('{methodLabel}', methodLabel)}");
   });
 
   it('SearchBar has id="pricing-search"', () => {
@@ -115,7 +115,7 @@ describe('PricingRulesToolbar.svelte source-structure guards', () => {
   });
 
   it('has status filter group with aria-label', () => {
-    expect(src).toContain('aria-label="Filter status aktif"');
+    expect(src).toContain('aria-label={labels.filterStatusActive}');
   });
 
   it('filter chips use FilterChipBar component', () => {

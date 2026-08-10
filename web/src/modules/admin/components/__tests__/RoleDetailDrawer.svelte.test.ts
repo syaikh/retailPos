@@ -19,6 +19,10 @@ describe('RoleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $props for component props', () => {
     expect(src).toContain('= $props()');
   });
@@ -67,6 +71,6 @@ describe('RoleDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('handles empty permissions state', () => {
-    expect(src).toContain('No permissions assigned');
+    expect(src).toContain('labels.noPermissionsAssigned');
   });
 });

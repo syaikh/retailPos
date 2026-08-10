@@ -6,6 +6,7 @@
   import { Button, Input, Modal, SelectSearch } from '$shared/ui';
   import CurrencyInput from '$shared/ui/CurrencyInput.svelte';
   import { toast } from '$shared/stores/toast.svelte';
+  import { labels, t } from '$shared/i18n';
   import { Loader2, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { getTodayInJakarta } from '$shared/utils/jakartaTime';
   import { useAuthStore } from '$modules/auth';
@@ -161,7 +162,7 @@
           discount_amount: Number(item.discount_amount || 0),
         }));
       if (items.length === 0) {
-        toast.error('Please add at least one item with a product selected');
+        toast.error(labels.pleaseAddItemWithProduct);
         saving = false;
         return;
       }
@@ -177,15 +178,15 @@
       };
       if (store.selectedPO) {
         await store.update(store.selectedPO.id, payload);
-        toast.success('Purchase order updated');
+        toast.success(labels.poUpdated);
       } else {
         await store.create(payload);
-        toast.success('Purchase order created');
+        toast.success(labels.poCreated);
       }
       open = false;
       store.load(store.currentFilters);
     } catch (e: any) {
-      toast.error(e.message || 'Failed to save purchase order');
+      toast.error(e.message || labels.failedToSavePurchaseOrder);
     } finally {
       saving = false;
     }
@@ -198,63 +199,63 @@
   }
 </script>
 
-<Modal bind:open title={store.selectedPO ? 'Edit Purchase Order' : 'Create Purchase Order'} size="xl" panelClass="max-w-6xl">
+<Modal bind:open title={store.selectedPO ? labels.editPurchaseOrder : labels.createPurchaseOrder} size="xl" panelClass="max-w-6xl">
   <div class="flex items-center gap-2 mb-4">
     <span class="w-7 h-7 rounded-full bg-primary-default text-white text-xs font-bold flex items-center justify-center">1</span>
-    <span class="text-sm font-medium text-text-primary">PO Details</span>
+    <span class="text-sm font-medium text-text-primary">{labels.poDetails}</span>
     <span class="text-text-muted text-sm mx-1">→</span>
     <span class="w-7 h-7 rounded-full {currentStep === 2 ? 'bg-primary-default text-white' : 'bg-muted text-text-muted'} text-xs font-bold flex items-center justify-center">2</span>
-    <span class="text-sm {currentStep === 2 ? 'font-medium text-text-primary' : 'text-text-muted'}">Items</span>
+    <span class="text-sm {currentStep === 2 ? 'font-medium text-text-primary' : 'text-text-muted'}">{labels.items}</span>
   </div>
 
   {#if currentStep === 1}
     <div class="min-h-[340px] grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Supplier <span class="text-danger">*</span></span>
+          <span>{labels.supplier} <span class="text-danger">*</span></span>
           <SelectSearch
             bind:value={po.supplier_id}
             options={suppliers.map(s => ({ value: s.id, label: s.name }))}
-            placeholder="Select supplier"
+            placeholder={labels.selectSupplier}
           />
         </label>
       </div>
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Expected Date <span class="text-danger">*</span></span>
+          <span>{labels.expectedDate} <span class="text-danger">*</span></span>
           <Input type="date" bind:value={po.expected_date} min={todayJakarta} selectOnFocus />
         </label>
       </div>
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Payment Term <span class="text-danger">*</span></span>
+          <span>{labels.paymentTerm} <span class="text-danger">*</span></span>
           <Input tag="select" bind:value={selectedPaymentTerm} onchange={(e: Event) => handlePaymentTermChange((e.target as HTMLSelectElement).value)}>
-            <option value="" disabled>Select payment term</option>
+            <option value="" disabled>{labels.selectPaymentTerm}</option>
             {#each PAYMENT_TERMS as term}
               <option value={term}>{term}</option>
             {/each}
-            <option value="Other">Other...</option>
+            <option value="Other">{labels.other}...</option>
           </Input>
         </label>
         {#if selectedPaymentTerm === 'Other'}
-          <Input type="text" bind:value={customPaymentTerm} oninput={() => { po.payment_term = customPaymentTerm; }} placeholder="Enter custom term" class="mt-2" required selectOnFocus />
+          <Input type="text" bind:value={customPaymentTerm} oninput={() => { po.payment_term = customPaymentTerm; }} placeholder={labels.enterCustomTerm} class="mt-2" required selectOnFocus />
         {/if}
       </div>
       <div>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Supplier Reference Number</span>
+          <span>{labels.supplierReferenceNumber}</span>
           <Input type="text" bind:value={po.supplier_reference_number} selectOnFocus />
         </label>
       </div>
       <div class="sm:col-span-2">
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Delivery Address</span>
+          <span>{labels.deliveryAddress}</span>
           <Input tag="textarea" bind:value={po.delivery_address} rows={2} selectOnFocus />
         </label>
       </div>
       <div class="sm:col-span-2">
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Notes</span>
+          <span>{labels.notes}</span>
           <Input tag="textarea" bind:value={po.notes} rows={2} selectOnFocus />
         </label>
       </div>
@@ -262,7 +263,7 @@
   {:else}
     <div class="min-h-[340px]">
     <div class="bg-muted/30 rounded-xl px-4 py-3 text-sm text-text-secondary mb-4">
-      Supplier: <span class="font-medium text-text-primary">{suppliers.find(s => s.id === po.supplier_id)?.name || 'Unknown'}</span>
+      {labels.supplier}: <span class="font-medium text-text-primary">{suppliers.find(s => s.id === po.supplier_id)?.name || labels.unknown}</span>
     </div>
 
     {#if loadingProducts}
@@ -272,26 +273,26 @@
     {:else}
       <div>
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-base font-semibold text-text-primary">Items</h3>
-          <Button variant="secondary" size="sm" onclick={addItem} disabled={supplierProducts.length === 0}>Add Item</Button>
+          <h3 class="text-base font-semibold text-text-primary">{labels.items}</h3>
+          <Button variant="secondary" size="sm" onclick={addItem} disabled={supplierProducts.length === 0}>{labels.addItem}</Button>
         </div>
 
         {#if supplierProducts.length === 0}
-          <p class="text-text-muted text-sm">No products available for this supplier. Link products to the supplier first.</p>
+          <p class="text-text-muted text-sm">{labels.noProductsForSupplier}</p>
         {/if}
 
         {#if po.items.length === 0}
-          <p class="text-text-muted text-sm">No items added</p>
+          <p class="text-text-muted text-sm">{labels.noItemsAdded}</p>
         {:else}
           <div class="border border-border rounded-xl">
             <table class="w-full">
               <thead class="bg-muted/50">
                 <tr class="border-b text-left text-xs text-text-muted">
-                  <th class="px-3 py-2 font-semibold w-[32%]" scope="col">Product</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[12%]" scope="col">Qty</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[22%]" scope="col">Unit Cost</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">Discount</th>
-                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">Subtotal</th>
+                  <th class="px-3 py-2 font-semibold w-[32%]" scope="col">{labels.product}</th>
+                  <th class="px-3 py-2 font-semibold text-right w-[12%]" scope="col">{labels.qty}</th>
+                  <th class="px-3 py-2 font-semibold text-right w-[22%]" scope="col">{labels.unitCost}</th>
+                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">{labels.discount}</th>
+                  <th class="px-3 py-2 font-semibold text-right w-[14%]" scope="col">{labels.subtotal}</th>
                   <th class="px-3 py-2 w-[48px]" scope="col"></th>
                 </tr>
               </thead>
@@ -301,9 +302,9 @@
                     <td class="px-3 py-2">
                       <SelectSearch
                         bind:value={item.product_id}
-                        options={supplierProducts.map(sp => ({ value: sp.product_id, label: `${sp.product_name || 'Product #' + sp.product_id} (${sp.product_sku || 'N/A'})` }))}
-                        placeholder="Select product"
-                        searchPlaceholder="Search products..."
+                        options={supplierProducts.map(sp => ({ value: sp.product_id, label: `${sp.product_name || t('productWithId', { id: sp.product_id })} (${sp.product_sku || 'N/A'})` }))}
+                        placeholder={labels.selectProduct}
+                        searchPlaceholder={labels.searchProducts}
                       />
                     </td>
                     <td class="px-3 py-2">
@@ -321,7 +322,7 @@
                     </td>
                     <td class="px-3 py-3 text-sm text-text-secondary text-right tabular-nums">{calculateSubtotal(item).toLocaleString('id-ID')}</td>
                     <td class="px-3 py-2">
-                      <Button variant="ghost" size="icon" onclick={() => removeItem(index)} aria-label="Remove item" class="text-danger hover:text-danger-light">
+                      <Button variant="ghost" size="icon" onclick={() => removeItem(index)} aria-label={labels.removeItem} class="text-danger hover:text-danger-light">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </Button>
                     </td>
@@ -341,27 +342,27 @@
       {#if currentStep === 1}
         <div></div>
         <div class="flex items-center gap-2">
-          <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+          <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
           <Button variant="primary" onclick={nextStep} disabled={po.supplier_id === 0 || !po.expected_date || !po.payment_term || (selectedPaymentTerm === 'Other' && !customPaymentTerm)}>
-            Next
+            {labels.next}
             <ChevronRight size={16} />
           </Button>
         </div>
       {:else}
         <div class="text-base font-semibold text-text-primary tabular-nums">
-          Total: {getTotalSubtotal().toLocaleString('id-ID')}
+          {labels.total}: {getTotalSubtotal().toLocaleString('id-ID')}
         </div>
         <div class="flex items-center gap-2">
           <Button variant="secondary" onclick={prevStep}>
             <ChevronLeft size={16} />
-            Back
+            {labels.back}
           </Button>
-          <Button variant="secondary" onclick={handleClose}>Cancel</Button>
+          <Button variant="secondary" onclick={handleClose}>{labels.cancel}</Button>
           <Button variant="primary" onclick={handleSubmit} disabled={saving || po.items.length === 0}>
             {#if saving}
               <Loader2 size={16} class="animate-spin" />
             {/if}
-            {saving ? 'Saving...' : (store.selectedPO ? 'Update' : 'Create Draft')}
+            {saving ? labels.saving : (store.selectedPO ? labels.update : labels.createDraft)}
           </Button>
         </div>
       {/if}

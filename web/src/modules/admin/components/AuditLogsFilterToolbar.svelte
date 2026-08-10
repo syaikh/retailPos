@@ -5,6 +5,7 @@
   import { getAuthToken } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
   import { onMount } from 'svelte';
+  import { labels, t } from '$shared/i18n';
 
   let entityTypes = $state<string[]>([]);
 
@@ -19,10 +20,10 @@
         const json = await res.json();
         entityTypes = json.data || [];
       } else {
-        toast.error('Failed to load resource filters');
+        toast.error(labels.failedToLoad);
       }
     } catch (e) {
-      toast.error('Failed to load resource filters');
+      toast.error(labels.failedToLoad);
     }
   });
 
@@ -71,12 +72,12 @@
   }
 
   const ALL_ACTIONS = [
-    { id: 'all', label: 'All Actions' },
-    { id: 'create', label: 'Create' },
-    { id: 'update', label: 'Update' },
-    { id: 'delete', label: 'Delete' },
-    { id: 'login', label: 'Login' },
-    { id: 'logout', label: 'Logout' },
+    { id: 'all', label: `${labels.all} ${labels.action}` },
+    { id: 'create', label: labels.create },
+    { id: 'update', label: labels.update },
+    { id: 'delete', label: labels.delete },
+    { id: 'login', label: labels.login },
+    { id: 'logout', label: labels.logout },
   ];
 
   let availableActionFilters = $derived(
@@ -84,12 +85,12 @@
   );
 
   const actionFilters = [
-    { id: 'all', label: 'All' },
-    { id: 'create', label: 'Create' },
-    { id: 'update', label: 'Update' },
-    { id: 'delete', label: 'Delete' },
-    { id: 'login', label: 'Login' },
-    { id: 'logout', label: 'Logout' },
+    { id: 'all', label: labels.all },
+    { id: 'create', label: labels.create },
+    { id: 'update', label: labels.update },
+    { id: 'delete', label: labels.delete },
+    { id: 'login', label: labels.login },
+    { id: 'logout', label: labels.logout },
   ];
 
   function isActionDisabled(actionId: string): boolean {
@@ -101,47 +102,47 @@
 
   const resourceLabels: Record<string, string> = {
     auth: 'Auth',
-    user: 'User',
-    role: 'Role',
-    product: 'Product',
+    user: labels.user,
+    role: labels.role,
+    product: labels.product,
     sale: 'Sale',
-    category: 'Category',
-    brand: 'Brand',
-    stock: 'Stock',
+    category: labels.category,
+    brand: labels.brand,
+    stock: labels.stock,
     uom: 'UOM',
-    customer: 'Customer',
+    customer: labels.customer,
   };
 
   const resourceFilters = $derived(
     entityTypes.length > 0
-      ? [{ id: 'all', label: 'All Resources' }, ...entityTypes.map((t) => ({ id: t, label: resourceLabels[t] || t.charAt(0).toUpperCase() + t.slice(1) }))]
-      : [{ id: 'all', label: 'All Resources' }]
+      ? [{ id: 'all', label: `${labels.all} ${labels.resource}` }, ...entityTypes.map((t) => ({ id: t, label: resourceLabels[t] || t.charAt(0).toUpperCase() + t.slice(1) }))]
+      : [{ id: 'all', label: `${labels.all} ${labels.resource}` }]
   );
 
   const dateRanges = [
-    { id: '24h', label: 'Last 24 Hours' },
-    { id: '7d', label: 'Last 7 Days' },
-    { id: '30d', label: 'Last 30 Days' },
-    { id: '90d', label: 'Last 90 Days' },
-    { id: 'custom', label: 'Custom Range' },
+    { id: '24h', label: labels.last24Hours },
+    { id: '7d', label: labels.last7Days },
+    { id: '30d', label: labels.last30Days },
+    { id: '90d', label: labels.last90Days },
+    { id: 'custom', label: labels.customRange },
   ];
 
   const datePresets = [
-    { label: 'Last 24 Hours', rangeId: '24h' },
-    { label: 'Last 7 Days', rangeId: '7d' },
-    { label: 'Last 30 Days', rangeId: '30d' },
-    { label: 'Last 90 Days', rangeId: '90d' },
+    { label: labels.last24Hours, rangeId: '24h' },
+    { label: labels.last7Days, rangeId: '7d' },
+    { label: labels.last30Days, rangeId: '30d' },
+    { label: labels.last90Days, rangeId: '90d' },
   ];
 
   const dateRangeLabel = $derived.by(() => {
     if (selectedDateRange === 'custom') {
       return `${formatJakartaDateStr(customStartDate)} – ${formatJakartaDateStr(customEndDate)}`;
     }
-    return dateRanges.find(d => d.id === selectedDateRange)?.label || 'Last 24 Hours';
+    return dateRanges.find(d => d.id === selectedDateRange)?.label || labels.last24Hours;
   });
 
-  let resourceLabel = $derived(resourceFilters.find(f => f.id === selectedResource)?.label || 'All');
-  let actionLabel = $derived(availableActionFilters.find(f => f.id === selectedAction)?.label || 'All Actions');
+  let resourceLabel = $derived(resourceFilters.find(f => f.id === selectedResource)?.label || labels.all);
+  let actionLabel = $derived(availableActionFilters.find(f => f.id === selectedAction)?.label || `${labels.all} ${labels.action}`);
 
   const today = getTodayInJakarta();
   const ninetyDaysAgo = getDateNDaysAgoInJakarta(90);
@@ -347,12 +348,12 @@
 
   async function downloadExport(format: string) {
     const token = getAuthToken();
-    if (!token) { toast.error('Session expired'); return; }
+    if (!token) { toast.error(labels.errorOccurred); return; }
 
     const res = await fetch(buildExportUrl(format), {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) { toast.error('Export failed'); return; }
+    if (!res.ok) { toast.error(labels.errorOccurred); return; }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -361,7 +362,7 @@
     a.download = `audit-logs-${today}.${format === 'csv' ? 'csv' : 'xlsx'}`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Audit logs exported to ${format.toUpperCase()}`);
+    toast.success(`${labels.auditLogs} ${labels.export}: ${format.toUpperCase()}`);
   }
 
   function exportToCsv() {
@@ -378,7 +379,7 @@
 <div class="card p-4">
   <div class="flex items-center gap-3">
     <div class="relative flex-1">
-      <SearchBar bind:value={searchQuery} placeholder="Search by actor, role, action, entity, or IP..." inputClass="h-10" />
+      <SearchBar bind:value={searchQuery} placeholder={labels.searchByActor} inputClass="h-10" />
     </div>
 
     <div class="relative shrink-0 date-picker-container">
@@ -394,14 +395,14 @@
       {#if showDatePicker}
         <div
           role="dialog"
-          aria-label="Date range picker"
+          aria-label={labels.dateRangePicker}
           tabindex="0"
           class="absolute right-0 top-full mt-1.5 z-50 bg-surface-default border border-border rounded-lg shadow-xl min-w-72 date-picker-container"
           onkeydown={handleDatePickerKeydown}
         >
           <div class="p-4 space-y-4">
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">{labels.presetRanges}</p>
               <div class="flex flex-wrap gap-1.5">
                 {#each datePresets as preset}
                   <Button
@@ -418,14 +419,14 @@
             <hr class="border-border" />
 
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">{labels.customRange}</p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label for="audit-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <label for="audit-start-date" class="block text-xs text-text-secondary mb-1">{labels.startDateLabel}</label>
                   <Input id="audit-start-date" type="date" bind:value={editStartDate} class="w-full" min={ninetyDaysAgo} max={editEndDate || today} />
                 </div>
                 <div class="flex-1">
-                  <label for="audit-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <label for="audit-end-date" class="block text-xs text-text-secondary mb-1">{labels.endDateLabel}</label>
                   <Input id="audit-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || ninetyDaysAgo} max={today} />
                 </div>
               </div>
@@ -434,10 +435,10 @@
 
           <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
             <Button variant="ghost" size="sm" onclick={cancelCustomDateRange}>
-              Cancel
+              {labels.cancel}
             </Button>
             <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomDateRange}>
-              Apply
+              {labels.apply}
             </Button>
           </div>
         </div>
@@ -488,12 +489,12 @@
       {/snippet}
     </Dropdown>
 
-    <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={onrefresh}>
+    <Button title={labels.refresh} variant="secondary" class="px-3 h-10" onclick={onrefresh}>
       <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
     </Button>
     <Dropdown items={[
-      { label: 'Export to CSV', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportToCsv },
-      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportToExcel },
+      { label: labels.exportCSV, icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: exportToCsv },
+      { label: labels.exportExcel, icon: FileSpreadsheet, iconClass: 'text-info-light', onclick: exportToExcel },
     ]}>
       {#snippet trigger({ toggle })}
         <Button
@@ -502,12 +503,12 @@
           onclick={toggle}
         >
           <Download size={15} />
-          Export
+          {labels.export}
           <ChevronDown size={14} class="transition-transform duration-300" />
         </Button>
       {/snippet}
     </Dropdown>
   </div>
 
-  <FilterChipBar chips={activeFilters} onclear={clearFilter} onclearall={clearAllFilters} clearLabel="Clear all" />
+  <FilterChipBar chips={activeFilters} onclear={clearFilter} onclearall={clearAllFilters} clearLabel={labels.clearAll} />
 </div>

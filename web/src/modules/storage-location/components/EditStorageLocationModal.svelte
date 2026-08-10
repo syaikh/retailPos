@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Input, Modal, SelectSearch } from '$shared/ui';
   import { Save, Loader2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
   import type { StorageLocation } from '../types';
 
   let {
@@ -61,24 +62,24 @@
     let valid = true;
 
     if (!code.trim()) {
-      errors.code = 'Kode wajib diisi';
+      errors.code = labels.kodeWajib;
       valid = false;
     } else if (code.trim().length > 50) {
-      errors.code = 'Kode maksimal 50 karakter';
+      errors.code = labels.kodeMaksimal50;
       valid = false;
     }
 
     if (!name.trim()) {
-      errors.name = 'Nama wajib diisi';
+      errors.name = labels.namaWajib;
       valid = false;
     } else if (name.trim().length > 100) {
-      errors.name = 'Nama maksimal 100 karakter';
+      errors.name = labels.namaMaksimal100;
       valid = false;
     }
 
     const scopeValid = scopeType === 'warehouse' ? warehouseId != null : storeId != null;
     if (!scopeValid) {
-      errors.scope = 'Pilih gudang atau toko';
+      errors.scope = labels.pilihGudangAtauToko;
       valid = false;
     }
 
@@ -104,15 +105,15 @@
   }
 </script>
 
-<Modal bind:open={open} title="Edit Lokasi Penyimpanan" size="md">
+<Modal bind:open={open} title={labels.editStorageLocation} size="md">
   <div class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label for="edit-sl-code" class="text-xs font-semibold text-text-secondary">Kode <span class="text-danger">*</span></label>
+        <label for="edit-sl-code" class="text-xs font-semibold text-text-secondary">{labels.code} <span class="text-danger">*</span></label>
         <Input
           id="edit-sl-code"
           class={fieldErrors.code ? 'border-danger' : ''}
-          placeholder="e.g. RAK-A-01"
+          placeholder={labels.codeExamplePlaceholder}
           bind:value={code}
         />
         {#if fieldErrors.code}
@@ -120,11 +121,11 @@
         {/if}
       </div>
       <div class="space-y-1">
-        <label for="edit-sl-name" class="text-xs font-semibold text-text-secondary">Nama <span class="text-danger">*</span></label>
+        <label for="edit-sl-name" class="text-xs font-semibold text-text-secondary">{labels.name} <span class="text-danger">*</span></label>
         <Input
           id="edit-sl-name"
           class={fieldErrors.name ? 'border-danger' : ''}
-          placeholder="e.g. Rak A - Baris 1"
+          placeholder={labels.nameExamplePlaceholder}
           bind:value={name}
         />
         {#if fieldErrors.name}
@@ -134,38 +135,38 @@
     </div>
 
     <div class="space-y-1" role="group" aria-labelledby="edit-sl-scope-label">
-      <span id="edit-sl-scope-label" class="text-xs font-semibold text-text-secondary">Lingkup <span class="text-danger">*</span></span>
-      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30 w-fit" role="group" aria-label="Tipe lingkup">
+      <span id="edit-sl-scope-label" class="text-xs font-semibold text-text-secondary">{labels.scope} <span class="text-danger">*</span></span>
+      <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border/30 w-fit" role="group" aria-label={labels.tipeLingkup}>
         <button
           class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType === 'warehouse' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
           onclick={() => { scopeType = 'warehouse'; warehouseId = undefined; }}
           aria-pressed={scopeType === 'warehouse'}
-        >Gudang</button>
+        >{labels.gudang}</button>
         <button
           class="h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 {scopeType === 'store' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
           onclick={() => { scopeType = 'store'; storeId = undefined; }}
           aria-pressed={scopeType === 'store'}
-        >Toko</button>
+        >{labels.toko}</button>
       </div>
       <div class="mt-2">
         {#if scopeType === 'warehouse'}
           <SelectSearch
             bind:value={warehouseId}
             options={warehouseOptions}
-            placeholder="Pilih gudang..."
-            searchPlaceholder="Cari gudang..."
+            placeholder={labels.pilihGudang}
+            searchPlaceholder={labels.cariGudang}
             disabled={warehouseOptions.length === 0}
-            notFoundText="Tidak ada gudang ditemukan"
+            notFoundText={labels.tidakAdaGudang}
             onchange={() => { fieldErrors = { ...fieldErrors, scope: '' }; }}
           />
         {:else}
           <SelectSearch
             bind:value={storeId}
             options={storeOptions}
-            placeholder="Pilih toko..."
-            searchPlaceholder="Cari toko..."
+            placeholder={labels.pilihToko}
+            searchPlaceholder={labels.cariToko}
             disabled={storeOptions.length === 0}
-            notFoundText="Tidak ada toko ditemukan"
+            notFoundText={labels.tidakAdaToko}
             onchange={() => { fieldErrors = { ...fieldErrors, scope: '' }; }}
           />
         {/if}
@@ -176,27 +177,27 @@
     </div>
 
     <div class="space-y-1">
-      <label for="edit-sl-notes" class="text-xs font-semibold text-text-secondary">Catatan</label>
+      <label for="edit-sl-notes" class="text-xs font-semibold text-text-secondary">{labels.notes}</label>
       <Input
         tag="textarea"
         id="edit-sl-notes"
         class="min-h-[60px] resize-none"
-        placeholder="Catatan opsional untuk lokasi ini"
+        placeholder={labels.optionalNotesLocation}
         bind:value={notes}
       />
     </div>
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" bind:checked={isActive} />
-      <span class="text-text-secondary font-medium">Aktif</span>
+      <span class="text-text-secondary font-medium">{labels.active}</span>
     </label>
   </div>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={handleCancel}>Batal</Button>
+    <Button variant="secondary" class="px-5" onclick={handleCancel}>{labels.cancel}</Button>
     <Button variant="primary" class="px-5" disabled={saving} onclick={handleSave}>
       {#if saving}
-        <Loader2 size={14} class="animate-spin mr-1" /> Menyimpan...
+        <Loader2 size={14} class="animate-spin mr-1" /> {labels.saving}
       {:else}
-        <Save size={14} class="mr-1" /> Simpan Perubahan
+        <Save size={14} class="mr-1" /> {labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}

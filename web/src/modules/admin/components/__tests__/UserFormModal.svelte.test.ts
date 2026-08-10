@@ -19,6 +19,10 @@ describe('UserFormModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Input, Modal, ToggleSwitch } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('renders Modal with dynamic title', () => {
     expect(src).toContain('title={modalMode ===');
   });
@@ -35,6 +39,6 @@ describe('UserFormModal.svelte source-structure guards', () => {
 
   it('has reports_to manager dropdown for hierarchy', () => {
     expect(src).toContain('reports_to');
-    expect(src).toContain('Reports To (Manager)');
+    expect(src).toContain('labels.reportsTo');
   });
 });

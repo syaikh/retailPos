@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge, Button, Skeleton, SortableHeader, Tooltip, Dropdown } from '$shared/ui';
   import { Search, MoreVertical, Pencil, Trash2, Power, PowerOff, Warehouse as WarehouseIcon, Store as StoreIcon } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
   import type { StorageLocation } from '../types';
 
   let {
@@ -80,14 +81,14 @@
     const then = new Date(dateStr).getTime();
     const diff = now - then;
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'Baru saja';
-    if (mins < 60) return `${mins} menit lalu`;
+    if (mins < 1) return labels.justNow;
+    if (mins < 60) return labels.minutesAgo.replace('{n}', String(mins));
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} jam lalu`;
+    if (hrs < 24) return labels.hoursAgo.replace('{n}', String(hrs));
     const days = Math.floor(hrs / 24);
-    if (days < 30) return `${days} hari lalu`;
+    if (days < 30) return labels.daysAgo.replace('{n}', String(days));
     const months = Math.floor(days / 30);
-    return `${months} bln lalu`;
+    return labels.monthsAgo.replace('{n}', String(months));
   }
 
   function formatDateTime(dateStr: string | undefined): string {
@@ -100,7 +101,7 @@
 
 {#if loading}
   <div class="overflow-x-auto">
-  <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Memuat lokasi penyimpanan">
+  <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label={labels.loadingStorageLocations}>
     <colgroup>
       <col style="width: 3%;" />
       <col style="width: 15%;" />
@@ -113,12 +114,12 @@
     <thead class="bg-muted/50">
       <tr class="border-b text-left text-xs text-text-muted">
         <th class="px-3 py-3"></th>
-        <th class="px-4 py-3 font-semibold">KODE</th>
-        <th class="px-4 py-3 font-semibold">NAMA</th>
-        <th class="px-4 py-3 font-semibold">SCOPE</th>
-        <th class="px-4 py-3 font-semibold">STATUS</th>
-        <th class="px-4 py-3 font-semibold">DIPERBARUI</th>
-        <th class="px-4 py-3 font-semibold text-center">AKSI</th>
+        <th class="px-4 py-3 font-semibold">{labels.codeLabel}</th>
+        <th class="px-4 py-3 font-semibold">{labels.nameLabel}</th>
+        <th class="px-4 py-3 font-semibold">{labels.scopeLabel}</th>
+        <th class="px-4 py-3 font-semibold">{labels.statusLabel}</th>
+        <th class="px-4 py-3 font-semibold">{labels.updatedAtLabel}</th>
+        <th class="px-4 py-3 font-semibold text-center">{labels.actionLabel}</th>
       </tr>
     </thead>
     <tbody>
@@ -139,14 +140,14 @@
 {:else if locations.length === 0}
   <div class="flex flex-col items-center justify-center py-12 text-text-muted" role="status" aria-live="polite">
     <Search class="w-12 h-12 mb-3" aria-hidden="true" />
-    <p class="text-sm">{searchQuery ? 'Tidak ada lokasi ditemukan' : 'Belum ada lokasi penyimpanan'}</p>
+    <p class="text-sm">{searchQuery ? labels.noLocationsFound : labels.noStorageLocationsYet}</p>
     {#if !searchQuery && canCreate}
-      <p class="text-xs text-text-muted mt-1">Klik "Tambah Lokasi" untuk membuat lokasi pertama.</p>
+      <p class="text-xs text-text-muted mt-1">{labels.clickAddLocationToCreateFirst}</p>
     {/if}
   </div>
 {:else}
   <div class="overflow-x-auto">
-  <table class="w-full min-w-[720px]" style="table-layout: fixed;" aria-label="Lokasi penyimpanan">
+  <table class="w-full min-w-[720px]" style="table-layout: fixed;" aria-label={labels.storageLocations}>
     <colgroup>
       <col style="width: 3%;" />
       <col style="width: 15%;" />
@@ -159,29 +160,29 @@
     <thead class="bg-muted/50 sticky top-0 z-10">
       <tr class="border-b text-left text-xs text-text-muted">
         <th class="px-3 py-3">
-          <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label="Pilih semua" />
+          <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={allSelected} bind:indeterminate={someSelected} onchange={toggleSelectAll} aria-label={labels.selectAll} />
         </th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label="KODE" column="code" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.codeLabel} column="code" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label="NAMA" column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.nameLabel} column="name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold">SCOPE</th>
+        <th class="px-4 py-3 font-semibold">{labels.scopeLabel}</th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.statusLabel} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="px-4 py-3 font-semibold">
-          <SortableHeader label="DIPERBARUI" column="updated_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.updatedAtLabel} column="updated_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="px-4 py-3 font-semibold text-center" scope="col">AKSI</th>
+        <th class="px-4 py-3 font-semibold text-center" scope="col">{labels.actionLabel}</th>
       </tr>
     </thead>
     <tbody>
       {#each locations as g (g.id)}
         <tr class="border-t border-border transition-colors hover:bg-muted/50 {selectedIds.has(g.id) ? 'bg-muted/30' : ''}">
           <td class="px-3 py-4">
-            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(g.id)} onchange={() => toggleSelect(g.id)} aria-label="Pilih {g.name}" />
+            <input type="checkbox" class="h-4 w-4 rounded border-border bg-surface text-primary accent-primary" checked={selectedIds.has(g.id)} onchange={() => toggleSelect(g.id)} aria-label={labels.selectStorageLocation.replace('{name}', g.name)} />
           </td>
           <td class="px-4 py-4">
             <span class="font-mono text-sm text-text-primary">{g.code}</span>
@@ -210,9 +211,9 @@
           </td>
           <td class="px-4 py-4">
             {#if g.is_active}
-              <Badge variant="success" size="sm">Aktif</Badge>
+              <Badge variant="success" size="sm">{labels.active}</Badge>
             {:else}
-              <Badge variant="danger" size="sm">Nonaktif</Badge>
+              <Badge variant="danger" size="sm">{labels.inactive}</Badge>
             {/if}
           </td>
           <td class="px-4 py-4 text-sm text-text-muted">
@@ -221,22 +222,22 @@
             </Tooltip>
           </td>
           <td class="px-4 py-4">
-            <div class="flex items-center justify-center" role="group" aria-label="Aksi untuk {g.name}">
+            <div class="flex items-center justify-center" role="group" aria-label={labels.actionsFor.replace('{name}', g.name)}>
               <Dropdown placement="bottom-end" items={[]}>
                 {#snippet content({ close })}
                   {#if canUpdate}
                     <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem" onclick={() => { onedit(g); close(); }}>
-                      <Pencil size={14} /> Edit
+                      <Pencil size={14} /> {labels.edit}
                     </button>
                   {/if}
                   {#if canDelete}
                     <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem" onclick={() => { ondelete(g); close(); }}>
-                      <Trash2 size={14} /> Hapus
+                      <Trash2 size={14} /> {labels.delete}
                     </button>
                   {/if}
                 {/snippet}
                 {#snippet trigger({ toggle })}
-                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={(e) => { e.stopPropagation(); toggle(); }} aria-label="Aksi untuk {g.name}">
+                  <Button variant="ghost" size="icon" class="text-text-muted hover:text-text-primary" onclick={(e) => { e.stopPropagation(); toggle(); }} aria-label={labels.actionsFor.replace('{name}', g.name)}>
                     <MoreVertical size={16} />
                   </Button>
                 {/snippet}
@@ -251,22 +252,22 @@
 
   {#if selectedCount > 0}
     <div class="flex items-center justify-between px-4 py-3 bg-primary-subtle/15 border-t border-primary-default/15">
-      <span class="text-sm text-text-primary font-medium">{selectedCount} lokasi dipilih</span>
+      <span class="text-sm text-text-primary font-medium">{labels.locationsSelected.replace('{count}', String(selectedCount))}</span>
       <div class="flex items-center gap-2">
         {#if canUpdate}
           <Button variant="secondary" size="sm" onclick={() => { onbulkactivate([...selectedIds]); clearSelection(); }}>
-            <Power size={14} /> Aktifkan
+            <Power size={14} /> {labels.activate}
           </Button>
           <Button variant="secondary" size="sm" onclick={() => { onbulkdeactivate([...selectedIds]); clearSelection(); }}>
-            <PowerOff size={14} /> Nonaktifkan
+            <PowerOff size={14} /> {labels.deactivate}
           </Button>
         {/if}
         {#if canDelete}
           <Button variant="danger" size="sm" onclick={() => { onbulkdelete([...selectedIds]); clearSelection(); }}>
-            <Trash2 size={14} /> Hapus
+            <Trash2 size={14} /> {labels.delete}
           </Button>
         {/if}
-        <Button variant="ghost" size="sm" onclick={clearSelection}>Batal</Button>
+        <Button variant="ghost" size="sm" onclick={clearSelection}>{labels.cancel}</Button>
       </div>
     </div>
   {/if}

@@ -19,8 +19,12 @@ describe('UserDeleteModal.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Modal } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('renders Modal with "Delete User" title', () => {
-    expect(src).toContain('title="Delete User"');
+    expect(src).toContain('title={labels.deleteUser}');
   });
 
   it('shows username in confirmation', () => {

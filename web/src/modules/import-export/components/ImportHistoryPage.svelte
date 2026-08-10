@@ -7,6 +7,8 @@
   import type { ImportProgress, ImportDetail, ImportRowWithErrors } from '$shared/types/import-export';
   import { Button, Skeleton, Badge } from '$shared/ui';
   import { ArrowLeft, History, ChevronRight, ChevronDown, Clock, CheckCircle2, AlertCircle, Ban, Loader2, Database } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
+  import type { Labels } from '$shared/i18n';
 
   const pathToModule: Record<string, string> = {
     '/categories/import-history': 'categories',
@@ -17,13 +19,13 @@
     '/stores/import-history': 'stores',
   };
 
-  const moduleDisplay: Record<string, string> = {
-    categories: 'Categories',
-    brands: 'Brands',
-    uoms: 'Units of Measure',
-    customers: 'Customers',
-    products: 'Products',
-    stores: 'Stores',
+  const moduleDisplayKey: Record<string, keyof Labels> = {
+    categories: 'categories',
+    brands: 'brands',
+    uoms: 'unitsOfMeasure',
+    customers: 'customers',
+    products: 'products',
+    stores: 'stores',
   };
 
   const moduleParent: Record<string, string> = {
@@ -37,7 +39,7 @@
 
   let currentPath = $state(getPath());
   let module = $derived(pathToModule[currentPath] || 'categories');
-  let displayName = $derived(moduleDisplay[module] || module);
+  let displayName = $derived(labels[moduleDisplayKey[module]] ?? module);
   let parentPath = $derived(moduleParent[module] || '/');
 
   let loading = $state(true);
@@ -57,7 +59,7 @@
       loading = true;
       jobs = await getHistory(module);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to load import history');
+      toast.error(err?.response?.data?.error || labels.toastFailedLoadImportHistory);
     } finally {
       loading = false;
     }
@@ -77,7 +79,7 @@
       detail = d;
       rows = r;
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to load job detail');
+      toast.error(err?.response?.data?.error || labels.toastFailedLoadJobDetail);
     } finally {
       loadingDetail = false;
     }
@@ -118,13 +120,13 @@
   let previewTotal = $derived(detail?.snapshot?.rows_data?.length ?? 0);
 
   function previewColumnLabel(key: string): string {
-    const labels: Record<string, string> = {
-      _row: 'No',
-      IsActive: 'Active',
-      UnitOfMeasure: 'Unit of Measure',
-      WeightGrams: 'Weight (g)',
+    const colLabels: Record<string, string> = {
+      _row: labels.previewColRow,
+      IsActive: labels.previewColActive,
+      UnitOfMeasure: labels.previewColUnit,
+      WeightGrams: labels.previewColWeight,
     };
-    if (labels[key]) return labels[key];
+    if (colLabels[key]) return colLabels[key];
     const candidate = key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim();
     if (candidate === candidate.toUpperCase()) return key;
     return candidate;
@@ -154,9 +156,9 @@
     <div class="flex items-center justify-between">
       <Button variant="ghost" onclick={backToList} class="gap-1.5">
         <ArrowLeft size={14} />
-        Back to Import History
+        {labels.backToImportHistory}
       </Button>
-      <span class="text-xs text-text-muted font-mono">Job #{selectedJob.job_id}</span>
+      <span class="text-xs text-text-muted font-mono">{t('jobWithId', { id: selectedJob.job_id })}</span>
     </div>
 
     {#if loadingDetail}
@@ -178,25 +180,25 @@
               {/if}
             </div>
           </div>
-          <span class="text-xs text-text-muted">{detail.progress.total_rows} rows</span>
+          <span class="text-xs text-text-muted">{t('rowsCount', { count: detail.progress.total_rows })}</span>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
             <p class="text-sm font-bold text-text-primary">{detail.progress.total_rows}</p>
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">Total rows</p>
+            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.totalRows}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
             <p class="text-sm font-bold text-emerald-400">{detail.progress.inserted ?? 0}</p>
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">Inserted</p>
+            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.inserted}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
             <p class="text-sm font-bold text-amber-400">{detail.progress.updated ?? 0}</p>
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">Updated</p>
+            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.updated}</p>
           </div>
           <div class="bg-surface-subtle rounded-lg p-3 border border-border/50">
             <p class="text-sm font-bold text-rose-400">{detail.progress.errors}</p>
-            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">Errors</p>
+            <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mt-0.5">{labels.errors}</p>
           </div>
         </div>
       </div>
@@ -214,10 +216,10 @@
               {:else}
                 <ChevronRight size={14} class="shrink-0 text-text-muted" />
               {/if}
-              <span class="text-sm font-medium text-text-primary">Preview Imported Data</span>
+              <span class="text-sm font-medium text-text-primary">{labels.previewImportedData}</span>
               <span class="text-[11px] font-semibold text-text-muted bg-surface-default px-2 py-0.5 rounded-md border border-border/50">{previewTotal}</span>
             </div>
-            <span class="text-xs text-text-muted">{showPreview ? 'Hide' : 'Show'}</span>
+            <span class="text-xs text-text-muted">{showPreview ? labels.hide : labels.show}</span>
           </button>
 
           {#if showPreview}
@@ -260,7 +262,7 @@
 
               {#if previewTotal > PREVIEW_LIMIT}
                 <div class="px-4 sm:px-5 py-2.5 border-t border-border/30 text-center">
-                  <span class="text-xs text-text-muted">Showing first {PREVIEW_LIMIT} of {previewTotal} imported rows</span>
+                  <span class="text-xs text-text-muted">{t('showingFirstOfImported', { shown: PREVIEW_LIMIT, total: previewTotal })}</span>
                 </div>
               {/if}
             </div>
@@ -269,26 +271,26 @@
       {:else}
         <div class="border border-border/50 rounded-xl bg-surface-subtle/40 p-6 text-center">
           <Database size={20} class="mx-auto text-text-muted" />
-          <p class="text-sm text-text-muted mt-2">No preview data available</p>
+          <p class="text-sm text-text-muted mt-2">{labels.noPreviewData}</p>
         </div>
       {/if}
 
       <div class="card overflow-hidden">
         <div class="px-4 sm:px-5 py-3 border-b border-border flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-text-primary">Row Results</h3>
-          <span class="text-xs text-text-muted">{rows.length} {rows.length === 1 ? 'row' : 'rows'}</span>
+          <h3 class="text-sm font-semibold text-text-primary">{labels.rowResults}</h3>
+          <span class="text-xs text-text-muted">{t('rowsCount', { count: rows.length })}</span>
         </div>
         {#if rows.length === 0}
-          <div class="px-4 py-12 text-center text-text-muted text-sm">No row data available</div>
+          <div class="px-4 py-12 text-center text-text-muted text-sm">{labels.noRowData}</div>
         {:else}
           <div class="overflow-x-auto max-h-96 overflow-y-auto">
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-surface-subtle z-10 border-b border-border">
                 <tr>
                   <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted w-14">#</th>
-                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted w-24">Status</th>
-                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted">New Values</th>
-                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted">Errors</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted w-24">{labels.status}</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted">{labels.newValues}</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted">{labels.errors}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-border/60">
@@ -340,11 +342,11 @@
     <div class="flex items-center justify-between">
       <div>
         <p class="text-xs text-text-muted font-medium uppercase tracking-wider">{displayName}</p>
-        <h2 class="text-xl font-bold text-white mt-0.5">Import History</h2>
+        <h2 class="text-xl font-bold text-white mt-0.5">{labels.importHistory}</h2>
       </div>
       <Button variant="secondary" onclick={() => goto(parentPath)} size="sm" class="gap-1.5">
         <ArrowLeft size={14} />
-        Back
+        {labels.back}
       </Button>
     </div>
 
@@ -360,8 +362,8 @@
           <div class="w-16 h-16 mx-auto flex items-center justify-center rounded-full bg-surface-subtle">
             <History size={28} class="text-text-muted" />
           </div>
-          <p class="text-text-primary font-semibold mt-4">No import history</p>
-          <p class="text-text-muted text-sm mt-1">Import data using Bulk Actions to see history here</p>
+          <p class="text-text-primary font-semibold mt-4">{labels.noImportHistory}</p>
+          <p class="text-text-muted text-sm mt-1">{labels.importDataUsingBulkActions}</p>
         </div>
       {:else}
         <div class="divide-y divide-border/60">
@@ -384,7 +386,7 @@
                 </div>
               </div>
               <div class="flex items-center gap-3 sm:gap-5 text-xs shrink-0">
-                <span class="text-text-muted hidden sm:inline">{job.total_rows} rows</span>
+                <span class="text-text-muted hidden sm:inline">{t('rowsCount', { count: job.total_rows })}</span>
                 <span class="text-emerald-400">{job.inserted ?? 0}</span>
                 <span class="text-amber-400">{job.updated ?? 0}</span>
                 <span class="text-rose-400">{job.errors}</span>

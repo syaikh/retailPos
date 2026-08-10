@@ -6,6 +6,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
   import { getUnitsOfMeasure, createUnitOfMeasure, updateUnitOfMeasure, deleteUnitOfMeasure } from '$modules/settings/services/settings-service';
 
   const rbac = useRBAC();
@@ -53,7 +54,7 @@
       page = Math.floor(offset / limit);
       pageSize = limit;
     } catch {
-      toast.error('Gagal memuat unit');
+      toast.error(labels.toastFailedToLoadUnitsOfMeasure);
     } finally {
       loading = false;
     }
@@ -76,7 +77,7 @@
 
   function handleImportComplete() {
     fetchUoms();
-    toast.success('UOM import completed');
+    toast.success(labels.toastUomImportCompleted);
   }
 
   function openAdd() {
@@ -104,11 +105,11 @@
 
   async function saveUom() {
     if (!form.code.trim()) {
-      toast.error('Kode unit wajib diisi');
+      toast.error(labels.errorUomCodeRequired);
       return;
     }
     if (!form.name.trim()) {
-      toast.error('Nama unit wajib diisi');
+      toast.error(labels.errorUomNameRequired);
       return;
     }
     try {
@@ -129,14 +130,14 @@
         });
       }
       if (ok) {
-        toast.success(modalMode === 'add' ? 'Unit berhasil ditambahkan' : 'Unit berhasil diperbarui');
+        toast.success(modalMode === 'add' ? labels.toastUnitAdded : labels.toastUnitUpdated);
         showModal = false;
         await fetchUoms();
       } else {
-        toast.error('Gagal menyimpan unit');
+        toast.error(labels.toastFailedSaveUnit);
       }
     } catch {
-      toast.error('Kesalahan jaringan');
+      toast.error(labels.networkError);
     } finally {
       saving = false;
     }
@@ -147,13 +148,13 @@
     try {
       const ok = await deleteUnitOfMeasure(selectedUom.id);
       if (ok) {
-        toast.success(`Unit "${selectedUom.name}" berhasil dihapus`);
+        toast.success(t('toastUnitDeleted', { name: selectedUom.name }));
         await fetchUoms();
       } else {
-        toast.error('Gagal menghapus unit');
+        toast.error(labels.toastFailedDeleteUnit);
       }
     } catch {
-      toast.error('Gagal menghapus unit');
+      toast.error(labels.toastFailedDeleteUnit);
     } finally {
       showDeleteModal = false;
       selectedUom = null;
@@ -165,7 +166,7 @@
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search by name or code..." oninput={handleSearchInput} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder={labels.searchByNameOrCode} oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
@@ -177,7 +178,7 @@
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
-            Tambah Unit
+            {labels.addUnit}
           </Button>
         </div>
       {/if}
@@ -189,11 +190,11 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 15%;">CODE</th>
-            <th class="text-left p-4 font-semibold" style="width: 30%;">UNIT NAME</th>
-            <th class="text-left p-4 font-semibold w-48">DESCRIPTION</th>
-            <th class="text-left p-4 font-semibold w-36">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 15%;">{labels.code}</th>
+            <th class="text-left p-4 font-semibold" style="width: 30%;">{labels.unitName}</th>
+            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
+            <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -213,20 +214,20 @@
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Ruler size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">No units found</p>
+        <p class="text-text-primary font-semibold mt-4">{labels.noUnitsFound}</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding your first unit of measure'}
+          {searchQuery ? t('noResultsFor', { query: searchQuery }) : labels.addFirstUnit}
         </p>
       </div>
     {:else}
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 15%;">CODE</th>
-            <th class="text-left p-4 font-semibold" style="width: 30%;">UNIT NAME</th>
-            <th class="text-left p-4 font-semibold w-48">DESCRIPTION</th>
-            <th class="text-left p-4 font-semibold w-36">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 15%;">{labels.code}</th>
+            <th class="text-left p-4 font-semibold" style="width: 30%;">{labels.unitName}</th>
+            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
+            <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -258,8 +259,8 @@
                       variant="ghost"
                       size="icon"
                       class="text-text-muted hover:text-primary-light"
-                      title="Edit"
-                      aria-label="Edit"
+                      title={labels.edit}
+                      aria-label={labels.edit}
                       onclick={() => openEdit(uom)}
                     >
                       <Pencil size={14} />
@@ -271,8 +272,8 @@
                       size="icon"
                       class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                       onclick={() => openDelete(uom)}
-                      title="Hapus"
-                      aria-label="Hapus"
+                      title={labels.delete}
+                      aria-label={labels.delete}
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -302,35 +303,35 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Unit' : 'Edit Unit'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? labels.addUnit : labels.editUnit} size="md">
   <form onsubmit={(e) => { e.preventDefault(); saveUom(); }} class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="uom-code" class="block text-sm font-medium text-text-secondary mb-2">Kode <span class="text-danger">*</span></label>
-        <Input id="uom-code" type="text" placeholder="Contoh: pcs, kg, box" bind:value={form.code} required />
+        <label for="uom-code" class="block text-sm font-medium text-text-secondary mb-2">{labels.code} <span class="text-danger">*</span></label>
+        <Input id="uom-code" type="text" placeholder={labels.contohPcsKgBox} bind:value={form.code} required />
       </div>
       <div>
-        <label for="uom-name" class="block text-sm font-medium text-text-secondary mb-2">Nama Unit <span class="text-danger">*</span></label>
-        <Input id="uom-name" type="text" placeholder="Contoh: Pieces, Kilogram" bind:value={form.name} required />
+        <label for="uom-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.unitName} <span class="text-danger">*</span></label>
+        <Input id="uom-name" type="text" placeholder={labels.contohPiecesKilogram} bind:value={form.name} required />
       </div>
     </div>
     <div>
-      <label for="uom-desc" class="block text-sm font-medium text-text-secondary mb-2">Deskripsi <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input tag="textarea" id="uom-desc" placeholder="Deskripsi singkat unit…" class="min-h-[80px] resize-y" bind:value={form.description} />
+      <label for="uom-desc" class="block text-sm font-medium text-text-secondary mb-2">{labels.description} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+      <Input tag="textarea" id="uom-desc" placeholder={labels.deskripsiSingkatUnit} class="min-h-[80px] resize-y" bind:value={form.description} />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
-        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? 'Aktif' : 'Tidak Aktif'} />
+        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? labels.active : labels.inactive} />
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>{labels.cancel}</Button>
     <Button variant="primary" class="min-w-32" onclick={saveUom} disabled={saving}>
       {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Menyimpan...
+        <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === 'add' ? 'Tambah Unit' : 'Simpan Perubahan'}
+        {modalMode === 'add' ? labels.addUnit : labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -339,8 +340,8 @@
 <ImportWizard
   bind:open={showImportWizard}
   module="uoms"
-  displayName="Units of Measure"
+  displayName={labels.unitsOfMeasure}
   onComplete={handleImportComplete}
 />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Hapus Unit" itemName={selectedUom?.name} confirmLabel="Hapus" cancelLabel="Batal" description="Unit akan dihapus secara permanen dan tidak dapat dikembalikan." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteUnit} itemName={selectedUom?.name} confirmLabel={labels.delete} cancelLabel={labels.cancel} description={labels.deleteUnitDescription} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />

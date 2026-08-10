@@ -134,13 +134,13 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('has handleDuplicate function that creates copy of rule', () => {
     expect(src).toContain('function handleDuplicate(rule: PricingRule)');
-    expect(src).toContain('`${rule.name} (Salinan)`');
+    expect(src).toContain('`${rule.name}${labels.salinanSuffix}`');
   });
 
   it('handleDuplicate sets modalMode to add and clears effective dates', () => {
     const dupIdx = src.indexOf('function handleDuplicate(rule: PricingRule)');
     expect(dupIdx).toBeGreaterThan(-1);
-    const dupBlock = src.substring(dupIdx, dupIdx + 900);
+    const dupBlock = src.substring(dupIdx, dupIdx + 1400);
     expect(dupBlock).toContain("modalMode = 'add'");
     expect(dupBlock).toContain("selectedRule = null");
     expect(dupBlock).toContain("effective_from: ''");
@@ -149,7 +149,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('has handleImportComplete function', () => {
     expect(src).toContain('function handleImportComplete()');
-    expect(src).toContain("toast.success('Import pricing rules selesai.')");
+    expect(src).toContain('toast.success(labels.importPricingRulesComplete)');
   });
 
   it('has handleBulkActivate function using Promise.allSettled', () => {
@@ -181,10 +181,10 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('has validateForm function with all validation rules', () => {
     expect(src).toContain('function validateForm(): Record<string, string>');
-    expect(src).toContain("errors.name = 'Nama rule wajib diisi.'");
-    expect(src).toContain("errors.target = 'Pilih minimal satu target.'");
-    expect(src).toContain("errors.qty = 'Max Qty harus lebih besar dari Min Qty.'");
-    expect(src).toContain("errors.dates = 'Tanggal selesai tidak boleh sebelum tanggal mulai.'");
+    expect(src).toContain('errors.name = labels.errorNameRequired');
+    expect(src).toContain('errors.target = labels.errorTargetRequired');
+    expect(src).toContain('errors.qty = labels.errorMaxQty');
+    expect(src).toContain('errors.dates = labels.errorDates');
   });
 
   it('has handleSort function', () => {
@@ -260,8 +260,8 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('renders Modal for add/edit', () => {
     expect(src).toContain('<Modal');
-    expect(src).toContain("'Tambah Pricing Rule'");
-    expect(src).toContain("'Edit Pricing Rule'");
+    expect(src).toContain('labels.addPricingRule');
+    expect(src).toContain('labels.editPricingRule');
   });
 
   it('renders ConfirmDeleteModal', () => {
@@ -271,7 +271,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   it('renders ImportWizard with module="pricing_rules"', () => {
     expect(src).toContain('<ImportWizard');
     expect(src).toContain('module="pricing_rules"');
-    expect(src).toContain('displayName="Pricing Rules"');
+    expect(src).toContain('displayName={labels.pricingRules}');
     expect(src).toContain('onComplete={handleImportComplete}');
   });
 
@@ -298,7 +298,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   });
 
   it('has skip-to-content link for accessibility', () => {
-    expect(src).toContain('Lewati ke tabel rules');
+    expect(src).toContain('{labels.skipToRulesTable}');
     expect(src).toContain('sr-only');
   });
 
@@ -312,7 +312,7 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
   });
 
   it('typeLabel default is Indonesian', () => {
-    expect(src).toContain("'Semua Tipe'");
+    expect(src).toContain('labels.semuaTipe');
   });
 
   it('imports checkConflicts from pricing service', () => {
@@ -355,11 +355,11 @@ describe('PricingRulesPage.svelte source-structure guards', () => {
 
   it('conflict warning UI shows AlertTriangle and conflict list', () => {
     expect(src).toContain('showConflictWarning && conflictRules.length > 0');
-    expect(src).toContain('Konflik Ditemukan');
+    expect(src).toContain('{labels.conflictFound}');
   });
 
   it('modal footer changes text when conflict warning shown', () => {
-    expect(src).toContain('showConflictWarning ? \'Tetap Simpan\'');
+    expect(src).toContain('showConflictWarning ? labels.keepSaving');
   });
 
   it('passes onrowclick handler to table (replaces onviewaudit)', () => {

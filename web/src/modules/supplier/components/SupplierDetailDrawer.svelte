@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Drawer, Button, Badge, Skeleton } from '$shared/ui';
+  import { labels, t } from '$shared/i18n';
   import { Pencil, Trash2 } from 'lucide-svelte';
   import type { Supplier, ProductSupplier } from '../types';
   import { getProductsBySupplier } from '../services/supplier-service';
@@ -77,7 +78,7 @@
   }
 </script>
 
-<Drawer bind:open title={supplier?.name || 'Supplier Details'} onclose={handleClose}>
+<Drawer bind:open title={supplier?.name || labels.supplierDetails} onclose={handleClose}>
   {#if supplier}
     <div class="space-y-6">
       <div class="flex items-start gap-4">
@@ -86,10 +87,10 @@
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="text-lg font-semibold text-text-primary">{supplier.name}</h3>
-          <p class="text-sm text-text-muted">Code: {supplier.code}</p>
+          <p class="text-sm text-text-muted">{labels.code}: {supplier.code}</p>
           <div class="mt-2">
             <Badge variant={supplier.is_active ? 'success' : 'muted'}>
-              {supplier.is_active ? 'Active' : 'Inactive'}
+              {supplier.is_active ? labels.active : labels.inactive}
             </Badge>
           </div>
         </div>
@@ -97,29 +98,29 @@
 
       <div class="space-y-4">
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">Contact Information</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.contactInformation}</h4>
           <div class="space-y-2 text-sm">
             {#if supplier.contact_name}
               <div class="flex justify-between">
-                <span class="text-text-muted">Contact Person</span>
+                <span class="text-text-muted">{labels.contactPerson}</span>
                 <span class="text-text-secondary">{supplier.contact_name}</span>
               </div>
             {/if}
             {#if supplier.phone}
               <div class="flex justify-between">
-                <span class="text-text-muted">Phone</span>
+                <span class="text-text-muted">{labels.phone}</span>
                 <span class="text-text-secondary">{supplier.phone}</span>
               </div>
             {/if}
             {#if supplier.email}
               <div class="flex justify-between">
-                <span class="text-text-muted">Email</span>
+                <span class="text-text-muted">{labels.email}</span>
                 <span class="text-text-secondary">{supplier.email}</span>
               </div>
             {/if}
             {#if supplier.address}
               <div class="flex justify-between">
-                <span class="text-text-muted">Address</span>
+                <span class="text-text-muted">{labels.address}</span>
                 <span class="text-text-secondary text-right max-w-[200px]">{supplier.address}</span>
               </div>
             {/if}
@@ -128,13 +129,13 @@
 
         {#if supplier.notes}
           <div>
-            <h4 class="text-sm font-medium text-text-muted mb-2">Notes</h4>
+            <h4 class="text-sm font-medium text-text-muted mb-2">{labels.notes}</h4>
             <p class="text-sm text-text-secondary">{supplier.notes}</p>
           </div>
         {/if}
 
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">Linked Products</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.linkedProducts}</h4>
           {#if loadingProducts}
             <div class="space-y-2">
               {#each Array(3) as _}
@@ -142,25 +143,25 @@
               {/each}
             </div>
           {:else if products.length === 0}
-            <p class="text-sm text-text-muted">No products linked</p>
+            <p class="text-sm text-text-muted">{labels.noProductsLinked}</p>
           {:else}
             <div class="space-y-2">
               {#each products.slice(0, 5) as ps}
                 <div class="flex items-center justify-between p-2 bg-surface-subtle rounded-lg">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-text-primary truncate">{ps.product_name || `Product #${ps.product_id}`}</p>
+                    <p class="text-sm font-medium text-text-primary truncate">{ps.product_name || t('productWithId', { id: ps.product_id })}</p>
                     {#if ps.product_sku}
-                      <p class="text-xs text-text-muted">SKU: {ps.product_sku}</p>
+                      <p class="text-xs text-text-muted">{labels.sku}: {ps.product_sku}</p>
                     {/if}
                   </div>
                   {#if ps.is_preferred}
-                    <Badge variant="primary" class="shrink-0">Preferred</Badge>
+                    <Badge variant="primary" class="shrink-0">{labels.preferred}</Badge>
                   {/if}
                 </div>
               {/each}
               {#if products.length > 0}
                 <Button variant="ghost" size="sm" class="w-full" onclick={() => onviewproducts(supplier)}>
-                  View all {products.length} products →
+                  {t('viewAllProducts', { count: products.length })} →
                 </Button>
               {/if}
             </div>
@@ -168,14 +169,14 @@
         </div>
 
         <div>
-          <h4 class="text-sm font-medium text-text-muted mb-2">Timestamps</h4>
+          <h4 class="text-sm font-medium text-text-muted mb-2">{labels.timestamp}</h4>
           <div class="space-y-2 text-sm">
             <div class="flex justify-between">
-              <span class="text-text-muted">Created</span>
+              <span class="text-text-muted">{labels.createdAt}</span>
               <span class="text-text-secondary">{timeAgo(supplier.created_at)}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-muted">Updated</span>
+              <span class="text-text-muted">{labels.updatedAt}</span>
               <span class="text-text-secondary">{timeAgo(supplier.updated_at)}</span>
             </div>
           </div>
@@ -188,13 +189,13 @@
     {#if canEdit}
       <Button variant="secondary" onclick={() => onedit(supplier!)}>
         <Pencil class="w-4 h-4 mr-2" />
-        Edit
+        {labels.edit}
       </Button>
     {/if}
     {#if canDelete}
       <Button variant="danger" onclick={() => ondelete(supplier!)}>
         <Trash2 class="w-4 h-4 mr-2" />
-        Delete
+        {labels.delete}
       </Button>
     {/if}
   {/snippet}

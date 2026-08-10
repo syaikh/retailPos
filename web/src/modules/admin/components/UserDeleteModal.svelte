@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, Modal } from '$shared/ui';
   import { Trash2, Users } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -19,13 +20,13 @@
   } = $props();
 </script>
 
-<Modal bind:open={open} title="Delete User" size="sm">
+<Modal bind:open={open} title={labels.deleteUser} size="sm">
   <div class="text-center py-3">
     <div class="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-4">
       <Trash2 size={24} class="text-danger" />
     </div>
-    <p class="text-text-primary font-semibold mb-1">Delete "{username}"?</p>
-    <p class="text-text-muted text-sm">This will permanently remove the account and all associated access.</p>
+    <p class="text-text-primary font-semibold mb-1">{labels.delete} "{username}"?</p>
+    <p class="text-text-muted text-sm">{labels.deletePermanent}</p>
     {#if subordinateCount > 0}
       <div class="mt-4 p-3 rounded-xl bg-warning-subtle border border-warning/30 text-left">
         <div class="flex items-center gap-2 text-warning font-medium text-sm mb-1">
@@ -37,7 +38,7 @@
     {/if}
   </div>
   {#snippet footer()}
-    <Button variant="secondary" onclick={oncancel}>Cancel</Button>
-    <Button variant="danger" onclick={onconfirm} disabled={deleting}>Delete</Button>
+    <Button variant="secondary" onclick={oncancel}>{labels.cancel}</Button>
+    <Button variant="danger" onclick={onconfirm} disabled={deleting}>{labels.delete}</Button>
   {/snippet}
 </Modal>

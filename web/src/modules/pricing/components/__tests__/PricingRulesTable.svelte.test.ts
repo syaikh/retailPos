@@ -91,7 +91,7 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   it('has checkbox in table header with indeterminate state', () => {
     expect(src).toContain('toggleSelectAll');
     expect(src).toContain('bind:indeterminate={someSelected}');
-    expect(src).toContain('aria-label="Pilih semua"');
+    expect(src).toContain('aria-label={labels.pilihSemua}');
   });
 
   it('uses native checkbox for three-state select all', () => {
@@ -102,7 +102,7 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
 
   it('has checkbox in each row', () => {
     expect(src).toContain('onchange={() => toggleSelect(rule.id)}');
-    expect(src).toContain('aria-label="Pilih {rule.name}"');
+    expect(src).toContain("t('pilihItem', { name: rule.name })");
   });
 
   it('applies selected row styling', () => {
@@ -112,17 +112,17 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   it('has duplicate action in kebab menu when canCreate', () => {
     expect(src).toContain('{#if canCreate}');
     expect(src).toContain('onduplicate(rule)');
-    expect(src).toContain('Duplikasi');
+    expect(src).toContain('{labels.duplicate}');
   });
 
   it('shows empty state hint when canCreate', () => {
     expect(src).toContain('{#if canCreate}');
-    expect(src).toContain('Klik "Tambah Rule" untuk membuat aturan harga pertama.');
+    expect(src).toContain('{labels.emptyStateCreateRule}');
   });
 
   it('has bulk action bar when items are selected', () => {
     expect(src).toContain('{#if selectedCount > 0}');
-    expect(src).toContain('{selectedCount} rule dipilih');
+    expect(src).toContain("t('rulesSelected', { count: selectedCount })");
   });
 
   it('bulk activate button calls onbulkactivate', () => {
@@ -139,17 +139,17 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
 
   it('bulk activate/deactivate visible when canEdit', () => {
     expect(src).toContain('{#if canEdit}');
-    expect(src).toContain('Aktifkan');
-    expect(src).toContain('Nonaktifkan');
+    expect(src).toContain('{labels.activate}');
+    expect(src).toContain('{labels.deactivate}');
   });
 
   it('bulk delete visible when canDelete', () => {
     expect(src).toContain('{#if canDelete}');
-    expect(src).toContain('Hapus');
+    expect(src).toContain('{labels.hapus}');
   });
 
   it('has clear selection cancel button', () => {
-    expect(src).toContain('Batal');
+    expect(src).toContain('{labels.cancel}');
     expect(src).toContain('onclick={clearSelection}');
   });
 
@@ -162,18 +162,18 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   });
 
   it('NILAI column is right-aligned', () => {
-    expect(src).toContain('NILAI');
+    expect(src).toContain('{labels.nilai.toUpperCase()}');
     expect(src).toContain('text-right');
   });
 
   it('has method column sortable', () => {
     expect(src).toContain('column="pricing_method"');
-    expect(src).toContain('METODE');
+    expect(src).toContain('{labels.metode.toUpperCase()}');
   });
 
   it('has status sortable column', () => {
     expect(src).toContain('column="status"');
-    expect(src).toContain('STATUS');
+    expect(src).toContain('{labels.status.toUpperCase()}');
   });
 
   it('loading skeleton has 5 rows', () => {
@@ -185,16 +185,16 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   });
 
   it('has aria-label on table', () => {
-    expect(src).toContain('aria-label="Pricing rules"');
+    expect(src).toContain('aria-label={labels.pricingRules}');
   });
 
   it('has aria-busy on loading table', () => {
     expect(src).toContain('aria-busy="true"');
-    expect(src).toContain('aria-label="Loading pricing rules"');
+    expect(src).toContain('aria-label={labels.loadingRules}');
   });
 
   it('has aria-label on actions group', () => {
-    expect(src).toContain('aria-label="Actions for {rule.name}"');
+    expect(src).toContain("t('actionsFor', { name: rule.name })");
   });
 
   it('action buttons use icon size', () => {
@@ -229,10 +229,10 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
 
   it('has approvalLabel helper function', () => {
     expect(src).toContain('function approvalLabel(status: string)');
-    expect(src).toContain("case 'approved': return 'Approved'");
-    expect(src).toContain("case 'pending': return 'Pending'");
-    expect(src).toContain("case 'rejected': return 'Rejected'");
-    expect(src).toContain("default: return 'Draft'");
+    expect(src).toContain("case 'approved': return labels.statusApproved");
+    expect(src).toContain("case 'pending': return labels.statusPending");
+    expect(src).toContain("case 'rejected': return labels.statusRejected");
+    expect(src).toContain('default: return labels.statusDraft');
   });
 
   it('uses Dropdown for kebab action menu', () => {
@@ -249,12 +249,12 @@ describe('PricingRulesTable.svelte source-structure guards', () => {
   });
 
   it('kebab menu has labeled actions without Audit', () => {
-    expect(src).toContain('Ajukan');
-    expect(src).toContain('Approve');
-    expect(src).toContain('Reject');
-    expect(src).toContain('Edit');
-    expect(src).toContain('Duplikasi');
-    expect(src).toContain('Hapus');
+    expect(src).toContain('{labels.submit}');
+    expect(src).toContain('{labels.approve}');
+    expect(src).toContain('{labels.reject}');
+    expect(src).toContain('{labels.edit}');
+    expect(src).toContain('{labels.duplicate}');
+    expect(src).toContain('{labels.hapus}');
     expect(src).not.toContain('onviewaudit');
   });
 

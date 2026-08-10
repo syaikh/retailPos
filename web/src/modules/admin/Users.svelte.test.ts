@@ -42,7 +42,7 @@ describe('UsersPage.svelte source-structure guards', () => {
 
   it('shows Access Denied when user lacks view permission', () => {
     expect(src).toContain('{#if !canView}');
-    expect(src).toContain('Access Denied');
+    expect(src).toContain('labels.accessDenied');
   });
 
   it('passes canCreate to UserToolbar', () => {

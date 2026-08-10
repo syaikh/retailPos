@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Modal, Button, Input } from '$shared/ui';
+  import { labels } from '$shared/i18n';
   import { Loader2 } from 'lucide-svelte';
   import type { Supplier } from '../types';
 
@@ -56,52 +57,52 @@
   }
 </script>
 
-<Modal bind:open title={mode === 'add' ? 'Add Supplier' : 'Edit Supplier'} size="md">
+<Modal bind:open title={mode === 'add' ? labels.addSupplier : labels.editSupplier} size="md">
   <form onsubmit={handleSubmit} class="space-y-3">
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label for="sup_name" class="block text-xs font-medium text-text-secondary mb-1">Supplier Name <span class="text-danger">*</span></label>
-        <Input id="sup_name" bind:value={form.name} required placeholder="PT Sumber Makmur" class="h-9 text-sm" />
+        <label for="sup_name" class="block text-xs font-medium text-text-secondary mb-1">{labels.supplierName} <span class="text-danger">*</span></label>
+        <Input id="sup_name" bind:value={form.name} required placeholder={labels.contohNamaSupplier} class="h-9 text-sm" />
       </div>
       <div>
-        <label for="sup_code" class="block text-xs font-medium text-text-secondary mb-1">Supplier Code <span class="text-danger">*</span></label>
+        <label for="sup_code" class="block text-xs font-medium text-text-secondary mb-1">{labels.supplierCode} <span class="text-danger">*</span></label>
         <Input id="sup_code" bind:value={form.code} required placeholder="SUP-001" class="h-9 text-sm" />
       </div>
     </div>
     <div class="grid grid-cols-3 gap-3">
       <div>
-        <label for="sup_contact" class="block text-xs font-medium text-text-secondary mb-1">Contact Person</label>
+        <label for="sup_contact" class="block text-xs font-medium text-text-secondary mb-1">{labels.contactPerson}</label>
         <Input id="sup_contact" bind:value={form.contact_name} placeholder="Budi Santoso" class="h-9 text-sm" />
       </div>
       <div>
-        <label for="sup_phone" class="block text-xs font-medium text-text-secondary mb-1">Phone</label>
+        <label for="sup_phone" class="block text-xs font-medium text-text-secondary mb-1">{labels.phone}</label>
         <Input id="sup_phone" bind:value={form.phone} placeholder="021-12345678" class="h-9 text-sm" />
       </div>
       <div>
-        <label for="sup_email" class="block text-xs font-medium text-text-secondary mb-1">Email</label>
+        <label for="sup_email" class="block text-xs font-medium text-text-secondary mb-1">{labels.email}</label>
         <Input id="sup_email" type="email" bind:value={form.email} placeholder="info@supplier.co.id" class="h-9 text-sm" />
       </div>
     </div>
     <div>
-      <label for="sup_address" class="block text-xs font-medium text-text-secondary mb-1">Address</label>
-      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder="Full address..." class="min-h-[40px] resize-y text-sm" />
+      <label for="sup_address" class="block text-xs font-medium text-text-secondary mb-1">{labels.address}</label>
+      <Input id="sup_address" tag="textarea" bind:value={form.address} placeholder={labels.fullAddress} class="min-h-[40px] resize-y text-sm" />
     </div>
     <div>
-      <label for="sup_notes" class="block text-xs font-medium text-text-secondary mb-1">Notes</label>
-      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder="Additional notes..." class="min-h-[40px] resize-y text-sm" />
+      <label for="sup_notes" class="block text-xs font-medium text-text-secondary mb-1">{labels.notes}</label>
+      <Input id="sup_notes" tag="textarea" bind:value={form.notes} placeholder={labels.additionalNotes} class="min-h-[40px] resize-y text-sm" />
     </div>
     {#if mode === 'edit'}
       <div class="flex items-center gap-2">
         <input type="checkbox" bind:checked={form.is_active} id="is_active" class="rounded" />
-        <label for="is_active" class="text-sm text-text-secondary">Active</label>
+        <label for="is_active" class="text-sm text-text-secondary">{labels.active}</label>
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={oncancel} disabled={saving}>Cancel</Button>
+    <Button variant="secondary" onclick={oncancel} disabled={saving}>{labels.cancel}</Button>
     <Button variant="primary" class="min-w-32" onclick={handleSubmit} disabled={saving}>
       {#if saving}<Loader2 class="w-4 h-4 mr-2 animate-spin" />{/if}
-      {mode === 'add' ? 'Create' : 'Update'}
+      {mode === 'add' ? labels.create : labels.update}
     </Button>
   {/snippet}
 </Modal>

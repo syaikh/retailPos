@@ -1,6 +1,7 @@
 <script>
   import { Skeleton } from '$shared/ui';
   import { TrendingUp, TrendingDown } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
   import { formatCurrencyShort, formatLargeNumber } from '$modules/reporting/lib/reporting-utils';
 
   let {
@@ -26,49 +27,49 @@
     {/each}
   {:else}
     <div class="bg-surface rounded-lg p-4 border border-border/50">
-      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Revenue</div>
+      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">{labels.totalRevenue}</div>
       <div class="text-lg font-bold text-text-primary mt-1">
         {formatCurrencyShort(kpiData.totalRevenue)}
       </div>
       {#if chartType === 'hourly' && peakChartValue !== null}
         <div class="text-xs text-text-muted mt-1">
-          Peak: {formatCurrencyShort(peakChartValue)}
+          {labels.peakLabel} {formatCurrencyShort(peakChartValue)}
         </div>
       {/if}
       {#if projectedRevenue !== null}
         <div class="text-xs text-success mt-1 font-medium">
-          Projected: {formatCurrencyShort(projectedRevenue)}
+          {labels.projectedLabel} {formatCurrencyShort(projectedRevenue)}
         </div>
       {/if}
       {#if kpiData.previousRevenue > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousRevenue)}
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousRevenue)}
         </div>
       {:else if kpiData.previousHasAnyData}
         <div class="text-xs text-text-muted mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousRevenue)} (same hours)
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousRevenue)} {labels.sameHours}
         </div>
       {/if}
     </div>
 
     <div class="bg-surface rounded-lg p-4 border border-border/50 relative">
-      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Total Orders</div>
+      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">{labels.totalOrders}</div>
       <div class="text-lg font-bold text-text-primary mt-1">
         {formatLargeNumber(kpiData.totalOrders)}
       </div>
       {#if kpiData.previousOrders > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatLargeNumber(kpiData.previousOrders)}
+          {labels.vsLabel} {formatLargeNumber(kpiData.previousOrders)}
         </div>
       {:else if kpiData.previousHasAnyData}
         <div class="text-xs text-text-muted mt-1 font-medium">
-          vs {formatLargeNumber(kpiData.previousOrders)} (same hours)
+          {labels.vsLabel} {formatLargeNumber(kpiData.previousOrders)} {labels.sameHours}
         </div>
       {/if}
     </div>
 
     <div class="bg-surface rounded-lg p-4 border border-border/50">
-      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">Avg Order Value</div>
+      <div class="text-xs font-medium text-text-secondary uppercase tracking-wide">{labels.avgOrderValue}</div>
       <div class="flex items-center gap-1 mt-1">
         <span class="text-lg font-bold text-text-primary">
           {formatCurrencyShort(kpiData.avgOrderValue)}
@@ -81,7 +82,7 @@
       </div>
       {#if kpiData.previousAvgOrderValue > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousAvgOrderValue)}
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousAvgOrderValue)}
         </div>
       {/if}
     </div>
@@ -101,20 +102,20 @@
       </div>
       {#if chartType === 'yearly' && kpiData.revenuePerDay > 0}
         <div class="text-xs text-text-muted mt-1">
-          Avg. / Month: {formatCurrencyShort(kpiData.revenuePerDay * 30)}
+          {labels.avgPerMonth} {formatCurrencyShort(kpiData.revenuePerDay * 30)}
         </div>
       {/if}
       {#if chartType === 'hourly' && kpiData.previousPeakRevenue !== null && kpiData.previousPeakRevenue > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousPeakRevenue)}
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousPeakRevenue)}
         </div>
       {:else if chartType === 'yearly' && kpiData.previousPeakRevenueMonth > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousPeakRevenueMonth)}
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousPeakRevenueMonth)}
         </div>
       {:else if kpiData.previousRevenuePerDay > 0}
         <div class="text-xs text-text-secondary mt-1 font-medium">
-          vs {formatCurrencyShort(kpiData.previousRevenuePerDay)}
+          {labels.vsLabel} {formatCurrencyShort(kpiData.previousRevenuePerDay)}
         </div>
       {/if}
     </div>
@@ -131,7 +132,7 @@
             kpiData.comparisonType === 'zero' ? 'text-text-secondary' :
             kpiData.percentChange > 0 ? 'text-success' : 'text-danger'
           }`}>
-            {kpiData.comparisonType === 'new' ? 'NEW' :
+            {kpiData.comparisonType === 'new' ? labels.labelNew :
              kpiData.comparisonType === 'surge' ? '+100%' :
              kpiData.comparisonType === 'zero' ? '±0%' :
              kpiData.percentChange >= 0 ? '+' + kpiData.percentChange.toFixed(1) + '%' :

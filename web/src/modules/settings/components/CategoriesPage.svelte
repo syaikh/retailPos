@@ -7,6 +7,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -90,7 +91,7 @@ let canView = $derived(authStore.user != null);
 
   function handleImportComplete() {
     fetchCategories();
-    toast.success('Category import completed');
+    toast.success(labels.toastCategoryImportCompleted);
   }
 
   async function fetchCategories(isSearch = false) {
@@ -108,12 +109,12 @@ let canView = $derived(authStore.user != null);
         categories = data.data || [];
         total = data.total || 0;
       } else if (res.status === 403) {
-        toast.error('Akses ditolak');
+        toast.error(labels.accessDenied);
         categories = [];
         total = 0;
       }
     } catch {
-      toast.error('Gagal memuat kategori');
+      toast.error(labels.toastFailedToLoadCategories);
     } finally {
       if (!isSearch) loading = false;
     }
@@ -170,7 +171,7 @@ let canView = $derived(authStore.user != null);
 
   async function saveCategory() {
     if (!form.name.trim()) {
-      toast.error('Nama kategori wajib diisi');
+      toast.error(labels.errorCategoryNameRequired);
       return;
     }
     try {
@@ -186,15 +187,15 @@ let canView = $derived(authStore.user != null);
       }
       const r = await apiFetch(url, { method, body: JSON.stringify(payload) });
       if (r.ok) {
-        toast.success(modalMode === 'add' ? 'Kategori berhasil ditambahkan' : 'Kategori berhasil diperbarui');
+        toast.success(modalMode === 'add' ? labels.toastCategoryAdded : labels.toastCategoryUpdated);
         showModal = false;
         await fetchCategories();
       } else {
         const err = await r.json();
-        toast.error(err.error || 'Gagal menyimpan kategori');
+        toast.error(err.error || labels.toastFailedSaveCategory);
       }
     } catch {
-      toast.error('Kesalahan jaringan');
+      toast.error(labels.networkError);
     } finally {
       saving = false;
     }
@@ -205,14 +206,14 @@ let canView = $derived(authStore.user != null);
     try {
       const r = await apiFetch(`/api/categories/${selectedCategory.id}`, { method: 'DELETE' });
       if (r.ok) {
-        toast.success(`Kategori "${selectedCategory.name}" berhasil dihapus`);
+        toast.success(t('toastCategoryDeleted', { name: selectedCategory.name }));
         await fetchCategories();
       } else {
         const err = await r.json();
-        toast.error(err.error || 'Gagal menghapus kategori');
+        toast.error(err.error || labels.toastFailedDeleteCategory);
       }
     } catch {
-      toast.error('Gagal menghapus kategori');
+      toast.error(labels.toastFailedDeleteCategory);
     } finally {
       showDeleteModal = false;
       selectedCategory = null;
@@ -225,7 +226,7 @@ let canView = $derived(authStore.user != null);
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search by name or slug..." oninput={handleSearchInput} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder={labels.searchByNameOrSlug} oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
@@ -237,7 +238,7 @@ let canView = $derived(authStore.user != null);
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
-            Tambah Kategori
+            {labels.addCategory}
           </Button>
         </div>
       {/if}
@@ -248,14 +249,14 @@ let canView = $derived(authStore.user != null);
   <div class="card overflow-hidden">
 
     {#if loading}
-      <table class="w-full table-fixed" aria-busy="true" aria-label="Loading categories">
+      <table class="w-full table-fixed" aria-busy="true" aria-label={labels.loadingCategories}>
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 50%;">CATEGORY NAME</th>
-            <th class="text-left p-4 font-semibold w-32">SLUG</th>
-            <th class="text-right p-4 font-semibold w-24">PRODUCTS</th>
-            <th class="text-left p-4 font-semibold w-28">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 50%;">{labels.categoryName}</th>
+            <th class="text-left p-4 font-semibold w-32">{labels.slugLabel}</th>
+            <th class="text-right p-4 font-semibold w-24">{labels.products}</th>
+            <th class="text-left p-4 font-semibold w-28">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -275,9 +276,9 @@ let canView = $derived(authStore.user != null);
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">No categories found</p>
+        <p class="text-text-primary font-semibold mt-4">{labels.noCategoriesFound}</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding your first category'}
+          {searchQuery ? t('noResultsFor', { query: searchQuery }) : labels.addFirstCategory}
         </p>
       </div>
     {:else}
@@ -286,18 +287,18 @@ let canView = $derived(authStore.user != null);
         <thead class="bg-muted/50">
           <tr>
             <th class="text-left p-4 font-semibold" style="width: 50%;">
-              <SortableHeader label="CATEGORY NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.categoryName} column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-left p-4 font-semibold w-32">
-              <SortableHeader label="SLUG" column="slug" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.slugLabel} column="slug" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
             <th class="text-right p-4 font-semibold w-24">
-              <SortableHeader label="PRODUCTS" column="product_count" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
+              <SortableHeader label={labels.products} column="product_count" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} align="right" />
             </th>
             <th class="text-left p-4 font-semibold w-28">
-              <SortableHeader label="CREATED" column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+              <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
             </th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -333,8 +334,8 @@ let canView = $derived(authStore.user != null);
                       variant="ghost"
                       size="icon"
                       class="text-text-muted hover:text-primary-light"
-                      title="Edit"
-                      aria-label="Edit"
+                      title={labels.edit}
+                      aria-label={labels.edit}
                       onclick={() => openEdit(cat)}
                     >
                       <Pencil size={14} />
@@ -347,8 +348,8 @@ let canView = $derived(authStore.user != null);
                       class={cat.product_count > 0 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:text-danger hover:bg-danger-subtle'}
                       onclick={() => openDelete(cat)}
                       disabled={cat.product_count > 0}
-                      title={cat.product_count > 0 ? 'Tidak bisa dihapus: masih ada produk aktif' : 'Hapus'}
-                      aria-label={cat.product_count > 0 ? 'Tidak bisa dihapus' : 'Hapus'}
+                      title={cat.product_count > 0 ? labels.categoryHasProducts : labels.delete}
+                      aria-label={cat.product_count > 0 ? labels.categoryHasProducts : labels.delete}
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -374,29 +375,29 @@ let canView = $derived(authStore.user != null);
 </div>
 
 <!-- Add/Edit Modal -->
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Kategori' : 'Edit Kategori'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? labels.addCategory : labels.editCategory} size="md">
   <form onsubmit={(e) => { e.preventDefault(); saveCategory(); }} class="space-y-4">
     <div>
-      <label for="cat-name" class="block text-sm font-medium text-text-secondary mb-2">Nama Kategori <span class="text-danger">*</span></label>
-      <Input id="cat-name" type="text" placeholder="Contoh: Makanan Bayi" bind:value={form.name} required />
+      <label for="cat-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.categoryName} <span class="text-danger">*</span></label>
+      <Input id="cat-name" type="text" placeholder={labels.contohMakananBayi} bind:value={form.name} required />
     </div>
     <div>
-      <label for="cat-desc" class="block text-sm font-medium text-text-secondary mb-2">Deskripsi <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input tag="textarea" id="cat-desc" placeholder="Deskripsi singkat kategori…" class="min-h-[80px] resize-y" bind:value={form.description} />
+      <label for="cat-desc" class="block text-sm font-medium text-text-secondary mb-2">{labels.description} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+      <Input tag="textarea" id="cat-desc" placeholder={labels.deskripsiSingkatKategori} class="min-h-[80px] resize-y" bind:value={form.description} />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
-        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? 'Aktif' : 'Tidak Aktif'} />
+        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? labels.active : labels.inactive} />
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>{labels.cancel}</Button>
     <Button variant="primary" class="min-w-32" onclick={saveCategory} disabled={saving}>
       {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Menyimpan...
+        <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === 'add' ? 'Tambah Kategori' : 'Simpan Perubahan'}
+        {modalMode === 'add' ? labels.addCategory : labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -405,9 +406,9 @@ let canView = $derived(authStore.user != null);
 <ImportWizard
   bind:open={showImportWizard}
   module="categories"
-  displayName="Categories"
+  displayName={labels.categories}
   onComplete={handleImportComplete}
 />
 
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Hapus Kategori" itemName={selectedCategory?.name} confirmLabel="Hapus" cancelLabel="Batal" description="Kategori akan dihapus secara permanen dan tidak dapat dikembalikan." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteCategory} itemName={selectedCategory?.name} confirmLabel={labels.delete} cancelLabel={labels.cancel} description={labels.deleteCategoryDescription} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />

@@ -2,6 +2,7 @@
   import { Button, Input, Modal, SelectSearch } from '$shared/ui';
   import { Loader2, PackageX } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
+  import { labels } from '$shared/i18n';
   import { getStorageLocations } from '$modules/storage-location/services/storage-location-service';
   import { getLocationStock, setLocationStock, transferLocationStock } from '../services/inventory-service';
   import type { LocationStockItem } from '../types';
@@ -57,7 +58,7 @@
     try {
       rows = await getLocationStock(productId);
     } catch {
-      toast.error('Gagal memuat stok rak');
+      toast.error(labels.toastGagalMemuatStokRak);
     }
     rackRows = rows;
 
@@ -95,22 +96,22 @@
 
   async function submitSet() {
     if (!productId || !setLocationId) {
-      setErrors = { location: 'Pilih lokasi penyimpanan' };
+      setErrors = { location: labels.pilihLokasiPenyimpanan };
       return;
     }
     if (setQuantity < 0) {
-      setErrors = { quantity: 'Jumlah tidak boleh negatif' };
+      setErrors = { quantity: labels.jumlahTidakBolehNegatif };
       return;
     }
     savingSet = true;
     try {
       await setLocationStock({ product_id: productId, location_id: setLocationId, quantity: setQuantity });
-      toast.success('Stok rak diperbarui');
+      toast.success(labels.toastStokRakDiperbarui);
       showSetModal = false;
       await load();
       onChanged();
     } catch (e: any) {
-      setErrors = { submit: e?.response?.data?.error || e?.message || 'Gagal memperbarui stok rak' };
+      setErrors = { submit: e?.response?.data?.error || e?.message || labels.toastGagalMemperbaruiStokRak };
     } finally {
       savingSet = false;
     }
@@ -126,15 +127,15 @@
 
   async function submitTransfer() {
     if (!productId || !fromLocationId || !toLocationId) {
-      transferErrors = { location: 'Pilih lokasi tujuan' };
+      transferErrors = { location: labels.pilihLokasiTujuan };
       return;
     }
     if (toLocationId === fromLocationId) {
-      transferErrors = { location: 'Lokasi asal dan tujuan harus berbeda' };
+      transferErrors = { location: labels.lokasiAsalDanTujuanHarusBerbeda };
       return;
     }
     if (transferQuantity <= 0) {
-      transferErrors = { quantity: 'Jumlah harus lebih dari 0' };
+      transferErrors = { quantity: labels.jumlahHarusLebihDari0 };
       return;
     }
     savingTransfer = true;
@@ -145,12 +146,12 @@
         to_location_id: toLocationId,
         quantity: transferQuantity,
       });
-      toast.success('Stok rak dipindahkan');
+      toast.success(labels.toastStokRakDipindahkan);
       showTransferModal = false;
       await load();
       onChanged();
     } catch (e: any) {
-      transferErrors = { submit: e?.response?.data?.error || e?.message || 'Gagal memindahkan stok rak' };
+      transferErrors = { submit: e?.response?.data?.error || e?.message || labels.toastGagalMemindahkanStokRak };
     } finally {
       savingTransfer = false;
     }
@@ -160,16 +161,16 @@
 <div class="rounded-2xl bg-surface-default border border-border space-y-0 overflow-hidden">
   <div class="px-3.5 py-2 border-b border-border/60 flex items-center gap-1.5">
     <span class="text-base leading-none">🗄️</span>
-    <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Stok Rak (Lokasi)</h4>
+    <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">{labels.stokRak}</h4>
     {#if canAdjust}
-      <Button variant="secondary" size="sm" class="ml-auto" onclick={() => openSet()}>Tambah Stok</Button>
+      <Button variant="secondary" size="sm" class="ml-auto" onclick={() => openSet()}>{labels.tambahStok}</Button>
     {/if}
   </div>
   <div class="px-3.5 py-2.5">
     {#if loading}
-      <p class="text-xs text-text-muted flex items-center gap-1.5"><Loader2 size={13} class="animate-spin" /> Memuat...</p>
+      <p class="text-xs text-text-muted flex items-center gap-1.5"><Loader2 size={13} class="animate-spin" /> {labels.loading}</p>
     {:else if rackRows.length === 0}
-      <p class="text-xs text-text-muted flex items-center gap-1.5"><PackageX size={14} /> Belum ada stok rak untuk produk ini.</p>
+      <p class="text-xs text-text-muted flex items-center gap-1.5"><PackageX size={14} /> {labels.belumAdaStokRak}</p>
     {:else}
       <div class="space-y-2">
         {#each rackRows as row}
@@ -181,8 +182,8 @@
             <div class="flex items-center gap-2 shrink-0">
               <span class="text-sm font-semibold text-text-secondary tabular-nums">{row.quantity}</span>
               {#if canAdjust}
-                <Button variant="ghost" size="sm" onclick={() => openSet(row.location_id)}>Set</Button>
-                <Button variant="ghost" size="sm" onclick={() => openTransfer(row)}>Transfer</Button>
+                <Button variant="ghost" size="sm" onclick={() => openSet(row.location_id)}>{labels.setStokRak}</Button>
+                <Button variant="ghost" size="sm" onclick={() => openTransfer(row)}>{labels.transfer}</Button>
               {/if}
             </div>
           </div>
@@ -190,69 +191,69 @@
       </div>
     {/if}
     {#if rackRows.length > 0}
-      <p class="text-[11px] text-text-muted/70 mt-2">Stok rak adalah sub-akun dari stok global. Set/transfer tidak mengubah stok global.</p>
+      <p class="text-[11px] text-text-muted/70 mt-2">{labels.stokRakSubAccount}</p>
     {/if}
   </div>
 </div>
 
-<Modal bind:open={showSetModal} title={`Set Stok Rak — ${productName}`} size="sm">
+<Modal bind:open={showSetModal} title={`${labels.setStokRak} — ${productName}`} size="sm">
   <div class="space-y-4">
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-      <span>Lokasi Penyimpanan</span>
+      <span>{labels.lokasiPenyimpanan}</span>
       <SelectSearch
         bind:value={setLocationId}
         options={locationOptions()}
-        placeholder="Pilih lokasi..."
-        searchPlaceholder="Cari..."
-        notFoundText="Tidak ditemukan"
+        placeholder={labels.pilihLokasi}
+        searchPlaceholder={labels.cari}
+        notFoundText={labels.tidakDitemukan}
       />
       {#if setErrors.location}<p class="text-xs text-destructive">{setErrors.location}</p>{/if}
     </label>
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-      <span>Jumlah (eksak)</span>
+      <span>{labels.jumlahEksak}</span>
       <Input type="number" bind:value={setQuantity} placeholder="0" min={0} />
       {#if setErrors.quantity}<p class="text-xs text-destructive">{setErrors.quantity}</p>{/if}
-      <p class="text-xs text-text-muted">Menimpa stok rak saat ini. Stok global tidak berubah.</p>
+      <p class="text-xs text-text-muted">{labels.menimpaStokRak}</p>
     </label>
     {#if setErrors.submit}<p class="text-xs text-destructive">{setErrors.submit}</p>{/if}
   </div>
   {#snippet footer()}
-    <Button variant="secondary" disabled={savingSet} onclick={() => (showSetModal = false)}>Batal</Button>
+    <Button variant="secondary" disabled={savingSet} onclick={() => (showSetModal = false)}>{labels.cancel}</Button>
     <Button disabled={savingSet} onclick={submitSet}>
-      {#if savingSet}<Loader2 size={16} class="animate-spin mr-2" />{/if}Simpan
+      {#if savingSet}<Loader2 size={16} class="animate-spin mr-2" />{/if}{labels.save}
     </Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={showTransferModal} title="Transfer Stok Rak" size="sm">
+<Modal bind:open={showTransferModal} title={labels.transferStok} size="sm">
   <div class="space-y-4">
     <div>
-      <p class="text-sm text-text-muted mb-1">Asal: <span class="text-text-primary font-medium">{locationName(fromLocationId)}</span></p>
-      <p class="text-sm text-text-muted">Stok saat ini: <span class="text-text-primary">{rackRows.find((r) => r.location_id === fromLocationId)?.quantity ?? 0}</span></p>
+      <p class="text-sm text-text-muted mb-1">{labels.asal} <span class="text-text-primary font-medium">{locationName(fromLocationId)}</span></p>
+      <p class="text-sm text-text-muted">{labels.stokSaatIni} <span class="text-text-primary">{rackRows.find((r) => r.location_id === fromLocationId)?.quantity ?? 0}</span></p>
     </div>
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-      <span>Lokasi Tujuan</span>
+      <span>{labels.lokasiTujuan}</span>
       <SelectSearch
         bind:value={toLocationId}
         options={locationOptions().filter((o) => o.value !== fromLocationId)}
-        placeholder="Pilih lokasi tujuan..."
-        searchPlaceholder="Cari..."
-        notFoundText="Tidak ditemukan"
+        placeholder={labels.pilihLokasiTujuan}
+        searchPlaceholder={labels.cari}
+        notFoundText={labels.tidakDitemukan}
       />
       {#if transferErrors.location}<p class="text-xs text-destructive">{transferErrors.location}</p>{/if}
     </label>
     <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-      <span>Jumlah</span>
+      <span>{labels.jumlah}</span>
       <Input type="number" bind:value={transferQuantity} placeholder="0" min={1} />
       {#if transferErrors.quantity}<p class="text-xs text-destructive">{transferErrors.quantity}</p>{/if}
-      <p class="text-xs text-text-muted">Stok global tidak berubah.</p>
+      <p class="text-xs text-text-muted">{labels.stokGlobalTidakBerubah}</p>
     </label>
     {#if transferErrors.submit}<p class="text-xs text-destructive">{transferErrors.submit}</p>{/if}
   </div>
   {#snippet footer()}
-    <Button variant="secondary" disabled={savingTransfer} onclick={() => (showTransferModal = false)}>Batal</Button>
+    <Button variant="secondary" disabled={savingTransfer} onclick={() => (showTransferModal = false)}>{labels.cancel}</Button>
     <Button disabled={savingTransfer} onclick={submitTransfer}>
-      {#if savingTransfer}<Loader2 size={16} class="animate-spin mr-2" />{/if}Transfer
+      {#if savingTransfer}<Loader2 size={16} class="animate-spin mr-2" />{/if}{labels.transfer}
     </Button>
   {/snippet}
 </Modal>

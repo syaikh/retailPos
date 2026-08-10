@@ -1,15 +1,16 @@
 <script lang="ts">
   import { SearchBar, Button, Input, Dropdown } from '$shared/ui';
+  import { labels, t } from '$shared/i18n';
   import { Plus, CalendarDays, ChevronDown } from 'lucide-svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, formatJakartaDateStr } from '$shared/utils/jakartaTime';
 
   const datePresets = [
-    { label: 'Today', days: 0 },
-    { label: 'Yesterday', days: 1 },
-    { label: 'Last 7 Days', days: 7 },
-    { label: 'Last 30 Days', days: 30 },
-    { label: 'This Month', days: 'month' as const },
-    { label: 'This Year', days: 'year' as const },
+    { label: labels.today, days: 0 },
+    { label: labels.yesterday, days: 1 },
+    { label: labels.last7Days, days: 7 },
+    { label: labels.last30Days, days: 30 },
+    { label: labels.thisMonth, days: 'month' as const },
+    { label: labels.thisYear, days: 'year' as const },
   ];
 
   let {
@@ -42,19 +43,19 @@
   let selectedDateRange = $state('last30d');
 
   const statusOptions = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'partial_received', label: 'Partial Received' },
-    { value: 'fully_received', label: 'Fully Received' },
-    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'draft', label: labels.draft },
+    { value: 'confirmed', label: labels.confirmed },
+    { value: 'partial_received', label: labels.partialReceived },
+    { value: 'fully_received', label: labels.fullyReceived },
+    { value: 'cancelled', label: labels.statusCancelled },
   ];
 
   const statusLabel = $derived(
-    statusOptions.find(s => s.value === statusFilter)?.label || 'All Status'
+    statusOptions.find(s => s.value === statusFilter)?.label || labels.allStatus
   );
 
   const statusItems = $derived([
-    { label: 'All Status', checked: statusFilter === '', onclick: () => { statusFilter = ''; onstatuschange(); } },
+    { label: labels.allStatus, checked: statusFilter === '', onclick: () => { statusFilter = ''; onstatuschange(); } },
     ...statusOptions.map(opt => ({
       label: opt.label,
       checked: statusFilter === opt.value,
@@ -66,10 +67,10 @@
 
   const dateRangeLabel = $derived.by(() => {
     if (selectedDateRange === 'custom') {
-      return `Custom: ${formatJakartaDateStr(startDate)} – ${formatJakartaDateStr(endDate)}`;
+      return t('customDateRange', { start: formatJakartaDateStr(startDate), end: formatJakartaDateStr(endDate) });
     }
     const preset = datePresets.find(p => {
-      if (p.label === 'Yesterday') return selectedDateRange === 'yesterday';
+      if (p.label === labels.yesterday) return selectedDateRange === 'yesterday';
       if (typeof p.days === 'number') {
         if (p.days === 0) return selectedDateRange === 'today';
         return selectedDateRange === `last${p.days}d`;
@@ -78,7 +79,7 @@
       if (p.days === 'year') return selectedDateRange === 'thisYear';
       return false;
     });
-    return preset?.label || 'Last 30 Days';
+    return preset?.label || labels.last30Days;
   });
 
   const canApplyCustom = $derived(
@@ -161,7 +162,7 @@
 <div class="card p-3">
   <div class="flex flex-wrap items-center gap-3">
     <div class="min-w-0 flex-[2_1_200px]">
-      <SearchBar bind:value={searchQuery} placeholder="Search PO number or supplier..." oninput={onsearch} inputClass="h-10" />
+      <SearchBar bind:value={searchQuery} placeholder={labels.searchPoNumberOrSupplier} oninput={onsearch} inputClass="h-10" />
     </div>
     <Dropdown placement="bottom-start" items={statusItems}>
       {#snippet trigger({ toggle })}
@@ -194,7 +195,7 @@
         >
           <div class="p-4 space-y-4">
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">Preset Ranges</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">{labels.presetRanges}</p>
               <div class="flex flex-wrap gap-1.5">
                 {#each datePresets as preset}
                   <Button variant="ghost" size="xs" onclick={() => applyDatePreset(preset.days)}>
@@ -205,29 +206,29 @@
             </div>
             <hr class="border-border" />
             <div>
-              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Custom Range</p>
+              <p class="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">{labels.customRange}</p>
               <div class="flex gap-3">
                 <div class="flex-1">
-                  <label for="po-start-date" class="block text-xs text-text-secondary mb-1">Start Date</label>
+                  <label for="po-start-date" class="block text-xs text-text-secondary mb-1">{labels.startDateLabel}</label>
                   <Input id="po-start-date" type="date" bind:value={editStartDate} class="w-full" min={currentYearStart} max={editEndDate || getTodayInJakarta()} />
                 </div>
                 <div class="flex-1">
-                  <label for="po-end-date" class="block text-xs text-text-secondary mb-1">End Date</label>
+                  <label for="po-end-date" class="block text-xs text-text-secondary mb-1">{labels.endDateLabel}</label>
                   <Input id="po-end-date" type="date" bind:value={editEndDate} class="w-full" min={editStartDate || currentYearStart} max={getTodayInJakarta()} />
                 </div>
               </div>
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-surface-subtle/50 rounded-b-lg">
-            <Button variant="ghost" size="sm" onclick={cancelCustomRange}>Cancel</Button>
-            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomRange}>Apply</Button>
+            <Button variant="ghost" size="sm" onclick={cancelCustomRange}>{labels.cancel}</Button>
+            <Button variant="primary" size="sm" disabled={!canApplyCustom} onclick={applyCustomRange}>{labels.apply}</Button>
           </div>
         </div>
       {/if}
     </div>
     {#if canCreate}
       <Button variant="primary" class="shrink-0 shadow-glow-primary-sm" onclick={oncreate}>
-        <Plus size={18} /> Create PO
+        <Plus size={18} /> {labels.createPurchaseOrder}
       </Button>
     {/if}
   </div>

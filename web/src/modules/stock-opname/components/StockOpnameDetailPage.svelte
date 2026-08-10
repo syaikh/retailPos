@@ -7,6 +7,7 @@
   import { Badge, Button, Card, Dropdown, EmptyState, Input, Modal, PageHeader, Pagination, SelectSearch, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardCheck, RotateCcw, Send, XCircle } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
   import { STOCK_OPNAME_STATUS_LABELS, STOCK_OPNAME_SCOPE_LABELS } from '../types';
   import type { StockOpnameSession } from '../types';
 
@@ -75,7 +76,7 @@
       await store.loadSession(sessionId);
       session = store.current;
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to load session');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedLoadSession);
       goto('/stock-opnames');
     } finally {
       loading = false;
@@ -113,17 +114,17 @@
   const paginatedItems = $derived(filteredItems.slice(pageOffset, pageOffset + pageLimit));
   const totalFiltered = $derived(filteredItems.length);
 
-  const itemStatusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'counted', label: 'Counted' },
-  ];
+  const itemStatusOptions = $derived([
+    { value: 'pending', label: labels.statusPending },
+    { value: 'counted', label: labels.statusCounted },
+  ]);
 
   const itemStatusLabel = $derived(
-    itemStatusOptions.find(s => s.value === statusFilter)?.label || 'All Status'
+    itemStatusOptions.find(s => s.value === statusFilter)?.label || labels.allStatus
   );
 
   const itemStatusItems = $derived([
-    { label: 'All Status', checked: statusFilter === '', onclick: () => { statusFilter = ''; } },
+    { label: labels.allStatus, checked: statusFilter === '', onclick: () => { statusFilter = ''; } },
     ...itemStatusOptions.map(opt => ({
       label: opt.label,
       checked: statusFilter === opt.value,
@@ -174,12 +175,12 @@
     assigning = true;
     try {
       await store.assign(sessionId, { user_id: assignUserId, role: assignRole as any });
-      toast.success('Counter assigned');
+      toast.success(labels.toastCounterAssigned);
       showAssignModal = false;
       assignUserId = 0;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to assign counter');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedAssignCounter);
     } finally {
       assigning = false;
     }
@@ -195,17 +196,17 @@
   async function handleSaveCount() {
     const qty = parseFloat(countValue);
     if (isNaN(qty) || qty < 0) {
-      toast.error('Please enter a valid quantity');
+      toast.error(labels.toastInvalidQuantity);
       return;
     }
     counting = true;
     try {
       await store.saveCount(countTarget!.id, { physical_qty: qty, remarks: countRemarks || undefined });
-      toast.success('Count saved');
+      toast.success(labels.toastCountSaved);
       showCountModal = false;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to save count');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedSaveCount);
     } finally {
       counting = false;
     }
@@ -215,24 +216,24 @@
     actionInProgress = true;
     try {
       await store.start(sessionId);
-      toast.success('Counting started');
+      toast.success(labels.toastCountingStarted);
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to start counting');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedStartCounting);
     } finally {
       actionInProgress = false;
     }
   }
 
   async function handleSubmit() {
-    if (!confirm(`Submit stock opname ${session?.session_number} for verification?`)) return;
+    if (!confirm(t('confirmSubmitStockOpname', { number: session?.session_number || '' }))) return;
     actionInProgress = true;
     try {
       await store.submit(sessionId);
-      toast.success('Submitted for verification');
+      toast.success(labels.toastSubmittedForVerification);
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to submit');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedSubmit);
     } finally {
       actionInProgress = false;
     }
@@ -242,11 +243,11 @@
     actionInProgress = true;
     try {
       await store.open(sessionId, actionComment);
-      toast.success('Session opened');
+      toast.success(labels.toastSessionOpened);
       actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to open session');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedOpenSession);
     } finally {
       actionInProgress = false;
     }
@@ -256,11 +257,11 @@
     actionInProgress = true;
     try {
       await store.verify(sessionId, actionComment);
-      toast.success('Stock opname verified — approved, inventory not yet adjusted');
+      toast.success(labels.toastStockOpnameVerified);
       actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to verify');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedVerify);
     } finally {
       actionInProgress = false;
     }
@@ -270,11 +271,11 @@
     actionInProgress = true;
     try {
       await store.reject(sessionId, actionComment);
-      toast.success('Rejected — recount requested');
+      toast.success(labels.toastRejectedRecountRequested);
       actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to reject');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedReject);
     } finally {
       actionInProgress = false;
     }
@@ -284,11 +285,11 @@
     actionInProgress = true;
     try {
       await store.recount(sessionId, actionComment);
-      toast.success('Recount requested');
+      toast.success(labels.toastRecountRequested);
       actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to request recount');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedRequestRecount);
     } finally {
       actionInProgress = false;
     }
@@ -298,10 +299,10 @@
     actionInProgress = true;
     try {
       await store.resume(sessionId);
-      toast.success('Counting resumed');
+      toast.success(labels.toastCountingResumed);
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to resume counting');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedResumeCounting);
     } finally {
       actionInProgress = false;
     }
@@ -311,39 +312,39 @@
     actionInProgress = true;
     try {
       const adjustment = await store.post(sessionId, { comment: actionComment || undefined, notes: postNotes || undefined });
-      toast.success(`Adjustment ${adjustment.adjustment_number} posted — inventory adjusted`);
+      toast.success(t('toastAdjustmentPosted', { number: adjustment.adjustment_number }));
       actionModal = null;
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to post adjustment');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedPostAdjustment);
     } finally {
       actionInProgress = false;
     }
   }
 
   async function handleClose() {
-    if (!confirm(`Close stock opname ${session?.session_number}? This finalises the record.`)) return;
+    if (!confirm(t('confirmCloseStockOpname', { number: session?.session_number || '' }))) return;
     actionInProgress = true;
     try {
       await store.close(sessionId);
-      toast.success('Stock opname closed');
+      toast.success(labels.toastStockOpnameClosed);
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to close');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedClose);
     } finally {
       actionInProgress = false;
     }
   }
 
   async function handleCancel() {
-    if (!confirm(`Cancel stock opname ${session?.session_number}? This cannot be undone.`)) return;
+    if (!confirm(t('confirmCancelStockOpname', { number: session?.session_number || '' }))) return;
     actionInProgress = true;
     try {
       await store.cancelSession(sessionId);
-      toast.success('Stock opname cancelled');
+      toast.success(labels.toastStockOpnameCancelled);
       await reload();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || e.message || 'Failed to cancel');
+      toast.error(e?.response?.data?.error?.message || e.message || labels.toastFailedCancel);
     } finally {
       actionInProgress = false;
     }
@@ -361,7 +362,7 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      toast.error('Failed to export');
+      toast.error(labels.toastExportFailed);
     }
   }
 </script>
@@ -376,88 +377,88 @@
     <PageHeader title={session.title || session.session_number} subtitle={scopeSummary(session)}>
       {#snippet actions()}
         <Button variant="ghost" onclick={() => goto('/stock-opnames')}>
-          <ArrowLeft class="w-4 h-4" /> Back
+          <ArrowLeft class="w-4 h-4" /> {labels.back}
         </Button>
         {#if canExport}
-          <Button variant="secondary" onclick={doExport}>Export CSV</Button>
+          <Button variant="secondary" onclick={doExport}>{labels.exportCSV}</Button>
         {/if}
         {#if canAssign && (session?.status === 'draft' || session?.status === 'open' || session?.status === 'counting' || session?.status === 'needs_recount')}
-          <Button variant="secondary" onclick={() => (showAssignModal = true)}>Assign Counter</Button>
+          <Button variant="secondary" onclick={() => (showAssignModal = true)}>{labels.assignCounter}</Button>
         {/if}
         {#if canOpen && session?.status === 'draft'}
-          <Button onclick={() => { actionComment = ''; actionModal = 'open'; }} disabled={actionInProgress}>Open Session</Button>
+          <Button onclick={() => { actionComment = ''; actionModal = 'open'; }} disabled={actionInProgress}>{labels.openSession}</Button>
         {/if}
         {#if canCount && isCounter && (session?.status === 'draft' || session?.status === 'open')}
-          <Button onclick={handleStart} disabled={actionInProgress}>Start Counting</Button>
+          <Button onclick={handleStart} disabled={actionInProgress}>{labels.startCounting}</Button>
         {/if}
         {#if canSubmit && isCounter && session?.status === 'counting'}
           <Button onclick={handleSubmit} disabled={actionInProgress}>
-            <Send class="w-4 h-4" /> Submit for Verification
+            <Send class="w-4 h-4" /> {labels.submitForVerification}
           </Button>
         {/if}
         {#if canRecount && session?.status === 'verification'}
           <Button variant="secondary" onclick={() => { actionComment = ''; actionModal = 'recount'; }} disabled={actionInProgress}>
-            <RotateCcw class="w-4 h-4" /> Request Recount
+            <RotateCcw class="w-4 h-4" /> {labels.requestRecount}
           </Button>
         {/if}
         {#if canVerify && session?.status === 'verification'}
           <Button variant="success" onclick={() => { actionComment = ''; actionModal = 'verify'; }} disabled={actionInProgress}>
-            <CheckCircle2 class="w-4 h-4" /> Verify
+            <CheckCircle2 class="w-4 h-4" /> {labels.verify}
           </Button>
           <Button variant="danger" onclick={() => { actionComment = ''; actionModal = 'reject'; }} disabled={actionInProgress}>
-            <XCircle class="w-4 h-4" /> Reject
+            <XCircle class="w-4 h-4" /> {labels.reject}
           </Button>
         {/if}
         {#if canCount && isCounter && session?.status === 'needs_recount'}
           <Button onclick={handleResume} disabled={actionInProgress}>
-            <ClipboardCheck class="w-4 h-4" /> Resume Counting
+            <ClipboardCheck class="w-4 h-4" /> {labels.resumeCounting}
           </Button>
         {/if}
         {#if canPost && session?.status === 'approved'}
           <Button variant="success" onclick={() => { actionComment = ''; postNotes = ''; actionModal = 'post'; }} disabled={actionInProgress}>
-            Post Adjustment
+            {labels.postAdjustment}
           </Button>
         {/if}
         {#if canClose && session?.status === 'posted'}
-          <Button onclick={handleClose} disabled={actionInProgress}>Close Session</Button>
+          <Button onclick={handleClose} disabled={actionInProgress}>{labels.closeSession}</Button>
         {/if}
         {#if canCancel && (session?.status === 'draft' || session?.status === 'open' || session?.status === 'counting' || session?.status === 'needs_recount')}
-          <Button variant="danger" onclick={handleCancel} disabled={actionInProgress}>Cancel</Button>
+          <Button variant="danger" onclick={handleCancel} disabled={actionInProgress}>{labels.cancel}</Button>
         {/if}
       {/snippet}
     </PageHeader>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Status</div>
+        <div class="text-sm text-text-muted">{labels.status}</div>
         <div class="mt-1"><Badge variant={statusBadge(session.status)}>{STOCK_OPNAME_STATUS_LABELS[session.status] || session.status}</Badge></div>
       </Card>
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Blind Count</div>
-        <div class="mt-1 font-semibold text-text-primary">{session.blind_count ? 'Enabled' : 'Disabled'}</div>
+        <div class="text-sm text-text-muted">{labels.blindCount}</div>
+        <div class="mt-1 font-semibold text-text-primary">{session.blind_count ? labels.enabled : labels.disabled}</div>
       </Card>
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Total Difference</div>
+        <div class="text-sm text-text-muted">{labels.totalDifference}</div>
         <div class="mt-1 font-semibold tabular-nums {session.total_difference === 0 ? 'text-text-primary' : session.total_difference > 0 ? 'text-success-light' : 'text-danger-light'}">
           {session.total_difference || '—'}
         </div>
       </Card>
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Total Adjustment</div>
+        <div class="text-sm text-text-muted">{labels.totalAdjustment}</div>
         <div class="mt-1 font-semibold tabular-nums text-text-primary">{session.total_adjustment || '—'}</div>
       </Card>
     </div>
 
     {#if session.notes}
       <Card class="p-4">
-        <div class="text-sm text-text-muted">Notes</div>
+        <div class="text-sm text-text-muted">{labels.notes}</div>
         <div class="mt-1 text-sm text-text-primary">{session.notes}</div>
       </Card>
     {/if}
 
     {#if session.assignments && session.assignments.length > 0}
       <Card class="p-4">
-        <h3 class="text-sm font-semibold text-text-primary mb-2">Assignments</h3>
+        <h3 class="text-sm font-semibold text-text-primary mb-2">{labels.assignments}</h3>
         <div class="flex flex-wrap gap-2">
           <!-- @display-only — badge tugas assignment (counter/verifier), bukan authz. -->
           {#each session.assignments as a}
@@ -471,7 +472,7 @@
 
     <Card class="p-4">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h3 class="text-sm font-semibold text-text-primary">Items</h3>
+        <h3 class="text-sm font-semibold text-text-primary">{labels.items}</h3>
         <div class="flex flex-wrap items-center gap-2">
           <Dropdown placement="bottom-start" items={itemStatusItems}>
             {#snippet trigger({ toggle })}
@@ -486,26 +487,26 @@
             {/snippet}
           </Dropdown>
           <div class="w-64 max-w-full">
-            <Input type="text" placeholder="Search product / SKU..." bind:value={searchQuery} />
+            <Input type="text" placeholder={labels.searchProductOrSku} bind:value={searchQuery} />
           </div>
         </div>
       </div>
 
       {#if filteredItems.length === 0}
-        <EmptyState title="No items" subtitle="No products match the current filter." />
+        <EmptyState title={labels.noItems} subtitle={labels.noProductsMatchFilter} />
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm text-left whitespace-nowrap">
             <thead class="bg-surface-subtle border-b border-border">
               <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
-                <th class="px-3">Product</th>
-                <th class="px-3">SKU</th>
-                <th class="px-3">Opening</th>
-                <th class="px-3">Physical</th>
-                <th class="px-3">Diff</th>
-                <th class="px-3">Status</th>
+                <th class="px-3">{labels.product}</th>
+                <th class="px-3">{labels.sku}</th>
+                <th class="px-3">{labels.opening}</th>
+                <th class="px-3">{labels.physical}</th>
+                <th class="px-3">{labels.diff}</th>
+                <th class="px-3">{labels.status}</th>
                 {#if canEnterCount}
-                  <th class="px-3">Action</th>
+                  <th class="px-3">{labels.action}</th>
                 {/if}
               </tr>
             </thead>
@@ -525,7 +526,7 @@
                   {#if canEnterCount}
                     <td class="px-3 py-2.5">
                       <Button variant="ghost" size="xs" onclick={() => openCount(item.id, item.product_name)}>
-                        {item.status === 'counted' ? 'Recount' : 'Count'}
+                        {item.status === 'counted' ? labels.recount : labels.count}
                       </Button>
                     </td>
                   {/if}
@@ -543,28 +544,28 @@
     </Card>
   </div>
 {:else}
-  <EmptyState title="Session not found" subtitle="This stock opname session could not be loaded." />
+  <EmptyState title={labels.sessionNotFound} subtitle={labels.stockOpnameSessionCouldNotBeLoaded} />
 {/if}
 
-<Modal bind:open={showAssignModal} title="Assign Counter" size="sm">
+<Modal bind:open={showAssignModal} title={labels.assignCounter} size="sm">
   {#snippet children()}
     <div class="space-y-4">
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>User</span>
+        <span>{labels.user}</span>
         <SelectSearch
           bind:value={assignUserId}
           options={assignableUserOptions}
-          placeholder={store.assignableLoading ? 'Loading users...' : 'Select user'}
-          searchPlaceholder="Search by username or email"
-          notFoundText="No matching users"
+          placeholder={store.assignableLoading ? labels.loadingUsers : labels.selectUser}
+          searchPlaceholder={labels.searchByUsernameOrEmail}
+          notFoundText={labels.noMatchingUsers}
         />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Role</span>
+        <span>{labels.role}</span>
         <Input tag="select" bind:value={assignRole}>
           {#snippet children()}
-            <option value="counter">Counter</option>
-            <option value="supervisor">Supervisor</option>
+            <option value="counter">{labels.counter}</option>
+            <option value="supervisor">{labels.supervisor}</option>
           {/snippet}
         </Input>
       </label>
@@ -572,97 +573,97 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showAssignModal = false)}>Cancel</Button>
-      <Button onclick={handleAssign} disabled={assigning || !assignUserId}>Assign</Button>
+      <Button variant="secondary" onclick={() => (showAssignModal = false)}>{labels.cancel}</Button>
+      <Button onclick={handleAssign} disabled={assigning || !assignUserId}>{labels.assign}</Button>
     </div>
   {/snippet}
 </Modal>
 
-<Modal bind:open={showCountModal} title={countTarget ? `Count: ${countTarget.product_name}` : ''} size="sm">
+<Modal bind:open={showCountModal} title={countTarget ? t('countWithProduct', { name: countTarget.product_name }) : ''} size="sm">
   {#snippet children()}
     <div class="space-y-4">
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Physical Quantity</span>
+        <span>{labels.physicalQuantity}</span>
         <Input type="number" bind:value={countValue} min={0} step="any" placeholder="0" autofocus />
       </label>
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Remarks</span>
-        <Input tag="textarea" bind:value={countRemarks} placeholder="Optional notes" />
+        <span>{labels.remarks}</span>
+        <Input tag="textarea" bind:value={countRemarks} placeholder={labels.optionalNotes} />
       </label>
     </div>
   {/snippet}
   {#snippet footer()}
     <div class="flex justify-end gap-3 w-full">
-      <Button variant="secondary" onclick={() => (showCountModal = false)}>Cancel</Button>
-      <Button onclick={handleSaveCount} disabled={counting || countValue === ''}>Save Count</Button>
+      <Button variant="secondary" onclick={() => (showCountModal = false)}>{labels.cancel}</Button>
+      <Button onclick={handleSaveCount} disabled={counting || countValue === ''}>{labels.saveCount}</Button>
     </div>
   {/snippet}
 </Modal>
 
 {#if actionModal === 'open'}
-  <Modal bind:open={getOpenModal, setOpenModal} title="Open Session" size="sm">
+  <Modal bind:open={getOpenModal, setOpenModal} title={labels.openSession} size="sm">
     {#snippet children()}
       <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-        <span>Comment (required)</span>
-        <Input tag="textarea" bind:value={actionComment} placeholder="Why is this session being opened?" />
+        <span>{labels.commentRequired}</span>
+        <Input tag="textarea" bind:value={actionComment} placeholder={labels.whyIsThisSessionBeingOpened} />
       </label>
     {/snippet}
     {#snippet footer()}
       <div class="flex justify-end gap-3 w-full">
-        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
-        <Button onclick={handleOpen} disabled={actionInProgress || !actionComment.trim()}>Open</Button>
+        <Button variant="secondary" onclick={() => (actionModal = null)}>{labels.cancel}</Button>
+        <Button onclick={handleOpen} disabled={actionInProgress || !actionComment.trim()}>{labels.open}</Button>
       </div>
     {/snippet}
   </Modal>
 {:else if actionModal === 'verify' || actionModal === 'reject' || actionModal === 'recount'}
-  <Modal bind:open={getVerifyModal, setVerifyModal} title={actionModal === 'verify' ? 'Verify Stock Opname' : actionModal === 'reject' ? 'Reject Stock Opname' : 'Request Recount'} size="sm">
+  <Modal bind:open={getVerifyModal, setVerifyModal} title={actionModal === 'verify' ? labels.verifyStockOpname : actionModal === 'reject' ? labels.rejectStockOpname : labels.requestRecount} size="sm">
     {#snippet children()}
       <div class="space-y-2">
         <p class="text-sm text-text-secondary">
           {#if actionModal === 'verify'}
-            Verifying approves the count without changing inventory. Posting is a separate step.
+            {labels.verifyModalHint}
           {:else if actionModal === 'reject'}
-            Rejecting returns the session to counting.
+            {labels.rejectModalHint}
           {:else}
-            Requesting a recount returns the session to counting.
+            {labels.recountModalHint}
           {/if}
         </p>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Comment (required)</span>
-          <Input tag="textarea" bind:value={actionComment} placeholder="Verification / rejection / recount notes" />
+          <span>{labels.commentRequired}</span>
+          <Input tag="textarea" bind:value={actionComment} placeholder={labels.verificationNotes} />
         </label>
       </div>
     {/snippet}
     {#snippet footer()}
       <div class="flex justify-end gap-3 w-full">
-        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
+        <Button variant="secondary" onclick={() => (actionModal = null)}>{labels.cancel}</Button>
         <Button variant={actionModal === 'verify' ? 'success' : 'danger'} onclick={actionModal === 'verify' ? handleVerify : actionModal === 'reject' ? handleReject : handleRecount} disabled={actionInProgress || !actionComment.trim()}>
-          {actionModal === 'verify' ? 'Verify' : actionModal === 'reject' ? 'Reject' : 'Request Recount'}
+          {actionModal === 'verify' ? labels.verify : actionModal === 'reject' ? labels.reject : labels.requestRecount}
         </Button>
       </div>
     {/snippet}
   </Modal>
 {:else if actionModal === 'post'}
-  <Modal bind:open={getPostModal, setPostModal} title="Post Adjustment" size="sm">
+  <Modal bind:open={getPostModal, setPostModal} title={labels.postAdjustment} size="sm">
     {#snippet children()}
       <div class="space-y-2">
         <p class="text-sm text-text-secondary">
-          Posting applies the verified differences to inventory and creates an adjustment document (IA-...).
+          {labels.postModalHint}
         </p>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Notes</span>
-          <Input tag="textarea" bind:value={postNotes} placeholder="Optional adjustment notes" />
+          <span>{labels.notes}</span>
+          <Input tag="textarea" bind:value={postNotes} placeholder={labels.optionalAdjustmentNotes} />
         </label>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-text-secondary">
-          <span>Comment (optional)</span>
-          <Input tag="textarea" bind:value={actionComment} placeholder="Optional comment" />
+          <span>{labels.optionalComment}</span>
+          <Input tag="textarea" bind:value={actionComment} placeholder={labels.optionalComment} />
         </label>
       </div>
     {/snippet}
     {#snippet footer()}
       <div class="flex justify-end gap-3 w-full">
-        <Button variant="secondary" onclick={() => (actionModal = null)}>Cancel</Button>
-        <Button variant="success" onclick={handlePost} disabled={actionInProgress}>Post Adjustment</Button>
+        <Button variant="secondary" onclick={() => (actionModal = null)}>{labels.cancel}</Button>
+        <Button variant="success" onclick={handlePost} disabled={actionInProgress}>{labels.postAdjustment}</Button>
       </div>
     {/snippet}
   </Modal>

@@ -101,13 +101,13 @@ describe('CustomerGroupsTable.svelte source-structure guards', () => {
   });
 
   it('has bulk activate/deactivate/delete buttons', () => {
-    expect(src).toContain('Aktifkan');
-    expect(src).toContain('Nonaktifkan');
-    expect(src).toContain('Hapus');
+    expect(src).toContain('labels.activate');
+    expect(src).toContain('labels.deactivate');
+    expect(src).toContain('labels.delete');
   });
 
   it('has aria-label on table', () => {
-    expect(src).toContain('aria-label="Customer groups"');
+    expect(src).toContain('aria-label={labels.customerGroups}');
   });
 
   it('has aria-live on empty state', () => {

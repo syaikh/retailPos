@@ -3,6 +3,7 @@
   import { Clock, Users, Palette, Shield } from 'lucide-svelte';
   import type { CustomerGroup } from '../types';
   import apiClient from '$shared/api/http-client';
+  import { labels, t } from '$shared/i18n';
   import { formatDateInJakarta, formatTimeInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
 
   let {
@@ -44,12 +45,12 @@
     const shiftedDate = new Date(dateObj.getTime() + JAKARTA_OFFSET_MS);
     const diffMs = nowMs - shiftedDate.getTime();
     const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'Baru saja';
-    if (mins < 60) return `${mins}m lalu`;
+    if (mins < 1) return labels.justNow;
+    if (mins < 60) return t('minutesAgoShort', { n: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}j lalu`;
+    if (hrs < 24) return t('hoursAgoShort', { n: hrs });
     const days = Math.floor(hrs / 24);
-    if (days < 30) return `${days}h lalu`;
+    if (days < 30) return t('daysAgoShort', { n: days });
     return formatDateInJakarta(dateStr);
   }
 
@@ -60,9 +61,9 @@
 
   function getActionVerb(action: string): string {
     const v = (action || '').toUpperCase();
-    if (v === 'CREATE') return 'Dibuat';
-    if (v === 'UPDATE') return 'Diupdate';
-    if (v === 'DELETE') return 'Dihapus';
+    if (v === 'CREATE') return labels.actionCreated;
+    if (v === 'UPDATE') return labels.actionUpdated;
+    if (v === 'DELETE') return labels.actionDeleted;
     return action;
   }
 
@@ -75,7 +76,7 @@
   }
 </script>
 
-<Drawer bind:open={open} width={480} ariaLabel="Detail Customer Group" {onclose}>
+<Drawer bind:open={open} width={480} ariaLabel={labels.detailCustomerGroup} {onclose}>
   {#if group}
     <div class="space-y-6">
       <!-- Header -->
@@ -100,20 +101,20 @@
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1 flex items-center gap-1.5">
-            <Users size={10} /> Customers
+            <Users size={10} /> {labels.customers}
           </p>
           <p class="text-lg font-semibold text-text-primary tabular-nums">{group.customer_count?.toLocaleString('id-ID') ?? '0'}</p>
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Status</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.status}</p>
           <span class="inline-flex items-center gap-1.5 text-sm font-medium {group.is_active ? 'text-success-light' : 'text-danger-light'}">
             <span class="w-2 h-2 rounded-full {group.is_active ? 'bg-success-light' : 'bg-danger-light'}"></span>
-            {group.is_active ? 'Aktif' : 'Nonaktif'}
+            {group.is_active ? labels.active : labels.inactive}
           </span>
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1 flex items-center gap-1.5">
-            <Palette size={10} /> Warna
+            <Palette size={10} /> {labels.colorLabel}
           </p>
           <div class="flex items-center gap-2">
             <span class="w-4 h-4 rounded-full border border-border/50" style={group.color ? `background-color: ${group.color}` : 'background-color: #636E72'}></span>
@@ -122,7 +123,7 @@
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
           <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1 flex items-center gap-1.5">
-            <Clock size={10} /> Diperbarui
+            <Clock size={10} /> {labels.updated}
           </p>
           <p class="text-sm text-text-primary">{timeAgo(group.updated_at || group.created_at)}</p>
           <p class="text-xs text-text-muted mt-0.5 font-mono">{formatTimestamp(group.updated_at || group.created_at)}</p>
@@ -132,7 +133,7 @@
       <!-- Audit Trail -->
       <div>
         <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3 flex items-center gap-1.5">
-          <Shield size={10} /> Riwayat Aktivitas
+          <Shield size={10} /> {labels.activityHistory}
         </p>
         {#if auditLoading}
           <div class="space-y-2">
@@ -148,7 +149,7 @@
           </div>
         {:else if auditLogs.length === 0}
           <div class="p-4 text-center bg-surface-default/50 rounded-lg border border-dashed border-border/40">
-            <p class="text-sm text-text-muted">Belum ada riwayat aktivitas.</p>
+            <p class="text-sm text-text-muted">{labels.noActivityHistory}</p>
           </div>
         {:else}
           <div class="space-y-2">
@@ -161,7 +162,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm text-text-primary">
-                    <span class="font-medium">{log.username || 'System'}</span>
+                    <span class="font-medium">{log.username || labels.system}</span>
                     <span class="text-text-muted"> {getActionVerb(log.action).toLowerCase()} </span>
                     {#if log.description}
                       <span class="text-text-muted text-xs">— {log.description}</span>

@@ -15,6 +15,7 @@
   import UserDeleteModal from './UserDeleteModal.svelte';
   import UserToolbar from './UserToolbar.svelte';
   import UserTable from './UserTable.svelte';
+  import { labels } from '$shared/i18n';
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -79,7 +80,7 @@
       users = result.data;
       total = result.total;
     } catch {
-      toast.error('Failed to load users');
+      toast.error(labels.failedToLoad);
     } finally {
       if (!isSearch) loading = false;
       isSearching = false;
@@ -94,7 +95,7 @@
         form.role_id = roles[0].id;
       }
     } catch {
-      toast.error('Failed to load roles');
+      toast.error(labels.failedToLoad);
     }
   }
 
@@ -221,11 +222,11 @@
         await updateUser(selectedUser.id, form);
       }
 
-      toast.success(modalMode === 'add' ? 'User created' : 'User updated');
+      toast.success(modalMode === 'add' ? `${labels.user} ${labels.actionCreated}` : `${labels.user} ${labels.actionUpdated}`);
       showModal = false;
       await fetchUsers();
     } catch (error) {
-      const message = error?.response?.data?.error || error?.message || 'Network error';
+      const message = error?.response?.data?.error || error?.message || labels.networkError;
       toast.error(message);
     } finally {
       saving = false;
@@ -252,10 +253,10 @@
     }
     try {
       await deleteUser(selectedUser.id);
-      toast.success(`User "${selectedUser.username}" removed`);
+      toast.success(`${labels.user} "${selectedUser.username}" ${labels.actionDeleted}`);
       await fetchUsers();
     } catch {
-      toast.error('Failed to delete user');
+      toast.error(labels.errorOccurred);
     } finally {
       showDeleteModal = false;
       selectedUser = null;
@@ -269,8 +270,8 @@
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
         <Users size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold mt-4">Access Denied</p>
-      <p class="text-text-muted text-sm mt-1">You do not have permission to view users</p>
+      <p class="text-text-primary font-semibold mt-4">{labels.accessDenied}</p>
+      <p class="text-text-muted text-sm mt-1">{labels.youDoNotHavePermissionToViewUsers}</p>
     </div>
   {:else}
     <UserToolbar

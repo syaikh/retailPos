@@ -26,8 +26,8 @@ describe('CustomerGroupsToolbar.svelte source-structure guards', () => {
 
   it('has activeFilters derived with has_customers chip', () => {
     expect(src).toContain("type: 'has_customers'");
-    expect(src).toContain("'Punya Customer'");
-    expect(src).toContain("'Tanpa Customer'");
+    expect(src).toContain('labels.filterChipHasCustomers');
+    expect(src).toContain('labels.filterChipNoCustomers');
   });
 
   it('has clearFilterChip handler for has_customers', () => {
@@ -39,11 +39,11 @@ describe('CustomerGroupsToolbar.svelte source-structure guards', () => {
   });
 
   it('has segmented status filter group with aria-label', () => {
-    expect(src).toContain('aria-label="Filter status"');
+    expect(src).toContain('aria-label={labels.filterStatus}');
   });
 
   it('has segmented customer filter group with aria-label', () => {
-    expect(src).toContain('aria-label="Filter customer"');
+    expect(src).toContain('aria-label={labels.filterCustomer}');
   });
 
   it('has aria-pressed on all filter buttons', () => {

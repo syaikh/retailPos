@@ -6,6 +6,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
   import { getBrands, createBrand, updateBrand, deleteBrand } from '$modules/settings/services/settings-service';
 
   const rbac = useRBAC();
@@ -52,7 +53,7 @@
       page = Math.floor(offset / limit);
       pageSize = limit;
     } catch {
-      toast.error('Gagal memuat brand');
+      toast.error(labels.toastFailedToLoadBrands);
     } finally {
       loading = false;
     }
@@ -97,7 +98,7 @@
 
   async function saveBrand() {
     if (!form.name.trim()) {
-      toast.error('Nama brand wajib diisi');
+      toast.error(labels.errorBrandNameRequired);
       return;
     }
     try {
@@ -113,14 +114,14 @@
         });
       }
       if (ok) {
-        toast.success(modalMode === 'add' ? 'Brand berhasil ditambahkan' : 'Brand berhasil diperbarui');
+        toast.success(modalMode === 'add' ? labels.toastBrandAdded : labels.toastBrandUpdated);
         showModal = false;
         await fetchBrands();
       } else {
-        toast.error('Gagal menyimpan brand');
+        toast.error(labels.toastFailedSaveBrand);
       }
     } catch {
-      toast.error('Kesalahan jaringan');
+      toast.error(labels.networkError);
     } finally {
       saving = false;
     }
@@ -131,13 +132,13 @@
     try {
       const ok = await deleteBrand(selectedBrand.id);
       if (ok) {
-        toast.success(`Brand "${selectedBrand.name}" berhasil dihapus`);
+        toast.success(t('toastBrandDeleted', { name: selectedBrand.name }));
         await fetchBrands();
       } else {
-        toast.error('Gagal menghapus brand');
+        toast.error(labels.toastFailedDeleteBrand);
       }
     } catch {
-      toast.error('Gagal menghapus brand');
+      toast.error(labels.toastFailedDeleteBrand);
     } finally {
       showDeleteModal = false;
       selectedBrand = null;
@@ -146,7 +147,7 @@
 
   function handleImportComplete() {
     fetchBrands();
-    toast.success('Brand import completed');
+    toast.success(labels.toastBrandImportCompleted);
   }
 </script>
 
@@ -154,7 +155,7 @@
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search by name..." oninput={handleSearchInput} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder={labels.searchByName} oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
@@ -166,7 +167,7 @@
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
-            Tambah Brand
+            {labels.addBrand}
           </Button>
         </div>
       {/if}
@@ -178,10 +179,10 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">BRAND NAME</th>
-            <th class="text-left p-4 font-semibold w-48">DESCRIPTION</th>
-            <th class="text-left p-4 font-semibold w-36">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">{labels.brandName}</th>
+            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
+            <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -200,19 +201,19 @@
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Tag size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">No brands found</p>
+        <p class="text-text-primary font-semibold mt-4">{labels.noBrandsFound}</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding your first brand'}
+          {searchQuery ? t('noResultsFor', { query: searchQuery }) : labels.addFirstBrand}
         </p>
       </div>
     {:else}
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 40%;">BRAND NAME</th>
-            <th class="text-left p-4 font-semibold w-48">DESCRIPTION</th>
-            <th class="text-left p-4 font-semibold w-36">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 40%;">{labels.brandName}</th>
+            <th class="text-left p-4 font-semibold w-48">{labels.description}</th>
+            <th class="text-left p-4 font-semibold w-36">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -241,8 +242,8 @@
                       variant="ghost"
                       size="icon"
                       class="text-text-muted hover:text-primary-light"
-                      title="Edit"
-                      aria-label="Edit"
+                      title={labels.edit}
+                      aria-label={labels.edit}
                       onclick={() => openEdit(brand)}
                     >
                       <Pencil size={14} />
@@ -254,8 +255,8 @@
                       size="icon"
                       class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                       onclick={() => openDelete(brand)}
-                      title="Hapus"
-                      aria-label="Hapus"
+                      title={labels.delete}
+                      aria-label={labels.delete}
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -285,29 +286,29 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Brand' : 'Edit Brand'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? labels.addBrand : labels.editBrand} size="md">
   <form onsubmit={(e) => { e.preventDefault(); saveBrand(); }} class="space-y-4">
     <div>
-      <label for="brand-name" class="block text-sm font-medium text-text-secondary mb-2">Nama Brand <span class="text-danger">*</span></label>
-      <Input id="brand-name" type="text" placeholder="Contoh: Indofood" bind:value={form.name} required />
+      <label for="brand-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.brandName} <span class="text-danger">*</span></label>
+      <Input id="brand-name" type="text" placeholder={labels.contohBrand} bind:value={form.name} required />
     </div>
     <div>
-      <label for="brand-desc" class="block text-sm font-medium text-text-secondary mb-2">Deskripsi <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input tag="textarea" id="brand-desc" placeholder="Deskripsi singkat brand…" class="min-h-[80px] resize-y" bind:value={form.description} />
+      <label for="brand-desc" class="block text-sm font-medium text-text-secondary mb-2">{labels.description} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+      <Input tag="textarea" id="brand-desc" placeholder={labels.deskripsiSingkatBrand} class="min-h-[80px] resize-y" bind:value={form.description} />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
-        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? 'Aktif' : 'Tidak Aktif'} />
+        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? labels.active : labels.inactive} />
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>{labels.cancel}</Button>
     <Button variant="primary" class="min-w-32" onclick={saveBrand} disabled={saving}>
       {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Menyimpan...
+        <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === 'add' ? 'Tambah Brand' : 'Simpan Perubahan'}
+        {modalMode === 'add' ? labels.addBrand : labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -316,8 +317,8 @@
 <ImportWizard
   bind:open={showImportWizard}
   module="brands"
-  displayName="Brands"
+  displayName={labels.brands}
   onComplete={handleImportComplete}
 />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Hapus Brand" itemName={selectedBrand?.name} confirmLabel="Hapus" cancelLabel="Batal" description="Brand akan dihapus secara permanen dan tidak dapat dikembalikan." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteBrand} itemName={selectedBrand?.name} confirmLabel={labels.delete} cancelLabel={labels.cancel} description={labels.deleteBrandDescription} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />

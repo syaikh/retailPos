@@ -15,6 +15,10 @@ describe('AuditLogsTable.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Pagination, Skeleton, ActionBadge } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $props', () => {
     expect(src).toContain('= $props()');
   });
@@ -36,16 +40,16 @@ describe('AuditLogsTable.svelte source-structure guards', () => {
   });
 
   it('has empty state section', () => {
-    expect(src).toContain('No audit logs found');
+    expect(src).toContain('labels.noAuditLogsFound');
   });
 
   it('renders table with all columns', () => {
-    expect(src).toContain('Timestamp');
-    expect(src).toContain('Actor');
-    expect(src).toContain('Resource');
-    expect(src).toContain('Action');
-    expect(src).toContain('Description');
-    expect(src).toContain('IP Address');
+    expect(src).toContain('labels.timestamp');
+    expect(src).toContain('labels.actor');
+    expect(src).toContain('labels.resource');
+    expect(src).toContain('labels.action');
+    expect(src).toContain('labels.description');
+    expect(src).toContain('labels.ipAddress');
   });
 
   it('has Pagination component', () => {

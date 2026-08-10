@@ -2,6 +2,7 @@
   import { Badge, Button, Skeleton, SortableHeader } from '$shared/ui';
   import { User, Pencil, Trash2, Users, Search } from 'lucide-svelte';
   import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
 
   let {
     users = [],
@@ -48,22 +49,22 @@
     <thead class="bg-muted/50">
       <tr>
         <th class="text-left p-4 font-semibold" style="width: 30%;">
-          <SortableHeader label="USER" column="username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.userLabel} column="username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-40">
-          <SortableHeader label="ROLE" column="role_id" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.roleLabel} column="role_id" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="text-left p-4 font-semibold w-28">STATUS</th>
+        <th class="text-left p-4 font-semibold w-28">{labels.statusLabel}</th>
         <th class="text-left p-4 font-semibold w-36">
-          <SortableHeader label="REPORTS TO" column="reports_to_username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.reportsTo} column="reports_to_username" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
         <th class="text-left p-4 font-semibold w-44">
-          <SortableHeader label="LAST LOGIN" column="last_login" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+          <SortableHeader label={labels.lastLoginLabel} column="last_login" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
         </th>
-        <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+        <th class="text-center p-4 font-semibold w-20">{labels.actionsLabel}</th>
       </tr>
     </thead>
-    <tbody aria-busy={loading} aria-label={loading ? 'Loading users' : undefined}>
+    <tbody aria-busy={loading} aria-label={loading ? labels.loadingUsers : undefined}>
       {#if loading}
         {#each { length: 5 } as _}
           <tr class="border-t border-border">
@@ -105,9 +106,9 @@
             <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
               <Users size={32} class="text-text-muted" />
             </div>
-            <p class="text-text-primary font-semibold mt-4">No users found</p>
+            <p class="text-text-primary font-semibold mt-4">{labels.noUsersFound}</p>
             <p class="text-text-muted text-sm mt-1">
-              {searchQuery ? `No match for "${searchQuery}"` : 'Start by adding a user'}
+              {searchQuery ? t('noResultsFor', { query: searchQuery }) : `${labels.add} ${labels.user}`}
             </p>
           </td>
         </tr>
@@ -131,7 +132,7 @@
             <td class="p-4">
               <div class="flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full {user.is_active !== false ? 'bg-success animate-pulse-dot' : 'bg-text-muted'}"></span>
-                <span class="text-sm text-text-secondary">{user.is_active !== false ? 'Active' : 'Inactive'}</span>
+                <span class="text-sm text-text-secondary">{user.is_active !== false ? labels.active : labels.inactive}</span>
               </div>
             </td>
             <td class="p-4 text-sm text-text-muted">
@@ -151,8 +152,8 @@
                   variant="ghost"
                   size="icon"
                   class="text-text-muted hover:text-primary-light"
-                  title="Edit"
-                  aria-label="Edit"
+                  title={labels.edit}
+                  aria-label={labels.edit}
                   onclick={() => onedit(user)}
                   disabled={user.role_id === 1 && !canEditSuperadmin}
                 >
@@ -163,8 +164,8 @@
                   size="icon"
                   class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                   onclick={() => ondelete(user)}
-                  title="Delete"
-                  aria-label="Delete"
+                  title={labels.delete}
+                  aria-label={labels.delete}
                   disabled={user.id === currentUserID || user.role_id === 1}
                 >
                   <Trash2 size={14} />

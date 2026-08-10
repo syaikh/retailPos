@@ -11,6 +11,7 @@
   import AuditLogsFilterToolbar from './AuditLogsFilterToolbar.svelte';
   import AuditLogsTable from './AuditLogsTable.svelte';
   import AuditLogDetailsDrawer from './AuditLogDetailsDrawer.svelte';
+  import { labels } from '$shared/i18n';
 
   const authStore = useAuthStore();
   const rbac = useRBAC();
@@ -160,8 +161,8 @@
         console.error('[AuditLogs] fetch error:', error);
         console.error('[AuditLogs] error.response:', error?.response);
         console.error('[AuditLogs] error.request:', error?.request);
-        const msg = error?.response?.data?.error || error?.response?.data || error?.message || 'Unknown error';
-        toast.error(`Failed to load audit logs: ${msg}`);
+        const msg = error?.response?.data?.error || error?.response?.data || error?.message || labels.unknown;
+        toast.error(`${labels.failedToLoad}: ${msg}`);
       }
     } finally {
       if (requestId === currentRequestId) {
@@ -254,8 +255,8 @@
 {#if !canView}
   <div class="card px-4 py-16 text-center">
     <ScrollText size={40} class="text-text-muted mx-auto mb-4" />
-    <p class="text-text-primary font-semibold text-lg">Access Denied</p>
-    <p class="text-text-muted text-sm mt-1">Audit logs are restricted to superadmin only</p>
+    <p class="text-text-primary font-semibold text-lg">{labels.accessDenied}</p>
+    <p class="text-text-muted text-sm mt-1">{labels.auditLogsRestrictedToSuperadmin}</p>
   </div>
 {:else}
   <div class="space-y-5 max-w-7xl mx-auto">

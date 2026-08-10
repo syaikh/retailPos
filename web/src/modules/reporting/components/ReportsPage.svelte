@@ -4,6 +4,7 @@
   import { toast } from '$shared/stores/toast.svelte';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getCurrentJakartaHour } from '$shared/utils/jakartaTime';
   import { formatDate, formatDayDate, getPeriodLabel } from '$modules/reporting/lib/reporting-utils';
+  import { labels } from '$shared/i18n';
   import { buildChartConfig } from '$modules/reporting/utils/chart-config';
   import { fetchSalesWithRange as fetchSales } from '$modules/reporting/utils/data-fetching';
   import { exportToExcel as doExportToExcel, exportToPDF as doExportToPDF } from '$modules/reporting/utils/export-utils';
@@ -90,20 +91,20 @@
     const prevStartStr = metaStart && shiftDays > 0 ? shiftDate(metaStart, shiftDays) : undefined;
 
     const getWeeklyDayRangeLabel = () => {
-      if (!metaStart || !metaEnd) return 'vs SAME WEEK LAST YEAR';
+      if (!metaStart || !metaEnd) return labels.vsSameWeekLastYear;
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const currentStartDate = parseJakartaDate(metaStart);
       const currentEndDate = parseJakartaDate(metaEnd);
-      if (!currentStartDate || !currentEndDate) return 'vs SAME WEEK LAST YEAR';
+      if (!currentStartDate || !currentEndDate) return labels.vsSameWeekLastYear;
       const startDayName = dayNames[currentStartDate.getUTCDay()];
       const endDayName = dayNames[currentEndDate.getUTCDay()];
-      return `vs Same Days Last Week (${startDayName}-${endDayName})`;
+      return labels.vsSameDaysLastWeek.replace('{start}', startDayName).replace('{end}', endDayName);
     };
     const getMonthlyDateRangeLabel = () => {
-      if (!metaStart || !metaEnd) return 'vs Previous Month';
+      if (!metaStart || !metaEnd) return labels.vsPrevMonth;
       const startDate = parseJakartaDate(metaStart);
       const endDate = parseJakartaDate(metaEnd);
-      if (!startDate || !endDate) return 'vs Previous Month';
+      if (!startDate || !endDate) return labels.vsPrevMonth;
       const prevStartDate = new Date(startDate);
       prevStartDate.setUTCMonth(prevStartDate.getUTCMonth() - 1);
       const prevEndDate = new Date(endDate);
@@ -115,37 +116,37 @@
       const startDay = prevStartDate.getUTCDate();
       const endDay = prevEndDate.getUTCDate();
       if (startDay === endDay) {
-        return `vs ${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
+        return labels.vsMonthDay.replace('{day}', String(startDay)).replace('{month}', monthNames[prevStartDate.getUTCMonth()]);
       }
       const startStr = `${startDay} ${monthNames[prevStartDate.getUTCMonth()]}`;
       const endStr = `${endDay} ${monthNames[prevEndDate.getUTCMonth()]}`;
-      return `vs ${startStr} - ${endStr}`;
+      return labels.vsDateRange.replace('{start}', startStr).replace('{end}', endStr);
     };
     return {
       card4:
-        chartType === 'hourly' ? 'Peak Revenue Hour' :
-        activePeriodType === 'yearly' ? 'Peak Revenue Month' :
-        activePeriodType === 'monthly' ? 'Avg. Revenue / Day' : 'Avg. Revenue / Day',
+        chartType === 'hourly' ? labels.peakRevenueHour :
+        activePeriodType === 'yearly' ? labels.peakRevenueMonth :
+        labels.avgRevenuePerDay,
       card5:
-        activePeriodType === 'realtime' ? `vs Yesterday (${formatDayDate(getDateNDaysAgoInJakarta(1))})` :
-        activePeriodType === 'yesterday' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
-        activePeriodType === 'daily' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
-        activePeriodType === '7days' ? 'vs PREVIOUS 7 DAYS' :
-        activePeriodType === '30days' ? 'vs PREVIOUS 30 DAYS' :
+        activePeriodType === 'realtime' ? labels.vsYesterday.replace('{date}', formatDayDate(getDateNDaysAgoInJakarta(1))) :
+        activePeriodType === 'yesterday' ? (prevStartStr ? `${labels.vsLabel} ${formatDayDate(prevStartStr)}` : labels.vsSameDayLastWeek) :
+        activePeriodType === 'daily' ? (prevStartStr ? `${labels.vsLabel} ${formatDayDate(prevStartStr)}` : labels.vsSameDayLastWeek) :
+        activePeriodType === '7days' ? labels.vsPrev7DaysUpper :
+        activePeriodType === '30days' ? labels.vsPrev30DaysUpper :
         activePeriodType === 'weekly' ? (kpiData.isPartial && metaStart ?
-          getWeeklyDayRangeLabel() : 'vs PREVIOUS WEEK') :
-        activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs PREVIOUS MONTH') :
-        activePeriodType === 'yearly' ? 'vs PREVIOUS YEAR' : 'vs PREVIOUS PERIOD',
+          getWeeklyDayRangeLabel() : labels.vsPrevWeekUpper) :
+        activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : labels.vsPrevMonthUpper) :
+        activePeriodType === 'yearly' ? labels.vsPrevYearUpper : labels.vsPrevPeriodUpper,
       comparisonLabel:
-        activePeriodType === 'realtime' ? `vs Yesterday (${formatDayDate(getDateNDaysAgoInJakarta(1))})` :
-        activePeriodType === 'yesterday' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
-        activePeriodType === 'daily' ? (prevStartStr ? `vs ${formatDayDate(prevStartStr)}` : 'vs Same Day Last Week') :
-        activePeriodType === '7days' ? 'vs Previous 7 Days' :
-        activePeriodType === '30days' ? 'vs Previous 30 Days' :
+        activePeriodType === 'realtime' ? labels.vsYesterday.replace('{date}', formatDayDate(getDateNDaysAgoInJakarta(1))) :
+        activePeriodType === 'yesterday' ? (prevStartStr ? `${labels.vsLabel} ${formatDayDate(prevStartStr)}` : labels.vsSameDayLastWeek) :
+        activePeriodType === 'daily' ? (prevStartStr ? `${labels.vsLabel} ${formatDayDate(prevStartStr)}` : labels.vsSameDayLastWeek) :
+        activePeriodType === '7days' ? labels.vsPrev7Days :
+        activePeriodType === '30days' ? labels.vsPrev30Days :
         activePeriodType === 'weekly' ? (kpiData.isPartial && metaStart ?
-          getWeeklyDayRangeLabel() : 'vs Previous Week') :
-        activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : 'vs Previous Month') :
-        activePeriodType === 'yearly' ? 'vs Previous Year' : 'vs Previous Period'
+          getWeeklyDayRangeLabel() : labels.vsPrevWeek) :
+        activePeriodType === 'monthly' ? (kpiData.isPartial ? getMonthlyDateRangeLabel() : labels.vsPrevMonth) :
+        activePeriodType === 'yearly' ? labels.vsPrevYear : labels.vsPrevPeriod
     };
   });
 
@@ -363,15 +364,15 @@
   });
 
   let bestWorstHeading = $derived(
-    chartType === 'hourly' ? 'Hour' :
-    chartType === 'daily' ? 'Date' :
-    chartType === 'yearly' ? 'Month' : 'Period'
+    chartType === 'hourly' ? labels.hour :
+    chartType === 'daily' ? labels.date :
+    chartType === 'yearly' ? labels.month : labels.period
   );
 
   let tablePeriodHeading = $derived(
-    chartType === 'hourly' ? 'Hour' :
-    chartType === 'daily' ? 'Date' :
-    chartType === 'yearly' ? 'Month' : 'Period'
+    chartType === 'hourly' ? labels.hour :
+    chartType === 'daily' ? labels.date :
+    chartType === 'yearly' ? labels.month : labels.period
   );
 
   function toggleSort(col) {
@@ -438,7 +439,7 @@
       if (result.kpiData) kpiData = result.kpiData;
       fetchPricingBreakdown(startDate, endDate);
     } catch (error) {
-      toast.error('Failed to load sales data');
+      toast.error(labels.toastFailedLoadSalesData);
     } finally {
       loading = false;
     }
@@ -528,14 +529,14 @@
   <div class="card p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-sm font-semibold text-text-primary">
-        Revenue Overview - {chartType === 'hourly' ? 'Hourly' : chartType === 'daily' ? 'Daily' : 'Period'}
+        {labels.revenueOverview} - {chartType === 'hourly' ? labels.hourly : chartType === 'daily' ? labels.daily : labels.period}
         {#if kpiData.isPartial && activePeriodType === 'weekly'}
           <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
-            Partial Data - In Progress
+            {labels.partialDataInProgress}
           </span>
         {:else if kpiData.isPartial && activePeriodType === 'monthly'}
           <span class="text-xs text-warning-light bg-warning/20 px-2 py-0.5 rounded-full font-normal ml-2">
-            Ongoing Month
+            {labels.ongoingMonth}
           </span>
         {/if}
       </h2>
@@ -543,7 +544,7 @@
 
     {#if !loading && (kpiData.previousRevenue > 0 || kpiData.previousOrders > 0 || kpiData.comparisonType !== 'zero')}
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 px-1 text-xs text-text-muted">
-        <span class="text-text-secondary font-medium">Comparison:</span>
+        <span class="text-text-secondary font-medium">{labels.comparison}:</span>
         <span>{statCardLabels.comparisonLabel}</span>
         {#if comparisonDateRange}
           <span>· {comparisonDateRange}</span>
@@ -587,9 +588,9 @@
   {#if pricingBreakdown.length > 0}
     <div class="card p-5">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-semibold text-text-primary">Revenue by Pricing Type</h2>
+        <h2 class="text-sm font-semibold text-text-primary">{labels.revenueByPricingType}</h2>
         {#if loadingPricing}
-          <span class="text-xs text-text-muted">Loading...</span>
+          <span class="text-xs text-text-muted">{labels.loading}</span>
         {/if}
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -606,9 +607,9 @@
             </div>
             <p class="text-lg font-bold text-text-primary">Rp {(item.revenue || 0).toLocaleString('id-ID')}</p>
             <div class="flex items-center gap-2 mt-1">
-              <span class="text-[10px] text-text-muted">{item.order_count || 0} orders</span>
+              <span class="text-[10px] text-text-muted">{labels.ordersCount.replace('{count}', String(item.order_count || 0))}</span>
               <span class="text-[10px] text-text-muted">·</span>
-              <span class="text-[10px] text-text-muted">{item.item_count || 0} items</span>
+              <span class="text-[10px] text-text-muted">{labels.itemsCount.replace('{count}', String(item.item_count || 0))}</span>
             </div>
             {#if totalPricingRevenue > 0}
               <div class="mt-2 h-1.5 rounded-full bg-surface overflow-hidden">

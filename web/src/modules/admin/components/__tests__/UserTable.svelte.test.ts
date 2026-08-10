@@ -19,6 +19,10 @@ describe('UserTable.svelte source-structure guards', () => {
     expect(src).toContain("import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime'");
   });
 
+  it('imports i18n labels and t', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $bindable for sortBy and sortDir', () => {
     expect(src).toContain('sortBy = $bindable');
     expect(src).toContain('sortDir = $bindable');
@@ -39,7 +43,7 @@ describe('UserTable.svelte source-structure guards', () => {
   });
 
   it('handles empty state', () => {
-    expect(src).toContain('No users found');
+    expect(src).toContain('labels.noUsersFound');
   });
 
   it('disables delete for current user and superadmin', () => {

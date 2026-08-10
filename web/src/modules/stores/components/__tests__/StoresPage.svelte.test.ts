@@ -23,6 +23,10 @@ describe('StoresPage.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Input, Modal, Skeleton, BulkActionDropdown, ImportWizard, SearchBar, ToggleSwitch, ConfirmDeleteModal, Pagination, SortableHeader } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $state for stores, loading, pagination', () => {
     expect(src).toContain('let loading = $state(true)');
     expect(src).toContain('let stores = $state([])');
@@ -52,9 +56,9 @@ describe('StoresPage.svelte source-structure guards', () => {
   });
 
   it('has status filter chips', () => {
-    expect(src).toContain('Aktif');
-    expect(src).toContain('Nonaktif');
-    expect(src).toContain('Semua');
+    expect(src).toContain('labels.all');
+    expect(src).toContain('labels.active');
+    expect(src).toContain('labels.inactive');
     expect(src).toContain('function setStatusFilter');
   });
 
@@ -66,7 +70,7 @@ describe('StoresPage.svelte source-structure guards', () => {
   it('renders ImportWizard with module stores', () => {
     expect(src).toContain('<ImportWizard');
     expect(src).toContain('module="stores"');
-    expect(src).toContain('displayName="Stores"');
+    expect(src).toContain('displayName={labels.stores}');
   });
 
   it('renders Pagination component', () => {

@@ -26,9 +26,9 @@ describe('DataTable.svelte source-structure guards', () => {
 
   it('has table headers with sort buttons', () => {
     expect(src).toContain("tablePeriodHeading");
-    expect(src).toContain("Revenue (Rp)");
-    expect(src).toContain("Prev Period (Rp)");
-    expect(src).toContain("Change");
+    expect(src).toContain("labels.revenueRp");
+    expect(src).toContain("labels.prevPeriodRp");
+    expect(src).toContain("labels.perubahan");
   });
 
   it('has sortColumn and sortAsc as bindable', () => {
@@ -38,7 +38,7 @@ describe('DataTable.svelte source-structure guards', () => {
 
   it('has tfoot for total row', () => {
     expect(src).toContain("tfoot");
-    expect(src).toContain("Total");
+    expect(src).toContain('labels.total');
   });
 
   it('has ontogglesort callback', () => {

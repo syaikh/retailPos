@@ -23,6 +23,10 @@ describe('AuditLogDetailsDrawer.svelte source-structure guards', () => {
     expect(src).toContain("import { formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime'");
   });
 
+  it('imports i18n labels and t', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $props and $bindable', () => {
     expect(src).toContain('= $props()');
     expect(src).toContain('drawerOpen = $bindable');
@@ -47,13 +51,13 @@ describe('AuditLogDetailsDrawer.svelte source-structure guards', () => {
 
   it('has fieldLabels map', () => {
     expect(src).toContain('const fieldLabels');
-    expect(src).toContain("name: 'Name'");
-    expect(src).toContain("email: 'Email'");
+    expect(src).toContain('name: labels.name');
+    expect(src).toContain('email: labels.email');
   });
 
   it('renders drawer with header and body', () => {
-    expect(src).toContain('Audit Log Details');
-    expect(src).toContain('What Changed');
+    expect(src).toContain('labels.auditLogs');
+    expect(src).toContain('labels.whatChanged');
   });
 
   it('shows changes section', () => {

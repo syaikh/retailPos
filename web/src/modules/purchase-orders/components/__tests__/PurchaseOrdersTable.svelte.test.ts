@@ -30,7 +30,7 @@ describe('PurchaseOrdersTable.svelte source-structure guards', () => {
   });
 
   it('has aria-label on copy button', () => {
-    expect(src).toContain('aria-label="Salin nomor PO"');
+    expect(src).toContain('labels.copyPoNumber');
   });
 
   it('has whitespace-nowrap on table headers', () => {

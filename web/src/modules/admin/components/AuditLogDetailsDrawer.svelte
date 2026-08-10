@@ -2,6 +2,7 @@
   import { Plus, Minus, ArrowRight, Clock, Globe, Monitor } from 'lucide-svelte';
   import { ActionBadge, Drawer } from '$shared/ui';
   import { formatDateInJakarta, formatTimeInJakarta, formatDateTimeInJakarta, JAKARTA_OFFSET_MS } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
 
   let {
     selectedLog = null,
@@ -42,71 +43,71 @@
 
   function getActionVerb(action: string) {
     const v = (action || '').toUpperCase();
-    if (v === 'CREATE') return 'Created';
-    if (v === 'UPDATE') return 'Updated';
-    if (v === 'DELETE') return 'Deleted';
-    if (v === 'LOGIN') return 'Logged in';
-    if (v === 'LOGOUT') return 'Logged out';
+    if (v === 'CREATE') return labels.actionCreated;
+    if (v === 'UPDATE') return labels.actionUpdated;
+    if (v === 'DELETE') return labels.actionDeleted;
+    if (v === 'LOGIN') return labels.login;
+    if (v === 'LOGOUT') return labels.logout;
     return action;
   }
 
   function getResourceLabel(entityType: string) {
     const map: Record<string, string> = {
       auth: 'Authentication',
-      user: 'User',
-      role: 'Role',
-      product: 'Product',
+      user: labels.user,
+      role: labels.role,
+      product: labels.product,
       sale: 'Sale',
-      category: 'Category',
-      brand: 'Brand',
-      stock: 'Stock',
+      category: labels.category,
+      brand: labels.brand,
+      stock: labels.stock,
       uom: 'Unit of Measure',
-      customer: 'Customer',
+      customer: labels.customer,
     };
     return map[entityType] || entityType;
   }
 
   const fieldLabels: Record<string, string> = {
-    name: 'Name',
-    username: 'Username',
-    email: 'Email',
-    role: 'Role',
-    role_id: 'Role',
-    is_active: 'Active Status',
-    is_system: 'System Role',
-    description: 'Description',
-    price: 'Price',
-    stock: 'Stock',
-    category: 'Category',
-    category_id: 'Category',
-    barcode: 'Barcode',
-    sku: 'SKU',
-    quantity_change: 'Quantity Change',
-    notes: 'Notes',
-    invoice_number: 'Invoice Number',
-    status: 'Status',
-    payment_method: 'Payment Method',
-    discount: 'Discount',
+    name: labels.name,
+    username: labels.username,
+    email: labels.email,
+    role: labels.role,
+    role_id: labels.role,
+    is_active: `${labels.status} ${labels.active}`,
+    is_system: `${labels.system} ${labels.role}`,
+    description: labels.description,
+    price: labels.price,
+    stock: labels.stock,
+    category: labels.category,
+    category_id: labels.category,
+    barcode: labels.barcode,
+    sku: labels.sku,
+    quantity_change: labels.quantityChange,
+    notes: labels.notes,
+    invoice_number: labels.invoiceNumber,
+    status: labels.status,
+    payment_method: labels.paymentMethod,
+    discount: labels.discount,
     tax: 'Tax',
-    subtotal: 'Subtotal',
-    total: 'Total',
-    cashier: 'Cashier',
-    store: 'Store',
-    store_id: 'Store',
-    brand: 'Brand',
-    brand_id: 'Brand',
+    subtotal: labels.subtotal,
+    total: labels.total,
+    cashier: labels.cashierLabel,
+    store: labels.store,
+    store_id: labels.store,
+    brand: labels.brand,
+    brand_id: labels.brand,
     slug: 'Slug',
     parent_id: 'Parent',
     sort_order: 'Sort Order',
     image_url: 'Image URL',
-    expiry_date: 'Expiry Date',
+    expiry_date: labels.expireDate,
     unit: 'Unit',
-    weight: 'Weight',
-    created_at: 'Created At',
-    updated_at: 'Updated At',
+    weight: labels.previewColWeight,
+    created_at: labels.createdAt,
+    updated_at: labels.updatedAt,
     old_password: 'Old Password',
     new_password: 'New Password',
-    permission_ids: 'Permissions',
+    permission_ids: labels.permissions,
     permission_id: 'Permission',
   };
 
@@ -131,16 +132,16 @@
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffMins < 1) return labels.justNow;
+    if (diffMins < 60) return t('minutesAgo', { n: diffMins });
+    if (diffHours < 24) return t('hoursAgo', { n: diffHours });
+    if (diffDays < 7) return t('daysAgo', { n: diffDays });
     return formatDateInJakarta(d);
   }
 
   function formatValue(val: any): string {
     if (val == null) return '—';
-    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (typeof val === 'boolean') return val ? labels.yes : labels.no;
     if (typeof val === 'string') {
       const dateMatch = val.match(/^\d{4}-\d{2}-\d{2}T/);
       if (dateMatch) {
@@ -154,7 +155,7 @@
     }
     if (typeof val === 'object') {
       if (Array.isArray(val)) {
-        if (val.length === 0) return 'None';
+        if (val.length === 0) return labels.none;
         return val.map((v: any) => formatValue(v)).join(', ');
       }
       if (val.name) return String(val.name);
@@ -187,7 +188,7 @@
   }
 </script>
 
-<Drawer bind:open={drawerOpen} width={520} ariaLabel="Audit Log Details" onclose={() => onclose()}>
+<Drawer bind:open={drawerOpen} width={520} ariaLabel={`${labels.auditLogs} ${labels.details}`} onclose={() => onclose()}>
   {#if selectedLog}
     {@const changes = getChanges(selectedLog)}
     <div class="flex items-center gap-3 mb-4">
@@ -199,7 +200,7 @@
       <!-- Human-friendly summary -->
       <div class="bg-surface-default rounded-lg p-4 border border-border/50">
         <p class="text-sm text-text-primary leading-relaxed">
-          <span class="font-semibold">{selectedLog.username || 'Unknown user'}</span>
+          <span class="font-semibold">{selectedLog.username || `${labels.unknown} ${labels.user}`}</span>
           {#if selectedLog.role}<span class="text-text-muted"> ({selectedLog.role})</span>{/if}
           <span> </span>
           <span class="font-medium">{getActionVerb(selectedLog.action)}</span>
@@ -220,7 +221,7 @@
       <!-- Description -->
       {#if selectedLog.description}
         <div>
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Description</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.description}</p>
           <p class="text-sm text-text-primary">{selectedLog.description}</p>
         </div>
       {/if}
@@ -228,33 +229,33 @@
       <!-- Meta grid -->
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">When</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.when}</p>
           <p class="text-sm text-text-primary">{formatTimestamp(selectedLog.created_at).full}</p>
           <p class="text-xs text-text-muted mt-0.5">{formatDateHuman(selectedLog.created_at)}</p>
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Who</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.actor}</p>
           <div class="flex items-center gap-2">
             {#if selectedLog.username && selectedLog.username !== '—'}
               <div class="w-5 h-5 rounded-full gradient-bg-primary flex items-center justify-center shrink-0">
                 <span class="text-[8px] font-bold text-white">{selectedLog.username.charAt(0).toUpperCase()}</span>
               </div>
             {/if}
-            <p class="text-sm text-text-primary">{selectedLog.username || 'Unknown'}</p>
+            <p class="text-sm text-text-primary">{selectedLog.username || labels.unknown}</p>
           </div>
           {#if selectedLog.role}
             <p class="text-xs text-text-secondary mt-0.5 capitalize">{selectedLog.role}</p>
           {/if}
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">From</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.from}</p>
           <div class="flex items-center gap-1.5 text-sm text-text-primary">
             <Globe size={14} class="text-text-muted" />
             <span class="font-mono">{selectedLog.ip_address || '—'}</span>
           </div>
         </div>
         <div class="bg-surface-default rounded-lg p-3 border border-border/50">
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Resource</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">{labels.resource}</p>
           <p class="text-sm text-text-primary capitalize">{getResourceLabel(selectedLog.entity_type) || '—'}</p>
           {#if selectedLog.entity_id}
             <p class="text-xs text-text-secondary font-mono mt-0.5">ID: {selectedLog.entity_id}</p>
@@ -265,7 +266,7 @@
       <!-- User Agent -->
       {#if selectedLog.user_agent}
         <div>
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">Browser / Device</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">{labels.browserDevice}</p>
           <div class="flex items-start gap-2 p-3 bg-surface-default rounded-lg border border-border/50">
             <Monitor size={14} class="text-text-muted mt-0.5 shrink-0" />
             <p class="text-xs text-text-secondary font-mono leading-relaxed break-all">{selectedLog.user_agent}</p>
@@ -276,7 +277,7 @@
       <!-- Data Changes -->
       {#if changes.length > 0}
         <div>
-          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3">What Changed</p>
+          <p class="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3">{labels.whatChanged}</p>
           <div class="space-y-2">
             {#each changes as change}
               {@const diff = getDiffDescription(change)}

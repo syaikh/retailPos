@@ -36,25 +36,25 @@ describe('PurchaseOrderDetail.svelte source-structure guards', () => {
   it('renders edit button for draft POs', () => {
     expect(src).toContain("canEdit && po.status === 'draft'");
     expect(src).toContain('Pencil');
-    expect(src).toContain('Edit');
+    expect(src).toContain('labels.edit');
   });
 
   it('renders confirm button for draft POs', () => {
     expect(src).toContain("canConfirm && po.status === 'draft'");
     expect(src).toContain('Check');
-    expect(src).toContain('Confirm');
+    expect(src).toContain('labels.confirm');
   });
 
   it('renders receive button for confirmed or partial-received POs', () => {
     expect(src).toContain("canReceive && (po.status === 'confirmed' || po.status === 'partial_received')");
     expect(src).toContain('Package');
-    expect(src).toContain('Receive');
+    expect(src).toContain('labels.receiveGoods');
   });
 
   it('renders cancel button for draft or confirmed POs', () => {
     expect(src).toContain("canCancel && (po.status === 'draft' || po.status === 'confirmed')");
     expect(src).toContain('XCircle');
-    expect(src).toContain('Cancel PO');
+    expect(src).toContain('labels.cancelPo');
   });
 
   it('displays DO numbers from receipts', () => {
@@ -65,7 +65,7 @@ describe('PurchaseOrderDetail.svelte source-structure guards', () => {
 
   it('has copy PO number button with clipboard API', () => {
     expect(src).toContain('navigator.clipboard.writeText(po!.po_number!)');
-    expect(src).toContain('aria-label="Salin nomor PO"');
+    expect(src).toContain('labels.copyPoNumber');
   });
 
   it('has reloadKey prop tracking', () => {

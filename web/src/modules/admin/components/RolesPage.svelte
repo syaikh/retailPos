@@ -6,6 +6,7 @@
   import { useAuthStore } from '$modules/auth';
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
+  import { labels } from '$shared/i18n';
 
   import { Badge, Button, Dropdown, Input, Modal, Pagination, SearchBar, Skeleton, ConfirmDeleteModal, SortableHeader } from '$shared/ui';
   import { Plus, Pencil, Trash2, Shield, Loader2, Search, ChevronRight, ChevronDown, ChevronLeft, ChevronsUpDown, Check, ChevronsLeft, ChevronsRight, Package, Tag, ShoppingCart, Warehouse, UserPlus, BarChart3, LayoutDashboard, Settings, Store, Eye, RefreshCw, Copy, AlertTriangle, MoreVertical, Users } from 'lucide-svelte';
@@ -124,16 +125,16 @@
   let initialFormData = $state({ name: '', description: '' });
 
   const groupMeta = {
-    'user': { label: 'User & Role', icon: Users },
-    'product': { label: 'Product', icon: Package },
-    'category': { label: 'Category', icon: Tag },
+    'user': { label: `${labels.user} & ${labels.role}`, icon: Users },
+    'product': { label: labels.product, icon: Package },
+    'category': { label: labels.category, icon: Tag },
     'sale': { label: 'Sales', icon: ShoppingCart },
-    'inventory': { label: 'Inventory', icon: Warehouse },
-    'customer': { label: 'Customer', icon: UserPlus },
-    'report': { label: 'Report', icon: BarChart3 },
-    'dashboard': { label: 'Dashboard', icon: LayoutDashboard },
+    'inventory': { label: labels.inventory, icon: Warehouse },
+    'customer': { label: labels.customer, icon: UserPlus },
+    'report': { label: labels.reports, icon: BarChart3 },
+    'dashboard': { label: labels.dashboard, icon: LayoutDashboard },
     'pos': { label: 'POS', icon: Store },
-    'audit': { label: 'System', icon: Settings },
+    'audit': { label: labels.system, icon: Settings },
   };
 
   let groupedPermissions = $derived.by(() => {
@@ -224,7 +225,7 @@
       const [rRes, pRes] = await Promise.all([apiFetch('/api/admin/roles'), apiFetch('/api/admin/permissions')]);
       if (rRes.ok) { const data = await rRes.json(); roles = data.data || []; }
       if (pRes.ok) { const data = await pRes.json(); permissions = data.data || []; }
-    } catch { loadError = 'Failed to load roles and permissions'; toast.error(loadError); }
+    } catch { loadError = labels.failedToLoad; toast.error(loadError); }
     finally { loading = false; }
   }
 
@@ -271,17 +272,17 @@
       saving = true;
       if (modalMode === 'add') {
         const r = await apiFetch('/api/admin/roles', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description }) });
-        if (r.ok) { const newRole = await r.json(); await apiFetch(`/api/admin/roles/${newRole.data.id}/permissions`, { method: 'PUT', body: JSON.stringify({ permission_ids: form.permission_ids }) }); toast.success('Role created'); }
-        else { const data = await r.json().catch(() => ({})); throw new Error(data.error || 'Failed to create role'); }
+        if (r.ok) { const newRole = await r.json(); await apiFetch(`/api/admin/roles/${newRole.data.id}/permissions`, { method: 'PUT', body: JSON.stringify({ permission_ids: form.permission_ids }) }); toast.success(`${labels.role} ${labels.actionCreated}`); }
+        else { const data = await r.json().catch(() => ({})); throw new Error(data.error || labels.errorOccurred); }
       } else {
         const r = await apiFetch(`/api/admin/roles/${selectedRole.id}`, { method: 'PUT', body: JSON.stringify({ name: form.name, description: form.description }) });
-        if (!r.ok) { const data = await r.json().catch(() => ({})); throw new Error(data.error || 'Failed to update role'); }
+        if (!r.ok) { const data = await r.json().catch(() => ({})); throw new Error(data.error || labels.errorOccurred); }
         const p = await apiFetch(`/api/admin/roles/${selectedRole.id}/permissions`, { method: 'PUT', body: JSON.stringify({ permission_ids: form.permission_ids }) });
-        if (p.ok) toast.success('Role updated');
-        else { const data = await p.json().catch(() => ({})); throw new Error(data.error || 'Failed to update permissions'); }
+        if (p.ok) toast.success(`${labels.role} ${labels.actionUpdated}`);
+        else { const data = await p.json().catch(() => ({})); throw new Error(data.error || labels.errorOccurred); }
       }
       showModal = false; closeAll(); await fetchData();
-    } catch (err) { toast.error(err.message || 'Operation failed'); }
+    } catch (err) { toast.error(err.message || labels.errorOccurred); }
     finally { saving = false; }
   }
 
@@ -290,9 +291,9 @@
     if (selectedRole.is_system) { toast.error('Cannot delete system roles'); return; }
     try {
       const r = await apiFetch(`/api/admin/roles/${selectedRole.id}`, { method: 'DELETE' });
-      if (r.ok) { roles = roles.filter(r => r.id !== selectedRole.id); toast.success(`Role "${selectedRole.name}" removed`); if (expandedRoleId === selectedRole.id) expandedRoleId = null; }
-      else { const data = await r.json().catch(() => ({})); toast.error(data.error || 'Failed to delete role'); }
-    } catch { toast.error('Connection lost. Check your network.'); }
+      if (r.ok) { roles = roles.filter(r => r.id !== selectedRole.id); toast.success(`${labels.role} "${selectedRole.name}" ${labels.actionDeleted}`); if (expandedRoleId === selectedRole.id) expandedRoleId = null; }
+      else { const data = await r.json().catch(() => ({})); toast.error(data.error || labels.errorOccurred); }
+    } catch { toast.error(labels.networkError); }
     finally { showDeleteModal = false; selectedRole = null; }
   }
 
@@ -323,37 +324,37 @@
   {#if !canView}
     <div class="card px-4 py-12 text-center">
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center"><Shield size={32} class="text-text-muted" /></div>
-      <p class="text-text-primary font-semibold mt-4">Access Denied</p>
-      <p class="text-text-muted text-sm mt-1">You do not have permission to view roles</p>
+      <p class="text-text-primary font-semibold mt-4">{labels.accessDenied}</p>
+      <p class="text-text-muted text-sm mt-1">{labels.youDoNotHavePermissionToViewRoles}</p>
     </div>
   {:else}
     <!-- Search & Filter Panel -->
     <div class="card p-4">
       <div class="flex items-center gap-4">
         <div class="flex-1">
-          <SearchBar bind:value={roleSearch} placeholder="Search roles…" oninput={() => handleRoleSearch(roleSearch)} inputClass="h-10" />
+          <SearchBar bind:value={roleSearch} placeholder={labels.searchRoles} oninput={() => handleRoleSearch(roleSearch)} inputClass="h-10" />
         </div>
         <div class="flex items-center p-1 gap-1 bg-bg-secondary rounded-xl border border-border-default shrink-0">
           <button
             class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {filterType === 'all' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
             onclick={() => { filterType = 'all'; pageOffset = 0; }}
-          >All Roles</button>
+          >{labels.allRoles}</button>
           <button
             class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {filterType === 'system' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
             onclick={() => { filterType = 'system'; pageOffset = 0; }}
-          >System</button>
+          >{labels.system}</button>
           <button
             class="h-8 px-4 rounded-lg text-xs font-medium transition-all duration-200 {filterType === 'custom' ? 'bg-primary-subtle text-primary-light border border-primary-default/20' : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'}"
             onclick={() => { filterType = 'custom'; pageOffset = 0; }}
-          >Custom</button>
+          >{labels.custom}</button>
         </div>
         {#if canEdit}
           <div class="flex items-center gap-2 shrink-0">
-            <Button title="Refresh" variant="secondary" class="px-3 h-10" onclick={() => { fetchData(); closeAll(); }} disabled={loading}>
+            <Button title={labels.refresh} variant="secondary" class="px-3 h-10" onclick={() => { fetchData(); closeAll(); }} disabled={loading}>
               <RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
             </Button>
             <Button variant="primary" class="shadow-glow-primary-sm px-5 h-10" onclick={openAdd}>
-              <Plus size={16} class="mr-1.5" /> Create Role
+              <Plus size={16} class="mr-1.5" /> {labels.create} {labels.role}
             </Button>
           </div>
         {/if}
@@ -368,24 +369,24 @@
           <AlertTriangle size={20} class="text-danger-light shrink-0" />
           <div class="flex-1">
             <p class="text-sm font-medium text-danger-light">{loadError}</p>
-            <p class="text-xs text-text-muted mt-0.5">Check your connection and try again.</p>
+            <p class="text-xs text-text-muted mt-0.5">{labels.networkError}</p>
           </div>
-          <Button variant="secondary" class="text-sm px-3 py-1.5" onclick={fetchData}>Retry</Button>
+          <Button variant="secondary" class="text-sm px-3 py-1.5" onclick={fetchData}>{labels.retry}</Button>
         </div>
       </div>
     {/if}
 
     <!-- Table -->
     {#if loading}
-      <div class="card overflow-hidden" aria-busy="true" aria-label="Loading roles">
+      <div class="card overflow-hidden" aria-busy="true" aria-label={labels.loading}>
         <table class="w-full table-fixed">
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold w-8"></th>
-              <th class="text-left p-4 font-semibold" style="width: 35%;">ROLE</th>
-              <th class="text-left p-4 font-semibold w-20">TYPE</th>
-              <th class="text-left p-4 font-semibold w-20">PERMISSIONS</th>
-              <th class="text-left p-4 font-semibold" style="width: 20%;">DESCRIPTION</th>
+              <th class="text-left p-4 font-semibold" style="width: 35%;">{labels.roleLabel}</th>
+              <th class="text-left p-4 font-semibold w-20">{labels.type}</th>
+              <th class="text-left p-4 font-semibold w-20">{labels.permissions}</th>
+              <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
           </thead>
@@ -406,7 +407,7 @@
     {:else if totalFiltered === 0}
       <div class="card px-4 py-12 text-center" role="status">
         <div class="empty-state-icon bg-surface w-16 h-16 mx-auto flex justify-center"><Shield size={28} class="text-text-muted" /></div>
-        <p class="text-text-primary font-semibold mt-3">{roleSearchDebounced || filterType !== 'all' ? 'No matching roles' : 'No roles defined'}</p>
+        <p class="text-text-primary font-semibold mt-3">{labels.noRolesFound}</p>
         <p class="text-text-muted text-sm mt-1 max-w-sm mx-auto">
           {#if roleSearchDebounced}No roles match "<span class="text-text-secondary">{roleSearchDebounced}</span>". Try a different search term.
           {:else if filterType !== 'all'}No {filterType} roles found. Try a different filter.
@@ -414,9 +415,9 @@
         </p>
         {#if canEdit}
           {#if roleSearchDebounced || filterType !== 'all'}
-            <Button variant="secondary" class="mt-4 text-sm" onclick={clearFilters}>Clear Filters</Button>
+            <Button variant="secondary" class="mt-4 text-sm" onclick={clearFilters}>{labels.clearFilters}</Button>
           {:else}
-            <Button variant="primary" class="mt-4 text-sm shadow-glow-primary-sm" onclick={openAdd}><Plus size={14} class="mr-1" /> Create First Role</Button>
+            <Button variant="primary" class="mt-4 text-sm shadow-glow-primary-sm" onclick={openAdd}><Plus size={14} class="mr-1" /> {labels.create} {labels.role}</Button>
           {/if}
         {/if}
       </div>
@@ -427,13 +428,13 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold" style="width: 35%;">
-                <SortableHeader label="ROLE" column="name" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
+                <SortableHeader label={labels.roleLabel} column="name" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
-              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">TYPE</th>
+              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.type}</th>
               <th class="text-left p-4 font-semibold w-20">
-                <SortableHeader label="PERMISSIONS" column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
+                <SortableHeader label={labels.permissions} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
-              <th class="text-left p-4 font-semibold" style="width: 20%;">DESCRIPTION</th>
+              <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
           </thead>
@@ -447,9 +448,9 @@
                       <span class="text-sm font-semibold text-text-primary truncate">{role.name}</span>
                     </div>
                   </td>
-                  <td class="p-4">{#if role.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}</td>
-                  <td class="p-4"><span class="text-sm text-text-primary">{rolePerms.length} permissions</span></td>
-                  <td class="p-4">{#if role.description}<span class="text-sm text-text-primary truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">No description</span>{/if}</td>
+                  <td class="p-4">{#if role.is_system}<Badge variant="primary" size="sm">{labels.system}</Badge>{:else}<Badge variant="muted" size="sm">{labels.custom}</Badge>{/if}</td>
+                  <td class="p-4"><span class="text-sm text-text-primary">{rolePerms.length} {labels.permissions}</span></td>
+                  <td class="p-4">{#if role.description}<span class="text-sm text-text-primary truncate block max-w-xs" title={role.description}>{role.description}</span>{:else}<span class="text-sm text-text-muted/50 italic">{labels.noDescription}</span>{/if}</td>
                   <td class="p-4">
                     <div class="flex items-center justify-end">
                       <Dropdown>
@@ -457,8 +458,8 @@
                           <button
                             onclick={toggle}
                             class="p-1.5 rounded-lg transition-colors hover:bg-surface-hover text-text-muted hover:text-text-primary"
-                            title="Actions"
-                            aria-label="Role actions"
+                            title={labels.action}
+                            aria-label={labels.roleActions}
                           >
                             <MoreVertical size={14} />
                           </button>
@@ -466,15 +467,15 @@
                         {#snippet content({ close })}
                           {#if canEdit}
                             <button type="button" onclick={() => { closeAll(); openEdit(role); close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
-                              <Pencil size={14} /> Edit
+                              <Pencil size={14} /> {labels.edit}
                             </button>
                             <button type="button" onclick={() => { closeAll(); openDuplicate(role); close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors" role="menuitem">
-                              <Copy size={14} /> Duplicate
+                              <Copy size={14} /> {labels.duplicate}
                             </button>
                           {/if}
                           {#if canDelete && !role.is_system}
                             <button type="button" onclick={() => { selectedRole = role; showDeleteModal = true; close(); }} class="w-full flex items-center gap-3 px-3 py-2 text-sm text-danger hover:bg-danger-subtle transition-colors" role="menuitem">
-                              <Trash2 size={14} /> Delete
+                              <Trash2 size={14} /> {labels.delete}
                             </button>
                           {/if}
                         {/snippet}
@@ -499,38 +500,38 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <!-- Create/Edit Modal -->
-<Modal bind:open={showModal} title={modalStep === 1 ? (modalMode === 'add' ? 'Create Role — Step 1 of 2' : 'Edit Role — Step 1 of 2') : (modalMode === 'add' ? 'Create Role — Step 2 of 2' : 'Edit Role — Step 2 of 2')} size="lg" onkeydown={handleModalKeydown}>
+<Modal bind:open={showModal} title={`${modalMode === 'add' ? `${labels.create} ${labels.role}` : `${labels.edit} ${labels.role}`} — ${modalStep} ${labels.of} 2`} size="lg" onkeydown={handleModalKeydown}>
 
 <div class="space-y-4">
     {#if modalStep === 1}
       <div>
-        <label for="role-name" class="block text-sm font-medium text-text-secondary mb-1.5">Role Name <span class="text-danger-light">*</span></label>
+        <label for="role-name" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.roleName} <span class="text-danger-light">*</span></label>
         <Input id="role-name" type="text" placeholder="e.g. manager" class={nameErrorText ? 'border-danger' : ''} bind:value={form.name} onblur={() => nameTouched = true} aria-invalid={!!nameErrorText} aria-describedby={nameErrorText ? 'role-name-error' : undefined} />
         {#if nameErrorText}<p id="role-name-error" class="text-xs text-danger mt-1.5" role="alert">{nameErrorText}</p>{/if}
       </div>
       <div>
-        <label for="role-desc" class="block text-sm font-medium text-text-secondary mb-1.5">Description</label>
-        <Input id="role-desc" type="text" placeholder="Short description of this role" bind:value={form.description} />
-        <p class="text-xs text-text-muted mt-1">Optional. Helps identify the role's purpose.</p>
+        <label for="role-desc" class="block text-sm font-medium text-text-secondary mb-1.5">{labels.description}</label>
+        <Input id="role-desc" type="text" placeholder={labels.shortDescriptionOfRole} bind:value={form.description} />
+        <p class="text-xs text-text-muted mt-1">{labels.optionalRolePurpose}</p>
       </div>
     {:else}
       {#if modalMode === 'edit'}
         <div class="flex items-center gap-3 p-3 bg-surface-subtle rounded-xl border border-border-subtle">
 <div class="w-8 h-8 rounded-full bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
-          <div class="min-w-0"><p class="text-sm font-semibold text-text-primary truncate">{selectedRole?.name}</p><p class="text-xs text-text-muted truncate">{selectedRole?.description || 'No description'}</p></div>
+          <div class="min-w-0"><p class="text-sm font-semibold text-text-primary truncate">{selectedRole?.name}</p><p class="text-xs text-text-muted truncate">{selectedRole?.description || labels.noDescription}</p></div>
         </div>
       {/if}
-      {#if isFormDirty}<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-warning-subtle/30 border border-warning/20"><div class="w-2 h-2 rounded-full bg-warning animate-pulse"></div><span class="text-xs text-warning-light">You have unsaved changes</span></div>{/if}
+      {#if isFormDirty}<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-warning-subtle/30 border border-warning/20"><div class="w-2 h-2 rounded-full bg-warning animate-pulse"></div><span class="text-xs text-warning-light">{labels.youHaveUnsavedChanges}</span></div>{/if}
       <div class="border-t border-border pt-4 mt-1">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-sm font-medium text-text-secondary">Permissions</p>
+          <p class="text-sm font-medium text-text-secondary">{labels.permissions}</p>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-text-muted">{form.permission_ids.length} of {permissions.length} selected</span>
+            <span class="text-xs text-text-muted">{form.permission_ids.length} {labels.of} {permissions.length}</span>
             {#if groupedPermissions.length > 1}<button type="button" class="text-xs text-primary hover:text-primary-light transition-colors" onclick={() => setAllExpanded(!allExpanded())}>{allExpanded() ? 'Collapse All' : 'Expand All'}</button>{/if}
           </div>
         </div>
         <div class="mb-3">
-          <SearchBar bind:value={permissionSearch} placeholder="Search permissions…" inputClass="text-sm" />
+          <SearchBar bind:value={permissionSearch} placeholder={labels.searchPermissions} inputClass="text-sm" />
         </div>
         <div class="space-y-2 max-h-80 overflow-y-auto">
           {#if groupedPermissions.length > 0}
@@ -538,12 +539,12 @@
               {@const isCollapsed = collapsedGroups.has(group.key)} {@const Icon = group.icon} {@const allSel = isGroupAllSelected(group)} {@const partialSel = isGroupPartialSelected(group)}
               <div class="rounded-xl border border-border/50 overflow-hidden" data-group>
                 <div class="flex items-center gap-2 px-3 py-2.5 bg-surface-subtle/40 hover:bg-surface-subtle/60 transition-colors">
-                  <button type="button" class="flex items-center gap-2 flex-1 text-left min-w-0" aria-expanded={!isCollapsed} aria-controls="group-body-{group.key}" aria-label="Toggle {group.label} permissions" onclick={() => toggleGroup(group.key)} onkeydown={(e) => handleGroupKeydown(e, group)} data-group-toggle data-group-key={group.key}>
+                  <button type="button" class="flex items-center gap-2 flex-1 text-left min-w-0" aria-expanded={!isCollapsed} aria-controls="group-body-{group.key}" aria-label={labels.togglePermissions.replace('{group.label}', group.label)} onclick={() => toggleGroup(group.key)} onkeydown={(e) => handleGroupKeydown(e, group)} data-group-toggle data-group-key={group.key}>
                     {#if isCollapsed}<ChevronRight size={14} class="text-text-muted shrink-0" />{:else}<ChevronDown size={14} class="text-text-muted shrink-0" />{/if}
                     <Icon size={14} class="text-primary-light shrink-0" /><span class="text-sm font-medium text-text-primary truncate">{group.label}</span><span class="text-xs text-text-muted shrink-0">({group.permissions.length})</span>
                   </button>
                   <button type="button" class="text-[10px] font-semibold shrink-0 px-2 py-1 rounded-md transition-colors {allSel ? 'bg-primary/15 text-primary border border-primary/20' : partialSel ? 'bg-warning/15 text-warning-light border border-warning/20' : 'bg-surface-default text-text-muted border border-border/50 hover:border-border-strong hover:text-text-primary'}" onclick={() => toggleGroupAll(group)} aria-label={allSel ? 'Deselect all ' + group.label + ' permissions' : 'Select all ' + group.label + ' permissions'} aria-pressed={allSel}>
-                    {#if partialSel}<ChevronsUpDown size={10} />{:else if allSel}<Check size={10} />{:else}All{/if}
+                    {#if partialSel}<ChevronsUpDown size={10} />{:else if allSel}<Check size={10} />{:else}{labels.all}{/if}
                   </button>
                   <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0 min-w-[2.5rem] justify-center">{group.permissions.filter(p => form.permission_ids.includes(p.id)).length}/{group.permissions.length}</span>
                 </div>
@@ -560,13 +561,13 @@
               </div>
             {/each}
           {:else}
-            <div class="py-6 text-center"><p class="text-sm text-text-muted italic">No permissions match "{permissionSearch}"</p></div>
+            <div class="py-6 text-center"><p class="text-sm text-text-muted italic">{labels.noResults}: "{permissionSearch}"</p></div>
           {/if}
         </div>
         {#if form.permission_ids.length > 0}
           <div class="flex items-center justify-between px-3 py-2 mt-2 rounded-lg bg-surface-subtle/40 border border-border/30">
-            <span class="text-xs text-text-secondary"><span class="font-semibold text-text-primary">{form.permission_ids.length}</span> permissions selected {#if selectedGroupCount > 0}<span class="text-text-muted"> across {selectedGroupCount} {selectedGroupCount === 1 ? 'group' : 'groups'}</span>{/if}</span>
-            <button type="button" class="text-xs text-danger hover:text-danger-light transition-colors" onclick={() => form.permission_ids = []}>Clear all</button>
+            <span class="text-xs text-text-secondary"><span class="font-semibold text-text-primary">{form.permission_ids.length}</span> {labels.permissions} {#if selectedGroupCount > 0}<span class="text-text-muted"> across {selectedGroupCount} {selectedGroupCount === 1 ? 'group' : 'groups'}</span>{/if}</span>
+            <button type="button" class="text-xs text-danger hover:text-danger-light transition-colors" onclick={() => form.permission_ids = []}>{labels.clearAll}</button>
           </div>
         {/if}
       </div>
@@ -574,33 +575,33 @@
   </div>
   {#snippet footer()}
     <div class="flex items-center justify-between w-full">
-      <div>{#if modalStep === 2}<Button variant="ghost" size="sm" onclick={() => modalStep = 1} disabled={saving}>← Back</Button>{/if}</div>
+      <div>{#if modalStep === 2}<Button variant="ghost" size="sm" onclick={() => modalStep = 1} disabled={saving}>← {labels.back}</Button>{/if}</div>
       <div class="flex items-center gap-2">
-        <Button variant="secondary" onclick={requestClose} disabled={saving}>Cancel</Button>
+        <Button variant="secondary" onclick={requestClose} disabled={saving}>{labels.cancel}</Button>
         {#if modalStep === 1}
-          <Button variant="primary" class="min-w-28" onclick={proceedToPermissions} disabled={!form.name.trim()}>Next →</Button>
+          <Button variant="primary" class="min-w-28" onclick={proceedToPermissions} disabled={!form.name.trim()}>{labels.next} →</Button>
         {:else}
           <Button variant="primary" class="min-w-32" onclick={saveRole} disabled={saving || !!nameErrorText} aria-busy={saving}>
-            {#if saving}<Loader2 size={16} class="animate-spin" /> Saving...{:else}{modalMode === 'add' ? 'Create Role' : 'Save Changes'}{/if}
+            {#if saving}<Loader2 size={16} class="animate-spin" /> {labels.saving}{:else}{modalMode === 'add' ? `${labels.create} ${labels.role}` : labels.save}{/if}
           </Button>
         {/if}
       </div>
     </div>
-    {#if modalStep === 2}<div class="text-[10px] text-text-muted text-center mt-1 w-full">Ctrl+Enter to save</div>{/if}
+    {#if modalStep === 2}<div class="text-[10px] text-text-muted text-center mt-1 w-full">{labels.ctrlEnterToSave}</div>{/if}
   {/snippet}
 </Modal>
 
 <!-- Discard Confirmation -->
-<Modal bind:open={showDiscardModal} title="Discard Changes?" size="sm">
+<Modal bind:open={showDiscardModal} title={labels.discardChanges} size="sm">
   <div class="text-center py-2">
     <div class="w-14 h-14 rounded-2xl bg-warning-subtle flex items-center justify-center mx-auto mb-4"><Eye size={24} class="text-warning" /></div>
-    <p class="text-text-primary font-semibold mb-1">You have unsaved changes</p>
+    <p class="text-text-primary font-semibold mb-1">{labels.youHaveUnsavedChanges}</p>
     <p class="text-text-muted text-sm">Your permission selections will be lost if you close without saving.</p>
   </div>
-  {#snippet footer()}<Button variant="secondary" onclick={cancelDiscard}>Keep Editing</Button><Button variant="danger" onclick={confirmDiscard}>Discard</Button>{/snippet}
+  {#snippet footer()}<Button variant="secondary" onclick={cancelDiscard}>{labels.keepEditing}</Button><Button variant="danger" onclick={confirmDiscard}>{labels.discard}</Button>{/snippet}
 </Modal>
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Delete Role" itemName={selectedRole?.name} description="This action cannot be undone. Make sure no users are currently assigned to this role before deleting." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteRole} itemName={selectedRole?.name} description={labels.thisActionCannotBeUndone} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
 
 <!-- Role Detail Drawer -->
 <RoleDetailDrawer

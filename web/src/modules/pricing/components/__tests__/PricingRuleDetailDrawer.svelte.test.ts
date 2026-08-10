@@ -70,8 +70,8 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
 
   it('has timeAgo function with Indonesian labels', () => {
     expect(src).toContain('function timeAgo(dateStr: string | undefined): string');
-    expect(src).toContain('Baru saja');
-    expect(src).toContain('lalu');
+    expect(src).toContain('return labels.justNow');
+    expect(src).toContain("t('minutesAgo', { n: minutes })");
   });
 
   it('timeAgo returns dash for undefined', () => {
@@ -98,22 +98,22 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
 
   it('has valueSubLabel function for stat card subtitle', () => {
     expect(src).toContain('function valueSubLabel(r: PricingRule): string');
-    expect(src).toContain('Diskon Persen');
-    expect(src).toContain('Diskon nominal');
-    expect(src).toContain('Markup Persen');
+    expect(src).toContain('return labels.diskonsPersen');
+    expect(src).toContain('return labels.diskonsNominal');
+    expect(src).toContain('return labels.markupPersen');
   });
 
   it('has methodLabel function with Indonesian labels', () => {
     expect(src).toContain('function methodLabel(m: string): string');
-    expect(src).toContain("fixed_price: 'Harga Tetap'");
-    expect(src).toContain("discount_percent: 'Diskon %'");
-    expect(src).toContain("discount_amount: 'Diskon Rp'");
-    expect(src).toContain("markup_percent: 'Markup %'");
+    expect(src).toContain('fixed_price: labels.hargaTetap');
+    expect(src).toContain('discount_percent: labels.methodDiscountPercent');
+    expect(src).toContain('discount_amount: labels.methodDiscountAmount');
+    expect(src).toContain('markup_percent: labels.methodMarkupPercent');
   });
 
   it('has typeLabel function', () => {
     expect(src).toContain('function typeLabel(t: string): string');
-    expect(src).toContain("special_price' ? 'Harga Spesial' : 'Promosi'");
+    expect(src).toContain("t === 'special_price' ? labels.hargaSpesial : labels.promosi");
   });
 
   it('has targetLabel function using targetNames map', () => {
@@ -125,9 +125,9 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
 
   it('has targetScope function', () => {
     expect(src).toContain('function targetScope(r: PricingRule): string');
-    expect(src).toContain("'Produk'");
-    expect(src).toContain("'Kategori'");
-    expect(src).toContain("'Merek'");
+    expect(src).toContain('return labels.produk');
+    expect(src).toContain('return labels.kategori');
+    expect(src).toContain('return labels.merek');
   });
 
   it('has approvalVariant function with all status mappings', () => {
@@ -140,27 +140,27 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
 
   it('has approvalLabel function with Indonesian labels', () => {
     expect(src).toContain('function approvalLabel(status: string): string');
-    expect(src).toContain("case 'approved': return 'Disetujui'");
-    expect(src).toContain("case 'pending': return 'Menunggu'");
-    expect(src).toContain("case 'rejected': return 'Ditolak'");
-    expect(src).toContain("default: return 'Draft'");
+    expect(src).toContain('return labels.statusApproved');
+    expect(src).toContain('return labels.statusPending');
+    expect(src).toContain('return labels.statusRejected');
+    expect(src).toContain('return labels.statusDraft');
   });
 
   it('has dayShort function for day chip abbreviations', () => {
     expect(src).toContain('function dayShort(d: string): string');
-    expect(src).toContain("mon: 'Sn'");
-    expect(src).toContain("tue: 'Sl'");
-    expect(src).toContain("wed: 'Rb'");
-    expect(src).toContain("thu: 'Km'");
-    expect(src).toContain("fri: 'Jm'");
-    expect(src).toContain("sat: 'Sb'");
-    expect(src).toContain("sun: 'Mg'");
+    expect(src).toContain('mon: labels.dayMonShort');
+    expect(src).toContain('tue: labels.dayTueShort');
+    expect(src).toContain('wed: labels.dayWedShort');
+    expect(src).toContain('thu: labels.dayThuShort');
+    expect(src).toContain('fri: labels.dayFriShort');
+    expect(src).toContain('sat: labels.daySatShort');
+    expect(src).toContain('sun: labels.daySunShort');
   });
 
   it('has dayFull function for full day names', () => {
     expect(src).toContain('function dayFull(d: string): string');
-    expect(src).toContain("mon: 'Senin'");
-    expect(src).toContain("sun: 'Minggu'");
+    expect(src).toContain('mon: labels.dayMon');
+    expect(src).toContain('sun: labels.daySun');
   });
 
   it('has activeDays and inactiveDays derived', () => {
@@ -178,7 +178,7 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('renders Drawer with title from rule name', () => {
-    expect(src).toContain("<Drawer bind:open title={rule?.name || 'Detail Rule'}");
+    expect(src).toContain("<Drawer bind:open title={rule?.name || labels.detailRule}");
     expect(src).toContain('onclose={handleClose}');
   });
 
@@ -197,7 +197,7 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   it('shows approval, active, and type badges in header', () => {
     expect(src).toContain('approvalVariant(rule.status)');
     expect(src).toContain('approvalLabel(rule.status)');
-    expect(src).toContain("rule.is_active ? 'Aktif' : 'Nonaktif'");
+    expect(src).toContain("rule.is_active ? labels.aktif : labels.nonaktif");
     expect(src).toContain('typeLabel(rule.pricing_type)');
   });
 
@@ -231,13 +231,13 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('has Harga section with method and allow_combine', () => {
-    expect(src).toContain('Harga');
+    expect(src).toContain('{labels.harga}');
     expect(src).toContain('methodLabel(rule.pricing_method)');
-    expect(src).toContain("rule.allow_combine ? 'Ya' : 'Tidak'");
+    expect(src).toContain('rule.allow_combine ? labels.yes : labels.no');
   });
 
   it('has Jadwal section with day chips', () => {
-    expect(src).toContain('Jadwal');
+    expect(src).toContain('{labels.jadwal}');
     expect(src).toContain('activeDays.includes(day)');
     expect(src).toContain('dayShort(day)');
     expect(src).toContain('dayFull(day)');
@@ -252,7 +252,7 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('has Kondisi section with customer group and store', () => {
-    expect(src).toContain('Kondisi');
+    expect(src).toContain('{labels.kondisi}');
     expect(src).toContain('{#if rule.customer_group_id}');
     expect(src).toContain('{#if rule.store_id}');
   });
@@ -266,11 +266,11 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
   });
 
   it('has fallback text when no customer group or store', () => {
-    expect(src).toContain('Berlaku untuk semua group');
+    expect(src).toContain('{labels.appliesToAllGroupsAndStores}');
   });
 
   it('has Riwayat section showing created timestamp and rule ID', () => {
-    expect(src).toContain('Riwayat');
+    expect(src).toContain('{labels.riwayat}');
     expect(src).toContain('formatDateTime(rule.created_at)');
     expect(src).toContain('rule.id');
   });
@@ -279,12 +279,12 @@ describe('PricingRuleDetailDrawer.svelte source-structure guards', () => {
     expect(src).toContain('{#snippet footer()}');
     expect(src).toContain('{#if canEdit}');
     expect(src).toContain('onedit(rule!)');
-    expect(src).toContain('Edit');
+    expect(src).toContain('{labels.edit}');
   });
 
   it('renders Delete button when canDelete', () => {
     expect(src).toContain('{#if canDelete}');
     expect(src).toContain('ondelete(rule!)');
-    expect(src).toContain('Hapus');
+    expect(src).toContain('{labels.hapus}');
   });
 });

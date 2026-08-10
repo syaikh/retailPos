@@ -66,4 +66,18 @@ describe('RolesPage.svelte source-structure guards', () => {
   it('renders Pagination component', () => {
     expect(src).toContain('<Pagination');
   });
+
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
+  it('uses i18n labels for page text and actions', () => {
+    expect(src).toContain('labels.youDoNotHavePermissionToViewRoles');
+    expect(src).toContain('labels.noRolesFound');
+    expect(src).toContain('labels.deleteRole');
+    expect(src).toContain('labels.discardChanges');
+    expect(src).toContain('labels.keepEditing');
+    expect(src).toContain('labels.togglePermissions');
+    expect(src).toContain('labels.searchPermissions');
+  });
 });

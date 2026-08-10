@@ -10,6 +10,7 @@
   } from 'lucide-svelte';
   import { RpIcon } from '$shared/ui';
   import { useWebSocket } from '$shared/api/websocket';
+  import { labels } from '$shared/i18n';
 
   let todaysRevenue = $state(0);
   let todaysSales = $state(0);
@@ -19,7 +20,7 @@
   let wsConnected = $state(false);
 
   const ws = useWebSocket();
-  const revSubText = $derived(todaysRevenue > 0 ? 'Invoiced today' : 'No sales yet today');
+  const revSubText = $derived(todaysRevenue > 0 ? labels.invoicedToday : labels.noSalesYetToday);
 
   async function fetchLiveStats() {
     try {
@@ -58,8 +59,8 @@
 
   const modules = [
     {
-      label: 'Point of Sale',
-      desc: 'Process transactions & manage sales',
+      label: labels.pointOfSale,
+      desc: labels.posDesc,
       href: '/pos',
       icon: ShoppingCart,
       iconBg: 'bg-primary-subtle',
@@ -67,8 +68,8 @@
       gradient: 'from-primary/10 to-accent/5',
     },
     {
-      label: 'Inventory',
-      desc: 'Manage products, stock & categories',
+      label: labels.inventory,
+      desc: labels.inventoryDesc,
       href: '/inventory/products',
       icon: Package,
       iconBg: 'bg-success-subtle',
@@ -76,8 +77,8 @@
       gradient: 'from-success/10 to-emerald-600/5',
     },
     {
-      label: 'Reports',
-      desc: 'Analytics, sales reports & export',
+      label: labels.reports,
+      desc: labels.reportsDesc,
       href: '/reports',
       icon: BarChart3,
       iconBg: 'bg-info-subtle',
@@ -85,8 +86,8 @@
       gradient: 'from-info/10 to-sky-600/5',
     },
     {
-      label: 'Administration',
-      desc: 'Users, roles & system settings',
+      label: labels.administration,
+      desc: labels.administrationDesc,
       href: '/admin',
       icon: Users,
       iconBg: 'bg-warning-subtle',
@@ -99,19 +100,19 @@
 <div class="space-y-8">
   <div class="card p-6 rounded-2xl border-border">
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest">Live Dashboard</h2>
+      <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest">{labels.liveDashboard}</h2>
       <span class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted">
         <span class="relative inline-flex h-2 w-2">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 {wsConnected ? 'bg-success' : 'bg-text-muted'}"></span>
         </span>
-        {wsConnected ? 'Live' : 'Offline'}
+        {wsConnected ? labels.live : labels.offline}
       </span>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div class="animate-slide-up" style="animation-delay: 100ms;">
         <StatCard
-          label="Today's Revenue"
+          label={labels.todayRevenue}
           value={loading ? '—' : (todaysRevenue?.toLocaleString('id-ID') || 0)}
           sub={revSubText}
           icon={RpIcon}
@@ -122,9 +123,9 @@
       </div>
       <div class="animate-slide-up" style="animation-delay: 200ms;">
         <StatCard
-          label="Transactions"
+          label={labels.transactionsCard}
           value={loading ? '—' : (todaysSales?.toLocaleString('id-ID') || 0)}
-          sub={todaysSales > 0 ? "Completed today" : "No transactions today"}
+          sub={todaysSales > 0 ? labels.completedToday : labels.noTransactionsToday}
           icon={ShoppingCart}
           iconBg="bg-success-subtle"
           iconColor="text-success-light"
@@ -133,9 +134,9 @@
       </div>
       <div class="animate-slide-up" style="animation-delay: 300ms;">
         <StatCard
-          label="Total Products"
+          label={labels.totalProducts}
           value={loading ? '—' : (totalProducts?.toLocaleString('id-ID') || 0)}
-          sub="Units in catalog"
+          sub={labels.unitsInCatalog}
           icon={Package}
           iconBg="bg-info-subtle"
           iconColor="text-info-light"
@@ -144,9 +145,9 @@
       </div>
       <div class="animate-slide-up" style="animation-delay: 400ms;">
         <StatCard
-          label="Low Stock Alerts"
+          label={labels.lowStockAlerts}
           value={loading ? '—' : (lowStockCount?.toLocaleString('id-ID') || 0)}
-          sub={lowStockCount > 0 ? "Action required" : "All stock healthy"}
+          sub={lowStockCount > 0 ? labels.actionRequired : labels.allStockHealthy}
           icon={AlertTriangle}
           iconBg="bg-warning-subtle"
           iconColor="text-warning-light"
@@ -157,7 +158,7 @@
   </div>
 
   <div>
-    <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">Quick Access</h2>
+    <h2 class="text-sm font-semibold text-text-muted uppercase tracking-widest mb-4">{labels.quickAccess}</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {#each modules as mod, index}
 <button type="button" 

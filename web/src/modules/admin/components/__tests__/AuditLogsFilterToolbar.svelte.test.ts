@@ -15,6 +15,10 @@ describe('AuditLogsFilterToolbar.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Input, SearchBar, Dropdown, FilterChipBar } from '$shared/ui'");
   });
 
+  it('imports i18n labels and t', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('uses $bindable for filter props', () => {
     expect(src).toContain('searchQuery = $bindable');
     expect(src).toContain('selectedAction = $bindable');
@@ -32,13 +36,13 @@ describe('AuditLogsFilterToolbar.svelte source-structure guards', () => {
   });
 
   it('has export with CSV and Excel options via Dropdown', () => {
-    expect(src).toContain('Export to CSV');
-    expect(src).toContain('Export to Excel');
+    expect(src).toContain('labels.exportCSV');
+    expect(src).toContain('labels.exportExcel');
   });
 
   it('has filter chips section', () => {
     expect(src).toContain('activeFilters = $derived');
-    expect(src).toContain('Clear all');
+    expect(src).toContain('labels.clearAll');
   });
 
   it('has date range presets', () => {

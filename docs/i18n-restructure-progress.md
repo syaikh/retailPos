@@ -3,7 +3,7 @@
 Dokumen ini mencatat progres restrukturisasi internasionalisasi (i18n) pada frontend Svelte.
 Perbarui setelah setiap sesi kerja.
 
-Tanggal terakhir diperbarui: 2026-08-09
+Tanggal terakhir diperbarui: 2026-08-10
 
 ## Status Ringkas
 
@@ -16,8 +16,18 @@ Tanggal terakhir diperbarui: 2026-08-09
 | Wiring `modules/product` | ✅ Selesai |
 | Review agent + perbaikan temuan | ✅ Selesai |
 | Wiring `modules/sales` | ✅ Selesai |
-| Wiring `modules/*` lainnya | ⬜ Belum |
-| Verifikasi akhir (vitest + build) | ⬜ Belum |
+| Wiring `modules/settings` | ✅ Selesai |
+| Wiring `modules/customer-groups` | ✅ Selesai |
+| Wiring `modules/purchase-orders` | ✅ Selesai |
+| Wiring `modules/stock-opname` | ✅ Selesai |
+| Wiring `modules/supplier` | ✅ Selesai |
+| Wiring `modules/shifts` | ✅ Selesai |
+| Wiring `modules/storage-location` | ✅ Selesai |
+| Wiring `modules/inventory` | ✅ Selesai |
+| Wiring `modules/reporting` | ✅ Selesai |
+| Wiring `modules/pricing` | ✅ Selesai |
+| Wiring `modules/admin` | ✅ Selesai |
+| Verifikasi akhir (vitest + svelte-check) | ✅ Selesai |
 
 ## Konteks & Keputusan
 
@@ -302,11 +312,70 @@ ganti locale (minor, refresh saat navigasi).
 
 Test: i18n 5/5 hijau; `svelte-check` penuh → tetap hanya 3 error pre-existing.
 
+## Catatan Sesi 2026-08-10 (modul sisanya)
+
+Menyelesaikan wiring seluruh modul yang tersisa, module-by-module dengan test
+hijau per langkah. Semua modul memakai `labels.*` dan/atau `t('key', { params })`
+(dari `$shared/i18n`). Test source-structure guard diupdate mengikuti literal
+yang diganti.
+
+- **`modules/settings`** — semua komponen settings di-wire ke `labels.*`/`t()`.
+- **`modules/customer-groups`** — toolbar/tabel/form/delete di-wire ke `labels.*`.
+- **`modules/purchase-orders`** — seluruh komponen PO di-wire; key `po*` baru
+  (mirror id/en) ditambahkan.
+- **`modules/stock-opname`** — seluruh komponen Stock Opname di-wire; key `so*`
+  ditambahkan (soStatus*, soAction*, dst.).
+- **`modules/supplier`** — 4 komponen supplier (SuppliersPage, SuppliersTable,
+  SuppliersToolbar, SupplierDetailDrawer/FormModal) di-wire ke `labels.*`.
+- **`modules/shifts`** — `ShiftsPage.svelte` + `ShiftDetailDrawer.svelte` di-wire;
+  key `shift*` ditambahkan.
+- **`modules/storage-location`** — 5 file (list, toolbar, form, drawer) di-wire;
+  key `storageLocation*` ditambahkan.
+- **`modules/inventory`** — `RackStockPanel.svelte` + `StockAdjustModal.svelte`
+  di-wire; key `rackStock*`/`adjustStock`/`quantityChange`/
+  `reasonForAdjustment` ditambahkan (dedup menjaga kemunculan pertama).
+- **`modules/reporting`** — `KPICards.svelte`, `PeriodSelector.svelte`,
+  `ReportsPage.svelte`, `RevenueDataTable.svelte` di-wire ke `labels.*`;
+  key `hour/month/daily/vsPrefix/vsPrev7DaysLower/vsPrev30DaysLower/
+  revenueRp/revenueOverview/partialDataInProgress/ongoingMonth/comparison/
+  revenueByPricingType/loading` ditambahkan. Header Orders/Items pada
+  `RevenueDataTable` bersifat kondisional (`labels.orders/items` hanya dirender
+  jika ada baris dgn `orderCount`).
+  Sengaja dipertahankan hardcoded (sesuai test): `'00:00 - 23:00'` (yesterday/
+  daily) dan `'1 Jan - 31 Dec'` (yearly).
+- **`modules/pricing`** — 5 komponen (PricingRulesTable, PricingRulesPage,
+  PricingRuleDetailDrawer, PriceSimulationModal, PricingRulesToolbar) di-wire;
+  key pricing baru: `allTypes`, `allApproval`, `simulation`, `searchRules`,
+  `filterApproval` (placeholder `{value}`), `filterStatusActive`, `approvalChip`,
+  `statusChip`, `typeChip`, `methodChip`; reuse `filterTipe`/`filterMetode`
+  (bukan `filterType`/`filterMethod` yang tidak pernah ada). Perbaikan bonus:
+  `ruleDetails` memakai coercion opsional (`|| ''`/`?? ''`).
+- **`modules/admin`** — sudah ter-wire sebagian besar; sisa 4 literal diganti:
+  `Browser / Device` → `labels.browserDevice`, `aria-label="Date range picker"` →
+  `labels.dateRangePicker`, `Optional. Helps identify the role's purpose.` →
+  `labels.optionalRolePurpose`, `Ctrl+Enter to save` → `labels.ctrlEnterToSave`
+  (3 key baru ditambahkan ke id/en).
+
+Key i18n total akhir sesi: **1541/1541** unik (id = en, tanpa duplikat) —
+diverifikasi via script regex `^  ([a-zA-Z0-9_]+):`.
+
+Audit key existence di seluruh `src/**` (`labels.<key>` dan `t('<key>')`):
+semua key terverifikasi ada di diksionari; satu-satunya pengecualian adalah
+false positive `labels.length`/`labels.push` (array chart `labels` di
+`reporting/utils/chart-config.ts`, bukan referensi i18n).
+
+Verifikasi akhir:
+- `npx vitest run` (100 file / **1329 test**) → hijau semua.
+- `npx svelte-check --tsconfig ./tsconfig.json` → **0 errors, 0 warnings**
+  (error pre-existing `EditStorageLocationModal.svelte`/`useRBAC.test.ts` sudah
+  tidak muncul).
+
 ## Perintah Verifikasi
 
 ```bash
 cd web && npx vitest run src/shared/i18n          # fondasi
 cd web && npx vitest run <file-test-yang-diupdate> # per komponen
 cd web && npx vitest run                           # penuh
+cd web && npx svelte-check --tsconfig ./tsconfig.json
 cd web && npm run build                            # build
 ```

@@ -20,8 +20,12 @@ describe('StockOpnamesPage.svelte location-scope source guards', () => {
     expect(src).toContain("type === 'location'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('warns when location scope is combined with other scopes', () => {
     expect(src).toContain("createRows.some((r) => r.scope_type === 'location')");
-    expect(src).toContain('must be the only scope');
+    expect(src).toContain('labels.storageLocationScopeOnly');
   });
 });

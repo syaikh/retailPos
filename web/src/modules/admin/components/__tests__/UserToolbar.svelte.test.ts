@@ -15,6 +15,10 @@ describe('UserToolbar.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, SearchBar, Dropdown, FilterChipBar } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $bindable for searchQuery, filterRole, filterStatus', () => {
     expect(src).toContain('searchQuery = $bindable');
     expect(src).toContain('filterRole = $bindable');
@@ -32,7 +36,7 @@ describe('UserToolbar.svelte source-structure guards', () => {
 
   it('renders filter chips section', () => {
     expect(src).toContain('activeChips = $derived');
-    expect(src).toContain('Clear all');
+    expect(src).toContain('labels.clearAll');
   });
 
   it('shows Add User button only when canCreate', () => {

@@ -8,6 +8,7 @@
     BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, Clock
   } from 'lucide-svelte';
   import { formatDate, getFirstOfMonthNAgoInJakarta } from '$modules/reporting/lib/reporting-utils';
+  import { labels } from '$shared/i18n';
   import { getTodayInJakarta, getDateNDaysAgoInJakarta, getJakartaDayOfWeek } from '$shared/utils/jakartaTime';
 
   let {
@@ -42,16 +43,16 @@
   let selectedYear = $state(parseInt(getTodayInJakarta().split('-')[0]));
 
   const periodOptions = [
-    { value: 'realtime', label: 'Real-time', icon: Clock, description: 'Hourly revenue from 00:00 until now' },
-    { value: 'yesterday', label: 'Yesterday', icon: CalendarDays, description: 'Hourly revenue for the full previous day' },
-    { value: '7days', label: '7 Days', icon: CalendarDays, description: 'Daily revenue for the last 7 days' },
-    { value: '30days', label: '30 Days', icon: CalendarDays, description: 'Daily revenue for the last 30 days' },
-    { type: 'separator', label: 'Daily' },
-    { value: 'daily', label: 'Daily', icon: CalendarDays, description: 'Select a specific date for hourly revenue' },
-    { type: 'separator', label: 'Extended' },
-    { value: 'weekly', label: 'Weekly', icon: CalendarDays, description: 'Weekly revenue - select a week' },
-    { value: 'monthly', label: 'Monthly', icon: CalendarDays, description: 'Monthly revenue - select a month' },
-    { value: 'yearly', label: 'Yearly', icon: CalendarDays, description: 'Yearly revenue - select a year' },
+    { value: 'realtime', label: labels.periodRealtime, icon: Clock, description: labels.descRealtime },
+    { value: 'yesterday', label: labels.yesterday, icon: CalendarDays, description: labels.descYesterday },
+    { value: '7days', label: labels.period7Days, icon: CalendarDays, description: labels.desc7Days },
+    { value: '30days', label: labels.period30Days, icon: CalendarDays, description: labels.desc30Days },
+    { type: 'separator', label: labels.periodDaily },
+    { value: 'daily', label: labels.periodDaily, icon: CalendarDays, description: labels.descDaily },
+    { type: 'separator', label: labels.periodExtended },
+    { value: 'weekly', label: labels.periodWeekly, icon: CalendarDays, description: labels.descWeekly },
+    { value: 'monthly', label: labels.periodMonthly, icon: CalendarDays, description: labels.descMonthly },
+    { value: 'yearly', label: labels.periodYearly, icon: CalendarDays, description: labels.descYearly },
   ];
 
   function getPeriodDateRange(periodType) {
@@ -153,21 +154,21 @@
 
     switch (selectedPeriodType) {
       case 'realtime':
-        return `Real-time (00:00 - ${currentTimeHour})`;
+        return labels.periodDescRealtime.replace('{time}', currentTimeHour);
       case 'yesterday':
-        return `Yesterday · ${start}`;
+        return labels.periodDescYesterday.replace('{date}', start);
       case '7days':
-        return `7 Days · ${start} - ${end}`;
+        return labels.periodDesc7Days.replace('{start}', start).replace('{end}', end);
       case '30days':
-        return `30 Days · ${start} - ${end}`;
+        return labels.periodDesc30Days.replace('{start}', start).replace('{end}', end);
       case 'daily':
-        return `Daily · ${start}`;
+        return labels.periodDescDaily.replace('{date}', start);
       case 'weekly':
-        return `Weekly · ${start} - ${end}`;
+        return labels.periodDescWeekly.replace('{start}', start).replace('{end}', end);
       case 'monthly':
-        return `Monthly · ${start} - ${end}`;
+        return labels.periodDescMonthly.replace('{start}', start).replace('{end}', end);
       case 'yearly':
-        return `Yearly · ${start} - ${end}`;
+        return labels.periodDescYearly.replace('{start}', start).replace('{end}', end);
       default:
         return `${start} - ${end}`;
     }
@@ -227,7 +228,7 @@
 <div class="card p-4 flex flex-wrap items-center gap-4">
   <div class="flex items-center gap-2 text-sm font-medium text-text-secondary">
     <BarChart3 size={16} class="text-white" />
-    Period
+    {labels.period}
   </div>
 
   <div class="relative">
@@ -278,23 +279,23 @@
         </div>
 
         <div class="flex-1 min-w-80 border-l border-border/50 pl-2">
-          <div class="text-xs text-text-secondary mb-2">Details</div>
+          <div class="text-xs text-text-secondary mb-2">{labels.details}</div>
 
           {#if hoveredOption?.value === 'realtime'}
-            <div class="text-sm text-text-primary mb-2">Real-time Revenue</div>
-            <div class="text-xs text-text-muted">Shows hourly revenue from 00:00 until now</div>
+            <div class="text-sm text-text-primary mb-2">{labels.realtimeRevenue}</div>
+            <div class="text-xs text-text-muted">{labels.showsRealtime}</div>
           {:else if hoveredOption?.value === 'yesterday'}
-            <div class="text-sm text-text-primary mb-2">Yesterday Revenue</div>
-            <div class="text-xs text-text-muted">Shows hourly revenue for the full previous day</div>
+            <div class="text-sm text-text-primary mb-2">{labels.yesterdayRevenue}</div>
+            <div class="text-xs text-text-muted">{labels.showsYesterday}</div>
           {:else if hoveredOption?.value === '7days'}
-            <div class="text-sm text-text-primary mb-2">7 Days Revenue</div>
-            <div class="text-xs text-text-muted">Shows daily revenue for the last 7 days until yesterday</div>
+            <div class="text-sm text-text-primary mb-2">{labels.days7Revenue}</div>
+            <div class="text-xs text-text-muted">{labels.shows7Days}</div>
           {:else if hoveredOption?.value === '30days'}
-            <div class="text-sm text-text-primary mb-2">30 Days Revenue</div>
-            <div class="text-xs text-text-muted">Shows daily revenue for the last 30 days until yesterday</div>
+            <div class="text-sm text-text-primary mb-2">{labels.days30Revenue}</div>
+            <div class="text-xs text-text-muted">{labels.shows30Days}</div>
           {:else if hoveredOption?.value === 'daily'}
             <div class="text-sm text-text-primary mb-2">
-              <span class="block text-xs text-text-muted mb-2">Select Date</span>
+              <span class="block text-xs text-text-muted mb-2">{labels.selectDate}</span>
               <SelectableCalendar
                 mode="day"
                 bind:value={selectedDailyDate}
@@ -328,10 +329,10 @@
                 }}
               />
             </div>
-            <div class="text-xs text-text-muted">Shows hourly revenue for the selected date</div>
+            <div class="text-xs text-text-muted">{labels.showsDaily}</div>
           {:else if hoveredOption?.value === 'weekly'}
             <div class="text-sm text-text-primary mb-2">
-              <span class="block text-xs text-text-muted mb-2">Select Week</span>
+              <span class="block text-xs text-text-muted mb-2">{labels.selectWeek}</span>
               <SelectableCalendar
                 mode="week"
                 bind:value={selectedWeeklyRange}
@@ -370,10 +371,10 @@
                 }}
               />
             </div>
-            <div class="text-xs text-text-muted">Shows daily revenue for the selected week</div>
+            <div class="text-xs text-text-muted">{labels.showsWeekly}</div>
           {:else if hoveredOption?.value === 'monthly'}
             <div class="text-sm text-text-primary mb-2">
-              <span class="block text-xs text-text-muted mb-2">Select Month</span>
+              <span class="block text-xs text-text-muted mb-2">{labels.selectMonth}</span>
               <MonthlyCalendar
                 bind:value={selectedMonthlyRange}
                 minValue={new CalendarDate(2023, 6, 1)}
@@ -410,10 +411,10 @@
                 }}
               />
             </div>
-            <div class="text-xs text-text-muted">Shows daily revenue for the selected month</div>
+            <div class="text-xs text-text-muted">{labels.showsMonthly}</div>
           {:else if hoveredOption?.value === 'yearly'}
             <div class="text-sm text-text-primary mb-2">
-              <span class="block text-xs text-text-muted mb-2">Select Year</span>
+              <span class="block text-xs text-text-muted mb-2">{labels.selectYear}</span>
               <YearCalendar
                 bind:value={selectedYearlyRange}
                 minValue={availableYears.length > 0 ? new CalendarDate(Math.min(...availableYears), 1, 1) : new CalendarDate(2023, 6, 16)}
@@ -460,11 +461,11 @@
                 }}
               />
             </div>
-            <div class="text-xs text-text-muted">Shows monthly revenue for the selected year</div>
+            <div class="text-xs text-text-muted">{labels.showsYearly}</div>
           {/if}
 
           <div class="text-xs text-text-muted mt-2">
-            Timezone: {timezoneString}
+            {labels.timezone} {timezoneString}
           </div>
         </div>
       </div>
@@ -473,8 +474,8 @@
 
   <div class="ml-auto">
     <Dropdown items={[
-      { label: 'Export to Excel', icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: onexportexcel },
-      { label: 'Export to PDF', icon: Download, iconClass: 'text-danger-light', onclick: onexportpdf },
+      { label: labels.exportToExcel, icon: FileSpreadsheet, iconClass: 'text-success-light', onclick: onexportexcel },
+      { label: labels.exportToPdf, icon: Download, iconClass: 'text-danger-light', onclick: onexportpdf },
     ]}>
       {#snippet trigger({ toggle })}
         <Button
@@ -483,7 +484,7 @@
           onclick={toggle}
         >
           <Download size={15} />
-          Export
+          {labels.export}
           <ChevronDown size={14} class="transition-transform duration-300" />
         </Button>
       {/snippet}

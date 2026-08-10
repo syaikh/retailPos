@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button, SearchBar, Dropdown, FilterChipBar } from '$shared/ui';
   import { Plus, ChevronDown, SlidersHorizontal } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     searchQuery = $bindable(''),
@@ -20,8 +21,8 @@
     onclearall?: () => void;
   } = $props();
 
-  let roleLabel = $derived(filterRole === 'all' ? 'All Roles' : roles.find(r => String(r.id) === filterRole)?.name || filterRole);
-  let statusLabel = $derived(filterStatus === 'all' ? 'All Status' : filterStatus === 'true' ? 'Active' : 'Inactive');
+  let roleLabel = $derived(filterRole === 'all' ? labels.allRoles : roles.find(r => String(r.id) === filterRole)?.name || filterRole);
+  let statusLabel = $derived(filterStatus === 'all' ? labels.allStatus : filterStatus === 'true' ? labels.active : labels.inactive);
 
   let activeChips = $derived.by(() => {
     const chips: { type: string; label: string }[] = [];
@@ -30,7 +31,7 @@
       chips.push({ type: 'role', label: r ? r.name : filterRole });
     }
     if (filterStatus !== 'all') {
-      chips.push({ type: 'status', label: filterStatus === 'true' ? 'Active' : 'Inactive' });
+      chips.push({ type: 'status', label: filterStatus === 'true' ? labels.active : labels.inactive });
     }
     return chips;
   });
@@ -44,7 +45,7 @@
 <div class="card p-4">
   <div class="flex items-center gap-3">
     <div class="flex-1">
-      <SearchBar bind:value={searchQuery} placeholder="Search by username or email…" />
+      <SearchBar bind:value={searchQuery} placeholder={labels.searchByUsernameOrEmail} />
     </div>
     <Dropdown placement="bottom-start" menuClass="p-2 min-w-[360px] max-h-64 overflow-y-auto">
       {#snippet trigger({ toggle })}
@@ -61,7 +62,7 @@
         <button
           class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors truncate {filterRole === 'all' ? 'text-primary-light bg-primary-subtle/30 font-medium' : 'text-text-secondary hover:bg-surface-hover'}"
           onclick={() => { filterRole = 'all'; close(); }}
-        >All Roles</button>
+        >{labels.allRoles}</button>
         <div class="grid grid-cols-2 gap-1 mt-1">
           {#each roles as role}
             <button
@@ -74,9 +75,9 @@
       {/snippet}
     </Dropdown>
     <Dropdown placement="bottom-start" items={[
-      { label: 'All Status', checked: filterStatus === 'all', onclick: () => filterStatus = 'all' },
-      { label: 'Active', checked: filterStatus === 'true', onclick: () => filterStatus = 'true' },
-      { label: 'Inactive', checked: filterStatus === 'false', onclick: () => filterStatus = 'false' },
+      { label: labels.allStatus, checked: filterStatus === 'all', onclick: () => filterStatus = 'all' },
+      { label: labels.active, checked: filterStatus === 'true', onclick: () => filterStatus = 'true' },
+      { label: labels.inactive, checked: filterStatus === 'false', onclick: () => filterStatus = 'false' },
     ]}>
       {#snippet trigger({ toggle })}
         <button
@@ -91,9 +92,9 @@
     {#if canCreate}
       <Button onclick={onadd} variant="primary" class="shrink-0 shadow-glow-primary-sm px-5">
         <Plus size={18} />
-        Add User
+        {labels.add} {labels.user}
       </Button>
     {/if}
   </div>
-  <FilterChipBar chips={activeChips} onclear={clearFilter} onclearall={onclearall} clearLabel="Clear all" />
+  <FilterChipBar chips={activeChips} onclear={clearFilter} onclearall={onclearall} clearLabel={labels.clearAll} />
 </div>

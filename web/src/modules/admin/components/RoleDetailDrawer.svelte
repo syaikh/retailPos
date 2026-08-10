@@ -1,6 +1,7 @@
 <script>
   import { Badge, Button, Drawer } from '$shared/ui';
   import { Shield, Users, Copy, Pencil, Trash2 } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   let {
     open = $bindable(false),
@@ -35,30 +36,30 @@
   let grouped = $derived(getGroupedPermissions(rolePerms));
 
   const groupMeta = {
-    'user': { label: 'User & Role', icon: Users },
-    'product': { label: 'Product', icon: Shield },
-    'category': { label: 'Category', icon: Shield },
+    'user': { label: `${labels.user} & ${labels.role}`, icon: Users },
+    'product': { label: labels.product, icon: Shield },
+    'category': { label: labels.category, icon: Shield },
     'sale': { label: 'Sales', icon: Shield },
-    'inventory': { label: 'Inventory', icon: Shield },
-    'customer': { label: 'Customer', icon: Shield },
-    'report': { label: 'Report', icon: Shield },
-    'dashboard': { label: 'Dashboard', icon: Shield },
+    'inventory': { label: labels.inventory, icon: Shield },
+    'customer': { label: labels.customer, icon: Shield },
+    'report': { label: labels.reports, icon: Shield },
+    'dashboard': { label: labels.dashboard, icon: Shield },
     'pos': { label: 'POS', icon: Shield },
-    'audit': { label: 'System', icon: Shield },
+    'audit': { label: labels.system, icon: Shield },
   };
 </script>
 
-<Drawer bind:open width={520} ariaLabel="Role detail" onclose={() => onclose()}>
+<Drawer bind:open width={520} ariaLabel={`${labels.role} ${labels.details}`} onclose={() => onclose()}>
   <div class="flex items-center gap-3 mb-4">
     <div class="w-9 h-9 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0"><Shield size={16} class="text-primary-light" /></div>
     <h2 class="text-lg font-bold text-text-primary">{selectedRole.name}</h2>
-    {#if selectedRole.is_system}<Badge variant="primary" size="sm">System</Badge>{:else}<Badge variant="muted" size="sm">Custom</Badge>{/if}
+    {#if selectedRole.is_system}<Badge variant="primary" size="sm">{labels.system}</Badge>{:else}<Badge variant="muted" size="sm">{labels.custom}</Badge>{/if}
   </div>
 
   <div class="space-y-4">
     {#if selectedRole.description}
       <div class="rounded-2xl bg-surface-default border border-border p-4">
-        <p class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">Description</p>
+        <p class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">{labels.description}</p>
         <p class="text-sm text-text-secondary leading-relaxed">{selectedRole.description}</p>
       </div>
     {/if}
@@ -66,7 +67,7 @@
     <div class="rounded-2xl bg-surface-default border border-border overflow-hidden">
       <div class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2">
         <Users size={14} class="text-text-muted" />
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">Permissions ({rolePerms.length})</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted/80">{labels.permissions} ({rolePerms.length})</h3>
       </div>
       {#if rolePerms.length > 0}
         <div class="p-4 grid grid-cols-1 gap-3">
@@ -83,7 +84,7 @@
         </div>
       {:else}
         <div class="p-4">
-          <p class="text-sm text-text-muted italic">No permissions assigned</p>
+          <p class="text-sm text-text-muted italic">{labels.noPermissionsAssigned}</p>
         </div>
       {/if}
     </div>
@@ -98,14 +99,14 @@
             class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-text-secondary border border-border hover:border-primary hover:text-primary hover:bg-primary-subtle transition-all duration-200"
             onclick={onduplicate}
           >
-            <Copy size={15} class="mr-1.5" />Duplicate
+            <Copy size={15} class="mr-1.5" />{labels.duplicate}
           </Button>
           <Button
             variant="primary"
             class="flex-1 rounded-xl px-4 h-11 text-sm font-semibold text-white shadow-glow-primary-sm transition-all duration-200"
             onclick={onedit}
           >
-            <Pencil size={15} class="mr-1.5" />Edit
+            <Pencil size={15} class="mr-1.5" />{labels.edit}
           </Button>
         {/if}
         {#if canDelete && !selectedRole.is_system}
@@ -114,7 +115,7 @@
             class="rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-200"
             onclick={ondeleterequest}
           >
-            <Trash2 size={15} class="mr-1.5" />Delete
+            <Trash2 size={15} class="mr-1.5" />{labels.delete}
           </Button>
         {/if}
       </div>

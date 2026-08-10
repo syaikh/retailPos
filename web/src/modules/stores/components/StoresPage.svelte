@@ -5,6 +5,7 @@
   import { useRBAC } from '$shared/composables/useRBAC.svelte';
   import { Permissions } from '$shared/constants/permissions';
   import { formatDateInJakarta } from '$shared/utils/jakartaTime';
+  import { labels, t } from '$shared/i18n';
   import { getStores, createStore, updateStore, deleteStore } from '../services/stores-service';
 
   const rbac = useRBAC();
@@ -89,7 +90,7 @@
       stores = res.data;
       total = res.total;
     } catch {
-      toast.error('Gagal memuat toko');
+      toast.error(labels.toastFailedLoadStores);
     } finally {
       if (!isSearch) loading = false;
     }
@@ -143,7 +144,7 @@
 
   async function saveStore() {
     if (!form.name.trim()) {
-      toast.error('Nama toko wajib diisi');
+      toast.error(labels.errorStoreNameRequired);
       return;
     }
     try {
@@ -164,14 +165,14 @@
         });
       }
       if (ok) {
-        toast.success(modalMode === 'add' ? 'Toko berhasil ditambahkan' : 'Toko berhasil diperbarui');
+        toast.success(modalMode === 'add' ? labels.toastStoreAdded : labels.toastStoreUpdated);
         showModal = false;
         await fetchStores();
       } else {
-        toast.error('Gagal menyimpan toko');
+        toast.error(labels.toastFailedSaveStore);
       }
     } catch {
-      toast.error('Kesalahan jaringan');
+      toast.error(labels.networkError);
     } finally {
       saving = false;
     }
@@ -182,13 +183,13 @@
     try {
       const ok = await deleteStore(selectedStore.id);
       if (ok) {
-        toast.success(`Toko "${selectedStore.name}" berhasil dihapus`);
+        toast.success(t('toastStoreDeleted', { name: selectedStore.name }));
         await fetchStores();
       } else {
-        toast.error('Gagal menghapus toko. Toko mungkin masih digunakan oleh data lain.');
+        toast.error(labels.toastStoreDeleteInUse);
       }
     } catch {
-      toast.error('Gagal menghapus toko');
+      toast.error(labels.toastFailedDeleteStore);
     } finally {
       showDeleteModal = false;
       selectedStore = null;
@@ -197,7 +198,7 @@
 
   function handleImportComplete() {
     fetchStores();
-    toast.success('Import toko berhasil');
+    toast.success(labels.toastStoreImportCompleted);
   }
 </script>
 
@@ -205,7 +206,7 @@
   <div class="card p-4">
     <div class="flex items-center gap-4">
       <div class="flex-2">
-        <SearchBar bind:value={searchQuery} placeholder="Search by name, address, or phone..." oninput={handleSearchInput} inputClass="h-10" />
+        <SearchBar bind:value={searchQuery} placeholder={labels.searchStoresBy} oninput={handleSearchInput} inputClass="h-10" />
       </div>
       {#if canCreate}
         <div class="flex items-center gap-2">
@@ -217,16 +218,16 @@
           />
           <Button variant="primary" class="shrink-0 shadow-glow-primary-sm px-5" onclick={openAdd}>
             <Plus size={18} />
-            Tambah Toko
+            {labels.addStore}
           </Button>
         </div>
       {/if}
     </div>
     <div class="flex items-center gap-2 mt-3">
       {#each [
-        { label: 'Semua', value: '' },
-        { label: 'Aktif', value: 'active' },
-        { label: 'Nonaktif', value: 'inactive' }
+        { label: labels.all, value: '' },
+        { label: labels.active, value: 'active' },
+        { label: labels.inactive, value: 'inactive' }
       ] as chip}
         <button
           type="button"
@@ -244,12 +245,12 @@
       <table class="w-full table-fixed">
         <thead class="bg-muted/50">
           <tr>
-            <th class="text-left p-4 font-semibold" style="width: 30%;">STORE NAME</th>
-            <th class="text-left p-4 font-semibold w-40">ADDRESS</th>
-            <th class="text-left p-4 font-semibold w-36">PHONE</th>
-            <th class="text-left p-4 font-semibold w-28">STATUS</th>
-            <th class="text-left p-4 font-semibold w-28">CREATED</th>
-            <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+            <th class="text-left p-4 font-semibold" style="width: 30%;">{labels.storeName}</th>
+            <th class="text-left p-4 font-semibold w-40">{labels.address}</th>
+            <th class="text-left p-4 font-semibold w-36">{labels.phone}</th>
+            <th class="text-left p-4 font-semibold w-28">{labels.status}</th>
+            <th class="text-left p-4 font-semibold w-28">{labels.createdAt}</th>
+            <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -270,9 +271,9 @@
         <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
           <Store size={32} class="text-text-muted" />
         </div>
-        <p class="text-text-primary font-semibold mt-4">No stores found</p>
+        <p class="text-text-primary font-semibold mt-4">{labels.noStoresFound}</p>
         <p class="text-text-muted text-sm mt-1">
-          {searchQuery ? `No results for "${searchQuery}"` : 'Start by adding your first store'}
+          {searchQuery ? t('noResultsFor', { query: searchQuery }) : labels.addFirstStore}
         </p>
       </div>
     {:else}
@@ -281,15 +282,15 @@
           <thead class="bg-muted/50">
             <tr>
               <th class="text-left p-4 font-semibold" style="width: 30%;">
-                <SortableHeader label="STORE NAME" column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+                <SortableHeader label={labels.storeName} column="name" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
               </th>
-              <th class="text-left p-4 font-semibold w-40">ADDRESS</th>
-              <th class="text-left p-4 font-semibold w-36">PHONE</th>
-              <th class="text-left p-4 font-semibold w-28">STATUS</th>
+              <th class="text-left p-4 font-semibold w-40">{labels.address}</th>
+              <th class="text-left p-4 font-semibold w-36">{labels.phone}</th>
+              <th class="text-left p-4 font-semibold w-28">{labels.status}</th>
               <th class="text-left p-4 font-semibold w-28">
-                <SortableHeader label="CREATED" column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
+                <SortableHeader label={labels.createdAt} column="created_at" sortColumn={sortBy} sortDirection={sortDir} onsort={handleSort} />
               </th>
-              <th class="text-center p-4 font-semibold w-20">ACTIONS</th>
+              <th class="text-center p-4 font-semibold w-20">{labels.actions}</th>
             </tr>
           </thead>
           <tbody>
@@ -313,11 +314,11 @@
                   {#if store.is_active}
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-success/10 text-success-light border border-success/20">
                       <span class="w-1.5 h-1.5 rounded-full bg-success"></span>
-                      Aktif
+                      {labels.active}
                     </span>
                   {:else}
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-default text-text-muted border border-border">
-                      Nonaktif
+                      {labels.inactive}
                     </span>
                   {/if}
                 </td>
@@ -331,8 +332,8 @@
                         variant="ghost"
                         size="icon"
                         class="text-text-muted hover:text-primary-light"
-                        title="Edit"
-                        aria-label="Edit"
+                        title={labels.edit}
+                        aria-label={labels.edit}
                         onclick={() => openEdit(store)}
                       >
                         <Pencil size={14} />
@@ -344,8 +345,8 @@
                         size="icon"
                         class="text-text-muted hover:text-danger hover:bg-danger-subtle"
                         onclick={() => openDelete(store)}
-                        title="Hapus"
-                        aria-label="Hapus"
+                        title={labels.delete}
+                        aria-label={labels.delete}
                       >
                         <Trash2 size={14} />
                       </Button>
@@ -374,33 +375,33 @@
   </div>
 </div>
 
-<Modal bind:open={showModal} title={modalMode === 'add' ? 'Tambah Toko' : 'Edit Toko'} size="md">
+<Modal bind:open={showModal} title={modalMode === 'add' ? labels.addStore : labels.editStore} size="md">
   <form onsubmit={(e) => { e.preventDefault(); saveStore(); }} class="space-y-4">
     <div>
-      <label for="store-name" class="block text-sm font-medium text-text-secondary mb-2">Nama Toko <span class="text-danger">*</span></label>
-      <Input id="store-name" type="text" placeholder="Contoh: Cabang Bandung" bind:value={form.name} required maxlength="100" />
+      <label for="store-name" class="block text-sm font-medium text-text-secondary mb-2">{labels.storeName} <span class="text-danger">*</span></label>
+      <Input id="store-name" type="text" placeholder={labels.contohNamaToko} bind:value={form.name} required maxlength="100" />
     </div>
     <div>
-      <label for="store-address" class="block text-sm font-medium text-text-secondary mb-2">Alamat <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="store-address" type="text" placeholder="Contoh: Jl. Merdeka No. 1" bind:value={form.address} />
+      <label for="store-address" class="block text-sm font-medium text-text-secondary mb-2">{labels.address} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+      <Input id="store-address" type="text" placeholder={labels.contohAlamat} bind:value={form.address} />
     </div>
     <div>
-      <label for="store-phone" class="block text-sm font-medium text-text-secondary mb-2">Telepon <span class="text-text-muted text-xs">(opsional)</span></label>
-      <Input id="store-phone" type="text" placeholder="Contoh: 022-123456" bind:value={form.phone} />
+      <label for="store-phone" class="block text-sm font-medium text-text-secondary mb-2">{labels.phone} <span class="text-text-muted text-xs">{labels.optionalShort}</span></label>
+      <Input id="store-phone" type="text" placeholder={labels.contohTelepon} bind:value={form.phone} />
     </div>
     {#if modalMode === 'edit'}
       <div class="flex items-center gap-3">
-        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? 'Aktif' : 'Tidak Aktif'} />
+        <ToggleSwitch bind:checked={form.is_active} label={form.is_active ? labels.active : labels.inactive} />
       </div>
     {/if}
   </form>
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>Batal</Button>
+    <Button variant="secondary" onclick={() => showModal = false} disabled={saving}>{labels.cancel}</Button>
     <Button variant="primary" class="min-w-32" onclick={saveStore} disabled={saving}>
       {#if saving}
-        <Loader2 size={16} class="animate-spin" /> Menyimpan...
+        <Loader2 size={16} class="animate-spin" /> {labels.saving}
       {:else}
-        {modalMode === 'add' ? 'Tambah Toko' : 'Simpan Perubahan'}
+        {modalMode === 'add' ? labels.addStore : labels.simpanPerubahan}
       {/if}
     </Button>
   {/snippet}
@@ -409,8 +410,8 @@
 <ImportWizard
   bind:open={showImportWizard}
   module="stores"
-  displayName="Stores"
+  displayName={labels.stores}
   onComplete={handleImportComplete}
-/>
+ />
 
-<ConfirmDeleteModal bind:open={showDeleteModal} title="Hapus Toko" itemName={selectedStore?.name} confirmLabel="Hapus" cancelLabel="Batal" description="Toko akan dihapus secara permanen dan tidak dapat dikembalikan. Gunakan tombol nonaktifkan jika toko masih memiliki data terkait." loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />
+<ConfirmDeleteModal bind:open={showDeleteModal} title={labels.deleteStore} itemName={selectedStore?.name} confirmLabel={labels.delete} cancelLabel={labels.cancel} description={labels.deleteStoreDescription} loading={false} onconfirm={confirmDelete} oncancel={() => showDeleteModal = false} />

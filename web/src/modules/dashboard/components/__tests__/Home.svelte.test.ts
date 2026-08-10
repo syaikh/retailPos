@@ -27,6 +27,10 @@ describe('Home.svelte source-structure guards', () => {
     expect(src).toContain("import { StatCard } from '$shared/ui'");
   });
 
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('uses $state for dashboard data', () => {
     expect(src).toContain('let todaysRevenue = $state');
     expect(src).toContain('let todaysSales = $state');
@@ -51,21 +55,21 @@ describe('Home.svelte source-structure guards', () => {
   });
 
   it('renders StatCard for revenue, transactions, products, low stock', () => {
-    expect(src).toContain("Today's Revenue");
-    expect(src).toContain("Transactions");
-    expect(src).toContain("Total Products");
-    expect(src).toContain("Low Stock Alerts");
+    expect(src).toContain('labels.todayRevenue');
+    expect(src).toContain('labels.transactionsCard');
+    expect(src).toContain('labels.totalProducts');
+    expect(src).toContain('labels.lowStockAlerts');
   });
 
   it('has Quick Access modules section', () => {
-    expect(src).toContain("Quick Access");
-    expect(src).toContain("Point of Sale");
-    expect(src).toContain("Inventory");
-    expect(src).toContain("Reports");
-    expect(src).toContain("Administration");
+    expect(src).toContain('labels.quickAccess');
+    expect(src).toContain('labels.pointOfSale');
+    expect(src).toContain('labels.inventory');
+    expect(src).toContain('labels.reports');
+    expect(src).toContain('labels.administration');
   });
 
   it('has WebSocket live status indicator', () => {
-    expect(src).toContain('wsConnected ? \'Live\' : \'Offline\'');
+    expect(src).toContain('wsConnected ? labels.live : labels.offline');
   });
 });

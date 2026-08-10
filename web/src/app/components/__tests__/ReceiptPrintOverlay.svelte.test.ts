@@ -51,14 +51,14 @@ describe('ReceiptPrintOverlay.svelte source-structure guards', () => {
   });
 
   it('displays payment section with method breakdown', () => {
-    expect(src).toContain('Pembayaran');
+    expect(src).toContain('{labels.payment}');
     expect(src).toContain('{#if $printReceipt.payments');
     expect(src).toContain('{#each $printReceipt.payments as p}');
     expect(src).toContain('p.amount.toLocaleString');
   });
 
   it('has Indonesian footer text', () => {
-    expect(src).toContain('Terima kasih atas kunjungan Anda!');
-    expect(src).toContain('Barang yang sudah dibeli tidak dapat dikembalikan.');
+    expect(src).toContain('{labels.receiptThanks}');
+    expect(src).toContain('{labels.receiptNoReturn}');
   });
 });

@@ -49,4 +49,16 @@ describe('UsersPage.svelte source-structure guards', () => {
   it('renders Pagination component', () => {
     expect(src).toContain('<Pagination');
   });
+
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
+  it('uses i18n labels for messages and permission denied', () => {
+    expect(src).toContain('labels.accessDenied');
+    expect(src).toContain('labels.youDoNotHavePermissionToViewUsers');
+    expect(src).toContain('labels.failedToLoad');
+    expect(src).toContain('labels.networkError');
+    expect(src).toContain('labels.actionDeleted');
+  });
 });

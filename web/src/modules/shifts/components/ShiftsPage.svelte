@@ -8,6 +8,7 @@ import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pa
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { Permissions } from '$shared/constants/permissions';
 import { useAuthStore } from '$modules/auth';
+  import { labels } from '$shared/i18n';
   import {
   Clock,
   Plus,
@@ -77,7 +78,7 @@ import { useAuthStore } from '$modules/auth';
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Failed to export shifts');
+      alert(labels.failedToExportShifts);
     }
   }
 
@@ -93,7 +94,7 @@ import { useAuthStore } from '$modules/auth';
       prevFilters = '';
       goto('/pos');
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Failed to open shift');
+      alert(e?.response?.data?.error || labels.failedToOpenShift);
     } finally {
       isSubmitting = false;
     }
@@ -111,7 +112,7 @@ import { useAuthStore } from '$modules/auth';
       prevFilters = '';
       store.loadShifts(store.currentFilters);
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Failed to close shift');
+      alert(e?.response?.data?.error || labels.failedToCloseShift);
     } finally {
       isSubmitting = false;
     }
@@ -127,7 +128,7 @@ import { useAuthStore } from '$modules/auth';
       prevFilters = '';
       store.loadShifts(store.currentFilters);
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Failed to review shift');
+      alert(e?.response?.data?.error || labels.failedToReviewShift);
     } finally {
       isSubmitting = false;
     }
@@ -164,7 +165,7 @@ import { useAuthStore } from '$modules/auth';
       const result = await store.doAuditShift(selectedShift.id, auditActualBalance);
       auditResult = { expected_cash: result.expected_cash, actual_balance: result.actual_balance, off_by: result.off_by };
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Failed to audit shift');
+      alert(e?.response?.data?.error || labels.failedToAuditShift);
     } finally {
       isSubmitting = false;
     }
@@ -199,9 +200,9 @@ import { useAuthStore } from '$modules/auth';
     <div class="flex items-center gap-4">
       {#if !isCashier}
       <Dropdown placement="bottom-start" items={[
-        { label: 'All Status', checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
-        { label: 'Open', checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
-        { label: 'Closed', checked: store.statusFilter === 'closed', onclick: () => { store.statusFilter = 'closed'; } },
+        { label: labels.allStatus, checked: store.statusFilter === '', onclick: () => { store.statusFilter = ''; } },
+        { label: labels.open, checked: store.statusFilter === 'open', onclick: () => { store.statusFilter = 'open'; } },
+        { label: labels.closed, checked: store.statusFilter === 'closed', onclick: () => { store.statusFilter = 'closed'; } },
       ]}>
         {#snippet trigger({ toggle })}
           <button
@@ -209,16 +210,16 @@ import { useAuthStore } from '$modules/auth';
             class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.statusFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
             onclick={toggle}
           >
-            <span>{store.statusFilter === '' ? 'All Status' : store.statusFilter === 'open' ? 'Open' : 'Closed'}</span>
+            <span>{store.statusFilter === '' ? labels.allStatus : store.statusFilter === 'open' ? labels.open : labels.closed}</span>
             <ChevronDown size={14} class="text-text-muted shrink-0" />
           </button>
         {/snippet}
       </Dropdown>
 
       <Dropdown placement="bottom-start" items={[
-        { label: 'All Review Status', checked: store.needsReviewFilter === null, onclick: () => { store.needsReviewFilter = null; } },
-        { label: 'Needs Review', checked: store.needsReviewFilter === true, onclick: () => { store.needsReviewFilter = true; } },
-        { label: 'Reviewed', checked: store.needsReviewFilter === false, onclick: () => { store.needsReviewFilter = false; } },
+        { label: labels.allStatus, checked: store.needsReviewFilter === null, onclick: () => { store.needsReviewFilter = null; } },
+        { label: labels.needsReview, checked: store.needsReviewFilter === true, onclick: () => { store.needsReviewFilter = true; } },
+        { label: labels.reviewed, checked: store.needsReviewFilter === false, onclick: () => { store.needsReviewFilter = false; } },
       ]}>
         {#snippet trigger({ toggle })}
           <button
@@ -226,17 +227,17 @@ import { useAuthStore } from '$modules/auth';
             class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.needsReviewFilter !== null ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
             onclick={toggle}
           >
-            <span>{store.needsReviewFilter === null ? 'Review Status' : store.needsReviewFilter ? 'Needs Review' : 'Reviewed'}</span>
+            <span>{store.needsReviewFilter === null ? labels.reviewStatus : store.needsReviewFilter ? labels.needsReview : labels.reviewed}</span>
             <ChevronDown size={14} class="text-text-muted shrink-0" />
           </button>
         {/snippet}
       </Dropdown>
 
       <Dropdown placement="bottom-start" items={[
-        { label: 'All Discrepancies', checked: store.discrepancyFilter === '', onclick: () => { store.discrepancyFilter = ''; } },
-        { label: 'Balanced', checked: store.discrepancyFilter === 'balanced', onclick: () => { store.discrepancyFilter = 'balanced'; } },
-        { label: 'Surplus', checked: store.discrepancyFilter === 'surplus', onclick: () => { store.discrepancyFilter = 'surplus'; } },
-        { label: 'Shortage', checked: store.discrepancyFilter === 'shortage', onclick: () => { store.discrepancyFilter = 'shortage'; } },
+        { label: labels.allStatus, checked: store.discrepancyFilter === '', onclick: () => { store.discrepancyFilter = ''; } },
+        { label: labels.balanced, checked: store.discrepancyFilter === 'balanced', onclick: () => { store.discrepancyFilter = 'balanced'; } },
+        { label: labels.surplus, checked: store.discrepancyFilter === 'surplus', onclick: () => { store.discrepancyFilter = 'surplus'; } },
+        { label: labels.shortage, checked: store.discrepancyFilter === 'shortage', onclick: () => { store.discrepancyFilter = 'shortage'; } },
       ]}>
         {#snippet trigger({ toggle })}
           <button
@@ -244,7 +245,7 @@ import { useAuthStore } from '$modules/auth';
             class="flex items-center gap-2 px-3 h-10 rounded-xl border transition-all duration-200 text-[13px] font-medium whitespace-nowrap {store.discrepancyFilter !== '' ? 'bg-primary/10 border-primary/30 text-primary-light' : 'bg-surface-default border-border-strong text-text-muted hover:text-text-secondary hover:border-border-strong'}"
             onclick={toggle}
           >
-            <span>{store.discrepancyFilter === '' ? 'Discrepancy' : store.discrepancyFilter === 'balanced' ? 'Balanced' : store.discrepancyFilter === 'surplus' ? 'Surplus' : 'Shortage'}</span>
+            <span>{store.discrepancyFilter === '' ? labels.discrepancy : store.discrepancyFilter === 'balanced' ? labels.balanced : store.discrepancyFilter === 'surplus' ? labels.surplus : labels.shortage}</span>
             <ChevronDown size={14} class="text-text-muted shrink-0" />
           </button>
         {/snippet}
@@ -253,13 +254,13 @@ import { useAuthStore } from '$modules/auth';
 
       <div class="ml-auto flex items-center gap-2">
         <Dropdown placement="bottom-end" items={[
-          { label: 'Export CSV', onclick: () => downloadExport('csv') },
-          { label: 'Export XLSX', onclick: () => downloadExport('xlsx') },
+          { label: labels.exportCsv, onclick: () => downloadExport('csv') },
+          { label: labels.exportXlsx, onclick: () => downloadExport('xlsx') },
         ]}>
           {#snippet trigger({ toggle })}
             <Button variant="secondary" class="shrink-0 px-3" onclick={toggle}>
               <Download size={14} />
-              Export
+              {labels.export}
               <ChevronDown size={14} />
             </Button>
           {/snippet}
@@ -267,12 +268,12 @@ import { useAuthStore } from '$modules/auth';
         {#if store.activeShift}
           <Button variant="danger" onclick={() => { showCloseModal = true; closingBalance = store.activeShift?.opening_balance || 0; }}>
             <Lock size={16} class="mr-2" />
-            Close Shift
+            {labels.closeShift}
           </Button>
         {:else}
           <Button variant="primary" onclick={() => { showOpenModal = true; openingBalance = 0; }}>
             <Plus size={16} class="mr-2" />
-            Open Shift
+            {labels.openShift}
           </Button>
         {/if}
       </div>
@@ -287,26 +288,26 @@ import { useAuthStore } from '$modules/auth';
           <Clock size={20} class="text-primary" />
         </div>
         <div>
-          <h3 class="font-semibold text-text-primary">Active Shift</h3>
-          <p class="text-sm text-text-muted">Opened {formatDateTime(store.activeShift.opened_at)}</p>
+          <h3 class="font-semibold text-text-primary">{labels.activeShift}</h3>
+          <p class="text-sm text-text-muted">{labels.openedOn.replace('{date}', formatDateTime(store.activeShift.opened_at))}</p>
         </div>
-        <Badge variant="success" class="ml-auto">Open</Badge>
+        <Badge variant="success" class="ml-auto">{labels.open}</Badge>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
-          <p class="text-xs text-text-muted">Opening Balance</p>
+          <p class="text-xs text-text-muted">{labels.openingBalance}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.opening_balance)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Total Sales</p>
+          <p class="text-xs text-text-muted">{labels.totalSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.total_sales)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Cash Sales</p>
+          <p class="text-xs text-text-muted">{labels.cashSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.cash_sales)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Transactions</p>
+          <p class="text-xs text-text-muted">{labels.transactions}</p>
           <p class="text-lg font-bold text-text-primary">{store.activeShift.transaction_count}</p>
         </div>
       </div>
@@ -320,27 +321,27 @@ import { useAuthStore } from '$modules/auth';
         <thead>
           <tr class="border-b border-border bg-surface-secondary">
             <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top {isCashier ? 'w-[170px]' : 'w-[150px]'}">
-              <SortableHeader label="OPENED AT" column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
+              <SortableHeader label={labels.openedAtLabel} column="opened_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
                 {#if !isCashier && authStore.user}
-            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[120px]">CASHIER</th>
+            <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[120px]">{labels.cashier}</th>
             {/if}
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
-              <SortableHeader label="OPENING (RP)" column="opening_balance" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+              <SortableHeader label={labels.openingRp} column="opening_balance" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
-              <SortableHeader label="CASH SALES (RP)" column="cash_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+              <SortableHeader label={labels.cashSalesRp} column="cash_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
-              <SortableHeader label="TOTAL SALES (RP)" column="total_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+              <SortableHeader label={labels.totalSalesRp} column="total_sales" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[50px]">TXN</th>
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[50px]">{labels.txn}</th>
             <th class="text-right px-3 py-3 font-semibold text-text-secondary align-top w-[110px]">
-              <SortableHeader label="DISCREPANCY" column="discrepancy" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
+              <SortableHeader label={labels.discrepancyLabel} column="discrepancy" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} align="right" />
             </th>
-            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[80px]">STATUS</th>
+            <th class="text-center px-3 py-3 font-semibold text-text-secondary align-top w-[80px]">{labels.status}</th>
             <th class="text-left px-3 py-3 font-semibold text-text-secondary align-top w-[150px]">
-              <SortableHeader label="CLOSED AT" column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
+              <SortableHeader label={labels.closedAtLabel} column="closed_at" sortColumn={store.sortBy} sortDirection={store.sortDir} onsort={(col) => { store.sortBy = col; store.page = 0; }} />
             </th>
           </tr>
         </thead>
@@ -349,13 +350,13 @@ import { useAuthStore } from '$modules/auth';
             <tr>
               <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
                 <Loader2 size={20} class="animate-spin mx-auto mb-2" />
-                Loading shifts...
+                {labels.loadingShifts}
               </td>
             </tr>
           {:else if store.shifts.length === 0}
             <tr>
               <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
-                No shifts found
+                {labels.noShifts}
               </td>
             </tr>
           {:else}
@@ -383,9 +384,9 @@ import { useAuthStore } from '$modules/auth';
                 </td>
                 <td class="px-3 py-3 text-center">
                   {#if shift.status === 'open'}
-                    <Badge variant="success" size="sm">Open</Badge>
+                    <Badge variant="success" size="sm">{labels.open}</Badge>
                   {:else}
-                    <Badge variant={shift.needs_review ? 'warning' : 'muted'} size="sm">Closed</Badge>
+                    <Badge variant={shift.needs_review ? 'warning' : 'muted'} size="sm">{labels.closed}</Badge>
                   {/if}
                 </td>
                 <td class="px-3 py-3 text-text-secondary text-xs whitespace-nowrap">{formatDateTime(shift.closed_at)}</td>
@@ -415,52 +416,52 @@ import { useAuthStore } from '$modules/auth';
 </div>
 
 <!-- Open Shift Modal -->
-<Modal bind:open={showOpenModal} title="Open Shift" size="sm">
+<Modal bind:open={showOpenModal} title={labels.openShift} size="sm">
   <form onsubmit={(e) => { e.preventDefault(); handleOpenShift(); }} class="space-y-4">
     <div>
       <label for="opening-balance" class="block text-sm font-medium text-text-secondary mb-2">
-        Opening Balance (Rp)
+        {labels.openingBalanceRp}
       </label>
       <CurrencyInput id="opening-balance" bind:value={openingBalance} placeholder="0" required />
-      <p class="text-xs text-text-muted mt-1">Amount of cash in the drawer at shift start</p>
+      <p class="text-xs text-text-muted mt-1">{labels.cashInDrawerAtStart}</p>
     </div>
   </form>
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showOpenModal = false; }}>Cancel</Button>
+    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showOpenModal = false; }}>{labels.cancel}</Button>
     <Button variant="primary" class="px-5" disabled={isSubmitting || openingBalance <= 0} onclick={handleOpenShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
-      Open Shift
+      {labels.openShift}
     </Button>
   {/snippet}
 </Modal>
 
 <!-- Close Shift Modal -->
-<Modal bind:open={showCloseModal} title="Close Shift" size="xl" panelClass="!max-h-none">
+<Modal bind:open={showCloseModal} title={labels.closeShift} size="xl" panelClass="!max-h-none">
   {#if store.activeShift}
     <div class="space-y-6">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-secondary rounded-lg p-4">
         <div>
-          <p class="text-xs text-text-muted">Opening Balance</p>
+          <p class="text-xs text-text-muted">{labels.openingBalance}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.opening_balance)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Cash Sales</p>
+          <p class="text-xs text-text-muted">{labels.cashSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.cash_sales)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Non-Cash Sales</p>
+          <p class="text-xs text-text-muted">{labels.nonCashSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.non_cash_sales)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Transactions</p>
+          <p class="text-xs text-text-muted">{labels.transactions}</p>
           <p class="text-lg font-bold text-text-primary">{store.activeShift.transaction_count}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Total Sales</p>
+          <p class="text-xs text-text-muted">{labels.totalSales}</p>
           <p class="text-lg font-bold text-text-primary">{formatMoney(store.activeShift.total_sales)}</p>
         </div>
         <div>
-          <p class="text-xs text-text-muted">Expected Cash</p>
+          <p class="text-xs text-text-muted">{labels.expectedCash}</p>
           <p class="text-lg font-bold text-primary">{formatMoney(store.activeShift.opening_balance + store.activeShift.cash_sales)}</p>
         </div>
       </div>
@@ -468,34 +469,34 @@ import { useAuthStore } from '$modules/auth';
       <form onsubmit={(e) => { e.preventDefault(); handleCloseShift(); }} class="space-y-4">
         <div>
           <label for="closing-balance" class="block text-sm font-medium text-text-secondary mb-2">
-            Closing Balance (Rp)
+            {labels.closingBalanceRp}
           </label>
           <CashBreakdown bind:total={closingBalance} />
           {#if closingBalance > 0 && store.activeShift}
             {@const expected = store.activeShift.opening_balance + store.activeShift.cash_sales}
             {@const disc = closingBalance - expected}
             <p class="text-xs mt-1 {disc === 0 ? 'text-success' : 'text-danger'}">
-              {disc === 0 ? 'Balanced' : `Discrepancy: ${disc > 0 ? '+' : ''}${formatMoney(disc)}`}
+              {disc === 0 ? labels.balanced : `${labels.discrepancy}: ${disc > 0 ? '+' : ''}${formatMoney(disc)}`}
             </p>
           {/if}
         </div>
         <div>
-          <label for="close-notes" class="block text-sm font-medium text-text-secondary mb-2">Notes (optional)</label>
+          <label for="close-notes" class="block text-sm font-medium text-text-secondary mb-2">{labels.optionalNotes}</label>
           <Input
             id="close-notes"
             type="text"
             bind:value={closeNotes}
-            placeholder="Optional notes"
+            placeholder={labels.optionalNotes}
           />
         </div>
       </form>
     </div>
   {/if}
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showCloseModal = false; }}>Cancel</Button>
+    <Button variant="secondary" class="px-5" disabled={isSubmitting} onclick={() => { showCloseModal = false; }}>{labels.cancel}</Button>
     <Button variant="danger" class="px-5" disabled={isSubmitting || closingBalance <= 0} onclick={handleCloseShift}>
       {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
-      Close Shift
+      {labels.closeShift}
     </Button>
   {/snippet}
 </Modal>
@@ -510,20 +511,20 @@ import { useAuthStore } from '$modules/auth';
 />
 
 <!-- Audit Modal -->
-<Modal bind:open={showAuditModal} title="Surprise Audit" size="sm">
+<Modal bind:open={showAuditModal} title={labels.surpriseAudit} size="sm">
   {#if selectedShift}
     <div class="space-y-4">
       <div class="bg-surface-secondary rounded-lg p-4 space-y-2">
         <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Cashier</span>
+          <span class="text-text-muted">{labels.cashier}</span>
           <span class="text-text-primary font-medium">{selectedShift.username || '-'}</span>
         </div>
         <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Opening Balance</span>
+          <span class="text-text-muted">{labels.openingBalance}</span>
           <span class="text-text-primary font-medium">{formatMoney(selectedShift.opening_balance)}</span>
         </div>
         <div class="flex justify-between text-sm">
-          <span class="text-text-muted">Cash Sales (system)</span>
+          <span class="text-text-muted">{labels.cashSalesSystem}</span>
           <span class="text-text-primary font-medium">{formatMoney(selectedShift.cash_sales)}</span>
         </div>
       </div>
@@ -531,15 +532,15 @@ import { useAuthStore } from '$modules/auth';
       {#if auditResult}
         <div class="bg-surface-secondary rounded-lg p-4 space-y-2">
           <div class="flex justify-between text-sm">
-            <span class="text-text-muted">Expected Cash</span>
+            <span class="text-text-muted">{labels.expectedCash}</span>
             <span class="text-text-primary font-medium">{formatMoney(auditResult.expected_cash)}</span>
           </div>
           <div class="flex justify-between text-sm">
-            <span class="text-text-muted">Actual Balance</span>
+            <span class="text-text-muted">{labels.actualBalance}</span>
             <span class="text-text-primary font-medium">{formatMoney(auditResult.actual_balance)}</span>
           </div>
           <div class="flex justify-between text-sm border-t border-border pt-2">
-            <span class="text-text-muted">Difference</span>
+            <span class="text-text-muted">{labels.difference}</span>
             <span class="text-sm font-bold {auditResult.off_by === 0 ? 'text-success' : 'text-danger'}">
               {auditResult.off_by > 0 ? '+' : ''}{formatMoney(auditResult.off_by)}
             </span>
@@ -549,7 +550,7 @@ import { useAuthStore } from '$modules/auth';
         <form onsubmit={(e) => { e.preventDefault(); handleAudit(); }} class="space-y-4">
           <div>
             <label for="audit-balance" class="block text-sm font-medium text-text-secondary mb-2">
-              Actual Cash in Drawer (Rp)
+              {labels.actualCashInDrawer}
             </label>
             <CurrencyInput id="audit-balance" bind:value={auditActualBalance} placeholder="0" required />
           </div>
@@ -558,11 +559,11 @@ import { useAuthStore } from '$modules/auth';
     </div>
   {/if}
   {#snippet footer()}
-    <Button variant="secondary" class="px-5" onclick={() => { showAuditModal = false; }}>Close</Button>
+    <Button variant="secondary" class="px-5" onclick={() => { showAuditModal = false; }}>{labels.close}</Button>
     {#if !auditResult}
       <Button variant="primary" class="px-5" disabled={isSubmitting || auditActualBalance <= 0} onclick={handleAudit}>
         {#if isSubmitting}<Loader2 size={16} class="animate-spin mr-2" />{/if}
-        Submit Audit
+        {labels.submitAudit}
       </Button>
     {/if}
   {/snippet}

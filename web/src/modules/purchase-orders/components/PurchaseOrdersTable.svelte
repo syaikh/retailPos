@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button, Badge, Skeleton, SortableHeader, Dropdown } from '$shared/ui';
+  import { labels, t } from '$shared/i18n';
   import { MoreVertical, Eye, Pencil, Package, Check, XCircle, Copy } from 'lucide-svelte';
   import type { PurchaseOrder } from '../types';
 
@@ -91,7 +92,7 @@
 
 {#if loading}
   <div class="overflow-x-auto">
-    <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label="Loading purchase orders">
+    <table class="w-full" style="table-layout: fixed;" aria-busy="true" aria-label={labels.loadingPurchaseOrders}>
       <colgroup>
         <col style="width: 15%;" />
         <col style="width: 17%;" />
@@ -101,21 +102,21 @@
         <col style="width: 12%;" />
         <col style="width: 8%;" />
       </colgroup>
-      <thead><tr><th>PO NUMBER</th><th>SUPPLIER</th><th>STATUS</th><th>EXPECTED DATE</th><th>GRAND TOTAL</th><th>CREATED AT</th><th></th></tr></thead>
+      <thead><tr><th>{labels.poNumber}</th><th>{labels.supplierLabel}</th><th>{labels.statusLabel}</th><th>{labels.expectedDateLabel}</th><th>{labels.grandTotal}</th><th>{labels.createdAtLabel}</th><th></th></tr></thead>
       <tbody>{#each Array(5) as _}<tr>{#each Array(7) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>{/each}</tbody>
     </table>
   </div>
 {:else if purchaseOrders.length === 0}
   <div class="flex flex-col items-center justify-center py-12 text-text-muted" role="status">
     <Package class="w-12 h-12 mb-3" aria-hidden="true" />
-    <p class="text-text-primary font-medium">No purchase orders found</p>
+    <p class="text-text-primary font-medium">{labels.noPurchaseOrdersFound}</p>
     {#if searchQuery}
-      <p class="text-sm text-text-muted mt-1">Try adjusting your search or filters</p>
+      <p class="text-sm text-text-muted mt-1">{labels.tryAdjustingYourSearch}</p>
     {/if}
   </div>
 {:else}
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[1000px]" style="table-layout: fixed;" role="grid" aria-label="Purchase orders">
+    <table class="w-full min-w-[1000px]" style="table-layout: fixed;" role="grid" aria-label={labels.purchaseOrders}>
       <colgroup>
         <col style="width: 15%;" />
         <col style="width: 17%;" />
@@ -128,24 +129,24 @@
       <thead class="bg-muted/50">
         <tr class="border-b text-left text-sm text-text-muted">
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label="PO NUMBER" column="po_number" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.poNumber} column="po_number" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label="SUPPLIER" column="supplier_name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.supplierLabel} column="supplier_name" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label="STATUS" column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.statusLabel} column="status" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label="EXPECTED DATE" column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.expectedDateLabel} column="expected_date" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">
-            <SortableHeader label="GRAND TOTAL" column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
+            <SortableHeader label={labels.grandTotal} column="grand_total" sortColumn={sortBy} sortDirection={sortDir} {onsort} align="right" />
           </th>
           <th class="px-4 py-3 font-semibold whitespace-nowrap" scope="col">
-            <SortableHeader label="CREATED AT" column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
+            <SortableHeader label={labels.createdAtLabel} column="created_at" sortColumn={sortBy} sortDirection={sortDir} {onsort} />
           </th>
-          <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">ACTIONS</th>
+          <th class="px-4 py-3 font-semibold whitespace-nowrap text-right" scope="col">{labels.actionsLabel}</th>
         </tr>
       </thead>
       <tbody>
@@ -154,7 +155,7 @@
               <td class="px-4 py-3 text-sm font-medium max-w-0">
                 <span class="flex items-center gap-1.5">
                   <span class="truncate">{po.po_number}</span>
-                  <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title="Salin nomor PO" aria-label="Salin nomor PO" onclick={(e) => { e.stopPropagation(); handleCopyPO(po.id, po.po_number); }}>
+                  <button type="button" class="p-0.5 hover:text-primary transition-colors w-5 h-5 flex items-center justify-center shrink-0" title={labels.copyPoNumber} aria-label={labels.copyPoNumber} onclick={(e) => { e.stopPropagation(); handleCopyPO(po.id, po.po_number); }}>
                     {#if copiedPOs.has(po.id)}
                       <span class="text-xs text-primary font-bold leading-none">✓</span>
                     {:else}
@@ -172,14 +173,14 @@
               <td class="px-4 py-3 text-sm text-text-secondary tabular-nums whitespace-nowrap">{formatDate(po.created_at)}</td>
               <td class="px-4 py-3 text-center">
                 <Dropdown items={[
-                  ...(canView ? [{ label: 'View', icon: Eye, onclick: () => onview(po) }] : []),
-                  ...(canEdit && po.status === 'draft' ? [{ label: 'Edit', icon: Pencil, onclick: () => onedit(po) }] : []),
-                  ...(canConfirm && po.status === 'draft' ? [{ label: 'Confirm', icon: Check, onclick: () => onconfirm(po) }] : []),
-                  ...(canReceive && (po.status === 'confirmed' || po.status === 'partial_received') ? [{ label: 'Receive', icon: Package, onclick: () => onreceive(po) }] : []),
-                  ...(canCancel && (po.status === 'draft' || po.status === 'confirmed') ? [{ label: 'Cancel', icon: XCircle, onclick: () => oncancel(po) }] : []),
+                  ...(canView ? [{ label: labels.detail, icon: Eye, onclick: () => onview(po) }] : []),
+                  ...(canEdit && po.status === 'draft' ? [{ label: labels.edit, icon: Pencil, onclick: () => onedit(po) }] : []),
+                  ...(canConfirm && po.status === 'draft' ? [{ label: labels.confirm, icon: Check, onclick: () => onconfirm(po) }] : []),
+                  ...(canReceive && (po.status === 'confirmed' || po.status === 'partial_received') ? [{ label: labels.receiveGoods, icon: Package, onclick: () => onreceive(po) }] : []),
+                  ...(canCancel && (po.status === 'draft' || po.status === 'confirmed') ? [{ label: labels.cancel, icon: XCircle, onclick: () => oncancel(po) }] : []),
                 ]}>
                   {#snippet trigger({ toggle })}
-                    <button type="button" onclick={(e) => { e.stopPropagation(); toggle(); }} class="p-1 rounded-lg hover:bg-muted transition-colors" aria-label="Actions for {po.po_number}">
+                    <button type="button" onclick={(e) => { e.stopPropagation(); toggle(); }} class="p-1 rounded-lg hover:bg-muted transition-colors" aria-label={t('actionsFor', { name: po.po_number })}>
                       <MoreVertical size={16} class="text-text-muted" />
                     </button>
                   {/snippet}

@@ -34,16 +34,20 @@ describe('KPICards.svelte source-structure guards', () => {
     expect(src).toContain("Skeleton");
   });
 
+  it('imports labels from $shared/i18n', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
   it('has Total Revenue card', () => {
-    expect(src).toContain("Total Revenue");
+    expect(src).toContain('labels.totalRevenue');
   });
 
   it('has Total Orders card', () => {
-    expect(src).toContain("Total Orders");
+    expect(src).toContain('labels.totalOrders');
   });
 
   it('has Avg Order Value card', () => {
-    expect(src).toContain("Avg Order Value");
+    expect(src).toContain('labels.avgOrderValue');
   });
 
   it('has Peak Revenue / Avg Revenue per Day card (card4)', () => {
@@ -65,6 +69,6 @@ describe('KPICards.svelte source-structure guards', () => {
 
   it('displays same hours label when previousHasAnyData is true', () => {
     expect(src).toContain("previousHasAnyData");
-    expect(src).toContain("same hours");
+    expect(src).toContain('labels.sameHours');
   });
 });

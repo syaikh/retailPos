@@ -84,4 +84,15 @@ describe('AuditLogsPage.svelte source-structure guards', () => {
     expect(src).not.toContain('function exportToExcel');
     expect(src).not.toContain('function buildExportUrl');
   });
+
+  it('imports i18n labels', () => {
+    expect(src).toContain("import { labels } from '$shared/i18n'");
+  });
+
+  it('uses i18n labels for permission denied and error messages', () => {
+    expect(src).toContain('labels.accessDenied');
+    expect(src).toContain('labels.auditLogsRestrictedToSuperadmin');
+    expect(src).toContain('labels.failedToLoad');
+    expect(src).toContain('labels.unknown');
+  });
 });

@@ -2,6 +2,7 @@
   import { Modal, Button, Input } from '$shared/ui';
   import { SearchBar } from '$shared/ui';
   import { Calculator, Loader2, TrendingDown, TrendingUp, Minus } from 'lucide-svelte';
+  import { labels, t } from '$shared/i18n';
   import { searchProducts, resolvePrices, getCustomerGroups, getStores } from '../services/pricing-service';
   import type { ProductSearchResult } from '../types';
   import type { ResolvedPrice } from '../services/pricing-service';
@@ -108,21 +109,21 @@
   }
 </script>
 
-<Modal bind:open title="Simulasi Harga" size="md">
+<Modal bind:open title={labels.simulasiHarga} size="md">
   <div class="space-y-5">
     <div>
-      <label for="sim-product" class="block text-sm font-medium text-text-primary mb-1.5">Produk</label>
+      <label for="sim-product" class="block text-sm font-medium text-text-primary mb-1.5">{labels.produk}</label>
       {#if selectedProduct}
         <div class="flex items-center justify-between p-3 bg-surface-subtle/50 rounded-xl border border-border">
           <div>
             <p class="text-sm font-medium text-text-primary">{selectedProduct.name}</p>
-            <p class="text-xs text-text-muted">SKU: {selectedProduct.sku} | Harga: {formatCurrency(selectedProduct.price)}</p>
+            <p class="text-xs text-text-muted">{t('skuAndPrice', { sku: selectedProduct.sku, price: formatCurrency(selectedProduct.price) })}</p>
           </div>
-          <Button variant="ghost" size="sm" onclick={() => { selectedProduct = null; productQuery = ''; }}>Ganti</Button>
+          <Button variant="ghost" size="sm" onclick={() => { selectedProduct = null; productQuery = ''; }}>{labels.ganti}</Button>
         </div>
       {:else}
         <div bind:this={productSearchContainer} class="relative">
-          <SearchBar bind:value={productQuery} placeholder="Cari produk..." oninput={handleProductSearch} id="sim-product" />
+          <SearchBar bind:value={productQuery} placeholder={labels.searchProducts} oninput={handleProductSearch} id="sim-product" />
           {#if productResults.length > 0}
             <div style={productMenuStyle} class="fixed z-20 bg-surface-default border border-border rounded-xl shadow-lg max-h-48 overflow-y-auto">
               {#each productResults as p}
@@ -140,22 +141,22 @@
 
     <div class="grid grid-cols-3 gap-3">
       <div>
-        <label for="sim-qty" class="block text-sm font-medium text-text-primary mb-1.5">Jumlah</label>
+        <label for="sim-qty" class="block text-sm font-medium text-text-primary mb-1.5">{labels.jumlah}</label>
         <Input id="sim-qty" type="number" bind:value={quantity} min={1} />
       </div>
       <div>
-        <label for="sim-cg" class="block text-sm font-medium text-text-primary mb-1.5">Customer Group</label>
+        <label for="sim-cg" class="block text-sm font-medium text-text-primary mb-1.5">{labels.customerGroup}</label>
         <select id="sim-cg" bind:value={customerGroupId} class="w-full h-10 px-3 rounded-xl border border-border bg-surface-default text-sm text-text-primary">
-          <option value="">Semua</option>
+          <option value="">{labels.semua}</option>
           {#each customerGroups as cg}
             <option value={cg.id}>{cg.name}</option>
           {/each}
         </select>
       </div>
       <div>
-        <label for="sim-store" class="block text-sm font-medium text-text-primary mb-1.5">Toko</label>
+        <label for="sim-store" class="block text-sm font-medium text-text-primary mb-1.5">{labels.toko}</label>
         <select id="sim-store" bind:value={storeId} class="w-full h-10 px-3 rounded-xl border border-border bg-surface-default text-sm text-text-primary">
-          <option value="">Semua</option>
+          <option value="">{labels.semua}</option>
           {#each stores as s}
             <option value={s.id}>{s.name}</option>
           {/each}
@@ -168,50 +169,50 @@
         <div class="flex items-center gap-2 mb-3">
           {#if result.discount > 0}
             <TrendingDown size={18} class="text-success" />
-            <span class="text-sm font-semibold text-success">Harga diskon</span>
+            <span class="text-sm font-semibold text-success">{labels.hargaDiskon}</span>
           {:else if result.discount < 0}
             <TrendingUp size={18} class="text-warning" />
-            <span class="text-sm font-semibold text-warning">Harga markup</span>
+            <span class="text-sm font-semibold text-warning">{labels.hargaMarkup}</span>
           {:else}
             <Minus size={18} class="text-text-muted" />
-            <span class="text-sm font-semibold text-text-primary">Harga normal</span>
+            <span class="text-sm font-semibold text-text-primary">{labels.hargaNormal}</span>
           {/if}
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <p class="text-xs text-text-muted">Harga Asli</p>
+            <p class="text-xs text-text-muted">{labels.hargaAsli}</p>
             <p class="text-lg font-bold text-text-primary">{formatCurrency(result.original_price)}</p>
           </div>
           <div>
-            <p class="text-xs text-text-muted">Harga Final</p>
+            <p class="text-xs text-text-muted">{labels.hargaFinal}</p>
             <p class="text-lg font-bold {result.discount > 0 ? 'text-success' : result.discount < 0 ? 'text-warning' : 'text-text-primary'}">{formatCurrency(result.unit_price)}</p>
           </div>
         </div>
         {#if result.rule}
           <div class="mt-3 pt-3 border-t {result.discount > 0 ? 'border-success/20' : result.discount < 0 ? 'border-warning/20' : 'border-border'}">
-            <p class="text-xs text-text-muted">Rule yang diterapkan:</p>
+            <p class="text-xs text-text-muted">{labels.appliedRule}</p>
             <p class="text-sm font-medium text-text-primary">{result.rule.name}</p>
-            <p class="text-xs text-text-muted mt-0.5">{result.rule.pricing_type} | {result.rule.pricing_method} | value: {result.rule.pricing_value}</p>
+            <p class="text-xs text-text-muted mt-0.5">{t('ruleDetails', { type: result.rule.pricing_type, method: result.rule.pricing_method || '', value: result.rule.pricing_value ?? '' })}</p>
           </div>
         {/if}
       </div>
     {:else if searched && !resolving}
       <div class="p-4 rounded-xl bg-surface-subtle/50 border border-border text-center">
-        <p class="text-sm text-text-muted">Tidak ada rule pricing yang cocok untuk kombinasi ini.</p>
-        <p class="text-xs text-text-muted mt-1">Harga dasar produk akan digunakan.</p>
+        <p class="text-sm text-text-muted">{labels.noMatchingRule}</p>
+        <p class="text-xs text-text-muted mt-1">{labels.basePriceWillBeUsed}</p>
       </div>
     {/if}
   </div>
 
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => open = false}>Tutup</Button>
+    <Button variant="secondary" onclick={() => open = false}>{labels.close}</Button>
     <Button variant="primary" onclick={simulate} disabled={!canSimulate || resolving}>
       {#if resolving}
         <Loader2 class="w-4 h-4 mr-2 animate-spin" />
       {:else}
         <Calculator size={14} class="mr-1" />
       {/if}
-      Hitung
+      {labels.calculate}
     </Button>
   {/snippet}
 </Modal>

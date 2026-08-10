@@ -15,6 +15,10 @@ describe('LoginPage.svelte source-structure guards', () => {
     expect(src).toContain("import { Button, Input } from '$shared/ui'");
   });
 
+  it('imports labels from shared/i18n', () => {
+    expect(src).toContain("import { labels, t } from '$shared/i18n'");
+  });
+
   it('imports login and useAuthStore from auth module', () => {
     expect(src).toContain("import { login } from '$modules/auth'");
     expect(src).toContain("import { useAuthStore } from '$modules/auth'");
@@ -30,13 +34,13 @@ describe('LoginPage.svelte source-structure guards', () => {
 
   it('has handleLogin function with validation', () => {
     expect(src).toContain('async function handleLogin');
-    expect(src).toContain("errorMsg = 'Username and password are required'");
-    expect(src).toContain("errorMsg = 'Invalid username or password'");
+    expect(src).toContain('errorMsg = labels.usernamePasswordRequired');
+    expect(src).toContain('errorMsg = labels.invalidCredentials');
   });
 
   it('has password visibility toggle', () => {
     expect(src).toContain('showPassword ? \'text\' : \'password\'');
-    expect(src).toContain('aria-label={showPassword ? \'Hide password\' : \'Show password\'}');
+    expect(src).toContain('aria-label={showPassword ? labels.hidePassword : labels.showPassword}');
   });
 
   it('renders error message with role="alert"', () => {
@@ -52,8 +56,8 @@ describe('LoginPage.svelte source-structure guards', () => {
   });
 
   it('has sign in button with loading state', () => {
-    expect(src).toContain('Sign In');
-    expect(src).toContain('Signing in…');
+    expect(src).toContain('{labels.login}');
+    expect(src).toContain('{labels.signingIn}');
     expect(src).toContain('{#if loading}');
   });
 

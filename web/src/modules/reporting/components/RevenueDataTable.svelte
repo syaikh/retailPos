@@ -2,6 +2,7 @@
   import { fly } from 'svelte/transition';
   import { TrendingUp, TrendingDown } from 'lucide-svelte';
   import { SortableHeader } from '$shared/ui';
+  import { labels } from '$shared/i18n';
 
   let {
     showDataTable = false,
@@ -22,17 +23,17 @@
             <SortableHeader label={tablePeriodHeading} column="period" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <SortableHeader label="Revenue (Rp)" column="revenue" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
+            <SortableHeader label={labels.revenueRp} column="revenue" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <SortableHeader label="Prev Period (Rp)" column="prev" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
+            <SortableHeader label={labels.prevPeriodRp} column="prev" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           <th class="py-2 px-3 font-medium text-text-secondary !text-right select-none whitespace-nowrap">
-            <SortableHeader label="Change" column="change" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
+            <SortableHeader label={labels.perubahan} column="change" sortColumn={sortColumn} sortDirection={sortAsc ? 'asc' : 'desc'} onsort={ontogglesort} align="right" />
           </th>
           {#if sortedRows.some(r => r.orderCount !== null)}
             <th class="py-2 px-3 font-medium text-text-secondary text-right whitespace-nowrap">
-              Orders
+              {labels.orders}
             </th>
           {/if}
         </tr>
@@ -76,7 +77,7 @@
           {@const totalPrev = sortedRows.reduce((s, r) => s + (r.prevRevenue || 0), 0)}
           {@const hasPrevOverall = sortedRows.some(r => r.prevRevenue !== null)}
           <tr class="border-t-2 border-border/60 font-semibold">
-            <td class="py-2.5 px-3 text-text-primary text-sm">Total</td>
+            <td class="py-2.5 px-3 text-text-primary text-sm">{labels.total}</td>
             <td class="py-2.5 px-3 text-text-primary text-right text-sm">{totalRevenue.toLocaleString('id-ID')}</td>
             <td class="py-2.5 px-3 text-text-secondary text-right text-sm">
               {#if hasPrevOverall}

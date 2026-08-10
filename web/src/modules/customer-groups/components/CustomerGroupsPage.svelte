@@ -3,6 +3,7 @@
   import { goto } from '$app/router';
   import { useAuthStore } from '$modules/auth';
   import { toast } from '$shared/stores/toast.svelte';
+  import { labels, t } from '$shared/i18n';
   import { getCustomerGroups, createCustomerGroup, updateCustomerGroup, deleteCustomerGroup, bulkUpdateCustomerGroups, bulkDeleteCustomerGroups } from '../services/customer-group-service';
   import type { CustomerGroup } from '../types';
   import { Pagination } from '$shared/ui';
@@ -70,7 +71,7 @@
       groups = result.data;
       total = result.total;
     } catch (e) {
-      toast.error('Gagal memuat customer groups');
+      toast.error(labels.toastFailedLoadCustomerGroups);
     } finally {
       loading = false;
     }
@@ -95,11 +96,11 @@
     creating = true;
     try {
       await createCustomerGroup(data);
-      toast.success('Customer group berhasil dibuat');
+      toast.success(labels.toastCustomerGroupCreated);
       showCreateModal = false;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal membuat group');
+      toast.error(e?.response?.data?.error || labels.toastFailedCreateCustomerGroup);
     } finally {
       creating = false;
     }
@@ -112,7 +113,7 @@
   }
 
   function duplicateGroup(g: CustomerGroup) {
-    selectedGroup = { ...g, name: `${g.name} (Salinan)`, id: 0 } as CustomerGroup;
+    selectedGroup = { ...g, name: t('copySuffix', { name: g.name }), id: 0 } as CustomerGroup;
     showCreateModal = true;
   }
 
@@ -125,12 +126,12 @@
     saving = true;
     try {
       await updateCustomerGroup(data.id, data);
-      toast.success('Customer group berhasil diupdate');
+      toast.success(labels.toastCustomerGroupUpdated);
       showEditModal = false;
       selectedGroup = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal update group');
+      toast.error(e?.response?.data?.error || labels.toastFailedUpdateCustomerGroup);
     } finally {
       saving = false;
     }
@@ -147,12 +148,12 @@
     deleting = true;
     try {
       await deleteCustomerGroup(selectedGroup.id);
-      toast.success('Customer group berhasil dihapus');
+      toast.success(labels.toastCustomerGroupDeleted);
       showDeleteModal = false;
       selectedGroup = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menghapus group');
+      toast.error(e?.response?.data?.error || labels.toastFailedDeleteCustomerGroup);
     } finally {
       deleting = false;
     }
@@ -161,30 +162,30 @@
   async function handleBulkActivate(ids: number[]) {
     try {
       const updated = await bulkUpdateCustomerGroups(ids, true);
-      toast.success(`${updated} group berhasil diaktifkan`);
+      toast.success(t('toastBulkActivatedGroups', { count: updated }));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal mengaktifkan group');
+      toast.error(e?.response?.data?.error || labels.toastFailedBulkActivateGroups);
     }
   }
 
   async function handleBulkDeactivate(ids: number[]) {
     try {
       const updated = await bulkUpdateCustomerGroups(ids, false);
-      toast.success(`${updated} group berhasil dinonaktifkan`);
+      toast.success(t('toastBulkDeactivatedGroups', { count: updated }));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menonaktifkan group');
+      toast.error(e?.response?.data?.error || labels.toastFailedBulkDeactivateGroups);
     }
   }
 
   async function handleBulkDelete(ids: number[]) {
     try {
       const deleted = await bulkDeleteCustomerGroups(ids);
-      toast.success(`${deleted} group berhasil dihapus`);
+      toast.success(t('toastBulkDeletedGroups', { count: deleted }));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menghapus group');
+      toast.error(e?.response?.data?.error || labels.toastFailedBulkDeleteGroups);
     }
   }
 

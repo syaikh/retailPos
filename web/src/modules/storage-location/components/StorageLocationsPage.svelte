@@ -8,6 +8,7 @@
   import { getActiveStores } from '$modules/stores';
   import { Pagination } from '$shared/ui';
   import { debounce } from '$shared/utils/debounce';
+  import { labels } from '$shared/i18n';
   import StorageLocationsToolbar from './StorageLocationsToolbar.svelte';
   import StorageLocationsTable from './StorageLocationsTable.svelte';
   import CreateStorageLocationModal from './CreateStorageLocationModal.svelte';
@@ -80,7 +81,7 @@
       locations = result.data;
       total = result.total;
     } catch (e) {
-      toast.error('Gagal memuat lokasi penyimpanan');
+      toast.error(labels.toastFailedLoadStorageLocations);
     } finally {
       loading = false;
     }
@@ -105,11 +106,11 @@
     creating = true;
     try {
       await createStorageLocation(data);
-      toast.success('Lokasi penyimpanan berhasil dibuat');
+      toast.success(labels.toastStorageLocationCreated);
       showCreateModal = false;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal membuat lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedCreateLocation);
     } finally {
       creating = false;
     }
@@ -124,12 +125,12 @@
     saving = true;
     try {
       await updateStorageLocation(data.id, data);
-      toast.success('Lokasi penyimpanan berhasil diupdate');
+      toast.success(labels.toastStorageLocationUpdated);
       showEditModal = false;
       selectedLocation = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal update lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedUpdateLocation);
     } finally {
       saving = false;
     }
@@ -146,12 +147,12 @@
     deleting = true;
     try {
       await deleteStorageLocation(selectedLocation.id);
-      toast.success('Lokasi penyimpanan berhasil dihapus');
+      toast.success(labels.toastStorageLocationDeleted);
       showDeleteModal = false;
       selectedLocation = null;
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menghapus lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedDeleteLocation);
     } finally {
       deleting = false;
     }
@@ -160,30 +161,30 @@
   async function handleBulkActivate(ids: number[]) {
     try {
       const updated = await bulkUpdateStorageLocations(ids, true);
-      toast.success(`${updated} lokasi berhasil diaktifkan`);
+      toast.success(labels.toastLocationsActivated.replace('{count}', String(updated)));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal mengaktifkan lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedActivateLocations);
     }
   }
 
   async function handleBulkDeactivate(ids: number[]) {
     try {
       const updated = await bulkUpdateStorageLocations(ids, false);
-      toast.success(`${updated} lokasi berhasil dinonaktifkan`);
+      toast.success(labels.toastLocationsDeactivated.replace('{count}', String(updated)));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menonaktifkan lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedDeactivateLocations);
     }
   }
 
   async function handleBulkDelete(ids: number[]) {
     try {
       const deleted = await bulkDeleteStorageLocations(ids);
-      toast.success(`${deleted} lokasi berhasil dihapus`);
+      toast.success(labels.toastLocationsDeleted.replace('{count}', String(deleted)));
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Gagal menghapus lokasi');
+      toast.error(e?.response?.data?.error || labels.toastFailedDeleteLocation);
     }
   }
 

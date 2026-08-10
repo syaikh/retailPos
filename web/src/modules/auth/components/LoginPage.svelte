@@ -6,6 +6,7 @@
   import { getDefaultRoute } from '$shared/utils/default-route';
   import { Eye, EyeOff, Store, ShieldCheck } from 'lucide-svelte';
   import { fade, fly } from 'svelte/transition';
+  import { labels, t } from '$shared/i18n';
 
   let username = $state('');
   let password = $state('');
@@ -17,7 +18,7 @@
     e.preventDefault();
     errorMsg = '';
     if (!username.trim() || !password.trim()) {
-      errorMsg = 'Username and password are required';
+      errorMsg = labels.usernamePasswordRequired;
       return;
     }
     loading = true;
@@ -28,7 +29,7 @@
       store.setUser(result.user);
       goto(getDefaultRoute(result.user));
     } else {
-      errorMsg = 'Invalid username or password';
+      errorMsg = labels.invalidCredentials;
     }
   }
 </script>
@@ -58,21 +59,21 @@
         </div>
         <div>
           <h1 class="text-2xl font-bold text-text-primary">RetailPOS</h1>
-          <p class="text-sm text-text-muted">Management System</p>
+          <p class="text-sm text-text-muted">{labels.managementSystem}</p>
         </div>
       </div>
 
       <!-- Feature list -->
       <h2 class="text-4xl font-bold text-text-primary leading-tight mb-4">
         Powerful POS<br/>
-        <span class="gradient-text">Made Simple</span>
+        <span class="gradient-text">{labels.madeSimple}</span>
       </h2>
       <p class="text-text-secondary text-lg mb-10 max-w-md">
-        Streamline sales, inventory, and reporting in one unified platform built for modern retail.
+        {labels.tagline}
       </p>
 
       <div class="space-y-4">
-        {#each ['Real-time inventory tracking', 'Multi-role access control', 'Sales analytics & reports', 'WebSocket live updates'] as feat}
+        {#each [labels.featureRealTimeInventory, labels.featureMultiRoleAccess, labels.featureSalesAnalytics, labels.featureWebSocketLive] as feat}
           <div class="flex items-center gap-3">
             <div class="w-6 h-6 rounded-full bg-primary-subtle border border-primary/30 flex items-center justify-center shrink-0">
               <ShieldCheck size={12} class="text-primary-light" />
@@ -96,16 +97,16 @@
         <p class="text-lg font-bold text-text-primary">RetailPOS</p>
       </div>
 
-      <h2 class="text-2xl font-bold text-text-primary mb-1">Welcome back</h2>
-      <p class="text-text-muted text-sm mb-8">Sign in to your account to continue</p>
+      <h2 class="text-2xl font-bold text-text-primary mb-1">{labels.welcomeBack}</h2>
+      <p class="text-text-muted text-sm mb-8">{labels.signInToContinue}</p>
 
       <form onsubmit={handleLogin} class="space-y-5">
         <div>
-          <label for="username" class="block text-sm font-medium text-text-secondary mb-2">Username</label>
+          <label for="username" class="block text-sm font-medium text-text-secondary mb-2">{labels.username}</label>
           <Input
             id="username"
             type="text"
-            placeholder="Enter your username"
+            placeholder={labels.enterUsername}
             class="bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
             bind:value={username}
             disabled={loading}
@@ -114,12 +115,12 @@
         </div>
 
         <div>
-          <label for="password" class="block text-sm font-medium text-text-secondary mb-2">Password</label>
+          <label for="password" class="block text-sm font-medium text-text-secondary mb-2">{labels.password}</label>
           <div class="relative">
             <Input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder={labels.enterPassword}
               class="pr-11 bg-surface-subtle border-transparent focus:bg-bg focus:border-primary-light focus:ring-1 focus:ring-primary-light/50 transition-all"
               bind:value={password}
               disabled={loading}
@@ -128,7 +129,7 @@
 <button type="button"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
               onclick={() => showPassword = !showPassword}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? labels.hidePassword : labels.showPassword}
             >
               {#if showPassword}
                 <EyeOff size={16} />
@@ -149,15 +150,15 @@
         <Button variant="primary" type="submit" class="w-full py-3.5 text-base mt-2 shadow-glow-primary hover:-translate-y-0.5 active:scale-95 transition-all" disabled={loading}>
           {#if loading}
             <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            Signing in…
+            {labels.signingIn}
           {:else}
-            Sign In
+            {labels.login}
           {/if}
         </Button>
       </form>
 
       <p class="text-xs text-text-muted text-center mt-8">
-        © {new Date().getFullYear()} RetailPOS Management System
+        {t('copyright', { year: new Date().getFullYear() })}
       </p>
     </div>
   </div>

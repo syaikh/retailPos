@@ -5,6 +5,7 @@
   import { Badge, Card, Dropdown, EmptyState, Input, PageHeader, Pagination, Skeleton } from '$shared/ui';
   import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
   import { ChevronDown, PackageSearch } from 'lucide-svelte';
+  import { labels } from '$shared/i18n';
 
   const store = useStockOpnameStore();
 
@@ -13,17 +14,17 @@
   let pageSize = $state(20);
   let page = $state(0);
 
-  const statusOptions = [
-    { value: 'posted', label: 'Posted' },
-    { value: 'reversed', label: 'Reversed' },
-  ];
+  const statusOptions = $derived([
+    { value: 'posted', label: labels.statusPosted },
+    { value: 'reversed', label: labels.statusReversed },
+  ]);
 
   const statusLabel = $derived(
-    statusOptions.find(s => s.value === statusFilter)?.label || 'All Status'
+    statusOptions.find(s => s.value === statusFilter)?.label || labels.allStatus
   );
 
   const statusItems = $derived([
-    { label: 'All Status', checked: statusFilter === '', onclick: () => { statusFilter = ''; load(); } },
+    { label: labels.allStatus, checked: statusFilter === '', onclick: () => { statusFilter = ''; load(); } },
     ...statusOptions.map(opt => ({
       label: opt.label,
       checked: statusFilter === opt.value,
@@ -65,12 +66,12 @@
 </script>
 
 <div class="space-y-5">
-  <PageHeader title="Stock Opname Adjustments" subtitle="Adjustment documents (IA-...) created when a verified stock opname is posted to inventory." />
+  <PageHeader title={labels.stockOpnameAdjustments} subtitle={labels.stockOpnameAdjustmentsSubtitle} />
 
   <div class="card p-3">
     <div class="flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-[2_1_200px]">
-        <Input type="text" placeholder="Search adjustment / session number..." bind:value={searchQuery} oninput={load} />
+        <Input type="text" placeholder={labels.searchAdjustmentOrSession} bind:value={searchQuery} oninput={load} />
       </div>
       <Dropdown placement="bottom-start" items={statusItems}>
         {#snippet trigger({ toggle })}
@@ -93,13 +94,13 @@
         <table class="w-full text-sm text-left whitespace-nowrap">
           <thead class="bg-surface-subtle border-b border-border">
             <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
-              <th class="px-4">Adjustment</th>
-              <th class="px-4">Session</th>
-              <th class="px-4">Status</th>
-              <th class="px-4 text-right">Total Diff</th>
-              <th class="px-4 text-right">Total Value</th>
-              <th class="px-4">Created By</th>
-              <th class="px-4">Created At</th>
+              <th class="px-4">{labels.penyesuaian}</th>
+              <th class="px-4">{labels.session}</th>
+              <th class="px-4">{labels.status}</th>
+              <th class="px-4 text-right">{labels.totalDiff}</th>
+              <th class="px-4 text-right">{labels.totalValue}</th>
+              <th class="px-4">{labels.createdBy}</th>
+              <th class="px-4">{labels.createdAt}</th>
             </tr>
           </thead>
           <tbody>
@@ -112,21 +113,21 @@
     {:else if store.adjustments.length === 0}
       <div class="flex flex-col items-center justify-center py-14 text-text-muted" role="status">
         <PackageSearch class="w-12 h-12 mb-3" aria-hidden="true" />
-        <p class="text-text-primary font-medium">No adjustments found</p>
-        <p class="text-sm text-text-muted mt-1">Adjustments appear here once a stock opname is posted.</p>
+        <p class="text-text-primary font-medium">{labels.noAdjustmentsFound}</p>
+        <p class="text-sm text-text-muted mt-1">{labels.adjustmentsAppearAfterPost}</p>
       </div>
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm text-left whitespace-nowrap">
           <thead class="bg-surface-subtle border-b border-border">
             <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
-              <th class="px-4">Adjustment</th>
-              <th class="px-4">Session</th>
-              <th class="px-4">Status</th>
-              <th class="px-4 text-right">Total Diff</th>
-              <th class="px-4 text-right">Total Value</th>
-              <th class="px-4">Created By</th>
-              <th class="px-4">Created At</th>
+              <th class="px-4">{labels.penyesuaian}</th>
+              <th class="px-4">{labels.session}</th>
+              <th class="px-4">{labels.status}</th>
+              <th class="px-4 text-right">{labels.totalDiff}</th>
+              <th class="px-4 text-right">{labels.totalValue}</th>
+              <th class="px-4">{labels.createdBy}</th>
+              <th class="px-4">{labels.createdAt}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border/60">
@@ -134,7 +135,7 @@
               <tr
                 class="cursor-pointer hover:bg-surface-subtle transition-colors"
                 onclick={() => goto(`/stock-opnames/${adj.session_id}`)}
-                title="Open source stock opname"
+                title={labels.openSourceStockOpname}
               >
                 <td class="px-4 py-3 font-medium text-text-primary">{adj.adjustment_number}</td>
                 <td class="px-4 py-3 text-text-secondary">{adj.session_number}</td>

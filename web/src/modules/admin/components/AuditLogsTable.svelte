@@ -2,6 +2,7 @@
   import { Button, Pagination, Skeleton, ActionBadge } from '$shared/ui';
   import { Search } from 'lucide-svelte';
   import { formatDateInJakarta, formatTimeInJakarta } from '$shared/utils/jakartaTime';
+  import { labels } from '$shared/i18n';
 
   let {
     items = [],
@@ -63,11 +64,11 @@
       <div class="empty-state-icon bg-surface w-20 h-20 mx-auto flex justify-center">
         <Search size={32} class="text-text-muted" />
       </div>
-      <p class="text-text-primary font-semibold mt-4">No audit logs found</p>
+      <p class="text-text-primary font-semibold mt-4">{labels.noAuditLogsFound}</p>
       <p class="text-text-muted text-sm mt-1 max-w-sm">
-        Try adjusting your filters or search terms to find what you're looking for.
+        {labels.tryAdjustingYourSearch}
       </p>
-      <Button variant="secondary" class="mt-6" onclick={() => onpagechange(0, limit)}> Clear Filters </Button>
+      <Button variant="secondary" class="mt-6" onclick={() => onpagechange(0, limit)}> {labels.clearFilters} </Button>
     </div>
   {:else}
     <div class="card p-0 overflow-hidden">
@@ -75,12 +76,12 @@
         <table class="w-full text-sm text-left whitespace-nowrap">
           <thead class="sticky top-0 bg-bg-secondary z-10 shadow-sm">
             <tr class="text-[11px] font-semibold text-text-muted uppercase tracking-wider h-10">
-              <th class="px-4 py-3 w-[180px]">Timestamp</th>
-              <th class="px-4 py-3 w-[180px]">Actor</th>
-              <th class="px-4 py-3 w-[120px]">Resource</th>
-              <th class="px-4 py-3 w-[120px]">Action</th>
-              <th class="px-4 py-3">Description</th>
-              <th class="px-4 py-3 w-[150px]">IP Address</th>
+              <th class="px-4 py-3 w-[180px]">{labels.timestamp}</th>
+              <th class="px-4 py-3 w-[180px]">{labels.actor}</th>
+              <th class="px-4 py-3 w-[120px]">{labels.resource}</th>
+              <th class="px-4 py-3 w-[120px]">{labels.action}</th>
+              <th class="px-4 py-3">{labels.description}</th>
+              <th class="px-4 py-3 w-[150px]">{labels.ipAddress}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border/70">
