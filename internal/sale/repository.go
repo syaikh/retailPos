@@ -297,7 +297,15 @@ func (r *Repository) buildSaleFilter(productIDs, customerIDs []int, search, star
 		qb.AddClause(" AND s.store_id = $%d", *storeID)
 	}
 	if paymentMethods != "" {
-		qb.AddClause(" AND s.payment_method = ANY(string_to_array($%d, ','))", paymentMethods)
+		qb.AddClause(`
+			AND (
+				s.payment_method = ANY(string_to_array($%d, ','))
+				OR EXISTS (
+					SELECT 1 FROM sale_payments sp
+					WHERE sp.sale_id = s.id
+					  AND sp.payment_method_code = ANY(string_to_array($%d, ','))
+				)
+			)`, paymentMethods, paymentMethods)
 	}
 	if minTotal != nil {
 		qb.AddClause(" AND s.total_amount >= $%d", *minTotal)
