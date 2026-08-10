@@ -17,7 +17,7 @@
   import ProductFiltersToolbar from './ProductFiltersToolbar.svelte';
   import ProductTable from './ProductTable.svelte';
   import ProductBulkActions from './ProductBulkActions.svelte';
-  import { Plus, Pencil, Trash2, Package, Loader2, ArrowLeft } from 'lucide-svelte';
+  import { Plus, Pencil, Trash2, Package, ArrowLeft } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import type { Product, Brand, TaxClass, UnitOfMeasure, ProductFormData } from '$modules/product/types';
   import { labels, t } from '$shared/i18n';

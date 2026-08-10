@@ -31,7 +31,7 @@ describe('RackStockPanel.svelte source-structure guards', () => {
   });
 
   it('has loading and empty states', () => {
-    expect(src).toContain('{labels.loading}');
+    expect(src).toContain('aria-busy="true"');
     expect(src).toContain('{labels.belumAdaStokRak}');
   });
 

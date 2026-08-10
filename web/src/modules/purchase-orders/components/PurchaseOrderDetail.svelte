@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Drawer, Badge, Button } from '$shared/ui';
+  import { Drawer, Badge, Button, Skeleton } from '$shared/ui';
   import { getPurchaseOrderById, getReceipts } from '../services/po-service';
   import type { PurchaseOrder, GoodsReceipt } from '../types';
   import { labels, t } from '$shared/i18n';
-  import { Loader2, Package, Printer, Pencil, Check, XCircle, Copy, Truck } from 'lucide-svelte';
+  import { Package, Printer, Pencil, Check, XCircle, Copy, Truck } from 'lucide-svelte';
 
   let {
     poId = $bindable(),
@@ -86,8 +86,21 @@
 
   <Drawer bind:open title={po ? po.po_number : labels.purchaseOrder} width={580}>
   {#if loading}
-    <div class="flex items-center justify-center py-16">
-      <Loader2 size={28} class="animate-spin text-text-muted" />
+    <div class="space-y-3 px-1" aria-busy="true" aria-label={labels.loading}>
+      <Skeleton class="h-6 w-48" />
+      <Skeleton class="h-4 w-72" />
+      <div class="space-y-2 mt-6">
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-2/3" />
+      </div>
+      <div class="space-y-2 mt-6">
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-3/4" />
+      </div>
     </div>
   {:else if !po}
     <div class="flex flex-col items-center justify-center py-16 text-text-muted">

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, Modal, SelectSearch } from '$shared/ui';
+  import { Button, Input, Modal, SelectSearch, Skeleton } from '$shared/ui';
   import { Loader2, PackageX } from 'lucide-svelte';
   import { toast } from '$shared/stores/toast.svelte';
   import { labels } from '$shared/i18n';
@@ -168,7 +168,20 @@
   </div>
   <div class="px-3.5 py-2.5">
     {#if loading}
-      <p class="text-xs text-text-muted flex items-center gap-1.5"><Loader2 size={13} class="animate-spin" /> {labels.loading}</p>
+      <div class="space-y-2" aria-busy="true" aria-label={labels.loading}>
+        <div class="flex items-center justify-between gap-3 py-1.5">
+          <Skeleton class="h-4 w-1/3" />
+          <Skeleton class="h-4 w-12" />
+        </div>
+        <div class="flex items-center justify-between gap-3 py-1.5">
+          <Skeleton class="h-4 w-1/2" />
+          <Skeleton class="h-4 w-12" />
+        </div>
+        <div class="flex items-center justify-between gap-3 py-1.5">
+          <Skeleton class="h-4 w-2/5" />
+          <Skeleton class="h-4 w-12" />
+        </div>
+      </div>
     {:else if rackRows.length === 0}
       <p class="text-xs text-text-muted flex items-center gap-1.5"><PackageX size={14} /> {labels.belumAdaStokRak}</p>
     {:else}

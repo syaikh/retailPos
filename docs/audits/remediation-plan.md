@@ -49,7 +49,7 @@ Tasks within a phase can be parallelized unless noted in "Depends on". Cross-pha
 
 ## 2. Phase 1 — Code Health & Quick Wins
 
-### 2.1 Merge `scanProduct` and `scanProductFromRow`
+### 2.1 Merge `scanProduct` and `scanProductFromRow` ✅ DONE
 
 **Audit Ref:** CQ‑01  
 **Effort:** 30 minutes  
@@ -80,6 +80,10 @@ func scanProduct(row rowScanner) (*Product, error) { /* single source of truth *
 - Functions that previously used `scanProduct` still work (no signature change needed, just function selection)
 
 **Depends on:** Nothing
+
+**Status:** SUDAH DIIMPLEMENTASI — hanya `scanProduct(row rowScanner)` yang tersisa
+(`internal/product/repository.go`), persis seperti target solusi. Diverifikasi
+via audit (2026-08-10).
 
 ---
 
@@ -165,7 +169,7 @@ grep -rn 'log\.Printf\|println(' --include='*.go' | grep -v vendor | grep -v cmd
 
 ---
 
-### 2.4 Add Empty States for All List Pages
+### 2.4 Add Empty States for All List Pages ✅ DONE
 
 **Audit Ref:** UX‑01  
 **Effort:** 2 hours  
@@ -205,9 +209,13 @@ In every Svelte table component, add an empty state block:
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — setiap halaman/tabel list punya cabang
+`{:else if X.length === 0}` dengan blok `role="status"` berisi ikon + pesan
+`labels.*` (varian search-aware). Diverifikasi via audit (2026-08-10).
+
 ---
 
-### 2.5 Standardize Loading Skeleton Usage
+### 2.5 Standardize Loading Skeleton Usage ✅ DONE
 
 **Audit Ref:** UX‑02  
 **Effort:** 2 hours  
@@ -232,9 +240,14 @@ Apply the same pattern as 2.4 — use `TableSkeleton` during loading state:
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — semua tabel data memakai `Skeleton`/`TableSkeleton`;
+sisa spinner loading halaman dikonversi ke skeleton (`ShiftsPage`, `PurchaseOrderDetail`,
+`RackStockPanel`); spinner di tombol submit (`isSubmitting`) sengaja dipertahankan.
+Diverifikasi via audit (2026-08-10).
+
 ---
 
-### 2.6 Extract Magic Numbers to Named Constants
+### 2.6 Extract Magic Numbers to Named Constants ✅ DONE
 
 **Audit Ref:** CQ‑04  
 **Effort:** 30 minutes  
@@ -272,6 +285,11 @@ func ParsePaginationParams(limitStr, offsetStr string) (int, int) {
 ```
 
 **Verification:** `go build ./...` compiles. Existing pagination behavior unchanged.
+
+**Status:** SUDAH DIIMPLEMENTASI — konstanta `defaultMaxConns/MinConns/MaxConnLifetime/
+MaxConnIdleTime/HealthCheckPeriod/BodyLimit/Port/ReadTimeout/WriteTimeout/IdleTimeout`
+di `cmd/server/main.go`, `DefaultMaxPageLimit = 100` di `internal/shared/paging.go`.
+Diverifikasi via audit (2026-08-10).
 
 **Depends on:** Nothing
 

@@ -4,7 +4,7 @@
 import { formatDateTimeInJakarta } from '$shared/utils/jakartaTime';
 import { useShiftStore } from '../stores/shift-store.svelte';
 import ShiftDetailDrawer from './ShiftDetailDrawer.svelte';
-import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader } from '$shared/ui';
+import { Button, CurrencyInput, Input, Modal, Badge, Dropdown, CashBreakdown, Pagination, SortableHeader, Skeleton } from '$shared/ui';
 import { useRBAC } from '$shared/composables/useRBAC.svelte';
 import { Permissions } from '$shared/constants/permissions';
 import { useAuthStore } from '$modules/auth';
@@ -347,12 +347,9 @@ import { useAuthStore } from '$modules/auth';
         </thead>
         <tbody>
           {#if store.loading}
-            <tr>
-              <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
-                <Loader2 size={20} class="animate-spin mx-auto mb-2" />
-                {labels.loadingShifts}
-              </td>
-            </tr>
+            {#each Array(5) as _}
+              <tr>{#each Array(isCashier ? 8 : 9) as _}<td><Skeleton class="h-4 w-20" /></td>{/each}</tr>
+            {/each}
           {:else if store.shifts.length === 0}
             <tr>
               <td colspan={isCashier ? 8 : 9} class="px-4 py-12 text-center text-text-muted">
