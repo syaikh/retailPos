@@ -45,19 +45,42 @@ if ! podman inspect --format '{{.State.Running}}' postgres-dev 2>/dev/null | gre
   done
 fi
 
+# wait_for_exit blocks until the given PID exits or the timeout elapses.
+# If the process is still alive after the timeout, it is SIGKILLed.
+wait_for_exit() {
+  local pid=$1
+  local timeout=${2:-5}
+  local deadline=$((SECONDS + timeout))
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "Process $pid did not exit within ${timeout}s, force killing..."
+      kill -9 "$pid" 2>/dev/null || true
+      # Give the kernel a moment to reap it
+      sleep 1
+      return 1
+    fi
+    sleep 0.2
+  done
+  return 0
+}
+
 start_server() {
   # Graceful shutdown server lama via SIGTERM
   if [ -n "$SERVER_PID" ]; then
     echo "Shutting down server (PID: $SERVER_PID)..."
     kill $SERVER_PID 2>/dev/null || true
-    sleep 2
+    if ! wait_for_exit "$SERVER_PID" 5; then
+      echo "Warning: server did not exit cleanly within timeout, forcing restart."
+    fi
+    SERVER_PID=""
   fi
 
   # Force kill jika masih ada yang menempati port
-  PID=$(ss -tlnp "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1) || true
+  # lsof is more portable than ss for extracting PIDs from port bindings.
+  PID=$(lsof -ti :"$PORT" 2>/dev/null | head -1) || true
   if [ -n "$PID" ]; then
     echo "Port $PORT still in use by process $PID, force killing..."
-    kill -9 $PID 2>/dev/null || true
+    kill -9 "$PID" 2>/dev/null || true
     sleep 1
   fi
 
@@ -70,12 +93,16 @@ start_server() {
   SERVER_PID=$!
 
   # Wait until server is actually listening on the port.
-  # Match only real LISTEN entries, not the `ss` header line (which would
-  # otherwise make this loop exit immediately and report success falsely).
-  for i in $(seq 1 10); do
+  for i in $(seq 1 20); do
     if ss -tln "sport = :$PORT" 2>/dev/null | grep -q '^LISTEN'; then
       echo "Server started successfully (PID: $SERVER_PID)."
       return 0
+    fi
+    # If the process died before binding, stop waiting early.
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      echo "Server process exited before binding to port $PORT."
+      SERVER_PID=""
+      return 1
     fi
     sleep 0.5
   done
@@ -92,7 +119,7 @@ cleanup() {
   if [ -n "$SERVER_PID" ]; then
     echo "Shutting down server..."
     kill $SERVER_PID 2>/dev/null || true
-    wait $SERVER_PID 2>/dev/null || true
+    wait_for_exit "$SERVER_PID" 5 || true
   fi
   rm -f "$SERVER_BINARY"
 }

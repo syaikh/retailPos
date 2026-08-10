@@ -394,6 +394,9 @@ func Initialize(p Providers) *Dependencies {
 	d.AuditRepo = audit.NewRepository(p.DB)
 	d.ReportRepo = report.NewRepository(p.DB)
 	d.ReportRepo.SetCache(d.Cache)
+	d.ReportRepo.SetSaleStatsProvider(sale.NewReportAdapter())
+	d.ReportRepo.SetProductStatsProvider(product.NewReportAdapter())
+	d.ReportRepo.SetStockStatsProvider(inventory.NewReportAdapter())
 	d.ReportRefreshCoord = report.NewRefreshCoordinator(
 		time.Duration(p.Config.ReportRefreshDebounce)*time.Second,
 		d.ReportRepo.RefreshSalesMV,

@@ -16,6 +16,7 @@ import (
 
 func TestReportService_DashboardStats(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -37,6 +38,7 @@ func TestReportService_DashboardStats(t *testing.T) {
 
 func TestReportService_LiveDashboardStats(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -143,6 +145,7 @@ func TestReportService_DailySales(t *testing.T) {
 
 func TestReportService_SalesWeeklyReport(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -158,6 +161,7 @@ func TestReportService_SalesWeeklyReport(t *testing.T) {
 
 func TestReportService_SalesMonthlyReport(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -173,6 +177,7 @@ func TestReportService_SalesMonthlyReport(t *testing.T) {
 
 func TestReportService_GetPricingBreakdown(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()
@@ -200,6 +205,7 @@ func TestReportService_GetPricingBreakdown(t *testing.T) {
 func TestReportService_GetDualMonthlyReport(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireTestAdapters(repo)
 	bus := eventbus.New()
 	go bus.Run()
 	defer bus.Shutdown()

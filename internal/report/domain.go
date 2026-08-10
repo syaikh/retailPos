@@ -30,24 +30,3 @@ type PeriodComparison struct {
 	PreviousPeakRevenueMonth int  `json:"previous_peak_revenue_month"`
 	PreviousHasAnyData       bool `json:"previous_has_any_data"`
 }
-
-type WeeklyReportItem struct {
-	WeekStart  string `json:"week_start"`
-	WeekEnd    string `json:"week_end"`
-	Total      int    `json:"total"`
-	OrderCount int    `json:"order_count"`
-}
-
-type MonthlyReportItem struct {
-	Month      string `json:"month"`
-	MonthStart string `json:"month_start"`
-	Total      int    `json:"total"`
-	OrderCount int    `json:"order_count"`
-}
-
-type PricingBreakdownItem struct {
-	Type string `json:"pricing_type"`
-	Revenue     int    `json:"revenue"`
-	OrderCount  int    `json:"order_count"`
-	ItemCount   int    `json:"item_count"`
-}

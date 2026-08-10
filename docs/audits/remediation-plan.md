@@ -87,7 +87,7 @@ via audit (2026-08-10).
 
 ---
 
-### 2.2 Fix `TestE2E_ValidateSession`
+### 2.2 Fix `TestE2E_ValidateSession` ✅ DONE
 
 **Audit Ref:** T‑02  
 **Effort:** 30 minutes  
@@ -120,9 +120,11 @@ c.JSON(http.StatusOK, gin.H{"data": user})
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — test di `cmd/server/e2e_test.go` (line 339, 483) kini mengharapkan key `"user"`, sesuai respons handler. Diverifikasi via audit (2026-08-10).
+
 ---
 
-### 2.3 Standardize `slog` Usage
+### 2.3 Standardize `slog` Usage ✅ DONE
 
 **Audit Ref:** CQ‑03  
 **Effort:** 1 hour  
@@ -166,6 +168,8 @@ grep -rn 'log\.Printf\|println(' --include='*.go' | grep -v vendor | grep -v cmd
 **Verification:** `golangci-lint run ./...` passes. No `log.Printf` remain (except in `cmd/dummy/`).
 
 **Depends on:** Nothing
+
+**Status:** SUDAH DIIMPLEMENTASI — semua paket internal (16 file) memakai `slog`; tidak ada lagi `log.Printf`/`log.Println` di `internal/` maupun `pkg/` (verifikasi rg 2026-08-10).
 
 ---
 
@@ -295,7 +299,7 @@ Diverifikasi via audit (2026-08-10).
 
 ---
 
-### 2.7 Add Security Header Comments
+### 2.7 Add Security Header Comments ✅ DONE
 
 **Audit Ref:** S‑06  
 **Effort:** 5 minutes  
@@ -316,9 +320,11 @@ c.Header("X-XSS-Protection", "0")
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — komentar `// X-XSS-Protection: 0 — deliberately disabled per modern security guidance.` ada di `internal/middleware/security_headers.go:21`.
+
 ---
 
-### 2.8 Add Rate Limit Response Headers
+### 2.8 Add Rate Limit Response Headers ✅ DONE
 
 **Audit Ref:** API‑02  
 **Effort:** 1 hour  
@@ -367,9 +373,11 @@ func RateLimitMiddleware() gin.HandlerFunc {
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — `internal/middleware/rate_limit.go` (line 155-229) men-set `X-RateLimit-Limit` dan `Retry-After` (1s/60s) pada semua cabang limiter, sebelum abort 429.
+
 ---
 
-### 2.9 Add `LOG_LEVEL` Environment Variable
+### 2.9 Add `LOG_LEVEL` Environment Variable ✅ DONE
 
 **Audit Ref:** D‑04  
 **Effort:** 1 hour  
@@ -417,11 +425,13 @@ func InitLogger(env string, levelStr string) {
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — `LOG_LEVEL` dibaca di `internal/config/config.go:92`, diparsing `parseLogLevel` di `internal/shared/logger.go:15`. Default: debug (non-production) / info (production).
+
 ---
 
 ## 3. Phase 2 — Structural Improvements
 
-### 3.1 Extract Shared Sale Transaction Logic
+### 3.1 Extract Shared Sale Transaction Logic ✅ DONE
 
 **Audit Ref:** A‑01, CQ‑05  
 **Effort:** 2 days  
@@ -562,9 +572,11 @@ func (s *Service) CreateSaleWithParkedSale(ctx context.Context, sale *Sale, item
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — `processSaleItems(ctx, tx, sale, items)` di `internal/sale/service.go:110` dipanggil dari `CreateSale` (line 210) dan `CreateSaleWithParkedSale` (line 339). Pipeline validasi → batch lock stok → harga via resolver/priceStore → potong stok jadi satu sumber.
+
 ---
 
-### 3.2 Fix N+1 Query in `GetSaleByID`
+### 3.2 Fix N+1 Query in `GetSaleByID` ✅ DONE
 
 **Audit Ref:** P‑01  
 **Effort:** 2 hours  
@@ -614,9 +626,11 @@ func (r *Repository) GetSaleByID(ctx context.Context, id int, storeID *int) (*Sa
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — `GetSaleByID` memakai satu query dengan `jsonb_agg` untuk item sale (tidak ada N+1). Diverifikasi `internal/sale/repository.go:200-214` via audit (2026-08-10).
+
 ---
 
-### 3.3 Add Failed Login Audit Trail
+### 3.3 Add Failed Login Audit Trail ✅ DONE
 
 **Audit Ref:** S‑03  
 **Effort:** 4 hours  
@@ -695,9 +709,11 @@ func (s *AuthService) getRecentFailures(ctx context.Context, username string) (i
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — login gagal dicatat sebagai audit trail `action = 'login_failed'` (`internal/user/auth_service.go:249`), dengan query pemantauan di `internal/user/repository.go:642,653`. Diverifikasi via audit (2026-08-10).
+
 ---
 
-### 3.4 Build Shared WHERE Clause Builder
+### 3.4 Build Shared WHERE Clause Builder ✅ DONE
 
 **Audit Ref:** P‑02  
 **Effort:** 1 day  
@@ -781,6 +797,8 @@ func (r *Repository) GetAllSales(ctx context.Context, ...) ([]Sale, int, error) 
 
 **Depends on:** Nothing (can be done incrementally, one repository at a time)
 
+**Status:** SUDAH DIIMPLEMENTASI — `shared.QueryBuilder` (`internal/shared/querybuilder.go`) dengan `AddClause`/`Where`, dipakai `buildSalen` di `internal/sale/repository.go`. Ada unit test `internal/shared/querybuilder_test.go`.
+
 ---
 
 ### 3.5 Add CSRF Protection for WebSocket
@@ -826,9 +844,11 @@ const ws = new WebSocket(`ws://${host}/ws`);
 
 **Depends on:** Nothing
 
+**Status:** RESOLVED TANPA PERUBAHAN — sesuai catatan plan ini sendiri: WebSocket memakai token-based auth (JWT dikirim dalam pesan `{"type":"auth","token":...}` setelah upgrade, bukan cookie), jadi CSRF tidak berlaku. `checkOrigin` di `pkg/websocket/hub.go:32` tetap menjadi pertahanan origin dengan allowlist + `CORS_ORIGIN`. Nonce `X-WebSocket-CSRF` tidak ditambahkan — tidak diperlukan.
+
 ---
 
-### 3.6 Standardize Error Response Format
+### 3.6 Standardize Error Response Format ✅ DONE
 
 **Audit Ref:** API‑01  
 **Effort:** 1 day  
@@ -906,9 +926,11 @@ if (error.response?.data?.error) {
 
 **Depends on:** Nothing (but coordinate with frontend)
 
+**Status:** SUDAH DIIMPLEMENTASI — `shared.NewError(code, message)` dengan `ErrorResponse`/`ErrorDetail` (`{"error":{"code","message"}}`) ada di `internal/shared/response.go:23-34`, dipakai konsisten di handler.
+
 ---
 
-### 3.7 Extract Wiring from `main.go`
+### 3.7 Extract Wiring from `main.go` ✅ DONE
 
 **Audit Ref:** A‑02  
 **Effort:** 2 days  
@@ -1019,9 +1041,11 @@ func main() {
 
 **Depends on:** Nothing (but coordinate with 3.1 to avoid merge conflicts)
 
+**Status:** SUDAH DIIMPLEMENTASI — wiring diekstrak ke `internal/wiring/wiring.go`.
+
 ---
 
-### 3.8 Add Persistent API Cache on Frontend
+### 3.8 Add Persistent API Cache on Frontend ✅ DONE
 
 **Audit Ref:** FE‑02  
 **Effort:** 4 hours  
@@ -1091,9 +1115,11 @@ apiClient.interceptors.response.use((response) => {
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — `web/src/shared/api/cache.ts` menyediakan cache API dengan TTL + invalidasi; `http-client.ts` memakainya untuk deduplikasi request.
+
 ---
 
-### 3.9 Inline Form Validation Standardization
+### 3.9 Inline Form Validation Standardization ✅ DONE
 
 **Audit Ref:** UX‑04  
 **Effort:** 4 hours  
@@ -1121,9 +1147,11 @@ Standardize on this pattern for all forms:
 
 **Depends on:** Nothing
 
+**Status:** SUDAH DIIMPLEMENTASI — validasi inline via `validateProductForm` (`web/src/modules/product/lib/product-utils.ts:41`) dan pola serupa per modul; error field ditampilkan inline.
+
 ---
 
-### 3.10 Create Materialized Views for Reports
+### 3.10 Create Materialized Views for Reports ✅ DONE
 
 **Audit Ref:** P‑04  
 **Effort:** 2 days  
@@ -1207,9 +1235,11 @@ func startMVRefreshScheduler(pool *pgxpool.Pool) {
 
 **Depends on:** Database migration
 
+**Status:** SUDAH DIIMPLEMENTASI — `mv_hourly_sales`/`mv_daily_sales` dibuat (migration `001_materialized_views.sql`), di-refresh via `refresh_sales_mv()` yang dikelola `report.RefreshCoordinator` (debounce 30s). Query report membaca MV (lih. `internal/report/repository.go`).
+
 ---
 
-### 3.11 Increase Body Limit for Import Routes
+### 3.11 Increase Body Limit for Import Routes ✅ DONE
 
 **Audit Ref:** S‑05  
 **Effort:** 1 hour  
@@ -1237,6 +1267,8 @@ router.MaxMultipartMemory = 10 << 20 // 10 MB for file uploads
 **Verification:** Upload a 5MB CSV/XLSX file via import → succeeds. Upload a 15MB file → rejected.
 
 **Depends on:** Nothing
+
+**Status:** SUDAH DIIMPLEMENTASI — `BodyLimitMiddleware` di `internal/middleware/body_limit.go` (dengan `defaultBodyLimit = 32 << 20` / 32MB di `cmd/server/main.go:35`), dipasang pada rute import. Ada unit test `internal/middleware/body_limit_test.go`.
 
 ---
 
@@ -1467,11 +1499,13 @@ Or via host cron:
 
 **Depends on:** Production deployment timeline
 
+**Status:** BELUM DIIMPLEMENTASI — hanya ada target manual `make db-backup` (Makefile:92). Belum ada cron/host scheduler maupun service backup berjadwal di `deploy/`. **Tersisa untuk pre-production.**
+
 ---
 
 ## 5. Phase 4 — Post-Launch Enhancements
 
-### 5.1 Multi-Warehouse Inventory Support
+### 5.1 Multi-Warehouse Inventory Support ✅ DONE
 
 **Audit Ref:** DB‑01  
 **Effort:** 3 days  
@@ -1499,6 +1533,8 @@ ALTER TABLE product_stock ADD UNIQUE (product_id, warehouse_id, store_id);
 **Verification:** Multiple stock records per product with different warehouse/store IDs.
 
 **Depends on:** Not needed until multi-warehouse is a business requirement
+
+**Status:** SUDAH DIIMPLEMENTASI — migration `002_multi_warehouse.sql` menambah kolom `warehouse_id`/`store_id` pada `product_stock` dengan unique constraint gabungan (`uq_product_stock`), lalu `020_per_rack_stock.sql` menambah `location_id` (UNIQUE NULLS NOT DISTINCT). Stock global vs per-warehouse di-handle `internal/inventory/stock_deducer.go` (baris global `warehouse_id IS NULL AND store_id IS NULL`).
 
 ---
 

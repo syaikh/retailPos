@@ -203,8 +203,9 @@
 
     <div class="flex items-center gap-2">
       <button
-        class="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-text-muted hover:text-amber-600 py-1 transition-colors"
+        class="flex-1 flex items-center justify-center gap-1.5 text-[11px] py-1 transition-colors {parkedSaleCount > 0 ? 'text-text-muted hover:text-amber-600' : 'text-text-muted/40 cursor-not-allowed'}"
         onclick={onopenparkedmodal}
+        disabled={parkedSaleCount === 0}
       >
         <RotateCcw size={12} />
         {#if parkedSaleCount > 0}

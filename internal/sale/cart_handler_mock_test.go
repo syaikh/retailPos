@@ -157,7 +157,8 @@ func TestSaleCartHandler_GetOpenCart(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/pos/cart", nil)
 		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"data":null`)
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {

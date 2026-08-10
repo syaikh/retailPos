@@ -33,6 +33,10 @@ func uniqueSKU(prefix string) string {
 	return fmt.Sprintf("%s-RPT-%d-%d", prefix, time.Now().UnixNano(), n)
 }
 
+func wireReportAdapters(repo *Repository) {
+	wireTestAdapters(repo)
+}
+
 func seedSale(ctx context.Context, t *testing.T) (saleID int, productID int, saleAmount int, saleQty int) {
 	t.Helper()
 	userSKU := uniqueSKU("USR")
@@ -228,6 +232,7 @@ func TestReportRepository_DualChartData_Seeded(t *testing.T) {
 func TestReportRepository_LiveDashboardStats_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	beforeRev, _, _, _, err := repo.GetLiveDashboardStats(ctx, nil)
@@ -303,6 +308,7 @@ func TestReportRepository_DailySales_Seeded(t *testing.T) {
 func TestReportRepository_SalesWeeklyReport_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	_, _, amount, _ := seedSale(ctx, t)
@@ -326,6 +332,7 @@ func TestReportRepository_SalesWeeklyReport_Seeded(t *testing.T) {
 func TestReportRepository_SalesMonthlyReport_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	_, _, amount, _ := seedSale(ctx, t)
@@ -405,6 +412,7 @@ func TestReportRepository_InvalidateDashboardCache_WithStoreID(t *testing.T) {
 func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	cacheObj := cache.New(5*time.Minute, 1*time.Minute)
@@ -548,6 +556,7 @@ func TestReportRepository_WithCacheAndStoreID(t *testing.T) {
 func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	// Seed a sale first
@@ -569,6 +578,7 @@ func TestReportRepository_GetPricingBreakdown_NilStoreID_Seeded(t *testing.T) {
 
 func TestReportRepository_GetPricingBreakdown_WithStoreID(t *testing.T) {
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	start := time.Now().AddDate(0, -1, 0)
@@ -634,6 +644,7 @@ func TestReportRepository_SaleCreatedListener_HandleEvent_ValidSale(t *testing.T
 func TestReportRepository_DashboardStats_Seeded(t *testing.T) {
 	require.NoError(t, shared.TruncateTestData(dbPool))
 	repo := NewRepository(dbPool)
+	wireReportAdapters(repo)
 	ctx := context.Background()
 
 	// Seed a sale

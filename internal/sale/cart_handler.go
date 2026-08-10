@@ -137,6 +137,10 @@ func (h *Handler) GetOpenCart(c *gin.Context) {
 
 	cart, err := h.svc.GetOpenCart(c.Request.Context(), cashierID)
 	if err != nil {
+		if errors.Is(err, ErrCartNotFound) {
+			c.JSON(http.StatusOK, gin.H{"data": nil})
+			return
+		}
 		h.cartError(c, err)
 		return
 	}

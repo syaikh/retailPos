@@ -22,11 +22,11 @@ type Service interface {
 	GetDailySales(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
 	GetDualChartData(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (current, previous []ChartDataPoint, err error)
 	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error)
-	GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error)
-	GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
-	GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error)
+	GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error)
+	GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error)
+	GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []shared.MonthlyReportItem, err error)
 	GetAvailableYears(ctx context.Context, storeID int) ([]int, error)
-	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
+	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error)
 }
 
 type Handler struct {

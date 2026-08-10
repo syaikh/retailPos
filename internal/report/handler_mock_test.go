@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"retail-pos-system/internal/permissions"
+	"retail-pos-system/internal/shared"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -30,11 +31,11 @@ type mockReportService struct {
 	getDailySalesFn         func(ctx context.Context, storeID int, start, end time.Time) ([]ChartDataPoint, error)
 	getDualChartDataFn      func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) ([]ChartDataPoint, []ChartDataPoint, error)
 	getPeriodComparisonFn   func(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) (*PeriodComparison, error)
-	getSalesWeeklyReportFn  func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error)
-	getSalesMonthlyReportFn func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error)
-	getDualMonthlyReportFn  func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error)
+	getSalesWeeklyReportFn  func(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error)
+	getSalesMonthlyReportFn func(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error)
+	getDualMonthlyReportFn  func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]shared.MonthlyReportItem, []shared.MonthlyReportItem, error)
 	getAvailableYearsFn     func(ctx context.Context, storeID int) ([]int, error)
-	getPricingBreakdownFn   func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
+	getPricingBreakdownFn   func(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error)
 }
 
 func (m *mockReportService) GetDashboardStats(ctx context.Context, storeID int) (*DashboardStats, error) {
@@ -55,23 +56,23 @@ func (m *mockReportService) GetDualChartData(ctx context.Context, cs, ce, ps, pe
 func (m *mockReportService) GetPeriodComparison(ctx context.Context, cs, ce, ps, pe time.Time, sid *int) (*PeriodComparison, error) {
 	return m.getPeriodComparisonFn(ctx, cs, ce, ps, pe, sid)
 }
-func (m *mockReportService) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
+func (m *mockReportService) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error) {
 	return m.getSalesWeeklyReportFn(ctx, storeID, start, end)
 }
-func (m *mockReportService) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
+func (m *mockReportService) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error) {
 	return m.getSalesMonthlyReportFn(ctx, storeID, start, end)
 }
-func (m *mockReportService) GetDualMonthlyReport(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error) {
+func (m *mockReportService) GetDualMonthlyReport(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]shared.MonthlyReportItem, []shared.MonthlyReportItem, error) {
 	return m.getDualMonthlyReportFn(ctx, storeID, cs, ce, ps, pe)
 }
 func (m *mockReportService) GetAvailableYears(ctx context.Context, storeID int) ([]int, error) {
 	return m.getAvailableYearsFn(ctx, storeID)
 }
-func (m *mockReportService) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+func (m *mockReportService) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
 	if m.getPricingBreakdownFn != nil {
 		return m.getPricingBreakdownFn(ctx, start, end, storeID)
 	}
-	return []PricingBreakdownItem{}, nil
+	return []shared.PricingBreakdownItem{}, nil
 }
 
 func setupReportHandler(svc Service) *gin.Engine {
@@ -337,8 +338,8 @@ func TestReportHandler_GetSalesChartData_Hourly_PrevStartError(t *testing.T) {
 
 func TestReportHandler_GetSalesWeeklyReport_Success(t *testing.T) {
 	svc := &mockReportService{
-		getSalesWeeklyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
-			return []WeeklyReportItem{{WeekStart: "2024-01-08", WeekEnd: "2024-01-14", Total: 1000}}, nil
+		getSalesWeeklyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error) {
+			return []shared.WeeklyReportItem{{WeekStart: "2024-01-08", WeekEnd: "2024-01-14", Total: 1000}}, nil
 		},
 	}
 	r := setupReportHandler(svc)
@@ -350,7 +351,7 @@ func TestReportHandler_GetSalesWeeklyReport_Success(t *testing.T) {
 
 func TestReportHandler_GetSalesWeeklyReport_Error(t *testing.T) {
 	svc := &mockReportService{
-		getSalesWeeklyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
+		getSalesWeeklyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -363,8 +364,8 @@ func TestReportHandler_GetSalesWeeklyReport_Error(t *testing.T) {
 
 func TestReportHandler_GetSalesMonthlyReport_Success(t *testing.T) {
 	svc := &mockReportService{
-		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
-			return []MonthlyReportItem{{Month: "2024-01", Total: 5000}}, nil
+		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error) {
+			return []shared.MonthlyReportItem{{Month: "2024-01", Total: 5000}}, nil
 		},
 	}
 	r := setupReportHandler(svc)
@@ -376,7 +377,7 @@ func TestReportHandler_GetSalesMonthlyReport_Success(t *testing.T) {
 
 func TestReportHandler_GetSalesMonthlyReport_Error(t *testing.T) {
 	svc := &mockReportService{
-		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
+		getSalesMonthlyReportFn: func(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -389,9 +390,9 @@ func TestReportHandler_GetSalesMonthlyReport_Error(t *testing.T) {
 
 func TestReportHandler_GetSalesMonthlyReport_Dual_Success(t *testing.T) {
 	svc := &mockReportService{
-		getDualMonthlyReportFn: func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error) {
-			return []MonthlyReportItem{{Month: "2024-01", Total: 5000}},
-				[]MonthlyReportItem{{Month: "2023-12", Total: 4000}}, nil
+		getDualMonthlyReportFn: func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]shared.MonthlyReportItem, []shared.MonthlyReportItem, error) {
+			return []shared.MonthlyReportItem{{Month: "2024-01", Total: 5000}},
+				[]shared.MonthlyReportItem{{Month: "2023-12", Total: 4000}}, nil
 		},
 	}
 	r := setupReportHandler(svc)
@@ -403,7 +404,7 @@ func TestReportHandler_GetSalesMonthlyReport_Dual_Success(t *testing.T) {
 
 func TestReportHandler_GetSalesMonthlyReport_Dual_Error(t *testing.T) {
 	svc := &mockReportService{
-		getDualMonthlyReportFn: func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]MonthlyReportItem, []MonthlyReportItem, error) {
+		getDualMonthlyReportFn: func(ctx context.Context, storeID int, cs, ce, ps, pe time.Time) ([]shared.MonthlyReportItem, []shared.MonthlyReportItem, error) {
 			return nil, nil, assert.AnError
 		},
 	}
@@ -944,8 +945,8 @@ func TestStoreIDPtr(t *testing.T) {
 
 func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
 	svc := &mockReportService{
-		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
-			return []PricingBreakdownItem{
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
+			return []shared.PricingBreakdownItem{
 				{Type: "normal", Revenue: 50000, OrderCount: 10, ItemCount: 25},
 				{Type: "special_price", Revenue: 30000, OrderCount: 5, ItemCount: 12},
 			}, nil
@@ -958,7 +959,7 @@ func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Data []PricingBreakdownItem `json:"data"`
+		Data []shared.PricingBreakdownItem `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
@@ -968,8 +969,8 @@ func TestReportHandler_GetPricingBreakdown_Success(t *testing.T) {
 
 func TestReportHandler_GetPricingBreakdown_NoDates(t *testing.T) {
 	svc := &mockReportService{
-		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
-			return []PricingBreakdownItem{}, nil
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
+			return []shared.PricingBreakdownItem{}, nil
 		},
 	}
 	r := setupReportHandler(svc)
@@ -1004,7 +1005,7 @@ func TestReportHandler_GetPricingBreakdown_InvalidEnd(t *testing.T) {
 
 func TestReportHandler_GetPricingBreakdown_SvcError(t *testing.T) {
 	svc := &mockReportService{
-		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -1019,9 +1020,9 @@ func TestReportHandler_GetPricingBreakdown_SvcError(t *testing.T) {
 func TestReportHandler_GetPricingBreakdown_WithStoreID(t *testing.T) {
 	var capturedStoreID *int
 	svc := &mockReportService{
-		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+		getPricingBreakdownFn: func(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
 			capturedStoreID = storeID
-			return []PricingBreakdownItem{}, nil
+			return []shared.PricingBreakdownItem{}, nil
 		},
 	}
 	gin.SetMode(gin.TestMode)

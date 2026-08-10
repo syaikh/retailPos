@@ -1,0 +1,166 @@
+package report
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"retail-pos-system/internal/shared"
+)
+
+func wireTestAdapters(repo *Repository) {
+	repo.SetSaleStatsProvider(&testSaleStatsAdapter{db: dbPool})
+	repo.SetProductStatsProvider(&testProductStatsAdapter{db: dbPool})
+	repo.SetStockStatsProvider(&testStockStatsAdapter{db: dbPool})
+}
+
+type testSaleStatsAdapter struct {
+	db shared.DBPool
+}
+
+func (a *testSaleStatsAdapter) GetCompletedSalesStats(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) (revenue int, orders int, err error) {
+	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed' AND created_at >= $1 AND created_at < $2`
+	args := []interface{}{start, end}
+	if storeID != nil {
+		query += ` AND store_id = $3`
+		args = append(args, *storeID)
+	}
+	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
+	return
+}
+
+func (a *testSaleStatsAdapter) GetAllCompletedSalesStats(ctx context.Context, db shared.DBPool, storeID *int) (revenue int, orders int, err error) {
+	query := `SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM sales WHERE status = 'completed'`
+	args := []interface{}{}
+	if storeID != nil {
+		query += ` AND store_id = $1`
+		args = append(args, *storeID)
+	}
+	err = db.QueryRow(ctx, query, args...).Scan(&revenue, &orders)
+	return
+}
+
+func (a *testSaleStatsAdapter) GetActiveCustomerCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
+	query := `SELECT COUNT(DISTINCT customer_id) FROM sales WHERE status = 'completed' AND customer_id IS NOT NULL`
+	args := []interface{}{}
+	if storeID != nil {
+		query += ` AND store_id = $1`
+		args = append(args, *storeID)
+	}
+	err = db.QueryRow(ctx, query, args...).Scan(&count)
+	return
+}
+
+func (a *testSaleStatsAdapter) GetWeeklySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error) {
+	query := shared.WeeklySalesQueryTemplate
+	args := []interface{}{start, end}
+	if storeID != nil {
+		query += ` AND store_id = $3`
+		args = append(args, *storeID)
+	}
+	query += ` GROUP BY week_start, week_end ORDER BY week_start`
+
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query weekly sales: %w", err)
+	}
+	defer rows.Close()
+
+	var result []shared.WeeklyReportItem
+	for rows.Next() {
+		var item shared.WeeklyReportItem
+		if err := rows.Scan(&item.WeekStart, &item.WeekEnd, &item.Total, &item.OrderCount); err != nil {
+			return nil, fmt.Errorf("scan weekly sales row: %w", err)
+		}
+		result = append(result, item)
+	}
+	if result == nil {
+		result = []shared.WeeklyReportItem{}
+	}
+	return result, rows.Err()
+}
+
+func (a *testSaleStatsAdapter) GetMonthlySales(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error) {
+	query := shared.MonthlySalesQueryTemplate
+	args := []interface{}{start, end}
+	if storeID != nil {
+		query += ` AND store_id = $3`
+		args = append(args, *storeID)
+	}
+	query += ` GROUP BY month, month_start ORDER BY month`
+
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query monthly sales: %w", err)
+	}
+	defer rows.Close()
+
+	var result []shared.MonthlyReportItem
+	for rows.Next() {
+		var item shared.MonthlyReportItem
+		if err := rows.Scan(&item.Month, &item.MonthStart, &item.Total, &item.OrderCount); err != nil {
+			return nil, fmt.Errorf("scan monthly sales row: %w", err)
+		}
+		result = append(result, item)
+	}
+	if result == nil {
+		result = []shared.MonthlyReportItem{}
+	}
+	return result, rows.Err()
+}
+
+func (a *testSaleStatsAdapter) GetPricingBreakdown(ctx context.Context, db shared.DBPool, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
+	query := shared.PricingBreakdownQueryTemplate
+	args := []interface{}{start, end}
+	if storeID != nil {
+		query += ` AND s.store_id = $3`
+		args = append(args, *storeID)
+	}
+	query += ` GROUP BY COALESCE(si.pricing_type, 'normal') ORDER BY revenue DESC`
+
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query pricing breakdown: %w", err)
+	}
+	defer rows.Close()
+
+	var items []shared.PricingBreakdownItem
+	for rows.Next() {
+		var item shared.PricingBreakdownItem
+		if err := rows.Scan(&item.Type, &item.Revenue, &item.OrderCount, &item.ItemCount); err != nil {
+			return nil, fmt.Errorf("scan pricing breakdown: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+type testProductStatsAdapter struct {
+	db shared.DBPool
+}
+
+func (a *testProductStatsAdapter) GetActiveProductCount(ctx context.Context, db shared.DBPool, storeID *int) (count int64, err error) {
+	query := `SELECT COUNT(*) FROM products WHERE deleted_at IS NULL`
+	args := []interface{}{}
+	if storeID != nil {
+		query += ` AND store_id = $1`
+		args = append(args, *storeID)
+	}
+	err = db.QueryRow(ctx, query, args...).Scan(&count)
+	return
+}
+
+type testStockStatsAdapter struct {
+	db shared.DBPool
+}
+
+func (a *testStockStatsAdapter) GetLowStockCount(ctx context.Context, db shared.DBPool, threshold int, storeID *int) (count int64, err error) {
+	query := `SELECT COUNT(*) FROM product_stock WHERE quantity <= $1`
+	args := []interface{}{threshold}
+	if storeID != nil {
+		query += fmt.Sprintf(" AND store_id = $%d", len(args)+1)
+		args = append(args, *storeID)
+	}
+	err = db.QueryRow(ctx, query, args...).Scan(&count)
+	return
+}

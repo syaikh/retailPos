@@ -15,8 +15,11 @@ import (
 )
 
 type Repository struct {
-	db    shared.DBPool
-	cache *cache.Cache
+	db                shared.DBPool
+	cache             *cache.Cache
+	saleStats         SaleStatsProvider
+	productStats      ProductStatsProvider
+	stockStats        StockStatsProvider
 }
 
 func NewRepository(db shared.DBPool) *Repository {
@@ -25,6 +28,27 @@ func NewRepository(db shared.DBPool) *Repository {
 
 func (r *Repository) SetCache(c *cache.Cache) {
 	r.cache = c
+}
+
+func (r *Repository) SetSaleStatsProvider(p SaleStatsProvider) {
+	if r.saleStats != nil {
+		panic("report: SaleStatsProvider already set")
+	}
+	r.saleStats = p
+}
+
+func (r *Repository) SetProductStatsProvider(p ProductStatsProvider) {
+	if r.productStats != nil {
+		panic("report: ProductStatsProvider already set")
+	}
+	r.productStats = p
+}
+
+func (r *Repository) SetStockStatsProvider(p StockStatsProvider) {
+	if r.stockStats != nil {
+		panic("report: StockStatsProvider already set")
+	}
+	r.stockStats = p
 }
 
 func (r *Repository) InvalidateDashboardCache(storeID *int) {
@@ -287,7 +311,6 @@ type liveDashboardResult struct {
 	totalProducts int
 	lowStockCount int
 }
-
 func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error) {
 	key := "dashboard:live"
 	if storeID != nil {
@@ -300,49 +323,34 @@ func (r *Repository) GetLiveDashboardStats(ctx context.Context, storeID *int) (t
 		}
 	}
 
+	if r.saleStats == nil || r.productStats == nil || r.stockStats == nil {
+		return 0, 0, 0, 0, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
+	}
+
 	jakartaNow := time.Now().In(shared.JakartaLocation())
 	todayStart := time.Date(jakartaNow.Year(), jakartaNow.Month(), jakartaNow.Day(), 0, 0, 0, 0, shared.JakartaLocation())
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	cfg := config.Load()
-	storeFilter := ""
-	args := []interface{}{todayStart, todayEnd, cfg.StockCriticalThreshold}
-	argIdx := 4
-	if storeID != nil {
-		storeFilter = fmt.Sprintf(" AND store_id = $%d", argIdx)
-		args = append(args, *storeID)
+
+	todaysRevenue, todaysSales, err = r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to get today's sales stats: %w", err)
 	}
 
-	query := `
-		WITH today_sales AS (
-			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
-			FROM sales
-			WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'` + storeFilter + `
-		),
-		product_count AS (
-			SELECT COUNT(*) AS total
-			FROM products
-			WHERE deleted_at IS NULL` + storeFilter + `
-		),
-		stock_count AS (
-			SELECT COUNT(*) AS low
-			FROM product_stock
-			WHERE quantity <= $3` + storeFilter + `
-		)
-		SELECT ts.revenue, ts.orders, pc.total, sc.low
-		FROM today_sales ts, product_count pc, stock_count sc`
-
-	var todaysRevInt, todaysSalesInt int
-	var totalProductsInt, lowStockCountInt int64
-	if err := r.db.QueryRow(ctx, query, args...).Scan(
-		&todaysRevInt, &todaysSalesInt, &totalProductsInt, &lowStockCountInt,
-	); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to query live dashboard stats: %w", err)
+	var totalProductsInt64 int64
+	totalProductsInt64, err = r.productStats.GetActiveProductCount(ctx, r.db, storeID)
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to get product count: %w", err)
 	}
-	todaysRevenue = todaysRevInt
-	todaysSales = todaysSalesInt
-	totalProducts = int(totalProductsInt)
-	lowStockCount = int(lowStockCountInt)
+	totalProducts = int(totalProductsInt64)
+
+	var lowStockCountInt64 int64
+	lowStockCountInt64, err = r.stockStats.GetLowStockCount(ctx, r.db, cfg.StockCriticalThreshold, storeID)
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to get low stock count: %w", err)
+	}
+	lowStockCount = int(lowStockCountInt64)
 
 	if r.cache != nil {
 		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
@@ -466,94 +474,18 @@ func (r *Repository) GetDailySales(ctx context.Context, start, end time.Time, st
 	return result, rows.Err()
 }
 
-func (r *Repository) GetSalesWeeklyReport(ctx context.Context, start, end time.Time, storeID *int) ([]WeeklyReportItem, error) {
-	query := `
-		WITH weeks AS (
-			SELECT
-				date_trunc('week', (created_at AT TIME ZONE 'Asia/Jakarta')::date)::date AS week_start,
-				(date_trunc('week', (created_at AT TIME ZONE 'Asia/Jakarta')::date) + interval '6 days')::date AS week_end,
-				total_amount
-			FROM sales
-			WHERE created_at >= $1 AND created_at < $2
-			  AND status = 'completed'`
-	args := []interface{}{start, end}
-	argIdx := 3
-	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
-		args = append(args, *storeID)
+func (r *Repository) GetSalesWeeklyReport(ctx context.Context, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error) {
+	if r.saleStats == nil {
+		return nil, fmt.Errorf("report: SaleStatsProvider not wired; call SetSaleStatsProvider")
 	}
-	query += `
-		)
-		SELECT week_start::text, week_end::text,
-			   COALESCE(SUM(total_amount), 0)::bigint,
-			   COUNT(*)::integer
-		FROM weeks
-		GROUP BY week_start, week_end
-		ORDER BY week_start`
-
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query weekly report: %w", err)
-	}
-	defer rows.Close()
-
-	var result []WeeklyReportItem
-	for rows.Next() {
-		var item WeeklyReportItem
-		if err := rows.Scan(&item.WeekStart, &item.WeekEnd, &item.Total, &item.OrderCount); err != nil {
-			return nil, fmt.Errorf("scan weekly report row: %w", err)
-		}
-		result = append(result, item)
-	}
-	if result == nil {
-		result = []WeeklyReportItem{}
-	}
-	return result, rows.Err()
+	return r.saleStats.GetWeeklySales(ctx, r.db, start, end, storeID)
 }
 
-func (r *Repository) GetSalesMonthlyReport(ctx context.Context, start, end time.Time, storeID *int) ([]MonthlyReportItem, error) {
-	query := `
-		WITH months AS (
-			SELECT
-				to_char((created_at AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM') AS month,
-				date_trunc('month', (created_at AT TIME ZONE 'Asia/Jakarta')::date)::date AS month_start,
-				total_amount
-			FROM sales
-			WHERE created_at >= $1 AND created_at < $2
-			  AND status = 'completed'`
-	args := []interface{}{start, end}
-	argIdx := 3
-	if storeID != nil {
-		query += fmt.Sprintf(" AND store_id = $%d", argIdx)
-		args = append(args, *storeID)
+func (r *Repository) GetSalesMonthlyReport(ctx context.Context, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error) {
+	if r.saleStats == nil {
+		return nil, fmt.Errorf("report: SaleStatsProvider not wired; call SetSaleStatsProvider")
 	}
-	query += `
-		)
-		SELECT month, month_start::text,
-			   COALESCE(SUM(total_amount), 0)::bigint,
-			   COUNT(*)::integer
-		FROM months
-		GROUP BY month, month_start
-		ORDER BY month`
-
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query monthly report: %w", err)
-	}
-	defer rows.Close()
-
-	var result []MonthlyReportItem
-	for rows.Next() {
-		var item MonthlyReportItem
-		if err := rows.Scan(&item.Month, &item.MonthStart, &item.Total, &item.OrderCount); err != nil {
-			return nil, fmt.Errorf("scan monthly report row: %w", err)
-		}
-		result = append(result, item)
-	}
-	if result == nil {
-		result = []MonthlyReportItem{}
-	}
-	return result, rows.Err()
+	return r.saleStats.GetMonthlySales(ctx, r.db, start, end, storeID)
 }
 
 func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakartaLoc *time.Location) (*DashboardStats, error) {
@@ -567,70 +499,53 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 		}
 	}
 
+	if r.saleStats == nil || r.productStats == nil || r.stockStats == nil {
+		return nil, fmt.Errorf("report: stats providers not wired; call SetSaleStatsProvider/SetProductStatsProvider/SetStockStatsProvider")
+	}
+
 	now := time.Now().In(jakartaLoc)
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jakartaLoc)
 	todayEnd := todayStart.Add(24 * time.Hour)
 
-	cfg := config.Load()
-	storeFilter := ""
-	args := []interface{}{todayStart, todayEnd, cfg.StockCriticalThreshold}
-	argIdx := 4
-	if storeID != nil {
-		storeFilter = fmt.Sprintf(" AND store_id = $%d", argIdx)
-		args = append(args, *storeID)
-	}
-
-	query := `
-		WITH today_sales AS (
-			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
-			FROM sales
-			WHERE created_at >= $1 AND created_at < $2 AND status = 'completed'` + storeFilter + `
-		),
-		total_sales AS (
-			SELECT COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
-			FROM sales
-			WHERE status = 'completed'` + storeFilter + `
-		),
-		product_count AS (
-			SELECT COUNT(*) AS total
-			FROM products
-			WHERE deleted_at IS NULL` + storeFilter + `
-		),
-		stock_count AS (
-			SELECT COUNT(*) AS low
-			FROM product_stock
-			WHERE quantity <= $3` + storeFilter + `
-		),
-		customer_count AS (
-			SELECT COUNT(DISTINCT customer_id) AS active
-			FROM sales
-			WHERE status = 'completed' AND customer_id IS NOT NULL` + storeFilter + `
-		)
-		SELECT ts.revenue, ts.orders,
-		       tots.revenue, tots.orders,
-		       pc.total, sc.low, cc.active
-		FROM today_sales ts, total_sales tots, product_count pc, stock_count sc, customer_count cc`
-
 	var stats DashboardStats
+	var err error
+
 	var todaysRevInt, todaysSalesInt int
-	var totalRevInt, totalSalesInt int
-	var totalProducts int64
-	var lowStockCount int64
-	var activeCustomers int64
-	if err := r.db.QueryRow(ctx, query, args...).Scan(
-		&todaysRevInt, &todaysSalesInt,
-		&totalRevInt, &totalSalesInt,
-		&totalProducts, &lowStockCount, &activeCustomers,
-	); err != nil {
-		return nil, fmt.Errorf("failed to query dashboard stats: %w", err)
+	todaysRevInt, todaysSalesInt, err = r.saleStats.GetCompletedSalesStats(ctx, r.db, todayStart, todayEnd, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get today's sales stats: %w", err)
 	}
 	stats.TodaysRevenue = int64(todaysRevInt)
 	stats.TodaysSales = int64(todaysSalesInt)
+
+	var totalRevInt, totalSalesInt int
+	totalRevInt, totalSalesInt, err = r.saleStats.GetAllCompletedSalesStats(ctx, r.db, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all-time sales stats: %w", err)
+	}
 	stats.TotalRevenue = int64(totalRevInt)
 	stats.TotalSales = int64(totalSalesInt)
-	stats.TotalProducts = totalProducts
-	stats.LowStockCount = lowStockCount
-	stats.ActiveCustomers = activeCustomers
+
+	var activeCustomersInt64 int64
+	activeCustomersInt64, err = r.saleStats.GetActiveCustomerCount(ctx, r.db, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active customer count: %w", err)
+	}
+	stats.ActiveCustomers = activeCustomersInt64
+
+	var totalProductsInt64 int64
+	totalProductsInt64, err = r.productStats.GetActiveProductCount(ctx, r.db, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product count: %w", err)
+	}
+	stats.TotalProducts = totalProductsInt64
+
+	var lowStockCountInt64 int64
+	lowStockCountInt64, err = r.stockStats.GetLowStockCount(ctx, r.db, config.Load().StockCriticalThreshold, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get low stock count: %w", err)
+	}
+	stats.LowStockCount = lowStockCountInt64
 
 	if r.cache != nil {
 		ttl := 10*time.Second + time.Duration(rand.Intn(5))*time.Second
@@ -640,43 +555,9 @@ func (r *Repository) GetDashboardStats(ctx context.Context, storeID *int, jakart
 	return &stats, nil
 }
 
-func (r *Repository) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
-	query := `
-		SELECT COALESCE(si.pricing_type, 'normal') AS pricing_type,
-		       SUM(si.unit_price * si.quantity) AS revenue,
-		       COUNT(DISTINCT si.sale_id) AS order_count,
-		       COUNT(*) AS item_count
-		FROM sale_items si
-		JOIN sales s ON si.sale_id = s.id
-		WHERE s.status = 'completed'
-		  AND s.created_at >= $1 AND s.created_at < $2
-	`
-	args := []interface{}{start, end}
-	argIdx := 3
-
-	if storeID != nil {
-		query += fmt.Sprintf(" AND s.store_id = $%d", argIdx)
-		args = append(args, *storeID)
+func (r *Repository) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
+	if r.saleStats == nil {
+		return nil, fmt.Errorf("report: SaleStatsProvider not wired; call SetSaleStatsProvider")
 	}
-
-	query += `
-		GROUP BY COALESCE(si.pricing_type, 'normal')
-		ORDER BY revenue DESC
-	`
-
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query pricing breakdown: %w", err)
-	}
-	defer rows.Close()
-
-	var items []PricingBreakdownItem
-	for rows.Next() {
-		var item PricingBreakdownItem
-		if err := rows.Scan(&item.Type, &item.Revenue, &item.OrderCount, &item.ItemCount); err != nil {
-			return nil, fmt.Errorf("scan pricing breakdown: %w", err)
-		}
-		items = append(items, item)
-	}
-	return items, rows.Err()
+	return r.saleStats.GetPricingBreakdown(ctx, r.db, start, end, storeID)
 }

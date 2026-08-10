@@ -20,7 +20,7 @@ DROP VIEW IF EXISTS v_products_full;
 CREATE VIEW v_products_full AS
 SELECT
     p.id, p.sku, p.name, p.barcode, p.category_id, c.name as category_name,
-    p.price, p.cost, COALESCE(ps.quantity, 0) as stock,
+    p.price, COALESCE(p.cost, 0) as cost, COALESCE(ps.quantity, 0) as stock,
     p.status, p.store_id, p.brand_id, b.name as brand_name,
     p.unit_of_measure_id, u.name as unit_of_measure,
     p.weight_grams, p.description,

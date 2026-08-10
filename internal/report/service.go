@@ -15,9 +15,9 @@ type Repo interface {
 	GetHourlySales(ctx context.Context, date time.Time, storeID *int) ([]ChartDataPoint, error)
 	GetLiveDashboardStats(ctx context.Context, storeID *int) (todaysRevenue, todaysSales, totalProducts, lowStockCount int, err error)
 	GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time, storeID *int) (*PeriodComparison, error)
-	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error)
-	GetSalesMonthlyReport(ctx context.Context, start, end time.Time, storeID *int) ([]MonthlyReportItem, error)
-	GetSalesWeeklyReport(ctx context.Context, start, end time.Time, storeID *int) ([]WeeklyReportItem, error)
+	GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error)
+	GetSalesMonthlyReport(ctx context.Context, start, end time.Time, storeID *int) ([]shared.MonthlyReportItem, error)
+	GetSalesWeeklyReport(ctx context.Context, start, end time.Time, storeID *int) ([]shared.WeeklyReportItem, error)
 }
 
 type service struct {
@@ -67,15 +67,15 @@ func (s *service) GetDailySales(ctx context.Context, storeID int, start, end tim
 	return s.repo.GetDailySales(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *service) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]WeeklyReportItem, error) {
+func (s *service) GetSalesWeeklyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.WeeklyReportItem, error) {
 	return s.repo.GetSalesWeeklyReport(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *service) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]MonthlyReportItem, error) {
+func (s *service) GetSalesMonthlyReport(ctx context.Context, storeID int, start, end time.Time) ([]shared.MonthlyReportItem, error) {
 	return s.repo.GetSalesMonthlyReport(ctx, start, end, storeIDPtr(storeID))
 }
 
-func (s *service) GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []MonthlyReportItem, err error) {
+func (s *service) GetDualMonthlyReport(ctx context.Context, storeID int, currentStart, currentEnd, previousStart, previousEnd time.Time) (current, previous []shared.MonthlyReportItem, err error) {
 	current, err = s.repo.GetSalesMonthlyReport(ctx, currentStart, currentEnd, storeIDPtr(storeID))
 	if err != nil {
 		return nil, nil, err
@@ -87,6 +87,6 @@ func (s *service) GetDualMonthlyReport(ctx context.Context, storeID int, current
 	return current, previous, nil
 }
 
-func (s *service) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]PricingBreakdownItem, error) {
+func (s *service) GetPricingBreakdown(ctx context.Context, start, end time.Time, storeID *int) ([]shared.PricingBreakdownItem, error) {
 	return s.repo.GetPricingBreakdown(ctx, start, end, storeID)
 }
