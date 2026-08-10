@@ -14,8 +14,12 @@ retail-pos-system
 retail-pos
 retail-pos-server
 /dummy
+/generate-examples
 backfill-audit-description
 /bin/
+
+# Local development certificates
+/cert/
 
 # Server source directory (uncomment if you want to ignore it)
 # cmd/server/
