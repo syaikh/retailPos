@@ -120,6 +120,22 @@ describe('PosPage.svelte source-structure guards', () => {
     expect(src).toContain("event.key === 'Enter' && selectedProductIndex >= 0");
   });
 
+  it('guards keyboard nav from inputs, textareas, selects, buttons, and links', () => {
+    expect(src).toContain("const tag = target?.tagName ?? ''");
+    expect(src).toContain("const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'");
+    expect(src).toContain("const isInteractive = tag === 'BUTTON' || tag === 'A'");
+    expect(src).toContain('!isEditable && !isInteractive');
+  });
+
+  it('keeps arrow navigation active from the search input', () => {
+    expect(src).toContain("const isSearchInput = target?.id === 'pos-search-input'");
+    expect(src).toContain('if (isEditable && !isSearchInput) return;');
+  });
+
+  it('adds the selected product on search submit', () => {
+    expect(src).toContain('addToCart(products[selectedProductIndex >= 0 ? selectedProductIndex : 0])');
+  });
+
   it('binds selectedIndex and element to PosProductTable', () => {
     expect(src).toContain('bind:selectedIndex={selectedProductIndex}');
     expect(src).toContain('bind:element={productTableEl}');

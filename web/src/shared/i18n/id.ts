@@ -199,6 +199,8 @@ export const id = {
   copySku: 'Salin SKU',
   copyBarcode: 'Salin barcode',
   searchByNameSkuBarcode: 'Cari berdasarkan nama, SKU, atau barcode...',
+  posSelectProductHint: 'pilih produk',
+  posAddToCartHint: 'tambah ke keranjang',
   currencySymbol: 'Rp',
   toastCartIsEmpty: 'Keranjang kosong',
   toastSaleCompleted: 'Transaksi berhasil',

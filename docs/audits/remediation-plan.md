@@ -1244,6 +1244,8 @@ router.MaxMultipartMemory = 10 << 20 // 10 MB for file uploads
 
 ### 4.1 Add CI Pipeline
 
+> **Status: ON HOLD** — deferred by decision 2026-08-10. Revisit before production launch.
+
 **Audit Ref:** T‑01, D‑01  
 **Effort:** 2 days  
 **Difficulty:** Medium  
@@ -1342,6 +1344,8 @@ jobs:
 ---
 
 ### 4.2 Add Prometheus + Grafana
+
+> **Status: ON HOLD** — deferred by decision 2026-08-10. Revisit before production launch.
 
 **Audit Ref:** D‑02  
 **Effort:** 5 days  
@@ -1535,6 +1539,8 @@ function handleKeydown(e: KeyboardEvent) {
 }
 </script>
 ```
+
+**Status:** SUDAH DIIMPLEMENTASI — `web/src/modules/pos/components/PosPage.svelte` sudah punya `handleGlobalKeydown` (`<svelte:window onkeydown=...>`): `F2` fokus ke `#pos-search-input`, `Escape` clear search/close modal, `ArrowDown`/`ArrowUp` pindah `selectedProductIndex` (dengan `scrollSelectedIntoView`), `Enter` tambahkan produk terpilih, `F4` checkout, `F5` modal parked, `F6` hold sale, `Alt+Delete` clear cart. Guard pada event target mencegah double-fire: Enter/Space dari dalam `INPUT`/`TEXTAREA`/`SELECT`/`BUTTON`/`A` tidak di-intercept (native handler yang bertanggung jawab), dan arrow key tetap aktif saat fokus di search input (`pos-search-input`). `handleSearchSubmit` kini menambah produk terpilih (bukan `products[0]`). Hint keyboard ditambahkan di `ProductSearchPanel.svelte` (`F2`, `↑↓`, `Enter`) dengan label i18n `posSelectProductHint`/`posAddToCartHint`.
 
 **Verification:** Test all keyboard shortcuts in the POS flow. No conflicts with existing browser shortcuts.
 

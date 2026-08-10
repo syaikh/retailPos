@@ -200,6 +200,8 @@ export const en: Labels = {
   copySku: 'Copy SKU',
   copyBarcode: 'Copy barcode',
   searchByNameSkuBarcode: 'Search by name, SKU, or barcode...',
+  posSelectProductHint: 'select product',
+  posAddToCartHint: 'add to cart',
   currencySymbol: 'IDR',
   toastCartIsEmpty: 'Cart is empty',
   toastSaleCompleted: 'Sale completed',

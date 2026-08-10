@@ -27,6 +27,13 @@ describe('ProductSearchPanel.svelte source-structure guards', () => {
     expect(src).toContain('F2</kbd>');
   });
 
+  it('renders arrow and Enter navigation hints', () => {
+    expect(src).toContain('↑↓');
+    expect(src).toContain('Enter</kbd>');
+    expect(src).toContain('posSelectProductHint');
+    expect(src).toContain('posAddToCartHint');
+  });
+
   it('renders SearchBar with pos-search-input id', () => {
     expect(src).toContain('id="pos-search-input"');
   });

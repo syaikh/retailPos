@@ -228,7 +228,7 @@ let selectedProductIndex = $state(-1);
 
   function handleSearchSubmit() {
     if (products.length > 0) {
-      addToCart(products[0]);
+      addToCart(products[selectedProductIndex >= 0 ? selectedProductIndex : 0]);
     }
   }
 
@@ -574,19 +574,22 @@ let selectedProductIndex = $state(-1);
 
     if (products.length === 0 || loading) return;
 
-    if (event.key === 'ArrowDown') {
+    const target = event.target as HTMLElement | null;
+    const isSearchInput = target?.id === 'pos-search-input';
+    const tag = target?.tagName ?? '';
+    const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    const isInteractive = tag === 'BUTTON' || tag === 'A';
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (isEditable && !isSearchInput) return;
       event.preventDefault();
-      selectedProductIndex = Math.min(selectedProductIndex + 1, products.length - 1);
+      selectedProductIndex = event.key === 'ArrowDown'
+        ? Math.min(selectedProductIndex + 1, products.length - 1)
+        : Math.max(selectedProductIndex - 1, 0);
       scrollSelectedIntoView();
       return;
     }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      selectedProductIndex = Math.max(selectedProductIndex - 1, 0);
-      scrollSelectedIntoView();
-      return;
-    }
-    if (event.key === 'Enter' && selectedProductIndex >= 0) {
+    if (event.key === 'Enter' && selectedProductIndex >= 0 && !isEditable && !isInteractive) {
       event.preventDefault();
       addToCart(products[selectedProductIndex]);
       return;
