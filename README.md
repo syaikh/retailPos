@@ -15,7 +15,7 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 - **Customer & Customer Groups** — Manajemen pelanggan, grup pelanggan (Walk-in, Member, VIP), bulk actions
 - **Multi-Warehouse & Multi-Store** — Inventori per warehouse/store dengan kunci unik komposit, manajemen toko
 - **Inventory Management** — Tracking stok, movement, low stock alerts, stock thresholds, multi-category filter
-- **Import & Export Framework** — Schema-driven reusable import/export untuk Products, Categories, Brands, UOMs, Customers, Pricing Rules, Suppliers dengan XLSX templates, preview, validasi, reference dropdowns, import history (async job), dan cancel
+- **Import & Export Framework** — Schema-driven reusable import/export untuk Products, Categories, Customer Groups, Brands, UOMs, Customers, Pricing Rules, Suppliers, Stores dengan XLSX templates, preview, validasi, reference dropdowns, import history (async job), dan cancel
 - **User Management** — RBAC (Role-Based Access Control) dengan permissions dot-notation, hierarki manajer-bawahan (org chart), soft delete
 - **Audit Logging** — Full audit trail untuk semua aksi (termasuk login/logout, import, change-password)
 - **Real-time Dashboard** — Statistik penjualan, revenue, analytics + live updates via WebSocket, chart harian/mingguan/bulanan, period comparison, pricing breakdown
@@ -24,7 +24,7 @@ Sistem Point of Sale (POS) modern untuk toko retail dengan manajemen inventory, 
 - **Structured Logging** — JSON (production) / text (development) via `log/slog`
 - **EventBus Observability** — Atomic metrics for published/consumed/failed events
 - **Dead-Letter Queue** — Failed events stored to PostgreSQL for retry
-- **Materialized Views** — Pre-aggregasi data penjualan harian/jam-an untuk query reporting cepat, refresh otomatis per jam
+- **Materialized Views** — Pre-aggregasi data penjualan harian/jam-an untuk query reporting cepat; refresh di-koordinasikan `report.RefreshCoordinator` (debounced, default 30s setelah `sale.created`, coalescing) plus ticker per jam di `cmd/server/main.go`
 
 ### Security Features
 
@@ -536,6 +536,8 @@ Backend menyimpan data dalam UTC, namun **semua query menggunakan timezone Asia/
 | `STOCK_WARNING_THRESHOLD` | `10` | Stok di bawah ini = "perlu perhatian" |
 | `STOCK_CRITICAL_THRESHOLD` | `5` | Stok di bawah ini = "low stock" |
 | `STOCK_MINIMUM` | `10` | Stok default produk baru |
+| `CART_HOLD_TTL_HOURS` | `24` | Berapa jam sesi keranjang ditahan sebelum dianggap kedaluwarsa |
+| `REPORT_REFRESH_DEBOUNCE` | `30` | Detik debounce refresh materialized views setelah `sale.created` |
 
 Copy `.env.example` ke `.env` untuk development lokal.
 
@@ -568,9 +570,9 @@ sudo systemctl enable --now retail-pos
 
 ### Database Migrations
 
-Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **25 migrations (000–024)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
+Migrations berjalan otomatis saat startup (tracking via tabel `schema_migrations`). Schema saat ini: **26 migrations (000–025)**. Lihat `database/migrations/` untuk detail. Untuk environment baru, jalankan migrasi secara berurutan dimulai dari `000_squash.sql`.
 
-> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`, `023_sprint0_finalize_permissions.sql`, `024_add_product_history_cost_permissions.sql`) — lihat AGENTS.md.
+> **Penting:** Terapkan migrasi **sebelum** deploy binary server baru. Beberapa migrasi punya constraint urutan (mis. `006_consolidate_permissions.sql`, `009_add_do_sequence.sql`, `012_stock_opname.sql`, `016_stock_opname_scope_workflow.sql`, `017_stock_opname_adjustment_ledger.sql`, `018_storage_locations.sql`, `020_per_rack_stock.sql`, `021_grant_storage_location_view.sql`, `024_add_product_history_cost_permissions.sql`, `025_add_supplier_to_products_full_view.sql`) — lihat AGENTS.md untuk daftar lengkap.
 
 Migrations terkini:
 - `000_squash.sql` — Baseline schema + seed data awal (roles, permissions, users, payment methods, customer groups)
@@ -598,6 +600,7 @@ Migrations terkini:
 - `022_admin_least_privilege.sql` — Revoke `audit.view`, `role.update/delete`, `user.delete` dari Admin (enforce least-privilege split)
 - `023_sprint0_finalize_permissions.sql` — Revoke `staff.product.update` dan `staff.inventory.adjust` (RBAC final, frontend permission-based)
 - `024_add_product_history_cost_permissions.sql` — Permissions baru `product.history.view` (Superadmin/Admin) dan `product.cost.view` (Superadmin/Admin/Manager)
+- `025_add_supplier_to_products_full_view.sql` — Re-create `v_products_full` dengan kolom `supplier_id`/`supplier_name` (preferred supplier)
 
 ---
 
