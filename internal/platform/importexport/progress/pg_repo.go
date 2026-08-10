@@ -41,7 +41,7 @@ func (r *PgRepository) CreateJob(ctx context.Context, module, schemaVersion, fil
 func (r *PgRepository) UpdateStatus(ctx context.Context, jobID int64, status Status) error {
 	var completedAt interface{}
 	if status == StatusCompleted || status == StatusFailed || status == StatusCancelled {
-		completedAt = time.Now()
+		completedAt = time.Now().In(shared.JakartaLocation())
 	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE import_jobs

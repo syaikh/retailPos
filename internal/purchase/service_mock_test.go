@@ -431,9 +431,9 @@ func TestServiceMock_CreateGoodsReceipt_Errors(t *testing.T) {
 		mock.ExpectCopyFrom(pgx.Identifier{"goods_receipt_items"}, []string{
 			"goods_receipt_id", "purchase_order_item_id", "product_id", "qty_good", "qty_damaged",
 			"unit_cost", "product_name", "supplier_id", "notes"})
-		mock.ExpectExec("SET qty_received = qty_received").WithArgs(10, 5).WillReturnError(boom)
+		mock.ExpectExec("UPDATE purchase_order_items.*SET qty_received").WithArgs(10, 5).WillReturnError(boom)
 		_, err := svc.CreateGoodsReceipt(ctx, 1, 9, 3, []CreateGRItemInput{{PurchaseOrderItemID: 10, QtyGood: 5}})
-		assert.ErrorContains(t, err, "failed to update qty_received")
+		assert.ErrorContains(t, err, "bulk update po item qty received")
 	})
 
 	t.Run("recalculate error", func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestServiceMock_CreateGoodsReceipt_Errors(t *testing.T) {
 		mock.ExpectCopyFrom(pgx.Identifier{"goods_receipt_items"}, []string{
 			"goods_receipt_id", "purchase_order_item_id", "product_id", "qty_good", "qty_damaged",
 			"unit_cost", "product_name", "supplier_id", "notes"})
-		mock.ExpectExec("SET qty_received = qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mock.ExpectExec("UPDATE purchase_order_items.*SET qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectQuery("SELECT COALESCE\\(SUM").WithArgs(1).WillReturnError(boom)
 		_, err := svc.CreateGoodsReceipt(ctx, 1, 9, 3, []CreateGRItemInput{{PurchaseOrderItemID: 10, QtyGood: 5}})
 		assert.ErrorContains(t, err, "failed to calculate totals")
@@ -470,7 +470,7 @@ func TestServiceMock_CreateGoodsReceipt_Errors(t *testing.T) {
 		mock.ExpectCopyFrom(pgx.Identifier{"goods_receipt_items"}, []string{
 			"goods_receipt_id", "purchase_order_item_id", "product_id", "qty_good", "qty_damaged",
 			"unit_cost", "product_name", "supplier_id", "notes"})
-		mock.ExpectExec("SET qty_received = qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mock.ExpectExec("UPDATE purchase_order_items.*SET qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectQuery("SELECT COALESCE\\(SUM").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"total_ordered", "total_received"}).AddRow(10, 5))
 		mock.ExpectExec("SET status = \\$2").WithArgs(1, StatusPartialReceived).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
@@ -494,7 +494,7 @@ func TestServiceMock_CreateGoodsReceipt_Errors(t *testing.T) {
 		mock.ExpectCopyFrom(pgx.Identifier{"goods_receipt_items"}, []string{
 			"goods_receipt_id", "purchase_order_item_id", "product_id", "qty_good", "qty_damaged",
 			"unit_cost", "product_name", "supplier_id", "notes"})
-		mock.ExpectExec("SET qty_received = qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mock.ExpectExec("UPDATE purchase_order_items.*SET qty_received").WithArgs(10, 5).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectQuery("SELECT COALESCE\\(SUM").WithArgs(1).WillReturnRows(
 			pgxmock.NewRows([]string{"total_ordered", "total_received"}).AddRow(10, 5))
 		mock.ExpectExec("SET status = \\$2").WithArgs(1, StatusPartialReceived).WillReturnResult(pgxmock.NewResult("UPDATE", 1))

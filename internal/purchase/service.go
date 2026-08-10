@@ -3,6 +3,7 @@ package purchase
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,6 +11,8 @@ import (
 	"retail-pos-system/internal/events"
 	"retail-pos-system/internal/shared"
 )
+
+const maxBatchSize = 1000
 
 type Repo interface {
 	BeginTx(ctx context.Context) (pgx.Tx, error)
@@ -502,9 +505,29 @@ func (s *service) CreateGoodsReceipt(ctx context.Context, poID, userID, storeID 
 	}
 	gr.Items = grItems
 
-	for _, reqItem := range reqItems {
-		if err := s.repo.UpdatePOItemQtyReceived(ctx, tx, reqItem.PurchaseOrderItemID, reqItem.QtyGood+reqItem.QtyDamaged); err != nil {
-			return nil, err
+	for start := 0; start < len(reqItems); start += maxBatchSize {
+		end := start + maxBatchSize
+		if end > len(reqItems) {
+			end = len(reqItems)
+		}
+		chunk := reqItems[start:end]
+
+		chunkValueStrings := make([]string, 0, len(chunk))
+		chunkValueArgs := make([]interface{}, 0, len(chunk)*2)
+		for i, reqItem := range chunk {
+			chunkValueStrings = append(chunkValueStrings, fmt.Sprintf("($%d::int,$%d::int)", i*2+1, i*2+2))
+			chunkValueArgs = append(chunkValueArgs, reqItem.PurchaseOrderItemID, reqItem.QtyGood+reqItem.QtyDamaged)
+		}
+
+		chunkQuery := fmt.Sprintf(`
+			UPDATE purchase_order_items poi
+			SET qty_received = poi.qty_received + v.qty_received, updated_at = NOW()
+			FROM (VALUES %s) AS v(id, qty_received)
+			WHERE poi.id = v.id
+		`, strings.Join(chunkValueStrings, ","))
+
+		if _, err := tx.Exec(ctx, chunkQuery, chunkValueArgs...); err != nil {
+			return nil, fmt.Errorf("bulk update po item qty received: %w", err)
 		}
 	}
 

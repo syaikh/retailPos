@@ -365,22 +365,21 @@ func (r *Repository) BulkInsertSuppliers(ctx context.Context, payloads []ImportP
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	count := 0
-	for _, p := range payloads {
-		_, err := tx.Exec(ctx, `
-			INSERT INTO suppliers (name, code, contact_name, email, phone, address, notes, is_active)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		`, p.Name, p.Code, p.ContactName, p.Email, p.Phone, p.Address, p.Notes, p.IsActive)
-		if err != nil {
-			return count, fmt.Errorf("insert supplier: %w", err)
-		}
-		count++
+	rows := make([][]interface{}, len(payloads))
+	for i, p := range payloads {
+		rows[i] = []interface{}{p.Name, p.Code, p.ContactName, p.Email, p.Phone, p.Address, p.Notes, p.IsActive}
+	}
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{"suppliers"},
+		[]string{"name", "code", "contact_name", "email", "phone", "address", "notes", "is_active"},
+		pgx.CopyFromRows(rows))
+	if err != nil {
+		return 0, fmt.Errorf("bulk insert suppliers: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
-	return count, nil
+	return len(payloads), nil
 }
 
 func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []ImportPayload) (int, error) {
@@ -394,26 +393,43 @@ func (r *Repository) BulkUpdateSuppliers(ctx context.Context, payloads []ImportP
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	count := 0
-	for _, p := range payloads {
-		tag, err := tx.Exec(ctx, `
-			UPDATE suppliers
-			SET name = $1, contact_name = $2, email = $3, phone = $4,
-			    address = $5, notes = $6, is_active = $7, updated_at = NOW()
-			WHERE code = $8 AND deleted_at IS NULL
-		`, p.Name, p.ContactName, p.Email, p.Phone, p.Address, p.Notes, p.IsActive, p.Code)
+	const maxBatchSize = 1000
+	var totalRowsAffected int64
+	for start := 0; start < len(payloads); start += maxBatchSize {
+		end := start + maxBatchSize
+		if end > len(payloads) {
+			end = len(payloads)
+		}
+		chunk := payloads[start:end]
+
+		valueStrings := make([]string, 0, len(chunk))
+		valueArgs := make([]interface{}, 0, len(chunk)*8)
+		for i, p := range chunk {
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d::text,$%d::text,$%d::text,$%d::text,$%d::text,$%d::text,$%d::boolean,$%d::text)",
+				i*8+1, i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8))
+			valueArgs = append(valueArgs, p.Name, p.ContactName, p.Email, p.Phone, p.Address, p.Notes, p.IsActive, p.Code)
+		}
+
+		query := fmt.Sprintf(`
+			UPDATE suppliers s
+			SET name = v.name, contact_name = v.contact_name, email = v.email,
+			    phone = v.phone, address = v.address, notes = v.notes,
+			    is_active = v.is_active, updated_at = NOW()
+			FROM (VALUES %s) AS v(name, contact_name, email, phone, address, notes, is_active, code)
+			WHERE s.code = v.code AND s.deleted_at IS NULL
+		`, strings.Join(valueStrings, ","))
+
+		tag, err := tx.Exec(ctx, query, valueArgs...)
 		if err != nil {
-			return count, fmt.Errorf("update supplier: %w", err)
+			return 0, fmt.Errorf("bulk update suppliers: %w", err)
 		}
-		if tag.RowsAffected() > 0 {
-			count++
-		}
+		totalRowsAffected += tag.RowsAffected()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
-	return count, nil
+	return int(totalRowsAffected), nil
 }
 
 func (r *Repository) GetAllForExport(ctx context.Context) ([]Supplier, error) {
@@ -439,24 +455,18 @@ func (r *Repository) BulkUpdate(ctx context.Context, ids []int, isActive bool) (
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	count := 0
-	for _, id := range ids {
-		tag, err := tx.Exec(ctx, `
-			UPDATE suppliers SET is_active = $1, updated_at = NOW()
-			WHERE id = $2 AND deleted_at IS NULL
-		`, isActive, id)
-		if err != nil {
-			return count, fmt.Errorf("update supplier: %w", err)
-		}
-		if tag.RowsAffected() > 0 {
-			count++
-		}
+	tag, err := tx.Exec(ctx, `
+		UPDATE suppliers SET is_active = $1, updated_at = NOW()
+		WHERE id = ANY($2) AND deleted_at IS NULL
+	`, isActive, ids)
+	if err != nil {
+		return 0, fmt.Errorf("bulk update suppliers: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
-	return count, nil
+	return int(tag.RowsAffected()), nil
 }
 
 func (r *Repository) BulkDelete(ctx context.Context, ids []int) (int, error) {

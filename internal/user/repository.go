@@ -600,12 +600,25 @@ func (r *Repository) UpdateRolePermissions(ctx context.Context, roleID int, perm
 	if err != nil {
 		return err
 	}
+
+	seen := make(map[int]struct{}, len(permissionIDs))
+	rows := make([][]interface{}, 0, len(permissionIDs))
 	for _, pid := range permissionIDs {
-		_, err = tx.Exec(ctx, "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", roleID, pid)
+		if _, ok := seen[pid]; !ok {
+			seen[pid] = struct{}{}
+			rows = append(rows, []interface{}{roleID, pid})
+		}
+	}
+
+	if len(rows) > 0 {
+		_, err = tx.CopyFrom(ctx, pgx.Identifier{"role_permissions"},
+			[]string{"role_id", "permission_id"},
+			pgx.CopyFromRows(rows))
 		if err != nil {
 			return err
 		}
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}

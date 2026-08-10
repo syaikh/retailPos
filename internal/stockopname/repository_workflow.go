@@ -106,6 +106,54 @@ func (r *Repository) LoadSessionScopes(ctx context.Context, q queryer, sessionID
 	return out, rows.Err()
 }
 
+// LoadAllSessionScopes returns the scope lists for multiple sessions in a
+// single query, keyed by session ID. The caller passes the session IDs that
+// need scopes; rows for sessions with no scopes are omitted from the result.
+func (r *Repository) LoadAllSessionScopes(ctx context.Context, db shared.DBPool, sessionIDs []int) (map[int][]SessionScope, error) {
+	if len(sessionIDs) == 0 {
+		return map[int][]SessionScope{}, nil
+	}
+	out := make(map[int][]SessionScope)
+	const maxBatchSize = 1000
+	for start := 0; start < len(sessionIDs); start += maxBatchSize {
+		end := start + maxBatchSize
+		if end > len(sessionIDs) {
+			end = len(sessionIDs)
+		}
+		chunk := sessionIDs[start:end]
+
+		placeholders := make([]string, len(chunk))
+		args := make([]interface{}, len(chunk))
+		for i, id := range chunk {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		rows, err := db.Query(ctx, fmt.Sprintf(`
+			SELECT id, stock_opname_id, scope_type, scope_id, COALESCE(scope_name, '')
+			FROM stock_opname_session_scopes
+			WHERE stock_opname_id IN (%s)
+			ORDER BY stock_opname_id ASC, id ASC
+		`, strings.Join(placeholders, ",")), args...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load all session scopes: %w", err)
+		}
+		for rows.Next() {
+			var sc SessionScope
+			if err := rows.Scan(&sc.ID, &sc.StockOpnameID, &sc.ScopeType, &sc.ScopeID, &sc.ScopeName); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("failed to scan session scope: %w", err)
+			}
+			out[sc.StockOpnameID] = append(out[sc.StockOpnameID], sc)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("session scope rows error: %w", err)
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
 // --- overlap detection ---
 
 // AcquireCreateLock serialises concurrent session creation so the overlap

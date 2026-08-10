@@ -1057,6 +1057,40 @@ func (r *Repository) UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID
 	return nil
 }
 
+func (r *Repository) UpdateItemAdjustments(ctx context.Context, tx pgx.Tx, updates []ItemAdjustmentUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	const maxBatchSize = 1000
+	for start := 0; start < len(updates); start += maxBatchSize {
+		end := start + maxBatchSize
+		if end > len(updates) {
+			end = len(updates)
+		}
+		chunk := updates[start:end]
+
+		valueStrings := make([]string, 0, len(chunk))
+		valueArgs := make([]interface{}, 0, len(chunk)*5)
+		for i, u := range chunk {
+			valueStrings = append(valueStrings, fmt.Sprintf("($%d::int,$%d::numeric,$%d::numeric,$%d::numeric,$%d::text)",
+				i*5+1, i*5+2, i*5+3, i*5+4, i*5+5))
+			valueArgs = append(valueArgs, u.ItemID, u.Expected, u.Diff, u.Adj, u.Reason)
+		}
+		query := fmt.Sprintf(`
+			UPDATE stock_opname_items
+			SET expected_qty = v.expected_qty, difference_qty = v.difference_qty,
+			    adjustment_qty = v.adjustment_qty, reason = NULLIF(v.reason, ''), updated_at = NOW()
+			FROM (VALUES %s) AS v(id, expected_qty, difference_qty, adjustment_qty, reason)
+			WHERE stock_opname_items.id = v.id
+		`, strings.Join(valueStrings, ","))
+		_, err := tx.Exec(ctx, query, valueArgs...)
+		if err != nil {
+			return fmt.Errorf("batch update item adjustments: %w", err)
+		}
+	}
+	return nil
+}
+
 type movementRow struct {
 	ProductID      int
 	QuantityChange int

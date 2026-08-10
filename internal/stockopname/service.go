@@ -48,6 +48,7 @@ type Repo interface {
 	ListAssignments(ctx context.Context, sessionID int) ([]Assignment, error)
 	ListSessions(ctx context.Context, limit, offset int, status, search string) ([]Session, int, error)
 	LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]ApprovalItem, error)
+	LoadAllSessionScopes(ctx context.Context, db shared.DBPool, sessionIDs []int) (map[int][]SessionScope, error)
 	LoadSessionScopes(ctx context.Context, q queryer, sessionID int) ([]SessionScope, error)
 	LoadSnapshotProductsByIDs(ctx context.Context, db shared.DBPool, ids []int) ([]SessionItem, error)
 	LoadSnapshotProductsByLocation(ctx context.Context, db shared.DBPool, locationID int, ids []int) ([]SessionItem, error)
@@ -66,7 +67,16 @@ type Repo interface {
 	ScopeProductIDs(ctx context.Context, db shared.DBPool, scope Scope) ([]int, error)
 	UpdateAssignmentRole(ctx context.Context, tx pgx.Tx, sessionID, assignmentID int, role string) error
 	UpdateItemAdjustment(ctx context.Context, tx pgx.Tx, itemID int, expected, diff, adj float64, reason string) error
+	UpdateItemAdjustments(ctx context.Context, tx pgx.Tx, updates []ItemAdjustmentUpdate) error
 	UpdateStatus(ctx context.Context, id int, currentStatus, nextStatus string) error
+}
+
+type ItemAdjustmentUpdate struct {
+	ItemID   int
+	Expected float64
+	Diff     float64
+	Adj      float64
+	Reason   string
 }
 
 type Service struct {
@@ -215,15 +225,31 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	if err != nil {
 		return nil, err
 	}
+
+	activeIDs := make([]int, len(active))
+	for i, sess := range active {
+		activeIDs[i] = sess.ID
+	}
+	allScopes, err := s.repo.LoadAllSessionScopes(ctx, tx, activeIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	var conflictIDs []int
 	seen := make(map[int]bool)
 	for _, sess := range active {
-		otherScopes, err := s.repo.LoadSessionScopes(ctx, tx, sess.ID)
-		if err != nil {
-			return nil, err
+		otherScopes, ok := allScopes[sess.ID]
+		if !ok {
+			continue
 		}
+		scopeSeen := make(map[Scope]struct{})
 		for _, osc := range otherScopes {
-			ids, err := s.repo.ScopeProductIDs(ctx, tx, Scope{ScopeType: osc.ScopeType, ScopeID: osc.ScopeID})
+			sc := Scope{ScopeType: osc.ScopeType, ScopeID: osc.ScopeID}
+			if _, ok := scopeSeen[sc]; ok {
+				continue
+			}
+			scopeSeen[sc] = struct{}{}
+			ids, err := s.repo.ScopeProductIDs(ctx, tx, sc)
 			if err != nil {
 				return nil, err
 			}
@@ -667,16 +693,18 @@ func (s *Service) VerifySession(ctx context.Context, id, userID int, comment str
 	}
 
 	var totalDiff, totalAdj float64
-	for _, it := range items {
+	updates := make([]ItemAdjustmentUpdate, len(items))
+	for i, it := range items {
 		expected := float64(stock[it.ProductID])
 		diff := it.PhysicalQy - expected
 		adj := diff
 		reason := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", session.SessionNumber, it.PhysicalQy, expected)
-		if err := s.repo.UpdateItemAdjustment(ctx, tx, it.ID, expected, diff, adj, reason); err != nil {
-			return err
-		}
+		updates[i] = ItemAdjustmentUpdate{ItemID: it.ID, Expected: expected, Diff: diff, Adj: adj, Reason: reason}
 		totalDiff += diff
 		totalAdj += adj
+	}
+	if err := s.repo.UpdateItemAdjustments(ctx, tx, updates); err != nil {
+		return err
 	}
 	if err := s.repo.MarkSessionTotals(ctx, tx, id, totalDiff, totalAdj); err != nil {
 		return err
@@ -791,15 +819,14 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 
 	adjItems := make([]AdjustmentItem, 0, len(items))
 	movements := make([]movementRow, 0, len(items))
+	updates := make([]ItemAdjustmentUpdate, len(items))
 	var totalDiff, totalAdj float64
-	for _, it := range items {
+	for i, it := range items {
 		expected := float64(stock[it.ProductID])
 		diff := it.PhysicalQy - expected
 		adj := diff
 		reason := fmt.Sprintf("Stock opname %s: physical %.2f vs expected %.2f", session.SessionNumber, it.PhysicalQy, expected)
-		if err := s.repo.UpdateItemAdjustment(ctx, tx, it.ID, expected, diff, adj, reason); err != nil {
-			return nil, err
-		}
+		updates[i] = ItemAdjustmentUpdate{ItemID: it.ID, Expected: expected, Diff: diff, Adj: adj, Reason: reason}
 		totalDiff += diff
 		totalAdj += adj
 		adjItems = append(adjItems, AdjustmentItem{
@@ -834,6 +861,9 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 			return nil, fmt.Errorf("%w: %v", ErrAdjustmentFailed, err)
 		}
 		movements = append(movements, movementRow{ProductID: it.ProductID, QuantityChange: delta, Notes: reason})
+	}
+	if err := s.repo.UpdateItemAdjustments(ctx, tx, updates); err != nil {
+		return nil, err
 	}
 
 	// A zero-discrepancy count still posts an adjustment document recording the

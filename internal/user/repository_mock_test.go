@@ -248,8 +248,7 @@ func TestRepository_UpdateRolePermissions_CacheDelete(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("DELETE FROM role_permissions").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 3))
-	mock.ExpectExec("INSERT INTO role_permissions").WithArgs(1, 10).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectExec("INSERT INTO role_permissions").WithArgs(1, 20).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCopyFrom(pgx.Identifier{"role_permissions"}, []string{"role_id", "permission_id"})
 	mock.ExpectCommit()
 
 	err = repo.UpdateRolePermissions(context.Background(), 1, []int{10, 20})
@@ -295,7 +294,7 @@ func TestRepository_UpdateRolePermissions_InsertError(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("DELETE FROM role_permissions").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 0))
-	mock.ExpectExec("INSERT INTO role_permissions").WithArgs(1, 10).WillReturnError(fmt.Errorf("insert failed"))
+	mock.ExpectCopyFrom(pgx.Identifier{"role_permissions"}, []string{"role_id", "permission_id"}).WillReturnError(fmt.Errorf("insert failed"))
 
 	repo := NewRepository(mock)
 	err = repo.UpdateRolePermissions(context.Background(), 1, []int{10})
@@ -310,7 +309,7 @@ func TestRepository_UpdateRolePermissions_CommitError(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("DELETE FROM role_permissions").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 0))
-	mock.ExpectExec("INSERT INTO role_permissions").WithArgs(1, 10).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCopyFrom(pgx.Identifier{"role_permissions"}, []string{"role_id", "permission_id"})
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("commit failed"))
 
 	repo := NewRepository(mock)

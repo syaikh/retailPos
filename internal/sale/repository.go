@@ -145,7 +145,7 @@ func (r *Repository) CreateSale(ctx context.Context, tx pgx.Tx, sale *Sale, item
 				item.PricingRuleID, item.PricingRuleName, item.PricingRuleType, item.Type,
 				origPrice,
 				item.Cost, item.TaxClassID, item.TaxRate,
-				time.Now(), productName,
+				time.Now().In(shared.JakartaLocation()), productName,
 			}
 		}
 		_, err = tx.CopyFrom(ctx, pgx.Identifier{"sale_items"},
