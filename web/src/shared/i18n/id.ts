@@ -1431,7 +1431,7 @@ export const id = {
   invoiceLabel: 'INVOICE',
   dateLabel: 'TANGGAL',
   nameLabel: 'NAMA',
-  roleLabel: 'ROLE',
+  roleLabel: 'PERAN',
   userLabel: 'USER',
   typeLabel: 'TYPE',
   categoryLabel: 'CATEGORY',

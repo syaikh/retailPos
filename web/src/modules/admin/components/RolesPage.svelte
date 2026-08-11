@@ -357,7 +357,7 @@
               <th class="text-left p-4 font-semibold w-8"></th>
               <th class="text-left p-4 font-semibold" style="width: 35%;">{labels.roleLabel}</th>
               <th class="text-left p-4 font-semibold w-20">{labels.type}</th>
-              <th class="text-left p-4 font-semibold w-20">{labels.permissions}</th>
+              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.permissions}</th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
@@ -403,7 +403,7 @@
                 <SortableHeader label={labels.roleLabel} column="name" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.type}</th>
-              <th class="text-left p-4 font-semibold w-20">
+              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">
                 <SortableHeader label={labels.permissions} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
