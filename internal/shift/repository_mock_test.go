@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("open shift insert error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT id FROM shifts").WithArgs(1).WillReturnError(errors.New("no rows"))
+		mock.ExpectQuery("SELECT id FROM shifts").WithArgs(1).WillReturnError(pgx.ErrNoRows)
 		mock.ExpectQuery("INSERT INTO shifts").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(boom)
 		_, err := repo.OpenShift(ctx, 1, nil, 100000)
 		assert.ErrorContains(t, err, "failed to open shift")
@@ -85,7 +86,7 @@ func TestRepositoryMock_ErrorBranches(t *testing.T) {
 	t.Run("open shift commit error", func(t *testing.T) {
 		mock, repo, ctx := newMockRepo(t)
 		mock.ExpectBegin()
-		mock.ExpectQuery("SELECT id FROM shifts").WithArgs(1).WillReturnError(errors.New("no rows"))
+		mock.ExpectQuery("SELECT id FROM shifts").WithArgs(1).WillReturnError(pgx.ErrNoRows)
 		mock.ExpectQuery("INSERT INTO shifts").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(row8())
 		mock.ExpectCommit().WillReturnError(boom)
 		_, err := repo.OpenShift(ctx, 1, nil, 100000)

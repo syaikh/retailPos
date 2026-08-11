@@ -9,10 +9,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"retail-pos-system/internal/ownership"
 	"retail-pos-system/internal/shared"
 )
+
+// uniqueViolationCode is the PostgreSQL SQLSTATE for a unique-constraint
+// violation (23505), surfaced when the partial unique index rejects a second
+// open shift for the same user.
+const uniqueViolationCode = "23505"
 
 type Repository struct {
 	db                shared.DBPool
@@ -65,6 +71,9 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 	if err == nil {
 		return nil, fmt.Errorf("user already has an open shift")
 	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to check existing open shift: %w", err)
+	}
 
 	var shift Shift
 	var storeIDVal sql.NullInt64
@@ -82,6 +91,10 @@ func (r *Repository) OpenShift(ctx context.Context, userID int, storeID *int, op
 		&openedAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode {
+			return nil, fmt.Errorf("user already has an open shift")
+		}
 		return nil, fmt.Errorf("failed to open shift: %w", err)
 	}
 

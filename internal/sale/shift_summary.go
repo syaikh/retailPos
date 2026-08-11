@@ -17,15 +17,30 @@ import (
 type ShiftSummaryProvider struct{}
 
 const shiftSaleSummarySQL = `
+	WITH sales_base AS (
+		SELECT s.id, s.total_amount
+		FROM sales s
+		WHERE s.shift_id = $1
+		  AND s.status = 'completed'
+	),
+	payments AS (
+		SELECT sp.sale_id, LOWER(COALESCE(sp.payment_method_code, '')) AS method, sp.amount
+		FROM sale_payments sp
+		WHERE sp.sale_id IN (SELECT id FROM sales_base)
+	),
+	legacy AS (
+		SELECT s.id, LOWER(s.payment_method) AS method, s.total_amount AS amount
+		FROM sales s
+		WHERE s.id IN (SELECT id FROM sales_base)
+		  AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id)
+	)
 	SELECT
-		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) = 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
-		COALESCE(SUM(CASE WHEN LOWER(COALESCE(sp.payment_method_code, s.payment_method)) != 'cash' THEN COALESCE(sp.amount, s.total_amount) ELSE 0 END), 0),
-		COALESCE(SUM(s.total_amount), 0),
-		COUNT(DISTINCT s.id)
-	FROM sales s
-	LEFT JOIN sale_payments sp ON sp.sale_id = s.id
-	WHERE s.shift_id = $1
-	  AND s.status = 'completed'
+		COALESCE((SELECT SUM(amount) FROM payments WHERE method = 'cash'), 0)
+			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method = 'cash'), 0),
+		COALESCE((SELECT SUM(amount) FROM payments WHERE method <> 'cash'), 0)
+			+ COALESCE((SELECT SUM(amount) FROM legacy WHERE method <> 'cash'), 0),
+		COALESCE((SELECT SUM(total_amount) FROM sales_base), 0),
+		(SELECT COUNT(*) FROM sales_base)
 `
 
 // ShiftSummary returns a shift's completed-sales totals read outside any caller

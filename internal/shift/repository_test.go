@@ -88,6 +88,38 @@ func TestShiftRepository_OpenShift(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already has an open shift")
 	})
+
+	t.Run("concurrent open shift yields exactly one open shift", func(t *testing.T) {
+		userID := insertTestUser(ctx, t, 1)
+
+		const attempts = 8
+		errs := make(chan error, attempts)
+		for i := 0; i < attempts; i++ {
+			go func() {
+				_, err := repo.OpenShift(context.Background(), userID, nil, 100000)
+				errs <- err
+			}()
+		}
+
+		var success, openShiftErr int
+		for i := 0; i < attempts; i++ {
+			if err := <-errs; err != nil {
+				assert.Contains(t, err.Error(), "already has an open shift")
+				openShiftErr++
+			} else {
+				success++
+			}
+		}
+		assert.Equal(t, 1, success, "exactly one concurrent OpenShift should succeed")
+		assert.Equal(t, attempts-1, openShiftErr)
+
+		count := 0
+		err := dbPool.QueryRow(ctx, `
+			SELECT COUNT(*) FROM shifts WHERE user_id = $1 AND status = 'open'
+		`, userID).Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "exactly one open shift row should exist")
+	})
 }
 
 func TestShiftRepository_CloseShift(t *testing.T) {

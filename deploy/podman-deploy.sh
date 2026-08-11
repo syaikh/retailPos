@@ -194,10 +194,17 @@ migrate() {
     fi
 
     local migration_dir="$SCRIPT_DIR/database/migrations"
+    # P2-4 (026_shift_open_unique.sql): in dev/dummy-data environments allow the
+    # migration to auto-close older duplicate open shifts; production (ENV=production
+    # or unset) keeps the default fail-loud guard so no open shifts are silently lost.
+    local pgoptions="-c app.shift_migration_mode=fail"
+    if [ "$ENV" != "production" ] && [ -n "$ENV" ]; then
+        pgoptions="-c app.shift_migration_mode=auto-close"
+    fi
     for sql_file in "$migration_dir"/*.sql; do
         if [ -f "$sql_file" ]; then
             log_info "  Migrating: $(basename "$sql_file")"
-            podman exec -i postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
+            podman exec -i -e PGOPTIONS="$pgoptions" postgres psql -U "$DB_USER" -d "$DB_NAME" < "$sql_file"
         fi
     done
     log_info "Migrations applied."

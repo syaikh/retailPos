@@ -2,6 +2,7 @@ package shift
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 
@@ -16,9 +17,11 @@ import (
 type TotalUpdater struct{}
 
 // UpdateShiftTotals accumulates a completed sale's contribution onto its shift's
-// running totals. Shifts in any status other than 'open' are left untouched.
+// running totals. Shifts that are no longer 'open' — e.g. a shift that closed
+// concurrently while the sale was committing — return an error so the caller can
+// reject the late addition instead of silently dropping the contribution.
 func (TotalUpdater) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, c shared.ShiftSaleContribution) error {
-	_, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE shifts
 		SET cash_sales = cash_sales + $1,
 		    non_cash_sales = non_cash_sales + $2,
@@ -27,5 +30,11 @@ func (TotalUpdater) UpdateShiftTotals(ctx context.Context, tx pgx.Tx, c shared.S
 		    updated_at = NOW()
 		WHERE id = $4 AND status = 'open'
 	`, c.CashSales, c.NonCashSales, c.TotalAmount, c.ShiftID)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errors.New("shift is not open or no longer exists; sale contribution rejected")
+	}
+	return nil
 }
