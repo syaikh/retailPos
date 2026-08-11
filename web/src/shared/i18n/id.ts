@@ -549,6 +549,7 @@ export const id = {
   role: 'Peran',
   roleName: 'Nama Peran',
   permissions: 'Izin',
+  permissionsLabel: 'IZIN',
   auditLogs: 'Log Audit',
   auditTrail: 'Jejak Audit',
   actor: 'Aktor',

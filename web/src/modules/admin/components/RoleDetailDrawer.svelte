@@ -82,7 +82,7 @@
           <div class="w-7 h-7 rounded-lg bg-primary-subtle flex items-center justify-center shrink-0">
             <Users size={14} class="text-primary-light" />
           </div>
-          <h3 class="text-sm font-semibold text-text-primary truncate">{labels.permissions}</h3>
+          <h3 class="text-sm font-semibold text-text-primary truncate">{labels.permissionsLabel}</h3>
           <span class="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">{rolePerms.length}</span>
         </div>
         {#if rolePerms.length > 0 && !isSearching && filteredGrouped.length > 1}

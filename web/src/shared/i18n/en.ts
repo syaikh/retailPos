@@ -549,6 +549,7 @@ export const en: Labels = {
   role: 'Role',
   roleName: 'Role Name',
   permissions: 'Permissions',
+  permissionsLabel: 'PERMISSIONS',
   auditLogs: 'Audit Logs',
   auditTrail: 'Audit Trail',
   actor: 'Actor',

@@ -357,7 +357,7 @@
               <th class="text-left p-4 font-semibold w-8"></th>
               <th class="text-left p-4 font-semibold" style="width: 35%;">{labels.roleLabel}</th>
               <th class="text-left p-4 font-semibold w-20">{labels.type}</th>
-              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.permissions}</th>
+              <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.permissionsLabel}</th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
             </tr>
@@ -404,7 +404,7 @@
               </th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">{labels.type}</th>
               <th class="text-left p-4 font-semibold w-20 text-xs uppercase tracking-wider">
-                <SortableHeader label={labels.permissions} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
+                <SortableHeader label={labels.permissionsLabel} column="permissions" sortColumn={sortField} sortDirection={sortDir} onsort={toggleSort} />
               </th>
               <th class="text-left p-4 font-semibold" style="width: 20%;">{labels.descriptionLabel}</th>
               <th class="text-right p-4 font-semibold w-10"></th>
@@ -496,7 +496,7 @@
       {#if isFormDirty}<div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-warning-subtle/30 border border-warning/20"><div class="w-2 h-2 rounded-full bg-warning animate-pulse"></div><span class="text-xs text-warning-light">{labels.youHaveUnsavedChanges}</span></div>{/if}
       <div class="border-t border-border pt-4 mt-1">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-sm font-medium text-text-secondary">{labels.permissions}</p>
+          <p class="text-sm font-medium text-text-secondary">{labels.permissionsLabel}</p>
           <div class="flex items-center gap-2">
             <span class="text-xs text-text-muted">{form.permission_ids.length} {labels.of} {permissions.length}</span>
             {#if groupedPermissions.length > 1}<button type="button" class="text-xs text-primary hover:text-primary-light transition-colors" onclick={() => setAllExpanded(!allExpanded())}>{allExpanded() ? 'Collapse All' : 'Expand All'}</button>{/if}
