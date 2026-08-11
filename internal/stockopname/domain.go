@@ -33,6 +33,7 @@ var (
 	ErrLocationScopeSingle = errors.New("location scope must be used alone")
 	ErrLocationNotFound    = errors.New("storage location not found")
 	ErrLocationInactive    = errors.New("storage location is inactive")
+	ErrStoreForbidden      = errors.New("stock opname session is not in your store")
 )
 
 const (

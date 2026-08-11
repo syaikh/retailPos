@@ -32,6 +32,7 @@ type Repo interface {
 	GetSession(ctx context.Context, id int) (*Session, error)
 	GetSessionBroadcastMeta(ctx context.Context, id int) (string, *int, error)
 	GetSessionStatus(ctx context.Context, id int) (string, error)
+	GetSessionStoreID(ctx context.Context, id int) (*int, error)
 	GetUserRoleName(ctx context.Context, userID int) (string, error)
 	GetWarehouseStoreID(ctx context.Context, warehouseID int) (*int, error)
 	InsertAdjustment(ctx context.Context, tx pgx.Tx, adj *Adjustment) error
@@ -43,10 +44,10 @@ type Repo interface {
 	InsertSessionScopes(ctx context.Context, tx pgx.Tx, sessionID int, scopes []SessionScope) error
 	IsCounterAssigned(ctx context.Context, sessionID, userID int) (bool, error)
 	ListActiveSessions(ctx context.Context, q queryer) ([]Session, error)
-	ListAdjustments(ctx context.Context, limit, offset int, status, search string) ([]Adjustment, int, error)
+	ListAdjustments(ctx context.Context, limit, offset int, status, search string, storeID *int) ([]Adjustment, int, error)
 	ListAssignableUsers(ctx context.Context, search string) ([]AssignableUser, error)
 	ListAssignments(ctx context.Context, sessionID int) ([]Assignment, error)
-	ListSessions(ctx context.Context, limit, offset int, status, search string) ([]Session, int, error)
+	ListSessions(ctx context.Context, limit, offset int, status, search string, storeID *int) ([]Session, int, error)
 	LoadApprovalItems(ctx context.Context, tx pgx.Tx, sessionID int) ([]ApprovalItem, error)
 	LoadAllSessionScopes(ctx context.Context, db shared.DBPool, sessionIDs []int) (map[int][]SessionScope, error)
 	LoadSessionScopes(ctx context.Context, q queryer, sessionID int) ([]SessionScope, error)
@@ -125,6 +126,36 @@ func storeIDOrZero(storeID *int) int {
 	return *storeID
 }
 
+// checkSessionStore enforces store isolation on an already-loaded session. A
+// nil claimsStore (superadmin/admin) may access any session; otherwise the
+// session must belong to the caller's store.
+func (s *Service) checkSessionStore(session *Session, claimsStore *int) error {
+	if claimsStore == nil {
+		return nil
+	}
+	if session.StoreID == nil || *session.StoreID != *claimsStore {
+		return ErrStoreForbidden
+	}
+	return nil
+}
+
+// checkStoreScope enforces store isolation on a session-id-scoped operation by
+// loading the session's store. A nil claimsStore (superadmin/admin) may access
+// any session; otherwise the session must belong to the caller's store.
+func (s *Service) checkStoreScope(ctx context.Context, sessionID int, claimsStore *int) error {
+	if claimsStore == nil {
+		return nil
+	}
+	storeID, err := s.repo.GetSessionStoreID(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if storeID == nil || *storeID != *claimsStore {
+		return ErrStoreForbidden
+	}
+	return nil
+}
+
 // Status event topics published to the event bus. Values are defined in
 // internal/events so cross-module consumers (websocket broadcast) never import
 // this module.
@@ -144,7 +175,7 @@ const (
 // Overlapping active sessions are rejected per-SKU (parallel sessions may run
 // as long as they never both count the same SKU). Creation is serialised with
 // an advisory lock so the overlap check is race-free.
-func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, userID int) (*Session, error) {
+func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, userID int, claimsStore *int) (*Session, error) {
 	scopes := normalizeScopes(req)
 	if len(scopes) == 0 {
 		return nil, ErrNoScopes
@@ -270,7 +301,16 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 	}
 
 	var storeID *int
-	if req.StoreID != nil {
+	if claimsStore != nil {
+		// Store-scoped callers (managers/cashiers/staff) may only create
+		// sessions in their own store: ignore any client-supplied store and
+		// clamp to the caller's claims store.
+		if req.StoreID != nil && *req.StoreID != *claimsStore {
+			slog.Warn("[stock-opname] clamping mismatched client store_id on create",
+				"client_store_id", *req.StoreID, "claims_store_id", *claimsStore)
+		}
+		storeID = claimsStore
+	} else if req.StoreID != nil {
 		storeID = req.StoreID
 	}
 	var warehouseID = req.WarehouseID
@@ -285,13 +325,11 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 				wid := int(sc.ScopeID)
 				warehouseID = &wid
 			}
-			if storeID == nil {
-				sid, err := s.repo.GetWarehouseStoreID(ctx, int(sc.ScopeID))
-				if err != nil {
-					return nil, err
-				}
-				storeID = sid
+			sid, err := s.repo.GetWarehouseStoreID(ctx, int(sc.ScopeID))
+			if err != nil {
+				return nil, err
 			}
+			storeID = sid
 		case "location":
 			lid := int(sc.ScopeID)
 			locationID = &lid
@@ -307,6 +345,16 @@ func (s *Service) CreateSession(ctx context.Context, req *CreateSessionRequest, 
 				storeID = sid
 			}
 		}
+	}
+
+	// A store/warehouse/location scope resolves to its own store; a
+	// store-scoped caller cannot reach another store's session through the
+	// scope. Scope-derived stores are authoritative, so this is a rejection
+	// rather than another clamp. Store-less scopes (a warehouse/location with
+	// no linked store) are likewise unreachable for store-scoped callers, since
+	// the resulting global session would be inaccessible to them anyway.
+	if claimsStore != nil && (storeID == nil || *storeID != *claimsStore) {
+		return nil, ErrStoreForbidden
 	}
 
 	var items []SessionItem
@@ -403,9 +451,12 @@ func (e *ScopeOverlapError) Unwrap() error { return ErrScopeOverlap }
 
 // GetSessionForUser returns the session, masking system quantities for
 // counters when blind count is enabled (BR-008).
-func (s *Service) GetSessionForUser(ctx context.Context, id, userID int) (*Session, error) {
+func (s *Service) GetSessionForUser(ctx context.Context, id, userID int, claimsStore *int) (*Session, error) {
 	session, err := s.repo.GetSession(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
 		return nil, err
 	}
 	blind, err := s.isCounterOnBlindSession(ctx, session, userID)
@@ -433,8 +484,8 @@ func (s *Service) isCounterOnBlindSession(ctx context.Context, session *Session,
 	return assigned, nil
 }
 
-func (s *Service) ListSessions(ctx context.Context, limit, offset int, status, search string) ([]Session, int, error) {
-	return s.repo.ListSessions(ctx, limit, offset, status, search)
+func (s *Service) ListSessions(ctx context.Context, limit, offset int, status, search string, claimsStore *int) ([]Session, int, error) {
+	return s.repo.ListSessions(ctx, limit, offset, status, search, claimsStore)
 }
 
 // ListAssignableUsers returns active users eligible for stock opname
@@ -465,7 +516,10 @@ func (s *Service) validateAssigneeRole(ctx context.Context, userID int, role str
 	return nil
 }
 
-func (s *Service) CancelSession(ctx context.Context, id, userID int) error {
+func (s *Service) CancelSession(ctx context.Context, id, userID int, claimsStore *int) error {
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
+	}
 	if err := s.repo.CancelSession(ctx, id, userID); err != nil {
 		return err
 	}
@@ -473,11 +527,14 @@ func (s *Service) CancelSession(ctx context.Context, id, userID int) error {
 	return nil
 }
 
-func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role string) error {
+func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role string, claimsStore *int) error {
 	if role != AssignmentRoleCounter && role != AssignmentRoleSupervisor {
 		return fmt.Errorf("invalid assignment role %q", role)
 	}
 	if err := s.validateAssigneeRole(ctx, userID, role); err != nil {
+		return err
+	}
+	if err := s.checkStoreScope(ctx, sessionID, claimsStore); err != nil {
 		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, sessionID)
@@ -498,7 +555,7 @@ func (s *Service) AssignCounter(ctx context.Context, sessionID, userID int, role
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ReassignCounter(ctx context.Context, sessionID, assignmentID int, role string) error {
+func (s *Service) ReassignCounter(ctx context.Context, sessionID, assignmentID int, role string, claimsStore *int) error {
 	if role != AssignmentRoleCounter && role != AssignmentRoleSupervisor {
 		return fmt.Errorf("invalid assignment role %q", role)
 	}
@@ -507,6 +564,9 @@ func (s *Service) ReassignCounter(ctx context.Context, sessionID, assignmentID i
 		return err
 	}
 	if err := s.validateAssigneeRole(ctx, userID, role); err != nil {
+		return err
+	}
+	if err := s.checkStoreScope(ctx, sessionID, claimsStore); err != nil {
 		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, sessionID)
@@ -527,19 +587,25 @@ func (s *Service) ReassignCounter(ctx context.Context, sessionID, assignmentID i
 	return tx.Commit(ctx)
 }
 
-func (s *Service) GetAssignments(ctx context.Context, sessionID int) ([]Assignment, error) {
+func (s *Service) GetAssignments(ctx context.Context, sessionID int, claimsStore *int) ([]Assignment, error) {
+	if err := s.checkStoreScope(ctx, sessionID, claimsStore); err != nil {
+		return nil, err
+	}
 	if _, err := s.repo.GetSessionStatus(ctx, sessionID); err != nil {
 		return nil, err
 	}
 	return s.repo.ListAssignments(ctx, sessionID)
 }
 
-func (s *Service) SaveCount(ctx context.Context, itemID, userID int, qty float64, remarks string) error {
+func (s *Service) SaveCount(ctx context.Context, itemID, userID int, qty float64, remarks string, claimsStore *int) error {
 	if qty < 0 {
 		return ErrInvalidQuantity
 	}
 	_, session, err := s.repo.GetItemForCount(ctx, itemID)
 	if err != nil {
+		return err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
 		return err
 	}
 	if !isEditableStatus(session.Status) {
@@ -571,15 +637,25 @@ func (s *Service) SaveCount(ctx context.Context, itemID, userID int, qty float64
 	return tx.Commit(ctx)
 }
 
-func (s *Service) GetCountHistory(ctx context.Context, itemID int) ([]CountRecord, error) {
+func (s *Service) GetCountHistory(ctx context.Context, itemID int, claimsStore *int) ([]CountRecord, error) {
+	_, session, err := s.repo.GetItemForCount(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
+		return nil, err
+	}
 	return s.repo.GetCountHistory(ctx, itemID)
 }
 
 // OpenSession moves a draft session into 'open', signalling the cycle count is
 // ready for counting (Draft --Open--> Open).
-func (s *Service) OpenSession(ctx context.Context, id, userID int, comment string) error {
+func (s *Service) OpenSession(ctx context.Context, id, userID int, comment string, claimsStore *int) error {
 	if strings.TrimSpace(comment) == "" {
 		return ErrOpenCommentReq
+	}
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
 	}
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -596,7 +672,10 @@ func (s *Service) OpenSession(ctx context.Context, id, userID int, comment strin
 	return nil
 }
 
-func (s *Service) SubmitSession(ctx context.Context, id, userID int) error {
+func (s *Service) SubmitSession(ctx context.Context, id, userID int, claimsStore *int) error {
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
+	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
 		return err
@@ -627,7 +706,10 @@ func (s *Service) SubmitSession(ctx context.Context, id, userID int) error {
 
 // StartCounting transitions a draft or open session into the counting state.
 // Only an assigned counter can start counting.
-func (s *Service) StartCounting(ctx context.Context, id, userID int) error {
+func (s *Service) StartCounting(ctx context.Context, id, userID int, claimsStore *int) error {
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
+	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
 		return err
@@ -648,7 +730,7 @@ func (s *Service) StartCounting(ctx context.Context, id, userID int) error {
 // VerifySession approves a submitted count without applying it to stock: the
 // live-stock snapshot is computed (expected/difference preview persisted) and
 // the session moves to 'approved'. Posting is a separate, later step.
-func (s *Service) VerifySession(ctx context.Context, id, userID int, comment string) error {
+func (s *Service) VerifySession(ctx context.Context, id, userID int, comment string, claimsStore *int) error {
 	if strings.TrimSpace(comment) == "" {
 		return ErrApprovalCommentReq
 	}
@@ -661,6 +743,9 @@ func (s *Service) VerifySession(ctx context.Context, id, userID int, comment str
 
 	session, err := s.repo.LockSessionForApproval(ctx, tx, id)
 	if err != nil {
+		return err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
 		return err
 	}
 	if session.Status != StatusVerification {
@@ -719,9 +804,12 @@ func (s *Service) VerifySession(ctx context.Context, id, userID int, comment str
 	return nil
 }
 
-func (s *Service) RejectSession(ctx context.Context, id, userID int, comment string) error {
+func (s *Service) RejectSession(ctx context.Context, id, userID int, comment string, claimsStore *int) error {
 	if strings.TrimSpace(comment) == "" {
 		return ErrApprovalCommentReq
+	}
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
@@ -737,9 +825,12 @@ func (s *Service) RejectSession(ctx context.Context, id, userID int, comment str
 	return nil
 }
 
-func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment string) error {
+func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment string, claimsStore *int) error {
 	if strings.TrimSpace(comment) == "" {
 		return ErrApprovalCommentReq
+	}
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
 	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
@@ -758,7 +849,10 @@ func (s *Service) RequestRecount(ctx context.Context, id, userID int, comment st
 	return nil
 }
 
-func (s *Service) ResumeCounting(ctx context.Context, id, userID int) error {
+func (s *Service) ResumeCounting(ctx context.Context, id, userID int, claimsStore *int) error {
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
+	}
 	status, err := s.repo.GetSessionStatus(ctx, id)
 	if err != nil {
 		return err
@@ -774,7 +868,7 @@ func (s *Service) ResumeCounting(ctx context.Context, id, userID int) error {
 // inventory movements. Expected quantities are recomputed from live stock at
 // posting time so the ledger always reflects reality (BR: expected = live at
 // posting).
-func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostAdjustmentRequest) (*Adjustment, error) {
+func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostAdjustmentRequest, claimsStore *int) (*Adjustment, error) {
 	if s.stockApplier == nil {
 		return nil, errors.New("stock opname service: stock applier not wired; call SetStockApplier")
 	}
@@ -786,6 +880,9 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 
 	session, err := s.repo.LockSessionForApproval(ctx, tx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
 		return nil, err
 	}
 	if session.Status != StatusApproved {
@@ -909,7 +1006,10 @@ func (s *Service) PostAdjustment(ctx context.Context, id, userID int, req *PostA
 
 // CloseSession closes a posted session. Deviations are already applied to
 // stock during posting; closing only finalises the record.
-func (s *Service) CloseSession(ctx context.Context, id, userID int) error {
+func (s *Service) CloseSession(ctx context.Context, id, userID int, claimsStore *int) error {
+	if err := s.checkStoreScope(ctx, id, claimsStore); err != nil {
+		return err
+	}
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -925,9 +1025,12 @@ func (s *Service) CloseSession(ctx context.Context, id, userID int) error {
 	return nil
 }
 
-func (s *Service) Summary(ctx context.Context, id, userID int) (*SessionSummary, error) {
+func (s *Service) Summary(ctx context.Context, id, userID int, claimsStore *int) (*SessionSummary, error) {
 	session, err := s.repo.GetSession(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkSessionStore(session, claimsStore); err != nil {
 		return nil, err
 	}
 	blind, err := s.isCounterOnBlindSession(ctx, session, userID)
@@ -950,18 +1053,32 @@ func (s *Service) Summary(ctx context.Context, id, userID int) (*SessionSummary,
 	return sum, nil
 }
 
-func (s *Service) DifferenceReport(ctx context.Context, id, userID int) (*Session, error) {
-	return s.GetSessionForUser(ctx, id, userID)
+func (s *Service) DifferenceReport(ctx context.Context, id, userID int, claimsStore *int) (*Session, error) {
+	return s.GetSessionForUser(ctx, id, userID, claimsStore)
 }
 
 // ListAdjustments returns posted adjustment documents (paginated).
-func (s *Service) ListAdjustments(ctx context.Context, limit, offset int, status, search string) ([]Adjustment, int, error) {
-	return s.repo.ListAdjustments(ctx, limit, offset, status, search)
+func (s *Service) ListAdjustments(ctx context.Context, limit, offset int, status, search string, claimsStore *int) ([]Adjustment, int, error) {
+	return s.repo.ListAdjustments(ctx, limit, offset, status, search, claimsStore)
 }
 
 // GetAdjustment returns a single adjustment document by id.
-func (s *Service) GetAdjustment(ctx context.Context, id int) (*Adjustment, error) {
-	return s.repo.GetAdjustment(ctx, id)
+func (s *Service) GetAdjustment(ctx context.Context, id int, claimsStore *int) (*Adjustment, error) {
+	adj, err := s.repo.GetAdjustment(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if adj.SessionID > 0 {
+		if err := s.checkStoreScope(ctx, adj.SessionID, claimsStore); err != nil {
+			return nil, err
+		}
+	} else if claimsStore != nil {
+		// Store-scoped callers only see adjustments tied to their store;
+		// a session-less adjustment has no store to match (ListAdjustments
+		// filters these out via the LEFT JOIN, so keep GetAdjustment aligned).
+		return nil, ErrStoreForbidden
+	}
+	return adj, nil
 }
 
 func isEditableStatus(status string) bool {

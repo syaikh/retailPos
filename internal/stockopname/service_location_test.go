@@ -87,7 +87,7 @@ func TestService_LocationScope_InactiveLocationWithProduct(t *testing.T) {
 
 	_, err = svc.CreateSession(ctx, &CreateSessionRequest{
 		ScopeType: "location", ScopeID: int64(locID),
-	}, 9813)
+	}, 9813, nil)
 	require.ErrorIs(t, err, ErrLocationInactive)
 }
 
@@ -105,7 +105,7 @@ func TestService_LocationScope_UnknownLocation(t *testing.T) {
 
 	_, err := svc.CreateSession(ctx, &CreateSessionRequest{
 		ScopeType: "location", ScopeID: 999999,
-	}, 9819)
+	}, 9819, nil)
 	require.ErrorIs(t, err, ErrLocationNotFound)
 }
 
@@ -138,7 +138,7 @@ func TestService_CreateSession_LocationFailureDoesNotBurnSequence(t *testing.T) 
 
 	_, err = svc.CreateSession(ctx, &CreateSessionRequest{
 		ScopeType: "location", ScopeID: int64(locID),
-	}, 9818)
+	}, 9818, nil)
 	require.ErrorIs(t, err, ErrLocationInactive)
 
 	var after int
@@ -166,7 +166,7 @@ func TestService_LocationScope_RequiresSoleScope(t *testing.T) {
 			{ScopeType: "location", ScopeID: int64(locID)},
 			{ScopeType: "store", ScopeID: 1},
 		},
-	}, 9801)
+	}, 9801, nil)
 	require.ErrorIs(t, err, ErrLocationScopeSingle)
 }
 
@@ -237,7 +237,7 @@ func TestRepository_CreateSession_PersistsLocationID(t *testing.T) {
 	require.NotNil(t, got.WarehouseID)
 	assert.Equal(t, 9803, *got.WarehouseID)
 
-	sessions, _, err := repo.ListSessions(ctx, 10, 0, "", "")
+	sessions, _, err := repo.ListSessions(ctx, 10, 0, "", "", nil)
 	require.NoError(t, err)
 	var listed *Session
 	for i := range sessions {
@@ -275,7 +275,7 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	_, err = dbPool.Exec(ctx, `UPDATE products SET stock = 10 WHERE id = $1`, p)
 	require.NoError(t, err)
 
-	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "location", ScopeID: int64(locID)}, managerID)
+	session, err := svc.CreateSession(ctx, &CreateSessionRequest{ScopeType: "location", ScopeID: int64(locID)}, managerID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, session.LocationID)
 	assert.Equal(t, locID, *session.LocationID)
@@ -283,20 +283,20 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	assert.Equal(t, 9804, *session.WarehouseID)
 	assert.Nil(t, session.StoreID)
 
-	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter))
-	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID))
+	require.NoError(t, svc.AssignCounter(ctx, session.ID, counterID, AssignmentRoleCounter, nil))
+	require.NoError(t, svc.StartCounting(ctx, session.ID, counterID, nil))
 
 	// physical count 13 vs expected 10 -> +3
 	countAllItems(ctx, t, svc, session.ID, counterID, p, 13)
-	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID))
-	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok"))
+	require.NoError(t, svc.SubmitSession(ctx, session.ID, counterID, nil))
+	require.NoError(t, svc.VerifySession(ctx, session.ID, managerID, "ok", nil))
 
 	// verified but not yet posted: rack and global unchanged
 	assertStockQty(ctx, t, p, locID, 10)
 	assertGlobalQty(ctx, t, p, 10)
 	assertProductsStock(ctx, t, p, 10)
 
-	adj, err := svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok", Notes: "location reconcile"})
+	adj, err := svc.PostAdjustment(ctx, session.ID, managerID, &PostAdjustmentRequest{Comment: "ok", Notes: "location reconcile"}, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, adj.AdjustmentNumber)
 	assert.Contains(t, adj.AdjustmentNumber, "IA-")
@@ -330,7 +330,7 @@ func TestService_LocationScope_FullFlow_ReconcilesRackAndGlobal(t *testing.T) {
 	assert.Equal(t, 1, mvCount)
 
 	// close the posted session to leave a clean active-session state
-	require.NoError(t, svc.CloseSession(ctx, session.ID, managerID))
+	require.NoError(t, svc.CloseSession(ctx, session.ID, managerID, nil))
 }
 
 func assertStockQty(ctx context.Context, t *testing.T, productID, locationID, want int) {

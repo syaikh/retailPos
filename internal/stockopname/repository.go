@@ -523,7 +523,7 @@ func (r *Repository) getItems(ctx context.Context, q queryer, sessionID int) ([]
 	return items, rows.Err()
 }
 
-func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status, search string) ([]Session, int, error) {
+func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status, search string, storeID *int) ([]Session, int, error) {
 	var where []string
 	var args []interface{}
 	if status != "" {
@@ -533,6 +533,10 @@ func (r *Repository) ListSessions(ctx context.Context, limit, offset int, status
 	if search != "" {
 		args = append(args, "%"+strings.ToLower(search)+"%")
 		where = append(where, fmt.Sprintf("LOWER(session_number) LIKE $%d", len(args)))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		where = append(where, fmt.Sprintf("store_id = $%d", len(args)))
 	}
 	where = append(where, "deleted_at IS NULL")
 	whereSQL := strings.Join(where, " AND ")
@@ -658,6 +662,25 @@ func (r *Repository) GetSessionStatus(ctx context.Context, id int) (string, erro
 		return "", fmt.Errorf("failed to load session status: %w", err)
 	}
 	return status, nil
+}
+
+// GetSessionStoreID returns the store a session belongs to, or nil when the
+// session has no store (global/warehouse-without-store). Used to enforce store
+// isolation on session-id-scoped operations.
+func (r *Repository) GetSessionStoreID(ctx context.Context, id int) (*int, error) {
+	var storeID sql.NullInt64
+	err := r.db.QueryRow(ctx, `SELECT store_id FROM stock_opnames WHERE id = $1 AND deleted_at IS NULL`, id).Scan(&storeID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to load session store: %w", err)
+	}
+	if !storeID.Valid {
+		return nil, nil
+	}
+	v := int(storeID.Int64)
+	return &v, nil
 }
 
 // GetSessionBroadcastMeta returns the session number and store_id in a single
@@ -852,18 +875,18 @@ func (r *Repository) GetItemForCount(ctx context.Context, itemID int) (*SessionI
 	var it SessionItem
 	var s Session
 	var createdAt, updatedAt time.Time
-	var warehouseID sql.NullInt64
+	var warehouseID, storeID sql.NullInt64
 	err := r.db.QueryRow(ctx, `
 		SELECT i.id, i.stock_opname_id, i.product_id, i.product_name, i.sku, i.barcode, i.uom_name,
 		       i.opening_qty, i.physical_qty, i.status,
-		       o.id, o.session_number, o.scope_type, o.scope_id, o.warehouse_id, o.blind_count, o.status,
+		       o.id, o.session_number, o.scope_type, o.scope_id, o.warehouse_id, o.store_id, o.blind_count, o.status,
 		       o.created_at, o.updated_at
 		FROM stock_opname_items i
 		JOIN stock_opnames o ON o.id = i.stock_opname_id
 		WHERE i.id = $1 AND o.deleted_at IS NULL
 	`, itemID).Scan(&it.ID, &it.StockOpnameID, &it.ProductID, &it.ProductName, &it.SKU, &it.Barcode, &it.UOMName,
 		&it.OpeningQty, &it.PhysicalQty, &it.Status,
-		&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &s.BlindCount, &s.Status,
+		&s.ID, &s.SessionNumber, &s.ScopeType, &s.ScopeID, &warehouseID, &storeID, &s.BlindCount, &s.Status,
 		&createdAt, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -876,6 +899,10 @@ func (r *Repository) GetItemForCount(ctx context.Context, itemID int) (*SessionI
 	if warehouseID.Valid {
 		v := int(warehouseID.Int64)
 		s.WarehouseID = &v
+	}
+	if storeID.Valid {
+		v := int(storeID.Int64)
+		s.StoreID = &v
 	}
 	return &it, &s, nil
 }

@@ -63,7 +63,7 @@ func (h *Handler) CreateSession(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, shared.NewError(shared.ErrUnauthorized, "invalid user"))
 		return
 	}
-	session, err := h.svc.CreateSession(c.Request.Context(), &req, uid)
+	session, err := h.svc.CreateSession(c.Request.Context(), &req, uid, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -77,7 +77,7 @@ func (h *Handler) ListSessions(c *gin.Context) {
 	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
 	status := c.Query("status")
 	search := c.Query("search")
-	sessions, total, err := h.svc.ListSessions(c.Request.Context(), limit, offset, status, search)
+	sessions, total, err := h.svc.ListSessions(c.Request.Context(), limit, offset, status, search, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -100,7 +100,7 @@ func (h *Handler) GetSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	session, err := h.svc.GetSessionForUser(c.Request.Context(), id, userID(c))
+	session, err := h.svc.GetSessionForUser(c.Request.Context(), id, userID(c), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -115,7 +115,7 @@ func (h *Handler) CancelSession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.CancelSession(c.Request.Context(), id, uid); err != nil {
+	if err := h.svc.CancelSession(c.Request.Context(), id, uid, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -134,7 +134,7 @@ func (h *Handler) AssignCounter(c *gin.Context) {
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
-	if err := h.svc.AssignCounter(c.Request.Context(), id, req.UserID, req.Role); err != nil {
+	if err := h.svc.AssignCounter(c.Request.Context(), id, req.UserID, req.Role, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -149,7 +149,7 @@ func (h *Handler) GetAssignments(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	assignments, err := h.svc.GetAssignments(c.Request.Context(), id)
+	assignments, err := h.svc.GetAssignments(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -173,7 +173,7 @@ func (h *Handler) ReassignCounter(c *gin.Context) {
 		shared.JSONError(c, http.StatusBadRequest, shared.ErrBadRequest, "invalid request")
 		return
 	}
-	if err := h.svc.ReassignCounter(c.Request.Context(), id, assignmentID, req.Role); err != nil {
+	if err := h.svc.ReassignCounter(c.Request.Context(), id, assignmentID, req.Role, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -194,7 +194,7 @@ func (h *Handler) SaveCount(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.SaveCount(c.Request.Context(), itemID, uid, req.PhysicalQty, req.Remarks); err != nil {
+	if err := h.svc.SaveCount(c.Request.Context(), itemID, uid, req.PhysicalQty, req.Remarks, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -209,7 +209,7 @@ func (h *Handler) GetCountHistory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid item id"))
 		return
 	}
-	history, err := h.svc.GetCountHistory(c.Request.Context(), itemID)
+	history, err := h.svc.GetCountHistory(c.Request.Context(), itemID, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -224,7 +224,7 @@ func (h *Handler) StartCounting(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.StartCounting(c.Request.Context(), id, uid); err != nil {
+	if err := h.svc.StartCounting(c.Request.Context(), id, uid, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -239,7 +239,7 @@ func (h *Handler) SubmitSession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.SubmitSession(c.Request.Context(), id, uid); err != nil {
+	if err := h.svc.SubmitSession(c.Request.Context(), id, uid, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -259,7 +259,7 @@ func (h *Handler) OpenSession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.OpenSession(c.Request.Context(), id, uid, req.Comment); err != nil {
+	if err := h.svc.OpenSession(c.Request.Context(), id, uid, req.Comment, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -279,7 +279,7 @@ func (h *Handler) VerifySession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.VerifySession(c.Request.Context(), id, uid, req.Comment); err != nil {
+	if err := h.svc.VerifySession(c.Request.Context(), id, uid, req.Comment, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -299,7 +299,7 @@ func (h *Handler) PostAdjustment(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	adjustment, err := h.svc.PostAdjustment(c.Request.Context(), id, uid, &req)
+	adjustment, err := h.svc.PostAdjustment(c.Request.Context(), id, uid, &req, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -316,7 +316,7 @@ func (h *Handler) CloseSession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.CloseSession(c.Request.Context(), id, uid); err != nil {
+	if err := h.svc.CloseSession(c.Request.Context(), id, uid, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -326,7 +326,7 @@ func (h *Handler) CloseSession(c *gin.Context) {
 
 func (h *Handler) ListAdjustments(c *gin.Context) {
 	limit, offset := shared.ParsePaginationParams(c.Query("limit"), c.Query("offset"))
-	adjustments, total, err := h.svc.ListAdjustments(c.Request.Context(), limit, offset, c.Query("status"), c.Query("search"))
+	adjustments, total, err := h.svc.ListAdjustments(c.Request.Context(), limit, offset, c.Query("status"), c.Query("search"), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -340,7 +340,7 @@ func (h *Handler) GetAdjustment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	adjustment, err := h.svc.GetAdjustment(c.Request.Context(), id)
+	adjustment, err := h.svc.GetAdjustment(c.Request.Context(), id, shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -360,7 +360,7 @@ func (h *Handler) RejectSession(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.RejectSession(c.Request.Context(), id, uid, req.Comment); err != nil {
+	if err := h.svc.RejectSession(c.Request.Context(), id, uid, req.Comment, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -380,7 +380,7 @@ func (h *Handler) RequestRecount(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.RequestRecount(c.Request.Context(), id, uid, req.Comment); err != nil {
+	if err := h.svc.RequestRecount(c.Request.Context(), id, uid, req.Comment, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -395,7 +395,7 @@ func (h *Handler) ResumeCounting(c *gin.Context) {
 		return
 	}
 	uid := userID(c)
-	if err := h.svc.ResumeCounting(c.Request.Context(), id, uid); err != nil {
+	if err := h.svc.ResumeCounting(c.Request.Context(), id, uid, shared.GetStoreID(c)); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -409,7 +409,7 @@ func (h *Handler) Summary(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	summary, err := h.svc.Summary(c.Request.Context(), id, userID(c))
+	summary, err := h.svc.Summary(c.Request.Context(), id, userID(c), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -423,7 +423,7 @@ func (h *Handler) DifferenceReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	session, err := h.svc.DifferenceReport(c.Request.Context(), id, userID(c))
+	session, err := h.svc.DifferenceReport(c.Request.Context(), id, userID(c), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -437,7 +437,7 @@ func (h *Handler) ExportReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, shared.NewError(shared.ErrBadRequest, "invalid id"))
 		return
 	}
-	session, err := h.svc.DifferenceReport(c.Request.Context(), id, userID(c))
+	session, err := h.svc.DifferenceReport(c.Request.Context(), id, userID(c), shared.GetStoreID(c))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -552,6 +552,8 @@ func writeError(c *gin.Context, err error) {
 		status, code = http.StatusBadRequest, "SO-411"
 	case errors.Is(err, ErrLocationScopeSingle):
 		status, code = http.StatusBadRequest, "SO-401"
+	case errors.Is(err, ErrStoreForbidden):
+		status, code = http.StatusForbidden, "SO-412"
 	default:
 		shared.LogError(context.Background(), "stock opname error", err)
 	}

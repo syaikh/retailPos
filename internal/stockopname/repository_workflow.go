@@ -430,8 +430,9 @@ func (r *Repository) getAdjustmentItems(ctx context.Context, db shared.DBPool, a
 	return out, nil
 }
 
-// ListAdjustments returns paginated adjustment documents.
-func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, status, search string) ([]Adjustment, int, error) {
+// ListAdjustments returns paginated adjustment documents. When storeID is
+// non-nil, only adjustments whose session belongs to that store are returned.
+func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, status, search string, storeID *int) ([]Adjustment, int, error) {
 	var where []string
 	var args []interface{}
 	if status != "" {
@@ -441,6 +442,10 @@ func (r *Repository) ListAdjustments(ctx context.Context, limit, offset int, sta
 	if search != "" {
 		args = append(args, "%"+search+"%")
 		where = append(where, fmt.Sprintf("(LOWER(a.adjustment_number) LIKE $%d OR LOWER(COALESCE(o.session_number,'')) LIKE $%d)", len(args), len(args)))
+	}
+	if storeID != nil {
+		args = append(args, *storeID)
+		where = append(where, fmt.Sprintf("o.store_id = $%d", len(args)))
 	}
 	whereSQL := ""
 	if len(where) > 0 {

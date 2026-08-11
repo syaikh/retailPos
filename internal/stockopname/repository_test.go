@@ -525,7 +525,7 @@ func TestRepository_UserReadPortsFailFast(t *testing.T) {
 	_, err = repo.GetCountHistory(ctx, 1)
 	require.ErrorContains(t, err, "username provider not wired")
 
-	_, _, err = repo.ListAdjustments(ctx, 10, 0, "", "")
+	_, _, err = repo.ListAdjustments(ctx, 10, 0, "", "", nil)
 	require.ErrorContains(t, err, "username provider not wired")
 }
 
@@ -639,7 +639,7 @@ func TestRepository_CreateSession_PersistsStoreID(t *testing.T) {
 	require.NotNil(t, got.StoreID)
 	assert.Equal(t, 9702, *got.StoreID)
 
-	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "")
+	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "", nil)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, total, 1)
 	var listed *Session
@@ -666,12 +666,12 @@ func TestRepository_ListSessions(t *testing.T) {
 	require.NoError(t, repo.CancelSession(ctx, s1.ID, 9008))
 	_ = createTestSessionScope(ctx, t, repo, 9008, 9008002)
 
-	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "")
+	sessions, total, err := repo.ListSessions(ctx, 10, 0, "", "", nil)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, total, 2)
 	assert.GreaterOrEqual(t, len(sessions), 2)
 
-	filtered, totalFiltered, err := repo.ListSessions(ctx, 10, 0, StatusDraft, "")
+	filtered, totalFiltered, err := repo.ListSessions(ctx, 10, 0, StatusDraft, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, totalFiltered, len(filtered))
 	for _, s := range filtered {
@@ -730,7 +730,7 @@ func TestRepository_ScopeName(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectName[tc.scopeType], got.ScopeName, "GetSession scope_name for %s", tc.scopeType)
 
-		listed, total, err := repo.ListSessions(ctx, 10, 0, "", "")
+		listed, total, err := repo.ListSessions(ctx, 10, 0, "", "", nil)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, total, 1)
 		found := false

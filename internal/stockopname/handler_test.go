@@ -34,6 +34,10 @@ func setupStockOpnameRouter() *gin.Engine {
 }
 
 func setupStockOpnameRouterAs(userID int, role string) *gin.Engine {
+	return setupStockOpnameRouterWithStore(userID, role, nil)
+}
+
+func setupStockOpnameRouterWithStore(userID int, role string, storeID *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	repo := newTestRepository()
@@ -52,6 +56,9 @@ func setupStockOpnameRouterAs(userID int, role string) *gin.Engine {
 		ctx = context.WithValue(ctx, middleware.CtxKeyUsername, "testuser")
 		ctx = context.WithValue(ctx, middleware.CtxKeyRole, role)
 		c.Request = c.Request.WithContext(ctx)
+		if storeID != nil {
+			c.Set("storeID", storeID)
+		}
 		c.Next()
 	}
 	perm := func(code permissions.Code) gin.HandlerFunc {
@@ -327,5 +334,68 @@ func TestHandler_AssignAndCountFlow(t *testing.T) {
 	t.Run("assignable users returns users", func(t *testing.T) {
 		w := getPath(t, managerRouter, "/stock-opnames/assignable-users")
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_StoreIsolation(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+	resetStockOpname(ctx, t)
+	insertTestUserWithRole(ctx, t, 9705, "so_hdl_mgr_9705", 3)
+	insertTestUserWithRole(ctx, t, 9706, "so_hdl_mgr_9706", 3)
+	insertTestStore(ctx, t, 9705)
+	insertTestStore(ctx, t, 9706)
+	p := insertTestProductStore(ctx, t, "SO-HDL-ISO-001", 9705)
+	insertTestStock(ctx, t, p, 10)
+
+	saRouter := setupStockOpnameRouter()
+	sessionID := createHandlerSession(ctx, t, saRouter, "store", 9705)
+
+	t.Run("cross-store manager cannot read session", func(t *testing.T) {
+		store := 9706
+		r := setupStockOpnameRouterWithStore(9706, "manager", &store)
+		w := getPath(t, r, fmt.Sprintf("/stock-opnames/%d", sessionID))
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Contains(t, w.Body.String(), "SO-412")
+	})
+
+	t.Run("same-store manager can read session", func(t *testing.T) {
+		store := 9705
+		r := setupStockOpnameRouterWithStore(9705, "manager", &store)
+		w := getPath(t, r, fmt.Sprintf("/stock-opnames/%d", sessionID))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("superadmin can read any store session", func(t *testing.T) {
+		w := getPath(t, saRouter, fmt.Sprintf("/stock-opnames/%d", sessionID))
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("manager cannot list other store sessions", func(t *testing.T) {
+		store := 9706
+		r := setupStockOpnameRouterWithStore(9706, "manager", &store)
+		w := getPath(t, r, "/stock-opnames")
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp struct {
+			Meta struct {
+				Total int `json:"total"`
+			} `json:"meta"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, 0, resp.Meta.Total)
+	})
+
+	t.Run("manager create clamps client store_id", func(t *testing.T) {
+		resetStockOpname(ctx, t)
+		store := 9705
+		r := setupStockOpnameRouterWithStore(9705, "manager", &store)
+		w := postJSON(t, r, "/stock-opnames", `{"scope_type":"store","scope_id":9705,"store_id":9706}`)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp struct {
+			Data Session `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.NotNil(t, resp.Data.StoreID)
+		assert.Equal(t, 9705, *resp.Data.StoreID)
 	})
 }
