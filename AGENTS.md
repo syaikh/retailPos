@@ -67,6 +67,16 @@ TEST_DB_PORT=5433 DB_PORT=5433 TEST_DB_USER=pos DB_PASSWORD=admin123 JWT_SECRET=
 
 **Important:** All packages connect to the same PostgreSQL database. `go test` runs test binaries in parallel by default (`-p` defaults to `GOMAXPROCS`), causing deadlocks between concurrent `TRUNCATE` and `INSERT` ops across packages. Use `-p 1` to force sequential execution.
 
+### Targeted Testing (default workflow)
+
+For most changes, do **not** run the full suite. Run only the affected packages/files, then a fast build sanity check:
+
+- **Backend:** `go test -p 1 -count=1 ./internal/<package>/...` (optionally append `-run <TestName>` to filter further)
+- **Frontend:** `cd web && npx vitest run <path/to/test.file>` (e.g. `src/modules/admin/components/__tests__/RolesPage.svelte.test.ts`)
+- **Sanity check:** `go build ./...` and `cd web && npm run build` catch compile/type errors without running any tests
+
+Reserve the full suite (`go test -p 1 -count=1 ./...`, `cd web && npm run test:run`, Playwright E2E) for pre-commit/CI/release validation, or when explicitly requested. **Never run the full suite proactively — only when the user explicitly asks for it.**
+
 All tests pass. Both previously documented pre-existing issues have been resolved:
 - `TestE2E_ValidateSession` now passes — test expects `"user"` key matching handler response
 - No `TestInteractors` exists in `internal/audit`; all audit tests pass consistently
